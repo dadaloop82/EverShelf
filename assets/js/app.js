@@ -2728,7 +2728,22 @@ function renderRecipe(r) {
             const qtyNum = ing.qty_number || 0;
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
-            html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty} ✅</span>`;
+            html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
+            // Detail line: location + expiry
+            let details = [];
+            const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '🧊 Freezer', 'dispensa': '🗄️ Dispensa' };
+            details.push(locLabels[ing.location] || ('📍 ' + ing.location));
+            if (ing.expiry_date) {
+                const exp = new Date(ing.expiry_date);
+                const now = new Date(); now.setHours(0,0,0,0);
+                const diffDays = Math.round((exp - now) / 86400000);
+                if (diffDays < 0) details.push(`⛔ Scaduto da ${Math.abs(diffDays)}g`);
+                else if (diffDays <= 3) details.push(`🔴 Scade tra ${diffDays}g`);
+                else if (diffDays <= 7) details.push(`🟡 Scade tra ${diffDays}g`);
+                else details.push(`📅 ${exp.toLocaleDateString('it-IT')}`);
+            }
+            if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
+            html += `</span>`;
             html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)" title="Scala dalla dispensa">📦 Usa</button>`;
             html += `</li>`;
         } else {

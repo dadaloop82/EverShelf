@@ -857,6 +857,12 @@ PROMPT;
                         $ing['product_id'] = (int)$bestMatch['product_id'];
                         $ing['location'] = $bestMatch['location'];
                         $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+                        if (!empty($bestMatch['brand'])) {
+                            $ing['brand'] = $bestMatch['brand'];
+                        }
+                        if (!empty($bestMatch['expiry_date'])) {
+                            $ing['expiry_date'] = $bestMatch['expiry_date'];
+                        }
                     }
                 }
             }
