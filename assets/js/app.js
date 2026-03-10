@@ -2204,8 +2204,8 @@ let suggestionItems = [];
 async function loadShoppingCount() {
     try {
         const data = await api('bring_list');
-        if (data.success && data.items) {
-            document.getElementById('stat-spesa').textContent = data.items.length;
+        if (data.success && data.purchase) {
+            document.getElementById('stat-spesa').textContent = data.purchase.length;
         } else {
             document.getElementById('stat-spesa').textContent = '-';
         }
