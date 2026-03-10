@@ -1,0 +1,17 @@
+# Environment variables (secrets)
+.env
+
+# SQLite database
+data/
+
+# SSL CA cert (local only)
+ca.crt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~

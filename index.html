@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2d5016">
+    <title>🏠 Dispensa Manager</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- QuaggaJS for barcode scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+</head>
+<body>
+
+<!-- Top Header -->
+<header class="app-header">
+    <div class="header-content">
+        <h1 class="header-title" onclick="showPage('dashboard')">🏠 Dispensa</h1>
+    </div>
+</header>
+
+<!-- Main Content Area -->
+<main class="app-content" id="app-content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="page active" id="page-dashboard">
+        <div class="dashboard-stats" id="dashboard-stats">
+            <div class="stat-card" onclick="showPage('inventory', 'dispensa')">
+                <span class="stat-icon">🗄️</span>
+                <span class="stat-value" id="stat-dispensa">0</span>
+                <span class="stat-label">Dispensa</span>
+            </div>
+            <div class="stat-card" onclick="showPage('inventory', 'frigo')">
+                <span class="stat-icon">🧊</span>
+                <span class="stat-value" id="stat-frigo">0</span>
+                <span class="stat-label">Frigo</span>
+            </div>
+            <div class="stat-card" onclick="showPage('inventory', 'freezer')">
+                <span class="stat-icon">❄️</span>
+                <span class="stat-value" id="stat-freezer">0</span>
+                <span class="stat-label">Freezer</span>
+            </div>
+            <div class="stat-card" onclick="showPage('inventory', '')">
+                <span class="stat-icon">📦</span>
+                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label">Totale</span>
+            </div>
+        </div>
+
+        <!-- Alert for expiring items -->
+        <div class="alert-section" id="alert-expiring" style="display:none">
+            <h3>⚠️ In Scadenza</h3>
+            <div id="expiring-list"></div>
+        </div>
+        <div class="alert-section alert-danger" id="alert-expired" style="display:none">
+            <h3>🚫 Scaduti</h3>
+            <div id="expired-list"></div>
+        </div>
+
+        <!-- Full inventory by location -->
+        <div class="section-card" id="dash-section-dispensa">
+            <h3 onclick="showPage('inventory','dispensa')" style="cursor:pointer">🗄️ Dispensa</h3>
+            <div class="inventory-list compact" id="dash-inv-dispensa"></div>
+        </div>
+        <div class="section-card" id="dash-section-frigo">
+            <h3 onclick="showPage('inventory','frigo')" style="cursor:pointer">🧊 Frigo</h3>
+            <div class="inventory-list compact" id="dash-inv-frigo"></div>
+        </div>
+        <div class="section-card" id="dash-section-freezer">
+            <h3 onclick="showPage('inventory','freezer')" style="cursor:pointer">❄️ Freezer</h3>
+            <div class="inventory-list compact" id="dash-inv-freezer"></div>
+        </div>
+        <div class="section-card" id="dash-section-altro">
+            <h3 onclick="showPage('inventory','altro')" style="cursor:pointer">📦 Altro</h3>
+            <div class="inventory-list compact" id="dash-inv-altro"></div>
+        </div>
+    </section>
+
+    <!-- ===== INVENTORY LIST ===== -->
+    <section class="page" id="page-inventory">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
+            <h2 id="inventory-title">Inventario</h2>
+        </div>
+        <div class="location-tabs" id="location-tabs">
+            <button class="tab active" onclick="filterLocation('')" data-loc="">Tutti</button>
+            <button class="tab" onclick="filterLocation('dispensa')" data-loc="dispensa">🗄️ Dispensa</button>
+            <button class="tab" onclick="filterLocation('frigo')" data-loc="frigo">🧊 Frigo</button>
+            <button class="tab" onclick="filterLocation('freezer')" data-loc="freezer">❄️ Freezer</button>
+            <button class="tab" onclick="filterLocation('altro')" data-loc="altro">📦 Altro</button>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="inventory-search" placeholder="🔍 Cerca prodotto..." oninput="filterInventory()">
+        </div>
+        <div class="inventory-list" id="inventory-list"></div>
+    </section>
+
+    <!-- ===== SCAN PAGE ===== -->
+    <section class="page" id="page-scan">
+        <div class="page-header">
+            <button class="back-btn" onclick="stopScanner(); showPage('dashboard')">← Indietro</button>
+            <h2>Scansiona Prodotto</h2>
+        </div>
+        <div class="scan-container">
+            <div class="scanner-viewport" id="scanner-viewport">
+                <div class="scanner-overlay">
+                    <div class="scanner-line"></div>
+                </div>
+                <video id="scanner-video" autoplay playsinline></video>
+                <canvas id="scanner-canvas" style="display:none"></canvas>
+            </div>
+            <div class="scan-result" id="scan-result" style="display:none"></div>
+            <div class="scan-actions">
+                <button class="btn btn-large btn-secondary" onclick="startManualEntry()">
+                    ✏️ Inserimento Manuale
+                </button>
+                <button class="btn btn-large btn-accent" onclick="captureForAI()">
+                    🤖 Identifica con AI
+                </button>
+            </div>
+            <p class="scan-hint">Inquadra il codice a barre del prodotto oppure usa i pulsanti sotto</p>
+        </div>
+    </section>
+
+    <!-- ===== PRODUCT ACTION (IN/OUT after scan) ===== -->
+    <section class="page" id="page-action">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('scan')">← Indietro</button>
+            <h2>Cosa vuoi fare?</h2>
+        </div>
+        <div class="product-preview" id="action-product-preview"></div>
+        <div class="action-buttons">
+            <button class="btn btn-huge btn-success" onclick="showAddForm()">
+                <span class="btn-icon">📥</span>
+                <span class="btn-text">AGGIUNGI<br><small>in dispensa/frigo</small></span>
+            </button>
+            <button class="btn btn-huge btn-danger" onclick="showUseForm()">
+                <span class="btn-icon">📤</span>
+                <span class="btn-text">USA / CONSUMA<br><small>dalla dispensa/frigo</small></span>
+            </button>
+        </div>
+    </section>
+
+    <!-- ===== ADD TO INVENTORY FORM ===== -->
+    <section class="page" id="page-add">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('action')">← Indietro</button>
+            <h2>Aggiungi alla Dispensa</h2>
+        </div>
+        <div class="product-preview-small" id="add-product-preview"></div>
+        <form class="form" onsubmit="submitAdd(event)">
+            <div class="form-group">
+                <label>📍 Dove lo metti?</label>
+                <div class="location-selector">
+                    <button type="button" class="loc-btn active" onclick="selectLocation(this, 'dispensa')">🗄️ Dispensa</button>
+                    <button type="button" class="loc-btn" onclick="selectLocation(this, 'frigo')">🧊 Frigo</button>
+                    <button type="button" class="loc-btn" onclick="selectLocation(this, 'freezer')">❄️ Freezer</button>
+                    <button type="button" class="loc-btn" onclick="selectLocation(this, 'altro')">📦 Altro</button>
+                </div>
+                <input type="hidden" id="add-location" value="dispensa">
+            </div>
+            <div class="form-group">
+                <label>📦 Quantità</label>
+                <div class="qty-unit-row">
+                    <div class="qty-control flex-1">
+                        <button type="button" class="qty-btn" onclick="adjustAddQty(-1)">−</button>
+                        <input type="number" id="add-quantity" value="1" min="0.1" step="0.5" class="qty-input">
+                        <button type="button" class="qty-btn" onclick="adjustAddQty(1)">+</button>
+                    </div>
+                    <select id="add-unit" class="form-input unit-select" onchange="onAddUnitChange()">
+                        <option value="pz">pz</option>
+                        <option value="conf">conf</option>
+                        <option value="g">g</option>
+                        <option value="kg">kg</option>
+                        <option value="ml">ml</option>
+                        <option value="l">L</option>
+                    </select>
+                </div>
+                <div id="add-weight-info" class="form-hint" style="display:none"></div>
+            </div>
+            <div class="form-group" id="add-expiry-section">
+                <!-- Populated dynamically by showAddForm() -->
+            </div>
+            <button type="submit" class="btn btn-large btn-success full-width">✅ Aggiungi</button>
+        </form>
+    </section>
+
+    <!-- ===== USE FROM INVENTORY FORM ===== -->
+    <section class="page" id="page-use">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('action')">← Indietro</button>
+            <h2>Usa / Consuma</h2>
+        </div>
+        <div class="product-preview-small" id="use-product-preview"></div>
+        <div class="use-inventory-info" id="use-inventory-info"></div>
+        <form class="form" onsubmit="submitUse(event)">
+            <div class="form-group">
+                <label>📍 Da dove?</label>
+                <div class="location-selector" id="use-location-selector">
+                    <button type="button" class="loc-btn active" onclick="selectUseLocation(this, 'dispensa')">🗄️ Dispensa</button>
+                    <button type="button" class="loc-btn" onclick="selectUseLocation(this, 'frigo')">🧊 Frigo</button>
+                    <button type="button" class="loc-btn" onclick="selectUseLocation(this, 'freezer')">❄️ Freezer</button>
+                    <button type="button" class="loc-btn" onclick="selectUseLocation(this, 'altro')">📦 Altro</button>
+                </div>
+                <input type="hidden" id="use-location" value="dispensa">
+            </div>
+            <div class="form-group">
+                <label>Quanto hai usato?</label>
+                <div class="use-options">
+                    <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="submitUseAll()">
+                        🗑️ Usato TUTTO / Finito
+                    </button>
+                    <div class="use-partial">
+                        <p>Oppure specifica la quantità usata:</p>
+                        <div class="qty-control">
+                            <button type="button" class="qty-btn" onclick="adjustQty('use-quantity', -0.5)">−</button>
+                            <input type="number" id="use-quantity" value="1" min="0.1" step="0.5" class="qty-input">
+                            <button type="button" class="qty-btn" onclick="adjustQty('use-quantity', 0.5)">+</button>
+                        </div>
+                        <button type="submit" class="btn btn-large btn-warning full-width mt-2">📤 Usa questa quantità</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- ===== MANUAL / EDIT PRODUCT FORM ===== -->
+    <section class="page" id="page-product-form">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('scan')">← Indietro</button>
+            <h2 id="product-form-title">Nuovo Prodotto</h2>
+        </div>
+        <form class="form" onsubmit="submitProduct(event)">
+            <input type="hidden" id="pf-id">
+            <div class="form-group">
+                <label>🏷️ Nome Prodotto *</label>
+                <input type="text" id="pf-name" class="form-input" required placeholder="Es: Latte intero, Pasta penne rigate..."
+                    list="common-products" autocomplete="off">
+                <datalist id="common-products">
+                    <option value="Latte intero">
+                    <option value="Latte parzialmente scremato">
+                    <option value="Latte scremato">
+                    <option value="Yogurt bianco">
+                    <option value="Yogurt greco">
+                    <option value="Mozzarella">
+                    <option value="Burrata">
+                    <option value="Parmigiano Reggiano">
+                    <option value="Grana Padano">
+                    <option value="Ricotta">
+                    <option value="Mascarpone">
+                    <option value="Burro">
+                    <option value="Panna fresca">
+                    <option value="Uova">
+                    <option value="Prosciutto cotto">
+                    <option value="Prosciutto crudo">
+                    <option value="Bresaola">
+                    <option value="Salame">
+                    <option value="Mortadella">
+                    <option value="Petto di pollo">
+                    <option value="Macinato di manzo">
+                    <option value="Salmone fresco">
+                    <option value="Tonno in scatola">
+                    <option value="Sgombro in scatola">
+                    <option value="Pasta spaghetti">
+                    <option value="Pasta penne rigate">
+                    <option value="Pasta fusilli">
+                    <option value="Riso">
+                    <option value="Riso basmati">
+                    <option value="Farina 00">
+                    <option value="Pane fresco">
+                    <option value="Pan carrè">
+                    <option value="Fette biscottate">
+                    <option value="Passata di pomodoro">
+                    <option value="Pomodori pelati">
+                    <option value="Olio extravergine d'oliva">
+                    <option value="Aceto balsamico">
+                    <option value="Sale fino">
+                    <option value="Zucchero">
+                    <option value="Caffè macinato">
+                    <option value="Biscotti">
+                    <option value="Nutella">
+                    <option value="Marmellata">
+                    <option value="Miele">
+                    <option value="Cereali">
+                    <option value="Lenticchie">
+                    <option value="Ceci">
+                    <option value="Fagioli">
+                    <option value="Insalata mista">
+                    <option value="Pomodori">
+                    <option value="Zucchine">
+                    <option value="Patate">
+                    <option value="Cipolle">
+                    <option value="Mele">
+                    <option value="Banane">
+                    <option value="Arance">
+                    <option value="Acqua naturale">
+                    <option value="Succo d'arancia">
+                    <option value="Birra">
+                    <option value="Vino rosso">
+                </datalist>
+            </div>
+            <div class="form-group">
+                <label>🏢 Marca</label>
+                <input type="text" id="pf-brand" class="form-input" placeholder="Es: Barilla, Granarolo, Mutti..."
+                    list="common-brands" autocomplete="off">
+                <datalist id="common-brands">
+                    <option value="Barilla">
+                    <option value="De Cecco">
+                    <option value="Rummo">
+                    <option value="Voiello">
+                    <option value="Divella">
+                    <option value="Granarolo">
+                    <option value="Parmalat">
+                    <option value="Müller">
+                    <option value="Danone">
+                    <option value="Galbani">
+                    <option value="Ferrero">
+                    <option value="Lavazza">
+                    <option value="Illy">
+                    <option value="Mulino Bianco">
+                    <option value="Pan di Stelle">
+                    <option value="Mutti">
+                    <option value="Cirio">
+                    <option value="De Rica">
+                    <option value="Star">
+                    <option value="Knorr">
+                    <option value="Findus">
+                    <option value="4 Salti in Padella">
+                    <option value="Rio Mare">
+                    <option value="Valfrutta">
+                    <option value="Auricchio">
+                    <option value="Zanetti">
+                    <option value="Beretta">
+                    <option value="Rovagnati">
+                    <option value="Amadori">
+                    <option value="AIA">
+                    <option value="Esselunga">
+                    <option value="Conad">
+                    <option value="Coop">
+                </datalist>
+            </div>
+            <div class="form-group">
+                <label>📂 Categoria</label>
+                <select id="pf-category" class="form-input" onchange="onCategoryChange()">
+                    <option value="">-- Seleziona --</option>
+                    <option value="latticini">🥛 Latticini</option>
+                    <option value="carne">🥩 Carne</option>
+                    <option value="pesce">🐟 Pesce</option>
+                    <option value="frutta">🍎 Frutta</option>
+                    <option value="verdura">🥬 Verdura</option>
+                    <option value="pasta">🍝 Pasta & Riso</option>
+                    <option value="pane">🍞 Pane & Forno</option>
+                    <option value="surgelati">🧊 Surgelati</option>
+                    <option value="bevande">🥤 Bevande</option>
+                    <option value="condimenti">🧂 Condimenti</option>
+                    <option value="snack">🍪 Snack & Dolci</option>
+                    <option value="conserve">🥫 Conserve</option>
+                    <option value="cereali">🌾 Cereali & Legumi</option>
+                    <option value="igiene">🧴 Igiene</option>
+                    <option value="pulizia">🧹 Pulizia Casa</option>
+                    <option value="altro">📦 Altro</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>📏 Unità di misura</label>
+                    <select id="pf-unit" class="form-input">
+                        <option value="pz">Pezzi</option>
+                        <option value="kg">Kg</option>
+                        <option value="g">Grammi</option>
+                        <option value="l">Litri</option>
+                        <option value="ml">ml</option>
+                        <option value="conf">Confezione</option>
+                    </select>
+                </div>
+                <div class="form-group flex-1">
+                    <label>🔢 Quantità default</label>
+                    <input type="number" id="pf-defqty" class="form-input" value="1" min="0.1" step="0.5">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>📝 Note</label>
+                <textarea id="pf-notes" class="form-input" rows="2" placeholder="Es: senza lattosio, bio, conservare in frigo dopo apertura..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>🔖 Barcode</label>
+                <input type="text" id="pf-barcode" class="form-input" placeholder="Codice a barre (se disponibile)">
+            </div>
+            <input type="hidden" id="pf-image">
+            <div class="product-image-preview" id="pf-image-preview" style="display:none">
+                <img id="pf-image-img" src="" alt="Product">
+            </div>
+            <button type="submit" class="btn btn-large btn-primary full-width">💾 Salva Prodotto</button>
+        </form>
+    </section>
+
+    <!-- ===== ALL PRODUCTS PAGE ===== -->
+    <section class="page" id="page-products">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
+            <h2>📦 Tutti i Prodotti</h2>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="products-search" placeholder="🔍 Cerca prodotto..." oninput="searchAllProducts()">
+        </div>
+        <div class="products-list" id="products-list"></div>
+    </section>
+
+    <!-- ===== AI IDENTIFICATION PAGE ===== -->
+    <section class="page" id="page-ai">
+        <div class="page-header">
+            <button class="back-btn" onclick="stopScanner(); showPage('scan')">← Indietro</button>
+            <h2>🤖 Identificazione AI</h2>
+        </div>
+        <div class="ai-container">
+            <div class="ai-capture" id="ai-capture">
+                <video id="ai-video" autoplay playsinline></video>
+                <canvas id="ai-canvas" style="display:none"></canvas>
+            </div>
+            <div class="ai-preview" id="ai-preview" style="display:none">
+                <img id="ai-image" src="" alt="Captured">
+            </div>
+            <div class="ai-actions">
+                <button class="btn btn-large btn-accent" onclick="takePhotoForAI()" id="ai-capture-btn">
+                    📸 Scatta Foto
+                </button>
+                <button class="btn btn-large btn-primary" onclick="analyzeWithAI()" id="ai-analyze-btn" style="display:none">
+                    🤖 Analizza con AI
+                </button>
+                <button class="btn btn-large btn-secondary" onclick="retakePhotoAI()" id="ai-retake-btn" style="display:none">
+                    🔄 Riscatta
+                </button>
+            </div>
+            <div class="ai-result" id="ai-result" style="display:none"></div>
+            <p class="scan-hint">Scatta una foto del prodotto e l'AI cercherà di identificarlo</p>
+        </div>
+    </section>
+
+</main>
+
+<!-- Bottom Navigation -->
+<nav class="bottom-nav">
+    <button class="nav-btn" onclick="showPage('dashboard')" data-page="dashboard">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Home</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('inventory', '')" data-page="inventory">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Inventario</span>
+    </button>
+    <button class="nav-btn scan-btn" onclick="showPage('scan')" data-page="scan">
+        <span class="nav-icon-large">📷</span>
+        <span class="nav-label">Scansiona</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('products')" data-page="products">
+        <span class="nav-icon">📦</span>
+        <span class="nav-label">Prodotti</span>
+    </button>
+</nav>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading" style="display:none">
+    <div class="loading-spinner"></div>
+    <p>Caricamento...</p>
+</div>
+
+<!-- Modal for product details from inventory -->
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="closeModal()">
+    <div class="modal-content" id="modal-content" onclick="event.stopPropagation()"></div>
+</div>
+
+<script src="assets/js/app.js"></script>
+</body>
+</html>
