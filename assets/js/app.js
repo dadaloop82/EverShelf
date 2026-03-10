@@ -324,7 +324,23 @@ async function api(action, params = {}, method = 'GET', body = null) {
 }
 
 // ===== PAGE NAVIGATION =====
+// Track current page for auto-refresh
+let _currentPageId = 'dashboard';
+let _currentPageParam = null;
+
+// Refresh current page data without full navigation
+function refreshCurrentPage() {
+    switch(_currentPageId) {
+        case 'dashboard': loadDashboard(); break;
+        case 'inventory': loadInventory(); break;
+        case 'shopping': loadShoppingList(); break;
+        case 'products': loadAllProducts(); break;
+    }
+}
+
 function showPage(pageId, param = null) {
+    _currentPageId = pageId;
+    _currentPageParam = param;
     // Hide all pages
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     // Show target page
@@ -729,7 +745,7 @@ async function deleteInventoryItem(id) {
         await api('inventory_delete', {}, 'POST', { id });
         closeModal();
         showToast('Prodotto rimosso', 'success');
-        loadInventory();
+        refreshCurrentPage();
     }
 }
 
@@ -785,7 +801,7 @@ async function submitEditInventory(e, id) {
     await api('inventory_update', {}, 'POST', { id, quantity: qty, location: loc, expiry_date: expiry });
     closeModal();
     showToast('Aggiornato!', 'success');
-    loadInventory();
+    refreshCurrentPage();
 }
 
 // ===== BARCODE SCANNER =====
@@ -2285,6 +2301,8 @@ async function removeBringItem(idx) {
             shoppingItems.splice(idx, 1);
             renderShoppingItems();
             showToast('Rimosso dalla lista', 'success');
+            // Update dashboard shopping count
+            loadShoppingCount();
         }
     } catch (err) {
         showToast('Errore nella rimozione', 'error');
@@ -2408,6 +2426,8 @@ async function addSelectedSuggestions() {
             showToast(`${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`, 'success');
             // Refresh list
             await loadShoppingList();
+            // Update dashboard shopping count
+            loadShoppingCount();
             // Clear suggestions
             document.getElementById('shopping-suggestions').style.display = 'none';
             suggestionItems = [];
