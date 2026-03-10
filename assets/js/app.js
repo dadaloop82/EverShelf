@@ -28,22 +28,29 @@ const CATEGORY_LOCATION = {
 };
 
 // Detect best unit/quantity from Open Food Facts quantity_info string
+// For packaged products, the unit should be 'pz' (pieces/packages) with quantity=1
+// The actual weight/volume (e.g. 500g) is stored separately as weight_info
 function detectUnitAndQuantity(quantityInfo) {
-    if (!quantityInfo) return { unit: 'pz', quantity: 1 };
+    if (!quantityInfo) return { unit: 'pz', quantity: 1, weightInfo: '' };
     const q = quantityInfo.toLowerCase().trim();
-    // Match patterns like "500 g", "1 l", "750 ml", "1.5 kg", "6 x 1l"
+    // Match multi-pack patterns like "6 x 1l", "4 x 125g"
     const multiMatch = q.match(/(\d+)\s*x\s*([\d.,]+)\s*(ml|l|g|kg|cl)/i);
     if (multiMatch) {
-        return { unit: multiMatch[3] === 'cl' ? 'ml' : multiMatch[3], quantity: parseInt(multiMatch[1]), perUnit: multiMatch[2] + multiMatch[3] };
+        const count = parseInt(multiMatch[1]);
+        let perUnitVal = parseFloat(multiMatch[2].replace(',', '.'));
+        let perUnitUnit = multiMatch[3].toLowerCase();
+        if (perUnitUnit === 'cl') { perUnitUnit = 'ml'; perUnitVal *= 10; }
+        return { unit: 'pz', quantity: count, weightInfo: quantityInfo, perUnit: perUnitVal + perUnitUnit };
     }
+    // Match single package patterns like "500 g", "1 l", "750 ml", "1.5 kg"
     const match = q.match(/([\d.,]+)\s*(kg|g|l|ml|cl)/i);
     if (match) {
         let unit = match[2].toLowerCase();
         let val = parseFloat(match[1].replace(',', '.'));
         if (unit === 'cl') { unit = 'ml'; val *= 10; }
-        return { unit, quantity: 1, weight: val + unit };
+        return { unit: 'pz', quantity: 1, weightInfo: quantityInfo, weight: val + unit };
     }
-    return { unit: 'pz', quantity: 1 };
+    return { unit: 'pz', quantity: 1, weightInfo: quantityInfo };
 }
 
 // Estimate expiry days based on category/product type
@@ -656,6 +663,11 @@ async function onBarcodeDetected(barcode) {
         const localResult = await api('search_barcode', { barcode });
         if (localResult.found) {
             currentProduct = localResult.product;
+            // Extract weight_info from notes if available (stored as "Peso: 500 g · ...")
+            if (!currentProduct.weight_info && currentProduct.notes) {
+                const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+            }
             showLoading(false);
             stopScanner();
             showProductAction();
