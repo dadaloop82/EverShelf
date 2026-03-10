@@ -727,6 +727,28 @@ body {
     gap: 10px;
 }
 
+.barcode-manual-entry {
+    margin-bottom: 12px;
+}
+
+.barcode-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.barcode-input-row .form-input {
+    flex: 1;
+    margin: 0;
+    font-size: 1.1rem;
+    letter-spacing: 1px;
+}
+
+.barcode-input-row .btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .scan-hint {
     text-align: center;
     font-size: 0.85rem;

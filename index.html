@@ -113,6 +113,12 @@
                 <canvas id="scanner-canvas" style="display:none"></canvas>
             </div>
             <div class="scan-result" id="scan-result" style="display:none"></div>
+            <div class="barcode-manual-entry">
+                <div class="barcode-input-row">
+                    <input type="text" id="manual-barcode-input" class="form-input" placeholder="Inserisci codice a barre..." inputmode="numeric" pattern="[0-9]*" onkeydown="if(event.key==='Enter')submitManualBarcode()">
+                    <button class="btn btn-primary" onclick="submitManualBarcode()">🔍 Cerca</button>
+                </div>
+            </div>
             <div class="scan-actions">
                 <button class="btn btn-large btn-secondary" onclick="startManualEntry()">
                     ✏️ Inserimento Manuale
@@ -121,7 +127,7 @@
                     🤖 Identifica con AI
                 </button>
             </div>
-            <p class="scan-hint">Inquadra il codice a barre del prodotto oppure usa i pulsanti sotto</p>
+            <p class="scan-hint">Inquadra il codice a barre del prodotto oppure inseriscilo manualmente</p>
         </div>
     </section>
 

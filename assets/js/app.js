@@ -743,6 +743,23 @@ async function onBarcodeDetected(barcode) {
     }
 }
 
+function submitManualBarcode() {
+    const input = document.getElementById('manual-barcode-input');
+    const barcode = (input.value || '').trim();
+    if (!barcode) {
+        showToast('Inserisci un codice a barre', 'error');
+        input.focus();
+        return;
+    }
+    if (!/^\d{4,14}$/.test(barcode)) {
+        showToast('Il codice a barre deve contenere solo numeri (4-14 cifre)', 'error');
+        input.focus();
+        return;
+    }
+    stopScanner();
+    onBarcodeDetected(barcode);
+}
+
 function startManualEntry(barcode = '') {
     stopScanner();
     // Reset form
