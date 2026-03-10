@@ -490,7 +490,7 @@ function editInventoryItem(id) {
                 <label>📦 Quantità</label>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
-                    <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="0.5" class="qty-input">
+                    <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
                     <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
                 </div>
             </div>
@@ -746,12 +746,25 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
     
+    // Reset manual-edit tracking flags
+    document.getElementById('pf-category').dataset.manuallySet = 'false';
+    document.getElementById('pf-defqty').dataset.manuallySet = 'false';
+    
+    // Track if user manually changes the quantity field
+    const qtyInput = document.getElementById('pf-defqty');
+    qtyInput.removeEventListener('input', markQtyManuallySet);
+    qtyInput.addEventListener('input', markQtyManuallySet);
+    
     // Auto-detect name → category when typing
     const nameInput = document.getElementById('pf-name');
     nameInput.removeEventListener('input', autoDetectCategory);
     nameInput.addEventListener('input', autoDetectCategory);
     
     showPage('product-form');
+}
+
+function markQtyManuallySet() {
+    document.getElementById('pf-defqty').dataset.manuallySet = 'true';
 }
 
 function autoDetectCategory() {
@@ -796,23 +809,26 @@ function autoDetectCategory() {
     for (const [keyword, cat] of Object.entries(keyword2cat)) {
         if (name.includes(keyword)) {
             catSelect.value = cat;
-            onCategoryChange();
+            onCategoryChange(true);
             return;
         }
     }
 }
 
-function onCategoryChange() {
+function onCategoryChange(fromAutoDetect = false) {
     const cat = document.getElementById('pf-category').value;
     const unitSelect = document.getElementById('pf-unit');
     const qtyInput = document.getElementById('pf-defqty');
     
-    // Mark as manually set if triggered by user click
-    if (event && event.isTrusted) {
-        document.getElementById('pf-category').dataset.manuallySet = 'true';
+    // If user manually changed category via dropdown, don't auto-fill qty/unit
+    if (!fromAutoDetect) {
+        // Mark qty as "set" so future auto-detects won't overwrite either
+        qtyInput.dataset.manuallySet = 'true';
+        return;
     }
     
-    // Suggest default unit/qty based on category
+    // Auto-detect from name: suggest default unit/qty based on category
+    // BUT only if user hasn't manually changed the quantity field
     const catDefaults = {
         'latticini': { unit: 'pz', qty: 1 },
         'carne': { unit: 'g', qty: 500 },
@@ -832,8 +848,11 @@ function onCategoryChange() {
     };
     
     if (catDefaults[cat]) {
-        unitSelect.value = catDefaults[cat].unit;
-        qtyInput.value = catDefaults[cat].qty;
+        // Only auto-fill unit/qty if user hasn't manually touched them
+        if (qtyInput.dataset.manuallySet !== 'true') {
+            unitSelect.value = catDefaults[cat].unit;
+            qtyInput.value = catDefaults[cat].qty;
+        }
     }
 }
 
@@ -1002,6 +1021,12 @@ function showAddForm() {
     unitSelect.value = unit;
     
     document.getElementById('add-quantity').value = currentProduct.default_quantity || 1;
+    document.getElementById('add-quantity').dataset.manuallySet = 'false';
+    
+    // Track manual edits to quantity in add form
+    const addQtyInput = document.getElementById('add-quantity');
+    addQtyInput.removeEventListener('input', markAddQtyManuallySet);
+    addQtyInput.addEventListener('input', markAddQtyManuallySet);
     
     // Show weight info if product has it
     const weightInfoEl = document.getElementById('add-weight-info');
@@ -1061,8 +1086,11 @@ function showAddForm() {
 function onAddUnitChange() {
     updateAddQtyStep();
     // If switching units, suggest a sensible quantity
+    // BUT only if the user hasn't manually changed the quantity in this form
     const unit = document.getElementById('add-unit').value;
     const qtyInput = document.getElementById('add-quantity');
+    if (qtyInput.dataset.manuallySet === 'true') return; // User already edited qty, don't overwrite
+    
     const currentQty = parseFloat(qtyInput.value) || 1;
     
     // Convert between related units if logical
@@ -1077,28 +1105,38 @@ function onAddUnitChange() {
 function updateAddQtyStep() {
     const qtyInput = document.getElementById('add-quantity');
     const unit = document.getElementById('add-unit').value;
+    qtyInput.step = 'any';
     if (unit === 'g' || unit === 'ml') {
-        qtyInput.step = '25';
         qtyInput.min = '1';
     } else if (unit === 'kg' || unit === 'l') {
-        qtyInput.step = '0.25';
         qtyInput.min = '0.1';
     } else {
-        qtyInput.step = '1';
         qtyInput.min = '1';
     }
 }
 
+function markAddQtyManuallySet() {
+    document.getElementById('add-quantity').dataset.manuallySet = 'true';
+}
+
 function adjustAddQty(delta) {
     const qtyInput = document.getElementById('add-quantity');
+    qtyInput.dataset.manuallySet = 'true'; // +/- buttons count as manual edit
     const unit = document.getElementById('add-unit').value;
-    let step;
-    if (unit === 'g' || unit === 'ml') step = 25;
-    else if (unit === 'kg' || unit === 'l') step = 0.25;
-    else step = 1;
     let val = parseFloat(qtyInput.value) || 0;
+    let step;
+    if (unit === 'kg' || unit === 'l') {
+        step = val < 1 ? 0.1 : 0.5;
+    } else if (unit === 'g' || unit === 'ml') {
+        step = val < 50 ? 1 : (val < 500 ? 10 : 50);
+    } else {
+        step = 1;
+    }
     val = Math.max(parseFloat(qtyInput.min) || 0.1, val + delta * step);
-    qtyInput.value = Math.round(val * 100) / 100;
+    // Round nicely
+    if (step >= 1) val = Math.round(val);
+    else val = Math.round(val * 10) / 10;
+    qtyInput.value = val;
 }
 
 function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
@@ -1106,6 +1144,9 @@ function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
     btn.classList.add('active');
     
     const detailDiv = document.getElementById('expiry-detail');
+    
+    // Save current quantity before switching, so we can preserve it
+    const currentQty = document.getElementById('add-quantity').value;
     
     if (type === 'new') {
         detailDiv.innerHTML = `
@@ -1119,6 +1160,8 @@ function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
             </div>
             <p class="form-hint">📝 Puoi modificare la data o scansionarla con la fotocamera</p>
         `;
+        // Restore quantity - switching purchase type should NOT change it
+        document.getElementById('add-quantity').value = currentQty;
     } else {
         detailDiv.innerHTML = `
             <div class="form-group">
@@ -1134,14 +1177,13 @@ function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
                 <p class="form-hint" style="margin-bottom:6px">Quanto è rimasto approssimativamente?</p>
                 <div class="remaining-options">
                     <button type="button" class="remaining-btn" onclick="setRemainingPct(1)">🟢 Pieno</button>
-                    <button type="button" class="remaining-btn active" onclick="setRemainingPct(0.75)">🟡 ¾</button>
+                    <button type="button" class="remaining-btn" onclick="setRemainingPct(0.75)">🟡 ¾</button>
                     <button type="button" class="remaining-btn" onclick="setRemainingPct(0.5)">🟠 Metà</button>
                     <button type="button" class="remaining-btn" onclick="setRemainingPct(0.25)">🔴 ¼</button>
                 </div>
             </div>
         `;
-        // Pre-set to 75%
-        setRemainingPct(0.75);
+        // DON'T auto-set remaining percentage - keep the quantity the user already entered
     }
 }
 
@@ -1526,16 +1568,17 @@ async function scanExpiryWithAI() {
             <button class="modal-close" onclick="closeExpiryScanner()">✕</button>
         </div>
         <div class="expiry-scanner">
-            <div id="expiry-cam-container">
-                <video id="expiry-video" autoplay playsinline style="width:100%;border-radius:10px"></video>
+            <div id="expiry-cam-container" style="height:180px;overflow:hidden;border-radius:10px;position:relative">
+                <video id="expiry-video" autoplay playsinline style="width:100%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(2);transform-origin:center center"></video>
                 <canvas id="expiry-canvas" style="display:none"></canvas>
+                <div style="position:absolute;inset:0;border:2px dashed rgba(255,255,255,0.5);border-radius:10px;pointer-events:none"></div>
             </div>
-            <div id="expiry-preview-container" style="display:none">
-                <img id="expiry-preview-img" src="" alt="" style="width:100%;border-radius:10px">
+            <div id="expiry-preview-container" style="display:none;height:180px;overflow:hidden;border-radius:10px">
+                <img id="expiry-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px">
             </div>
-            <p class="form-hint" style="text-align:center;margin:8px 0">Inquadra la data di scadenza stampata sul prodotto</p>
-            <div id="expiry-scan-status" style="display:none;text-align:center;padding:12px">
-                <div class="loading-spinner" style="margin:0 auto 8px"></div>
+            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem">Inquadra la data di scadenza stampata sul prodotto</p>
+            <div id="expiry-scan-status" style="display:none;text-align:center;padding:8px">
+                <div class="loading-spinner" style="margin:0 auto 6px"></div>
                 <p>🤖 Analisi AI in corso...</p>
             </div>
             <div class="expiry-scanner-actions">
@@ -1575,10 +1618,15 @@ function captureExpiry() {
     const canvas = document.getElementById('expiry-canvas');
     const img = document.getElementById('expiry-preview-img');
     
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Crop to center 50% (matching the 2x zoom view) for better AI accuracy
+    const sw = video.videoWidth / 2;
+    const sh = video.videoHeight / 2;
+    const sx = (video.videoWidth - sw) / 2;
+    const sy = (video.videoHeight - sh) / 2;
+    canvas.width = sw;
+    canvas.height = sh;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
     img.src = dataUrl;

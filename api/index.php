@@ -141,15 +141,35 @@ function lookupBarcode(): void {
         $p = $data['product'];
         
         // Prefer Italian name, fall back to generic
+        // Also request localized name via abbreviated_product_name
         $name = '';
         if (!empty($p['product_name_it'])) {
             $name = $p['product_name_it'];
-        } elseif (!empty($p['product_name'])) {
-            $name = $p['product_name'];
         } elseif (!empty($p['generic_name_it'])) {
             $name = $p['generic_name_it'];
+        } elseif (!empty($p['product_name'])) {
+            $name = $p['product_name'];
         } elseif (!empty($p['generic_name'])) {
             $name = $p['generic_name'];
+        }
+        
+        // If the name looks like it's in a non-Latin script (Arabic, Chinese, Thai, etc.)
+        // try to use a fallback from brands + generic category
+        if (!empty($name) && preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $name)) {
+            // Try other name fields that might be in Latin script
+            $latinName = '';
+            foreach (['generic_name_it', 'generic_name', 'product_name_it', 'product_name'] as $field) {
+                if (!empty($p[$field]) && !preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $p[$field])) {
+                    $latinName = $p[$field];
+                    break;
+                }
+            }
+            // If still no Latin name, construct from brand + category
+            if (empty($latinName)) {
+                $brand = $p['brands'] ?? '';
+                $latinName = !empty($brand) ? $brand : 'Prodotto sconosciuto';
+            }
+            $name = $latinName;
         }
         
         // Get Italian ingredients, fall back to generic
