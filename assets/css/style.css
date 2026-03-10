@@ -1250,6 +1250,70 @@ body {
     font-size: 0.95rem;
 }
 
+/* ===== CATEGORY GROUP HEADERS ===== */
+.cat-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px 4px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary);
+    border-bottom: 1px solid var(--border);
+    margin-top: 8px;
+}
+
+.cat-group-header:first-child {
+    margin-top: 0;
+}
+
+.cat-group-count {
+    background: var(--primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: auto;
+}
+
+/* ===== EDIT UNKNOWN PRODUCT ===== */
+.edit-unknown-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin: 12px 0;
+    box-shadow: var(--shadow);
+    border: 2px solid var(--border);
+}
+
+.edit-unknown-card.highlight {
+    border-color: var(--warning);
+    background: #fffbeb;
+}
+
+.edit-unknown-card h4 {
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+.edit-unknown-hint {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 12px;
+}
+
+.edit-unknown-form .form-group {
+    margin-bottom: 10px;
+}
+
+.edit-unknown-form .form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
 /* ===== COMPACT INVENTORY ON DASHBOARD ===== */
 .inventory-list.compact {
     gap: 4px;

@@ -27,6 +27,45 @@ const CATEGORY_LOCATION = {
     'cereali': 'dispensa', 'igiene': 'altro', 'pulizia': 'altro', 'altro': 'dispensa'
 };
 
+// Map Open Food Facts categories to local categories
+function mapToLocalCategory(ofCategory) {
+    if (!ofCategory) return 'altro';
+    const cat = ofCategory.toLowerCase();
+    // Direct match with our keys
+    for (const key of Object.keys(CATEGORY_ICONS)) {
+        if (cat === key) return key;
+    }
+    // Open Food Facts tag mapping
+    if (/dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte/.test(cat)) return 'latticini';
+    if (/meat|viande|carne|sausage|salum|prosciutt/.test(cat)) return 'carne';
+    if (/fish|poisson|pesce|seafood|tuna|tonno|salmone/.test(cat)) return 'pesce';
+    if (/fruit|frutta|juice|succo|apple|banana/.test(cat)) return 'frutta';
+    if (/vegetable|verdur|legum|salad|insalat|tomato|pomodor/.test(cat)) return 'verdura';
+    if (/pasta|rice|riso|noodle|spaghetti|penne|grain/.test(cat)) return 'pasta';
+    if (/bread|pane|forno|biscott|toast|cracker|grissini|fette/.test(cat)) return 'pane';
+    if (/frozen|surgelé|surgel|gelat/.test(cat)) return 'surgelati';
+    if (/beverage|drink|boisson|bevand|water|acqua|beer|birra|wine|vino|coffee|caffè|tea|the\b/.test(cat)) return 'bevande';
+    if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|sweetener|dolcific|zuccher/.test(cat)) return 'condimenti';
+    if (/snack|chip|crisp|chocolate|cioccolat|candy|sweet|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
+    if (/conserve|canned|can|pelati|passata|preserve|jam|marmellat|miele|honey/.test(cat)) return 'conserve';
+    if (/cereal|muesli|granola|oat|fiocchi/.test(cat)) return 'cereali';
+    if (/hygiene|soap|shampoo|igien|dentifricio|deodorant/.test(cat)) return 'igiene';
+    if (/clean|detergent|pulizia|detersiv/.test(cat)) return 'pulizia';
+    // Plant-based foods: try to be more specific from the full tag
+    if (/plant-based/.test(cat)) return 'pasta'; // most common plant-based = pasta/rice/cereals
+    return 'altro';
+}
+
+// Nice Italian labels for local categories
+const CATEGORY_LABELS = {
+    'latticini': '🥛 Latticini', 'carne': '🥩 Carne', 'pesce': '🐟 Pesce',
+    'frutta': '🍎 Frutta', 'verdura': '🥬 Verdura', 'pasta': '🍝 Pasta & Riso',
+    'pane': '🍞 Pane & Forno', 'surgelati': '🧊 Surgelati', 'bevande': '🥤 Bevande',
+    'condimenti': '🧂 Condimenti', 'snack': '🍪 Snack & Dolci', 'conserve': '🥫 Conserve',
+    'cereali': '🌾 Cereali & Legumi', 'igiene': '🧴 Igiene', 'pulizia': '🧹 Pulizia',
+    'altro': '📦 Altro'
+};
+
 // Detect best unit/quantity from Open Food Facts quantity_info string
 // Returns the actual package weight/volume as default (e.g. 700g → unit:'g', quantity:700)
 function detectUnitAndQuantity(quantityInfo) {
@@ -282,7 +321,7 @@ async function loadDashboard() {
             expiredSection.style.display = 'none';
         }
         
-        // Full inventory grouped by location
+        // Full inventory grouped by location, then by category within each location
         const allItems = invData.inventory || [];
         const grouped = { dispensa: [], frigo: [], freezer: [], altro: [] };
         allItems.forEach(item => {
@@ -297,7 +336,7 @@ async function loadDashboard() {
                 section.style.display = 'none';
             } else {
                 section.style.display = 'block';
-                container.innerHTML = items.map(item => renderDashItem(item)).join('');
+                container.innerHTML = renderGroupedByCategory(items, true);
             }
         }
 
@@ -306,8 +345,35 @@ async function loadDashboard() {
     }
 }
 
+// Group items by local category and render with category headers
+function renderGroupedByCategory(items, compact = false) {
+    const catGroups = {};
+    items.forEach(item => {
+        const localCat = mapToLocalCategory(item.category);
+        if (!catGroups[localCat]) catGroups[localCat] = [];
+        catGroups[localCat].push(item);
+    });
+    
+    // Sort categories: use CATEGORY_ICONS key order
+    const catOrder = Object.keys(CATEGORY_ICONS);
+    const sortedCats = Object.keys(catGroups).sort((a, b) => {
+        const ia = catOrder.indexOf(a);
+        const ib = catOrder.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+    
+    let html = '';
+    for (const cat of sortedCats) {
+        const catItems = catGroups[cat];
+        const label = CATEGORY_LABELS[cat] || '📦 Altro';
+        html += `<div class="cat-group-header">${label} <span class="cat-group-count">${catItems.length}</span></div>`;
+        html += catItems.map(item => compact ? renderDashItem(item) : renderInventoryItem(item)).join('');
+    }
+    return html;
+}
+
 function renderDashItem(item) {
-    const catIcon = CATEGORY_ICONS[item.category] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
@@ -367,47 +433,49 @@ async function loadInventory() {
     }
 }
 
+function renderInventoryItem(item) {
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
+    const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+    const days = daysUntilExpiry(item.expiry_date);
+    const isExpired = days < 0;
+    const isExpiring = !isExpired && days <= 7;
+    const qtyDisplay = formatQuantity(item.quantity, item.unit);
+    
+    let expiryBadge = '';
+    if (item.expiry_date) {
+        let expiryText;
+        if (isExpired) expiryText = `⚠️ Scaduto da ${Math.abs(days)}g`;
+        else if (days === 0) expiryText = '⚠️ Scade oggi!';
+        else if (days === 1) expiryText = '⏰ Domani';
+        else if (days <= 7) expiryText = `⏰ ${days} giorni`;
+        else expiryText = formatDate(item.expiry_date);
+        expiryBadge = `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${expiryText}</span>`;
+    }
+    
+    return `
+    <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
+        <div class="inv-image">
+            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
+        </div>
+        <div class="inv-info">
+            <div class="inv-name">${escapeHtml(item.name)}</div>
+            ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
+            <div class="inv-meta">
+                <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
+                <span class="inv-badge badge-qty">${qtyDisplay}</span>
+                ${expiryBadge}
+            </div>
+        </div>
+    </div>`;
+}
+
 function renderInventory(items) {
     const container = document.getElementById('inventory-list');
     if (items.length === 0) {
         container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!</p></div>';
         return;
     }
-    container.innerHTML = items.map(item => {
-        const catIcon = CATEGORY_ICONS[item.category] || '📦';
-        const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-        const days = daysUntilExpiry(item.expiry_date);
-        const isExpired = days < 0;
-        const isExpiring = !isExpired && days <= 7;
-        const qtyDisplay = formatQuantity(item.quantity, item.unit);
-        
-        let expiryBadge = '';
-        if (item.expiry_date) {
-            let expiryText;
-            if (isExpired) expiryText = `⚠️ Scaduto da ${Math.abs(days)}g`;
-            else if (days === 0) expiryText = '⚠️ Scade oggi!';
-            else if (days === 1) expiryText = '⏰ Domani';
-            else if (days <= 7) expiryText = `⏰ ${days} giorni`;
-            else expiryText = formatDate(item.expiry_date);
-            expiryBadge = `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${expiryText}</span>`;
-        }
-        
-        return `
-        <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
-            <div class="inv-image">
-                ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
-            </div>
-            <div class="inv-info">
-                <div class="inv-name">${escapeHtml(item.name)}</div>
-                ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
-                <div class="inv-meta">
-                    <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
-                    <span class="inv-badge badge-qty">${qtyDisplay}</span>
-                    ${expiryBadge}
-                </div>
-            </div>
-        </div>`;
-    }).join('');
+    container.innerHTML = renderGroupedByCategory(items, false);
 }
 
 function filterLocation(loc) {
@@ -438,7 +506,7 @@ function showItemDetail(inventoryId, productId) {
     if (!item) return;
     
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-    const catIcon = CATEGORY_ICONS[item.category] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -1004,7 +1072,7 @@ async function submitProduct(e) {
 function showProductAction() {
     if (!currentProduct) return;
     
-    const catIcon = CATEGORY_ICONS[currentProduct.category] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category)] || '📦';
     const nutriscoreColors = { a: '#1e8f4e', b: '#60ac0e', c: '#eeae0e', d: '#ff6f1e', e: '#e63e11' };
     
     let detailsHtml = '';
@@ -1082,6 +1150,60 @@ function showProductAction() {
         </div>
     `;
     
+    // Check if product needs editing (unknown name, missing info)
+    const isUnknown = !currentProduct.name || 
+        /sconosciuto|unknown|^$/i.test(currentProduct.name.trim()) ||
+        currentProduct.name.trim().length < 2;
+    const needsEdit = isUnknown || !currentProduct.brand;
+    
+    // Edit product info section
+    let editInfoEl = document.getElementById('action-edit-info');
+    if (!editInfoEl) {
+        editInfoEl = document.createElement('div');
+        editInfoEl.id = 'action-edit-info';
+        const preview = document.getElementById('action-product-preview');
+        preview.parentElement.insertBefore(editInfoEl, preview.nextSibling);
+    }
+    
+    if (needsEdit) {
+        const categoryOptions = Object.entries(CATEGORY_LABELS).map(([key, label]) => 
+            `<option value="${key}" ${mapToLocalCategory(currentProduct.category) === key ? 'selected' : ''}>${label}</option>`
+        ).join('');
+        
+        editInfoEl.innerHTML = `
+            <div class="edit-unknown-card ${isUnknown ? 'highlight' : ''}">
+                <h4>${isUnknown ? '⚠️ Prodotto non riconosciuto' : '✏️ Completa le informazioni'}</h4>
+                <p class="edit-unknown-hint">${isUnknown ? 'Inserisci il nome e le informazioni del prodotto' : 'Puoi modificare o completare le info mancanti'}</p>
+                <div class="edit-unknown-form">
+                    <div class="form-group">
+                        <label>🏷️ Nome prodotto</label>
+                        <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
+                    </div>
+                    <div class="form-group">
+                        <label>🏪 Marca</label>
+                        <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
+                    </div>
+                    <div class="form-group">
+                        <label>📂 Categoria</label>
+                        <select id="edit-action-category" class="form-input">
+                            <option value="">-- Seleziona --</option>
+                            ${categoryOptions}
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">💾 Salva informazioni</button>
+                </div>
+            </div>
+        `;
+        editInfoEl.style.display = 'block';
+        // Focus name field if unknown
+        if (isUnknown) {
+            setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
+        }
+    } else {
+        editInfoEl.style.display = 'none';
+        editInfoEl.innerHTML = '';
+    }
+    
     // Show extra product info section below preview
     let extraInfoEl = document.getElementById('action-product-details');
     if (!extraInfoEl) {
@@ -1111,9 +1233,50 @@ function showProductAction() {
     showPage('action');
 }
 
+async function saveEditedProductInfo() {
+    const name = (document.getElementById('edit-action-name')?.value || '').trim();
+    if (!name) {
+        showToast('Inserisci il nome del prodotto', 'error');
+        document.getElementById('edit-action-name')?.focus();
+        return;
+    }
+    const brand = (document.getElementById('edit-action-brand')?.value || '').trim();
+    const category = document.getElementById('edit-action-category')?.value || '';
+    
+    showLoading(true);
+    try {
+        const result = await api('product_save', {}, 'POST', {
+            id: currentProduct.id,
+            barcode: currentProduct.barcode || null,
+            name: name,
+            brand: brand,
+            category: category || currentProduct.category || '',
+            image_url: currentProduct.image_url || '',
+            unit: currentProduct.unit || 'pz',
+            default_quantity: currentProduct.default_quantity || 1,
+            notes: currentProduct.notes || '',
+        });
+        showLoading(false);
+        if (result.success) {
+            // Update current product in memory
+            currentProduct.name = name;
+            currentProduct.brand = brand;
+            if (category) currentProduct.category = category;
+            showToast('✅ Prodotto aggiornato!', 'success');
+            // Refresh the action page with updated data
+            showProductAction();
+        } else {
+            showToast(result.error || 'Errore nel salvataggio', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
 // ===== ADD TO INVENTORY =====
 function showAddForm() {
-    const catIcon = CATEGORY_ICONS[currentProduct.category] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category)] || '📦';
     document.getElementById('add-product-preview').innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
@@ -1362,7 +1525,7 @@ function showUseForm() {
 }
 
 function renderUsePreview() {
-    const catIcon = CATEGORY_ICONS[currentProduct?.category] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category)] || '📦';
     document.getElementById('use-product-preview').innerHTML = `
         ${currentProduct?.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
@@ -1630,7 +1793,7 @@ function renderProductsList(products) {
         return;
     }
     container.innerHTML = products.map(p => {
-        const catIcon = CATEGORY_ICONS[p.category] || '📦';
+        const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category)] || '📦';
         return `
         <div class="product-item" onclick="selectProductForAction(${p.id})">
             <div class="inv-image">
