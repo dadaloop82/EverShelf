@@ -460,15 +460,49 @@
         <span class="nav-icon">📋</span>
         <span class="nav-label">Inventario</span>
     </button>
-    <button class="nav-btn scan-btn" onclick="showPage('scan')" data-page="scan">
-        <span class="nav-icon-large">📷</span>
-        <span class="nav-label">Scansiona</span>
+    <button class="nav-btn recipe-btn" onclick="openRecipeDialog()" data-page="recipe">
+        <span class="nav-icon-large">🍳</span>
+        <span class="nav-label">Ricetta</span>
     </button>
     <button class="nav-btn" onclick="showPage('products')" data-page="products">
         <span class="nav-icon">📦</span>
         <span class="nav-label">Prodotti</span>
     </button>
 </nav>
+
+<!-- Recipe Dialog -->
+<div class="modal-overlay" id="recipe-overlay" style="display:none" onclick="closeRecipeDialog()">
+    <div class="modal-content recipe-dialog" onclick="event.stopPropagation()">
+        <div id="recipe-ask" class="recipe-ask">
+            <h3 id="recipe-meal-title">🍳 Ricetta</h3>
+            <p class="recipe-desc">Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.</p>
+            <div class="form-group">
+                <label>👥 Quante persone?</label>
+                <div class="qty-control">
+                    <button type="button" class="qty-btn" onclick="adjustRecipePersons(-1)">−</button>
+                    <input type="number" id="recipe-persons" value="1" min="1" max="20" class="qty-input">
+                    <button type="button" class="qty-btn" onclick="adjustRecipePersons(1)">+</button>
+                </div>
+            </div>
+            <button class="btn btn-large btn-success full-width" onclick="generateRecipe()">
+                ✨ Genera Ricetta
+            </button>
+            <button class="btn btn-large btn-secondary full-width mt-2" onclick="closeRecipeDialog()">
+                Annulla
+            </button>
+        </div>
+        <div id="recipe-loading" style="display:none" class="recipe-loading">
+            <div class="loading-spinner"></div>
+            <p>Sto preparando la ricetta...</p>
+        </div>
+        <div id="recipe-result" style="display:none" class="recipe-result">
+            <div id="recipe-content"></div>
+            <button class="btn btn-large btn-primary full-width mt-2" onclick="closeRecipeDialog()">
+                ✅ Chiudi
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Toast notification -->
 <div class="toast" id="toast"></div>

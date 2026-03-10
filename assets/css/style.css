@@ -978,7 +978,7 @@ body {
     font-size: 0.65rem;
 }
 
-.scan-btn {
+.recipe-btn {
     position: relative;
     margin-top: -28px;
 }
@@ -996,11 +996,11 @@ body {
     transition: transform 0.2s;
 }
 
-.scan-btn:active .nav-icon-large {
+.recipe-btn:active .nav-icon-large {
     transform: scale(0.92);
 }
 
-.scan-btn .nav-label {
+.recipe-btn .nav-label {
     margin-top: 4px;
     color: var(--primary);
     font-weight: 700;
@@ -1606,4 +1606,112 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* ===== RECIPE DIALOG ===== */
+.recipe-dialog {
+    max-height: 85vh;
+    overflow-y: auto;
+    width: 94%;
+    max-width: 500px;
+}
+
+.recipe-ask {
+    text-align: center;
+}
+
+.recipe-ask h3 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+}
+
+.recipe-desc {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.recipe-ask .form-group {
+    margin-bottom: 20px;
+}
+
+.recipe-ask .qty-control {
+    justify-content: center;
+}
+
+.recipe-loading {
+    text-align: center;
+    padding: 40px 16px;
+}
+
+.recipe-loading p {
+    margin-top: 16px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.recipe-result {
+    text-align: left;
+}
+
+.recipe-result h2 {
+    font-size: 1.3rem;
+    color: var(--primary);
+    margin-bottom: 4px;
+}
+
+.recipe-result h3 {
+    font-size: 1.1rem;
+    margin-top: 16px;
+    margin-bottom: 8px;
+    color: var(--text);
+}
+
+.recipe-result ul {
+    padding-left: 20px;
+    margin-bottom: 8px;
+}
+
+.recipe-result li {
+    margin-bottom: 4px;
+    line-height: 1.5;
+}
+
+.recipe-result ol {
+    padding-left: 20px;
+    margin-bottom: 8px;
+}
+
+.recipe-result ol li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.recipe-result .recipe-tag {
+    display: inline-block;
+    background: var(--bg-light);
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin: 2px 4px 2px 0;
+}
+
+.recipe-result .recipe-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.recipe-result .recipe-expiry-note {
+    background: #fff3cd;
+    color: #856404;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    line-height: 1.5;
 }

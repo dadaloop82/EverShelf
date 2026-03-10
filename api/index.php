@@ -87,6 +87,10 @@ try {
             geminiReadExpiry();
             break;
 
+        case 'generate_recipe':
+            generateRecipe($db);
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -634,4 +638,162 @@ function geminiReadExpiry(): void {
         'error' => 'Could not parse expiry date',
         'raw_text' => $parsed['raw_text'] ?? $text
     ]);
+}
+
+// ===== RECIPE GENERATION WITH GEMINI =====
+function generateRecipe(PDO $db): void {
+    // Load API key from .env
+    $envFile = __DIR__ . '/../.env';
+    $apiKey = '';
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $val) = explode('=', $line, 2);
+                if (trim($key) === 'GEMINI_API_KEY') {
+                    $apiKey = trim($val);
+                }
+            }
+        }
+    }
+
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $mealType = $input['meal'] ?? 'pranzo';
+    $persons = max(1, intval($input['persons'] ?? 1));
+
+    // Fetch all inventory items with expiry info
+    $stmt = $db->query("
+        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($items)) {
+        echo json_encode(['success' => false, 'error' => 'La dispensa è vuota!']);
+        return;
+    }
+
+    // Build ingredient list with expiry info
+    $ingredientLines = [];
+    foreach ($items as $item) {
+        $line = "- {$item['name']}";
+        if ($item['brand']) $line .= " ({$item['brand']})";
+        $line .= ": {$item['quantity']} {$item['unit']}";
+        if ($item['expiry_date']) {
+            $daysLeft = intval($item['days_left']);
+            if ($daysLeft < 0) {
+                $line .= " [SCADUTO da " . abs($daysLeft) . " giorni!]";
+            } elseif ($daysLeft <= 3) {
+                $line .= " [SCADE TRA $daysLeft GIORNI - PRIORITÀ ALTA!]";
+            } elseif ($daysLeft <= 7) {
+                $line .= " [scade tra $daysLeft giorni - priorità media]";
+            }
+        }
+        $line .= " (in {$item['location']})";
+        $ingredientLines[] = $line;
+    }
+
+    $ingredientsText = implode("\n", $ingredientLines);
+
+    $mealLabels = [
+        'colazione' => 'colazione (mattina)',
+        'pranzo' => 'pranzo (mezzogiorno)',
+        'cena' => 'cena (sera)'
+    ];
+    $mealLabel = $mealLabels[$mealType] ?? $mealType;
+
+    $prompt = <<<PROMPT
+Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
+
+REGOLE IMPORTANTI:
+1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
+2. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
+3. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
+4. Adatta le quantità per $persons persona/e
+5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
+6. La ricetta deve essere adatta al pasto: $mealLabel
+
+INGREDIENTI DISPONIBILI IN DISPENSA:
+$ingredientsText
+
+Rispondi SOLO con un JSON valido in questo formato esatto (senza markdown, senza backtick):
+{
+  "title": "Nome della ricetta",
+  "meal": "$mealType",
+  "persons": $persons,
+  "prep_time": "tempo preparazione (es. 15 min)",
+  "cook_time": "tempo cottura (es. 20 min)",
+  "tags": ["sano", "veloce", "..."],
+  "expiry_note": "Nota sugli ingredienti in scadenza usati (o stringa vuota)",
+  "ingredients": [
+    {"name": "nome ingrediente", "qty": "quantità per $persons persone", "from_pantry": true},
+    {"name": "sale", "qty": "q.b.", "from_pantry": false}
+  ],
+  "steps": [
+    "Passo 1: descrizione dettagliata",
+    "Passo 2: descrizione dettagliata"
+  ],
+  "nutrition_note": "Breve nota nutrizionale sulla ricetta"
+}
+PROMPT;
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+
+    $payload = [
+        'contents' => [
+            [
+                'parts' => [
+                    ['text' => $prompt]
+                ]
+            ]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.7,
+            'maxOutputTokens' => 2048
+        ]
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+    // Clean markdown wrapping
+    $text = preg_replace('/^```json\\s*/i', '', $text);
+    $text = preg_replace('/\\s*```$/i', '', $text);
+    $text = trim($text);
+
+    $recipe = json_decode($text, true);
+
+    if ($recipe && !empty($recipe['title'])) {
+        echo json_encode(['success' => true, 'recipe' => $recipe]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Impossibile generare la ricetta', 'raw' => $text]);
+    }
 }

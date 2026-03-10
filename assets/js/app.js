@@ -2070,6 +2070,114 @@ function showToast(message, type = '') {
     }, 3000);
 }
 
+// ===== RECIPE GENERATION =====
+function getMealType() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 11) return 'colazione';
+    if (hour >= 11 && hour < 16) return 'pranzo';
+    return 'cena';
+}
+
+const MEAL_LABELS = {
+    'colazione': '☀️ Colazione',
+    'pranzo': '🍽️ Pranzo',
+    'cena': '🌙 Cena'
+};
+
+function openRecipeDialog() {
+    const meal = getMealType();
+    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    document.getElementById('recipe-persons').value = 1;
+    document.getElementById('recipe-ask').style.display = '';
+    document.getElementById('recipe-loading').style.display = 'none';
+    document.getElementById('recipe-result').style.display = 'none';
+    document.getElementById('recipe-overlay').style.display = 'flex';
+}
+
+function closeRecipeDialog() {
+    document.getElementById('recipe-overlay').style.display = 'none';
+}
+
+function adjustRecipePersons(delta) {
+    const input = document.getElementById('recipe-persons');
+    let val = parseInt(input.value) || 1;
+    val = Math.max(1, Math.min(20, val + delta));
+    input.value = val;
+}
+
+async function generateRecipe() {
+    const meal = getMealType();
+    const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
+
+    document.getElementById('recipe-ask').style.display = 'none';
+    document.getElementById('recipe-loading').style.display = '';
+    document.getElementById('recipe-result').style.display = 'none';
+
+    try {
+        const result = await api('generate_recipe', {}, 'POST', { meal, persons });
+
+        if (!result.success) {
+            document.getElementById('recipe-loading').style.display = 'none';
+            document.getElementById('recipe-ask').style.display = '';
+            if (result.error === 'no_api_key') {
+                showToast('⚠️ Chiave API Gemini non configurata', 'warning');
+            } else {
+                showToast(result.error || 'Errore nella generazione', 'error');
+            }
+            return;
+        }
+
+        const r = result.recipe;
+        let html = `<h2>${r.title}</h2>`;
+
+        // Meta tags
+        html += '<div class="recipe-meta">';
+        html += `<span class="recipe-tag">${MEAL_LABELS[r.meal] || r.meal}</span>`;
+        html += `<span class="recipe-tag">👥 ${r.persons} pers.</span>`;
+        if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
+        if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
+        if (r.tags) r.tags.forEach(t => { html += `<span class="recipe-tag">${t}</span>`; });
+        html += '</div>';
+
+        // Expiry note
+        if (r.expiry_note) {
+            html += `<div class="recipe-expiry-note">⚠️ ${r.expiry_note}</div>`;
+        }
+
+        // Ingredients
+        html += '<h3>🧾 Ingredienti</h3><ul>';
+        (r.ingredients || []).forEach(ing => {
+            const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
+            html += `<li><strong>${ing.name}</strong>: ${ing.qty}${pantryIcon}</li>`;
+        });
+        html += '</ul>';
+
+        // Steps
+        html += '<h3>👨‍🍳 Procedimento</h3><ol>';
+        (r.steps || []).forEach(step => {
+            // Remove leading "Passo N:" if present
+            const cleanStep = step.replace(/^Passo\s*\d+\s*:\s*/i, '');
+            html += `<li>${cleanStep}</li>`;
+        });
+        html += '</ol>';
+
+        // Nutrition note
+        if (r.nutrition_note) {
+            html += `<p style="color:var(--text-muted);font-size:0.85rem;margin-top:12px">💡 ${r.nutrition_note}</p>`;
+        }
+
+        document.getElementById('recipe-content').innerHTML = html;
+        document.getElementById('recipe-loading').style.display = 'none';
+        document.getElementById('recipe-result').style.display = '';
+
+    } catch (err) {
+        console.error('Recipe error:', err);
+        document.getElementById('recipe-loading').style.display = 'none';
+        document.getElementById('recipe-ask').style.display = '';
+        showToast('Errore di connessione', 'error');
+    }
+}
+
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
     showPage('dashboard');
