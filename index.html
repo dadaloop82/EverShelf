@@ -53,14 +53,15 @@
             </div>
         </div>
 
-        <!-- Alert for expiring items -->
-        <div class="alert-section" id="alert-expiring" style="display:none">
-            <h3>⏰ Prossime Scadenze</h3>
-            <div id="expiring-list"></div>
-        </div>
+        <!-- Alert for expired items (on top) -->
         <div class="alert-section alert-danger" id="alert-expired" style="display:none">
             <h3>🚫 Scaduti</h3>
             <div id="expired-list"></div>
+        </div>
+        <!-- Alert for soonest expiring items -->
+        <div class="alert-section" id="alert-expiring" style="display:none">
+            <h3>⏰ Prossime Scadenze</h3>
+            <div id="expiring-list"></div>
         </div>
 
         <!-- Full inventory by location -->
@@ -435,9 +436,6 @@
             <div class="ai-actions">
                 <button class="btn btn-large btn-accent" onclick="takePhotoForAI()" id="ai-capture-btn">
                     📸 Scatta Foto
-                </button>
-                <button class="btn btn-large btn-primary" onclick="analyzeWithAI()" id="ai-analyze-btn" style="display:none">
-                    🤖 Analizza con AI
                 </button>
                 <button class="btn btn-large btn-secondary" onclick="retakePhotoAI()" id="ai-retake-btn" style="display:none">
                     🔄 Riscatta

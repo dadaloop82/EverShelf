@@ -91,6 +91,10 @@ try {
             generateRecipe($db);
             break;
 
+        case 'gemini_identify':
+            geminiIdentifyProduct();
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -509,13 +513,13 @@ function getStats(PDO $db): void {
     $recentIn = $db->query("SELECT COUNT(*) FROM transactions WHERE type='in' AND created_at >= datetime('now', '-7 days')")->fetchColumn();
     $recentOut = $db->query("SELECT COUNT(*) FROM transactions WHERE type='out' AND created_at >= datetime('now', '-7 days')")->fetchColumn();
     
-    // Expiring soonest (next items to expire, up to 10)
+    // Expiring soonest (next 4 items to expire)
     $expiring = $db->query("
         SELECT i.*, p.name, p.brand 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
         ORDER BY i.expiry_date ASC
-        LIMIT 10
+        LIMIT 4
     ")->fetchAll();
     
     // Expired
@@ -797,4 +801,170 @@ PROMPT;
     } else {
         echo json_encode(['success' => false, 'error' => 'Impossibile generare la ricetta', 'raw' => $text]);
     }
+}
+
+// ===== GEMINI AI PRODUCT IDENTIFICATION =====
+function geminiIdentifyProduct(): void {
+    // Load API key
+    $envFile = __DIR__ . '/../.env';
+    $apiKey = '';
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $val) = explode('=', $line, 2);
+                if (trim($key) === 'GEMINI_API_KEY') {
+                    $apiKey = trim($val);
+                }
+            }
+        }
+    }
+
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $imageBase64 = $input['image'] ?? '';
+
+    if (empty($imageBase64)) {
+        echo json_encode(['success' => false, 'error' => 'No image provided']);
+        return;
+    }
+
+    // Step 1: Ask Gemini to identify the product
+    $prompt = <<<PROMPT
+Analizza questa foto di un prodotto alimentare o di uso domestico. Identifica il prodotto nel modo più preciso possibile.
+
+Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
+{
+  "name": "Nome del prodotto (es: Yogurt Greco Bianco)",
+  "brand": "Marca se visibile (es: Fage, Müller) o stringa vuota",
+  "category": "Categoria in italiano (es: latticini, pasta, bevande, snack, carne, pesce, frutta, verdura, surgelati, condimenti, conserve, cereali, pane, igiene, pulizia, altro)",
+  "search_terms": "termini di ricerca per trovare il prodotto su un database (es: greek yogurt fage, pasta barilla spaghetti)",
+  "confidence": "alta/media/bassa",
+  "description": "Breve descrizione del prodotto identificato"
+}
+PROMPT;
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+
+    $payload = [
+        'contents' => [
+            [
+                'parts' => [
+                    ['text' => $prompt],
+                    [
+                        'inline_data' => [
+                            'mime_type' => 'image/jpeg',
+                            'data' => $imageBase64
+                        ]
+                    ]
+                ]
+            ]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.2,
+            'maxOutputTokens' => 512
+        ]
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+    $text = preg_replace('/^```json\\s*/i', '', $text);
+    $text = preg_replace('/\\s*```$/i', '', $text);
+    $text = trim($text);
+
+    $identified = json_decode($text, true);
+
+    if (!$identified || empty($identified['name'])) {
+        echo json_encode(['success' => false, 'error' => 'Impossibile identificare il prodotto', 'raw' => $text]);
+        return;
+    }
+
+    // Step 2: Search Open Food Facts by product name to find a matching barcode
+    $searchTerms = $identified['search_terms'] ?? $identified['name'];
+    $offProducts = searchOpenFoodFacts($searchTerms, $identified['name'], $identified['brand'] ?? '');
+
+    echo json_encode([
+        'success' => true,
+        'identified' => $identified,
+        'off_matches' => $offProducts
+    ]);
+}
+
+function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): array {
+    $results = [];
+
+    // Try multiple search strategies
+    $queries = [];
+    if (!empty($brand)) {
+        $queries[] = trim($brand . ' ' . $name);
+    }
+    $queries[] = $name;
+    if ($searchTerms !== $name) {
+        $queries[] = $searchTerms;
+    }
+
+    $seen = [];
+    foreach ($queries as $query) {
+        $encodedQuery = urlencode($query);
+        $url = "https://world.openfoodfacts.org/cgi/search.pl?search_terms={$encodedQuery}&search_simple=1&action=process&json=1&page_size=5&fields=code,product_name,product_name_it,brands,image_front_small_url,quantity,categories_tags&lc=it";
+
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 8,
+                'header' => "User-Agent: DispensaManager/1.0\r\n"
+            ]
+        ]);
+
+        $response = @file_get_contents($url, false, $ctx);
+        if ($response === false) continue;
+
+        $data = json_decode($response, true);
+        if (empty($data['products'])) continue;
+
+        foreach ($data['products'] as $p) {
+            $code = $p['code'] ?? '';
+            if (empty($code) || isset($seen[$code])) continue;
+            $seen[$code] = true;
+
+            $pName = $p['product_name_it'] ?? $p['product_name'] ?? '';
+            if (empty($pName)) continue;
+
+            $results[] = [
+                'barcode' => $code,
+                'name' => $pName,
+                'brand' => $p['brands'] ?? '',
+                'image_url' => $p['image_front_small_url'] ?? '',
+                'quantity_info' => $p['quantity'] ?? '',
+                'category' => $p['categories_tags'][0] ?? '',
+            ];
+
+            if (count($results) >= 6) break 2;
+        }
+    }
+
+    return $results;
 }

@@ -1725,3 +1725,65 @@ body {
     margin-bottom: 12px;
     line-height: 1.5;
 }
+
+/* ===== AI IDENTIFICATION RESULTS ===== */
+.ai-identified-card {
+    background: var(--bg-light);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.ai-matches-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.ai-match-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: var(--bg-card);
+    border: 2px solid var(--bg-light);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.ai-match-item:active {
+    border-color: var(--primary);
+    background: var(--bg-light);
+}
+
+.ai-match-img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.ai-match-info {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.ai-match-info strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-match-barcode {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: monospace;
+    flex-shrink: 0;
+}

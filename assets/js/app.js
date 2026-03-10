@@ -1669,14 +1669,12 @@ async function initAICamera() {
     const captureDiv = document.getElementById('ai-capture');
     const previewDiv = document.getElementById('ai-preview');
     const captureBtn = document.getElementById('ai-capture-btn');
-    const analyzeBtn = document.getElementById('ai-analyze-btn');
     const retakeBtn = document.getElementById('ai-retake-btn');
     const resultDiv = document.getElementById('ai-result');
     
     captureDiv.style.display = 'block';
     previewDiv.style.display = 'none';
     captureBtn.style.display = 'block';
-    analyzeBtn.style.display = 'none';
     retakeBtn.style.display = 'none';
     resultDiv.style.display = 'none';
     
@@ -1718,8 +1716,10 @@ function takePhotoForAI() {
     document.getElementById('ai-capture').style.display = 'none';
     document.getElementById('ai-preview').style.display = 'block';
     document.getElementById('ai-capture-btn').style.display = 'none';
-    document.getElementById('ai-analyze-btn').style.display = 'block';
     document.getElementById('ai-retake-btn').style.display = 'block';
+
+    // Immediately start analysis
+    analyzeWithAI();
 }
 
 function retakePhotoAI() {
@@ -1730,82 +1730,173 @@ function retakePhotoAI() {
 async function analyzeWithAI() {
     const resultDiv = document.getElementById('ai-result');
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<p>🤖 Analisi in corso...</p><div class="loading-spinner" style="margin:12px auto"></div>';
-    
+    resultDiv.innerHTML = '<div style="text-align:center;padding:20px"><div class="loading-spinner" style="margin:0 auto 12px"></div><p>🤖 Identifico il prodotto...</p></div>';
+
     const canvas = document.getElementById('ai-canvas');
-    const imageData = canvas.toDataURL('image/jpeg', 0.7);
-    
-    // We'll use a free approach: analyze image colors and shapes locally
-    // and try to identify using image analysis heuristics
-    const ctx = canvas.getContext('2d');
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Simple color analysis to guess product type
-    let r = 0, g = 0, b = 0;
-    const pixels = imgData.data;
-    const count = pixels.length / 4;
-    for (let i = 0; i < pixels.length; i += 16) { // sample every 4th pixel
-        r += pixels[i];
-        g += pixels[i + 1];
-        b += pixels[i + 2];
+    const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+
+    try {
+        const result = await api('gemini_identify', {}, 'POST', { image: base64 });
+
+        if (!result.success) {
+            if (result.error === 'no_api_key') {
+                resultDiv.innerHTML = `<p style="color:var(--warning)">⚠️ Chiave API Gemini non configurata.<br><small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small></p>`;
+            } else {
+                resultDiv.innerHTML = `<p style="color:var(--danger)">❌ ${escapeHtml(result.error || 'Errore nell\'identificazione')}</p>
+                    <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">🔄 Riprova</button>`;
+            }
+            return;
+        }
+
+        const id = result.identified;
+        const matches = result.off_matches || [];
+
+        let html = `<h4>🤖 Prodotto identificato</h4>`;
+        html += `<div class="ai-identified-card">`;
+        html += `<strong>${escapeHtml(id.name)}</strong>`;
+        if (id.brand) html += ` <span style="color:var(--text-muted)">- ${escapeHtml(id.brand)}</span>`;
+        if (id.description) html += `<p style="font-size:0.85rem;color:var(--text-light);margin:4px 0 0">${escapeHtml(id.description)}</p>`;
+        html += `</div>`;
+
+        if (matches.length > 0) {
+            html += `<h4 style="margin-top:16px">📦 Prodotti corrispondenti</h4>`;
+            html += `<div class="ai-matches-list">`;
+            matches.forEach((m, idx) => {
+                html += `<div class="ai-match-item" onclick="selectAIMatch(${idx})">`;
+                if (m.image_url) {
+                    html += `<img src="${m.image_url}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
+                }
+                html += `<div class="ai-match-info">`;
+                html += `<strong>${escapeHtml(m.name)}</strong>`;
+                if (m.brand) html += `<br><small>${escapeHtml(m.brand)}</small>`;
+                if (m.quantity_info) html += `<br><small style="color:var(--text-muted)">${escapeHtml(m.quantity_info)}</small>`;
+                html += `</div>`;
+                html += `<span class="ai-match-barcode">${m.barcode}</span>`;
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
+
+        // Option to save as-is without barcode
+        html += `<div style="margin-top:16px; border-top: 1px solid var(--bg-light); padding-top: 12px">`;
+        html += `<button class="btn btn-secondary full-width" onclick="saveAIProductDirect()">✏️ Salva senza barcode</button>`;
+        html += `</div>`;
+
+        resultDiv.innerHTML = html;
+
+        // Store data for later use
+        window._aiIdentified = id;
+        window._aiMatches = matches;
+
+    } catch (err) {
+        console.error('AI identify error:', err);
+        resultDiv.innerHTML = `<p style="color:var(--danger)">❌ Errore di connessione</p>
+            <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">🔄 Riprova</button>`;
     }
-    const samples = count / 4;
-    r = Math.round(r / samples);
-    g = Math.round(g / samples);
-    b = Math.round(b / samples);
-    
-    // Provide a manual identification form since free AI APIs are limited
-    resultDiv.innerHTML = `
-        <h4>🤖 Identificazione Prodotto</h4>
-        <p style="font-size:0.85rem;color:var(--text-light);margin:8px 0">
-            L'analisi automatica ha dei limiti senza API a pagamento. 
-            Puoi descrivere il prodotto qui sotto e lo salveremo nel database.
-        </p>
-        <form class="form" onsubmit="submitAIProduct(event)" style="margin-top:12px">
-            <div class="form-group">
-                <label>🏷️ Che prodotto è? *</label>
-                <input type="text" id="ai-product-name" class="form-input" required 
-                    placeholder="Es: Yogurt greco, Pasta Barilla..." autofocus>
-            </div>
-            <div class="form-group">
-                <label>🏢 Marca (se visibile)</label>
-                <input type="text" id="ai-product-brand" class="form-input" placeholder="Es: Müller, Barilla...">
-            </div>
-            <div class="form-group">
-                <label>📂 Categoria</label>
-                <select id="ai-product-category" class="form-input">
-                    <option value="">-- Seleziona --</option>
-                    ${Object.entries(CATEGORY_ICONS).map(([k, v]) => `<option value="${k}">${v} ${k.charAt(0).toUpperCase() + k.slice(1)}</option>`).join('')}
-                </select>
-            </div>
-            <button type="submit" class="btn btn-large btn-accent full-width">✅ Salva e Continua</button>
-        </form>
-    `;
 }
 
-async function submitAIProduct(e) {
-    e.preventDefault();
+async function selectAIMatch(idx) {
+    const match = window._aiMatches[idx];
+    if (!match) return;
+
     showLoading(true);
-    
-    const name = document.getElementById('ai-product-name').value;
-    const brand = document.getElementById('ai-product-brand').value;
-    const category = document.getElementById('ai-product-category').value;
-    
-    // Save the captured image as base64 (we could save to file, but for simplicity use image_url)
-    const canvas = document.getElementById('ai-canvas');
-    // For a lightweight approach, don't store the actual image data in DB
-    
+
     try {
-        const result = await api('product_save', {}, 'POST', {
-            name, brand, category,
+        // Use the barcode to do a full lookup (gets all details)
+        const localResult = await api('search_barcode', { barcode: match.barcode });
+        if (localResult.found) {
+            currentProduct = localResult.product;
+            showLoading(false);
+            showProductAction();
+            return;
+        }
+
+        // Full lookup via OpenFoodFacts
+        const lookupResult = await api('lookup_barcode', { barcode: match.barcode });
+        if (lookupResult.found && lookupResult.product) {
+            const p = lookupResult.product;
+            const detected = detectUnitAndQuantity(p.quantity_info);
+
+            const notesParts = [];
+            if (p.quantity_info) notesParts.push(`Peso: ${p.quantity_info}`);
+            if (p.nutriscore) notesParts.push(`Nutriscore: ${p.nutriscore.toUpperCase()}`);
+            if (p.nova_group) notesParts.push(`NOVA: ${p.nova_group}`);
+            if (p.ecoscore) notesParts.push(`Ecoscore: ${p.ecoscore.toUpperCase()}`);
+            if (p.origin) notesParts.push(`Origine: ${p.origin}`);
+
+            const saveResult = await api('product_save', {}, 'POST', {
+                barcode: match.barcode,
+                name: p.name || match.name,
+                brand: p.brand || match.brand || '',
+                category: p.category || '',
+                image_url: p.image_url || match.image_url || '',
+                unit: detected.unit,
+                default_quantity: detected.quantity,
+                notes: notesParts.join(' · '),
+            });
+
+            if (saveResult.id) {
+                currentProduct = {
+                    id: saveResult.id,
+                    barcode: match.barcode,
+                    name: p.name || match.name,
+                    brand: p.brand || match.brand || '',
+                    category: p.category || '',
+                    image_url: p.image_url || match.image_url || '',
+                    unit: detected.unit,
+                    default_quantity: detected.quantity,
+                    weight_info: p.quantity_info || '',
+                };
+                showLoading(false);
+                showProductAction();
+                return;
+            }
+        }
+
+        // Fallback: save with basic info from match
+        const saveResult = await api('product_save', {}, 'POST', {
+            barcode: match.barcode,
+            name: match.name,
+            brand: match.brand || '',
+            category: match.category || '',
+            image_url: match.image_url || '',
             unit: 'pz',
             default_quantity: 1,
         });
-        
-        if (result.success) {
-            currentProduct = { id: result.id, name, brand, category, unit: 'pz', default_quantity: 1 };
+
+        if (saveResult.id) {
+            currentProduct = { id: saveResult.id, barcode: match.barcode, name: match.name, brand: match.brand || '', category: match.category || '', image_url: match.image_url || '', unit: 'pz', default_quantity: 1 };
             showLoading(false);
-            showToast('Prodotto identificato e salvato!', 'success');
+            showProductAction();
+        } else {
+            showLoading(false);
+            showToast('Errore nel salvataggio', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        console.error('AI match select error:', err);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
+async function saveAIProductDirect() {
+    const id = window._aiIdentified;
+    if (!id) return;
+
+    showLoading(true);
+    try {
+        const result = await api('product_save', {}, 'POST', {
+            name: id.name,
+            brand: id.brand || '',
+            category: id.category || '',
+            unit: 'pz',
+            default_quantity: 1,
+        });
+
+        if (result.success || result.id) {
+            currentProduct = { id: result.id, name: id.name, brand: id.brand || '', category: id.category || '', unit: 'pz', default_quantity: 1 };
+            showLoading(false);
+            showToast('Prodotto salvato!', 'success');
             showProductAction();
         } else {
             showLoading(false);
