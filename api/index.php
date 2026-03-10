@@ -741,6 +741,7 @@ REGOLE IMPORTANTI:
 4. Adatta le quantità per $persons persona/e
 5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
 6. La ricetta deve essere adatta al pasto: $mealLabel
+7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2 kg" e servono 300g, qty_number = 0.3. Per ingredienti non dalla dispensa, qty_number = 0.
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
 $ingredientsText
@@ -755,8 +756,8 @@ Rispondi SOLO con un JSON valido in questo formato esatto (senza markdown, senza
   "tags": ["sano", "veloce", "..."],
   "expiry_note": "Nota sugli ingredienti in scadenza usati (o stringa vuota)",
   "ingredients": [
-    {"name": "nome ingrediente", "qty": "quantità per $persons persone", "from_pantry": true},
-    {"name": "sale", "qty": "q.b.", "from_pantry": false}
+    {"name": "nome ingrediente", "qty": "quantità leggibile (es: 200 g)", "qty_number": 200, "from_pantry": true},
+    {"name": "sale", "qty": "q.b.", "qty_number": 0, "from_pantry": false}
   ],
   "steps": [
     "Passo 1: descrizione dettagliata",

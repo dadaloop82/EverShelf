@@ -2637,11 +2637,25 @@ const MEAL_LABELS = {
 function openRecipeDialog() {
     const meal = getMealType();
     document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    document.getElementById('recipe-overlay').style.display = 'flex';
+
+    // Check for cached recipe matching current meal type
+    try {
+        const cached = JSON.parse(localStorage.getItem('cachedRecipe') || 'null');
+        if (cached && cached.meal === meal && cached.recipe) {
+            document.getElementById('recipe-ask').style.display = 'none';
+            document.getElementById('recipe-loading').style.display = 'none';
+            renderRecipe(cached.recipe);
+            document.getElementById('recipe-result').style.display = '';
+            return;
+        }
+    } catch (e) { /* ignore parse errors */ }
+
+    // No valid cache — show ask form
     document.getElementById('recipe-persons').value = 1;
     document.getElementById('recipe-ask').style.display = '';
     document.getElementById('recipe-loading').style.display = 'none';
     document.getElementById('recipe-result').style.display = 'none';
-    document.getElementById('recipe-overlay').style.display = 'flex';
 }
 
 function closeRecipeDialog() {
@@ -2655,15 +2669,16 @@ function adjustRecipePersons(delta) {
     input.value = val;
 }
 
-async function useRecipeIngredient(idx, productId, location, btn) {
+async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
     if (btn.disabled) return;
+    if (!qtyNumber || qtyNumber <= 0) qtyNumber = 1;
     btn.disabled = true;
     btn.textContent = '⏳...';
 
     try {
         const result = await api('inventory_use', {}, 'POST', {
             product_id: productId,
-            quantity: 1,
+            quantity: qtyNumber,
             use_all: false,
             location: location
         });
@@ -2689,6 +2704,66 @@ async function useRecipeIngredient(idx, productId, location, btn) {
     }
 }
 
+function renderRecipe(r) {
+    let html = `<h2>${r.title}</h2>`;
+
+    // Meta tags
+    html += '<div class="recipe-meta">';
+    html += `<span class="recipe-tag">${MEAL_LABELS[r.meal] || r.meal}</span>`;
+    html += `<span class="recipe-tag">👥 ${r.persons} pers.</span>`;
+    if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
+    if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
+    if (r.tags) r.tags.forEach(t => { html += `<span class="recipe-tag">${t}</span>`; });
+    html += '</div>';
+
+    // Expiry note
+    if (r.expiry_note) {
+        html += `<div class="recipe-expiry-note">⚠️ ${r.expiry_note}</div>`;
+    }
+
+    // Ingredients
+    html += '<h3>🧾 Ingredienti</h3><ul class="recipe-ingredients">';
+    (r.ingredients || []).forEach((ing, idx) => {
+        if (ing.from_pantry && ing.product_id) {
+            const qtyNum = ing.qty_number || 0;
+            const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
+            html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
+            html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty} ✅</span>`;
+            html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)" title="Scala dalla dispensa">📦 Usa</button>`;
+            html += `</li>`;
+        } else {
+            const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
+            html += `<li class="recipe-ingredient"><span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty}${pantryIcon}</span></li>`;
+        }
+    });
+    html += '</ul>';
+
+    // Steps
+    html += '<h3>👨‍🍳 Procedimento</h3><ol>';
+    (r.steps || []).forEach(step => {
+        const cleanStep = step.replace(/^Passo\s*\d+\s*:\s*/i, '');
+        html += `<li>${cleanStep}</li>`;
+    });
+    html += '</ol>';
+
+    // Nutrition note
+    if (r.nutrition_note) {
+        html += `<p style="color:var(--text-muted);font-size:0.85rem;margin-top:12px">💡 ${r.nutrition_note}</p>`;
+    }
+
+    document.getElementById('recipe-content').innerHTML = html;
+}
+
+function regenerateRecipe() {
+    localStorage.removeItem('cachedRecipe');
+    document.getElementById('recipe-result').style.display = 'none';
+    document.getElementById('recipe-loading').style.display = 'none';
+    const meal = getMealType();
+    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    document.getElementById('recipe-persons').value = 1;
+    document.getElementById('recipe-ask').style.display = '';
+}
+
 async function generateRecipe() {
     const meal = getMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
@@ -2712,52 +2787,11 @@ async function generateRecipe() {
         }
 
         const r = result.recipe;
-        let html = `<h2>${r.title}</h2>`;
+        renderRecipe(r);
 
-        // Meta tags
-        html += '<div class="recipe-meta">';
-        html += `<span class="recipe-tag">${MEAL_LABELS[r.meal] || r.meal}</span>`;
-        html += `<span class="recipe-tag">👥 ${r.persons} pers.</span>`;
-        if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
-        if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
-        if (r.tags) r.tags.forEach(t => { html += `<span class="recipe-tag">${t}</span>`; });
-        html += '</div>';
+        // Cache the recipe for this meal type
+        localStorage.setItem('cachedRecipe', JSON.stringify({ meal, recipe: r }));
 
-        // Expiry note
-        if (r.expiry_note) {
-            html += `<div class="recipe-expiry-note">⚠️ ${r.expiry_note}</div>`;
-        }
-
-        // Ingredients
-        html += '<h3>🧾 Ingredienti</h3><ul class="recipe-ingredients">';
-        (r.ingredients || []).forEach((ing, idx) => {
-            if (ing.from_pantry && ing.product_id) {
-                html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
-                html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty} ✅</span>`;
-                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${(ing.location || 'dispensa').replace(/'/g, "\\'")}', this)" title="Scala dalla dispensa">📦 Usa</button>`;
-                html += `</li>`;
-            } else {
-                const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
-                html += `<li class="recipe-ingredient"><span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty}${pantryIcon}</span></li>`;
-            }
-        });
-        html += '</ul>';
-
-        // Steps
-        html += '<h3>👨‍🍳 Procedimento</h3><ol>';
-        (r.steps || []).forEach(step => {
-            // Remove leading "Passo N:" if present
-            const cleanStep = step.replace(/^Passo\s*\d+\s*:\s*/i, '');
-            html += `<li>${cleanStep}</li>`;
-        });
-        html += '</ol>';
-
-        // Nutrition note
-        if (r.nutrition_note) {
-            html += `<p style="color:var(--text-muted);font-size:0.85rem;margin-top:12px">💡 ${r.nutrition_note}</p>`;
-        }
-
-        document.getElementById('recipe-content').innerHTML = html;
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-result').style.display = '';
 
