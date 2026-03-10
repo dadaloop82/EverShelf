@@ -256,6 +256,16 @@ body {
     margin-bottom: 0;
 }
 
+.alert-item-clickable {
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.alert-item-clickable:active {
+    background: rgba(255,255,255,0.95);
+    transform: scale(0.98);
+}
+
 .alert-item-info {
     display: flex;
     flex-direction: column;

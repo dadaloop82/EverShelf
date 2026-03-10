@@ -382,7 +382,7 @@ async function loadDashboard() {
                 else if (days <= 30) { badgeText = `${days}g`; badgeClass = 'expiring-soon'; }
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? `${days}g` : `~${m} mesi`; badgeClass = 'expiring-later'; }
                 return `
-                <div class="alert-item">
+                <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -407,7 +407,7 @@ async function loadDashboard() {
                 else daysText = `Da ${days}g`;
                 const safety = getExpiredSafety(item, days);
                 return `
-                <div class="alert-item expired-item">
+                <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -507,6 +507,14 @@ function renderDashItem(item) {
 
 function dashItemTap(inventoryId, productId) {
     // Load full inventory so modal works
+    api('inventory_list').then(data => {
+        currentInventory = data.inventory || [];
+        showItemDetail(inventoryId, productId);
+    });
+}
+
+function showAlertItemDetail(inventoryId, productId) {
+    // Load full inventory so modal works (same pattern as dashItemTap)
     api('inventory_list').then(data => {
         currentInventory = data.inventory || [];
         showItemDetail(inventoryId, productId);
