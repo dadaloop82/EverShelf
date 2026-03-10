@@ -110,20 +110,40 @@ function guessCategoryFromName(name) {
 function getExpiredSafety(item, daysExpired) {
     const cat = mapToLocalCategory(item.category || '', item.name || '');
     const loc = (item.location || '').toLowerCase();
-    const name = (item.name || '').toLowerCase();
-
-    // HIGH RISK categories - perishable, can be dangerous
-    // Latticini freschi, carne, pesce, verdura, frutta
-    const highRisk = ['latticini', 'carne', 'pesce', 'verdura', 'frutta'];
-    // MEDIUM RISK - check before consuming
-    // Pane, surgelati, bevande (fresh juices, milk)
-    const medRisk = ['pane', 'surgelati'];
-
-    // Items in frigo are more perishable
+    const inFreezer = loc === 'freezer';
     const inFrigo = loc === 'frigo';
 
+    // === FREEZER: il congelamento allunga molto la vita ===
+    // Carne/pesce in freezer: +3 mesi. Verdura/frutta: +6 mesi. Pane: +2 mesi.
+    // Latticini in freezer: +1-2 mesi. Tutto il resto: +3-6 mesi.
+    if (inFreezer) {
+        const highRiskFreezer = ['carne', 'pesce'];
+        const medRiskFreezer = ['latticini', 'pane'];
+        const produceRiskFreezer = ['verdura', 'frutta'];
+
+        let bonusDays;
+        if (highRiskFreezer.includes(cat)) bonusDays = 90;       // +3 mesi
+        else if (produceRiskFreezer.includes(cat)) bonusDays = 180; // +6 mesi
+        else if (medRiskFreezer.includes(cat)) bonusDays = 60;    // +2 mesi
+        else bonusDays = 120;                                      // +4 mesi default
+
+        const effectiveDays = daysExpired - bonusDays;
+
+        if (effectiveDays <= 0) {
+            return { level: 'ok', icon: '✅', label: 'OK', tip: `In freezer: ancora sicuro (~${bonusDays - daysExpired}g di margine)` };
+        }
+        if (effectiveDays <= 30) {
+            return { level: 'warning', icon: '👀', label: 'Controlla', tip: `In freezer da molto, potrebbe aver perso qualità. Consumare presto` };
+        }
+        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'In freezer da troppo tempo, rischio di bruciatura da gelo e degrado' };
+    }
+
+    // === FRIGO e DISPENSA ===
+    const highRisk = ['latticini', 'carne', 'pesce', 'verdura', 'frutta'];
+    const medRisk = ['pane', 'surgelati'];
+
     if (highRisk.includes(cat)) {
-        if (daysExpired <= 2 && inFrigo) {
+        if (inFrigo && daysExpired <= 2) {
             return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da poco, controlla odore e aspetto prima di consumare' };
         }
         return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Prodotto deperibile scaduto: da buttare per sicurezza' };
@@ -139,9 +159,7 @@ function getExpiredSafety(item, daysExpired) {
         return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Troppo tempo dalla scadenza, meglio buttare' };
     }
 
-    // LOW RISK - long shelf life items
-    // Pasta, conserve, condimenti, cereali, snack, bevande confezionate
-    // "Da consumarsi preferibilmente entro" = TMC, safe well past expiry
+    // LOW RISK - lunga conservazione (pasta, conserve, condimenti, cereali, snack)
     if (daysExpired <= 30) {
         return { level: 'ok', icon: '✅', label: 'OK', tip: 'Prodotto a lunga conservazione, ancora sicuro da consumare' };
     }
@@ -367,7 +385,8 @@ async function loadDashboard() {
                 total += s.product_count;
             }
         });
-        document.getElementById('stat-total').textContent = total || summary.reduce((a, s) => a + s.product_count, 0);
+        // Load shopping list count from Bring!
+        loadShoppingCount();
         
         // Expiring items
         const expiringSection = document.getElementById('alert-expiring');
@@ -407,10 +426,11 @@ async function loadDashboard() {
                 else if (days === 1) daysText = 'Da ieri';
                 else daysText = `Da ${days}g`;
                 const safety = getExpiredSafety(item, days);
+                const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
                 return `
                 <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
-                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
+                        <span class="alert-item-name">${locIcon ? locIcon + ' ' : ''}${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
                     </div>
                     <div class="alert-item-badges">
@@ -2179,6 +2199,20 @@ async function selectProductForAction(productId) {
 let shoppingListUUID = '';
 let shoppingItems = [];
 let suggestionItems = [];
+
+// Load just the shopping count for dashboard stat card
+async function loadShoppingCount() {
+    try {
+        const data = await api('bring_list');
+        if (data.success && data.items) {
+            document.getElementById('stat-spesa').textContent = data.items.length;
+        } else {
+            document.getElementById('stat-spesa').textContent = '-';
+        }
+    } catch {
+        document.getElementById('stat-spesa').textContent = '-';
+    }
+}
 
 async function loadShoppingList() {
     const statusEl = document.getElementById('bring-status');
