@@ -28,14 +28,28 @@ const CATEGORY_LOCATION = {
 };
 
 // Map Open Food Facts categories to local categories
-function mapToLocalCategory(ofCategory) {
-    if (!ofCategory) return 'altro';
+function mapToLocalCategory(ofCategory, productName) {
+    if (!ofCategory) {
+        // No category tag — try to guess from product name
+        return guessCategoryFromName(productName || '');
+    }
     const cat = ofCategory.toLowerCase();
-    // Direct match with our keys
+    // Direct match with our local keys
     for (const key of Object.keys(CATEGORY_ICONS)) {
         if (cat === key) return key;
     }
-    // Open Food Facts tag mapping
+    
+    // Handle specific Open Food Facts tags FIRST (before generic regex)
+    // "plant-based-foods-and-beverages" is a catch-all — use product name to decide
+    if (/plant-based-foods/.test(cat)) {
+        return guessCategoryFromName(productName || '');
+    }
+    // "beverages-and-beverages-preparations" = actual beverages
+    if (/^en:beverages/.test(cat)) return 'bevande';
+    // sweeteners = condimenti
+    if (/sweetener|dolcific/.test(cat)) return 'condimenti';
+    
+    // Specific tag patterns
     if (/dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte/.test(cat)) return 'latticini';
     if (/meat|viande|carne|sausage|salum|prosciutt/.test(cat)) return 'carne';
     if (/fish|poisson|pesce|seafood|tuna|tonno|salmone/.test(cat)) return 'pesce';
@@ -44,15 +58,50 @@ function mapToLocalCategory(ofCategory) {
     if (/pasta|rice|riso|noodle|spaghetti|penne|grain/.test(cat)) return 'pasta';
     if (/bread|pane|forno|biscott|toast|cracker|grissini|fette/.test(cat)) return 'pane';
     if (/frozen|surgelé|surgel|gelat/.test(cat)) return 'surgelati';
-    if (/beverage|drink|boisson|bevand|water|acqua|beer|birra|wine|vino|coffee|caffè|tea|the\b/.test(cat)) return 'bevande';
-    if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|sweetener|dolcific|zuccher/.test(cat)) return 'condimenti';
-    if (/snack|chip|crisp|chocolate|cioccolat|candy|sweet|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
+    if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|zuccher/.test(cat)) return 'condimenti';
+    if (/snack|chip|crisp|chocolate|cioccolat|candy|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
     if (/conserve|canned|can|pelati|passata|preserve|jam|marmellat|miele|honey/.test(cat)) return 'conserve';
     if (/cereal|muesli|granola|oat|fiocchi/.test(cat)) return 'cereali';
     if (/hygiene|soap|shampoo|igien|dentifricio|deodorant/.test(cat)) return 'igiene';
     if (/clean|detergent|pulizia|detersiv/.test(cat)) return 'pulizia';
-    // Plant-based foods: try to be more specific from the full tag
-    if (/plant-based/.test(cat)) return 'pasta'; // most common plant-based = pasta/rice/cereals
+    // Beverage check LAST (to avoid false matches on compound tags)
+    if (/^(?!.*plant-based).*(beverage|drink|boisson|bevand|water|acqua|beer|birra|wine|vino|coffee|caffè|tea\b)/.test(cat)) return 'bevande';
+    return 'altro';
+}
+
+// Guess a local category purely from product name
+function guessCategoryFromName(name) {
+    if (!name) return 'altro';
+    const n = name.toLowerCase();
+    // Pasta & Rice
+    if (/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio/.test(n)) return 'pasta';
+    // Pane & Forno
+    if (/pane\b|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini|sandwich|taralli/.test(n)) return 'pane';
+    // Conserve
+    if (/passata|pelati|pomodoro|sugo|polpa di pomod|marmellata|miele|legumi|ceci|fagioli|lenticchie|olive/.test(n)) return 'conserve';
+    // Condimenti
+    if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina|maionese|ketchup|senape|salsa/.test(n)) return 'condimenti';
+    // Bevande
+    if (/acqua|birra|vino|succo|spremuta|coca.cola|aranciata|caffè|tè\b|tea\b|latte\b/.test(n)) return 'bevande';
+    // Latticini
+    if (/latte\b|yogurt|formaggio|mozzarella|burro|panna|ricotta|mascarpone|gorgonzola|parmigiano|grana\b/.test(n)) return 'latticini';
+    // Carne
+    if (/pollo|manzo|maiale|vitello|tacchino|prosciutto|salame|bresaola|mortadella|wurstel|speck/.test(n)) return 'carne';
+    // Pesce
+    if (/tonno|salmone|merluzzo|pesce|sgombro|gamberi|acciughe/.test(n)) return 'pesce';
+    // Frutta
+    if (/mela|mele|banana|arancia|pera|fragola|uva|kiwi|limone|frutta/.test(n)) return 'frutta';
+    // Verdura
+    if (/insalata|zucchina|pomodor|cipolla|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata/.test(n)) return 'verdura';
+    // Surgelati
+    if (/surgelat|frozen|findus|4.salti|gelato/.test(n)) return 'surgelati';
+    // Snack
+    if (/biscott|cioccolat|nutella|merendine|patatine|caramelle|wafer|sfornatini/.test(n)) return 'snack';
+    // Cereali
+    if (/cereali|muesli|fiocchi|granola|polenta/.test(n)) return 'cereali';
+    // Igiene / Pulizia
+    if (/sapone|shampoo|dentifricio|deodorante/.test(n)) return 'igiene';
+    if (/detersivo|pulito|sgrassatore/.test(n)) return 'pulizia';
     return 'altro';
 }
 
@@ -349,7 +398,7 @@ async function loadDashboard() {
 function renderGroupedByCategory(items, compact = false) {
     const catGroups = {};
     items.forEach(item => {
-        const localCat = mapToLocalCategory(item.category);
+        const localCat = mapToLocalCategory(item.category, item.name);
         if (!catGroups[localCat]) catGroups[localCat] = [];
         catGroups[localCat].push(item);
     });
@@ -373,7 +422,7 @@ function renderGroupedByCategory(items, compact = false) {
 }
 
 function renderDashItem(item) {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
@@ -434,7 +483,7 @@ async function loadInventory() {
 }
 
 function renderInventoryItem(item) {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
@@ -506,7 +555,7 @@ function showItemDetail(inventoryId, productId) {
     if (!item) return;
     
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -1072,7 +1121,7 @@ async function submitProduct(e) {
 function showProductAction() {
     if (!currentProduct) return;
     
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦';
     const nutriscoreColors = { a: '#1e8f4e', b: '#60ac0e', c: '#eeae0e', d: '#ff6f1e', e: '#e63e11' };
     
     let detailsHtml = '';
@@ -1167,7 +1216,7 @@ function showProductAction() {
     
     if (needsEdit) {
         const categoryOptions = Object.entries(CATEGORY_LABELS).map(([key, label]) => 
-            `<option value="${key}" ${mapToLocalCategory(currentProduct.category) === key ? 'selected' : ''}>${label}</option>`
+            `<option value="${key}" ${mapToLocalCategory(currentProduct.category, currentProduct.name) === key ? 'selected' : ''}>${label}</option>`
         ).join('');
         
         editInfoEl.innerHTML = `
@@ -1276,7 +1325,7 @@ async function saveEditedProductInfo() {
 
 // ===== ADD TO INVENTORY =====
 function showAddForm() {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦';
     document.getElementById('add-product-preview').innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
@@ -1525,7 +1574,7 @@ function showUseForm() {
 }
 
 function renderUsePreview() {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category)] || '📦';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category, currentProduct?.name)] || '📦';
     document.getElementById('use-product-preview').innerHTML = `
         ${currentProduct?.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
@@ -1793,7 +1842,7 @@ function renderProductsList(products) {
         return;
     }
     container.innerHTML = products.map(p => {
-        const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category)] || '📦';
+        const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category, p.name)] || '📦';
         return `
         <div class="product-item" onclick="selectProductForAction(${p.id})">
             <div class="inv-image">
