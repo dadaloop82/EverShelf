@@ -454,22 +454,36 @@ function closeModal() {
 
 async function quickUse(productId, location) {
     closeModal();
-    currentProduct = { id: productId };
-    // Get product info
-    const data = await api('product_get', { id: productId });
-    if (data.product) {
-        currentProduct = data.product;
+    showLoading(true);
+    try {
+        currentProduct = { id: productId };
+        // Get product info
+        const data = await api('product_get', { id: productId });
+        if (data.product) {
+            currentProduct = data.product;
+            // Extract weight_info from notes if available
+            if (!currentProduct.weight_info && currentProduct.notes) {
+                const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+            }
+        }
+        document.getElementById('use-location').value = location;
+        // Mark active location button
+        document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
+        const locBtns = document.querySelectorAll('#page-use .loc-btn');
+        locBtns.forEach(b => {
+            if (b.textContent.toLowerCase().includes(location)) b.classList.add('active');
+        });
+        
+        renderUsePreview();
+        loadUseInventoryInfo();
+        showLoading(false);
+        showPage('use');
+    } catch (err) {
+        showLoading(false);
+        console.error('quickUse error:', err);
+        showToast('Errore nel caricamento del prodotto', 'error');
     }
-    document.getElementById('use-location').value = location;
-    // Mark active location button
-    document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
-    const locBtns = document.querySelectorAll('#page-use .loc-btn');
-    locBtns.forEach(b => {
-        if (b.textContent.toLowerCase().includes(location)) b.classList.add('active');
-    });
-    
-    renderUsePreview();
-    showPage('use');
 }
 
 async function deleteInventoryItem(id) {
@@ -483,10 +497,13 @@ async function deleteInventoryItem(id) {
 
 function editInventoryItem(id) {
     const item = currentInventory.find(i => i.id === id);
-    if (!item) return;
-    closeModal();
+    if (!item) {
+        closeModal();
+        showToast('Prodotto non trovato', 'error');
+        return;
+    }
     
-    // Show a simple edit modal
+    // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>Modifica ${escapeHtml(item.name)}</h3>
