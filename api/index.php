@@ -1254,7 +1254,9 @@ function bringSuggestItems(PDO $db): void {
     }
     $inventoryText = empty($invLines) ? 'La dispensa è VUOTA.' : implode("\n", $invLines);
     
-    $bringText = empty($bringItems) ? 'La lista della spesa è vuota.' : 'Già nella lista della spesa Bring!: ' . implode(', ', $bringItems);
+    $bringText = empty($bringItems) 
+        ? 'La lista della spesa Bring! è attualmente VUOTA.' 
+        : "PRODOTTI GIÀ NELLA LISTA DELLA SPESA BRING! (NON suggerire nessuno di questi, sono già stati aggiunti):\n- " . implode("\n- ", $bringItems);
     
     // Current month for seasonal suggestions
     $mese = strftime('%B') ?: date('F');
@@ -1267,13 +1269,13 @@ Sei un esperto consulente per la spesa domestica italiano. Analizza la dispensa 
 
 DATA ATTUALE: {$meseIt} {$anno}
 
-INVENTARIO ATTUALE:
+INVENTARIO ATTUALE (cosa ha già in casa):
 {$inventoryText}
 
 {$bringText}
 
-REGOLE:
-1. NON suggerire prodotti GIÀ presenti nella lista Bring!
+REGOLE TASSATIVE:
+1. È VIETATO suggerire prodotti che sono GIÀ nella lista Bring! sopra elencata. Anche se con nome leggermente diverso (es. "Fagioli" vs "Fagioli in lattina") NON suggerirli.
 2. NON suggerire prodotti che l'utente ha già in abbondanza nell'inventario
 3. Suggerisci FRUTTA E VERDURA DI STAGIONE per {$meseIt}
 4. Suggerisci prodotti base che sembrano mancare (es. latte, uova, pane se non presenti)
@@ -1281,6 +1283,7 @@ REGOLE:
 6. Pensa come un nutrizionista: dieta equilibrata e varia
 7. Massimo 15 suggerimenti, ordinati per priorità
 8. Ogni suggerimento deve avere un motivo chiaro
+9. Prima di includere ogni suggerimento, VERIFICA che non sia già nella lista Bring! sopra
 
 Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 {
@@ -1338,9 +1341,22 @@ PROMPT;
         return;
     }
     
+    // Post-filter: remove any suggestions that match Bring! list items (safety net)
+    $bringLower = array_map('mb_strtolower', $bringItems);
+    $filtered = array_values(array_filter($suggestions['suggestions'], function($s) use ($bringLower) {
+        $sName = mb_strtolower($s['name'] ?? '');
+        foreach ($bringLower as $b) {
+            // Check exact match or if one contains the other
+            if ($sName === $b || str_contains($sName, $b) || str_contains($b, $sName)) {
+                return false;
+            }
+        }
+        return true;
+    }));
+    
     echo json_encode([
         'success' => true,
-        'suggestions' => $suggestions['suggestions'],
+        'suggestions' => $filtered,
         'seasonal_tip' => $suggestions['seasonal_tip'] ?? '',
         'listUUID' => $listUUID,
     ]);
