@@ -310,6 +310,39 @@ body {
     color: #fff;
 }
 
+/* Safety badges for expired items */
+.alert-item-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.safety-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.safety-badge.safety-danger {
+    background: #dc3545;
+    color: #fff;
+}
+
+.safety-badge.safety-warning {
+    background: #ffc107;
+    color: #333;
+}
+
+.safety-badge.safety-ok {
+    background: #28a745;
+    color: #fff;
+}
+
 /* ===== SECTION CARD ===== */
 .section-card {
     background: var(--bg-card);

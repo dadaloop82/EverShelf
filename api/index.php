@@ -524,7 +524,7 @@ function getStats(PDO $db): void {
     
     // Expired
     $expired = $db->query("
-        SELECT i.*, p.name, p.brand 
+        SELECT i.*, p.name, p.brand, p.category 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date < date('now')
         ORDER BY i.expiry_date ASC

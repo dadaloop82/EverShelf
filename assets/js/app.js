@@ -105,6 +105,52 @@ function guessCategoryFromName(name) {
     return 'altro';
 }
 
+// Determine safety level for expired products
+// Returns { level: 'danger'|'warning'|'ok', icon, label, tip }
+function getExpiredSafety(item, daysExpired) {
+    const cat = mapToLocalCategory(item.category || '', item.name || '');
+    const loc = (item.location || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+
+    // HIGH RISK categories - perishable, can be dangerous
+    // Latticini freschi, carne, pesce, verdura, frutta
+    const highRisk = ['latticini', 'carne', 'pesce', 'verdura', 'frutta'];
+    // MEDIUM RISK - check before consuming
+    // Pane, surgelati, bevande (fresh juices, milk)
+    const medRisk = ['pane', 'surgelati'];
+
+    // Items in frigo are more perishable
+    const inFrigo = loc === 'frigo';
+
+    if (highRisk.includes(cat)) {
+        if (daysExpired <= 2 && inFrigo) {
+            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da poco, controlla odore e aspetto prima di consumare' };
+        }
+        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Prodotto deperibile scaduto: da buttare per sicurezza' };
+    }
+
+    if (medRisk.includes(cat)) {
+        if (daysExpired <= 7) {
+            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Controlla aspetto e odore prima di consumare' };
+        }
+        if (daysExpired <= 30) {
+            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da un po\', verificare bene prima dell\'uso' };
+        }
+        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Troppo tempo dalla scadenza, meglio buttare' };
+    }
+
+    // LOW RISK - long shelf life items
+    // Pasta, conserve, condimenti, cereali, snack, bevande confezionate
+    // "Da consumarsi preferibilmente entro" = TMC, safe well past expiry
+    if (daysExpired <= 30) {
+        return { level: 'ok', icon: '✅', label: 'OK', tip: 'Prodotto a lunga conservazione, ancora sicuro da consumare' };
+    }
+    if (daysExpired <= 180) {
+        return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da oltre un mese, controllare integrità confezione' };
+    }
+    return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Scaduto da troppo tempo, meglio non rischiare' };
+}
+
 // Nice Italian labels for local categories
 const CATEGORY_LABELS = {
     'latticini': '🥛 Latticini', 'carne': '🥩 Carne', 'pesce': '🐟 Pesce',
@@ -355,17 +401,21 @@ async function loadDashboard() {
             expiredSection.style.display = 'block';
             expiredList.innerHTML = statsData.expired.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
-                let badgeText;
-                if (days === 0) badgeText = 'Oggi';
-                else if (days === 1) badgeText = 'Da ieri';
-                else badgeText = `Da ${days} giorni`;
+                let daysText;
+                if (days === 0) daysText = 'Oggi';
+                else if (days === 1) daysText = 'Da ieri';
+                else daysText = `Da ${days}g`;
+                const safety = getExpiredSafety(item, days);
                 return `
-                <div class="alert-item">
+                <div class="alert-item expired-item">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
                     </div>
-                    <span class="alert-item-badge expired">${badgeText}</span>
+                    <div class="alert-item-badges">
+                        <span class="alert-item-badge expired">${daysText}</span>
+                        <span class="safety-badge safety-${safety.level}" title="${safety.tip}">${safety.icon} ${safety.label}</span>
+                    </div>
                 </div>`;
             }).join('');
         } else {
