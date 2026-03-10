@@ -1821,6 +1821,16 @@ async function loadUseInventoryInfo() {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 return `${loc.icon} ${loc.label}: ${i.quantity} ${i.unit}`;
             }).join(' · ');
+            
+            // Auto-select the first available location
+            const firstLoc = items[0].location;
+            document.getElementById('use-location').value = firstLoc;
+            document.querySelectorAll('#page-use .loc-btn').forEach(b => {
+                b.classList.remove('active');
+                if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + firstLoc + "'")) {
+                    b.classList.add('active');
+                }
+            });
         } else {
             infoEl.innerHTML = '⚠️ Prodotto non presente nell\'inventario.';
         }
@@ -2656,20 +2666,31 @@ async function loadLog(more = false) {
                     lastDate = dateStr;
                 }
 
-                const isIn = t.type === 'in';
-                const icon = isIn ? '📥' : '📤';
-                const typeLabel = isIn ? 'Aggiunto' : 'Usato';
-                const colorClass = isIn ? 'log-in' : 'log-out';
+                let icon, typeLabel, colorClass;
+                if (t.type === 'bring') {
+                    icon = '🛒';
+                    typeLabel = 'Aggiunto a Bring!';
+                    colorClass = 'log-bring';
+                } else if (t.type === 'in') {
+                    icon = '➕';
+                    typeLabel = 'Aggiunto';
+                    colorClass = 'log-in';
+                } else {
+                    icon = '➖';
+                    typeLabel = 'Usato';
+                    colorClass = 'log-out';
+                }
                 const brand = t.brand ? ` <em>(${t.brand})</em>` : '';
                 const loc = t.location || '';
                 const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
-                const locStr = locLabels[loc] || ('📍 ' + loc);
+                const locStr = t.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
+                const notes = t.notes ? ` · ${t.notes}` : '';
 
                 html += `<div class="log-entry ${colorClass}">`;
                 html += `<span class="log-icon">${icon}</span>`;
                 html += `<div class="log-info">`;
                 html += `<div class="log-product"><strong>${t.name}</strong>${brand}</div>`;
-                html += `<div class="log-detail">${typeLabel} ${t.quantity} ${t.unit || ''} · ${locStr} · ${timeStr}</div>`;
+                html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? t.quantity + ' ' + (t.unit || '') + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
                 html += `</div>`;
                 html += `</div>`;
             });

@@ -98,9 +98,9 @@ body {
     background: rgba(255,255,255,0.25);
     border: 2px solid rgba(255,255,255,0.5);
     color: white;
-    font-size: 1.5rem;
-    width: 48px;
-    height: 48px;
+    font-size: 1.8rem;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -109,6 +109,8 @@ body {
     transition: all 0.2s;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     animation: pulse-scan 2s ease-in-out infinite;
+    line-height: 1;
+    padding-bottom: 2px;
 }
 
 .header-scan-btn:active {
@@ -2123,10 +2125,17 @@ body {
 
 .log-entry.log-in {
     border-left: 3px solid var(--success);
+    background: rgba(40, 167, 69, 0.06);
 }
 
 .log-entry.log-out {
     border-left: 3px solid var(--danger);
+    background: rgba(220, 53, 69, 0.06);
+}
+
+.log-entry.log-bring {
+    border-left: 3px solid var(--primary);
+    background: rgba(52, 120, 246, 0.06);
 }
 
 .log-icon {

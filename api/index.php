@@ -483,6 +483,12 @@ function useFromInventory(PDO $db): void {
                         ]);
                         $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
                         $addedToBring = ($result !== null);
+                        
+                        // Log Bring! addition
+                        if ($addedToBring) {
+                            $logStmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'bring', 0, '', 'Auto-aggiunto a Bring!')");
+                            $logStmt->execute([$productId]);
+                        }
                     }
                 } catch (Exception $e) {
                     // Silently fail — don't block inventory operation
