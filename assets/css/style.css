@@ -879,6 +879,89 @@ body {
     flex-shrink: 0;
 }
 
+.quick-name-entry {
+    margin-bottom: 12px;
+}
+
+.quick-name-divider {
+    text-align: center;
+    margin: 10px 0 8px;
+    position: relative;
+}
+
+.quick-name-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border);
+}
+
+.quick-name-divider span {
+    background: var(--bg-main);
+    padding: 0 12px;
+    position: relative;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.quick-name-results {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.quick-name-result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.quick-name-result-item:active {
+    transform: scale(0.98);
+}
+
+.quick-name-result-item .qnr-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.quick-name-result-item .qnr-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.quick-name-result-item .qnr-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quick-name-result-item .qnr-detail {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.quick-name-result-item.qnr-new {
+    border: 1px dashed var(--accent);
+    background: rgba(124, 58, 237, 0.06);
+}
+
 .scan-hint {
     text-align: center;
     font-size: 0.85rem;

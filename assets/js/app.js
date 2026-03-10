@@ -328,7 +328,7 @@ function showPage(pageId, param = null) {
             }
             loadInventory();
             break;
-        case 'scan': initScanner(); break;
+        case 'scan': initScanner(); clearQuickNameResults(); break;
         case 'products': loadAllProducts(); break;
         case 'ai': initAICamera(); break;
     }
@@ -1017,6 +1017,151 @@ function submitManualBarcode() {
     }
     stopScanner();
     onBarcodeDetected(barcode);
+}
+
+// ===== QUICK NAME ENTRY (for loose/unpackaged products) =====
+async function submitQuickName() {
+    const input = document.getElementById('quick-product-name');
+    const name = (input.value || '').trim();
+    if (!name || name.length < 2) {
+        showToast('Scrivi almeno 2 caratteri', 'error');
+        input.focus();
+        return;
+    }
+    
+    stopScanner();
+    showLoading(true);
+    
+    try {
+        // Search local products DB
+        const localData = await api('products_search', { q: name });
+        const localProducts = (localData.products || []).slice(0, 5);
+        
+        showLoading(false);
+        
+        if (localProducts.length > 0) {
+            // Show results to pick from + option to create new
+            showQuickNameResults(name, localProducts);
+        } else {
+            // No local results — create new product directly
+            await createQuickProduct(name);
+        }
+    } catch (err) {
+        showLoading(false);
+        console.error('Quick name search error:', err);
+        showToast('Errore nella ricerca', 'error');
+    }
+}
+
+function showQuickNameResults(searchName, products) {
+    const container = document.querySelector('.quick-name-entry');
+    
+    // Remove any previous results
+    const oldResults = container.querySelector('.quick-name-results');
+    if (oldResults) oldResults.remove();
+    
+    const resultsDiv = document.createElement('div');
+    resultsDiv.className = 'quick-name-results';
+    
+    // Existing products
+    products.forEach(p => {
+        const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category, p.name)] || '📦';
+        const item = document.createElement('div');
+        item.className = 'quick-name-result-item';
+        item.innerHTML = `
+            <span class="qnr-icon">${catIcon}</span>
+            <div class="qnr-info">
+                <div class="qnr-name">${escapeHtml(p.name)}</div>
+                <div class="qnr-detail">${p.brand ? escapeHtml(p.brand) + ' · ' : ''}${p.barcode ? '📊 ' + p.barcode : 'Senza barcode'}</div>
+            </div>
+        `;
+        item.onclick = () => selectQuickProduct(p);
+        resultsDiv.appendChild(item);
+    });
+    
+    // "Create new" button
+    const newItem = document.createElement('div');
+    newItem.className = 'quick-name-result-item qnr-new';
+    newItem.innerHTML = `
+        <span class="qnr-icon">➕</span>
+        <div class="qnr-info">
+            <div class="qnr-name">Crea "${escapeHtml(searchName)}"</div>
+            <div class="qnr-detail">Nuovo prodotto senza barcode</div>
+        </div>
+    `;
+    newItem.onclick = () => createQuickProduct(searchName);
+    resultsDiv.appendChild(newItem);
+    
+    container.appendChild(resultsDiv);
+}
+
+function selectQuickProduct(product) {
+    currentProduct = {
+        id: product.id,
+        barcode: product.barcode || '',
+        name: product.name,
+        brand: product.brand || '',
+        category: product.category || '',
+        image_url: product.image_url || '',
+        unit: product.unit || 'pz',
+        default_quantity: product.default_quantity || 1,
+    };
+    // Extract weight_info from notes if available
+    if (product.notes) {
+        const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
+        if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+    }
+    clearQuickNameResults();
+    showProductAction();
+}
+
+async function createQuickProduct(name) {
+    showLoading(true);
+    
+    // Auto-detect category from name
+    const category = guessCategoryFromName(name);
+    
+    try {
+        const result = await api('product_save', {}, 'POST', {
+            name: name,
+            brand: '',
+            category: category,
+            unit: 'pz',
+            default_quantity: 1,
+        });
+        
+        if (result.success || result.id) {
+            currentProduct = {
+                id: result.id,
+                name: name,
+                brand: '',
+                category: category,
+                unit: 'pz',
+                default_quantity: 1,
+            };
+            showLoading(false);
+            clearQuickNameResults();
+            showToast('Prodotto creato!', 'success');
+            showProductAction();
+        } else {
+            showLoading(false);
+            showToast(result.error || 'Errore nel salvataggio', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        console.error('Quick product creation error:', err);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
+function clearQuickNameResults() {
+    const container = document.querySelector('.quick-name-entry');
+    if (container) {
+        const results = container.querySelector('.quick-name-results');
+        if (results) results.remove();
+    }
+    const input = document.getElementById('quick-product-name');
+    if (input) input.value = '';
 }
 
 function startManualEntry(barcode = '') {

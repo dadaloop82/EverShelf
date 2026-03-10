@@ -123,6 +123,13 @@
                     <button class="btn btn-primary" onclick="submitManualBarcode()">🔍 Cerca</button>
                 </div>
             </div>
+            <div class="quick-name-entry">
+                <div class="quick-name-divider"><span>oppure scrivi il nome</span></div>
+                <div class="barcode-input-row">
+                    <input type="text" id="quick-product-name" class="form-input" placeholder="Es: Mele, Zucchine, Pane..." list="common-products" autocomplete="off" onkeydown="if(event.key==='Enter')submitQuickName()">
+                    <button class="btn btn-accent" onclick="submitQuickName()">✅ Vai</button>
+                </div>
+            </div>
             <div class="scan-actions">
                 <button class="btn btn-large btn-secondary" onclick="startManualEntry()">
                     ✏️ Inserimento Manuale
@@ -131,7 +138,7 @@
                     🤖 Identifica con AI
                 </button>
             </div>
-            <p class="scan-hint">Inquadra il codice a barre del prodotto oppure inseriscilo manualmente</p>
+            <p class="scan-hint">Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo</p>
         </div>
     </section>
 
