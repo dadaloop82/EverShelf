@@ -473,6 +473,17 @@
         </div>
     </section>
 
+    <!-- Log Page -->
+    <section id="page-log" class="page">
+        <div class="page-header">
+            <h2>📒 Log Operazioni</h2>
+        </div>
+        <div id="log-list" class="log-list"></div>
+        <button class="btn btn-secondary full-width mt-2" id="log-load-more" style="display:none" onclick="loadLog(true)">
+            Carica altri...
+        </button>
+    </section>
+
 </main>
 
 <!-- Bottom Navigation -->
@@ -492,6 +503,10 @@
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping">
         <span class="nav-icon">🛒</span>
         <span class="nav-label">Spesa</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('log')" data-page="log">
+        <span class="nav-icon">📒</span>
+        <span class="nav-label">Log</span>
     </button>
 </nav>
 

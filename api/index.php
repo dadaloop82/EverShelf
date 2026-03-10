@@ -532,7 +532,8 @@ function inventorySummary(PDO $db): void {
 // ===== TRANSACTION FUNCTIONS =====
 
 function listTransactions(PDO $db): void {
-    $limit = $_GET['limit'] ?? 50;
+    $limit = (int)($_GET['limit'] ?? 50);
+    $offset = (int)($_GET['offset'] ?? 0);
     $productId = $_GET['product_id'] ?? '';
     
     $query = "
@@ -545,8 +546,9 @@ function listTransactions(PDO $db): void {
         $query .= " WHERE t.product_id = ?";
         $params[] = $productId;
     }
-    $query .= " ORDER BY t.created_at DESC LIMIT ?";
-    $params[] = (int)$limit;
+    $query .= " ORDER BY t.created_at DESC LIMIT ? OFFSET ?";
+    $params[] = $limit;
+    $params[] = $offset;
     
     $stmt = $db->prepare($query);
     $stmt->execute($params);

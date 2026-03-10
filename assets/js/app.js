@@ -365,6 +365,7 @@ function showPage(pageId, param = null) {
         case 'scan': initScanner(); clearQuickNameResults(); break;
         case 'products': loadAllProducts(); break;
         case 'shopping': loadShoppingList(); break;
+        case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
     }
     
@@ -2624,6 +2625,69 @@ function showToast(message, type = '') {
     setTimeout(() => {
         toast.className = 'toast';
     }, 3000);
+}
+
+// ===== LOG =====
+let _logOffset = 0;
+const LOG_PAGE_SIZE = 50;
+
+async function loadLog(more = false) {
+    if (!more) {
+        _logOffset = 0;
+        document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--text-muted)">Caricamento...</p>';
+    }
+
+    try {
+        const result = await api(`transactions_list&limit=${LOG_PAGE_SIZE}&offset=${_logOffset}`);
+        const txns = result.transactions || [];
+
+        let html = '';
+        if (!more && txns.length === 0) {
+            html = '<p style="text-align:center;color:var(--text-muted)">Nessuna operazione registrata.</p>';
+        } else {
+            let lastDate = more ? '' : null;
+            txns.forEach(t => {
+                const dt = new Date(t.created_at + 'Z');
+                const dateStr = dt.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                const timeStr = dt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+                if (dateStr !== lastDate) {
+                    html += `<div class="log-date-header">${dateStr}</div>`;
+                    lastDate = dateStr;
+                }
+
+                const isIn = t.type === 'in';
+                const icon = isIn ? '📥' : '📤';
+                const typeLabel = isIn ? 'Aggiunto' : 'Usato';
+                const colorClass = isIn ? 'log-in' : 'log-out';
+                const brand = t.brand ? ` <em>(${t.brand})</em>` : '';
+                const loc = t.location || '';
+                const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
+                const locStr = locLabels[loc] || ('📍 ' + loc);
+
+                html += `<div class="log-entry ${colorClass}">`;
+                html += `<span class="log-icon">${icon}</span>`;
+                html += `<div class="log-info">`;
+                html += `<div class="log-product"><strong>${t.name}</strong>${brand}</div>`;
+                html += `<div class="log-detail">${typeLabel} ${t.quantity} ${t.unit || ''} · ${locStr} · ${timeStr}</div>`;
+                html += `</div>`;
+                html += `</div>`;
+            });
+        }
+
+        if (more) {
+            document.getElementById('log-list').insertAdjacentHTML('beforeend', html);
+        } else {
+            document.getElementById('log-list').innerHTML = html;
+        }
+
+        _logOffset += txns.length;
+        document.getElementById('log-load-more').style.display = txns.length >= LOG_PAGE_SIZE ? '' : 'none';
+
+    } catch (err) {
+        console.error('Log load error:', err);
+        if (!more) document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--danger)">Errore nel caricamento log</p>';
+    }
 }
 
 // ===== RECIPE GENERATION =====
