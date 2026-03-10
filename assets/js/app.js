@@ -239,12 +239,21 @@ async function loadDashboard() {
         const expiringList = document.getElementById('expiring-list');
         if (statsData.expiring_soon && statsData.expiring_soon.length > 0) {
             expiringSection.style.display = 'block';
-            expiringList.innerHTML = statsData.expiring_soon.map(item => `
+            expiringList.innerHTML = statsData.expiring_soon.map(item => {
+                const days = daysUntilExpiry(item.expiry_date);
+                let badgeText, badgeClass;
+                if (days === 0) { badgeText = 'OGGI'; badgeClass = 'today'; }
+                else if (days === 1) { badgeText = 'Domani'; badgeClass = 'expiring'; }
+                else { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
+                return `
                 <div class="alert-item">
-                    <span>${item.name}${item.brand ? ' - ' + item.brand : ''}</span>
-                    <span>${formatDate(item.expiry_date)}</span>
-                </div>
-            `).join('');
+                    <div class="alert-item-info">
+                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
+                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                    </div>
+                    <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
+                </div>`;
+            }).join('');
         } else {
             expiringSection.style.display = 'none';
         }
@@ -254,12 +263,21 @@ async function loadDashboard() {
         const expiredList = document.getElementById('expired-list');
         if (statsData.expired && statsData.expired.length > 0) {
             expiredSection.style.display = 'block';
-            expiredList.innerHTML = statsData.expired.map(item => `
+            expiredList.innerHTML = statsData.expired.map(item => {
+                const days = Math.abs(daysUntilExpiry(item.expiry_date));
+                let badgeText;
+                if (days === 0) badgeText = 'Oggi';
+                else if (days === 1) badgeText = 'Da ieri';
+                else badgeText = `Da ${days} giorni`;
+                return `
                 <div class="alert-item">
-                    <span>${item.name}${item.brand ? ' - ' + item.brand : ''}</span>
-                    <span>${formatDate(item.expiry_date)}</span>
-                </div>
-            `).join('');
+                    <div class="alert-item-info">
+                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
+                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                    </div>
+                    <span class="alert-item-badge expired">${badgeText}</span>
+                </div>`;
+            }).join('');
         } else {
             expiredSection.style.display = 'none';
         }
@@ -290,9 +308,19 @@ async function loadDashboard() {
 
 function renderDashItem(item) {
     const catIcon = CATEGORY_ICONS[item.category] || '📦';
-    const isExpired = item.expiry_date && new Date(item.expiry_date) < new Date();
-    const isExpiring = item.expiry_date && !isExpired && new Date(item.expiry_date) <= new Date(Date.now() + 7 * 86400000);
+    const days = daysUntilExpiry(item.expiry_date);
+    const isExpired = days < 0;
+    const isExpiring = !isExpired && days <= 7;
     const qtyDisplay = formatQuantity(item.quantity, item.unit);
+    
+    let expiryLabel = '';
+    if (item.expiry_date) {
+        if (days < 0) expiryLabel = `⚠️ Scaduto da ${Math.abs(days)}g`;
+        else if (days === 0) expiryLabel = '⚠️ Scade oggi!';
+        else if (days === 1) expiryLabel = '⏰ Scade domani';
+        else if (days <= 7) expiryLabel = `⏰ ${days} giorni`;
+        else expiryLabel = formatDate(item.expiry_date);
+    }
     
     return `
     <div class="inventory-item compact-item" onclick="dashItemTap(${item.id}, ${item.product_id})">
@@ -305,7 +333,7 @@ function renderDashItem(item) {
         </div>
         <div class="inv-qty-right">
             <span class="inv-qty-value">${qtyDisplay}</span>
-            ${item.expiry_date ? `<span class="inv-expiry-small ${isExpired ? 'expired' : isExpiring ? 'expiring' : ''}">${isExpired ? '⚠️' : ''} ${formatDate(item.expiry_date)}</span>` : ''}
+            ${expiryLabel ? `<span class="inv-expiry-small ${isExpired ? 'expired' : isExpiring ? 'expiring' : ''}">${expiryLabel}</span>` : ''}
         </div>
     </div>`;
 }
@@ -348,9 +376,21 @@ function renderInventory(items) {
     container.innerHTML = items.map(item => {
         const catIcon = CATEGORY_ICONS[item.category] || '📦';
         const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-        const isExpired = item.expiry_date && new Date(item.expiry_date) < new Date();
-        const isExpiring = item.expiry_date && !isExpired && new Date(item.expiry_date) <= new Date(Date.now() + 7 * 86400000);
+        const days = daysUntilExpiry(item.expiry_date);
+        const isExpired = days < 0;
+        const isExpiring = !isExpired && days <= 7;
         const qtyDisplay = formatQuantity(item.quantity, item.unit);
+        
+        let expiryBadge = '';
+        if (item.expiry_date) {
+            let expiryText;
+            if (isExpired) expiryText = `⚠️ Scaduto da ${Math.abs(days)}g`;
+            else if (days === 0) expiryText = '⚠️ Scade oggi!';
+            else if (days === 1) expiryText = '⏰ Domani';
+            else if (days <= 7) expiryText = `⏰ ${days} giorni`;
+            else expiryText = formatDate(item.expiry_date);
+            expiryBadge = `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${expiryText}</span>`;
+        }
         
         return `
         <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
@@ -363,7 +403,7 @@ function renderInventory(items) {
                 <div class="inv-meta">
                     <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
                     <span class="inv-badge badge-qty">${qtyDisplay}</span>
-                    ${item.expiry_date ? `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${isExpired ? '⚠️ ' : ''}${formatDate(item.expiry_date)}</span>` : ''}
+                    ${expiryBadge}
                 </div>
             </div>
         </div>`;
@@ -680,6 +720,31 @@ async function onBarcodeDetected(barcode) {
         const localResult = await api('search_barcode', { barcode });
         if (localResult.found) {
             currentProduct = localResult.product;
+            // If product was saved with 'pz' but has weight info in notes, fix defaults
+            if (currentProduct.unit === 'pz' && currentProduct.default_quantity <= 1 && currentProduct.notes) {
+                const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                if (pesoMatch) {
+                    const weightStr = pesoMatch[1].trim();
+                    const detected = detectUnitAndQuantity(weightStr);
+                    if (detected.unit !== 'pz') {
+                        currentProduct.unit = detected.unit;
+                        currentProduct.default_quantity = detected.quantity;
+                        currentProduct.weight_info = weightStr;
+                        // Update product in DB for future scans
+                        api('product_save', {}, 'POST', {
+                            id: currentProduct.id,
+                            barcode: currentProduct.barcode,
+                            name: currentProduct.name,
+                            brand: currentProduct.brand || '',
+                            category: currentProduct.category || '',
+                            image_url: currentProduct.image_url || '',
+                            unit: detected.unit,
+                            default_quantity: detected.quantity,
+                            notes: currentProduct.notes,
+                        });
+                    }
+                }
+            }
             // Extract weight_info from notes if available (stored as "Peso: 500 g · ...")
             if (!currentProduct.weight_info && currentProduct.notes) {
                 const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
@@ -1763,6 +1828,14 @@ function formatDateTime(dtStr) {
     const d = new Date(dtStr.replace(' ', 'T'));
     return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + ' ' + 
            d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function daysUntilExpiry(dateStr) {
+    if (!dateStr) return Infinity;
+    const expiry = new Date(dateStr + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((expiry - today) / 86400000);
 }
 
 function adjustQty(inputId, delta) {

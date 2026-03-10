@@ -94,6 +94,33 @@ body {
     background: rgba(255,255,255,0.4);
 }
 
+.header-scan-btn {
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.5);
+    color: white;
+    font-size: 1.5rem;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    animation: pulse-scan 2s ease-in-out infinite;
+}
+
+.header-scan-btn:active {
+    transform: scale(0.9);
+    background: rgba(255,255,255,0.4);
+}
+
+@keyframes pulse-scan {
+    0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    50% { box-shadow: 0 2px 16px rgba(255,255,255,0.4); }
+}
+
 /* ===== MAIN CONTENT ===== */
 .app-content {
     max-width: 600px;
@@ -196,13 +223,16 @@ body {
     background: #fef3c7;
     border: 2px solid var(--warning);
     border-radius: var(--radius);
-    padding: 14px;
+    padding: 16px;
     margin-bottom: 12px;
 }
 
 .alert-section h3 {
-    font-size: 1rem;
-    margin-bottom: 8px;
+    font-size: 1.05rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .alert-danger {
@@ -214,13 +244,60 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.7);
+    border-radius: var(--radius-sm);
     font-size: 0.9rem;
+    gap: 8px;
 }
 
 .alert-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.alert-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.alert-item-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.alert-item-brand {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.alert-item-badge {
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.alert-item-badge.expiring {
+    background: var(--warning);
+    color: #fff;
+}
+
+.alert-item-badge.expired {
+    background: var(--danger);
+    color: #fff;
+}
+
+.alert-item-badge.today {
+    background: var(--danger-light);
+    color: #fff;
 }
 
 /* ===== SECTION CARD ===== */
@@ -943,6 +1020,7 @@ body {
     font-weight: 600;
     z-index: 1000;
     opacity: 0;
+    pointer-events: none;
     transition: all 0.3s;
     max-width: 90vw;
     text-align: center;
@@ -952,6 +1030,7 @@ body {
 .toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
 }
 
 .toast.success {
