@@ -290,6 +290,16 @@ body {
     color: #fff;
 }
 
+.alert-item-badge.expiring-soon {
+    background: #ffc107;
+    color: #333;
+}
+
+.alert-item-badge.expiring-later {
+    background: #e0e0e0;
+    color: #555;
+}
+
 .alert-item-badge.expired {
     background: var(--danger);
     color: #fff;

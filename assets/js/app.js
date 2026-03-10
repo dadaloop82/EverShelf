@@ -332,7 +332,9 @@ async function loadDashboard() {
                 let badgeText, badgeClass;
                 if (days === 0) { badgeText = 'OGGI'; badgeClass = 'today'; }
                 else if (days === 1) { badgeText = 'Domani'; badgeClass = 'expiring'; }
-                else { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
+                else if (days <= 7) { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
+                else if (days <= 30) { badgeText = `${days}g`; badgeClass = 'expiring-soon'; }
+                else { const m = Math.round(days/30); badgeText = m <= 1 ? `${days}g` : `~${m} mesi`; badgeClass = 'expiring-later'; }
                 return `
                 <div class="alert-item">
                     <div class="alert-item-info">

@@ -509,12 +509,13 @@ function getStats(PDO $db): void {
     $recentIn = $db->query("SELECT COUNT(*) FROM transactions WHERE type='in' AND created_at >= datetime('now', '-7 days')")->fetchColumn();
     $recentOut = $db->query("SELECT COUNT(*) FROM transactions WHERE type='out' AND created_at >= datetime('now', '-7 days')")->fetchColumn();
     
-    // Expiring soon (next 7 days)
+    // Expiring soonest (next items to expire, up to 10)
     $expiring = $db->query("
         SELECT i.*, p.name, p.brand 
         FROM inventory i JOIN products p ON i.product_id = p.id 
-        WHERE i.expiry_date IS NOT NULL AND i.expiry_date <= date('now', '+7 days') AND i.expiry_date >= date('now')
+        WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
         ORDER BY i.expiry_date ASC
+        LIMIT 10
     ")->fetchAll();
     
     // Expired
