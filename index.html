@@ -64,30 +64,13 @@
             <div id="expiring-list"></div>
         </div>
 
-        <!-- Full inventory by location -->
-        <div class="section-card" id="dash-section-dispensa">
-            <h3 onclick="showPage('inventory','dispensa')" style="cursor:pointer">🗄️ Dispensa</h3>
-            <div class="inventory-list compact" id="dash-inv-dispensa"></div>
-        </div>
-        <div class="section-card" id="dash-section-frigo">
-            <h3 onclick="showPage('inventory','frigo')" style="cursor:pointer">🧊 Frigo</h3>
-            <div class="inventory-list compact" id="dash-inv-frigo"></div>
-        </div>
-        <div class="section-card" id="dash-section-freezer">
-            <h3 onclick="showPage('inventory','freezer')" style="cursor:pointer">❄️ Freezer</h3>
-            <div class="inventory-list compact" id="dash-inv-freezer"></div>
-        </div>
-        <div class="section-card" id="dash-section-altro">
-            <h3 onclick="showPage('inventory','altro')" style="cursor:pointer">📦 Altro</h3>
-            <div class="inventory-list compact" id="dash-inv-altro"></div>
-        </div>
     </section>
 
     <!-- ===== INVENTORY LIST ===== -->
     <section class="page" id="page-inventory">
         <div class="page-header">
             <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
-            <h2 id="inventory-title">Inventario</h2>
+            <h2 id="inventory-title">Dispensa</h2>
         </div>
         <div class="location-tabs" id="location-tabs">
             <button class="tab active" onclick="filterLocation('')" data-loc="">Tutti</button>
@@ -500,7 +483,7 @@
     </button>
     <button class="nav-btn" onclick="showPage('inventory', '')" data-page="inventory">
         <span class="nav-icon">📋</span>
-        <span class="nav-label">Inventario</span>
+        <span class="nav-label">Dispensa</span>
     </button>
     <button class="nav-btn" onclick="openRecipeDialog()" data-page="recipe">
         <span class="nav-icon">🍳</span>

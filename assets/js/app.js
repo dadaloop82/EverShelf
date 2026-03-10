@@ -380,10 +380,9 @@ function showPage(pageId, param = null) {
 // ===== DASHBOARD =====
 async function loadDashboard() {
     try {
-        const [summaryData, statsData, invData] = await Promise.all([
+        const [summaryData, statsData] = await Promise.all([
             api('inventory_summary'),
-            api('stats'),
-            api('inventory_list')
+            api('stats')
         ]);
         
         // Update stat cards
@@ -459,25 +458,6 @@ async function loadDashboard() {
             expiredSection.style.display = 'none';
         }
         
-        // Full inventory grouped by location, then by category within each location
-        const allItems = invData.inventory || [];
-        const grouped = { dispensa: [], frigo: [], freezer: [], altro: [] };
-        allItems.forEach(item => {
-            const loc = grouped[item.location] !== undefined ? item.location : 'altro';
-            grouped[loc].push(item);
-        });
-        
-        for (const [loc, items] of Object.entries(grouped)) {
-            const section = document.getElementById(`dash-section-${loc}`);
-            const container = document.getElementById(`dash-inv-${loc}`);
-            if (items.length === 0) {
-                section.style.display = 'none';
-            } else {
-                section.style.display = 'block';
-                container.innerHTML = renderGroupedByCategory(items, true);
-            }
-        }
-
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
