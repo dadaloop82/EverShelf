@@ -1417,13 +1417,14 @@ LIMITI:
 - Massimo 12 suggerimenti
 - Ordina per PRIORITÀ REALE (prima le mancanze gravi, poi i nice-to-have)
 - Ogni motivo deve essere SPECIFICO ("non hai proteine fresche" non "è buono")
+- Nel campo "specification" indica SEMPRE la quantità consigliata per una famiglia (es: "500g", "6 uova bio", "2 mazzetti", "1 bottiglia da 1L")
 
 Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 {
   "suggestions": [
     {
       "name": "nome prodotto in italiano",
-      "specification": "dettaglio opzionale (es: 1 kg, 6 pezzi, bio)",
+      "specification": "quantità consigliata e dettagli (es: 500g, 6 uova bio, 2 mazzetti, 1 bottiglia da 1L)",
       "reason": "motivo breve",
       "category": "frutta|verdura|latticini|carne|pesce|pane|pasta|conserve|condimenti|bevande|snack|surgelati|cereali|igiene|pulizia|altro",
       "priority": "alta|media|bassa"

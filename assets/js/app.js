@@ -2395,10 +2395,16 @@ async function addSelectedSuggestions() {
     btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Aggiunta in corso...';
     
     try {
-        const items = selected.map(s => ({
-            name: s.name,
-            specification: s.specification || '',
-        }));
+        const items = selected.map(s => {
+            // Build rich specification: combine quantity/detail + priority emoji
+            let spec = s.specification || '';
+            const priorityEmoji = { 'alta': '🔴', 'media': '🟡', 'bassa': '🟢' };
+            const emoji = priorityEmoji[s.priority] || '';
+            if (emoji) {
+                spec = spec ? `${emoji} ${spec}` : emoji;
+            }
+            return { name: s.name, specification: spec };
+        });
         
         const data = await api('bring_add', {}, 'POST', { items, listUUID: shoppingListUUID });
         
