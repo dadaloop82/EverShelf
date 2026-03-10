@@ -28,19 +28,19 @@ const CATEGORY_LOCATION = {
 };
 
 // Detect best unit/quantity from Open Food Facts quantity_info string
-// For packaged products, the unit should be 'pz' (pieces/packages) with quantity=1
-// The actual weight/volume (e.g. 500g) is stored separately as weight_info
+// Returns the actual package weight/volume as default (e.g. 700g → unit:'g', quantity:700)
 function detectUnitAndQuantity(quantityInfo) {
     if (!quantityInfo) return { unit: 'pz', quantity: 1, weightInfo: '' };
     const q = quantityInfo.toLowerCase().trim();
-    // Match multi-pack patterns like "6 x 1l", "4 x 125g"
+    // Match multi-pack patterns like "6 x 1l", "4 x 125g" → total weight
     const multiMatch = q.match(/(\d+)\s*x\s*([\d.,]+)\s*(ml|l|g|kg|cl)/i);
     if (multiMatch) {
         const count = parseInt(multiMatch[1]);
         let perUnitVal = parseFloat(multiMatch[2].replace(',', '.'));
         let perUnitUnit = multiMatch[3].toLowerCase();
         if (perUnitUnit === 'cl') { perUnitUnit = 'ml'; perUnitVal *= 10; }
-        return { unit: 'pz', quantity: count, weightInfo: quantityInfo, perUnit: perUnitVal + perUnitUnit };
+        const totalVal = count * perUnitVal;
+        return { unit: perUnitUnit, quantity: totalVal, weightInfo: quantityInfo };
     }
     // Match single package patterns like "500 g", "1 l", "750 ml", "1.5 kg"
     const match = q.match(/([\d.,]+)\s*(kg|g|l|ml|cl)/i);
@@ -48,7 +48,7 @@ function detectUnitAndQuantity(quantityInfo) {
         let unit = match[2].toLowerCase();
         let val = parseFloat(match[1].replace(',', '.'));
         if (unit === 'cl') { unit = 'ml'; val *= 10; }
-        return { unit: 'pz', quantity: 1, weightInfo: quantityInfo, weight: val + unit };
+        return { unit, quantity: val, weightInfo: quantityInfo };
     }
     return { unit: 'pz', quantity: 1, weightInfo: quantityInfo };
 }
