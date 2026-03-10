@@ -456,7 +456,42 @@ function useFromInventory(PDO $db): void {
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'out', ?, ?)");
     $stmt->execute([$productId, $quantity, $location]);
     
-    echo json_encode(['success' => true, 'remaining' => $newQty]);
+    // Auto-add to Bring! if product is completely finished (no inventory left anywhere)
+    $addedToBring = false;
+    if ($newQty <= 0) {
+        $stmt = $db->prepare("SELECT SUM(quantity) as total FROM inventory WHERE product_id = ? AND quantity > 0");
+        $stmt->execute([$productId]);
+        $totalLeft = (float)($stmt->fetchColumn() ?: 0);
+        
+        if ($totalLeft <= 0) {
+            // Get product name and brand for Bring!
+            $stmt = $db->prepare("SELECT name, brand FROM products WHERE id = ?");
+            $stmt->execute([$productId]);
+            $product = $stmt->fetch();
+            
+            if ($product) {
+                try {
+                    $auth = bringAuth();
+                    if ($auth) {
+                        $listUUID = $auth['bringListUUID'];
+                        $bringName = italianToBring($product['name']);
+                        $spec = $product['brand'] ?: '';
+                        $body = http_build_query([
+                            'uuid' => $listUUID,
+                            'purchase' => $bringName,
+                            'specification' => $spec,
+                        ]);
+                        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+                        $addedToBring = ($result !== null);
+                    }
+                } catch (Exception $e) {
+                    // Silently fail — don't block inventory operation
+                }
+            }
+        }
+    }
+    
+    echo json_encode(['success' => true, 'remaining' => $newQty, 'added_to_bring' => $addedToBring]);
 }
 
 function updateInventory(PDO $db): void {

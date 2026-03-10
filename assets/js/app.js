@@ -1845,6 +1845,9 @@ async function submitUseAll() {
         showLoading(false);
         if (result.success) {
             showToast(`📤 ${currentProduct.name} terminato!`, 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+            }
             showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -1868,6 +1871,9 @@ async function submitUse(e) {
         showLoading(false);
         if (result.success) {
             showToast(`📤 Usato ${qty} di ${currentProduct.name}. Rimasti: ${result.remaining}`, 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+            }
             showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -2701,6 +2707,9 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
             } catch (e) { /* ignore */ }
 
             showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+            }
         } else {
             btn.disabled = false;
             btn.textContent = '📦 Usa';
