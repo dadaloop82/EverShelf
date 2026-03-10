@@ -1239,20 +1239,43 @@ function bringSuggestItems(PDO $db): void {
     ");
     $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Build context
+    // Build detailed context with expiry info
     $invLines = [];
+    $expiringItems = [];
+    $expiredItems = [];
+    $categories = [];
     foreach ($inventory as $item) {
+        $cat = $item['category'] ?: 'altro';
+        $categories[$cat] = ($categories[$cat] ?? 0) + 1;
         $line = "- {$item['name']}";
         if ($item['brand']) $line .= " ({$item['brand']})";
         $line .= ": {$item['quantity']} {$item['unit']} in {$item['location']}";
         if ($item['expiry_date']) {
             $dl = intval($item['days_left']);
-            if ($dl < 0) $line .= " [SCADUTO]";
-            elseif ($dl <= 3) $line .= " [scade tra {$dl}g]";
+            if ($dl < 0) {
+                $line .= " [⚠️ SCADUTO da " . abs($dl) . " giorni]";
+                $expiredItems[] = $item['name'];
+            } elseif ($dl <= 2) {
+                $line .= " [🔴 SCADE TRA {$dl} GIORNI - USARE SUBITO]";
+                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
+            } elseif ($dl <= 7) {
+                $line .= " [🟡 scade tra {$dl} giorni]";
+                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
+            } elseif ($dl <= 14) {
+                $line .= " [scade tra {$dl} giorni]";
+            }
         }
         $invLines[] = $line;
     }
-    $inventoryText = empty($invLines) ? 'La dispensa è VUOTA.' : implode("\n", $invLines);
+    $inventoryText = empty($invLines) ? 'La dispensa è COMPLETAMENTE VUOTA.' : implode("\n", $invLines);
+    
+    $expiryContext = '';
+    if (!empty($expiredItems)) {
+        $expiryContext .= "\n\nPRODOTTI SCADUTI da sostituire: " . implode(', ', $expiredItems);
+    }
+    if (!empty($expiringItems)) {
+        $expiryContext .= "\n\nPRODOTTI IN SCADENZA (priorità per sostituzione): " . implode(', ', $expiringItems);
+    }
     
     $bringText = empty($bringItems) 
         ? 'La lista della spesa Bring! è attualmente VUOTA.' 
@@ -1265,25 +1288,32 @@ function bringSuggestItems(PDO $db): void {
     $anno = date('Y');
     
     $prompt = <<<PROMPT
-Sei un esperto consulente per la spesa domestica italiano. Analizza la dispensa dell'utente e suggerisci cosa comprare.
+Sei un nutrizionista e consulente per la spesa domestica italiano. Il tuo obiettivo è aiutare l'utente a fare una spesa SANA, EQUILIBRATA e INTELLIGENTE.
 
 DATA ATTUALE: {$meseIt} {$anno}
 
-INVENTARIO ATTUALE (cosa ha già in casa):
-{$inventoryText}
+=== INVENTARIO ATTUALE (cosa ha già in casa) ===
+{$inventoryText}{$expiryContext}
 
+=== LISTA BRING! (già pianificato per la spesa) ===
 {$bringText}
 
-REGOLE TASSATIVE:
-1. È VIETATO suggerire prodotti che sono GIÀ nella lista Bring! sopra elencata. Anche se con nome leggermente diverso (es. "Fagioli" vs "Fagioli in lattina") NON suggerirli.
-2. NON suggerire prodotti che l'utente ha già in abbondanza nell'inventario
-3. Suggerisci FRUTTA E VERDURA DI STAGIONE per {$meseIt}
-4. Suggerisci prodotti base che sembrano mancare (es. latte, uova, pane se non presenti)
-5. Se qualcosa sta per scadere, suggerisci un sostituto
-6. Pensa come un nutrizionista: dieta equilibrata e varia
-7. Massimo 15 suggerimenti, ordinati per priorità
-8. Ogni suggerimento deve avere un motivo chiaro
-9. Prima di includere ogni suggerimento, VERIFICA che non sia già nella lista Bring! sopra
+=== IL TUO COMPITO ===
+Analizza attentamente l'inventario dell'utente e suggerisci cosa MANCA per una settimana di alimentazione sana.
+
+RAGIONA COSÌ:
+1. CONTROLLA cosa ha già: guarda OGNI prodotto nell'inventario prima di suggerire. Se ha già pollo, non suggerire pollo. Se ha già pasta, non suggerire altra pasta.
+2. CONTROLLA la lista Bring!: NON suggerire nulla che sia già nella lista. Neanche varianti simili (es. "Fagioli" se c'è "Fagioli in lattina").
+3. PRODOTTI SCADUTI/IN SCADENZA: se qualcosa sta per scadere o è scaduto, suggerisci un sostituto fresco.
+4. STAGIONALITÀ ({$meseIt}): prediligi FRUTTA e VERDURA di stagione. A {$meseIt} in Italia: carciofi, asparagi, spinaci, bietole, finocchi, radicchio, arance, kiwi, mele, pere.
+5. DIETA SANA: assicurati che l'utente abbia proteine, fibre, vitamine, carboidrati complessi. Evita eccessi di prodotti trasformati.
+6. BASI MANCANTI: controlla se mancano alimenti essenziali come uova, latte, pane, frutta fresca, verdura, proteine.
+7. VARIETÀ: non suggerire 5 tipi di frutta se manca la carne. Bilancia le categorie.
+
+LIMITI:
+- Massimo 12 suggerimenti
+- Ordina per PRIORITÀ REALE (prima le mancanze gravi, poi i nice-to-have)
+- Ogni motivo deve essere SPECIFICO ("non hai proteine fresche" non "è buono")
 
 Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 {
