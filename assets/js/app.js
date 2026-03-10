@@ -330,6 +330,7 @@ function showPage(pageId, param = null) {
             break;
         case 'scan': initScanner(); clearQuickNameResults(); break;
         case 'products': loadAllProducts(); break;
+        case 'shopping': loadShoppingList(); break;
         case 'ai': initAICamera(); break;
     }
     
@@ -2172,6 +2173,213 @@ async function selectProductForAction(productId) {
         showLoading(false);
         showToast('Errore', 'error');
     }
+}
+
+// ===== SHOPPING LIST (BRING! INTEGRATION) =====
+let shoppingListUUID = '';
+let shoppingItems = [];
+let suggestionItems = [];
+
+async function loadShoppingList() {
+    const statusEl = document.getElementById('bring-status');
+    const currentEl = document.getElementById('shopping-current');
+    const suggestionsEl = document.getElementById('shopping-suggestions');
+    
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<div class="bring-loading"><div class="loading-spinner"></div> Connessione a Bring!...</div>';
+    currentEl.style.display = 'none';
+    suggestionsEl.style.display = 'none';
+    
+    try {
+        const data = await api('bring_list');
+        statusEl.style.display = 'none';
+        
+        if (!data.success) {
+            statusEl.style.display = 'block';
+            statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || 'Errore connessione Bring!')}</div>`;
+            return;
+        }
+        
+        shoppingListUUID = data.listUUID;
+        shoppingItems = data.purchase || [];
+        
+        renderShoppingItems();
+        currentEl.style.display = 'block';
+        
+    } catch (err) {
+        console.error('Bring! error:', err);
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<div class="bring-error">⚠️ Errore di connessione a Bring!</div>';
+    }
+}
+
+function renderShoppingItems() {
+    const container = document.getElementById('shopping-items');
+    const countEl = document.getElementById('shopping-count');
+    
+    countEl.textContent = shoppingItems.length;
+    
+    if (shoppingItems.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>Lista della spesa vuota!<br>Usa il pulsante sotto per generare suggerimenti.</p></div>';
+        return;
+    }
+    
+    container.innerHTML = shoppingItems.map(item => {
+        const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
+        return `
+        <div class="shopping-item">
+            <span class="shopping-item-icon">${catIcon}</span>
+            <div class="shopping-item-info">
+                <div class="shopping-item-name">${escapeHtml(item.name)}</div>
+                ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+            </div>
+            <button class="shopping-item-remove" onclick="removeBringItem('${escapeHtml(item.name)}')" title="Rimuovi">✕</button>
+        </div>`;
+    }).join('');
+}
+
+async function removeBringItem(name) {
+    try {
+        const data = await api('bring_remove', {}, 'POST', { name, listUUID: shoppingListUUID });
+        if (data.success) {
+            shoppingItems = shoppingItems.filter(i => i.name !== name);
+            renderShoppingItems();
+            showToast('Rimosso dalla lista', 'success');
+        }
+    } catch (err) {
+        showToast('Errore nella rimozione', 'error');
+    }
+}
+
+async function generateSuggestions() {
+    const btn = document.getElementById('btn-suggest');
+    const suggestionsEl = document.getElementById('shopping-suggestions');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Analisi in corso...';
+    suggestionsEl.style.display = 'none';
+    
+    try {
+        const data = await api('bring_suggest', {}, 'POST', {});
+        
+        btn.disabled = false;
+        btn.innerHTML = '🤖 Suggerisci cosa comprare';
+        
+        if (!data.success) {
+            showToast(data.error || 'Errore nella generazione', 'error');
+            return;
+        }
+        
+        suggestionItems = (data.suggestions || []).map(s => ({ ...s, selected: true }));
+        
+        // Show seasonal tip
+        const tipEl = document.getElementById('seasonal-tip');
+        if (data.seasonal_tip) {
+            tipEl.style.display = 'block';
+            tipEl.innerHTML = `🌿 <em>${escapeHtml(data.seasonal_tip)}</em>`;
+        } else {
+            tipEl.style.display = 'none';
+        }
+        
+        renderSuggestions();
+        suggestionsEl.style.display = 'block';
+        document.getElementById('suggestion-actions').style.display = 'block';
+        
+        // Scroll to suggestions
+        suggestionsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '🤖 Suggerisci cosa comprare';
+        console.error('Suggestion error:', err);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
+function renderSuggestions() {
+    const container = document.getElementById('suggestion-items');
+    
+    const priorityOrder = { 'alta': 0, 'media': 1, 'bassa': 2 };
+    const sorted = [...suggestionItems].sort((a, b) => (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2));
+    
+    container.innerHTML = sorted.map((item, idx) => {
+        const catIcon = CATEGORY_ICONS[item.category] || '🛒';
+        const priorityBadge = {
+            'alta': '<span class="priority-badge priority-high">Alta</span>',
+            'media': '<span class="priority-badge priority-med">Media</span>',
+            'bassa': '<span class="priority-badge priority-low">Bassa</span>',
+        }[item.priority] || '';
+        
+        return `
+        <div class="suggestion-item ${item.selected ? 'selected' : ''}" onclick="toggleSuggestion(${idx})">
+            <div class="suggestion-check">${item.selected ? '☑️' : '⬜'}</div>
+            <span class="shopping-item-icon">${catIcon}</span>
+            <div class="suggestion-info">
+                <div class="suggestion-name">${escapeHtml(item.name)}${item.specification ? ` <small>(${escapeHtml(item.specification)})</small>` : ''} ${priorityBadge}</div>
+                <div class="suggestion-reason">${escapeHtml(item.reason)}</div>
+            </div>
+        </div>`;
+    }).join('');
+    
+    updateSuggestionActionBtn();
+}
+
+function toggleSuggestion(idx) {
+    const priorityOrder = { 'alta': 0, 'media': 1, 'bassa': 2 };
+    const sorted = [...suggestionItems].sort((a, b) => (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2));
+    const actualItem = sorted[idx];
+    // Find in original array
+    const origIdx = suggestionItems.indexOf(actualItem);
+    if (origIdx >= 0) {
+        suggestionItems[origIdx].selected = !suggestionItems[origIdx].selected;
+    }
+    renderSuggestions();
+}
+
+function updateSuggestionActionBtn() {
+    const selected = suggestionItems.filter(s => s.selected);
+    const btn = document.querySelector('#suggestion-actions .btn-success');
+    if (btn) {
+        btn.textContent = `✅ Aggiungi ${selected.length} prodott${selected.length === 1 ? 'o' : 'i'} a Bring!`;
+        btn.disabled = selected.length === 0;
+    }
+}
+
+async function addSelectedSuggestions() {
+    const selected = suggestionItems.filter(s => s.selected);
+    if (selected.length === 0) {
+        showToast('Seleziona almeno un prodotto', 'error');
+        return;
+    }
+    
+    const btn = document.querySelector('#suggestion-actions .btn-success');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Aggiunta in corso...';
+    
+    try {
+        const items = selected.map(s => ({
+            name: s.name,
+            specification: s.specification || '',
+        }));
+        
+        const data = await api('bring_add', {}, 'POST', { items, listUUID: shoppingListUUID });
+        
+        if (data.success) {
+            showToast(`${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`, 'success');
+            // Refresh list
+            await loadShoppingList();
+            // Clear suggestions
+            document.getElementById('shopping-suggestions').style.display = 'none';
+            suggestionItems = [];
+        } else {
+            showToast(data.error || 'Errore', 'error');
+        }
+    } catch (err) {
+        showToast('Errore di connessione', 'error');
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '✅ Aggiungi selezionati a Bring!';
 }
 
 // ===== UTILITY FUNCTIONS =====

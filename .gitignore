@@ -5,6 +5,9 @@
 data/*.db-wal
 data/*.db-shm
 
+# Bring! auth token cache
+data/bring_token.json
+
 # SSL CA cert (local only)
 ca.crt
 

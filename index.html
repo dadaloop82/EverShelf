@@ -426,6 +426,43 @@
         <div class="products-list" id="products-list"></div>
     </section>
 
+    <!-- ===== SHOPPING LIST (BRING!) PAGE ===== -->
+    <section class="page" id="page-shopping">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
+            <h2>🛒 Lista della Spesa</h2>
+        </div>
+        <div class="shopping-container">
+            <div class="bring-status" id="bring-status">
+                <div class="bring-loading">Connessione a Bring!...</div>
+            </div>
+            <div class="shopping-current" id="shopping-current" style="display:none">
+                <div class="shopping-section-header">
+                    <h3>🛍️ Da comprare</h3>
+                    <span class="shopping-count" id="shopping-count">0</span>
+                </div>
+                <div class="shopping-items" id="shopping-items"></div>
+            </div>
+            <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
+                <div class="shopping-section-header">
+                    <h3>💡 Suggerimenti AI</h3>
+                </div>
+                <div class="seasonal-tip" id="seasonal-tip" style="display:none"></div>
+                <div class="suggestion-items" id="suggestion-items"></div>
+                <div class="suggestion-actions" id="suggestion-actions" style="display:none">
+                    <button class="btn btn-success" onclick="addSelectedSuggestions()">
+                        ✅ Aggiungi selezionati a Bring!
+                    </button>
+                </div>
+            </div>
+            <div class="shopping-actions">
+                <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
+                    🤖 Suggerisci cosa comprare
+                </button>
+            </div>
+        </div>
+    </section>
+
     <!-- ===== AI IDENTIFICATION PAGE ===== -->
     <section class="page" id="page-ai">
         <div class="page-header">
@@ -469,9 +506,9 @@
         <span class="nav-icon-large">🍳</span>
         <span class="nav-label">Ricetta</span>
     </button>
-    <button class="nav-btn" onclick="showPage('products')" data-page="products">
-        <span class="nav-icon">📦</span>
-        <span class="nav-label">Prodotti</span>
+    <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping">
+        <span class="nav-icon">🛒</span>
+        <span class="nav-label">Spesa</span>
     </button>
 </nav>
 

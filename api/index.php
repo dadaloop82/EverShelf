@@ -95,6 +95,20 @@ try {
             geminiIdentifyProduct();
             break;
 
+        // ===== BRING! SHOPPING LIST =====
+        case 'bring_list':
+            bringGetList();
+            break;
+        case 'bring_add':
+            bringAddItems();
+            break;
+        case 'bring_remove':
+            bringRemoveItem();
+            break;
+        case 'bring_suggest':
+            bringSuggestItems($db);
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -967,4 +981,367 @@ function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): 
     }
 
     return $results;
+}
+
+// ===== BRING! SHOPPING LIST INTEGRATION =====
+
+function loadEnvVars(): array {
+    $envFile = __DIR__ . '/../.env';
+    $vars = [];
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $val) = explode('=', $line, 2);
+                $vars[trim($key)] = trim($val);
+            }
+        }
+    }
+    return $vars;
+}
+
+function bringAuth(): ?array {
+    $env = loadEnvVars();
+    $email = $env['BRING_EMAIL'] ?? '';
+    $password = $env['BRING_PASSWORD'] ?? '';
+    
+    if (empty($email) || empty($password)) {
+        return null;
+    }
+    
+    // Check cache file for valid token
+    $cacheFile = __DIR__ . '/../data/bring_token.json';
+    if (file_exists($cacheFile)) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if ($cached && isset($cached['expires']) && $cached['expires'] > time()) {
+            return $cached;
+        }
+    }
+    
+    $url = 'https://api.getbring.com/rest/v2/bringauth';
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/x-www-form-urlencoded\r\nX-BRING-API-KEY: cof4Nc6D8sOprah0hUXrFl\r\nX-BRING-CLIENT: webApp\r\n",
+            'content' => http_build_query(['email' => $email, 'password' => $password]),
+            'timeout' => 10,
+        ]
+    ]);
+    
+    $response = @file_get_contents($url, false, $ctx);
+    if ($response === false) return null;
+    
+    $data = json_decode($response, true);
+    if (!isset($data['access_token'])) return null;
+    
+    $tokenData = [
+        'access_token' => $data['access_token'],
+        'uuid' => $data['uuid'],
+        'bringListUUID' => $data['bringListUUID'] ?? '',
+        'expires' => time() + 3500, // tokens last ~1 hour
+    ];
+    
+    // Cache token
+    @file_put_contents($cacheFile, json_encode($tokenData));
+    
+    return $tokenData;
+}
+
+function bringRequest(string $method, string $url, ?string $body = null): ?array {
+    $auth = bringAuth();
+    if (!$auth) {
+        return null;
+    }
+    
+    $headers = "Authorization: Bearer {$auth['access_token']}\r\n" .
+               "X-BRING-API-KEY: cof4Nc6D8sOprah0hUXrFl\r\n" .
+               "X-BRING-CLIENT: webApp\r\n" .
+               "Content-Type: application/x-www-form-urlencoded\r\n";
+    
+    $opts = [
+        'http' => [
+            'method' => $method,
+            'header' => $headers,
+            'timeout' => 10,
+            'ignore_errors' => true,
+        ]
+    ];
+    if ($body !== null) {
+        $opts['http']['content'] = $body;
+    }
+    
+    $response = @file_get_contents($url, false, stream_context_create($opts));
+    if ($response === false) return null;
+    
+    $data = json_decode($response, true);
+    return $data ?? ['_raw' => $response];
+}
+
+function bringGetList(): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate. Aggiungi BRING_EMAIL e BRING_PASSWORD al file .env']);
+        return;
+    }
+    
+    $listUUID = $auth['bringListUUID'];
+    if (empty($listUUID)) {
+        // Try to get lists
+        $lists = bringRequest('GET', "https://api.getbring.com/rest/v2/bringusers/{$auth['uuid']}/lists");
+        if ($lists && isset($lists['lists'][0]['listUuid'])) {
+            $listUUID = $lists['lists'][0]['listUuid'];
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Nessuna lista Bring! trovata']);
+            return;
+        }
+    }
+    
+    $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+    if (!$data) {
+        echo json_encode(['success' => false, 'error' => 'Errore nel recupero della lista']);
+        return;
+    }
+    
+    $purchase = [];
+    $recently = [];
+    
+    if (isset($data['purchase'])) {
+        foreach ($data['purchase'] as $item) {
+            $purchase[] = [
+                'name' => $item['name'] ?? '',
+                'specification' => $item['specification'] ?? '',
+            ];
+        }
+    }
+    if (isset($data['recently'])) {
+        foreach ($data['recently'] as $item) {
+            $recently[] = [
+                'name' => $item['name'] ?? '',
+                'specification' => $item['specification'] ?? '',
+            ];
+        }
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'listUUID' => $listUUID,
+        'purchase' => $purchase,
+        'recently' => $recently,
+    ]);
+}
+
+function bringAddItems(): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    $items = $input['items'] ?? [];
+    $listUUID = $input['listUUID'] ?? $auth['bringListUUID'];
+    
+    if (empty($listUUID)) {
+        echo json_encode(['success' => false, 'error' => 'Lista non trovata']);
+        return;
+    }
+    
+    $added = 0;
+    $errors = [];
+    
+    foreach ($items as $item) {
+        $name = $item['name'] ?? '';
+        $spec = $item['specification'] ?? '';
+        if (empty($name)) continue;
+        
+        $body = http_build_query([
+            'uuid' => $listUUID,
+            'purchase' => $name,
+            'specification' => $spec,
+        ]);
+        
+        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+        if ($result !== null) {
+            $added++;
+        } else {
+            $errors[] = $name;
+        }
+    }
+    
+    echo json_encode(['success' => true, 'added' => $added, 'errors' => $errors]);
+}
+
+function bringRemoveItem(): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    $name = $input['name'] ?? '';
+    $listUUID = $input['listUUID'] ?? $auth['bringListUUID'];
+    
+    if (empty($name) || empty($listUUID)) {
+        echo json_encode(['success' => false, 'error' => 'Parametri mancanti']);
+        return;
+    }
+    
+    $body = http_build_query([
+        'uuid' => $listUUID,
+        'remove' => $name,
+    ]);
+    
+    $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+    echo json_encode(['success' => $result !== null]);
+}
+
+function bringSuggestItems(PDO $db): void {
+    $env = loadEnvVars();
+    $apiKey = $env['GEMINI_API_KEY'] ?? '';
+    
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'API Key Gemini non configurata']);
+        return;
+    }
+    
+    // Get current Bring! list
+    $auth = bringAuth();
+    $bringItems = [];
+    $listUUID = '';
+    if ($auth) {
+        $listUUID = $auth['bringListUUID'];
+        if (empty($listUUID)) {
+            $lists = bringRequest('GET', "https://api.getbring.com/rest/v2/bringusers/{$auth['uuid']}/lists");
+            if ($lists && isset($lists['lists'][0]['listUuid'])) {
+                $listUUID = $lists['lists'][0]['listUuid'];
+            }
+        }
+        if ($listUUID) {
+            $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+            if ($data && isset($data['purchase'])) {
+                foreach ($data['purchase'] as $item) {
+                    $bringItems[] = $item['name'] ?? '';
+                }
+            }
+        }
+    }
+    
+    // Get inventory
+    $stmt = $db->query("
+        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY p.category, p.name
+    ");
+    $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Build context
+    $invLines = [];
+    foreach ($inventory as $item) {
+        $line = "- {$item['name']}";
+        if ($item['brand']) $line .= " ({$item['brand']})";
+        $line .= ": {$item['quantity']} {$item['unit']} in {$item['location']}";
+        if ($item['expiry_date']) {
+            $dl = intval($item['days_left']);
+            if ($dl < 0) $line .= " [SCADUTO]";
+            elseif ($dl <= 3) $line .= " [scade tra {$dl}g]";
+        }
+        $invLines[] = $line;
+    }
+    $inventoryText = empty($invLines) ? 'La dispensa è VUOTA.' : implode("\n", $invLines);
+    
+    $bringText = empty($bringItems) ? 'La lista della spesa è vuota.' : 'Già nella lista della spesa Bring!: ' . implode(', ', $bringItems);
+    
+    // Current month for seasonal suggestions
+    $mese = strftime('%B') ?: date('F');
+    $mesi_it = ['January'=>'Gennaio','February'=>'Febbraio','March'=>'Marzo','April'=>'Aprile','May'=>'Maggio','June'=>'Giugno','July'=>'Luglio','August'=>'Agosto','September'=>'Settembre','October'=>'Ottobre','November'=>'Novembre','December'=>'Dicembre'];
+    $meseIt = $mesi_it[date('F')] ?? date('F');
+    $anno = date('Y');
+    
+    $prompt = <<<PROMPT
+Sei un esperto consulente per la spesa domestica italiano. Analizza la dispensa dell'utente e suggerisci cosa comprare.
+
+DATA ATTUALE: {$meseIt} {$anno}
+
+INVENTARIO ATTUALE:
+{$inventoryText}
+
+{$bringText}
+
+REGOLE:
+1. NON suggerire prodotti GIÀ presenti nella lista Bring!
+2. NON suggerire prodotti che l'utente ha già in abbondanza nell'inventario
+3. Suggerisci FRUTTA E VERDURA DI STAGIONE per {$meseIt}
+4. Suggerisci prodotti base che sembrano mancare (es. latte, uova, pane se non presenti)
+5. Se qualcosa sta per scadere, suggerisci un sostituto
+6. Pensa come un nutrizionista: dieta equilibrata e varia
+7. Massimo 15 suggerimenti, ordinati per priorità
+8. Ogni suggerimento deve avere un motivo chiaro
+
+Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
+{
+  "suggestions": [
+    {
+      "name": "nome prodotto in italiano",
+      "specification": "dettaglio opzionale (es: 1 kg, 6 pezzi, bio)",
+      "reason": "motivo breve",
+      "category": "frutta|verdura|latticini|carne|pesce|pane|pasta|conserve|condimenti|bevande|snack|surgelati|cereali|igiene|pulizia|altro",
+      "priority": "alta|media|bassa"
+    }
+  ],
+  "seasonal_tip": "Un consiglio stagionale breve"
+}
+PROMPT;
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+    
+    $payload = [
+        'contents' => [
+            ['parts' => [['text' => $prompt]]]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.8,
+            'maxOutputTokens' => 2048,
+        ]
+    ];
+    
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\n",
+            'content' => json_encode($payload),
+            'timeout' => 30,
+        ]
+    ]);
+    
+    $response = @file_get_contents($url, false, $ctx);
+    if ($response === false) {
+        echo json_encode(['success' => false, 'error' => 'Errore di connessione a Gemini']);
+        return;
+    }
+    
+    $data = json_decode($response, true);
+    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    
+    // Clean markdown artifacts
+    $text = preg_replace('/^```json\s*/i', '', $text);
+    $text = preg_replace('/```\s*$/', '', $text);
+    $text = trim($text);
+    
+    $suggestions = json_decode($text, true);
+    if (!$suggestions || !isset($suggestions['suggestions'])) {
+        echo json_encode(['success' => false, 'error' => 'Risposta AI non valida', 'raw' => $text]);
+        return;
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'suggestions' => $suggestions['suggestions'],
+        'seasonal_tip' => $suggestions['seasonal_tip'] ?? '',
+        'listUUID' => $listUUID,
+    ]);
 }
