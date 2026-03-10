@@ -1078,6 +1078,76 @@ function bringRequest(string $method, string $url, ?string $body = null): ?array
     return $data ?? ['_raw' => $response];
 }
 
+/**
+ * Load and cache the Bring! IT↔DE catalog mapping.
+ * Returns ['de2it' => [German => Italian], 'it2de' => [italian_lower => German]]
+ */
+function bringCatalog(): array {
+    $cacheFile = __DIR__ . '/../data/bring_catalog.json';
+    
+    // Cache for 24 hours
+    if (file_exists($cacheFile) && filemtime($cacheFile) > time() - 86400) {
+        return json_decode(file_get_contents($cacheFile), true) ?: ['de2it' => [], 'it2de' => []];
+    }
+    
+    $json = @file_get_contents('https://web.getbring.com/locale/articles.it-IT.json');
+    if (!$json) return ['de2it' => [], 'it2de' => []];
+    
+    $data = json_decode($json, true);
+    if (!$data) return ['de2it' => [], 'it2de' => []];
+    
+    $de2it = [];
+    $it2de = [];
+    foreach ($data as $deKey => $itVal) {
+        if (!is_string($itVal) || empty($itVal)) continue;
+        $de2it[$deKey] = $itVal;
+        $it2de[mb_strtolower($itVal)] = $deKey;
+    }
+    
+    $catalog = ['de2it' => $de2it, 'it2de' => $it2de];
+    @file_put_contents($cacheFile, json_encode($catalog, JSON_UNESCAPED_UNICODE));
+    
+    return $catalog;
+}
+
+/** Translate a Bring! item name from German key to Italian display name */
+function bringToItalian(string $name): string {
+    $catalog = bringCatalog();
+    return $catalog['de2it'][$name] ?? $name;
+}
+
+/** Translate an Italian product name to the Bring! German catalog key (fuzzy match) */
+function italianToBring(string $italianName): string {
+    $catalog = bringCatalog();
+    $lower = mb_strtolower(trim($italianName));
+    
+    // Exact match
+    if (isset($catalog['it2de'][$lower])) {
+        return $catalog['it2de'][$lower];
+    }
+    
+    // Try partial match: "Spinaci freschi" → match "Spinaci"
+    foreach ($catalog['it2de'] as $itLower => $deKey) {
+        if (str_contains($lower, $itLower) || str_contains($itLower, $lower)) {
+            return $deKey;
+        }
+    }
+    
+    // Try matching first word: "Petto di pollo" → "Pollo" = Poulet
+    $words = explode(' ', $lower);
+    foreach ($words as $word) {
+        if (mb_strlen($word) < 3) continue;
+        foreach ($catalog['it2de'] as $itLower => $deKey) {
+            if ($itLower === $word) {
+                return $deKey;
+            }
+        }
+    }
+    
+    // No match - return original (Bring! will show as custom item)
+    return $italianName;
+}
+
 function bringGetList(): void {
     $auth = bringAuth();
     if (!$auth) {
@@ -1108,16 +1178,20 @@ function bringGetList(): void {
     
     if (isset($data['purchase'])) {
         foreach ($data['purchase'] as $item) {
+            $rawName = $item['name'] ?? '';
             $purchase[] = [
-                'name' => $item['name'] ?? '',
+                'name' => bringToItalian($rawName),
+                'rawName' => $rawName,
                 'specification' => $item['specification'] ?? '',
             ];
         }
     }
     if (isset($data['recently'])) {
         foreach ($data['recently'] as $item) {
+            $rawName = $item['name'] ?? '';
             $recently[] = [
-                'name' => $item['name'] ?? '',
+                'name' => bringToItalian($rawName),
+                'rawName' => $rawName,
                 'specification' => $item['specification'] ?? '',
             ];
         }
@@ -1128,7 +1202,7 @@ function bringGetList(): void {
         'listUUID' => $listUUID,
         'purchase' => $purchase,
         'recently' => $recently,
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 function bringAddItems(): void {
@@ -1155,9 +1229,12 @@ function bringAddItems(): void {
         $spec = $item['specification'] ?? '';
         if (empty($name)) continue;
         
+        // Map Italian name to Bring! catalog key (German) for proper recognition
+        $bringName = italianToBring($name);
+        
         $body = http_build_query([
             'uuid' => $listUUID,
-            'purchase' => $name,
+            'purchase' => $bringName,
             'specification' => $spec,
         ]);
         
@@ -1188,9 +1265,13 @@ function bringRemoveItem(): void {
         return;
     }
     
+    // Use rawName (German key) if provided, otherwise try to map
+    $rawName = $input['rawName'] ?? '';
+    $removeName = !empty($rawName) ? $rawName : italianToBring($name);
+    
     $body = http_build_query([
         'uuid' => $listUUID,
-        'remove' => $name,
+        'remove' => $removeName,
     ]);
     
     $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
@@ -1222,7 +1303,8 @@ function bringSuggestItems(PDO $db): void {
             $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
             if ($data && isset($data['purchase'])) {
                 foreach ($data['purchase'] as $item) {
-                    $bringItems[] = $item['name'] ?? '';
+                    $rawName = $item['name'] ?? '';
+                    $bringItems[] = bringToItalian($rawName);
                 }
             }
         }
@@ -1287,6 +1369,17 @@ function bringSuggestItems(PDO $db): void {
     $meseIt = $mesi_it[date('F')] ?? date('F');
     $anno = date('Y');
     
+    // Get catalog Italian names for AI to use
+    $catalog = bringCatalog();
+    $catalogNames = array_values($catalog['de2it']);
+    // Filter only food-related items (exclude categories and non-food)
+    $catalogNames = array_filter($catalogNames, function($n) {
+        $skip = ['Fai da te', 'Giardino', 'Atrezzi', 'Annaffiatoio', 'Rasaerba', 'Sementi', 'Propangas', 'Vernice', 'Pennello', 'Viti', 'Chiodi', 'Barbecue', 'Ombrellone', 'Terriccio', 'Concime', 'Articoli propri', 'Usati di recente'];
+        foreach ($skip as $s) { if (str_contains($n, $s)) return false; }
+        return mb_strlen($n) > 1;
+    });
+    $catalogList = implode(', ', array_slice($catalogNames, 0, 200));
+    
     $prompt = <<<PROMPT
 Sei un nutrizionista e consulente per la spesa domestica italiano. Il tuo obiettivo è aiutare l'utente a fare una spesa SANA, EQUILIBRATA e INTELLIGENTE.
 
@@ -1298,8 +1391,18 @@ DATA ATTUALE: {$meseIt} {$anno}
 === LISTA BRING! (già pianificato per la spesa) ===
 {$bringText}
 
+=== CATALOGO PRODOTTI RICONOSCIUTI ===
+Usa ESATTAMENTE questi nomi quando possibile (sono i nomi che il sistema riconosce con icone e categorie):
+{$catalogList}
+
 === IL TUO COMPITO ===
 Analizza attentamente l'inventario dell'utente e suggerisci cosa MANCA per una settimana di alimentazione sana.
+
+REGOLA FONDAMENTALE SUI NOMI:
+- Il campo "name" DEVE essere uno dei nomi dal CATALOGO PRODOTTI sopra, scritto ESATTAMENTE come appare.
+- Esempio: usa "Spinaci" (non "Spinaci freschi"), "Pollo" (non "Petto di pollo"), "Mele" (non "Mele Golden").
+- Se vuoi specificare la variante, mettila nel campo "specification" (es: name="Pollo", specification="petto, 500g").
+- Se il prodotto non è nel catalogo, usa il nome più generico possibile in italiano.
 
 RAGIONA COSÌ:
 1. CONTROLLA cosa ha già: guarda OGNI prodotto nell'inventario prima di suggerire. Se ha già pollo, non suggerire pollo. Se ha già pasta, non suggerire altra pasta.

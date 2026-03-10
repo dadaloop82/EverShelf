@@ -2224,7 +2224,7 @@ function renderShoppingItems() {
         return;
     }
     
-    container.innerHTML = shoppingItems.map(item => {
+    container.innerHTML = shoppingItems.map((item, idx) => {
         const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
         return `
         <div class="shopping-item">
@@ -2233,16 +2233,22 @@ function renderShoppingItems() {
                 <div class="shopping-item-name">${escapeHtml(item.name)}</div>
                 ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
             </div>
-            <button class="shopping-item-remove" onclick="removeBringItem('${escapeHtml(item.name)}')" title="Rimuovi">✕</button>
+            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
         </div>`;
     }).join('');
 }
 
-async function removeBringItem(name) {
+async function removeBringItem(idx) {
+    const item = shoppingItems[idx];
+    if (!item) return;
     try {
-        const data = await api('bring_remove', {}, 'POST', { name, listUUID: shoppingListUUID });
+        const data = await api('bring_remove', {}, 'POST', { 
+            name: item.name, 
+            rawName: item.rawName || '', 
+            listUUID: shoppingListUUID 
+        });
         if (data.success) {
-            shoppingItems = shoppingItems.filter(i => i.name !== name);
+            shoppingItems.splice(idx, 1);
             renderShoppingItems();
             showToast('Rimosso dalla lista', 'success');
         }
