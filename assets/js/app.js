@@ -2655,6 +2655,40 @@ function adjustRecipePersons(delta) {
     input.value = val;
 }
 
+async function useRecipeIngredient(idx, productId, location, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = '⏳...';
+
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: productId,
+            quantity: 1,
+            use_all: false,
+            location: location
+        });
+
+        if (result.success) {
+            const li = document.getElementById(`recipe-ing-${idx}`);
+            if (li) {
+                li.classList.add('recipe-ing-used');
+            }
+            btn.textContent = '✔️ Scalato';
+            btn.classList.add('btn-used');
+            showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
+        } else {
+            btn.disabled = false;
+            btn.textContent = '📦 Usa';
+            showToast(result.error || 'Errore nello scalare', 'error');
+        }
+    } catch (err) {
+        console.error('Use ingredient error:', err);
+        btn.disabled = false;
+        btn.textContent = '📦 Usa';
+        showToast('Errore di connessione', 'error');
+    }
+}
+
 async function generateRecipe() {
     const meal = getMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
@@ -2695,10 +2729,17 @@ async function generateRecipe() {
         }
 
         // Ingredients
-        html += '<h3>🧾 Ingredienti</h3><ul>';
-        (r.ingredients || []).forEach(ing => {
-            const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
-            html += `<li><strong>${ing.name}</strong>: ${ing.qty}${pantryIcon}</li>`;
+        html += '<h3>🧾 Ingredienti</h3><ul class="recipe-ingredients">';
+        (r.ingredients || []).forEach((ing, idx) => {
+            if (ing.from_pantry && ing.product_id) {
+                html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
+                html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty} ✅</span>`;
+                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${(ing.location || 'dispensa').replace(/'/g, "\\'")}', this)" title="Scala dalla dispensa">📦 Usa</button>`;
+                html += `</li>`;
+            } else {
+                const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
+                html += `<li class="recipe-ingredient"><span class="recipe-ing-text"><strong>${ing.name}</strong>: ${ing.qty}${pantryIcon}</span></li>`;
+            }
         });
         html += '</ul>';
 

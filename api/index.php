@@ -688,7 +688,7 @@ function generateRecipe(PDO $db): void {
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -811,6 +811,57 @@ PROMPT;
     $recipe = json_decode($text, true);
 
     if ($recipe && !empty($recipe['title'])) {
+        // Enrich from_pantry ingredients with product_id and location for "use" feature
+        if (!empty($recipe['ingredients'])) {
+            foreach ($recipe['ingredients'] as &$ing) {
+                if (!empty($ing['from_pantry'])) {
+                    $ingNameLower = mb_strtolower(trim($ing['name']), 'UTF-8');
+                    $bestMatch = null;
+                    $bestScore = 0;
+                    
+                    foreach ($items as $item) {
+                        $itemNameLower = mb_strtolower(trim($item['name']), 'UTF-8');
+                        $score = 0;
+                        
+                        // Exact match
+                        if ($ingNameLower === $itemNameLower) {
+                            $score = 100;
+                        }
+                        // Ingredient name contained in product name
+                        elseif (mb_strpos($itemNameLower, $ingNameLower) !== false) {
+                            $score = 80;
+                        }
+                        // Product name contained in ingredient name
+                        elseif (mb_strpos($ingNameLower, $itemNameLower) !== false) {
+                            $score = 70;
+                        }
+                        // Word-level matching: check if key words overlap
+                        else {
+                            $ingWords = preg_split('/\s+/', $ingNameLower);
+                            $itemWords = preg_split('/\s+/', $itemNameLower);
+                            $common = array_intersect($ingWords, $itemWords);
+                            if (count($common) > 0) {
+                                $score = (count($common) / max(count($ingWords), 1)) * 60;
+                            }
+                        }
+                        
+                        if ($score > $bestScore) {
+                            $bestScore = $score;
+                            $bestMatch = $item;
+                        }
+                    }
+                    
+                    // Only match if score is reasonable (> 30)
+                    if ($bestMatch && $bestScore > 30) {
+                        $ing['product_id'] = (int)$bestMatch['product_id'];
+                        $ing['location'] = $bestMatch['location'];
+                        $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+                    }
+                }
+            }
+            unset($ing);
+        }
+        
         echo json_encode(['success' => true, 'recipe' => $recipe]);
     } else {
         echo json_encode(['success' => false, 'error' => 'Impossibile generare la ricetta', 'raw' => $text]);
