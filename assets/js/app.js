@@ -2690,6 +2690,16 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
             }
             btn.textContent = '✔️ Scalato';
             btn.classList.add('btn-used');
+
+            // Persist used state in cached recipe
+            try {
+                const cached = JSON.parse(localStorage.getItem('cachedRecipe') || 'null');
+                if (cached && cached.recipe && cached.recipe.ingredients && cached.recipe.ingredients[idx]) {
+                    cached.recipe.ingredients[idx].used = true;
+                    localStorage.setItem('cachedRecipe', JSON.stringify(cached));
+                }
+            } catch (e) { /* ignore */ }
+
             showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
         } else {
             btn.disabled = false;
@@ -2727,7 +2737,8 @@ function renderRecipe(r) {
         if (ing.from_pantry && ing.product_id) {
             const qtyNum = ing.qty_number || 0;
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
-            html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
+            const alreadyUsed = ing.used === true;
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}">`;
             html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
             // Detail line: location + expiry
             let details = [];
@@ -2744,7 +2755,11 @@ function renderRecipe(r) {
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
             html += `</span>`;
-            html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)" title="Scala dalla dispensa">📦 Usa</button>`;
+            if (alreadyUsed) {
+                html += `<button class="btn-use-ingredient btn-used" disabled>✔️ Scalato</button>`;
+            } else {
+                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)" title="Scala dalla dispensa">📦 Usa</button>`;
+            }
             html += `</li>`;
         } else {
             const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
