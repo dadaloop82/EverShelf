@@ -1,8 +1,9 @@
 # Environment variables (secrets)
 .env
 
-# SQLite database
-data/
+# SQLite WAL/SHM temp files
+data/*.db-wal
+data/*.db-shm
 
 # SSL CA cert (local only)
 ca.crt
