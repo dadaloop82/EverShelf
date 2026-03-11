@@ -619,9 +619,115 @@ async function loadDashboard() {
             expiredSection.style.display = 'none';
         }
         
+        // Review suspicious quantities
+        loadReviewItems();
+        
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+}
+
+// === SUSPICIOUS QUANTITY REVIEW ===
+const QTY_THRESHOLDS = {
+    'pz':   { min: 0.3,  max: 50 },
+    'conf': { min: 0.3,  max: 50 },
+    'g':    { min: 3,    max: 10000 },
+    'kg':   { min: 0.005, max: 50 },
+    'ml':   { min: 3,    max: 10000 },
+    'l':    { min: 0.005, max: 50 },
+};
+
+function isSuspiciousQty(qty, unit) {
+    const n = parseFloat(qty);
+    if (isNaN(n) || n <= 0) return false;
+    const t = QTY_THRESHOLDS[unit] || QTY_THRESHOLDS['pz'];
+    return n < t.min || n > t.max;
+}
+
+function getReviewConfirmed() {
+    try { return JSON.parse(localStorage.getItem('review_confirmed') || '{}'); } catch(e) { return {}; }
+}
+
+function setReviewConfirmed(inventoryId) {
+    const c = getReviewConfirmed();
+    c[inventoryId] = Date.now();
+    localStorage.setItem('review_confirmed', JSON.stringify(c));
+}
+
+async function loadReviewItems() {
+    const section = document.getElementById('alert-review');
+    const list = document.getElementById('review-list');
+    try {
+        const data = await api('inventory_list');
+        const items = data.inventory || [];
+        const confirmed = getReviewConfirmed();
+        
+        const suspicious = items.filter(item => {
+            if (confirmed[item.id]) return false;
+            return isSuspiciousQty(item.quantity, item.unit);
+        });
+        
+        if (suspicious.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        
+        section.style.display = 'block';
+        list.innerHTML = suspicious.map(item => {
+            const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+            const qtyDisplay = formatQuantity(item.quantity, item.unit);
+            const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+            const t = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
+            const isTooSmall = parseFloat(item.quantity) < t.min;
+            const warning = isTooSmall ? '⬇️ Troppo poco' : '⬆️ Troppo';
+            
+            return `
+            <div class="review-item" id="review-item-${item.id}">
+                <div class="review-item-info">
+                    <span class="review-item-icon">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : catIcon}</span>
+                    <div class="review-item-text">
+                        <div class="review-item-name">${escapeHtml(item.name)}</div>
+                        <div class="review-item-meta">${locInfo.icon} ${locInfo.label} · <span class="review-warn">${warning}</span></div>
+                    </div>
+                </div>
+                <div class="review-item-qty">
+                    <span class="review-qty-value">${qtyDisplay}</span>
+                </div>
+                <div class="review-item-actions">
+                    <button class="btn-review btn-review-ok" onclick="confirmReviewItem(${item.id})" title="È corretto">✓</button>
+                    <button class="btn-review btn-review-edit" onclick="editReviewItem(${item.id}, ${item.product_id})" title="Modifica">✏️</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        section.style.display = 'none';
+    }
+}
+
+function confirmReviewItem(inventoryId) {
+    setReviewConfirmed(inventoryId);
+    const el = document.getElementById(`review-item-${inventoryId}`);
+    if (el) {
+        el.style.transition = 'opacity 0.3s, transform 0.3s';
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(60px)';
+        setTimeout(() => {
+            el.remove();
+            // Hide section if empty
+            const list = document.getElementById('review-list');
+            if (!list.children.length) {
+                document.getElementById('alert-review').style.display = 'none';
+            }
+        }, 300);
+    }
+    showToast('✓ Quantità confermata', 'success');
+}
+
+function editReviewItem(inventoryId, productId) {
+    api('inventory_list').then(data => {
+        currentInventory = data.inventory || [];
+        showItemDetail(inventoryId, productId);
+    });
 }
 
 // Group items by local category and render with category headers
