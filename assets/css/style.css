@@ -2557,9 +2557,9 @@ body {
 
 /* Package fraction indicators */
 .pkg-fraction {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #9ca3af;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #6b7280;
     white-space: nowrap;
 }
 
