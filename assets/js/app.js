@@ -306,6 +306,159 @@ let scannerStream = null;
 let quaggaRunning = false;
 let aiStream = null;
 
+// ===== SETTINGS / CONFIG =====
+function getSettings() {
+    try {
+        const s = JSON.parse(localStorage.getItem('dispensa_settings') || '{}');
+        // Build recipe_prefs array from individual booleans
+        s.recipe_prefs = [];
+        if (s.pref_veloce) s.recipe_prefs.push('veloce');
+        if (s.pref_pocafame) s.recipe_prefs.push('pocafame');
+        if (s.pref_scadenze) s.recipe_prefs.push('scadenze');
+        if (s.pref_healthy) s.recipe_prefs.push('salutare');
+        if (s.pref_comfort) s.recipe_prefs.push('comfort');
+        if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
+        s.dietary_restrictions = s.dietary || '';
+        return s;
+    } catch(e) { return {}; }
+}
+
+function saveSettingsToStorage(settings) {
+    localStorage.setItem('dispensa_settings', JSON.stringify(settings));
+}
+
+async function loadSettingsUI() {
+    const s = getSettings();
+    document.getElementById('setting-gemini-key').value = s.gemini_key || '';
+    document.getElementById('setting-bring-email').value = s.bring_email || '';
+    document.getElementById('setting-bring-password').value = s.bring_password || '';
+    document.getElementById('setting-default-persons').value = s.default_persons || 1;
+    document.getElementById('setting-pref-veloce').checked = !!s.pref_veloce;
+    document.getElementById('setting-pref-pocafame').checked = !!s.pref_pocafame;
+    document.getElementById('setting-pref-scadenze').checked = !!s.pref_scadenze;
+    document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
+    document.getElementById('setting-pref-comfort').checked = !!s.pref_comfort;
+    document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
+    document.getElementById('setting-dietary').value = s.dietary || '';
+    renderAppliances(s.appliances || []);
+    
+    // Load server-side settings if not already set locally
+    try {
+        const serverSettings = await api('get_settings');
+        if (!s.gemini_key && serverSettings.gemini_key) {
+            document.getElementById('setting-gemini-key').value = serverSettings.gemini_key;
+        }
+        if (!s.bring_email && serverSettings.bring_email) {
+            document.getElementById('setting-bring-email').value = serverSettings.bring_email;
+        }
+    } catch(e) { /* ignore */ }
+}
+
+function renderAppliances(appliances) {
+    const container = document.getElementById('appliances-list');
+    if (!appliances || appliances.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Nessun elettrodomestico aggiunto</p>';
+        return;
+    }
+    container.innerHTML = appliances.map((a, i) => `
+        <div class="appliance-item">
+            <span>🔌 ${escapeHtml(a)}</span>
+            <button class="appliance-remove" onclick="removeAppliance(${i})" title="Rimuovi">✕</button>
+        </div>
+    `).join('');
+}
+
+function addAppliance() {
+    const input = document.getElementById('new-appliance-input');
+    const name = (input.value || '').trim();
+    if (!name) return;
+    const s = getSettings();
+    if (!s.appliances) s.appliances = [];
+    if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
+        showToast('Elettrodomestico già presente', 'error');
+        return;
+    }
+    s.appliances.push(name);
+    saveSettingsToStorage(s);
+    renderAppliances(s.appliances);
+    input.value = '';
+    showToast('Elettrodomestico aggiunto', 'success');
+}
+
+function addApplianceQuick(name) {
+    const s = getSettings();
+    if (!s.appliances) s.appliances = [];
+    if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
+        showToast('Già presente', 'error');
+        return;
+    }
+    s.appliances.push(name);
+    saveSettingsToStorage(s);
+    renderAppliances(s.appliances);
+    showToast(`${name} aggiunto`, 'success');
+}
+
+function removeAppliance(idx) {
+    const s = getSettings();
+    if (!s.appliances) return;
+    s.appliances.splice(idx, 1);
+    saveSettingsToStorage(s);
+    renderAppliances(s.appliances);
+}
+
+async function saveSettings() {
+    const s = getSettings();
+    s.gemini_key = document.getElementById('setting-gemini-key').value.trim();
+    s.bring_email = document.getElementById('setting-bring-email').value.trim();
+    s.bring_password = document.getElementById('setting-bring-password').value.trim();
+    s.default_persons = parseInt(document.getElementById('setting-default-persons').value) || 1;
+    s.pref_veloce = document.getElementById('setting-pref-veloce').checked;
+    s.pref_pocafame = document.getElementById('setting-pref-pocafame').checked;
+    s.pref_scadenze = document.getElementById('setting-pref-scadenze').checked;
+    s.pref_healthy = document.getElementById('setting-pref-healthy').checked;
+    s.pref_comfort = document.getElementById('setting-pref-comfort').checked;
+    s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
+    s.dietary = document.getElementById('setting-dietary').value.trim();
+    saveSettingsToStorage(s);
+    
+    // Also save to server .env
+    try {
+        const result = await api('save_settings', {}, 'POST', {
+            gemini_key: s.gemini_key,
+            bring_email: s.bring_email,
+            bring_password: s.bring_password
+        });
+        const statusEl = document.getElementById('settings-status');
+        if (result.success) {
+            statusEl.className = 'settings-status success';
+            statusEl.textContent = '✅ Configurazione salvata!';
+        } else {
+            statusEl.className = 'settings-status error';
+            statusEl.textContent = '⚠️ Salvato localmente, errore server: ' + (result.error || '');
+        }
+        statusEl.style.display = 'block';
+        setTimeout(() => statusEl.style.display = 'none', 4000);
+    } catch(e) {
+        const statusEl = document.getElementById('settings-status');
+        statusEl.className = 'settings-status success';
+        statusEl.textContent = '✅ Configurazione salvata localmente';
+        statusEl.style.display = 'block';
+        setTimeout(() => statusEl.style.display = 'none', 4000);
+    }
+}
+
+function switchSettingsTab(btn, tabId) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+}
+
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
 // ===== API HELPER =====
 async function api(action, params = {}, method = 'GET', body = null) {
     let url = `${API_BASE}?action=${action}`;
@@ -367,6 +520,7 @@ function showPage(pageId, param = null) {
         case 'shopping': loadShoppingList(); break;
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
+        case 'settings': loadSettingsUI(); break;
     }
     
     // Stop scanner when leaving scan page
@@ -417,13 +571,17 @@ async function loadDashboard() {
                 else if (days <= 7) { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
                 else if (days <= 30) { badgeText = `${days}g`; badgeClass = 'expiring-soon'; }
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? `${days}g` : `~${m} mesi`; badgeClass = 'expiring-later'; }
+                const qtyDisplay = formatQuantity(item.quantity, item.unit);
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
                     </div>
-                    <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
+                    <div class="alert-item-badges">
+                        <span class="alert-item-qty">📦 ${qtyDisplay}</span>
+                        <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
+                    </div>
                 </div>`;
             }).join('');
         } else {
@@ -443,11 +601,13 @@ async function loadDashboard() {
                 else daysText = `Da ${days}g`;
                 const safety = getExpiredSafety(item, days);
                 const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
+                const qtyDisplayExp = formatQuantity(item.quantity, item.unit);
                 return `
                 <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${locIcon ? locIcon + ' ' : ''}${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                        <span class="alert-item-qty">📦 ${qtyDisplayExp}</span>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
@@ -589,10 +749,10 @@ function renderInventoryItem(item) {
             ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
             <div class="inv-meta">
                 <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
-                <span class="inv-badge badge-qty">${qtyDisplay}</span>
                 ${expiryBadge}
             </div>
         </div>
+        <span class="inv-qty-prominent">${qtyDisplay}</span>
     </div>`;
 }
 
@@ -744,7 +904,7 @@ function editInventoryItem(id) {
             <h3>Modifica ${escapeHtml(item.name)}</h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
-        <form class="form" onsubmit="submitEditInventory(event, ${id})">
+        <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
             <div class="form-group">
                 <label>📦 Quantità</label>
                 <div class="qty-control">
@@ -752,6 +912,12 @@ function editInventoryItem(id) {
                     <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
                     <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
                 </div>
+            </div>
+            <div class="form-group">
+                <label>📏 Unità di misura</label>
+                <select id="edit-unit" class="form-input">
+                    ${['pz','g','kg','ml','l','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'kg' ? 'kg (chilogrammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'l' ? 'L (litri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
+                </select>
             </div>
             <div class="form-group">
                 <label>📍 Posizione</label>
@@ -773,13 +939,14 @@ function editInventoryItem(id) {
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
-async function submitEditInventory(e, id) {
+async function submitEditInventory(e, id, productId) {
     e.preventDefault();
     const qty = parseFloat(document.getElementById('edit-qty').value);
     const loc = document.getElementById('edit-loc').value;
     const expiry = document.getElementById('edit-expiry').value || null;
+    const unit = document.getElementById('edit-unit').value;
     
-    await api('inventory_update', {}, 'POST', { id, quantity: qty, location: loc, expiry_date: expiry });
+    await api('inventory_update', {}, 'POST', { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId });
     closeModal();
     showToast('Aggiornato!', 'success');
     refreshCurrentPage();
@@ -1393,9 +1560,6 @@ function showProductAction() {
     // Ingredients (collapsible)
     let ingredientsHtml = '';
     if (currentProduct.ingredients) {
-        const ingredShort = currentProduct.ingredients.length > 120 
-            ? currentProduct.ingredients.substring(0, 120) + '...' 
-            : currentProduct.ingredients;
         ingredientsHtml = `
             <details class="product-ingredients">
                 <summary>📋 Ingredienti</summary>
@@ -1410,6 +1574,7 @@ function showProductAction() {
         conservationHtml = `<div class="product-conservation">🧊 ${escapeHtml(currentProduct.conservation)}</div>`;
     }
     
+    // LARGER product preview
     document.getElementById('action-product-preview').innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
@@ -1418,6 +1583,7 @@ function showProductAction() {
         <div class="product-preview-info">
             <h3>${escapeHtml(currentProduct.name)}</h3>
             <p>${currentProduct.brand ? `<strong>${escapeHtml(currentProduct.brand)}</strong>` : ''}</p>
+            ${currentProduct.weight_info ? `<p style="font-size:0.85rem;color:var(--text-light)">⚖️ ${escapeHtml(currentProduct.weight_info)}</p>` : ''}
             ${currentProduct.barcode ? `<p style="font-size:0.75rem;color:var(--text-muted)">📊 ${currentProduct.barcode}</p>` : ''}
         </div>
     `;
@@ -1467,7 +1633,6 @@ function showProductAction() {
             </div>
         `;
         editInfoEl.style.display = 'block';
-        // Focus name field if unknown
         if (isUnknown) {
             setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
         }
@@ -1482,8 +1647,7 @@ function showProductAction() {
         const container = document.getElementById('action-product-preview').parentElement;
         extraInfoEl = document.createElement('div');
         extraInfoEl.id = 'action-product-details';
-        // Insert after preview, before action buttons
-        const actionBtns = document.querySelector('#page-action .action-buttons');
+        const actionBtns = document.getElementById('action-buttons-container');
         actionBtns.parentElement.insertBefore(extraInfoEl, actionBtns);
     }
     
@@ -1502,7 +1666,203 @@ function showProductAction() {
         extraInfoEl.innerHTML = '';
     }
     
+    // === CHECK INVENTORY FOR THIS PRODUCT ===
+    checkInventoryForProduct(currentProduct.id).then(inventoryItems => {
+        const statusBar = document.getElementById('action-inventory-status');
+        const btnsContainer = document.getElementById('action-buttons-container');
+        
+        if (inventoryItems.length > 0) {
+            // Product IS in inventory - show status and 3 buttons
+            statusBar.style.display = 'block';
+            let totalQty = 0;
+            const unit = inventoryItems[0].unit || 'pz';
+            const invHtml = inventoryItems.map(inv => {
+                const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                const qtyStr = formatQuantity(inv.quantity, inv.unit);
+                totalQty += parseFloat(inv.quantity);
+                let expiryStr = '';
+                if (inv.expiry_date) {
+                    const d = daysUntilExpiry(inv.expiry_date);
+                    if (d < 0) expiryStr = ` · ⚠️ Scaduto da ${Math.abs(d)}g`;
+                    else if (d <= 3) expiryStr = ` · 🔴 Scade tra ${d}g`;
+                    else if (d <= 7) expiryStr = ` · 🟡 Scade tra ${d}g`;
+                    else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
+                }
+                return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}</span></div>`;
+            }).join('');
+            
+            const totalStr = formatQuantity(totalQty, unit);
+            
+            statusBar.innerHTML = `
+                <div class="inv-status-header">
+                    <span class="inv-status-title">📦 Ce l'hai già!</span>
+                    <span class="inv-status-total">${totalStr}</span>
+                </div>
+                <div class="inv-status-items">${invHtml}</div>
+            `;
+            
+            btnsContainer.className = 'action-buttons-3col';
+            btnsContainer.innerHTML = `
+                <button class="btn btn-huge btn-success" onclick="showAddForm()">
+                    <span class="btn-icon">📥</span>
+                    <span class="btn-text">AGGIUNGI<br><small>altra quantità</small></span>
+                </button>
+                <button class="btn btn-huge btn-danger" onclick="showUseForm()">
+                    <span class="btn-icon">📤</span>
+                    <span class="btn-text">USA<br><small>quanto ne hai usato</small></span>
+                </button>
+                <button class="btn btn-huge btn-throw" onclick="showThrowForm()">
+                    <span class="btn-icon">🗑️</span>
+                    <span class="btn-text">BUTTA<br><small>butta il prodotto</small></span>
+                </button>
+            `;
+        } else {
+            // Product NOT in inventory - show only AGGIUNGI
+            statusBar.style.display = 'none';
+            btnsContainer.className = 'action-buttons';
+            btnsContainer.innerHTML = `
+                <button class="btn btn-huge btn-success" onclick="showAddForm()" style="flex:1">
+                    <span class="btn-icon">📥</span>
+                    <span class="btn-text">AGGIUNGI<br><small>in dispensa/frigo</small></span>
+                </button>
+            `;
+        }
+    });
+    
     showPage('action');
+}
+
+// Check if product exists in inventory
+async function checkInventoryForProduct(productId) {
+    try {
+        const data = await api('inventory_list');
+        return (data.inventory || []).filter(i => i.product_id == productId);
+    } catch(e) {
+        return [];
+    }
+}
+
+// === THROW AWAY FORM ===
+function showThrowForm() {
+    // Open a modal to ask how much to throw away
+    api('inventory_list').then(data => {
+        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        if (items.length === 0) {
+            showToast('Prodotto non nell\'inventario', 'error');
+            return;
+        }
+        
+        const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
+        const unit = items[0].unit || 'pz';
+        const qtyDisplay = formatQuantity(totalQty, unit);
+        
+        let locOptionsHtml = items.map(inv => {
+            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit)}</span></div>`;
+        }).join('');
+        
+        document.getElementById('modal-content').innerHTML = `
+            <div class="modal-header">
+                <h3>🗑️ Butta Prodotto</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="product-preview-small" style="margin-bottom:12px">
+                ${currentProduct.image_url ?
+                    `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
+                    `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦'}</span>`
+                }
+                <div class="product-preview-info">
+                    <h3>${escapeHtml(currentProduct.name)}</h3>
+                    <p>Disponibile: <strong>${qtyDisplay}</strong></p>
+                </div>
+            </div>
+            <div class="inventory-status-bar" style="margin-bottom:16px">
+                <div class="inv-status-items">${locOptionsHtml}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
+                    🗑️ Butta TUTTO (${qtyDisplay})
+                </button>
+                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">oppure specifica la quantità:</div>
+                <div class="form-group">
+                    <label>📍 Da dove?</label>
+                    <div class="location-selector" id="throw-location-selector">
+                        ${items.map((inv, idx) => {
+                            const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit)})</button>`;
+                        }).join('')}
+                    </div>
+                    <input type="hidden" id="throw-location" value="${items[0].location}">
+                </div>
+                <div class="form-group">
+                    <label>Quanto butti?</label>
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
+                        <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
+                        <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
+                    </div>
+                </div>
+                <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
+                    🗑️ Butta questa quantità
+                </button>
+            </div>
+        `;
+        document.getElementById('modal-overlay').style.display = 'flex';
+    });
+}
+
+function selectThrowLocation(btn, loc) {
+    btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('throw-location').value = loc;
+}
+
+async function throwAll() {
+    closeModal();
+    showLoading(true);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: currentProduct.id,
+            use_all: true,
+            location: '__all__',
+            notes: 'Buttato'
+        });
+        showLoading(false);
+        if (result.success) {
+            showToast(`🗑️ ${currentProduct.name} buttato!`, 'success');
+            showPage('dashboard');
+        } else {
+            showToast(result.error || 'Errore', 'error');
+        }
+    } catch(e) {
+        showLoading(false);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
+async function throwPartial() {
+    const qty = parseFloat(document.getElementById('throw-quantity').value) || 1;
+    const loc = document.getElementById('throw-location').value;
+    closeModal();
+    showLoading(true);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: currentProduct.id,
+            quantity: qty,
+            location: loc,
+            notes: 'Buttato'
+        });
+        showLoading(false);
+        if (result.success) {
+            showToast(`🗑️ Buttato ${qty} ${currentProduct.unit || 'pz'} di ${currentProduct.name}`, 'success');
+            showPage('dashboard');
+        } else {
+            showToast(result.error || 'Errore', 'error');
+        }
+    } catch(e) {
+        showLoading(false);
+        showToast('Errore di connessione', 'error');
+    }
 }
 
 async function saveEditedProductInfo() {
@@ -2727,6 +3087,7 @@ const MEAL_LABELS = {
 
 function openRecipeDialog() {
     const meal = getMealType();
+    const settings = getSettings();
     document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
     document.getElementById('recipe-overlay').style.display = 'flex';
 
@@ -2742,11 +3103,31 @@ function openRecipeDialog() {
         }
     } catch (e) { /* ignore parse errors */ }
 
-    // No valid cache — show ask form
-    document.getElementById('recipe-persons').value = 1;
+    // Pre-fill persons from settings
+    document.getElementById('recipe-persons').value = settings.default_persons || 1;
+    
+    // Pre-select option chips from settings
+    const prefMap = {
+        'veloce': 'recipe-opt-veloce',
+        'pocafame': 'recipe-opt-pocafame', 
+        'scadenze': 'recipe-opt-scadenze',
+        'salutare': 'recipe-opt-healthy',
+        'comfort': 'recipe-opt-comfort',
+        'zerowaste': 'recipe-opt-zerowaste'
+    };
+    Object.entries(prefMap).forEach(([key, id]) => {
+        const cb = document.getElementById(id);
+        if (cb) cb.checked = settings.recipe_prefs && settings.recipe_prefs.includes(key);
+    });
+    
     document.getElementById('recipe-ask').style.display = '';
     document.getElementById('recipe-loading').style.display = 'none';
     document.getElementById('recipe-result').style.display = 'none';
+}
+
+// Toggle recipe option chip
+function toggleRecipeOption(btn) {
+    btn.classList.toggle('active');
 }
 
 function closeRecipeDialog() {
@@ -2891,13 +3272,35 @@ function regenerateRecipe() {
 async function generateRecipe() {
     const meal = getMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
+    const settings = getSettings();
+    
+    // Gather active options from checkboxes
+    const options = [];
+    const optMap = {
+        'recipe-opt-veloce': 'veloce',
+        'recipe-opt-pocafame': 'pocafame',
+        'recipe-opt-scadenze': 'scadenze',
+        'recipe-opt-healthy': 'salutare',
+        'recipe-opt-comfort': 'comfort',
+        'recipe-opt-zerowaste': 'zerowaste'
+    };
+    Object.entries(optMap).forEach(([id, key]) => {
+        const cb = document.getElementById(id);
+        if (cb && cb.checked) options.push(key);
+    });
 
     document.getElementById('recipe-ask').style.display = 'none';
     document.getElementById('recipe-loading').style.display = '';
     document.getElementById('recipe-result').style.display = 'none';
 
     try {
-        const result = await api('generate_recipe', {}, 'POST', { meal, persons });
+        const result = await api('generate_recipe', {}, 'POST', { 
+            meal, 
+            persons,
+            options,
+            appliances: settings.appliances || [],
+            dietary_restrictions: settings.dietary_restrictions || ''
+        });
 
         if (!result.success) {
             document.getElementById('recipe-loading').style.display = 'none';

@@ -2227,3 +2227,333 @@ body {
     font-family: monospace;
     flex-shrink: 0;
 }
+
+/* ===== SETTINGS PAGE ===== */
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    margin-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tab {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 25px;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-tab.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.settings-panel {
+    display: none;
+}
+
+.settings-panel.active {
+    display: block;
+}
+
+.settings-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+}
+
+.settings-card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+    color: var(--primary);
+}
+
+.settings-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.settings-status {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.settings-status.success {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.settings-status.error {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    border-radius: var(--radius-sm);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.checkbox-label:active {
+    background: var(--border);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
+.recipe-pref-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Appliances */
+.appliances-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.appliance-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.appliance-item .appliance-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.appliance-item .appliance-remove:active {
+    background: #fee2e2;
+}
+
+.appliance-quick-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.common-appliances .btn-small {
+    font-size: 0.78rem;
+    padding: 5px 10px;
+}
+
+/* ===== RECIPE OPTIONS GRID ===== */
+.recipe-options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.recipe-option-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: 2px solid transparent;
+}
+
+.recipe-option-chip:has(input:checked) {
+    background: rgba(45, 80, 22, 0.08);
+    border-color: var(--primary);
+}
+
+.recipe-option-chip input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
+/* ===== LARGER PRODUCT PREVIEW (Action page) ===== */
+.product-preview-large {
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+}
+
+.product-preview-large img {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius);
+    object-fit: cover;
+    margin-bottom: 8px;
+}
+
+.product-preview-large .product-preview-emoji {
+    font-size: 4rem;
+    width: auto;
+    margin-bottom: 8px;
+}
+
+.product-preview-large .product-preview-info {
+    text-align: center;
+}
+
+.product-preview-large .product-preview-info h3 {
+    font-size: 1.4rem;
+    margin-bottom: 4px;
+}
+
+.product-preview-large .product-preview-info p {
+    font-size: 0.95rem;
+}
+
+/* ===== INVENTORY STATUS BAR ===== */
+.inventory-status-bar {
+    background: linear-gradient(135deg, #dbeafe 0%, #c7d2fe 100%);
+    border: 2px solid #93b4f8;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.inventory-status-bar .inv-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.inventory-status-bar .inv-status-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e40af;
+}
+
+.inventory-status-bar .inv-status-total {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: #1e3a8a;
+    background: rgba(255,255,255,0.8);
+    padding: 8px 22px;
+    border-radius: 24px;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+}
+
+.inventory-status-bar .inv-status-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inventory-status-bar .inv-status-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #1d4ed8;
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.55);
+    border-radius: var(--radius-sm);
+}
+
+.inventory-status-bar .inv-status-item .inv-status-qty {
+    font-weight: 700;
+}
+
+/* ===== THROW AWAY BUTTONS ===== */
+.action-buttons-3col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.action-buttons-3col .btn-huge {
+    min-height: 100px;
+    padding: 18px 8px;
+    font-size: 1rem;
+}
+
+.action-buttons-3col .btn-icon {
+    font-size: 2rem;
+}
+
+.btn-throw {
+    background: #f97316;
+    color: white;
+}
+
+.btn-throw:active {
+    background: #ea580c;
+}
+
+/* ===== LARGER QUANTITY IN INVENTORY ===== */
+.inv-qty-prominent {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    white-space: nowrap;
+    background: #d1fae5;
+    padding: 4px 12px;
+    border-radius: 20px;
+    flex-shrink: 0;
+}
+
+/* ===== ALERT QUANTITY BADGES ===== */
+.alert-item-qty {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-light);
+    padding: 2px 8px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 12px;
+    white-space: nowrap;
+}

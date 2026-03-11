@@ -131,8 +131,9 @@
             <button class="back-btn" onclick="showPage('scan')">← Indietro</button>
             <h2>Cosa vuoi fare?</h2>
         </div>
-        <div class="product-preview" id="action-product-preview"></div>
-        <div class="action-buttons">
+        <div class="product-preview product-preview-large" id="action-product-preview"></div>
+        <div class="inventory-status-bar" id="action-inventory-status" style="display:none"></div>
+        <div class="action-buttons" id="action-buttons-container">
             <button class="btn btn-huge btn-success" onclick="showAddForm()">
                 <span class="btn-icon">📥</span>
                 <span class="btn-text">AGGIUNGI<br><small>in dispensa/frigo</small></span>
@@ -484,6 +485,111 @@
         </button>
     </section>
 
+    <!-- ===== SETTINGS PAGE ===== -->
+    <section class="page" id="page-settings">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
+            <h2>⚙️ Configurazione</h2>
+        </div>
+        <div class="settings-tabs">
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api">🔑 API</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring">🛒 Bring!</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe">🍳 Ricette</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances">🔌 Elettrodomestici</button>
+        </div>
+        <div class="settings-panels">
+            <!-- API Keys Tab -->
+            <div class="settings-panel active" id="tab-api">
+                <div class="settings-card">
+                    <h4>🤖 Google Gemini AI</h4>
+                    <p class="settings-hint">Chiave API per identificazione prodotti, scadenze e ricette.</p>
+                    <div class="form-group">
+                        <label>API Key Gemini</label>
+                        <input type="password" id="setting-gemini-key" class="form-input" placeholder="AIza...">
+                        <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-gemini-key')">👁️ Mostra/Nascondi</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Bring! Tab -->
+            <div class="settings-panel" id="tab-bring">
+                <div class="settings-card">
+                    <h4>🛒 Bring! Shopping List</h4>
+                    <p class="settings-hint">Credenziali per l'integrazione con la lista della spesa Bring!</p>
+                    <div class="form-group">
+                        <label>📧 Email Bring!</label>
+                        <input type="email" id="setting-bring-email" class="form-input" placeholder="email@esempio.com">
+                    </div>
+                    <div class="form-group">
+                        <label>🔒 Password Bring!</label>
+                        <input type="password" id="setting-bring-password" class="form-input" placeholder="Password">
+                        <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-bring-password')">👁️ Mostra/Nascondi</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Recipe Tab -->
+            <div class="settings-panel" id="tab-recipe">
+                <div class="settings-card">
+                    <h4>🍳 Preferenze Ricette</h4>
+                    <p class="settings-hint">Configura le opzioni predefinite per la generazione delle ricette.</p>
+                    <div class="form-group">
+                        <label>👥 Persone predefinite</label>
+                        <div class="qty-control">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-default-persons', -1)">−</button>
+                            <input type="number" id="setting-default-persons" value="1" min="1" max="20" class="qty-input">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-default-persons', 1)">+</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Opzioni ricetta predefinite</label>
+                        <div class="recipe-pref-checks">
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-veloce"> ⚡ Pasto Veloce</label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-pocafame"> 🥗 Poca Fame</label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-scadenze"> ⏰ Priorità Scadenze</label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-healthy"> 💚 Extra Salutare</label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-comfort"> 🍲 Comfort Food</label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-zerowaste"> ♻️ Zero Sprechi</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>🚫 Intolleranze / Restrizioni</label>
+                        <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <!-- Appliances Tab -->
+            <div class="settings-panel" id="tab-appliances">
+                <div class="settings-card">
+                    <h4>🔌 Elettrodomestici Disponibili</h4>
+                    <p class="settings-hint">Indica gli elettrodomestici che hai a disposizione. Saranno considerati nella generazione delle ricette.</p>
+                    <div class="appliances-list" id="appliances-list"></div>
+                    <div class="form-group mt-2">
+                        <div class="barcode-input-row">
+                            <input type="text" id="new-appliance-input" class="form-input" placeholder="Es: Macchina del pane, Bimby, Friggitrice ad aria..." onkeydown="if(event.key==='Enter'){event.preventDefault();addAppliance()}">
+                            <button class="btn btn-accent" onclick="addAppliance()">➕</button>
+                        </div>
+                    </div>
+                    <div class="common-appliances mt-2">
+                        <p class="settings-hint">Aggiungi velocemente:</p>
+                        <div class="appliance-quick-tags">
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Forno')">🔥 Forno</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Microonde')">📡 Microonde</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Friggitrice ad aria')">🍟 Friggitrice ad aria</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Macchina del pane')">🍞 Macchina pane</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Bimby/Moulinex Cookeo')">🤖 Bimby/Cookeo</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Planetaria')">🌀 Planetaria</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Vaporiera')">♨️ Vaporiera</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Pentola a pressione')">🫕 Pentola pressione</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Tostapane')">🍞 Tostapane</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Frullatore/Mixer')">🍹 Frullatore</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()">💾 Salva Configurazione</button>
+        <div id="settings-status" class="settings-status" style="display:none"></div>
+    </section>
+
 </main>
 
 <!-- Bottom Navigation -->
@@ -508,6 +614,10 @@
         <span class="nav-icon">📒</span>
         <span class="nav-label">Log</span>
     </button>
+    <button class="nav-btn" onclick="showPage('settings')" data-page="settings">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Config</span>
+    </button>
 </nav>
 
 <!-- Recipe Dialog -->
@@ -522,6 +632,17 @@
                     <button type="button" class="qty-btn" onclick="adjustRecipePersons(-1)">−</button>
                     <input type="number" id="recipe-persons" value="1" min="1" max="20" class="qty-input">
                     <button type="button" class="qty-btn" onclick="adjustRecipePersons(1)">+</button>
+                </div>
+            </div>
+            <div class="form-group" style="text-align:left">
+                <label>🎯 Tipo di pasto</label>
+                <div class="recipe-options-grid">
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-veloce"> ⚡ Pasto Veloce</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> 🥗 Poca Fame</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> ⏰ Priorità Scadenze</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-healthy"> 💚 Extra Salutare</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-comfort"> 🍲 Comfort Food</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> ♻️ Zero Sprechi</label>
                 </div>
             </div>
             <button class="btn btn-large btn-success full-width" onclick="generateRecipe()">

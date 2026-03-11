@@ -109,6 +109,14 @@ try {
             bringSuggestItems($db);
             break;
 
+        case 'save_settings':
+            saveSettings();
+            break;
+
+        case 'get_settings':
+            getServerSettings();
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -421,10 +429,29 @@ function useFromInventory(PDO $db): void {
     $quantity = $input['quantity'] ?? 0;
     $useAll = $input['use_all'] ?? false;
     $location = $input['location'] ?? 'dispensa';
+    $notes = $input['notes'] ?? '';
     
     if (!$productId) {
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
+        return;
+    }
+    
+    // Handle "throw all from all locations"
+    if ($useAll && $location === '__all__') {
+        $stmt = $db->prepare("SELECT id, quantity, location FROM inventory WHERE product_id = ? AND quantity > 0");
+        $stmt->execute([$productId]);
+        $allItems = $stmt->fetchAll();
+        $totalRemoved = 0;
+        foreach ($allItems as $item) {
+            $totalRemoved += $item['quantity'];
+            $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+            $stmt->execute([$item['id']]);
+            $type = ($notes === 'Buttato') ? 'waste' : 'out';
+            $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$productId, $type, $item['quantity'], $item['location'], $notes]);
+        }
+        echo json_encode(['success' => true, 'remaining' => 0, 'removed' => $totalRemoved]);
         return;
     }
     
@@ -453,8 +480,9 @@ function useFromInventory(PDO $db): void {
     }
     
     // Log transaction
-    $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'out', ?, ?)");
-    $stmt->execute([$productId, $quantity, $location]);
+    $type = ($notes === 'Buttato') ? 'waste' : 'out';
+    $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
+    $stmt->execute([$productId, $type, $quantity, $location, $notes]);
     
     // Auto-add to Bring! if product is completely finished (no inventory left anywhere)
     $addedToBring = false;
@@ -514,6 +542,13 @@ function updateInventory(PDO $db): void {
     
     $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
     $stmt->execute($params);
+    
+    // Update unit on the product if provided
+    if (isset($input['unit']) && isset($input['product_id'])) {
+        $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$input['unit'], $input['product_id']]);
+    }
+    
     echo json_encode(['success' => true]);
 }
 
@@ -572,7 +607,7 @@ function getStats(PDO $db): void {
     
     // Expiring soonest (next 4 items to expire)
     $expiring = $db->query("
-        SELECT i.*, p.name, p.brand, p.category 
+        SELECT i.*, p.name, p.brand, p.category, p.unit 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
         ORDER BY i.expiry_date ASC
@@ -581,7 +616,7 @@ function getStats(PDO $db): void {
     
     // Expired
     $expired = $db->query("
-        SELECT i.*, p.name, p.brand, p.category 
+        SELECT i.*, p.name, p.brand, p.category, p.unit 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date < date('now')
         ORDER BY i.expiry_date ASC
@@ -596,6 +631,76 @@ function getStats(PDO $db): void {
         'expiring_soon' => $expiring,
         'expired' => $expired,
     ]);
+}
+
+// ===== SETTINGS =====
+
+function getServerSettings(): void {
+    $envFile = __DIR__ . '/../.env';
+    $envVars = [];
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
+            list($key, $val) = explode('=', $line, 2);
+            $envVars[trim($key)] = trim($val);
+        }
+    }
+    
+    // Return masked versions for security
+    $geminiKey = $envVars['GEMINI_API_KEY'] ?? '';
+    $bringEmail = $envVars['BRING_EMAIL'] ?? '';
+    $bringPassword = $envVars['BRING_PASSWORD'] ?? '';
+    
+    echo json_encode([
+        'gemini_key' => $geminiKey,
+        'gemini_key_set' => !empty($geminiKey),
+        'bring_email' => $bringEmail,
+        'bring_password_set' => !empty($bringPassword)
+    ]);
+}
+
+function saveSettings(): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $envFile = __DIR__ . '/../.env';
+    
+    // Read existing .env content
+    $envContent = '';
+    $envVars = [];
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0 || strpos($line, '=') === false) {
+                continue;
+            }
+            list($key, $val) = explode('=', $line, 2);
+            $envVars[trim($key)] = trim($val);
+        }
+    }
+    
+    // Update values from input
+    if (isset($input['gemini_key'])) {
+        $envVars['GEMINI_API_KEY'] = $input['gemini_key'];
+    }
+    if (isset($input['bring_email'])) {
+        $envVars['BRING_EMAIL'] = $input['bring_email'];
+    }
+    if (isset($input['bring_password'])) {
+        $envVars['BRING_PASSWORD'] = $input['bring_password'];
+    }
+    
+    // Write .env file
+    $lines = [];
+    foreach ($envVars as $key => $val) {
+        $lines[] = "{$key}={$val}";
+    }
+    $result = file_put_contents($envFile, implode("\n", $lines) . "\n");
+    
+    if ($result !== false) {
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'Could not write .env file']);
+    }
 }
 
 // ===== GEMINI AI FUNCTIONS =====
@@ -728,6 +833,9 @@ function generateRecipe(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $mealType = $input['meal'] ?? 'pranzo';
     $persons = max(1, intval($input['persons'] ?? 1));
+    $options = $input['options'] ?? [];
+    $appliances = $input['appliances'] ?? [];
+    $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
@@ -774,8 +882,42 @@ function generateRecipe(PDO $db): void {
     ];
     $mealLabel = $mealLabels[$mealType] ?? $mealType;
 
+    // Build extra rules from options
+    $extraRules = [];
+    $optionLabels = [
+        'veloce' => 'La ricetta deve essere VELOCE: massimo 15-20 minuti totali di preparazione e cottura.',
+        'pocafame' => 'L\'utente ha POCA FAME: proponi una porzione leggera, magari uno snack, un\'insalata o qualcosa di semplice e poco abbondante.',
+        'scadenze' => 'PRIORITÀ SCADENZE: usa ASSOLUTAMENTE per primi gli ingredienti più vicini alla scadenza o già scaduti (se ancora commestibili).',
+        'salutare' => 'Ricetta EXTRA SALUTARE: prediligi ingredienti integrali, tante verdure, pochi grassi, cotture leggere.',
+        'comfort' => 'Ricetta COMFORT FOOD: qualcosa di appagante, gustoso e che dia soddisfazione.',
+        'zerowaste' => 'ZERO SPRECHI: cerca di usare quanti più ingredienti in scadenza possibile, combina anche ingredienti insoliti pur di non sprecare nulla.'
+    ];
+    foreach ($options as $opt) {
+        if (isset($optionLabels[$opt])) {
+            $extraRules[] = $optionLabels[$opt];
+        }
+    }
+    
+    $extraRulesText = '';
+    if (!empty($extraRules)) {
+        $extraRulesText = "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules);
+    }
+    
+    // Appliances
+    $appliancesText = '';
+    if (!empty($appliances)) {
+        $appliancesText = "\n\nELETTRODOMESTICI DISPONIBILI:\nL'utente dispone di: " . implode(', ', $appliances) . ".\nPuoi usare SOLO questi elettrodomestici (più fornelli e forno che si presumono sempre disponibili). Non suggerire ricette che richiedano elettrodomestici non elencati.";
+    }
+    
+    // Dietary restrictions
+    $dietaryText = '';
+    if (!empty($dietaryRestrictions)) {
+        $dietaryText = "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni.";
+    }
+
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
+{$extraRulesText}{$appliancesText}{$dietaryText}
 
 REGOLE IMPORTANTI:
 1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
@@ -785,6 +927,7 @@ REGOLE IMPORTANTI:
 5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
 6. La ricetta deve essere adatta al pasto: $mealLabel
 7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2 kg" e servono 300g, qty_number = 0.3. Per ingredienti non dalla dispensa, qty_number = 0.
+8. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
 $ingredientsText
