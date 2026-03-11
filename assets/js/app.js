@@ -763,7 +763,7 @@ function renderDashItem(item) {
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
-    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
     
     let expiryLabel = '';
     if (item.expiry_date) {
@@ -784,7 +784,8 @@ function renderDashItem(item) {
             ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
         </div>
         <div class="inv-qty-right">
-            <span class="inv-qty-value">${qtyDisplay}</span>
+            <span class="inv-qty-value">${parts.mainQty} <small>${parts.unitLabel}</small></span>
+            ${parts.packageDetail ? `<span class="inv-qty-pkg-detail">${parts.packageDetail}</span>` : ''}
             ${expiryLabel ? `<span class="inv-expiry-small ${isExpired ? 'expired' : isExpiring ? 'expiring' : ''}">${expiryLabel}</span>` : ''}
         </div>
     </div>`;
@@ -821,6 +822,39 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
         result += ` <span class="conf-size-info">(da ${defaultQty}${pkgLabel})</span>`;
     }
     return result;
+}
+
+// Structured quantity display for inventory cards.
+// Returns { mainQty: '10', unitLabel: 'conf', packageDetail: 'da 36g', fraction: '¼' }
+function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
+    const n = parseFloat(qty) || 0;
+    const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
+    const label = unitLabels[unit] || unit || 'pz';
+    let mainQty;
+    if (n === Math.floor(n)) mainQty = `${Math.floor(n)}`;
+    else if (unit === 'pz' || unit === 'conf') mainQty = `${Math.round(n)}`;
+    else mainQty = `${n.toFixed(1)}`;
+    
+    let packageDetail = '';
+    if (unit === 'conf' && packageUnit && defaultQty > 0) {
+        const pkgLabel = unitLabels[packageUnit] || packageUnit;
+        packageDetail = `da ${defaultQty}${pkgLabel}`;
+    }
+    
+    let fraction = '';
+    // For conf, defaultQty is the package SIZE (e.g. 300g), not a count; fraction doesn't apply
+    if (unit !== 'conf' && defaultQty && defaultQty > 1) {
+        const d = parseFloat(defaultQty);
+        const ratio = n / d;
+        const remainder = ratio - Math.floor(ratio);
+        if (remainder >= 0.1 && remainder <= 0.9) {
+            if (remainder < 0.38) fraction = '¼';
+            else if (remainder < 0.62) fraction = '½';
+            else fraction = '¾';
+        }
+    }
+    
+    return { mainQty, unitLabel: label, packageDetail, fraction };
 }
 
 // Show package fraction: only ¼, ½, ¾ when there's a partial package.
@@ -862,8 +896,7 @@ function renderInventoryItem(item) {
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
-    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-    const pkgFrac = formatPackageFraction(item.quantity, item.default_quantity);
+    const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
     
     let expiryBadge = '';
     if (item.expiry_date) {
@@ -890,8 +923,9 @@ function renderInventoryItem(item) {
             </div>
         </div>
         <div class="inv-qty-col">
-            <span class="inv-qty-prominent">${qtyDisplay}</span>
-            ${pkgFrac ? `<span class="inv-pkg-frac">${pkgFrac}</span>` : ''}
+            <span class="inv-qty-number">${parts.mainQty}</span>
+            <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
+            ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
         </div>
     </div>`;
 }

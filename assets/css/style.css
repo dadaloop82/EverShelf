@@ -1700,7 +1700,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
+    gap: 1px;
     flex-shrink: 0;
 }
 
@@ -1708,6 +1708,19 @@ body {
     font-weight: 800;
     font-size: 1rem;
     color: var(--primary);
+    white-space: nowrap;
+}
+
+.inv-qty-value small {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.inv-qty-pkg-detail {
+    font-size: 0.65rem;
+    color: #6b7280;
+    font-weight: 500;
     white-space: nowrap;
 }
 
@@ -2598,27 +2611,49 @@ body {
     background: #ea580c;
 }
 
-/* ===== LARGER QUANTITY IN INVENTORY ===== */
+/* ===== STRUCTURED QUANTITY IN INVENTORY ===== */
 .inv-qty-col {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
+    align-items: center;
     flex-shrink: 0;
+    min-width: 56px;
+    background: #ecfdf5;
+    border-radius: 14px;
+    padding: 6px 12px;
 }
 
-.inv-qty-prominent {
-    font-size: 1.2rem;
-    font-weight: 800;
+.inv-qty-number {
+    font-size: 1.55rem;
+    font-weight: 900;
     color: var(--primary);
-    white-space: nowrap;
-    background: #d1fae5;
-    padding: 4px 12px;
-    border-radius: 20px;
-    flex-shrink: 0;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
 }
 
-/* Package fraction indicators */
+.inv-qty-unit {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4b5563;
+    white-space: nowrap;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.inv-qty-pkg {
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.inv-qty-frac {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #9ca3af;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+/* Package fraction indicators (used elsewhere) */
 .pkg-fraction {
     font-size: 1rem;
     font-weight: 700;
