@@ -704,46 +704,32 @@ function formatQuantity(qty, unit) {
     const n = parseFloat(qty);
     const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
-    // Format nicely
     if (n === Math.floor(n)) return `${Math.floor(n)} ${label}`;
+    // For pz/conf show whole number
+    if (unit === 'pz' || unit === 'conf') return `${Math.round(n)} ${label}`;
     return `${n.toFixed(1)} ${label}`;
 }
 
-// Show package fraction indicator (1/4, 1/2, 3/4, pieno) relative to original package size
+// Show package fraction: only ¼, ½, ¾ when there's a partial package.
+// Returns '' if quantity maps to whole packages or fraction is not meaningful.
 function formatPackageFraction(qty, defaultQty) {
     if (!defaultQty || defaultQty <= 0) return '';
     const n = parseFloat(qty);
     const d = parseFloat(defaultQty);
-    if (isNaN(n) || isNaN(d) || d <= 0) return '';
+    if (isNaN(n) || isNaN(d) || d <= 0 || d === 1) return '';
     
     const ratio = n / d;
+    const remainder = ratio - Math.floor(ratio);
     
-    // Multiple full packages
-    const fullPkgs = Math.floor(ratio);
-    const remainder = ratio - fullPkgs;
+    // Only show if there IS a fractional part
+    if (remainder < 0.1 || remainder > 0.9) return '';
     
-    // Map remainder to closest readable fraction
-    let fracLabel = '';
-    if (remainder < 0.1) fracLabel = '';
-    else if (remainder < 0.2) fracLabel = '⅛';
-    else if (remainder < 0.38) fracLabel = '¼';
-    else if (remainder < 0.62) fracLabel = '½';
-    else if (remainder < 0.88) fracLabel = '¾';
-    else { fracLabel = ''; } // close to full → count as full
+    let frac = '';
+    if (remainder < 0.38) frac = '¼';
+    else if (remainder < 0.62) frac = '½';
+    else frac = '¾';
     
-    // Near-full remainder counts as +1 full
-    const effectiveFull = remainder >= 0.88 ? fullPkgs + 1 : fullPkgs;
-    
-    if (effectiveFull >= 1 && fracLabel) {
-        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${effectiveFull} + ${fracLabel} conf</span>`;
-    } else if (effectiveFull >= 2) {
-        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${effectiveFull} conf</span>`;
-    } else if (effectiveFull === 1 && !fracLabel) {
-        return `<span class="pkg-fraction pkg-full" title="1 confezione intera">● pieno</span>`;
-    } else if (fracLabel) {
-        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${fracLabel} conf</span>`;
-    }
-    return '';
+    return `<span class="pkg-fraction">${frac}</span>`;
 }
 
 // ===== INVENTORY =====

@@ -2559,12 +2559,8 @@ body {
 .pkg-fraction {
     font-size: 0.7rem;
     font-weight: 600;
-    color: #6b7280;
+    color: #9ca3af;
     white-space: nowrap;
-}
-
-.pkg-fraction.pkg-full {
-    color: #16a34a;
 }
 
 .inv-pkg-frac {
