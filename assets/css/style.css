@@ -1919,6 +1919,45 @@ body {
     border-radius: var(--radius-sm);
 }
 
+/* ===== CONF PACKAGE SIZE ROW ===== */
+.conf-size-row {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #f0f9ff;
+    border: 1.5px solid #bae6fd;
+    border-radius: var(--radius-sm);
+}
+
+.conf-size-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #0369a1;
+}
+
+.conf-size-inputs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.conf-size-input {
+    flex: 1;
+    max-width: 120px;
+}
+
+.conf-size-unit {
+    width: 65px;
+    min-width: 65px;
+}
+
+.conf-size-info {
+    font-size: 0.75em;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
 /* ===== EXPIRY INPUT + CAMERA ROW ===== */
 .expiry-input-row {
     display: flex;

@@ -572,7 +572,7 @@ async function loadDashboard() {
                 else if (days <= 7) { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
                 else if (days <= 30) { badgeText = `${days}g`; badgeClass = 'expiring-soon'; }
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? `${days}g` : `~${m} mesi`; badgeClass = 'expiring-later'; }
-                const qtyDisplay = formatQuantity(item.quantity, item.unit);
+                const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
@@ -602,7 +602,7 @@ async function loadDashboard() {
                 else daysText = `Da ${days}g`;
                 const safety = getExpiredSafety(item, days);
                 const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
-                const qtyDisplayExp = formatQuantity(item.quantity, item.unit);
+                const qtyDisplayExp = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
                 return `
                 <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
@@ -676,7 +676,7 @@ async function loadReviewItems() {
         section.style.display = 'block';
         list.innerHTML = suspicious.map(item => {
             const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
-            const qtyDisplay = formatQuantity(item.quantity, item.unit);
+            const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
             const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
             const t = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
             const isTooSmall = parseFloat(item.quantity) < t.min;
@@ -763,7 +763,7 @@ function renderDashItem(item) {
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
-    const qtyDisplay = formatQuantity(item.quantity, item.unit);
+    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
     
     let expiryLabel = '';
     if (item.expiry_date) {
@@ -806,15 +806,21 @@ function showAlertItemDetail(inventoryId, productId) {
     });
 }
 
-function formatQuantity(qty, unit) {
+function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
     const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
-    if (n === Math.floor(n)) return `${Math.floor(n)} ${label}`;
-    // For pz/conf show whole number
-    if (unit === 'pz' || unit === 'conf') return `${Math.round(n)} ${label}`;
-    return `${n.toFixed(1)} ${label}`;
+    let result;
+    if (n === Math.floor(n)) result = `${Math.floor(n)} ${label}`;
+    else if (unit === 'pz' || unit === 'conf') result = `${Math.round(n)} ${label}`;
+    else result = `${n.toFixed(1)} ${label}`;
+    // Add package info for conf
+    if (unit === 'conf' && packageUnit && defaultQty > 0) {
+        const pkgLabel = unitLabels[packageUnit] || packageUnit;
+        result += ` <span class="conf-size-info">(da ${defaultQty}${pkgLabel})</span>`;
+    }
+    return result;
 }
 
 // Show package fraction: only ¼, ½, ¾ when there's a partial package.
@@ -856,7 +862,7 @@ function renderInventoryItem(item) {
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
-    const qtyDisplay = formatQuantity(item.quantity, item.unit);
+    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const pkgFrac = formatPackageFraction(item.quantity, item.default_quantity);
     
     let expiryBadge = '';
@@ -951,7 +957,7 @@ function showItemDetail(inventoryId, productId) {
             </div>
             <div class="modal-detail-row">
                 <span class="modal-detail-label">📦 Quantità</span>
-                <span class="modal-detail-value">${item.quantity} ${item.unit}</span>
+                <span class="modal-detail-value">${formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)}</span>
             </div>
             ${item.expiry_date ? `
             <div class="modal-detail-row">
@@ -1032,6 +1038,10 @@ function editInventoryItem(id) {
         return;
     }
     
+    const isConf = (item.unit || 'pz') === 'conf';
+    const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
+    const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
+    
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -1049,9 +1059,18 @@ function editInventoryItem(id) {
             </div>
             <div class="form-group">
                 <label>📏 Unità di misura</label>
-                <select id="edit-unit" class="form-input">
+                <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
                     ${['pz','g','kg','ml','l','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'kg' ? 'kg (chilogrammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'l' ? 'L (litri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
                 </select>
+            </div>
+            <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
+                <label>📦 Ogni confezione contiene:</label>
+                <div class="conf-size-inputs">
+                    <input type="number" id="edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="es. 300">
+                    <select id="edit-conf-unit" class="form-input conf-size-unit">
+                        ${['g','kg','ml','l'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u === 'l' ? 'L' : u}</option>`).join('')}
+                    </select>
+                </div>
             </div>
             <div class="form-group">
                 <label>📍 Posizione</label>
@@ -1073,6 +1092,12 @@ function editInventoryItem(id) {
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
+function onEditUnitChange() {
+    const unit = document.getElementById('edit-unit').value;
+    const confGroup = document.getElementById('edit-conf-size-group');
+    if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
+}
+
 async function submitEditInventory(e, id, productId) {
     e.preventDefault();
     const qty = parseFloat(document.getElementById('edit-qty').value);
@@ -1080,7 +1105,19 @@ async function submitEditInventory(e, id, productId) {
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
     
-    await api('inventory_update', {}, 'POST', { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId });
+    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId };
+    
+    // Add package info if conf
+    if (unit === 'conf') {
+        payload.package_unit = document.getElementById('edit-conf-unit')?.value || '';
+        payload.package_size = parseFloat(document.getElementById('edit-conf-size')?.value) || 0;
+    } else {
+        // Clear package info if not conf
+        payload.package_unit = '';
+        payload.package_size = 0;
+    }
+    
+    await api('inventory_update', {}, 'POST', payload);
     closeModal();
     showToast('Aggiornato!', 'success');
     refreshCurrentPage();
@@ -1608,17 +1645,25 @@ function onCategoryChange(fromAutoDetect = false) {
     }
 }
 
+function onPfUnitChange() {
+    const unit = document.getElementById('pf-unit').value;
+    const confRow = document.getElementById('pf-conf-size-row');
+    if (confRow) confRow.style.display = unit === 'conf' ? 'block' : 'none';
+}
+
 async function submitProduct(e) {
     e.preventDefault();
     showLoading(true);
     
+    const pfUnit = document.getElementById('pf-unit').value;
     const productData = {
         id: document.getElementById('pf-id').value || null,
         name: document.getElementById('pf-name').value,
         brand: document.getElementById('pf-brand').value,
         category: document.getElementById('pf-category').value,
-        unit: document.getElementById('pf-unit').value,
-        default_quantity: parseFloat(document.getElementById('pf-defqty').value) || 1,
+        unit: pfUnit,
+        default_quantity: pfUnit === 'conf' ? (parseFloat(document.getElementById('pf-conf-size')?.value) || 1) : (parseFloat(document.getElementById('pf-defqty').value) || 1),
+        package_unit: pfUnit === 'conf' ? (document.getElementById('pf-conf-unit')?.value || '') : '',
         notes: document.getElementById('pf-notes').value,
         barcode: document.getElementById('pf-barcode').value || null,
         image_url: document.getElementById('pf-image').value || '',
@@ -1811,9 +1856,10 @@ function showProductAction() {
             let totalQty = 0;
             const unit = inventoryItems[0].unit || 'pz';
             const defQty = inventoryItems[0].default_quantity || 0;
+            const pkgUnit = inventoryItems[0].package_unit || '';
             const invHtml = inventoryItems.map(inv => {
                 const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                const qtyStr = formatQuantity(inv.quantity, inv.unit);
+                const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
                 const pkgF = formatPackageFraction(inv.quantity, inv.default_quantity);
                 totalQty += parseFloat(inv.quantity);
                 let expiryStr = '';
@@ -1827,7 +1873,7 @@ function showProductAction() {
                 return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''}</span></div>`;
             }).join('');
             
-            const totalStr = formatQuantity(totalQty, unit);
+            const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit);
             const totalFrac = formatPackageFraction(totalQty, defQty);
             
             statusBar.innerHTML = `
@@ -1894,11 +1940,13 @@ function showThrowForm() {
         
         const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
         const unit = items[0].unit || 'pz';
-        const qtyDisplay = formatQuantity(totalQty, unit);
+        const defQty = items[0].default_quantity || 0;
+        const pkgUnit = items[0].package_unit || '';
+        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit);
         
         let locOptionsHtml = items.map(inv => {
             const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit)}</span></div>`;
+            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)}</span></div>`;
         }).join('');
         
         document.getElementById('modal-content').innerHTML = `
@@ -1929,7 +1977,7 @@ function showThrowForm() {
                     <div class="location-selector" id="throw-location-selector">
                         ${items.map((inv, idx) => {
                             const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit)})</button>`;
+                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
                         }).join('')}
                     </div>
                     <input type="hidden" id="throw-location" value="${items[0].location}">
@@ -2066,8 +2114,21 @@ function showAddForm() {
     const unitSelect = document.getElementById('add-unit');
     unitSelect.value = unit;
     
-    document.getElementById('add-quantity').value = currentProduct.default_quantity || 1;
+    document.getElementById('add-quantity').value = unit === 'conf' ? (currentProduct.last_qty || 1) : (currentProduct.default_quantity || 1);
     document.getElementById('add-quantity').dataset.manuallySet = 'false';
+    
+    // Show/hide conf size row and pre-fill
+    const confRow = document.getElementById('add-conf-size-row');
+    if (confRow) {
+        confRow.style.display = unit === 'conf' ? 'block' : 'none';
+        if (unit === 'conf' && currentProduct.package_unit && currentProduct.default_quantity > 0) {
+            document.getElementById('add-conf-size').value = currentProduct.default_quantity;
+            document.getElementById('add-conf-unit').value = currentProduct.package_unit;
+        } else if (unit === 'conf') {
+            document.getElementById('add-conf-size').value = '';
+            document.getElementById('add-conf-unit').value = 'g';
+        }
+    }
     
     // Track manual edits to quantity in add form
     const addQtyInput = document.getElementById('add-quantity');
@@ -2131,10 +2192,26 @@ function showAddForm() {
 
 function onAddUnitChange() {
     updateAddQtyStep();
-    // If switching units, suggest a sensible quantity
-    // BUT only if the user hasn't manually changed the quantity in this form
     const unit = document.getElementById('add-unit').value;
     const qtyInput = document.getElementById('add-quantity');
+    
+    // Show/hide conf size row
+    const confRow = document.getElementById('add-conf-size-row');
+    if (confRow) {
+        confRow.style.display = unit === 'conf' ? 'block' : 'none';
+        // Pre-fill from currentProduct if available
+        if (unit === 'conf' && currentProduct) {
+            const sizeInput = document.getElementById('add-conf-size');
+            const unitSelect = document.getElementById('add-conf-unit');
+            if (currentProduct.package_unit && currentProduct.default_quantity > 1) {
+                sizeInput.value = currentProduct.default_quantity;
+                unitSelect.value = currentProduct.package_unit;
+            }
+        }
+    }
+    
+    // If switching units, suggest a sensible quantity
+    // BUT only if the user hasn't manually changed the quantity in this form
     if (qtyInput.dataset.manuallySet === 'true') return; // User already edited qty, don't overwrite
     
     const currentQty = parseFloat(qtyInput.value) || 1;
@@ -2267,6 +2344,8 @@ async function submitAdd(e) {
             location: document.getElementById('add-location').value,
             expiry_date: document.getElementById('add-expiry').value || null,
             unit: selectedUnit !== productUnit ? selectedUnit : null,
+            package_unit: selectedUnit === 'conf' ? (document.getElementById('add-conf-unit')?.value || null) : null,
+            package_size: selectedUnit === 'conf' ? (parseFloat(document.getElementById('add-conf-size')?.value) || null) : null,
         });
         
         showLoading(false);

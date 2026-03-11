@@ -16,6 +16,10 @@ function getDB(): PDO {
     if ($isNew) {
         initializeDB($db);
     }
+    
+    // Run migrations
+    migrateDB($db);
+    
     return $db;
 }
 
@@ -63,4 +67,13 @@ function initializeDB(PDO $db): void {
         CREATE INDEX IF NOT EXISTS idx_transactions_product ON transactions(product_id);
         CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at);
     ");
+}
+
+function migrateDB(PDO $db): void {
+    // Add package_unit column if missing
+    $cols = $db->query("PRAGMA table_info(products)")->fetchAll();
+    $colNames = array_column($cols, 'name');
+    if (!in_array('package_unit', $colNames)) {
+        $db->exec("ALTER TABLE products ADD COLUMN package_unit TEXT DEFAULT ''");
+    }
 }

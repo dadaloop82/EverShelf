@@ -303,28 +303,28 @@ function saveProduct(PDO $db): void {
         // Update existing
         $stmt = $db->prepare("
             UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?, 
-            default_quantity=?, notes=?, barcode=?, updated_at=CURRENT_TIMESTAMP
+            default_quantity=?, notes=?, barcode=?, package_unit=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
         ");
         $stmt->execute([
             $input['name'], $input['brand'] ?? '', $input['category'] ?? '',
             $input['image_url'] ?? '', $input['unit'] ?? 'pz',
             $input['default_quantity'] ?? 1, $input['notes'] ?? '',
-            $input['barcode'] ?? null, $input['id']
+            $input['barcode'] ?? null, $input['package_unit'] ?? '', $input['id']
         ]);
         echo json_encode(['success' => true, 'id' => $input['id']]);
     } else {
         // Insert new
         $stmt = $db->prepare("
-            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes, package_unit)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $barcode = !empty($input['barcode']) ? $input['barcode'] : null;
         $stmt->execute([
             $barcode, $input['name'], $input['brand'] ?? '',
             $input['category'] ?? '', $input['image_url'] ?? '',
             $input['unit'] ?? 'pz', $input['default_quantity'] ?? 1,
-            $input['notes'] ?? ''
+            $input['notes'] ?? '', $input['package_unit'] ?? ''
         ]);
         echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
     }
@@ -369,7 +369,7 @@ function searchProducts(PDO $db): void {
 function listInventory(PDO $db): void {
     $location = $_GET['location'] ?? '';
     $query = "
-        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit
         FROM inventory i
         JOIN products p ON i.product_id = p.id
     ";
@@ -402,6 +402,14 @@ function addToInventory(PDO $db): void {
     if ($unit) {
         $stmt = $db->prepare("UPDATE products SET unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$unit, $quantity, $productId]);
+    }
+    
+    // Update package info if conf
+    $packageUnit = $input['package_unit'] ?? null;
+    $packageSize = $input['package_size'] ?? null;
+    if ($packageUnit !== null) {
+        $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$packageUnit, $packageSize ?: 0, $productId]);
     }
     
     // Check if product already exists in this location
@@ -553,6 +561,12 @@ function updateInventory(PDO $db): void {
         $stmt->execute([$input['unit'], $input['product_id']]);
     }
     
+    // Update package info if provided
+    if (isset($input['package_unit']) && isset($input['product_id'])) {
+        $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$input['package_unit'], $input['package_size'] ?? 0, $input['product_id']]);
+    }
+    
     echo json_encode(['success' => true]);
 }
 
@@ -611,7 +625,7 @@ function getStats(PDO $db): void {
     
     // Expiring soonest (next 4 items to expire)
     $expiring = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit 
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
         ORDER BY i.expiry_date ASC
@@ -620,7 +634,7 @@ function getStats(PDO $db): void {
     
     // Expired
     $expired = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit 
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit 
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date < date('now')
         ORDER BY i.expiry_date ASC
@@ -847,7 +861,7 @@ function geminiChat(PDO $db): void {
 
     // Fetch inventory context
     $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+        SELECT p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -861,6 +875,9 @@ function geminiChat(PDO $db): void {
         $line = "- {$item['name']}";
         if ($item['brand']) $line .= " ({$item['brand']})";
         $line .= ": {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+            $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
+        }
         if ($item['expiry_date']) {
             $daysLeft = intval($item['days_left']);
             if ($daysLeft < 0) {
@@ -1004,7 +1021,7 @@ function generateRecipe(PDO $db): void {
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -1024,6 +1041,9 @@ function generateRecipe(PDO $db): void {
         $line = "- {$item['name']}";
         if ($item['brand']) $line .= " ({$item['brand']})";
         $line .= ": {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+            $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna, totale: " . ($item['quantity'] * $item['default_quantity']) . " {$item['package_unit']})";
+        }
         if ($item['expiry_date']) {
             $daysLeft = intval($item['days_left']);
             if ($daysLeft < 0) {
@@ -1210,6 +1230,7 @@ PROMPT;
                         $ing['inventory_unit'] = $bestMatch['unit'];
                         $ing['inventory_qty'] = (float)$bestMatch['quantity'];
                         $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
+                        $ing['package_unit'] = $bestMatch['package_unit'] ?? '';
                         $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
                         if (!empty($bestMatch['brand'])) {
                             $ing['brand'] = $bestMatch['brand'];

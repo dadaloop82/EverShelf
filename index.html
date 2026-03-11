@@ -192,6 +192,18 @@
                         <option value="l">L</option>
                     </select>
                 </div>
+                <div id="add-conf-size-row" class="conf-size-row" style="display:none">
+                    <label class="conf-size-label">📦 Ogni confezione contiene:</label>
+                    <div class="conf-size-inputs">
+                        <input type="number" id="add-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                        <select id="add-conf-unit" class="form-input conf-size-unit">
+                            <option value="g">g</option>
+                            <option value="kg">kg</option>
+                            <option value="ml">ml</option>
+                            <option value="l">L</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="add-weight-info" class="form-hint" style="display:none"></div>
             </div>
             <div class="form-group" id="add-expiry-section">
@@ -380,7 +392,7 @@
             <div class="form-row">
                 <div class="form-group flex-1">
                     <label>📏 Unità di misura</label>
-                    <select id="pf-unit" class="form-input">
+                    <select id="pf-unit" class="form-input" onchange="onPfUnitChange()">
                         <option value="pz">Pezzi</option>
                         <option value="kg">Kg</option>
                         <option value="g">Grammi</option>
@@ -392,6 +404,18 @@
                 <div class="form-group flex-1">
                     <label>🔢 Quantità default</label>
                     <input type="number" id="pf-defqty" class="form-input" value="1" min="0.1" step="any">
+                </div>
+            </div>
+            <div id="pf-conf-size-row" class="conf-size-row" style="display:none">
+                <label class="conf-size-label">📦 Ogni confezione contiene:</label>
+                <div class="conf-size-inputs">
+                    <input type="number" id="pf-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                    <select id="pf-conf-unit" class="form-input conf-size-unit">
+                        <option value="g">g</option>
+                        <option value="kg">kg</option>
+                        <option value="ml">ml</option>
+                        <option value="l">L</option>
+                    </select>
                 </div>
             </div>
             <div class="form-group">
