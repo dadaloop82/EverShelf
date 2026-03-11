@@ -365,7 +365,7 @@ function searchProducts(PDO $db): void {
 function listInventory(PDO $db): void {
     $location = $_GET['location'] ?? '';
     $query = "
-        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity
         FROM inventory i
         JOIN products p ON i.product_id = p.id
     ";
@@ -1042,12 +1042,76 @@ PROMPT;
                     if ($bestMatch && $bestScore > 30) {
                         $ing['product_id'] = (int)$bestMatch['product_id'];
                         $ing['location'] = $bestMatch['location'];
+                        $ing['inventory_unit'] = $bestMatch['unit'];
+                        $ing['inventory_qty'] = (float)$bestMatch['quantity'];
+                        $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
                         $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
                         if (!empty($bestMatch['brand'])) {
                             $ing['brand'] = $bestMatch['brand'];
                         }
                         if (!empty($bestMatch['expiry_date'])) {
                             $ing['expiry_date'] = $bestMatch['expiry_date'];
+                        }
+                        
+                        // === FIX qty_number: validate and convert units ===
+                        $qtyNum = (float)($ing['qty_number'] ?? 0);
+                        $invUnit = $bestMatch['unit'] ?? 'pz';
+                        $invQty = (float)$bestMatch['quantity'];
+                        
+                        if ($qtyNum > 0) {
+                            // Parse the recipe qty string to detect what unit Gemini intended
+                            $recipeQty = $ing['qty'] ?? '';
+                            $recipeUnit = '';
+                            $recipeVal = 0;
+                            if (preg_match('/(\d+[.,]?\d*)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i', $recipeQty, $qm)) {
+                                $recipeVal = (float)str_replace(',', '.', $qm[1]);
+                                $ru = strtolower($qm[2]);
+                                if (strpos($ru, 'g') === 0) $recipeUnit = 'g';
+                                elseif ($ru === 'kg') $recipeUnit = 'kg';
+                                elseif ($ru === 'ml') $recipeUnit = 'ml';
+                                elseif ($ru === 'cl') $recipeUnit = 'ml'; // cl→ml
+                                elseif ($ru === 'l' || strpos($ru, 'litr') === 0) $recipeUnit = 'l';
+                                elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
+                                elseif (strpos($ru, 'conf') === 0) $recipeUnit = 'conf';
+                            }
+                            
+                            // Convert qty_number to inventory unit if mismatch detected
+                            if ($recipeUnit && $recipeUnit !== $invUnit) {
+                                // Weight conversions
+                                if ($recipeUnit === 'g' && $invUnit === 'kg') {
+                                    $qtyNum = $recipeVal / 1000;
+                                } elseif ($recipeUnit === 'kg' && $invUnit === 'g') {
+                                    $qtyNum = $recipeVal * 1000;
+                                // Volume conversions
+                                } elseif ($recipeUnit === 'ml' && $invUnit === 'l') {
+                                    $qtyNum = $recipeVal / 1000;
+                                } elseif ($recipeUnit === 'l' && $invUnit === 'ml') {
+                                    $qtyNum = $recipeVal * 1000;
+                                // g/kg/ml/l → pz (approximate to nearest piece)
+                                } elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                                    $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                                    if ($defQty > 0) {
+                                        // Convert recipe grams/ml to pieces using default_quantity
+                                        $qtyNum = $recipeVal / $defQty;
+                                        $qtyNum = max(0.25, round($qtyNum * 4) / 4); // round to nearest quarter
+                                    } else {
+                                        $qtyNum = max(1, round($recipeVal / 100)); // fallback heuristic
+                                    }
+                                }
+                            }
+                            
+                            // Sanity check: qty_number should not exceed available
+                            if ($qtyNum > $invQty) {
+                                $qtyNum = $invQty; // cap to available
+                            }
+                            
+                            // Sanity check: if qty_number is absurdly small relative to recipe
+                            // e.g. recipe says 100g but qty_number is 0.1 and unit is g → likely meant 100
+                            if ($recipeVal > 0 && $recipeUnit === $invUnit && $qtyNum < $recipeVal * 0.01) {
+                                $qtyNum = $recipeVal; // Gemini probably confused the units
+                            }
+                            
+                            $ing['qty_number'] = round($qtyNum, 3);
                         }
                     }
                 }

@@ -2536,6 +2536,14 @@ body {
 }
 
 /* ===== LARGER QUANTITY IN INVENTORY ===== */
+.inv-qty-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
 .inv-qty-prominent {
     font-size: 1.2rem;
     font-weight: 800;
@@ -2545,6 +2553,34 @@ body {
     padding: 4px 12px;
     border-radius: 20px;
     flex-shrink: 0;
+}
+
+/* Package fraction indicators */
+.pkg-fraction {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+.pkg-fraction.pkg-full {
+    color: #16a34a;
+}
+
+.inv-pkg-frac {
+    display: block;
+    text-align: center;
+}
+
+.inv-status-total-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.inv-status-total-frac {
+    font-size: 0.8rem;
 }
 
 /* ===== ALERT QUANTITY BADGES ===== */

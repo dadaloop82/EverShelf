@@ -709,6 +709,43 @@ function formatQuantity(qty, unit) {
     return `${n.toFixed(1)} ${label}`;
 }
 
+// Show package fraction indicator (1/4, 1/2, 3/4, pieno) relative to original package size
+function formatPackageFraction(qty, defaultQty) {
+    if (!defaultQty || defaultQty <= 0) return '';
+    const n = parseFloat(qty);
+    const d = parseFloat(defaultQty);
+    if (isNaN(n) || isNaN(d) || d <= 0) return '';
+    
+    const ratio = n / d;
+    
+    // Multiple full packages
+    const fullPkgs = Math.floor(ratio);
+    const remainder = ratio - fullPkgs;
+    
+    // Map remainder to closest readable fraction
+    let fracLabel = '';
+    if (remainder < 0.1) fracLabel = '';
+    else if (remainder < 0.2) fracLabel = '⅛';
+    else if (remainder < 0.38) fracLabel = '¼';
+    else if (remainder < 0.62) fracLabel = '½';
+    else if (remainder < 0.88) fracLabel = '¾';
+    else { fracLabel = ''; } // close to full → count as full
+    
+    // Near-full remainder counts as +1 full
+    const effectiveFull = remainder >= 0.88 ? fullPkgs + 1 : fullPkgs;
+    
+    if (effectiveFull >= 1 && fracLabel) {
+        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${effectiveFull} + ${fracLabel} conf</span>`;
+    } else if (effectiveFull >= 2) {
+        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${effectiveFull} conf</span>`;
+    } else if (effectiveFull === 1 && !fracLabel) {
+        return `<span class="pkg-fraction pkg-full" title="1 confezione intera">● pieno</span>`;
+    } else if (fracLabel) {
+        return `<span class="pkg-fraction" title="${ratio.toFixed(2)} confezioni">${fracLabel} conf</span>`;
+    }
+    return '';
+}
+
 // ===== INVENTORY =====
 async function loadInventory() {
     try {
@@ -727,6 +764,7 @@ function renderInventoryItem(item) {
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
     const qtyDisplay = formatQuantity(item.quantity, item.unit);
+    const pkgFrac = formatPackageFraction(item.quantity, item.default_quantity);
     
     let expiryBadge = '';
     if (item.expiry_date) {
@@ -752,7 +790,10 @@ function renderInventoryItem(item) {
                 ${expiryBadge}
             </div>
         </div>
-        <span class="inv-qty-prominent">${qtyDisplay}</span>
+        <div class="inv-qty-col">
+            <span class="inv-qty-prominent">${qtyDisplay}</span>
+            ${pkgFrac ? `<span class="inv-pkg-frac">${pkgFrac}</span>` : ''}
+        </div>
     </div>`;
 }
 
@@ -1676,9 +1717,11 @@ function showProductAction() {
             statusBar.style.display = 'block';
             let totalQty = 0;
             const unit = inventoryItems[0].unit || 'pz';
+            const defQty = inventoryItems[0].default_quantity || 0;
             const invHtml = inventoryItems.map(inv => {
                 const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
                 const qtyStr = formatQuantity(inv.quantity, inv.unit);
+                const pkgF = formatPackageFraction(inv.quantity, inv.default_quantity);
                 totalQty += parseFloat(inv.quantity);
                 let expiryStr = '';
                 if (inv.expiry_date) {
@@ -1688,15 +1731,19 @@ function showProductAction() {
                     else if (d <= 7) expiryStr = ` · 🟡 Scade tra ${d}g`;
                     else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
                 }
-                return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}</span></div>`;
+                return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''}</span></div>`;
             }).join('');
             
             const totalStr = formatQuantity(totalQty, unit);
+            const totalFrac = formatPackageFraction(totalQty, defQty);
             
             statusBar.innerHTML = `
                 <div class="inv-status-header">
                     <span class="inv-status-title">📦 Ce l'hai già!</span>
-                    <span class="inv-status-total">${totalStr}</span>
+                    <div class="inv-status-total-col">
+                        <span class="inv-status-total">${totalStr}</span>
+                        ${totalFrac ? `<span class="inv-status-total-frac">${totalFrac}</span>` : ''}
+                    </div>
                 </div>
                 <div class="inv-status-items">${invHtml}</div>
             `;
