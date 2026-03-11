@@ -1535,6 +1535,12 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
     
+    // Reset conf-size-row visibility
+    const pfConfRow = document.getElementById('pf-conf-size-row');
+    if (pfConfRow) pfConfRow.style.display = 'none';
+    document.getElementById('pf-conf-size').value = '';
+    document.getElementById('pf-conf-unit').value = 'g';
+    
     // Reset manual-edit tracking flags
     document.getElementById('pf-category').dataset.manuallySet = 'false';
     document.getElementById('pf-defqty').dataset.manuallySet = 'false';
@@ -2198,16 +2204,22 @@ function onAddUnitChange() {
     // Show/hide conf size row
     const confRow = document.getElementById('add-conf-size-row');
     if (confRow) {
-        confRow.style.display = unit === 'conf' ? 'block' : 'none';
+        const isConf = unit === 'conf';
+        confRow.style.display = isConf ? 'block' : 'none';
         // Pre-fill from currentProduct if available
-        if (unit === 'conf' && currentProduct) {
+        if (isConf && currentProduct) {
             const sizeInput = document.getElementById('add-conf-size');
             const unitSelect = document.getElementById('add-conf-unit');
             if (currentProduct.package_unit && currentProduct.default_quantity > 1) {
                 sizeInput.value = currentProduct.default_quantity;
                 unitSelect.value = currentProduct.package_unit;
+            } else {
+                sizeInput.value = '';
+                unitSelect.value = 'g';
             }
         }
+        // Scroll into view so the user sees the new field
+        if (isConf) setTimeout(() => confRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
     }
     
     // If switching units, suggest a sensible quantity
@@ -2337,6 +2349,17 @@ async function submitAdd(e) {
     try {
         const selectedUnit = document.getElementById('add-unit').value;
         const productUnit = currentProduct.unit || 'pz';
+        
+        // Validate conf fields
+        if (selectedUnit === 'conf') {
+            const confSize = parseFloat(document.getElementById('add-conf-size')?.value);
+            if (!confSize || confSize <= 0) {
+                showLoading(false);
+                showToast('Specifica il contenuto di ogni confezione', 'error');
+                document.getElementById('add-conf-size')?.focus();
+                return;
+            }
+        }
         
         const result = await api('inventory_add', {}, 'POST', {
             product_id: currentProduct.id,
