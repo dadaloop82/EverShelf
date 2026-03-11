@@ -19,9 +19,14 @@
 <header class="app-header">
     <div class="header-content">
         <h1 class="header-title" onclick="showPage('dashboard')">🏠 Dispensa</h1>
-        <button class="header-scan-btn" onclick="showPage('scan')" title="Scansiona prodotto">
-            📷
-        </button>
+        <div class="header-actions">
+            <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini">
+                <svg class="gemini-icon" viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+            </button>
+            <button class="header-scan-btn" onclick="showPage('scan')" title="Scansiona prodotto">
+                📷
+            </button>
+        </div>
     </div>
 </header>
 
@@ -595,6 +600,38 @@
         </div>
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()">💾 Salva Configurazione</button>
         <div id="settings-status" class="settings-status" style="display:none"></div>
+    </section>
+
+    <!-- ===== GEMINI CHAT ===== -->
+    <section class="page" id="page-chat">
+        <div class="chat-container">
+            <div class="chat-header-bar">
+                <div class="chat-header-info">
+                    <svg class="gemini-icon-sm" viewBox="0 0 24 24" width="22" height="22" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+                    <span class="chat-title">Gemini Chef</span>
+                </div>
+                <button class="btn-chat-clear" onclick="clearChat()" title="Nuova conversazione">🗑️</button>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-welcome">
+                    <svg class="gemini-icon-lg" viewBox="0 0 24 24" width="48" height="48" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+                    <h3>Ciao! Sono il tuo assistente cucina</h3>
+                    <p>Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!</p>
+                    <div class="chat-suggestions">
+                        <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa posso preparare per uno spuntino veloce?')">🍿 Spuntino veloce</button>
+                        <button class="chat-suggestion" onclick="sendChatSuggestion('Fammi un succo o frullato con quello che ho')">🥤 Succo/Frullato</button>
+                        <button class="chat-suggestion" onclick="sendChatSuggestion('Ho fame ma voglio qualcosa di leggero')">🥗 Qualcosa di leggero</button>
+                        <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa sta per scadere e come posso usarlo?')">⏰ Usa le scadenze</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-bar">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Chiedi qualcosa..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+                <button class="btn-chat-send" id="btn-chat-send" onclick="sendChatMessage()">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </div>
+        </div>
     </section>
 
 </main>

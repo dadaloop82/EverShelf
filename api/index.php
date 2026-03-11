@@ -95,6 +95,10 @@ try {
             geminiIdentifyProduct();
             break;
 
+        case 'gemini_chat':
+            geminiChat($db);
+            break;
+
         // ===== BRING! SHOPPING LIST =====
         case 'bring_list':
             bringGetList();
@@ -805,6 +809,167 @@ function geminiReadExpiry(): void {
         'error' => 'Could not parse expiry date',
         'raw_text' => $parsed['raw_text'] ?? $text
     ]);
+}
+
+// ===== GEMINI CHAT =====
+function geminiChat(PDO $db): void {
+    // Load API key
+    $envFile = __DIR__ . '/../.env';
+    $apiKey = '';
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $val) = explode('=', $line, 2);
+                if (trim($key) === 'GEMINI_API_KEY') {
+                    $apiKey = trim($val);
+                }
+            }
+        }
+    }
+
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $message = $input['message'] ?? '';
+    $history = $input['history'] ?? [];
+    $appliances = $input['appliances'] ?? [];
+    $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
+
+    if (empty($message)) {
+        echo json_encode(['success' => false, 'error' => 'Messaggio vuoto']);
+        return;
+    }
+
+    // Fetch inventory context
+    $stmt = $db->query("
+        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $ingredientLines = [];
+    foreach ($items as $item) {
+        $line = "- {$item['name']}";
+        if ($item['brand']) $line .= " ({$item['brand']})";
+        $line .= ": {$item['quantity']} {$item['unit']}";
+        if ($item['expiry_date']) {
+            $daysLeft = intval($item['days_left']);
+            if ($daysLeft < 0) {
+                $line .= " [SCADUTO da " . abs($daysLeft) . " giorni]";
+            } elseif ($daysLeft <= 3) {
+                $line .= " [SCADE TRA $daysLeft GIORNI]";
+            } elseif ($daysLeft <= 7) {
+                $line .= " [scade tra $daysLeft giorni]";
+            }
+        }
+        $line .= " (in {$item['location']})";
+        $ingredientLines[] = $line;
+    }
+    $ingredientsText = implode("\n", $ingredientLines);
+
+    $appliancesText = '';
+    if (!empty($appliances)) {
+        $appliancesText = "\nElettodomestici disponibili: " . implode(', ', $appliances) . " (più fornelli e forno sempre disponibili).";
+    }
+
+    $dietaryText = '';
+    if (!empty($dietaryRestrictions)) {
+        $dietaryText = "\nRestrizioni alimentari dell'utente: {$dietaryRestrictions}. Rispetta SEMPRE queste restrizioni.";
+    }
+
+    $systemPrompt = <<<PROMPT
+Sei un assistente cucina italiano esperto, amichevole e conciso. L'utente ha una dispensa e ti chiede consigli su cosa preparare.
+
+CONTESTO - INGREDIENTI DISPONIBILI IN DISPENSA:
+{$ingredientsText}
+{$appliancesText}{$dietaryText}
+
+REGOLE:
+1. Rispondi SEMPRE in italiano, in modo colloquiale e amichevole
+2. Usa SOLO gli ingredienti dalla dispensa dell'utente (più acqua, sale, pepe, olio che si presumono sempre disponibili)
+3. Dai priorità agli ingredienti in scadenza
+4. Sii conciso: non fare liste chilometriche, vai al sodo
+5. Se l'utente chiede una ricetta o preparazione, dai istruzioni chiare con quantità
+6. Se non ci sono ingredienti adatti per la richiesta, dillo onestamente e suggerisci alternative
+7. Puoi suggerire combinazioni creative
+8. Quando menzioni quantità, usa le stesse unità di misura della dispensa
+9. Ricorda il contesto della conversazione precedente
+PROMPT;
+
+    // Build conversation for Gemini
+    $contents = [];
+
+    // System instruction as first user+model turn
+    $contents[] = [
+        'role' => 'user',
+        'parts' => [['text' => $systemPrompt]]
+    ];
+    $contents[] = [
+        'role' => 'model',
+        'parts' => [['text' => 'Ciao! Sono il tuo assistente cucina. Conosco tutto quello che hai in dispensa e sono pronto ad aiutarti. Cosa ti va di preparare? 😊']]
+    ];
+
+    // Add conversation history
+    foreach ($history as $msg) {
+        $role = ($msg['role'] === 'user') ? 'user' : 'model';
+        $contents[] = [
+            'role' => $role,
+            'parts' => [['text' => $msg['text']]]
+        ];
+    }
+
+    // Add current message
+    $contents[] = [
+        'role' => 'user',
+        'parts' => [['text' => $message]]
+    ];
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+
+    $payload = [
+        'contents' => $contents,
+        'generationConfig' => [
+            'temperature' => 0.8,
+            'maxOutputTokens' => 1500
+        ]
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) {
+        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+        return;
+    }
+
+    $data = json_decode($response, true);
+    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+    if (empty($reply)) {
+        echo json_encode(['success' => false, 'error' => 'Risposta vuota da Gemini']);
+        return;
+    }
+
+    echo json_encode(['success' => true, 'reply' => $reply]);
 }
 
 // ===== RECIPE GENERATION WITH GEMINI =====

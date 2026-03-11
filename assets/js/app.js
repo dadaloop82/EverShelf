@@ -521,6 +521,7 @@ function showPage(pageId, param = null) {
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
         case 'settings': loadSettingsUI(); break;
+        case 'chat': initChat(); break;
     }
     
     // Stop scanner when leaving scan page
@@ -3467,6 +3468,177 @@ async function generateRecipe() {
         document.getElementById('recipe-ask').style.display = '';
         showToast('Errore di connessione', 'error');
     }
+}
+
+// ===== GEMINI CHAT =====
+let chatHistory = [];
+let chatInventoryContext = null;
+
+function initChat() {
+    // Load chat history from localStorage
+    const saved = localStorage.getItem('gemini_chat_history');
+    if (saved) {
+        try {
+            chatHistory = JSON.parse(saved);
+            renderChatHistory();
+        } catch(e) { chatHistory = []; }
+    }
+    // Pre-load inventory context
+    loadChatContext();
+    // Focus input
+    setTimeout(() => {
+        const input = document.getElementById('chat-input');
+        if (input) input.focus();
+    }, 300);
+}
+
+async function loadChatContext() {
+    try {
+        const data = await api('inventory_list');
+        chatInventoryContext = data.inventory || [];
+    } catch(e) { chatInventoryContext = []; }
+}
+
+function sendChatSuggestion(text) {
+    document.getElementById('chat-input').value = text;
+    sendChatMessage();
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    
+    input.value = '';
+    
+    // Hide welcome if first message
+    const welcome = document.querySelector('.chat-welcome');
+    if (welcome) welcome.style.display = 'none';
+    
+    // Add user message
+    chatHistory.push({ role: 'user', text });
+    appendChatBubble('user', text);
+    saveChatHistory();
+    
+    // Show typing indicator
+    const typingEl = appendChatBubble('gemini', '<div class="chat-typing"><span></span><span></span><span></span></div>', true);
+    scrollChatBottom();
+    
+    // Disable send
+    const btn = document.getElementById('btn-chat-send');
+    btn.disabled = true;
+    
+    try {
+        const settings = getSettings();
+        const result = await api('gemini_chat', {}, 'POST', {
+            message: text,
+            history: chatHistory.slice(0, -1).slice(-20), // last 20 messages for context
+            appliances: settings.appliances || [],
+            dietary_restrictions: settings.dietary_restrictions || ''
+        });
+        
+        // Remove typing indicator
+        typingEl.remove();
+        
+        if (result.success) {
+            chatHistory.push({ role: 'gemini', text: result.reply });
+            appendChatBubble('gemini', formatChatReply(result.reply));
+        } else {
+            const errMsg = result.error === 'no_api_key' ? 'Configura la chiave API Gemini nelle impostazioni.' : (result.error || 'Errore nella risposta');
+            appendChatBubble('gemini', `⚠️ ${escapeHtml(errMsg)}`);
+        }
+    } catch(err) {
+        typingEl.remove();
+        appendChatBubble('gemini', '⚠️ Errore di connessione');
+    }
+    
+    btn.disabled = false;
+    saveChatHistory();
+    scrollChatBottom();
+}
+
+function appendChatBubble(role, html, isRaw = false) {
+    const container = document.getElementById('chat-messages');
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble chat-${role}`;
+    if (isRaw) {
+        bubble.innerHTML = html;
+    } else if (role === 'user') {
+        bubble.textContent = html;
+    } else {
+        bubble.innerHTML = html;
+    }
+    container.appendChild(bubble);
+    scrollChatBottom();
+    return bubble;
+}
+
+function formatChatReply(text) {
+    // Convert markdown-like formatting
+    let html = escapeHtml(text);
+    // Bold **text**
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic *text*
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    // Numbered lists  
+    html = html.replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>');
+    // Line breaks
+    html = html.replace(/\n/g, '<br>');
+    // Clean up consecutive ul tags
+    html = html.replace(/<\/ul>\s*<br>\s*<ul>/g, '');
+    return html;
+}
+
+function renderChatHistory() {
+    const container = document.getElementById('chat-messages');
+    if (chatHistory.length === 0) return;
+    
+    // Hide welcome
+    const welcome = container.querySelector('.chat-welcome');
+    if (welcome) welcome.style.display = 'none';
+    
+    chatHistory.forEach(msg => {
+        if (msg.role === 'user') {
+            appendChatBubble('user', msg.text);
+        } else {
+            appendChatBubble('gemini', formatChatReply(msg.text));
+        }
+    });
+    scrollChatBottom();
+}
+
+function scrollChatBottom() {
+    const container = document.getElementById('chat-messages');
+    setTimeout(() => container.scrollTop = container.scrollHeight, 50);
+}
+
+function clearChat() {
+    chatHistory = [];
+    localStorage.removeItem('gemini_chat_history');
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = `
+        <div class="chat-welcome">
+            <svg class="gemini-icon-lg" viewBox="0 0 24 24" width="48" height="48" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+            <h3>Ciao! Sono il tuo assistente cucina</h3>
+            <p>Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!</p>
+            <div class="chat-suggestions">
+                <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa posso preparare per uno spuntino veloce?')">🍿 Spuntino veloce</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion('Fammi un succo o frullato con quello che ho')">🥤 Succo/Frullato</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion('Ho fame ma voglio qualcosa di leggero')">🥗 Qualcosa di leggero</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa sta per scadere e come posso usarlo?')">⏰ Usa le scadenze</button>
+            </div>
+        </div>
+    `;
+    showToast('Chat cancellata', 'success');
+}
+
+function saveChatHistory() {
+    // Keep last 50 messages max
+    if (chatHistory.length > 50) chatHistory = chatHistory.slice(-50);
+    localStorage.setItem('gemini_chat_history', JSON.stringify(chatHistory));
 }
 
 // ===== INITIALIZATION =====
