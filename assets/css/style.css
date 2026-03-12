@@ -1054,7 +1054,7 @@ body {
 
 .shopping-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
     background: var(--bg-card);
@@ -1065,6 +1065,18 @@ body {
 .shopping-item-icon {
     font-size: 1.3rem;
     flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.shopping-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.shopping-item-top {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
 }
 
 .shopping-item-info {
@@ -1082,15 +1094,92 @@ body {
     color: var(--text-muted);
 }
 
+.shopping-item-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-shrink: 0;
+    min-width: 70px;
+}
+
+.shopping-item-price {
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: var(--accent);
+    line-height: 1.1;
+    white-space: nowrap;
+    margin-top: auto;
+}
+
 .shopping-item-remove {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 1rem;
-    padding: 4px 8px;
+    font-size: 0.85rem;
+    padding: 2px 4px;
     cursor: pointer;
     border-radius: 50%;
     transition: background 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.shopping-item-remove:hover,
+.shopping-item-remove:active {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+/* Spesa bar: action buttons below item */
+.spesa-bar {
+    display: flex;
+    gap: 6px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+}
+
+.spesa-bar-btn {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    background: #f8f9fa;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.spesa-bar-btn:hover,
+.spesa-bar-btn:active {
+    background: #e0f2fe;
+    border-color: var(--accent);
+}
+
+/* Loading animation */
+.spesa-loading {
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-top: 3px;
+    animation: spesaPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes spesaPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* Found product name */
+.spesa-found-name {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .shopping-item-remove:hover,
@@ -1101,6 +1190,15 @@ body {
 
 .shopping-actions {
     margin-top: 8px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.shopping-actions .btn {
+    flex: 1;
+    font-size: 0.8rem;
+    padding: 10px 8px;
 }
 
 .seasonal-tip {
@@ -2321,12 +2419,13 @@ body {
     background: var(--bg-card);
     border: 2px solid var(--border);
     border-radius: 25px;
-    padding: 8px 14px;
-    font-size: 0.82rem;
+    padding: 7px 12px;
+    font-size: 0.78rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transition: all 0.2s;
+    flex-shrink: 0;
 }
 
 .settings-tab.active {
@@ -3024,4 +3123,280 @@ body {
 @keyframes chatTyping {
     0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
     30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ===== SPESA ONLINE / DUPLICLICK ===== */
+.provider-selector {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.provider-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 20px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 120px;
+}
+
+.provider-btn:hover {
+    border-color: var(--accent);
+    background: rgba(45, 80, 22, 0.05);
+}
+
+.provider-btn.active {
+    border-color: var(--accent);
+    background: rgba(45, 80, 22, 0.1);
+    box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.15);
+}
+
+.provider-icon {
+    font-size: 1.8rem;
+}
+
+.provider-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+
+.provider-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.dupliclick-status {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.dupliclick-status.success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.dupliclick-status.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.dupliclick-data {
+    margin-top: 16px;
+}
+
+.dupliclick-data h4 {
+    margin-bottom: 12px;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.dupliclick-data-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.data-label {
+    font-weight: 600;
+    color: var(--text-muted);
+    min-width: 120px;
+}
+
+.data-value {
+    text-align: right;
+    color: var(--text);
+    word-break: break-all;
+    max-width: 60%;
+}
+
+.data-value.token-value {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+}
+
+.raw-data-details {
+    margin-top: 12px;
+}
+
+.raw-data-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 8px 0;
+    color: var(--accent);
+    font-size: 0.85rem;
+}
+
+.raw-json {
+    margin-top: 8px;
+    padding: 12px;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ===== SPESA ONLINE - PRICE IN SHOPPING LIST ===== */
+.spesa-total-banner {
+    background: linear-gradient(135deg, #065f46, #047857);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    color: white;
+}
+
+.spesa-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.spesa-total-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.spesa-total-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.spesa-total-detail {
+    font-size: 0.75rem;
+    opacity: 0.85;
+    margin-top: 4px;
+}
+
+.spesa-detail-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-top: 3px;
+}
+
+.spesa-pkg {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+}
+
+.spesa-promo-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: #dc2626;
+    color: white;
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.spesa-promo-expire {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.spesa-not-found {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.shopping-item.has-promo {
+    border-left: 3px solid #dc2626;
+}
+
+/* ====== Recipe Archive ====== */
+.recipe-archive {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 16px;
+}
+
+.recipe-archive-day {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recipe-archive-date {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    padding: 2px 0;
+    border-bottom: 2px solid var(--accent);
+    margin-bottom: 2px;
+}
+
+.recipe-archive-card {
+    background: var(--bg-card);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, transform 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.recipe-archive-card:hover,
+.recipe-archive-card:active {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transform: translateY(-1px);
+}
+
+.recipe-archive-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.recipe-archive-meal {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.recipe-archive-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipe-archive-card-meta {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
 }

@@ -121,6 +121,25 @@ try {
             getServerSettings();
             break;
 
+        // ===== SPESA ONLINE =====
+        case 'dupliclick_login':
+            dupliclickLogin();
+            break;
+
+        case 'dupliclick_search':
+            dupliclickSearch();
+            break;
+
+        case 'dupliclick_status':
+            $tokenFile = __DIR__ . '/../data/dupliclick_token.json';
+            if (file_exists($tokenFile)) {
+                $td = json_decode(file_get_contents($tokenFile), true);
+                echo json_encode(['logged_in' => !empty($td['token']), 'email' => $td['email'] ?? '']);
+            } else {
+                echo json_encode(['logged_in' => false]);
+            }
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -515,6 +534,23 @@ function useFromInventory(PDO $db): void {
                     if ($auth) {
                         $listUUID = $auth['bringListUUID'];
                         $bringName = italianToBring($product['name']);
+                        
+                        // Check if already on the Bring! list
+                        $alreadyOnList = false;
+                        $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+                        if ($listData && isset($listData['purchase'])) {
+                            foreach ($listData['purchase'] as $existingItem) {
+                                if (strcasecmp($existingItem['name'] ?? '', $bringName) === 0) {
+                                    $alreadyOnList = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if ($alreadyOnList) {
+                            // Already on the list, skip adding
+                            $addedToBring = false;
+                        } else {
                         $spec = $product['brand'] ?: '';
                         $body = http_build_query([
                             'uuid' => $listUUID,
@@ -529,6 +565,7 @@ function useFromInventory(PDO $db): void {
                             $logStmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'bring', 0, '', 'Auto-aggiunto a Bring!')");
                             $logStmt->execute([$productId]);
                         }
+                        } // end else (not already on list)
                     }
                 } catch (Exception $e) {
                     // Silently fail — don't block inventory operation
@@ -1054,6 +1091,15 @@ function generateRecipe(PDO $db): void {
                 $line .= " [scade tra $daysLeft giorni - priorità media]";
             }
         }
+        // Flag fridge items for priority
+        if (strtolower($item['location']) === 'frigo') {
+            $line .= " [IN FRIGO - PRIORITÀ]";
+        }
+        // Flag opened packages (fractional quantity = already opened)
+        $qty = floatval($item['quantity']);
+        if ($qty > 0 && $qty < 1 && $item['unit'] === 'conf') {
+            $line .= " [CONFEZIONE APERTA - USA PRIMA]";
+        }
         $line .= " (in {$item['location']})";
         $ingredientLines[] = $line;
     }
@@ -1106,13 +1152,14 @@ Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel 
 
 REGOLE IMPORTANTI:
 1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
-2. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
-3. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
-4. Adatta le quantità per $persons persona/e
-5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
-6. La ricetta deve essere adatta al pasto: $mealLabel
-7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2 kg" e servono 300g, qty_number = 0.3. Per ingredienti non dalla dispensa, qty_number = 0.
-8. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
+2. PRIORITÀ ALTA: preferisci ingredienti in FRIGO (contrassegnati [IN FRIGO]) e quelli con CONFEZIONE APERTA (contrassegnati [CONFEZIONE APERTA]). Questi si deteriorano più in fretta e vanno usati prima.
+3. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
+4. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
+5. Adatta le quantità per $persons persona/e
+6. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
+7. La ricetta deve essere adatta al pasto: $mealLabel
+8. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2 kg" e servono 300g, qty_number = 0.3. Per ingredienti non dalla dispensa, qty_number = 0.
+9. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
 $ingredientsText
@@ -1716,7 +1763,17 @@ function bringAddItems(): void {
     }
     
     $added = 0;
+    $skipped = 0;
     $errors = [];
+    
+    // Fetch current list to check for duplicates
+    $existingNames = [];
+    $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+    if ($listData && isset($listData['purchase'])) {
+        foreach ($listData['purchase'] as $existingItem) {
+            $existingNames[] = strtolower($existingItem['name'] ?? '');
+        }
+    }
     
     foreach ($items as $item) {
         $name = $item['name'] ?? '';
@@ -1725,6 +1782,12 @@ function bringAddItems(): void {
         
         // Map Italian name to Bring! catalog key (German) for proper recognition
         $bringName = italianToBring($name);
+        
+        // Skip if already on the list
+        if (in_array(strtolower($bringName), $existingNames)) {
+            $skipped++;
+            continue;
+        }
         
         $body = http_build_query([
             'uuid' => $listUUID,
@@ -1740,7 +1803,7 @@ function bringAddItems(): void {
         }
     }
     
-    echo json_encode(['success' => true, 'added' => $added, 'errors' => $errors]);
+    echo json_encode(['success' => true, 'added' => $added, 'skipped' => $skipped, 'errors' => $errors]);
 }
 
 function bringRemoveItem(): void {
@@ -1988,4 +2051,310 @@ PROMPT;
         'seasonal_tip' => $suggestions['seasonal_tip'] ?? '',
         'listUUID' => $listUUID,
     ]);
+}
+
+// ===== DUPLICLICK (GRUPPO POLI) =====
+
+function dupliclickLogin(): void {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['error' => 'POST required']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $email = $input['email'] ?? '';
+    $password = $input['password'] ?? '';
+
+    if (empty($email) || empty($password)) {
+        echo json_encode(['error' => 'Email e password sono obbligatori']);
+        return;
+    }
+
+    $postData = http_build_query([
+        'login' => $email,
+        'password' => $password,
+        'remember_me' => 'true',
+        'show_sectors' => 'false'
+    ]);
+
+    $ch = curl_init('https://www.dupliclick.it/ebsn/api/auth/login');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postData,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/x-www-form-urlencoded;charset=UTF-8',
+            'Accept: application/json',
+            'Origin: https://www.dupliclick.it',
+            'Referer: https://www.dupliclick.it/',
+            'x-ebsn-client: production',
+            'x-ebsn-client-redirect: production',
+            'x-ebsn-client-uuid: 64b2d6318bb8f97bb1aba47dd8af38f6',
+            'x-ebsn-version: 2.0.7'
+        ],
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+
+    $response = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        echo json_encode(['error' => 'Errore connessione: ' . curl_error($ch)]);
+        curl_close($ch);
+        return;
+    }
+
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headerStr = substr($response, 0, $headerSize);
+    $body = substr($response, $headerSize);
+    curl_close($ch);
+
+    // Extract JWT token from x-ebsn-account header
+    $token = '';
+    foreach (explode("\r\n", $headerStr) as $line) {
+        if (stripos($line, 'x-ebsn-account:') === 0) {
+            $token = trim(substr($line, strlen('x-ebsn-account:')));
+            break;
+        }
+    }
+
+    // The response body may have leading whitespace/newlines - trim it
+    $body = trim($body);
+    $bodyData = json_decode($body, true);
+
+    // Check login success: status is at response.status (not root level)
+    if ($bodyData === null) {
+        echo json_encode(['error' => 'Risposta non valida dal server DupliClick', 'http_code' => $httpCode, 'raw' => substr($body, 0, 500)]);
+        return;
+    }
+
+    $respStatus = $bodyData['response']['status'] ?? ($bodyData['status'] ?? -1);
+    if ($respStatus !== 0) {
+        $errors = $bodyData['response']['errors'] ?? $bodyData['errors'] ?? [];
+        $errMsg = $errors[0]['error'] ?? $bodyData['message'] ?? 'Credenziali non valide';
+        echo json_encode(['error' => $errMsg, 'status' => $respStatus]);
+        return;
+    }
+
+    // User data is at root level, not inside data.user
+    $userData = $bodyData['data']['user'] ?? $bodyData['user'] ?? null;
+    $cartId = $bodyData['data']['cartId'] ?? $bodyData['cartId'] ?? null;
+
+    // Save token to file for later use
+    $tokenData = [
+        'token' => $token,
+        'email' => $email,
+        'logged_at' => date('c'),
+        'user' => $userData,
+        'cart_id' => $cartId,
+    ];
+    file_put_contents(__DIR__ . '/../data/dupliclick_token.json', json_encode($tokenData, JSON_PRETTY_PRINT));
+
+    echo json_encode([
+        'success' => true,
+        'token' => !empty($token) ? substr($token, 0, 20) . '...' : '(non trovato)',
+        'token_full' => $token,
+        'http_code' => $httpCode,
+        'data' => $bodyData['data'] ?? null,
+        'user' => $userData,
+        'response_status' => $respStatus,
+        'infos' => $bodyData['response']['infos'] ?? [],
+    ]);
+}
+
+// ===== DUPLICLICK PRODUCT SEARCH =====
+
+function dupliclickSearch(): void {
+    $query = $_GET['q'] ?? '';
+    $spec = $_GET['spec'] ?? '';
+    $aiPrompt = $_GET['prompt'] ?? '';
+    if (empty($query)) {
+        echo json_encode(['error' => 'Parametro q obbligatorio']);
+        return;
+    }
+
+    // Load saved token
+    $tokenFile = __DIR__ . '/../data/dupliclick_token.json';
+    if (!file_exists($tokenFile)) {
+        echo json_encode(['error' => 'Non sei loggato a DupliClick. Vai in Configurazione > Spesa Online.']);
+        return;
+    }
+    $tokenData = json_decode(file_get_contents($tokenFile), true);
+    $token = $tokenData['token'] ?? '';
+    if (empty($token)) {
+        echo json_encode(['error' => 'Token DupliClick non trovato. Effettua il login.']);
+        return;
+    }
+
+    $baseHeaders = [
+        'Accept: application/json',
+        'Origin: https://www.dupliclick.it',
+        'Referer: https://www.dupliclick.it/',
+        'x-ebsn-client: production',
+        'x-ebsn-client-uuid: 64b2d6318bb8f97bb1aba47dd8af38f6',
+        'x-ebsn-version: 2.0.7',
+        'x-ebsn-account: ' . $token,
+    ];
+
+    // Search catalog by item name only (spec confuses the search engine)
+    $url = 'https://www.dupliclick.it/ebsn/api/products?' . http_build_query([
+        'q' => $query,
+        'page' => 1,
+        'order_by' => 'search_score desc'
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => $baseHeaders,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) {
+        echo json_encode(['error' => 'Errore connessione DupliClick: ' . curl_error($ch)]);
+        curl_close($ch);
+        return;
+    }
+    curl_close($ch);
+
+    $data = json_decode(trim($response), true);
+    if (!$data || ($data['response']['status'] ?? -1) !== 0) {
+        echo json_encode(['error' => 'Errore nella ricerca', 'details' => $data['response'] ?? null]);
+        return;
+    }
+
+    $products = $data['data']['products'] ?? [];
+    if (empty($products)) {
+        echo json_encode(['success' => true, 'query' => $query, 'product' => null, 'total' => 0]);
+        return;
+    }
+
+    // Format top 10 products
+    $topProducts = array_slice($products, 0, 10);
+    $formatted = array_map('formatDupliclickProduct', $topProducts);
+    $total = $data['data']['page']['totItems'] ?? 0;
+
+    // If multiple results, use AI to pick the best match
+    $bestProduct = $formatted[0];
+    $aiUsed = false;
+    if (count($formatted) > 1) {
+        $aiResult = aiSelectBestProduct($query, $spec, $formatted, $aiPrompt);
+        if ($aiResult !== null) {
+            $bestProduct = $aiResult;
+            $aiUsed = true;
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'query' => $query,
+        'product' => $bestProduct,
+        'total' => $total,
+        'ai_used' => $aiUsed,
+    ]);
+}
+
+/**
+ * Use Gemini AI to pick the best product from search results
+ */
+function aiSelectBestProduct(string $itemName, string $spec, array $products, string $customPrompt = ''): ?array {
+    $env = loadEnvVars();
+    $apiKey = $env['GEMINI_API_KEY'] ?? '';
+    if (empty($apiKey)) return null;
+
+    $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
+
+Regole di selezione:
+- Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
+- Preferisci prodotti freschi/sfusi rispetto a trasformati (es. \"Arance\" = arance frutta, NON aranciata bevanda)
+- Se c'è una descrizione (es. \"a cubetti\", \"biologico\"), trova il prodotto che include quella caratteristica
+- Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
+- Preferisci formati standard per una famiglia
+- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, ecc.)
+- \"Finocchio\" = ortaggio fresco, NON semi di finocchio o tisana
+- \"Arance\" = frutta fresca, NON aranciata o succo
+
+Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.";
+
+    $prompt = !empty($customPrompt) ? $customPrompt : $defaultPrompt;
+
+    // Build product list
+    $productList = '';
+    foreach ($products as $i => $p) {
+        $productList .= "[$i] \"{$p['name']}\" - {$p['brand']} - €" . number_format($p['price'], 2) . " - {$p['packageDescr']}\n";
+    }
+
+    $fullPrompt = "{$prompt}\n\nProdotto cercato: \"{$itemName}\"" . ($spec ? " ({$spec})" : '') . "\n\nProdotti trovati:\n{$productList}\nRispondi SOLO con il numero (es. 0, 1, 2... oppure -1):";
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+    $payload = json_encode([
+        'contents' => [['parts' => [['text' => $fullPrompt]]]],
+        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false || $httpCode !== 200) return null;
+
+    $data = json_decode($response, true);
+    $text = trim($data['candidates'][0]['content']['parts'][0]['text'] ?? '');
+    if (preg_match('/-?\d+/', $text, $m)) {
+        $idx = (int)$m[0];
+        if ($idx >= 0 && $idx < count($products)) {
+            return $products[$idx];
+        } elseif ($idx === -1) {
+            return null; // AI says nothing matches
+        }
+    }
+
+    return null; // Could not parse, caller will use first result
+}
+
+function formatDupliclickProduct(array $p): array {
+    $promo = $p['warehousePromo'] ?? null;
+    $result = [
+        'productId' => $p['productId'] ?? $p['id'] ?? null,
+        'name' => $p['name'] ?? '',
+        'brand' => $p['shortDescr'] ?? '',
+        'price' => $p['price'] ?? 0,
+        'priceDisplay' => $p['priceDisplay'] ?? $p['price'] ?? 0,
+        'priceUm' => $p['priceStandardUmDisplay'] ?? null,
+        'weightUnit' => $p['weightUnitDisplay'] ?? '',
+        'packageDescr' => $p['productInfos']['PACKAGE_DESCR'] ?? '',
+        'barcode' => $p['barcode'] ?? '',
+        'imageUrl' => $p['mediaURL'] ?? '',
+        'slug' => $p['slug'] ?? '',
+        'itemUrl' => $p['itemUrl'] ?? '',
+        'url' => 'https://www.dupliclick.it' . ($p['itemUrl'] ?? ''),
+        'available' => $p['available'] ?? 0,
+    ];
+    
+    if ($promo) {
+        $result['promo'] = [
+            'discount' => $promo['discount'] ?? 0,
+            'discountPerc' => $promo['discountPerc'] ?? 0,
+            'originalPrice' => round(($p['price'] ?? 0) + ($promo['discount'] ?? 0), 2),
+            'validFrom' => $promo['validityDate'] ?? '',
+            'validTo' => $promo['expireDate'] ?? '',
+            'label' => $promo['view']['body'] ?? 'OFFERTA',
+            'type' => $promo['promoType'] ?? '',
+        ];
+    }
+    
+    return $result;
 }

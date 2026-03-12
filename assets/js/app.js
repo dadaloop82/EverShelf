@@ -341,6 +341,7 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
     document.getElementById('setting-dietary').value = s.dietary || '';
     renderAppliances(s.appliances || []);
+    loadSpesaSettings();
     
     // Load server-side settings if not already set locally
     try {
@@ -419,6 +420,9 @@ async function saveSettings() {
     s.pref_comfort = document.getElementById('setting-pref-comfort').checked;
     s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
     s.dietary = document.getElementById('setting-dietary').value.trim();
+    // Save spesa AI prompt if the field exists
+    const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
+    if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
     saveSettingsToStorage(s);
     
     // Also save to server .env
@@ -518,6 +522,7 @@ function showPage(pageId, param = null) {
         case 'scan': initScanner(); clearQuickNameResults(); break;
         case 'products': loadAllProducts(); break;
         case 'shopping': loadShoppingList(); break;
+        case 'recipe': loadRecipeArchive(); break;
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
         case 'settings': loadSettingsUI(); break;
@@ -2848,6 +2853,97 @@ async function selectProductForAction(productId) {
 let shoppingListUUID = '';
 let shoppingItems = [];
 let suggestionItems = [];
+let shoppingPrices = {}; // { itemName: { product, searched: true } }
+
+const DEFAULT_SPESA_AI_PROMPT = `Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
+
+Regole di selezione:
+- Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
+- Preferisci prodotti freschi/sfusi rispetto a trasformati (es. "Arance" = arance frutta, NON aranciata bevanda)
+- Se c'è una descrizione (es. "a cubetti", "biologico"), trova il prodotto che include quella caratteristica
+- Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
+- Preferisci formati standard per una famiglia
+- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, ecc.)
+- "Finocchio" = ortaggio fresco, NON semi di finocchio o tisana
+- "Arance" = frutta fresca, NON aranciata o succo
+
+Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.`;
+
+function saveShoppingPrices() {
+    try {
+        // Only save items that have been searched (not loading state)
+        const toSave = {};
+        for (const [k, v] of Object.entries(shoppingPrices)) {
+            if (v.searched) toSave[k] = v;
+        }
+        localStorage.setItem('dispensa_shopping_prices', JSON.stringify(toSave));
+    } catch (e) { /* quota exceeded or private mode */ }
+}
+
+function loadShoppingPrices() {
+    try {
+        const raw = localStorage.getItem('dispensa_shopping_prices');
+        if (raw) shoppingPrices = JSON.parse(raw);
+    } catch (e) { shoppingPrices = {}; }
+}
+
+// Build a better search query from item name + specification
+function buildSearchQuery(item) {
+    // Only use the item name for search - specification confuses the search engine
+    // The AI on the backend will use the specification to pick the right product
+    return item.name;
+}
+
+// Parse weight/quantity from specification (e.g. "200g" -> 0.2 kg, "500 ml" -> 0.5, "2 pz" -> 2 units)
+function parseQtyFromSpec(spec) {
+    if (!spec) return null;
+    const s = spec.toLowerCase().trim();
+    // Match weight/volume: 200g, 0.5kg, 500 g, 1,5 kg, 200 gr
+    const m = s.match(/(\d+[.,]?\d*)\s*(g|gr|kg|ml|cl|l|lt)/i);
+    if (m) {
+        let val = parseFloat(m[1].replace(',', '.'));
+        const unit = m[2].toLowerCase();
+        if (unit === 'g' || unit === 'gr') return { kg: val / 1000, label: val + 'g', type: 'weight' };
+        if (unit === 'kg') return { kg: val, label: val + 'kg', type: 'weight' };
+        if (unit === 'ml') return { kg: val / 1000, label: val + 'ml', type: 'weight' };
+        if (unit === 'cl') return { kg: val / 100, label: val * 10 + 'ml', type: 'weight' };
+        if (unit === 'l' || unit === 'lt') return { kg: val, label: val + 'L', type: 'weight' };
+    }
+    // Match unit count: 2 pz, 3 pezzi, 5, 2x, ~5 pz
+    const pzMatch = s.match(/~?(\d+)\s*(pz|pezzi|x|$)/i);
+    if (pzMatch) {
+        const count = parseInt(pzMatch[1]);
+        if (count > 0 && count <= 50) return { count, label: count + ' pz', type: 'units' };
+    }
+    return null;
+}
+
+// Estimate price when product is sold per-kg/per-L or per-unit and user wants a certain quantity
+function estimateItemPrice(product, spec) {
+    if (!product.priceUm) return null;
+    const umStr = String(product.priceUm);
+    const pm = umStr.match(/(\d+[.,]?\d*)/);
+    if (!pm) return null;
+    const pricePerUnit = parseFloat(pm[1].replace(',', '.'));
+    if (!pricePerUnit || pricePerUnit <= 0) return null;
+    
+    const qty = parseQtyFromSpec(spec);
+    if (!qty) return null;
+    
+    if (qty.type === 'weight') {
+        const estimated = pricePerUnit * qty.kg;
+        if (estimated <= 0 || estimated > 500) return null;
+        return { estimated: Math.round(estimated * 100) / 100, qtyLabel: qty.label };
+    } else if (qty.type === 'units') {
+        // For unit items: estimate per-item cost from the product price
+        // If product is per-kg and we want N pieces, estimate ~200-300g per piece
+        const avgWeightPerPiece = 0.25; // ~250g per piece (fruit/veg average)
+        const estimated = pricePerUnit * avgWeightPerPiece * qty.count;
+        if (estimated <= 0 || estimated > 500) return null;
+        return { estimated: Math.round(estimated * 100) / 100, qtyLabel: qty.label };
+    }
+    return null;
+}
 
 // Load just the shopping count for dashboard stat card
 async function loadShoppingCount() {
@@ -2886,6 +2982,18 @@ async function loadShoppingList() {
         shoppingListUUID = data.listUUID;
         shoppingItems = data.purchase || [];
         
+        // Clean up shoppingPrices for items no longer on the list
+        const currentKeys = new Set(shoppingItems.map(i => i.name.toLowerCase()));
+        let pricesChanged = false;
+        for (const key of Object.keys(shoppingPrices)) {
+            if (!currentKeys.has(key)) {
+                delete shoppingPrices[key];
+                pricesChanged = true;
+            }
+        }
+        if (pricesChanged) saveShoppingPrices();
+        
+        loadShoppingPrices();
         renderShoppingItems();
         currentEl.style.display = 'block';
         
@@ -2896,7 +3004,7 @@ async function loadShoppingList() {
     }
 }
 
-function renderShoppingItems() {
+async function renderShoppingItems() {
     const container = document.getElementById('shopping-items');
     const countEl = document.getElementById('shopping-count');
     
@@ -2904,21 +3012,245 @@ function renderShoppingItems() {
     
     if (shoppingItems.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>Lista della spesa vuota!<br>Usa il pulsante sotto per generare suggerimenti.</p></div>';
+        updateSpesaTotal();
         return;
+    }
+    
+    const s = getSettings();
+    let hasSpesa = s.spesa_logged_in && s.spesa_token;
+    
+    // If not logged in locally, check server-side token
+    if (!hasSpesa) {
+        try {
+            const status = await api('dupliclick_status');
+            if (status.logged_in) {
+                hasSpesa = true;
+                s.spesa_logged_in = true;
+                s.spesa_token = 'server';
+                s.spesa_user = status.email || '';
+                saveSettings(s);
+            }
+        } catch (e) { /* ignore */ }
     }
     
     container.innerHTML = shoppingItems.map((item, idx) => {
         const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
+        const priceKey = item.name.toLowerCase();
+        const priceData = shoppingPrices[priceKey];
+        
+        let detailHtml = '';
+        let priceTag = '';
+        let spesaBar = '';
+        if (hasSpesa) {
+            if (priceData && priceData.loading) {
+                detailHtml = `<div class="spesa-loading">🔍 Cerco...</div>`;
+            } else if (priceData && priceData.product) {
+                const p = priceData.product;
+                const promoHtml = p.promo 
+                    ? `<span class="spesa-promo-badge">${escapeHtml(p.promo.label)} -${Math.round(p.promo.discountPerc)}%</span>`
+                    : '';
+                const est = estimateItemPrice(p, item.specification || priceData.spec || '');
+                if (est) {
+                    priceTag = `<div class="shopping-item-price">~€${est.estimated.toFixed(2)}</div>`;
+                } else {
+                    priceTag = `<div class="shopping-item-price">€${p.price.toFixed(2)}</div>`;
+                }
+                detailHtml = `<div class="spesa-detail-left">
+                    <span class="spesa-found-name">${escapeHtml(p.name)}</span>
+                    <span class="spesa-pkg">${escapeHtml(p.packageDescr)}${est ? ' · ' + escapeHtml(String(p.priceUm || '')) + '/kg' : ''}</span>
+                    ${promoHtml}
+                </div>`;
+                spesaBar = `<div class="spesa-bar">
+                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
+                    <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)} - ${escapeHtml(p.brand)}">🔗 Apri</a>
+                </div>`;
+            } else if (priceData && priceData.searched && !priceData.product) {
+                detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
+                spesaBar = `<div class="spesa-bar">
+                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
+                </div>`;
+            } else {
+                spesaBar = `<div class="spesa-bar">
+                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
+                </div>`;
+            }
+        }
+        
         return `
-        <div class="shopping-item">
+        <div class="shopping-item ${priceData && priceData.product && priceData.product.promo ? 'has-promo' : ''}" id="shop-item-${idx}">
             <span class="shopping-item-icon">${catIcon}</span>
-            <div class="shopping-item-info">
-                <div class="shopping-item-name">${escapeHtml(item.name)}</div>
-                ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+            <div class="shopping-item-body">
+                <div class="shopping-item-top">
+                    <div class="shopping-item-info">
+                        <div class="shopping-item-name">${escapeHtml(item.name)}</div>
+                        ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+                        ${detailHtml}
+                    </div>
+                    <div class="shopping-item-right">
+                        ${priceTag}
+                        <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
+                    </div>
+                </div>
+                ${spesaBar}
             </div>
-            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
         </div>`;
     }).join('');
+    
+    updateSpesaTotal();
+}
+
+function updateSpesaTotal() {
+    const banner = document.getElementById('spesa-total-banner');
+    const valueEl = document.getElementById('spesa-total-value');
+    const detailEl = document.getElementById('spesa-total-detail');
+    
+    let total = 0;
+    let found = 0;
+    let promoSaved = 0;
+    
+    for (const item of shoppingItems) {
+        const pd = shoppingPrices[item.name.toLowerCase()];
+        if (pd && pd.product) {
+            const est = estimateItemPrice(pd.product, item.specification || pd.spec || '');
+            total += est ? est.estimated : pd.product.price;
+            found++;
+            if (pd.product.promo) {
+                promoSaved += pd.product.promo.discount;
+            }
+        }
+    }
+    
+    if (found === 0) {
+        banner.style.display = 'none';
+        return;
+    }
+    
+    banner.style.display = 'block';
+    valueEl.textContent = `€ ${total.toFixed(2)}`;
+    
+    let detail = `${found}/${shoppingItems.length} prodotti trovati`;
+    if (promoSaved > 0) {
+        detail += ` · 🏷️ Risparmi €${promoSaved.toFixed(2)} con le offerte`;
+    }
+    detailEl.textContent = detail;
+}
+
+async function searchItemPrice(idx, force = false) {
+    const item = shoppingItems[idx];
+    if (!item) return;
+    
+    const priceKey = item.name.toLowerCase();
+    const cached = shoppingPrices[priceKey];
+    // Invalidate cache if spec changed (e.g. item was updated in Bring)
+    if (!force && cached && cached.searched) {
+        const cachedSpec = (cached.spec || '').toLowerCase();
+        const currentSpec = (item.specification || '').toLowerCase();
+        if (cachedSpec === currentSpec) return;
+    }
+    
+    const s = getSettings();
+    const provider = s.spesa_provider || 'dupliclick';
+    
+    // Show loading state
+    shoppingPrices[priceKey] = { searched: false, loading: true, product: null };
+    renderShoppingItems();
+    
+    try {
+        // Include specification in the search query for better catalog results
+        let searchQ = item.name;
+        const spec = item.specification || '';
+        // Strip priority emojis from spec before appending
+        const cleanSpec = spec.replace(/[🔴🟡🟢]/g, '').trim();
+        if (cleanSpec) searchQ += ' ' + cleanSpec;
+        
+        const s2 = getSettings();
+        const aiPrompt = s2.spesa_ai_prompt || '';
+        const res = await api(`${provider}_search`, { 
+            q: searchQ, 
+            spec: spec,
+            prompt: aiPrompt
+        });
+        if (res.success && res.product) {
+            shoppingPrices[priceKey] = { searched: true, product: res.product, spec: item.specification || '' };
+        } else {
+            shoppingPrices[priceKey] = { searched: true, product: null };
+        }
+    } catch (e) {
+        shoppingPrices[priceKey] = { searched: true, product: null };
+    }
+    
+    saveShoppingPrices();
+    renderShoppingItems();
+}
+
+async function searchAllPrices() {
+    const s = getSettings();
+    if (!s.spesa_logged_in && !s.spesa_token) {
+        // Try server-side check
+        try {
+            const status = await api('dupliclick_status');
+            if (!status.logged_in) {
+                showToast('Configura prima la Spesa Online nelle impostazioni', 'error');
+                return;
+            }
+            s.spesa_logged_in = true;
+            s.spesa_token = 'server';
+            saveSettings(s);
+        } catch (e) {
+            showToast('Configura prima la Spesa Online nelle impostazioni', 'error');
+            return;
+        }
+    }
+    
+    const btn = document.getElementById('btn-search-prices');
+    const toSearch = shoppingItems.filter(item => {
+        const pd = shoppingPrices[item.name.toLowerCase()];
+        return !pd || !pd.searched;
+    });
+    
+    if (toSearch.length === 0) {
+        showToast('Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.', 'info');
+        return;
+    }
+    
+    btn.disabled = true;
+    const totalToSearch = toSearch.length;
+    
+    for (let i = 0; i < toSearch.length; i++) {
+        const item = toSearch[i];
+        btn.innerHTML = `⏳ Cerco ${i + 1}/${totalToSearch}...`;
+        
+        const priceKey = item.name.toLowerCase();
+        const provider = s.spesa_provider || 'dupliclick';
+        
+        try {
+            const aiPrompt = s.spesa_ai_prompt || '';
+            const res = await api(`${provider}_search`, { 
+                q: item.name, 
+                spec: item.specification || '',
+                prompt: aiPrompt
+            });
+            if (res.success && res.product) {
+                shoppingPrices[priceKey] = { searched: true, product: res.product, spec: item.specification || '' };
+            } else {
+                shoppingPrices[priceKey] = { searched: true, product: null };
+            }
+        } catch (e) {
+            shoppingPrices[priceKey] = { searched: true, product: null };
+        }
+        
+        saveShoppingPrices();
+        renderShoppingItems();
+        
+        // Small delay to not overwhelm the API
+        if (i < toSearch.length - 1) {
+            await new Promise(r => setTimeout(r, 300));
+        }
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Cerca tutti i prezzi';
+    showToast(`Ricerca completata: ${totalToSearch} prodotti`, 'success');
 }
 
 async function removeBringItem(idx) {
@@ -3062,7 +3394,9 @@ async function addSelectedSuggestions() {
         const data = await api('bring_add', {}, 'POST', { items, listUUID: shoppingListUUID });
         
         if (data.success) {
-            showToast(`${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`, 'success');
+            let msg = `${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`;
+            if (data.skipped > 0) msg += ` (${data.skipped} già in lista)`;
+            showToast(msg, 'success');
             // Refresh list
             await loadShoppingList();
             // Update dashboard shopping count
@@ -3361,6 +3695,82 @@ const MEAL_LABELS = {
     'cena': '🌙 Cena'
 };
 
+// ===== RECIPE ARCHIVE =====
+function getRecipeArchive() {
+    try {
+        return JSON.parse(localStorage.getItem('dispensa_recipe_archive') || '[]');
+    } catch { return []; }
+}
+
+function saveRecipeToArchive(recipe) {
+    const archive = getRecipeArchive();
+    const today = new Date().toISOString().slice(0, 10);
+    archive.unshift({ date: today, meal: recipe.meal, recipe, savedAt: Date.now() });
+    // Keep max 60 recipes
+    if (archive.length > 60) archive.length = 60;
+    localStorage.setItem('dispensa_recipe_archive', JSON.stringify(archive));
+}
+
+function loadRecipeArchive() {
+    const container = document.getElementById('recipe-archive');
+    if (!container) return;
+    const archive = getRecipeArchive();
+    
+    if (archive.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>Nessuna ricetta salvata.<br>Genera la tua prima ricetta!</p></div>';
+        return;
+    }
+    
+    // Group by date
+    const byDate = {};
+    for (const entry of archive) {
+        if (!byDate[entry.date]) byDate[entry.date] = [];
+        byDate[entry.date].push(entry);
+    }
+    
+    let html = '';
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    
+    for (const [date, entries] of Object.entries(byDate)) {
+        let dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+        if (date === today) dateLabel = '📅 Oggi';
+        else if (date === yesterday) dateLabel = '📅 Ieri';
+        
+        html += `<div class="recipe-archive-day">`;
+        html += `<div class="recipe-archive-date">${escapeHtml(dateLabel)}</div>`;
+        
+        for (const entry of entries) {
+            const r = entry.recipe;
+            const mealIcon = MEAL_LABELS[r.meal] || r.meal;
+            const tags = (r.tags || []).slice(0, 3).join(', ');
+            html += `<div class="recipe-archive-card" onclick='viewArchivedRecipe(${JSON.stringify(JSON.stringify(entry))})'>`;
+            html += `<div class="recipe-archive-card-header">`;
+            html += `<span class="recipe-archive-meal">${mealIcon}</span>`;
+            html += `<span class="recipe-archive-title">${escapeHtml(r.title)}</span>`;
+            html += `</div>`;
+            html += `<div class="recipe-archive-card-meta">`;
+            if (r.prep_time) html += `<span>🔪 ${r.prep_time}</span>`;
+            if (r.cook_time) html += `<span>🔥 ${r.cook_time}</span>`;
+            html += `<span>👥 ${r.persons}</span>`;
+            if (tags) html += `<span>${tags}</span>`;
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+    }
+    
+    container.innerHTML = html;
+}
+
+function viewArchivedRecipe(entryJson) {
+    const entry = JSON.parse(entryJson);
+    renderRecipe(entry.recipe);
+    document.getElementById('recipe-overlay').style.display = 'flex';
+    document.getElementById('recipe-ask').style.display = 'none';
+    document.getElementById('recipe-loading').style.display = 'none';
+    document.getElementById('recipe-result').style.display = '';
+}
+
 function openRecipeDialog() {
     const meal = getMealType();
     const settings = getSettings();
@@ -3592,6 +4002,9 @@ async function generateRecipe() {
         const r = result.recipe;
         renderRecipe(r);
 
+        // Save to archive
+        saveRecipeToArchive(r);
+
         // Cache the recipe for this meal type
         localStorage.setItem('cachedRecipe', JSON.stringify({ meal, recipe: r }));
 
@@ -3781,3 +4194,134 @@ function saveChatHistory() {
 document.addEventListener('DOMContentLoaded', () => {
     showPage('dashboard');
 });
+
+// ===== DUPLICLICK (SPESA ONLINE) =====
+
+function selectSpesaProvider(btn, provider) {
+    document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const s = getSettings();
+    s.spesa_provider = provider;
+    saveSettingsToStorage(s);
+}
+
+async function spesaLogin() {
+    const email = document.getElementById('setting-spesa-email').value.trim();
+    const password = document.getElementById('setting-spesa-password').value.trim();
+    const s = getSettings();
+    const provider = s.spesa_provider || 'dupliclick';
+
+    if (!email || !password) {
+        showToast('Inserisci email e password', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('spesa-login-btn');
+    const statusEl = document.getElementById('spesa-login-status');
+    const resultEl = document.getElementById('spesa-login-result');
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Accesso in corso...';
+    statusEl.style.display = 'none';
+    resultEl.style.display = 'none';
+
+    try {
+        const res = await api(`${provider}_login`, {}, 'POST', { email, password });
+
+        if (res.error) {
+            statusEl.className = 'dupliclick-status error';
+            statusEl.innerHTML = `❌ <strong>Errore:</strong> ${escapeHtml(res.error)}`;
+            statusEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '🔐 Accedi';
+            return;
+        }
+
+        // Save credentials and session data persistently
+        s.spesa_email = email;
+        s.spesa_password = password;
+        s.spesa_token = res.token_full || '';
+        s.spesa_provider = provider;
+        s.spesa_logged_in = true;
+        s.spesa_user = res.user || (res.data && res.data.user) || {};
+        s.spesa_data = res.data || {};
+        // Save AI prompt too
+        const promptEl = document.getElementById('setting-spesa-ai-prompt');
+        if (promptEl) s.spesa_ai_prompt = promptEl.value.trim();
+        saveSettingsToStorage(s);
+
+        statusEl.className = 'dupliclick-status success';
+        const welcomeMsg = (res.infos && res.infos[0]) ? res.infos[0].info : 'Login effettuato!';
+        statusEl.innerHTML = `✅ <strong>${escapeHtml(welcomeMsg)}</strong>`;
+        statusEl.style.display = 'block';
+
+        // Display key info only
+        const user = res.user || (res.data && res.data.user) || {};
+        const data = res.data || {};
+        const shipping = data.shippingAddress || {};
+        const points = user.userPoints || data.userPoints || {};
+        const fidelityPts = Array.isArray(points) ? points[0] : points['0'];
+        
+        let html = '<div class="dupliclick-data">';
+        html += '<div class="dupliclick-data-grid">';
+        
+        if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 Nome</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
+        if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 Tessera</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
+        if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 Punto Ritiro</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
+        if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ Punti Fedeltà</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
+        
+        html += '</div></div>';
+        resultEl.innerHTML = html;
+        resultEl.style.display = 'block';
+
+    } catch (e) {
+        statusEl.className = 'dupliclick-status error';
+        statusEl.innerHTML = `❌ <strong>Errore di rete:</strong> ${escapeHtml(e.message)}`;
+        statusEl.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '🔐 Accedi';
+}
+
+function loadSpesaSettings() {
+    const s = getSettings();
+    const emailEl = document.getElementById('setting-spesa-email');
+    const passEl = document.getElementById('setting-spesa-password');
+    const promptEl = document.getElementById('setting-spesa-ai-prompt');
+    if (emailEl) emailEl.value = s.spesa_email || s.dupliclick_email || '';
+    if (passEl) passEl.value = s.spesa_password || s.dupliclick_password || '';
+    if (promptEl) promptEl.value = s.spesa_ai_prompt || DEFAULT_SPESA_AI_PROMPT;
+    
+    // Show saved login state
+    if (s.spesa_logged_in && s.spesa_user) {
+        const statusEl = document.getElementById('spesa-login-status');
+        const resultEl = document.getElementById('spesa-login-result');
+        const loginBtn = document.getElementById('spesa-login-btn');
+        
+        if (loginBtn) {
+            loginBtn.innerHTML = '✅ Connesso — Riaccedi';
+            loginBtn.className = 'btn btn-large btn-secondary full-width mt-2';
+        }
+        if (statusEl) {
+            statusEl.className = 'dupliclick-status success';
+            statusEl.innerHTML = `✅ <strong>Connesso come ${escapeHtml(s.spesa_user.firstName || '')} ${escapeHtml(s.spesa_user.lastName || '')}</strong>`;
+            statusEl.style.display = 'block';
+        }
+        if (resultEl) {
+            const user = s.spesa_user;
+            const shipping = (s.spesa_data && s.spesa_data.shippingAddress) || {};
+            const points = user.userPoints || (s.spesa_data && s.spesa_data.userPoints) || {};
+            const fidelityPts = Array.isArray(points) ? points[0] : points['0'];
+            
+            let html = '<div class="dupliclick-data"><div class="dupliclick-data-grid">';
+            if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 Nome</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
+            if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 Tessera</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
+            if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 Punto Ritiro</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
+            if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ Punti Fedeltà</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
+            html += '</div></div>';
+            resultEl.innerHTML = html;
+            resultEl.style.display = 'block';
+        }
+    }
+}

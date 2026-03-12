@@ -6,10 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2d5016">
-    <title>🏠 Dispensa Manager</title>
+    <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260311c">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260312h">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -446,6 +446,20 @@
         <div class="products-list" id="products-list"></div>
     </section>
 
+    <!-- ===== RECIPE PAGE ===== -->
+    <section class="page" id="page-recipe">
+        <div class="page-header">
+            <button class="back-btn" onclick="showPage('dashboard')">← Indietro</button>
+            <h2>🍳 Ricette</h2>
+        </div>
+        <div class="recipe-page-container">
+            <button class="btn btn-large btn-success full-width" onclick="openRecipeDialog()">
+                ✨ Genera nuova ricetta
+            </button>
+            <div id="recipe-archive" class="recipe-archive"></div>
+        </div>
+    </section>
+
     <!-- ===== SHOPPING LIST (BRING!) PAGE ===== -->
     <section class="page" id="page-shopping">
         <div class="page-header">
@@ -455,6 +469,14 @@
         <div class="shopping-container">
             <div class="bring-status" id="bring-status">
                 <div class="bring-loading">Connessione a Bring!...</div>
+            </div>
+            <!-- Price total banner -->
+            <div class="spesa-total-banner" id="spesa-total-banner" style="display:none">
+                <div class="spesa-total-row">
+                    <span class="spesa-total-label">💰 Totale stimato</span>
+                    <span class="spesa-total-value" id="spesa-total-value">€ 0,00</span>
+                </div>
+                <div class="spesa-total-detail" id="spesa-total-detail"></div>
             </div>
             <div class="shopping-current" id="shopping-current" style="display:none">
                 <div class="shopping-section-header">
@@ -476,6 +498,9 @@
                 </div>
             </div>
             <div class="shopping-actions">
+                <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices">
+                    🔍 Cerca tutti i prezzi
+                </button>
                 <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
                     🤖 Suggerisci cosa comprare
                 </button>
@@ -528,10 +553,12 @@
             <h2>⚙️ Configurazione</h2>
         </div>
         <div class="settings-tabs">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api">🔑 API</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring">🛒 Bring!</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe">🍳 Ricette</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances">🔌 Elettrodomestici</button>
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys">🔑</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Bring!">🛒</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici">🔌</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-spesa')" data-tab="tab-spesa" title="Spesa Online">🛍️</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
         </div>
         <div class="settings-panels">
             <!-- API Keys Tab -->
@@ -621,6 +648,68 @@
                     </div>
                 </div>
             </div>
+            <!-- Spesa Online Tab -->
+            <div class="settings-panel" id="tab-spesa">
+                <div class="settings-card">
+                    <h4>🛍️ Spesa Online</h4>
+                    <p class="settings-hint">Configura il provider per la spesa online.</p>
+                    <div class="form-group">
+                        <label>🏪 Provider</label>
+                        <div class="provider-selector">
+                            <button class="provider-btn active" onclick="selectSpesaProvider(this, 'dupliclick')">
+                                <span class="provider-icon">🛒</span>
+                                <span class="provider-name">DupliClick</span>
+                                <span class="provider-desc">Gruppo Poli</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="spesa-provider-config">
+                        <div class="form-group">
+                            <label>📧 Email</label>
+                            <input type="email" id="setting-spesa-email" class="form-input" placeholder="email@esempio.com">
+                        </div>
+                        <div class="form-group">
+                            <label>🔒 Password</label>
+                            <input type="password" id="setting-spesa-password" class="form-input" placeholder="Password">
+                            <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-spesa-password')">👁️ Mostra/Nascondi</button>
+                        </div>
+                        <button class="btn btn-large btn-accent full-width mt-2" id="spesa-login-btn" onclick="spesaLogin()">
+                            🔐 Accedi
+                        </button>
+                        <div id="spesa-login-status" style="display:none"></div>
+                        <div id="spesa-login-result" style="display:none"></div>
+                        <div class="form-group mt-2">
+                            <label>🤖 Prompt AI selezione prodotto</label>
+                            <textarea id="setting-spesa-ai-prompt" class="form-input" rows="4" placeholder="Istruzioni per l'AI quando deve scegliere tra più prodotti..."></textarea>
+                            <p class="settings-hint">L'AI usa questo prompt per scegliere il prodotto più appropriato tra i risultati. Lascia vuoto per il comportamento predefinito.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Security Tab -->
+            <div class="settings-panel" id="tab-security">
+                <div class="settings-card">
+                    <h4>🔒 Certificato HTTPS</h4>
+                    <p class="settings-hint">Se il browser mostra l'errore "La connessione non è privata" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.</p>
+                    <div class="form-group">
+                        <a href="ca.crt" download="Dispensa_CA.crt" class="btn btn-large btn-accent full-width" style="text-align:center;text-decoration:none;display:block">📥 Scarica Certificato CA</a>
+                    </div>
+                    <div class="settings-hint" style="margin-top:12px;line-height:1.6">
+                        <strong>Istruzioni per Chrome (Android):</strong><br>
+                        1. Scarica il certificato qui sopra<br>
+                        2. Vai in <em>Impostazioni → Sicurezza e privacy → Altre impostazioni di sicurezza → Installa da archivio dispositivo</em><br>
+                        3. Seleziona il file <em>Dispensa_CA.crt</em> scaricato<br>
+                        4. Scegli "CA" e conferma<br>
+                        5. Riavvia Chrome<br><br>
+                        <strong>Istruzioni per Chrome (PC):</strong><br>
+                        1. Scarica il certificato qui sopra<br>
+                        2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni → Privacy e sicurezza → Sicurezza → Gestisci certificati)<br>
+                        3. Tab "Autorità" → Importa → seleziona il file<br>
+                        4. Spunta "Considera attendibile per identificare siti web"<br>
+                        5. Riavvia Chrome
+                    </div>
+                </div>
+            </div>
         </div>
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()">💾 Salva Configurazione</button>
         <div id="settings-status" class="settings-status" style="display:none"></div>
@@ -670,9 +759,9 @@
         <span class="nav-icon">📋</span>
         <span class="nav-label">Dispensa</span>
     </button>
-    <button class="nav-btn" onclick="openRecipeDialog()" data-page="recipe">
+    <button class="nav-btn" onclick="showPage('recipe')" data-page="recipe">
         <span class="nav-icon">🍳</span>
-        <span class="nav-label">Ricetta</span>
+        <span class="nav-label">Ricette</span>
     </button>
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping">
         <span class="nav-icon">🛒</span>
@@ -750,6 +839,6 @@
     <div class="modal-content" id="modal-content" onclick="event.stopPropagation()"></div>
 </div>
 
-<script src="assets/js/app.js?v=20260311c"></script>
+<script src="assets/js/app.js?v=20260312n"></script>
 </body>
 </html>
