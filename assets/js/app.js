@@ -438,7 +438,13 @@ const _debouncedSyncSettings = debounce(function() {
         dietary: s.dietary,
         appliances: s.appliances,
         spesa_provider: s.spesa_provider,
-        spesa_ai_prompt: s.spesa_ai_prompt
+        spesa_ai_prompt: s.spesa_ai_prompt,
+        spesa_email: s.spesa_email,
+        spesa_password: s.spesa_password,
+        spesa_logged_in: s.spesa_logged_in,
+        spesa_user: s.spesa_user,
+        spesa_data: s.spesa_data,
+        spesa_token: s.spesa_token
     };
     api('app_settings_save', {}, 'POST', { settings: { user_prefs: shared } }).catch(() => {});
 }, 1000);
@@ -450,17 +456,23 @@ function debounce(fn, ms) {
 async function syncSettingsFromDB() {
     try {
         const res = await api('app_settings_get');
-        if (res.success && res.settings && res.settings.user_prefs) {
-            const db = res.settings.user_prefs;
-            const s = getSettings();
-            // Merge DB settings into local (DB wins for shared prefs)
-            for (const key of ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-                'pref_healthy','pref_comfort','pref_zerowaste','dietary','appliances',
-                'spesa_provider','spesa_ai_prompt']) {
-                if (db[key] !== undefined) s[key] = db[key];
+        if (res.success && res.settings) {
+            if (res.settings.user_prefs) {
+                const db = res.settings.user_prefs;
+                const s = getSettings();
+                // Merge DB settings into local (DB wins for shared prefs)
+                for (const key of ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
+                    'pref_healthy','pref_comfort','pref_zerowaste','dietary','appliances',
+                    'spesa_provider','spesa_ai_prompt','spesa_email','spesa_password',
+                    'spesa_logged_in','spesa_user','spesa_data','spesa_token']) {
+                    if (db[key] !== undefined) s[key] = db[key];
+                }
+                _settingsCache = s;
+                localStorage.setItem('dispensa_settings', JSON.stringify(s));
             }
-            _settingsCache = s;
-            localStorage.setItem('dispensa_settings', JSON.stringify(s));
+            if (res.settings.review_confirmed) {
+                _reviewConfirmedCache = res.settings.review_confirmed;
+            }
         }
     } catch(e) { /* offline, use local */ }
 }
@@ -819,14 +831,15 @@ function isSuspiciousQty(qty, unit) {
 }
 
 function getReviewConfirmed() {
-    try { return JSON.parse(localStorage.getItem('review_confirmed') || '{}'); } catch(e) { return {}; }
+    return _reviewConfirmedCache || {};
 }
+let _reviewConfirmedCache = {};
 
 function setReviewConfirmed(inventoryId) {
     const c = getReviewConfirmed();
     c[inventoryId] = Date.now();
-    localStorage.setItem('review_confirmed', JSON.stringify(c));
-    // Also persist to shared DB
+    _reviewConfirmedCache = c;
+    // Persist to shared DB
     api('app_settings_save', {}, 'POST', { settings: { review_confirmed: c } }).catch(() => {});
 }
 
@@ -3270,14 +3283,17 @@ function saveShoppingPrices() {
         for (const [k, v] of Object.entries(shoppingPrices)) {
             if (v.searched) toSave[k] = v;
         }
-        localStorage.setItem('dispensa_shopping_prices', JSON.stringify(toSave));
-    } catch (e) { /* quota exceeded or private mode */ }
+        // Persist to shared DB
+        api('app_settings_save', {}, 'POST', { settings: { shopping_prices: toSave } }).catch(() => {});
+    } catch (e) { /* ignore */ }
 }
 
-function loadShoppingPrices() {
+async function loadShoppingPrices() {
     try {
-        const raw = localStorage.getItem('dispensa_shopping_prices');
-        if (raw) shoppingPrices = JSON.parse(raw);
+        const res = await api('app_settings_get');
+        if (res.success && res.settings && res.settings.shopping_prices) {
+            shoppingPrices = res.settings.shopping_prices;
+        }
     } catch (e) { shoppingPrices = {}; }
 }
 
