@@ -3,6 +3,54 @@
  * Complete pantry management with barcode scanning and AI identification
  */
 
+// ===== REMOTE LOGGING =====
+// Global remote logger: captures all errors, warnings and key operations
+const _remoteLogBuffer = [];
+let _remoteLogTimer = null;
+const _origConsoleError = console.error.bind(console);
+const _origConsoleWarn = console.warn.bind(console);
+
+function remoteLog(level, ...args) {
+    const msg = args.map(a => {
+        if (a instanceof Error) return `${a.name}: ${a.message}`;
+        if (typeof a === 'object') try { return JSON.stringify(a); } catch { return String(a); }
+        return String(a);
+    }).join(' ');
+    _remoteLogBuffer.push(`[${level}] ${msg}`);
+    if (!_remoteLogTimer) {
+        _remoteLogTimer = setTimeout(flushRemoteLog, 2000);
+    }
+}
+
+function flushRemoteLog() {
+    _remoteLogTimer = null;
+    if (_remoteLogBuffer.length === 0) return;
+    const msgs = _remoteLogBuffer.splice(0);
+    fetch(`api/index.php?action=client_log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: msgs })
+    }).catch(() => {});
+}
+
+// Override console.error and console.warn to also send remotely
+console.error = function(...args) {
+    _origConsoleError(...args);
+    remoteLog('ERROR', ...args);
+};
+console.warn = function(...args) {
+    _origConsoleWarn(...args);
+    remoteLog('WARN', ...args);
+};
+
+// Catch unhandled errors
+window.addEventListener('error', function(e) {
+    remoteLog('UNCAUGHT', `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+});
+window.addEventListener('unhandledrejection', function(e) {
+    remoteLog('UNHANDLED_PROMISE', e.reason);
+});
+
 // ===== CONFIGURATION =====
 const API_BASE = 'api/index.php';
 const LOCATIONS = {
@@ -537,7 +585,14 @@ async function api(action, params = {}, method = 'GET', body = null) {
         opts.body = JSON.stringify(body);
     }
     const res = await fetch(url, opts);
-    return res.json();
+    if (!res.ok) {
+        remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    if (data && data.error) {
+        remoteLog('API_FAIL', `${action}: ${data.error}`);
+    }
+    return data;
 }
 
 // ===== PAGE NAVIGATION =====
@@ -1245,12 +1300,11 @@ function scanLog(msg) {
 function flushScanLog() {
     _scanLogTimer = null;
     if (_scanLogBuffer.length === 0) return;
-    const msgs = _scanLogBuffer.splice(0);
-    fetch(`${API_BASE}?action=client_log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: msgs })
-    }).catch(() => {});
+    const msgs = _scanLogBuffer.splice(0).map(m => `[SCAN] ${m}`);
+    _remoteLogBuffer.push(...msgs);
+    if (!_remoteLogTimer) {
+        _remoteLogTimer = setTimeout(flushRemoteLog, 2000);
+    }
 }
 
 function toggleScanDebug() {

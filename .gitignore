@@ -9,6 +9,12 @@ data/*.db-shm
 data/bring_token.json
 data/bring_catalog.json
 
+# DupliClick token cache
+data/dupliclick_token.json
+
+# Client debug log (runtime only)
+data/client_debug.log
+
 # SSL CA cert (local only)
 ca.crt
 
