@@ -121,6 +121,14 @@ try {
             getServerSettings();
             break;
 
+        case 'client_log':
+            clientLog();
+            break;
+
+        case 'get_client_log':
+            getClientLog();
+            break;
+
         // ===== SPESA ONLINE =====
         case 'dupliclick_login':
             dupliclickLogin();
@@ -147,6 +155,48 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
+}
+
+// ===== CLIENT LOG =====
+
+function clientLog(): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $logFile = __DIR__ . '/../data/client_debug.log';
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
+    // Identify device from UA
+    $device = 'unknown';
+    if (preg_match('/tablet|ipad|playbook|silk/i', $ua)) $device = 'tablet';
+    elseif (preg_match('/mobile|android|iphone/i', $ua)) $device = 'phone';
+    else $device = 'desktop';
+    $ts = date('Y-m-d H:i:s');
+    $msgs = $input['messages'] ?? [];
+    $lines = [];
+    foreach ($msgs as $m) {
+        $lines[] = "[$ts] [$device] $m";
+    }
+    if ($lines) {
+        // Keep log under 100KB — truncate oldest if needed
+        if (file_exists($logFile) && filesize($logFile) > 100000) {
+            $existing = file($logFile);
+            $existing = array_slice($existing, -200);
+            file_put_contents($logFile, implode('', $existing));
+        }
+        file_put_contents($logFile, implode("\n", $lines) . "\n", FILE_APPEND | LOCK_EX);
+    }
+    echo json_encode(['ok' => true]);
+}
+
+function getClientLog(): void {
+    $logFile = __DIR__ . '/../data/client_debug.log';
+    $lines = 100;
+    if (isset($_GET['lines'])) $lines = min(500, max(1, (int)$_GET['lines']));
+    if (!file_exists($logFile)) {
+        echo json_encode(['log' => '(empty)', 'lines' => 0]);
+        return;
+    }
+    $all = file($logFile);
+    $tail = array_slice($all, -$lines);
+    echo json_encode(['log' => implode('', $tail), 'lines' => count($tail), 'total' => count($all)]);
 }
 
 // ===== PRODUCT FUNCTIONS =====
@@ -1055,6 +1105,7 @@ function generateRecipe(PDO $db): void {
     $options = $input['options'] ?? [];
     $appliances = $input['appliances'] ?? [];
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
+    $todayRecipes = $input['today_recipes'] ?? [];
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
@@ -1146,9 +1197,16 @@ function generateRecipe(PDO $db): void {
         $dietaryText = "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni.";
     }
 
+    // Today's previous recipes - avoid repetition
+    $todayText = '';
+    if (!empty($todayRecipes)) {
+        $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayRecipes));
+        $todayText = "\n\nRICETTE GIÀ PREPARATE OGGI:\n{$todayList}\nNON proporre una ricetta simile o con lo stesso concetto di quelle già fatte oggi. Varia il tipo di piatto, gli ingredienti principali e lo stile di cucina. Ad esempio se a pranzo c'era una piadina, a cena proponi pasta, riso, zuppa o altro — MAI un'altra piadina o wrap o piatto concettualmente simile.";
+    }
+
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$todayText}
 
 REGOLE IMPORTANTI:
 1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
@@ -2198,45 +2256,35 @@ function dupliclickSearch(): void {
         'x-ebsn-account: ' . $token,
     ];
 
-    // Search catalog by item name only (spec confuses the search engine)
-    $url = 'https://www.dupliclick.it/ebsn/api/products?' . http_build_query([
-        'q' => $query,
-        'page' => 1,
-        'order_by' => 'search_score desc'
-    ]);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_HTTPHEADER => $baseHeaders,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        echo json_encode(['error' => 'Errore connessione DupliClick: ' . curl_error($ch)]);
-        curl_close($ch);
+    // Search catalog by item name only first
+    $searchResults = dupliclickCatalogSearch($query, $baseHeaders);
+    if ($searchResults === null) {
+        echo json_encode(['error' => 'Errore nella ricerca']);
         return;
     }
-    curl_close($ch);
-
-    $data = json_decode(trim($response), true);
-    if (!$data || ($data['response']['status'] ?? -1) !== 0) {
-        echo json_encode(['error' => 'Errore nella ricerca', 'details' => $data['response'] ?? null]);
-        return;
-    }
-
-    $products = $data['data']['products'] ?? [];
+    
+    $products = $searchResults['products'];
+    $total = $searchResults['total'];
+    
     if (empty($products)) {
-        echo json_encode(['success' => true, 'query' => $query, 'product' => null, 'total' => 0]);
-        return;
+        // Fallback: try searching with spec keywords appended
+        $specKeywords = dupliclickExtractSpecKeywords($spec);
+        if ($specKeywords) {
+            $searchResults = dupliclickCatalogSearch($query . ' ' . $specKeywords, $baseHeaders);
+            if ($searchResults && !empty($searchResults['products'])) {
+                $products = $searchResults['products'];
+                $total = $searchResults['total'];
+            }
+        }
+        if (empty($products)) {
+            echo json_encode(['success' => true, 'query' => $query, 'product' => null, 'total' => 0]);
+            return;
+        }
     }
 
     // Format top 10 products
     $topProducts = array_slice($products, 0, 10);
     $formatted = array_map('formatDupliclickProduct', $topProducts);
-    $total = $data['data']['page']['totItems'] ?? 0;
 
     // If multiple results, use AI to pick the best match
     $bestProduct = $formatted[0];
@@ -2246,6 +2294,22 @@ function dupliclickSearch(): void {
         if ($aiResult !== null) {
             $bestProduct = $aiResult;
             $aiUsed = true;
+        } elseif ($aiResult === null && !empty($spec)) {
+            // AI said no match — try refined search with spec keywords
+            $specKeywords = dupliclickExtractSpecKeywords($spec);
+            if ($specKeywords) {
+                $refined = dupliclickCatalogSearch($query . ' ' . $specKeywords, $baseHeaders);
+                if ($refined && !empty($refined['products'])) {
+                    $refinedFormatted = array_map('formatDupliclickProduct', array_slice($refined['products'], 0, 10));
+                    $aiResult2 = aiSelectBestProduct($query, $spec, $refinedFormatted, $aiPrompt);
+                    if ($aiResult2 !== null) {
+                        $bestProduct = $aiResult2;
+                        $aiUsed = true;
+                    } else {
+                        $bestProduct = $refinedFormatted[0];
+                    }
+                }
+            }
         }
     }
 
@@ -2259,6 +2323,59 @@ function dupliclickSearch(): void {
 }
 
 /**
+ * Search DupliClick catalog and return raw products array
+ */
+function dupliclickCatalogSearch(string $query, array $headers): ?array {
+    $url = 'https://www.dupliclick.it/ebsn/api/products?' . http_build_query([
+        'q' => $query,
+        'page' => 1,
+        'order_by' => 'search_score desc'
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+
+    $response = curl_exec($ch);
+    if (curl_errno($ch)) { curl_close($ch); return null; }
+    curl_close($ch);
+
+    $data = json_decode(trim($response), true);
+    if (!$data || ($data['response']['status'] ?? -1) !== 0) return null;
+
+    return [
+        'products' => $data['data']['products'] ?? [],
+        'total' => $data['data']['page']['totItems'] ?? 0,
+    ];
+}
+
+/**
+ * Extract meaningful product keywords from a Bring specification string,
+ * stripping quantities, emojis, and noise words.
+ */
+function dupliclickExtractSpecKeywords(string $spec): string {
+    if (empty($spec)) return '';
+    // Remove priority emojis
+    $clean = preg_replace('/[\x{1F534}\x{1F7E1}\x{1F7E2}]/u', '', $spec);
+    // Remove quantities (150g, 500ml, 2x, 1 flacone, etc.)
+    $clean = preg_replace('/\d+\s*(g|kg|ml|l|pz|pezzi|conf|flacon[ei]|x)\b/i', '', $clean);
+    $clean = preg_replace('/\d+x\d*/i', '', $clean);
+    // Remove standalone numbers
+    $clean = preg_replace('/\b\d+\b/', '', $clean);
+    // Remove noise words
+    $noise = ['senza', 'con', 'più', 'meno', 'circa', 'tipo', 'lidl', 'coop', 'conad', 'esselunga'];
+    $clean = preg_replace('/\b(' . implode('|', $noise) . ')\b/i', '', $clean);
+    // Remove commas and extra spaces
+    $clean = preg_replace('/[,+]/', ' ', $clean);
+    $clean = preg_replace('/\s+/', ' ', trim($clean));
+    return $clean;
+}
+
+/**
  * Use Gemini AI to pick the best product from search results
  */
 function aiSelectBestProduct(string $itemName, string $spec, array $products, string $customPrompt = ''): ?array {
@@ -2266,17 +2383,21 @@ function aiSelectBestProduct(string $itemName, string $spec, array $products, st
     $apiKey = $env['GEMINI_API_KEY'] ?? '';
     if (empty($apiKey)) return null;
 
-    $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
+    $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare (con eventuale descrizione tra parentesi) e una lista di prodotti trovati nel catalogo del supermercato.
 
 Regole di selezione:
 - Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
+- La DESCRIZIONE tra parentesi è FONDAMENTALE: se l'utente cerca \"Pancetta (a cubetti)\", DEVI trovare pancetta A CUBETTI, non pancetta generica
+- Se la descrizione include un tipo specifico (\"a cubetti\", \"a fette\", \"biologico\", \"cotto\", \"a pasta dura\"), il prodotto DEVE contenere quella caratteristica nel nome
 - Preferisci prodotti freschi/sfusi rispetto a trasformati (es. \"Arance\" = arance frutta, NON aranciata bevanda)
-- Se c'è una descrizione (es. \"a cubetti\", \"biologico\"), trova il prodotto che include quella caratteristica
 - Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
 - Preferisci formati standard per una famiglia
-- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, ecc.)
+- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, pasta ripiena vs formaggio, ecc.)
 - \"Finocchio\" = ortaggio fresco, NON semi di finocchio o tisana
 - \"Arance\" = frutta fresca, NON aranciata o succo
+- \"Formaggio\" = formaggio intero/pezzo, NON prodotti che contengono formaggio come ingrediente (ravioli, sfogliavelo, ecc.)
+- \"Detergente intimo\" = detergente per igiene intima, NON detersivo generico
+- Rispondi -1 se NESSUN prodotto corrisponde ragionevolmente alla richiesta
 
 Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.";
 

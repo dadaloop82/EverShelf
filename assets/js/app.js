@@ -306,6 +306,43 @@ let scannerStream = null;
 let quaggaRunning = false;
 let aiStream = null;
 
+// ===== CAMERA HELPER =====
+function getCameraConstraints(extraVideo = {}) {
+    const s = getSettings();
+    const mode = s.camera_facing || 'environment';
+    // Front cameras on older devices often have lower resolution — don't over-request
+    const isFront = (mode === 'user');
+    const videoConstraints = {
+        width: { ideal: isFront ? 640 : 1280 },
+        height: { ideal: isFront ? 480 : 720 },
+        ...extraVideo
+    };
+    if (mode === 'environment' || mode === 'user') {
+        videoConstraints.facingMode = mode;
+    } else {
+        // Specific deviceId selected
+        videoConstraints.deviceId = { exact: mode };
+    }
+    return { video: videoConstraints };
+}
+
+function isFrontCamera() {
+    const s = getSettings();
+    return (s.camera_facing || 'environment') === 'user';
+}
+
+async function enumerateCameras() {
+    try {
+        // Need a temporary stream to get device labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        tempStream.getTracks().forEach(t => t.stop());
+        return devices.filter(d => d.kind === 'videoinput');
+    } catch(e) {
+        return [];
+    }
+}
+
 // ===== SETTINGS / CONFIG =====
 function getSettings() {
     try {
@@ -340,6 +377,10 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-comfort').checked = !!s.pref_comfort;
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
     document.getElementById('setting-dietary').value = s.dietary || '';
+    // Camera
+    const cameraSelect = document.getElementById('setting-camera-facing');
+    if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
+    loadCameraDevices();
     renderAppliances(s.appliances || []);
     loadSpesaSettings();
     
@@ -367,6 +408,23 @@ function renderAppliances(appliances) {
             <button class="appliance-remove" onclick="removeAppliance(${i})" title="Rimuovi">✕</button>
         </div>
     `).join('');
+}
+
+async function loadCameraDevices() {
+    const select = document.getElementById('setting-camera-facing');
+    if (!select) return;
+    const s = getSettings();
+    const current = s.camera_facing || 'environment';
+    // Remove old device-specific options (keep first 2: environment, user)
+    while (select.options.length > 2) select.remove(2);
+    const cameras = await enumerateCameras();
+    cameras.forEach(cam => {
+        const opt = document.createElement('option');
+        opt.value = cam.deviceId;
+        opt.textContent = cam.label || `Camera ${cam.deviceId.slice(0, 8)}…`;
+        select.appendChild(opt);
+    });
+    select.value = current;
 }
 
 function addAppliance() {
@@ -420,6 +478,8 @@ async function saveSettings() {
     s.pref_comfort = document.getElementById('setting-pref-comfort').checked;
     s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
     s.dietary = document.getElementById('setting-dietary').value.trim();
+    // Camera
+    s.camera_facing = document.getElementById('setting-camera-facing').value;
     // Save spesa AI prompt if the field exists
     const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
     if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
@@ -1162,31 +1222,80 @@ async function submitEditInventory(e, id, productId) {
     refreshCurrentPage();
 }
 
+// ===== SCAN DEBUG LOG =====
+let _scanDebugVisible = false;
+let _scanLogBuffer = [];
+let _scanLogTimer = null;
+
+function scanLog(msg) {
+    const el = document.getElementById('scan-debug-log');
+    if (el) {
+        const ts = new Date().toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:1});
+        el.textContent += `[${ts}] ${msg}\n`;
+        el.scrollTop = el.scrollHeight;
+    }
+    console.log('[ScanDebug]', msg);
+    // Buffer for remote send
+    _scanLogBuffer.push(msg);
+    if (!_scanLogTimer) {
+        _scanLogTimer = setTimeout(flushScanLog, 2000);
+    }
+}
+
+function flushScanLog() {
+    _scanLogTimer = null;
+    if (_scanLogBuffer.length === 0) return;
+    const msgs = _scanLogBuffer.splice(0);
+    fetch(`${API_BASE}?action=client_log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: msgs })
+    }).catch(() => {});
+}
+
+function toggleScanDebug() {
+    const el = document.getElementById('scan-debug-log');
+    if (!el) return;
+    _scanDebugVisible = !_scanDebugVisible;
+    el.style.display = _scanDebugVisible ? 'block' : 'none';
+}
+
 // ===== BARCODE SCANNER =====
+let _useBarcodeDetector = ('BarcodeDetector' in window);
+
 async function initScanner() {
     const video = document.getElementById('scanner-video');
     const viewport = document.getElementById('scanner-viewport');
+    const logEl = document.getElementById('scan-debug-log');
+    if (logEl) logEl.textContent = '';
+    
+    const constraints = getCameraConstraints();
+    scanLog(`Camera mode: ${getSettings().camera_facing || 'environment'}`);
+    scanLog(`BarcodeDetector: ${_useBarcodeDetector ? 'YES (native)' : 'NO (Quagga fallback)'}`);
+    scanLog(`Constraints: ${JSON.stringify(constraints.video)}`);
     
     try {
-        // Stop any existing stream
         stopScanner();
         
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: 'environment',
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const track = stream.getVideoTracks()[0];
+        const caps = track.getSettings ? track.getSettings() : {};
+        scanLog(`Stream OK — track: ${track.label}`);
+        scanLog(`Resolution: ${caps.width||'?'}x${caps.height||'?'}, facing: ${caps.facingMode||'N/A'}`);
         
         scannerStream = stream;
         video.srcObject = stream;
         await video.play();
+        scanLog(`Video playing — videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`);
         
-        // Start Quagga for barcode detection
-        startQuagga(video);
+        if (_useBarcodeDetector) {
+            startNativeScanner(video);
+        } else {
+            startQuaggaScanner(video);
+        }
         
     } catch (err) {
+        scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
         console.error('Camera error:', err);
         document.getElementById('scan-result').style.display = 'block';
         document.getElementById('scan-result').innerHTML = `
@@ -1199,29 +1308,165 @@ async function initScanner() {
     }
 }
 
-function startQuagga(videoEl) {
+// ===== NATIVE BarcodeDetector SCANNER =====
+async function startNativeScanner(videoEl) {
+    if (quaggaRunning) return;
+    
+    const scannerLine = document.querySelector('.scanner-line');
+    const detector = new BarcodeDetector({
+        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e']
+    });
+    
+    let scanning = true;
+    quaggaRunning = true;
+    let frameCount = 0;
+    let partialCount = 0;
+    let lastDetected = '';
+    let detectCount = 0;
+    let detectionHistory = {};
+    
+    scanLog('Native BarcodeDetector started');
+    
+    function updateFeedback(state) {
+        if (!scannerLine) return;
+        scannerLine.classList.remove('scanning', 'detecting');
+        if (state) scannerLine.classList.add(state);
+    }
+    
+    async function scanFrame() {
+        if (!scanning || !scannerStream) return;
+        frameCount++;
+        
+        if (frameCount === 1) updateFeedback('scanning');
+        
+        try {
+            const barcodes = await detector.detect(videoEl);
+            
+            if (barcodes.length > 0) {
+                const code = barcodes[0].rawValue;
+                const format = barcodes[0].format;
+                partialCount++;
+                scanLog(`Native detect #${partialCount} [f${frameCount}]: ${code} (${format})`);
+                updateFeedback('detecting');
+                
+                if (!detectionHistory[code]) detectionHistory[code] = { count: 0 };
+                detectionHistory[code].count++;
+                
+                if (code === lastDetected) {
+                    detectCount++;
+                } else {
+                    lastDetected = code;
+                    detectCount = 1;
+                }
+                
+                if (detectCount >= 2 || detectionHistory[code].count >= 2) {
+                    scanning = false;
+                    quaggaRunning = false;
+                    updateFeedback(null);
+                    scanLog(`CONFIRMED: ${code} after ${frameCount} frames`);
+                    onBarcodeDetected(code);
+                    return;
+                }
+            } else {
+                updateFeedback('scanning');
+            }
+        } catch (e) {
+            scanLog(`Native detect error: ${e.message}`);
+        }
+        
+        if (scanning) {
+            if (frameCount % 30 === 0) {
+                scanLog(`Native scanning... f${frameCount}, partials: ${partialCount}`);
+            }
+            requestAnimationFrame(scanFrame);
+        }
+    }
+    
+    requestAnimationFrame(scanFrame);
+}
+
+// ===== QUAGGA FALLBACK SCANNER =====
+function startQuaggaScanner(videoEl) {
     if (quaggaRunning) return;
     
     const canvas = document.getElementById('scanner-canvas');
     const ctx = canvas.getContext('2d');
+    const frontCam = isFrontCamera();
+    const scannerLine = document.querySelector('.scanner-line');
+    let frameCount = 0;
+    let partialCount = 0;
+    
+    scanLog(`Quagga starting — frontCam: ${frontCam}`);
     
     let scanning = true;
     quaggaRunning = true;
     let lastDetected = '';
     let detectCount = 0;
+    let detectionHistory = {};
+    
+    // Alternate between full frame and center-cropped for better detection
+    let scanPass = 0; // 0=full, 1=center-crop, 2=full-enhanced, 3=center-enhanced
+    
+    function updateScannerFeedback(state) {
+        if (!scannerLine) return;
+        scannerLine.classList.remove('scanning', 'detecting');
+        if (state) scannerLine.classList.add(state);
+    }
+    
+    function getFrameDataUrl(pass) {
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        
+        if (pass % 2 === 0) {
+            // Full frame
+            canvas.width = vw;
+            canvas.height = vh;
+            ctx.drawImage(videoEl, 0, 0);
+        } else {
+            // Center crop: 60% of frame, focused on barcode area
+            const cropW = Math.round(vw * 0.7);
+            const cropH = Math.round(vh * 0.4);
+            const sx = Math.round((vw - cropW) / 2);
+            const sy = Math.round((vh - cropH) / 2);
+            canvas.width = cropW;
+            canvas.height = cropH;
+            ctx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+        }
+        
+        // Apply enhancement on passes 2,3 or always for front cam
+        if (frontCam || pass >= 2) {
+            enhanceCanvasForBarcode(ctx, canvas.width, canvas.height);
+        }
+        
+        return canvas.toDataURL('image/jpeg', 0.95);
+    }
     
     function scanFrame() {
         if (!scanning || !scannerStream) return;
+        frameCount++;
+        scanPass = (scanPass + 1) % 4;
         
-        canvas.width = videoEl.videoWidth;
-        canvas.height = videoEl.videoHeight;
-        ctx.drawImage(videoEl, 0, 0);
+        const dataUrl = getFrameDataUrl(scanPass);
+        
+        if (frameCount === 1) {
+            scanLog(`Frame #1 — video: ${videoEl.videoWidth}x${videoEl.videoHeight}`);
+            updateScannerFeedback('scanning');
+        }
+        
+        let callbackCalled = false;
+        const safetyTimer = setTimeout(() => {
+            if (!callbackCalled && scanning) {
+                scanLog(`Quagga timeout on f${frameCount}, retrying...`);
+                setTimeout(scanFrame, 100);
+            }
+        }, 5000);
         
         try {
+            const imgSize = Math.max(canvas.width, canvas.height);
             Quagga.decodeSingle({
-                src: canvas.toDataURL('image/jpeg', 0.8),
+                src: dataUrl,
                 numOfWorkers: 0,
-                inputStream: { size: 800 },
+                inputStream: { size: Math.min(imgSize, 800) },
                 decoder: {
                     readers: [
                         'ean_reader',
@@ -1230,37 +1475,79 @@ function startQuagga(videoEl) {
                         'code_39_reader',
                         'upc_reader',
                         'upc_e_reader'
-                    ]
+                    ],
+                    multiple: false
                 },
-                locate: true
+                locate: true,
+                locator: { patchSize: 'large', halfSample: false }
             }, function(result) {
+                callbackCalled = true;
+                clearTimeout(safetyTimer);
                 if (result && result.codeResult) {
                     const code = result.codeResult.code;
+                    const format = result.codeResult.format;
+                    partialCount++;
+                    const passName = ['full','crop','full+enh','crop+enh'][scanPass];
+                    scanLog(`Partial #${partialCount} [f${frameCount} ${passName}]: ${code} (${format})`);
+                    updateScannerFeedback('detecting');
+                    
+                    if (!detectionHistory[code]) detectionHistory[code] = { count: 0, lastFrame: 0 };
+                    detectionHistory[code].count++;
+                    detectionHistory[code].lastFrame = frameCount;
+                    
                     if (code === lastDetected) {
                         detectCount++;
                     } else {
                         lastDetected = code;
                         detectCount = 1;
                     }
-                    // Require 2 consecutive reads for reliability
-                    if (detectCount >= 2) {
+                    
+                    const dominated = detectionHistory[code];
+                    if (detectCount >= 2 || dominated.count >= 2) {
                         scanning = false;
                         quaggaRunning = false;
+                        updateScannerFeedback(null);
+                        scanLog(`CONFIRMED: ${code} after ${frameCount} frames (consec:${detectCount}, total:${dominated.count})`);
                         onBarcodeDetected(code);
                         return;
                     }
+                } else {
+                    updateScannerFeedback('scanning');
                 }
                 if (scanning) {
-                    setTimeout(scanFrame, 300);
+                    if (frameCount % 20 === 0) {
+                        scanLog(`Scanning... f${frameCount}, partials: ${partialCount}, pass: ${scanPass}`);
+                    }
+                    setTimeout(scanFrame, 150);
                 }
             });
         } catch (e) {
+            callbackCalled = true;
+            clearTimeout(safetyTimer);
+            scanLog(`Quagga error: ${e.message}`);
             if (scanning) setTimeout(scanFrame, 500);
         }
     }
     
-    // Start scanning after a small delay
     setTimeout(scanFrame, 500);
+}
+
+// Enhance low-quality camera frames for better barcode recognition
+function enhanceCanvasForBarcode(ctx, w, h) {
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    // Convert to high-contrast grayscale
+    for (let i = 0; i < d.length; i += 4) {
+        // Luminance
+        let gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        // Increase contrast
+        gray = ((gray - 128) * 1.5) + 128;
+        gray = gray < 0 ? 0 : gray > 255 ? 255 : gray;
+        // Threshold to make bars more distinct
+        gray = gray < 140 ? 0 : 255;
+        d[i] = d[i+1] = d[i+2] = gray;
+    }
+    ctx.putImageData(imageData, 0, 0);
 }
 
 function stopScanner() {
@@ -2560,9 +2847,7 @@ async function initAICamera() {
         if (aiStream) {
             aiStream.getTracks().forEach(t => t.stop());
         }
-        aiStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
+        aiStream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
         video.srcObject = aiStream;
         await video.play();
     } catch (err) {
@@ -3156,12 +3441,9 @@ async function searchItemPrice(idx, force = false) {
     renderShoppingItems();
     
     try {
-        // Include specification in the search query for better catalog results
-        let searchQ = item.name;
+        // Send item name as query, spec separately for AI selection
+        const searchQ = item.name;
         const spec = item.specification || '';
-        // Strip priority emojis from spec before appending
-        const cleanSpec = spec.replace(/[🔴🟡🟢]/g, '').trim();
-        if (cleanSpec) searchQ += ' ' + cleanSpec;
         
         const s2 = getSettings();
         const aiPrompt = s2.spesa_ai_prompt || '';
@@ -3451,9 +3733,7 @@ async function scanExpiryWithAI() {
     
     // Start camera
     try {
-        expiryStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
+        expiryStream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
         const video = document.getElementById('expiry-video');
         video.srcObject = expiryStream;
         await video.play();
@@ -3515,9 +3795,7 @@ function retakeExpiry() {
     document.getElementById('expiry-scan-status').style.display = 'none';
     
     // Restart camera
-    navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    }).then(stream => {
+    navigator.mediaDevices.getUserMedia(getCameraConstraints()).then(stream => {
         expiryStream = stream;
         const video = document.getElementById('expiry-video');
         video.srcObject = stream;
@@ -3711,10 +3989,21 @@ function saveRecipeToArchive(recipe) {
     localStorage.setItem('dispensa_recipe_archive', JSON.stringify(archive));
 }
 
+function getTodayRecipeTitles() {
+    const archive = getRecipeArchive();
+    const today = new Date().toISOString().slice(0, 10);
+    return archive
+        .filter(e => e.date === today && e.recipe && e.recipe.title)
+        .map(e => e.recipe.title);
+}
+
+let _recipeArchiveEntries = [];
+
 function loadRecipeArchive() {
     const container = document.getElementById('recipe-archive');
     if (!container) return;
     const archive = getRecipeArchive();
+    _recipeArchiveEntries = archive;
     
     if (archive.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>Nessuna ricetta salvata.<br>Genera la tua prima ricetta!</p></div>';
@@ -3729,6 +4018,7 @@ function loadRecipeArchive() {
     }
     
     let html = '';
+    let flatIdx = 0;
     const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     
@@ -3744,7 +4034,9 @@ function loadRecipeArchive() {
             const r = entry.recipe;
             const mealIcon = MEAL_LABELS[r.meal] || r.meal;
             const tags = (r.tags || []).slice(0, 3).join(', ');
-            html += `<div class="recipe-archive-card" onclick='viewArchivedRecipe(${JSON.stringify(JSON.stringify(entry))})'>`;
+            // Find this entry's index in the flat archive array
+            const archiveIdx = archive.indexOf(entry);
+            html += `<div class="recipe-archive-card" onclick="viewArchivedRecipe(${archiveIdx})">`;
             html += `<div class="recipe-archive-card-header">`;
             html += `<span class="recipe-archive-meal">${mealIcon}</span>`;
             html += `<span class="recipe-archive-title">${escapeHtml(r.title)}</span>`;
@@ -3755,6 +4047,7 @@ function loadRecipeArchive() {
             html += `<span>👥 ${r.persons}</span>`;
             if (tags) html += `<span>${tags}</span>`;
             html += `</div></div>`;
+            flatIdx++;
         }
         html += `</div>`;
     }
@@ -3762,8 +4055,9 @@ function loadRecipeArchive() {
     container.innerHTML = html;
 }
 
-function viewArchivedRecipe(entryJson) {
-    const entry = JSON.parse(entryJson);
+function viewArchivedRecipe(idx) {
+    const entry = _recipeArchiveEntries[idx];
+    if (!entry) return;
     renderRecipe(entry.recipe);
     document.getElementById('recipe-overlay').style.display = 'flex';
     document.getElementById('recipe-ask').style.display = 'none';
@@ -3985,7 +4279,8 @@ async function generateRecipe() {
             persons,
             options,
             appliances: settings.appliances || [],
-            dietary_restrictions: settings.dietary_restrictions || ''
+            dietary_restrictions: settings.dietary_restrictions || '',
+            today_recipes: getTodayRecipeTitles()
         });
 
         if (!result.success) {

@@ -1,0 +1,118 @@
+{
+    "token": "eyJraWQiOiJzdGQiLCJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJkYWRhbG9vcDgyQGdtYWlsLmNvbSIsImV4cCI6MTc3NDU5NjkzMywianRpIjoiMjM0NzIxNDUzVkJLR0hBSFlDUUxITjdIWFVNREJWIn0.97ZRFe3i0-0sCoVe_lG5Li2YVXkEyyPTfTr6tck984HKQryUf_12BidPe23aL_2eUeUiuMbd8HJfkyumlfOvmA",
+    "email": "dadaloop82@gmail.com",
+    "logged_at": "2026-03-12T06:35:33+00:00",
+    "user": {
+        "userId": 234721,
+        "firstName": "Daniel",
+        "lastName": "Stimpfl",
+        "fidelityCard": "0401011000247",
+        "email": "dadaloop82@gmail.com",
+        "login": "dadaloop82@gmail.com",
+        "phone": "+393490726254",
+        "userType": {
+            "userTypeId": "1"
+        },
+        "companyId": 0,
+        "hasFavorites": true,
+        "defaultStoreAddress": {
+            "addressId": null,
+            "addressName": null
+        },
+        "codInt": "2167695",
+        "profile": {
+            "level": 2,
+            "confirmed": true
+        },
+        "hrAgent": {
+            "hrId": null,
+            "name": "",
+            "internalCode": ""
+        },
+        "giftCertificatesReceived": [],
+        "legals": [
+            {
+                "legalId": 1
+            }
+        ],
+        "userPointsCounters": [
+            {
+                "codInt": "0",
+                "name": "Fidelity",
+                "value": 0,
+                "pointsUsed": 0
+            }
+        ],
+        "userPoints": [
+            {
+                "codInt": "0",
+                "name": "Fidelity",
+                "value": 0,
+                "pointsUsed": 0
+            }
+        ],
+        "person": {
+            "personId": "8116672",
+            "firstName": "Daniel",
+            "lastName": "Stimpfl",
+            "gender": "",
+            "birthDate": "1982-06-19",
+            "birthPlace": "",
+            "company": "",
+            "fiscalCode": "",
+            "vatCode": "",
+            "vatFiscalCode": "",
+            "codInt": "",
+            "active": "1",
+            "industryId": null,
+            "industryName": null,
+            "emailCertified": "",
+            "vatSdiCode": "",
+            "personTypeId": null,
+            "personInfos": []
+        },
+        "billingAddress": {
+            "addressId": 605113,
+            "addressTypeId": 1,
+            "addressType": "billing",
+            "zoneId": -1,
+            "active": 1,
+            "deliveryAddressId": 605113,
+            "shippingAddressId": 605113,
+            "addressName": "residenza",
+            "address1": "VIA PETER ROSEGGER",
+            "address2": "",
+            "addressNumber": "20\/C",
+            "city": "LAIVES",
+            "postalcode": "",
+            "floor": "",
+            "doorbellName": "",
+            "province": "BZ",
+            "apartmentNumber": "",
+            "maxDistance": 0.4,
+            "country": {
+                "countryId": 1,
+                "name": "Italia",
+                "iso": "IT",
+                "codInt": ""
+            },
+            "doorbellNumber": "",
+            "referencePhoneNumber": "",
+            "referenceMobileNumber": "",
+            "referenceEMail": "",
+            "addressNote": "",
+            "ztl": null,
+            "elevator": null,
+            "countryId": "1"
+        },
+        "contact": {
+            "contactId": "56730212",
+            "email1": "dadaloop82@gmail.com",
+            "email2": "",
+            "homePhone": "",
+            "workPhone": ""
+        },
+        "crmUserSegments": []
+    },
+    "cart_id": 1476245
+}

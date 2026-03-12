@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260312h">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260312t">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -134,6 +134,8 @@
                 </button>
             </div>
             <p class="scan-hint">Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo</p>
+            <div id="scan-debug-log" style="display:none;margin-top:12px;padding:10px;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:0.7rem;max-height:200px;overflow-y:auto;border-radius:8px;white-space:pre-wrap"></div>
+            <button class="btn btn-small btn-secondary" style="margin-top:8px;opacity:0.5" onclick="toggleScanDebug()">🐛 Debug Log</button>
         </div>
     </section>
 
@@ -558,6 +560,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici">🔌</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-spesa')" data-tab="tab-spesa" title="Spesa Online">🛍️</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
         </div>
         <div class="settings-panels">
@@ -683,6 +686,22 @@
                             <textarea id="setting-spesa-ai-prompt" class="form-input" rows="4" placeholder="Istruzioni per l'AI quando deve scegliere tra più prodotti..."></textarea>
                             <p class="settings-hint">L'AI usa questo prompt per scegliere il prodotto più appropriato tra i risultati. Lascia vuoto per il comportamento predefinito.</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Camera Tab -->
+            <div class="settings-panel" id="tab-camera">
+                <div class="settings-card">
+                    <h4>📷 Fotocamera</h4>
+                    <p class="settings-hint">Scegli quale fotocamera utilizzare per la scansione barcode e l'identificazione AI.</p>
+                    <div class="form-group">
+                        <label>📸 Fotocamera predefinita</label>
+                        <select id="setting-camera-facing" class="form-input">
+                            <option value="environment">📱 Posteriore (default)</option>
+                            <option value="user">🤳 Anteriore</option>
+                        </select>
+                        <p class="settings-hint mt-2">Se hai più fotocamere, puoi selezionarne una specifica dall'elenco sopra dopo aver concesso i permessi.</p>
+                        <button class="btn btn-small btn-secondary mt-2" onclick="loadCameraDevices()">🔄 Rileva fotocamere</button>
                     </div>
                 </div>
             </div>
@@ -839,6 +858,6 @@
     <div class="modal-content" id="modal-content" onclick="event.stopPropagation()"></div>
 </div>
 
-<script src="assets/js/app.js?v=20260312n"></script>
+<script src="assets/js/app.js?v=20260312w"></script>
 </body>
 </html>

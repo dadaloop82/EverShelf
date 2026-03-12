@@ -863,11 +863,37 @@ body {
     background: var(--danger);
     box-shadow: 0 0 10px var(--danger);
     animation: scanLine 2s ease-in-out infinite;
+    transition: background 0.2s, box-shadow 0.2s, height 0.2s;
+}
+
+/* While Quagga is actively scanning frames */
+.scanner-line.scanning {
+    background: #00c853;
+    box-shadow: 0 0 12px #00c853;
+    animation: scanLineActive 0.8s ease-in-out infinite;
+}
+
+/* Barcode partially detected — strong pulse */
+.scanner-line.detecting {
+    background: #ffd600;
+    box-shadow: 0 0 20px #ffd600, 0 0 40px rgba(255,214,0,0.4);
+    height: 5px;
+    animation: scanLineDetect 0.3s ease-in-out infinite;
 }
 
 @keyframes scanLine {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
+}
+
+@keyframes scanLineActive {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes scanLineDetect {
+    0%, 100% { opacity: 1; transform: scaleY(1); }
+    50% { opacity: 0.7; transform: scaleY(2); }
 }
 
 .scan-result {
