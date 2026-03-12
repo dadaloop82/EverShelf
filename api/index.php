@@ -783,14 +783,14 @@ function saveSettings(): void {
         }
     }
     
-    // Update values from input
-    if (isset($input['gemini_key'])) {
+    // Update values from input — only overwrite if new value is non-empty
+    if (!empty($input['gemini_key'])) {
         $envVars['GEMINI_API_KEY'] = $input['gemini_key'];
     }
-    if (isset($input['bring_email'])) {
+    if (!empty($input['bring_email'])) {
         $envVars['BRING_EMAIL'] = $input['bring_email'];
     }
-    if (isset($input['bring_password'])) {
+    if (!empty($input['bring_password'])) {
         $envVars['BRING_PASSWORD'] = $input['bring_password'];
     }
     
