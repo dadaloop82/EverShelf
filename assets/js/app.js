@@ -392,24 +392,77 @@ async function enumerateCameras() {
 }
 
 // ===== SETTINGS / CONFIG =====
+let _settingsCache = null;
+let _settingsDirty = false;
+
 function getSettings() {
-    try {
-        const s = JSON.parse(localStorage.getItem('dispensa_settings') || '{}');
-        // Build recipe_prefs array from individual booleans
-        s.recipe_prefs = [];
-        if (s.pref_veloce) s.recipe_prefs.push('veloce');
-        if (s.pref_pocafame) s.recipe_prefs.push('pocafame');
-        if (s.pref_scadenze) s.recipe_prefs.push('scadenze');
-        if (s.pref_healthy) s.recipe_prefs.push('salutare');
-        if (s.pref_comfort) s.recipe_prefs.push('comfort');
-        if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
-        s.dietary_restrictions = s.dietary || '';
-        return s;
-    } catch(e) { return {}; }
+    if (!_settingsCache) {
+        try {
+            _settingsCache = JSON.parse(localStorage.getItem('dispensa_settings') || '{}');
+        } catch(e) { _settingsCache = {}; }
+    }
+    const s = _settingsCache;
+    // Build recipe_prefs array from individual booleans
+    s.recipe_prefs = [];
+    if (s.pref_veloce) s.recipe_prefs.push('veloce');
+    if (s.pref_pocafame) s.recipe_prefs.push('pocafame');
+    if (s.pref_scadenze) s.recipe_prefs.push('scadenze');
+    if (s.pref_healthy) s.recipe_prefs.push('salutare');
+    if (s.pref_comfort) s.recipe_prefs.push('comfort');
+    if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
+    s.dietary_restrictions = s.dietary || '';
+    return s;
 }
 
 function saveSettingsToStorage(settings) {
+    _settingsCache = settings;
     localStorage.setItem('dispensa_settings', JSON.stringify(settings));
+    // Persist to DB
+    _settingsDirty = true;
+    _debouncedSyncSettings();
+}
+
+const _debouncedSyncSettings = debounce(function() {
+    if (!_settingsDirty) return;
+    _settingsDirty = false;
+    const s = getSettings();
+    // Don't sync secrets or device-specific settings to shared DB
+    const shared = {
+        default_persons: s.default_persons,
+        pref_veloce: s.pref_veloce,
+        pref_pocafame: s.pref_pocafame,
+        pref_scadenze: s.pref_scadenze,
+        pref_healthy: s.pref_healthy,
+        pref_comfort: s.pref_comfort,
+        pref_zerowaste: s.pref_zerowaste,
+        dietary: s.dietary,
+        appliances: s.appliances,
+        spesa_provider: s.spesa_provider,
+        spesa_ai_prompt: s.spesa_ai_prompt
+    };
+    api('app_settings_save', {}, 'POST', { settings: { user_prefs: shared } }).catch(() => {});
+}, 1000);
+
+function debounce(fn, ms) {
+    let t; return function(...args) { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+async function syncSettingsFromDB() {
+    try {
+        const res = await api('app_settings_get');
+        if (res.success && res.settings && res.settings.user_prefs) {
+            const db = res.settings.user_prefs;
+            const s = getSettings();
+            // Merge DB settings into local (DB wins for shared prefs)
+            for (const key of ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
+                'pref_healthy','pref_comfort','pref_zerowaste','dietary','appliances',
+                'spesa_provider','spesa_ai_prompt']) {
+                if (db[key] !== undefined) s[key] = db[key];
+            }
+            _settingsCache = s;
+            localStorage.setItem('dispensa_settings', JSON.stringify(s));
+        }
+    } catch(e) { /* offline, use local */ }
 }
 
 async function loadSettingsUI() {
@@ -773,6 +826,8 @@ function setReviewConfirmed(inventoryId) {
     const c = getReviewConfirmed();
     c[inventoryId] = Date.now();
     localStorage.setItem('review_confirmed', JSON.stringify(c));
+    // Also persist to shared DB
+    api('app_settings_save', {}, 'POST', { settings: { review_confirmed: c } }).catch(() => {});
 }
 
 async function loadReviewItems() {
@@ -4027,24 +4082,32 @@ const MEAL_LABELS = {
     'cena': '🌙 Cena'
 };
 
-// ===== RECIPE ARCHIVE =====
-function getRecipeArchive() {
+// ===== RECIPE ARCHIVE (DB-backed) =====
+let _recipeArchiveCache = null;
+
+async function getRecipeArchive() {
+    if (_recipeArchiveCache !== null) return _recipeArchiveCache;
     try {
-        return JSON.parse(localStorage.getItem('dispensa_recipe_archive') || '[]');
-    } catch { return []; }
+        const res = await api('recipes_list');
+        if (res.success) {
+            _recipeArchiveCache = res.recipes || [];
+            return _recipeArchiveCache;
+        }
+    } catch(e) { console.warn('Failed to load recipes from DB:', e); }
+    return [];
 }
 
-function saveRecipeToArchive(recipe) {
-    const archive = getRecipeArchive();
+async function saveRecipeToArchive(recipe) {
     const today = new Date().toISOString().slice(0, 10);
-    archive.unshift({ date: today, meal: recipe.meal, recipe, savedAt: Date.now() });
-    // Keep max 60 recipes
-    if (archive.length > 60) archive.length = 60;
-    localStorage.setItem('dispensa_recipe_archive', JSON.stringify(archive));
+    try {
+        await api('recipes_save', {}, 'POST', { date: today, meal: recipe.meal, recipe });
+        // Invalidate cache so next load fetches fresh data
+        _recipeArchiveCache = null;
+    } catch(e) { console.error('Failed to save recipe:', e); }
 }
 
-function getTodayRecipeTitles() {
-    const archive = getRecipeArchive();
+async function getTodayRecipeTitles() {
+    const archive = await getRecipeArchive();
     const today = new Date().toISOString().slice(0, 10);
     return archive
         .filter(e => e.date === today && e.recipe && e.recipe.title)
@@ -4053,10 +4116,10 @@ function getTodayRecipeTitles() {
 
 let _recipeArchiveEntries = [];
 
-function loadRecipeArchive() {
+async function loadRecipeArchive() {
     const container = document.getElementById('recipe-archive');
     if (!container) return;
-    const archive = getRecipeArchive();
+    const archive = await getRecipeArchive();
     _recipeArchiveEntries = archive;
     
     if (archive.length === 0) {
@@ -4119,6 +4182,8 @@ function viewArchivedRecipe(idx) {
     document.getElementById('recipe-result').style.display = '';
 }
 
+let _cachedRecipe = null;
+
 function openRecipeDialog() {
     const meal = getMealType();
     const settings = getSettings();
@@ -4126,16 +4191,13 @@ function openRecipeDialog() {
     document.getElementById('recipe-overlay').style.display = 'flex';
 
     // Check for cached recipe matching current meal type
-    try {
-        const cached = JSON.parse(localStorage.getItem('cachedRecipe') || 'null');
-        if (cached && cached.meal === meal && cached.recipe) {
-            document.getElementById('recipe-ask').style.display = 'none';
-            document.getElementById('recipe-loading').style.display = 'none';
-            renderRecipe(cached.recipe);
-            document.getElementById('recipe-result').style.display = '';
-            return;
-        }
-    } catch (e) { /* ignore parse errors */ }
+    if (_cachedRecipe && _cachedRecipe.meal === meal && _cachedRecipe.recipe) {
+        document.getElementById('recipe-ask').style.display = 'none';
+        document.getElementById('recipe-loading').style.display = 'none';
+        renderRecipe(_cachedRecipe.recipe);
+        document.getElementById('recipe-result').style.display = '';
+        return;
+    }
 
     // Pre-fill persons from settings
     document.getElementById('recipe-persons').value = settings.default_persons || 1;
@@ -4198,13 +4260,9 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
             btn.classList.add('btn-used');
 
             // Persist used state in cached recipe
-            try {
-                const cached = JSON.parse(localStorage.getItem('cachedRecipe') || 'null');
-                if (cached && cached.recipe && cached.recipe.ingredients && cached.recipe.ingredients[idx]) {
-                    cached.recipe.ingredients[idx].used = true;
-                    localStorage.setItem('cachedRecipe', JSON.stringify(cached));
-                }
-            } catch (e) { /* ignore */ }
+            if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
+                _cachedRecipe.recipe.ingredients[idx].used = true;
+            }
 
             showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
             if (result.added_to_bring) {
@@ -4294,7 +4352,7 @@ function renderRecipe(r) {
 }
 
 function regenerateRecipe() {
-    localStorage.removeItem('cachedRecipe');
+    _cachedRecipe = null;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
     const meal = getMealType();
@@ -4334,7 +4392,7 @@ async function generateRecipe() {
             options,
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
-            today_recipes: getTodayRecipeTitles()
+            today_recipes: await getTodayRecipeTitles()
         });
 
         if (!result.success) {
@@ -4354,8 +4412,8 @@ async function generateRecipe() {
         // Save to archive
         saveRecipeToArchive(r);
 
-        // Cache the recipe for this meal type
-        localStorage.setItem('cachedRecipe', JSON.stringify({ meal, recipe: r }));
+        // Cache the recipe for this meal type (in-memory only)
+        _cachedRecipe = { meal, recipe: r };
 
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-result').style.display = '';
@@ -4373,14 +4431,13 @@ let chatHistory = [];
 let chatInventoryContext = null;
 
 function initChat() {
-    // Load chat history from localStorage
-    const saved = localStorage.getItem('gemini_chat_history');
-    if (saved) {
-        try {
-            chatHistory = JSON.parse(saved);
+    // Load chat history from DB
+    api('chat_list').then(res => {
+        if (res.success && res.messages && res.messages.length > 0) {
+            chatHistory = res.messages.map(m => ({ role: m.role, text: m.text }));
             renderChatHistory();
-        } catch(e) { chatHistory = []; }
-    }
+        }
+    }).catch(() => {});
     // Pre-load inventory context
     loadChatContext();
     // Focus input
@@ -4515,7 +4572,7 @@ function scrollChatBottom() {
 
 function clearChat() {
     chatHistory = [];
-    localStorage.removeItem('gemini_chat_history');
+    api('chat_clear', {}, 'POST').catch(() => {});
     const container = document.getElementById('chat-messages');
     container.innerHTML = `
         <div class="chat-welcome">
@@ -4536,11 +4593,14 @@ function clearChat() {
 function saveChatHistory() {
     // Keep last 50 messages max
     if (chatHistory.length > 50) chatHistory = chatHistory.slice(-50);
-    localStorage.setItem('gemini_chat_history', JSON.stringify(chatHistory));
+    // Save last 2 messages (the newest pair) to DB
+    const newMsgs = chatHistory.slice(-2);
+    api('chat_save', {}, 'POST', { messages: newMsgs }).catch(() => {});
 }
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+    syncSettingsFromDB();
     showPage('dashboard');
 });
 

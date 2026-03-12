@@ -76,4 +76,46 @@ function migrateDB(PDO $db): void {
     if (!in_array('package_unit', $colNames)) {
         $db->exec("ALTER TABLE products ADD COLUMN package_unit TEXT DEFAULT ''");
     }
+
+    // --- New shared tables ---
+    // app_settings: key-value store shared across all devices
+    $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'")->fetchAll();
+    if (empty($tables)) {
+        $db->exec("
+            CREATE TABLE app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT '',
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+    }
+
+    // recipes: one per meal per day (last wins)
+    $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='recipes'")->fetchAll();
+    if (empty($tables)) {
+        $db->exec("
+            CREATE TABLE recipes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                meal TEXT NOT NULL,
+                recipe_json TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, meal)
+            );
+            CREATE INDEX idx_recipes_date ON recipes(date);
+        ");
+    }
+
+    // chat_messages: shared chat history
+    $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_messages'")->fetchAll();
+    if (empty($tables)) {
+        $db->exec("
+            CREATE TABLE chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role TEXT NOT NULL,
+                text TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        ");
+    }
 }

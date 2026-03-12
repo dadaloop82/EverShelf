@@ -148,6 +148,32 @@ try {
             }
             break;
 
+        // ===== SHARED APP DATA =====
+        case 'app_settings_get':
+            appSettingsGet($db);
+            break;
+        case 'app_settings_save':
+            appSettingsSave($db);
+            break;
+        case 'recipes_list':
+            recipesList($db);
+            break;
+        case 'recipes_save':
+            recipesSave($db);
+            break;
+        case 'recipes_delete':
+            recipesDelete($db);
+            break;
+        case 'chat_list':
+            chatList($db);
+            break;
+        case 'chat_save':
+            chatSave($db);
+            break;
+        case 'chat_clear':
+            chatClear($db);
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -1197,10 +1223,22 @@ function generateRecipe(PDO $db): void {
         $dietaryText = "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni.";
     }
 
-    // Today's previous recipes - avoid repetition
+    // Today's previous recipes from DB - avoid repetition
     $todayText = '';
+    $today = date('Y-m-d');
+    $todayStmt = $db->prepare("SELECT recipe_json FROM recipes WHERE date = ?");
+    $todayStmt->execute([$today]);
+    $todayDbRecipes = $todayStmt->fetchAll();
+    $todayTitles = [];
+    foreach ($todayDbRecipes as $tr) {
+        $rj = json_decode($tr['recipe_json'], true);
+        if (!empty($rj['title'])) $todayTitles[] = $rj['title'];
+    }
     if (!empty($todayRecipes)) {
-        $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayRecipes));
+        $todayTitles = array_unique(array_merge($todayTitles, $todayRecipes));
+    }
+    if (!empty($todayTitles)) {
+        $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayTitles));
         $todayText = "\n\nRICETTE GIÀ PREPARATE OGGI:\n{$todayList}\nNON proporre una ricetta simile o con lo stesso concetto di quelle già fatte oggi. Varia il tipo di piatto, gli ingredienti principali e lo stile di cucina. Ad esempio se a pranzo c'era una piadina, a cena proponi pasta, riso, zuppa o altro — MAI un'altra piadina o wrap o piatto concettualmente simile.";
     }
 
@@ -2478,4 +2516,99 @@ function formatDupliclickProduct(array $p): array {
     }
     
     return $result;
+}
+
+// ===== SHARED APP DATA FUNCTIONS =====
+
+function appSettingsGet(PDO $db): void {
+    $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
+    $settings = [];
+    foreach ($rows as $row) {
+        $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
+    }
+    echo json_encode(['success' => true, 'settings' => $settings]);
+}
+
+function appSettingsSave(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!$input || !is_array($input['settings'] ?? null)) {
+        echo json_encode(['error' => 'Missing settings object']);
+        return;
+    }
+    $stmt = $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+                          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
+    foreach ($input['settings'] as $key => $value) {
+        $stmt->execute([$key, json_encode($value)]);
+    }
+    echo json_encode(['success' => true]);
+}
+
+function recipesList(PDO $db): void {
+    $limit = min(intval($_GET['limit'] ?? 60), 200);
+    $rows = $db->query("SELECT id, date, meal, recipe_json, created_at FROM recipes ORDER BY date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
+    $recipes = [];
+    foreach ($rows as $row) {
+        $recipes[] = [
+            'id' => $row['id'],
+            'date' => $row['date'],
+            'meal' => $row['meal'],
+            'recipe' => json_decode($row['recipe_json'], true),
+            'savedAt' => strtotime($row['created_at']) * 1000
+        ];
+    }
+    echo json_encode(['success' => true, 'recipes' => $recipes]);
+}
+
+function recipesSave(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $date = $input['date'] ?? date('Y-m-d');
+    $meal = $input['meal'] ?? '';
+    $recipe = $input['recipe'] ?? null;
+
+    if (!$meal || !$recipe) {
+        echo json_encode(['error' => 'Missing meal or recipe']);
+        return;
+    }
+
+    // UPSERT: one recipe per meal per day (last one wins)
+    $stmt = $db->prepare("INSERT INTO recipes (date, meal, recipe_json, created_at) VALUES (?, ?, ?, datetime('now'))
+                          ON CONFLICT(date, meal) DO UPDATE SET recipe_json = excluded.recipe_json, created_at = excluded.created_at");
+    $stmt->execute([$date, $meal, json_encode($recipe)]);
+
+    echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+}
+
+function recipesDelete(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $id = intval($input['id'] ?? 0);
+    if ($id > 0) {
+        $db->prepare("DELETE FROM recipes WHERE id = ?")->execute([$id]);
+    }
+    echo json_encode(['success' => true]);
+}
+
+function chatList(PDO $db): void {
+    $rows = $db->query("SELECT id, role, text, created_at FROM chat_messages ORDER BY id ASC LIMIT 100")->fetchAll();
+    echo json_encode(['success' => true, 'messages' => $rows]);
+}
+
+function chatSave(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $messages = $input['messages'] ?? [];
+    if (empty($messages)) {
+        echo json_encode(['error' => 'No messages']);
+        return;
+    }
+    $stmt = $db->prepare("INSERT INTO chat_messages (role, text, created_at) VALUES (?, ?, datetime('now'))");
+    foreach ($messages as $msg) {
+        if (!empty($msg['role']) && isset($msg['text'])) {
+            $stmt->execute([$msg['role'], $msg['text']]);
+        }
+    }
+    echo json_encode(['success' => true]);
+}
+
+function chatClear(PDO $db): void {
+    $db->exec("DELETE FROM chat_messages");
+    echo json_encode(['success' => true]);
 }
