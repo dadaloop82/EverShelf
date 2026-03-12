@@ -53,7 +53,7 @@ function initializeDB(PDO $db): void {
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             product_id INTEGER NOT NULL,
-            type TEXT NOT NULL CHECK(type IN ('in', 'out')),
+            type TEXT NOT NULL CHECK(type IN ('in', 'out', 'waste')),
             quantity REAL NOT NULL,
             location TEXT NOT NULL DEFAULT 'dispensa',
             notes TEXT DEFAULT '',
@@ -75,6 +75,28 @@ function migrateDB(PDO $db): void {
     $colNames = array_column($cols, 'name');
     if (!in_array('package_unit', $colNames)) {
         $db->exec("ALTER TABLE products ADD COLUMN package_unit TEXT DEFAULT ''");
+    }
+
+    // Migrate transactions CHECK constraint to allow 'waste' type
+    $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();
+    if ($sql && strpos($sql, "'waste'") === false) {
+        $db->exec("ALTER TABLE transactions RENAME TO transactions_old");
+        $db->exec("
+            CREATE TABLE transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('in', 'out', 'waste')),
+                quantity REAL NOT NULL,
+                location TEXT NOT NULL DEFAULT 'dispensa',
+                notes TEXT DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )
+        ");
+        $db->exec("INSERT INTO transactions SELECT * FROM transactions_old");
+        $db->exec("DROP TABLE transactions_old");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_product ON transactions(product_id)");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at)");
     }
 
     // --- New shared tables ---
