@@ -1226,29 +1226,47 @@ function generateRecipe(PDO $db): void {
     // Today's previous recipes from DB - avoid repetition
     $todayText = '';
     $today = date('Y-m-d');
-    $todayStmt = $db->prepare("SELECT recipe_json FROM recipes WHERE date = ?");
-    $todayStmt->execute([$today]);
-    $todayDbRecipes = $todayStmt->fetchAll();
+    $weekAgo = date('Y-m-d', strtotime('-7 days'));
+
+    // Get this week's recipes for variety
+    $weekStmt = $db->prepare("SELECT date, meal, recipe_json FROM recipes WHERE date >= ? ORDER BY date DESC");
+    $weekStmt->execute([$weekAgo]);
+    $weekDbRecipes = $weekStmt->fetchAll();
+
     $todayTitles = [];
-    foreach ($todayDbRecipes as $tr) {
+    $weekTitles = [];
+    foreach ($weekDbRecipes as $tr) {
         $rj = json_decode($tr['recipe_json'], true);
-        if (!empty($rj['title'])) $todayTitles[] = $rj['title'];
+        if (!empty($rj['title'])) {
+            $weekTitles[] = $rj['title'];
+            if ($tr['date'] === $today) {
+                $todayTitles[] = $rj['title'];
+            }
+        }
     }
     if (!empty($todayRecipes)) {
         $todayTitles = array_unique(array_merge($todayTitles, $todayRecipes));
     }
+
+    $varietyText = '';
     if (!empty($todayTitles)) {
         $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayTitles));
-        $todayText = "\n\nRICETTE GIÀ PREPARATE OGGI:\n{$todayList}\nNON proporre una ricetta simile o con lo stesso concetto di quelle già fatte oggi. Varia il tipo di piatto, gli ingredienti principali e lo stile di cucina. Ad esempio se a pranzo c'era una piadina, a cena proponi pasta, riso, zuppa o altro — MAI un'altra piadina o wrap o piatto concettualmente simile.";
+        $varietyText .= "\n\nRICETTE GIÀ PREPARATE OGGI:\n{$todayList}\nNON proporre una ricetta simile o con lo stesso concetto di quelle già fatte oggi. Varia il tipo di piatto, gli ingredienti principali e lo stile di cucina. Ad esempio se a pranzo c'era una piadina, a cena proponi pasta, riso, zuppa o altro — MAI un'altra piadina o wrap o piatto concettualmente simile.";
+    }
+    // Weekly variety: list all recent recipes so AI avoids repetition
+    $weekOnly = array_diff($weekTitles, $todayTitles);
+    if (!empty($weekOnly)) {
+        $weekList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, array_values($weekOnly)));
+        $varietyText .= "\n\nRICETTE DEGLI ULTIMI 7 GIORNI:\n{$weekList}\nCerca di variare rispetto a queste ricette recenti: evita piatti troppo simili o con gli stessi ingredienti principali. Alterna pasta, riso, zuppe, carne, pesce, verdure, piatti freddi, ecc.";
     }
 
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$todayText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$varietyText}
 
 REGOLE IMPORTANTI:
 1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
-2. PRIORITÀ ALTA: preferisci ingredienti in FRIGO (contrassegnati [IN FRIGO]) e quelli con CONFEZIONE APERTA (contrassegnati [CONFEZIONE APERTA]). Questi si deteriorano più in fretta e vanno usati prima.
+2. SUGGERIMENTO (non obbligatorio): quando possibile, preferisci ingredienti in FRIGO (contrassegnati [IN FRIGO]) e quelli con CONFEZIONE APERTA (contrassegnati [CONFEZIONE APERTA]) perché si deteriorano più in fretta. Ma se la ricetta migliore usa altri ingredienti, va benissimo.
 3. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
 4. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
 5. Adatta le quantità per $persons persona/e
