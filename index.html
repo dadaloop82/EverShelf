@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260313b">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260313c">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -23,7 +23,7 @@
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini">
                 <svg class="gemini-icon" viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
             </button>
-            <button class="header-scan-btn" onclick="showPage('scan')" title="Scansiona prodotto">
+            <button class="header-scan-btn" id="btn-header-scan" title="Scansiona prodotto (tieni premuto per modalità spesa)">
                 📷
             </button>
         </div>
@@ -102,6 +102,10 @@
         <div class="page-header">
             <button class="back-btn" onclick="stopScanner(); showPage('dashboard')">← Indietro</button>
             <h2>Scansiona Prodotto</h2>
+        </div>
+        <div class="spesa-mode-banner" id="spesa-mode-banner" style="display:none">
+            <span>🛒 Modalità Spesa attiva</span>
+            <button class="btn btn-small" onclick="endSpesaMode()">✅ Fine spesa</button>
         </div>
         <div class="scan-container">
             <div class="scanner-viewport" id="scanner-viewport">
@@ -870,6 +874,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260313b"></script>
+<script src="assets/js/app.js?v=20260313c"></script>
 </body>
 </html>

@@ -699,7 +699,7 @@ function showPage(pageId, param = null) {
             }
             loadInventory();
             break;
-        case 'scan': initScanner(); clearQuickNameResults(); break;
+        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner(); break;
         case 'products': loadAllProducts(); break;
         case 'shopping': loadShoppingList(); break;
         case 'recipe': loadRecipeArchive(); break;
@@ -1916,6 +1916,9 @@ function selectQuickProduct(product) {
         if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
     }
     clearQuickNameResults();
+    // Clear the search input
+    const qInput = document.getElementById('quick-product-name');
+    if (qInput) qInput.value = '';
     showProductAction();
 }
 
@@ -1982,6 +1985,10 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image').value = '';
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
+    
+    // Remove datalist/autocomplete suggestions for new products (they cause confusion)
+    document.getElementById('pf-name').removeAttribute('list');
+    document.getElementById('pf-brand').removeAttribute('list');
     
     // Reset conf-size-row visibility
     const pfConfRow = document.getElementById('pf-conf-size-row');
@@ -2822,7 +2829,7 @@ async function submitAdd(e) {
         showLoading(false);
         if (result.success) {
             showToast(`✅ ${currentProduct.name} aggiunto!`, 'success');
-            showPage('dashboard');
+            if (!spesaModeAfterAdd()) showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');
         }
@@ -3245,6 +3252,11 @@ async function selectProductForAction(productId) {
         if (data.product) {
             currentProduct = data.product;
             showLoading(false);
+            // Clear search inputs after selecting a product
+            const psInput = document.getElementById('products-search');
+            if (psInput) psInput.value = '';
+            const invInput = document.getElementById('inventory-search');
+            if (invInput) invInput.value = '';
             showProductAction();
         } else {
             showLoading(false);
@@ -4480,16 +4492,20 @@ async function generateRecipe() {
 // ===== GEMINI CHAT =====
 let chatHistory = [];
 let chatInventoryContext = null;
+let _chatSavedCount = 0; // track how many messages already saved to DB
 
 function initChat() {
     // Load chat history from DB
     api('chat_list').then(res => {
         if (res.success && res.messages && res.messages.length > 0) {
             chatHistory = res.messages.map(m => ({ role: m.role, text: m.text }));
+            _chatSavedCount = chatHistory.length;
             renderChatHistory();
+        } else {
+            _chatSavedCount = 0;
         }
-    }).catch(() => {});
-    // Pre-load inventory context
+    }).catch(() => { _chatSavedCount = 0; });
+    // Always reload fresh inventory context
     loadChatContext();
     // Focus input
     setTimeout(() => {
@@ -4643,10 +4659,17 @@ function clearChat() {
 
 function saveChatHistory() {
     // Keep last 50 messages max
-    if (chatHistory.length > 50) chatHistory = chatHistory.slice(-50);
-    // Save last 2 messages (the newest pair) to DB
-    const newMsgs = chatHistory.slice(-2);
-    api('chat_save', {}, 'POST', { messages: newMsgs }).catch(() => {});
+    if (chatHistory.length > 50) {
+        const trimmed = chatHistory.length - 50;
+        chatHistory = chatHistory.slice(-50);
+        _chatSavedCount = Math.max(0, _chatSavedCount - trimmed);
+    }
+    // Only save messages that haven't been saved yet (prevent duplicates)
+    const unsaved = chatHistory.slice(_chatSavedCount);
+    if (unsaved.length === 0) return;
+    api('chat_save', {}, 'POST', { messages: unsaved }).then(() => {
+        _chatSavedCount = chatHistory.length;
+    }).catch(() => {});
 }
 
 // ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
@@ -5070,6 +5093,62 @@ function generateScreensaverFact() {
     return facts[Math.floor(Math.random() * facts.length)]();
 }
 
+// ===== SPESA MODE (long-press camera for continuous scanning) =====
+let _spesaMode = false;
+let _longPressTimer = null;
+
+function initSpesaMode() {
+    const btn = document.getElementById('btn-header-scan');
+    if (!btn) return;
+
+    btn.addEventListener('pointerdown', (e) => {
+        _longPressTimer = setTimeout(() => {
+            _longPressTimer = null;
+            startSpesaMode();
+        }, 600);
+    });
+    btn.addEventListener('pointerup', () => {
+        if (_longPressTimer) {
+            clearTimeout(_longPressTimer);
+            _longPressTimer = null;
+            // Short press — normal scan
+            showPage('scan');
+        }
+    });
+    btn.addEventListener('pointerleave', () => {
+        if (_longPressTimer) {
+            clearTimeout(_longPressTimer);
+            _longPressTimer = null;
+        }
+    });
+}
+
+function startSpesaMode() {
+    _spesaMode = true;
+    showToast('🛒 Modalità Spesa attivata!', 'success');
+    showPage('scan');
+    updateSpesaBanner();
+}
+
+function endSpesaMode() {
+    _spesaMode = false;
+    updateSpesaBanner();
+    stopScanner();
+    showPage('dashboard');
+}
+
+function updateSpesaBanner() {
+    const banner = document.getElementById('spesa-mode-banner');
+    if (banner) banner.style.display = _spesaMode ? 'flex' : 'none';
+}
+
+// Called after successful add — returns true if spesa mode handled navigation
+function spesaModeAfterAdd() {
+    if (!_spesaMode) return false;
+    showPage('scan');
+    return true;
+}
+
 function initInactivityWatcher() {
     const events = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'];
     events.forEach(evt => {
@@ -5089,6 +5168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     syncSettingsFromDB();
     showPage('dashboard');
     initInactivityWatcher();
+    initSpesaMode();
 });
 
 // ===== DUPLICLICK (SPESA ONLINE) =====

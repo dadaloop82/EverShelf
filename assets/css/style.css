@@ -98,9 +98,9 @@ body {
     background: rgba(255,255,255,0.25);
     border: 2px solid rgba(255,255,255,0.5);
     color: white;
-    font-size: 1.8rem;
-    width: 52px;
-    height: 52px;
+    font-size: 2.1rem;
+    width: 58px;
+    height: 58px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
@@ -140,6 +140,28 @@ body {
 .header-scan-btn:active {
     transform: scale(0.9);
     background: rgba(255,255,255,0.4);
+}
+
+/* Spesa mode banner */
+.spesa-mode-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    box-shadow: var(--shadow);
+}
+.spesa-mode-banner .btn {
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.5);
+    font-weight: 600;
+    padding: 6px 14px;
 }
 
 @keyframes pulse-scan {
