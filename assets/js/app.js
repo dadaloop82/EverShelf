@@ -1001,20 +1001,40 @@ function showAlertItemDetail(inventoryId, productId) {
     });
 }
 
+function formatSubRemainder(amt, pkgUnit) {
+    const uL = { 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml' };
+    if (pkgUnit === 'l' && amt < 1) return `${Math.round(amt * 1000)}ml`;
+    if (pkgUnit === 'kg' && amt < 1) return `${Math.round(amt * 1000)}g`;
+    if (pkgUnit === 'ml' || pkgUnit === 'g') return `${Math.round(amt)}${uL[pkgUnit] || pkgUnit}`;
+    return `${Math.round(amt * 10) / 10}${uL[pkgUnit] || pkgUnit}`;
+}
+
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
     const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
-    let result;
-    if (n === Math.floor(n)) result = `${Math.floor(n)} ${label}`;
-    else if (unit === 'pz' || unit === 'conf') result = `${Math.round(n)} ${label}`;
-    else result = `${n.toFixed(1)} ${label}`;
-    // Add package info for conf
+
+    // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
         const pkgLabel = unitLabels[packageUnit] || packageUnit;
-        result += ` <span class="conf-size-info">(da ${defaultQty}${pkgLabel})</span>`;
+        const wholeConf = Math.floor(n + 0.001);
+        const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
+
+        if (fractionalConf < 0.01) {
+            return `${wholeConf} conf <span class="conf-size-info">(da ${defaultQty}${pkgLabel})</span>`;
+        }
+        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
+        if (wholeConf > 0) {
+            return `${wholeConf} conf <span class="conf-size-info">(da ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
+        }
+        return remainderText;
     }
+
+    let result;
+    if (n === Math.floor(n)) result = `${Math.floor(n)} ${label}`;
+    else if (unit === 'pz') result = `${Math.round(n)} ${label}`;
+    else result = `${n.toFixed(1)} ${label}`;
     return result;
 }
 
@@ -1024,19 +1044,30 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     const n = parseFloat(qty) || 0;
     const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
+
+    // Special handling for conf with partial packages
+    if (unit === 'conf' && packageUnit && defaultQty > 0) {
+        const pkgLabel = unitLabels[packageUnit] || packageUnit;
+        const wholeConf = Math.floor(n + 0.001);
+        const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
+
+        if (fractionalConf < 0.01) {
+            return { mainQty: `${wholeConf}`, unitLabel: 'conf', packageDetail: `da ${defaultQty}${pkgLabel}`, fraction: '' };
+        }
+        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
+        if (wholeConf > 0) {
+            return { mainQty: `${wholeConf}`, unitLabel: 'conf', packageDetail: `da ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+        }
+        return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
+    }
+
     let mainQty;
     if (n === Math.floor(n)) mainQty = `${Math.floor(n)}`;
-    else if (unit === 'pz' || unit === 'conf') mainQty = `${Math.round(n)}`;
+    else if (unit === 'pz') mainQty = `${Math.round(n)}`;
     else mainQty = `${n.toFixed(1)}`;
     
     let packageDetail = '';
-    if (unit === 'conf' && packageUnit && defaultQty > 0) {
-        const pkgLabel = unitLabels[packageUnit] || packageUnit;
-        packageDetail = `da ${defaultQty}${pkgLabel}`;
-    }
-    
     let fraction = '';
-    // For conf, defaultQty is the package SIZE (e.g. 300g), not a count; fraction doesn't apply
     if (unit !== 'conf' && defaultQty && defaultQty > 1) {
         const d = parseFloat(defaultQty);
         const ratio = n / d;
