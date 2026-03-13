@@ -4085,18 +4085,31 @@ async function loadLog(more = false) {
 }
 
 // ===== RECIPE GENERATION =====
+const MEAL_TYPES = [
+    { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 9  },
+    { id: 'break',      icon: '🥐', label: 'Break Mattutino',  from: 9,  to: 11 },
+    { id: 'pranzo',     icon: '🍽️', label: 'Pranzo',           from: 11, to: 14 },
+    { id: 'merenda',    icon: '🍪', label: 'Merenda',          from: 14, to: 17 },
+    { id: 'cena',       icon: '🌙', label: 'Cena',             from: 17, to: 22 },
+    { id: 'spuntino',   icon: '🌜', label: 'Spuntino Serale',  from: 22, to: 6  },
+];
+
 function getMealType() {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 11) return 'colazione';
-    if (hour >= 11 && hour < 16) return 'pranzo';
+    for (const m of MEAL_TYPES) {
+        if (m.from < m.to) { if (hour >= m.from && hour < m.to) return m.id; }
+        else { if (hour >= m.from || hour < m.to) return m.id; }
+    }
     return 'cena';
 }
 
-const MEAL_LABELS = {
-    'colazione': '☀️ Colazione',
-    'pranzo': '🍽️ Pranzo',
-    'cena': '🌙 Cena'
-};
+const MEAL_LABELS = {};
+MEAL_TYPES.forEach(m => { MEAL_LABELS[m.id] = `${m.icon} ${m.label}`; });
+
+function getSelectedMealType() {
+    const checked = document.querySelector('input[name="recipe-meal"]:checked');
+    return checked ? checked.value : getMealType();
+}
 
 // ===== RECIPE ARCHIVE (DB-backed) =====
 let _recipeArchiveCache = null;
@@ -4203,8 +4216,17 @@ let _cachedRecipe = null;
 function openRecipeDialog() {
     const meal = getMealType();
     const settings = getSettings();
-    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
     document.getElementById('recipe-overlay').style.display = 'flex';
+
+    // Build meal selector radios
+    const mealGrid = document.getElementById('recipe-meal-grid');
+    if (mealGrid) {
+        mealGrid.innerHTML = MEAL_TYPES.map(m => {
+            const checked = m.id === meal ? ' checked' : '';
+            return `<label class="recipe-meal-chip"><input type="radio" name="recipe-meal" value="${m.id}"${checked}> ${m.icon} ${m.label}</label>`;
+        }).join('');
+    }
+    updateRecipeMealTitle();
 
     // Check for cached recipe matching current meal type
     if (_cachedRecipe && _cachedRecipe.meal === meal && _cachedRecipe.recipe) {
@@ -4367,18 +4389,31 @@ function renderRecipe(r) {
     document.getElementById('recipe-content').innerHTML = html;
 }
 
+function updateRecipeMealTitle() {
+    const meal = getSelectedMealType();
+    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+}
+
 function regenerateRecipe() {
     _cachedRecipe = null;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
     const meal = getMealType();
-    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    // Rebuild meal selector with auto-detected default
+    const mealGrid = document.getElementById('recipe-meal-grid');
+    if (mealGrid) {
+        mealGrid.innerHTML = MEAL_TYPES.map(m => {
+            const checked = m.id === meal ? ' checked' : '';
+            return `<label class="recipe-meal-chip"><input type="radio" name="recipe-meal" value="${m.id}"${checked}> ${m.icon} ${m.label}</label>`;
+        }).join('');
+    }
+    updateRecipeMealTitle();
     document.getElementById('recipe-persons').value = 1;
     document.getElementById('recipe-ask').style.display = '';
 }
 
 async function generateRecipe() {
-    const meal = getMealType();
+    const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
     
@@ -4614,10 +4649,446 @@ function saveChatHistory() {
     api('chat_save', {}, 'POST', { messages: newMsgs }).catch(() => {});
 }
 
+// ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
+let _inactivityTimer = null;
+let _screensaverActive = false;
+let _screensaverClockInterval = null;
+let _screensaverFactInterval = null;
+let _screensaverData = null; // cached data for fact generation
+const SCREENSAVER_FACT_DURATION = 5 * 60 * 1000; // 5 minutes per fact
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+function resetInactivityTimer() {
+    if (_screensaverActive) return; // don't reset while screensaver is showing
+    clearTimeout(_inactivityTimer);
+    _inactivityTimer = setTimeout(activateScreensaver, INACTIVITY_TIMEOUT);
+}
+
+function activateScreensaver() {
+    if (_screensaverActive) return;
+    _screensaverActive = true;
+    const overlay = document.getElementById('screensaver');
+    overlay.style.display = 'flex';
+    // Fade in
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+    updateScreensaverClock();
+    _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
+    // Load data and start facts
+    loadScreensaverData().then(() => {
+        showNextScreensaverFact();
+        _screensaverFactInterval = setInterval(showNextScreensaverFact, SCREENSAVER_FACT_DURATION);
+    });
+}
+
+function updateScreensaverClock() {
+    const now = new Date();
+    const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    const date = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const el = document.getElementById('screensaver-clock');
+    if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
+}
+
+function dismissScreensaver() {
+    if (!_screensaverActive) return;
+    clearInterval(_screensaverClockInterval);
+    clearInterval(_screensaverFactInterval);
+    const overlay = document.getElementById('screensaver');
+    overlay.classList.remove('visible');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        _screensaverActive = false;
+        _screensaverData = null;
+        // Reload all data for the current page
+        refreshCurrentPage();
+        resetInactivityTimer();
+    }, 400);
+}
+
+// Load all data needed for screensaver facts
+async function loadScreensaverData() {
+    try {
+        const [statsRes, invRes, bringRes] = await Promise.all([
+            api('stats'),
+            api('inventory_list'),
+            api('bring_list').catch(() => null)
+        ]);
+        _screensaverData = {
+            stats: statsRes,
+            inventory: invRes.inventory || [],
+            shopping: bringRes && bringRes.success ? (bringRes.purchase || []) : []
+        };
+    } catch (e) {
+        _screensaverData = { stats: {}, inventory: [], shopping: [] };
+    }
+}
+
+// Show next random fact with fade in/out
+function showNextScreensaverFact() {
+    const el = document.getElementById('screensaver-fact');
+    if (!el) return;
+    el.classList.remove('visible');
+    setTimeout(() => {
+        el.textContent = generateScreensaverFact();
+        el.classList.add('visible');
+    }, 1600);
+}
+
+// Generate a dynamic fact from available data
+function generateScreensaverFact() {
+    const d = _screensaverData || { stats: {}, inventory: [], shopping: [] };
+    const inv = d.inventory;
+    const stats = d.stats;
+    const shop = d.shopping;
+    const now = new Date();
+    const hour = now.getHours();
+
+    // Pre-compute useful data
+    const expired = stats.expired || [];
+    const expiringSoon = stats.expiring_soon || [];
+    const totalProducts = stats.total_products || inv.length;
+    const totalItems = stats.total_items || 0;
+
+    const byLocation = {};
+    const byCategory = {};
+    const withExpiry = [];
+    const noExpiry = [];
+    const expiringThisWeek = [];
+    const expiringThisMonth = [];
+    const inFreezer = [];
+    const inFrigo = [];
+    const inDispensa = [];
+
+    for (const item of inv) {
+        // by location
+        const loc = item.location || 'altro';
+        if (!byLocation[loc]) byLocation[loc] = [];
+        byLocation[loc].push(item);
+        if (loc === 'freezer') inFreezer.push(item);
+        else if (loc === 'frigo') inFrigo.push(item);
+        else if (loc === 'dispensa') inDispensa.push(item);
+
+        // by category
+        const cat = mapToLocalCategory(item.category, item.name);
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(item);
+
+        // expiry
+        if (item.expiry_date) {
+            withExpiry.push(item);
+            const days = daysUntilExpiry(item.expiry_date);
+            if (days >= 0 && days <= 7) expiringThisWeek.push(item);
+            if (days >= 0 && days <= 30) expiringThisMonth.push(item);
+        } else {
+            noExpiry.push(item);
+        }
+    }
+
+    // Greeting based on time
+    const greeting = hour < 12 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera';
+
+    // Estimated shopping total
+    let spesaTotal = 0;
+    let spesaPriced = 0;
+    for (const item of shop) {
+        const pd = shoppingPrices[item.name.toLowerCase()];
+        if (pd && pd.product) {
+            const est = estimateItemPrice(pd.product, item.specification || pd.spec || '');
+            spesaTotal += est ? est.estimated : pd.product.price;
+            spesaPriced++;
+        }
+    }
+
+    // Random item picker
+    const rItem = (arr) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
+
+    // All fact generators
+    const facts = [];
+
+    // --- Expired items facts ---
+    if (expired.length > 0) {
+        facts.push(() => `Hai ${expired.length} ${expired.length === 1 ? 'prodotto scaduto' : 'prodotti scaduti'} in dispensa. Controlla!`);
+        facts.push(() => {
+            const names = expired.slice(0, 3).map(i => i.name);
+            return `Prodotti scaduti: ${names.join(', ')}${expired.length > 3 ? ` e altri ${expired.length - 3}` : ''}`;
+        });
+        const freezerExpired = expired.filter(i => i.location === 'freezer');
+        if (freezerExpired.length > 0) {
+            facts.push(() => {
+                const item = rItem(freezerExpired);
+                const safety = getExpiredSafety(item, Math.abs(daysUntilExpiry(item.expiry_date)));
+                if (safety.level === 'ok' || safety.level === 'warning') {
+                    return `${item.name} è scaduto, ma essendo in freezer potrebbe essere ancora buono! Controlla.`;
+                }
+                return `${item.name} in freezer è scaduto da troppo tempo. Meglio buttarlo.`;
+            });
+        }
+        const frigoExpired = expired.filter(i => i.location === 'frigo');
+        if (frigoExpired.length > 0) {
+            facts.push(() => `Hai ${frigoExpired.length} ${frigoExpired.length === 1 ? 'prodotto scaduto' : 'prodotti scaduti'} in frigo!`);
+        }
+    }
+
+    // --- Expiring soon facts ---
+    if (expiringSoon.length > 0) {
+        facts.push(() => {
+            const item = expiringSoon[0];
+            const days = daysUntilExpiry(item.expiry_date);
+            if (days === 0) return `${item.name} scade oggi! Usalo subito.`;
+            if (days === 1) return `${item.name} scade domani. Pensaci!`;
+            return `${item.name} scade tra ${days} giorni.`;
+        });
+        if (expiringSoon.length > 1) {
+            facts.push(() => `Hai ${expiringSoon.length} prodotti in scadenza ravvicinata.`);
+        }
+    }
+    if (expiringThisWeek.length > 0) {
+        facts.push(() => `Questa settimana scadono ${expiringThisWeek.length} prodotti. Pianifica i pasti di conseguenza!`);
+        facts.push(() => {
+            const item = rItem(expiringThisWeek);
+            const days = daysUntilExpiry(item.expiry_date);
+            const locLabel = LOCATIONS[item.location]?.label || item.location;
+            return `${item.name} (${locLabel}) scade tra ${days} ${days === 1 ? 'giorno' : 'giorni'}.`;
+        });
+    }
+    if (expiringThisMonth.length > 0) {
+        facts.push(() => `In questo mese scadranno ${expiringThisMonth.length} prodotti.`);
+    }
+
+    // --- Shopping list facts ---
+    if (shop.length > 0) {
+        facts.push(() => `Hai ${shop.length} ${shop.length === 1 ? 'prodotto' : 'prodotti'} nella lista della spesa.`);
+        facts.push(() => {
+            const names = shop.slice(0, 4).map(i => i.name);
+            return `Nella spesa: ${names.join(', ')}${shop.length > 4 ? '...' : ''}`;
+        });
+        if (spesaTotal > 0) {
+            facts.push(() => `Il totale previsto per la spesa è circa €${spesaTotal.toFixed(2)}.`);
+            if (spesaPriced < shop.length) {
+                facts.push(() => `Spesa stimata: €${spesaTotal.toFixed(2)} (${spesaPriced} di ${shop.length} prodotti con prezzo).`);
+            }
+        }
+    }
+    if (shop.length === 0) {
+        facts.push(() => `La lista della spesa è vuota. Tutto a posto!`);
+    }
+
+    // --- Location-based facts ---
+    if (inFrigo.length > 0) {
+        facts.push(() => `Hai ${inFrigo.length} prodotti in frigo.`);
+        facts.push(() => {
+            const item = rItem(inFrigo);
+            return `In frigo c'è: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}.`;
+        });
+    }
+    if (inFreezer.length > 0) {
+        facts.push(() => `Hai ${inFreezer.length} prodotti nel freezer.`);
+        facts.push(() => {
+            const item = rItem(inFreezer);
+            return `Nel freezer c'è: ${item.name}. Non dimenticartelo!`;
+        });
+    }
+    if (inDispensa.length > 0) {
+        facts.push(() => `In dispensa ci sono ${inDispensa.length} prodotti.`);
+    }
+
+    // --- Category-based facts ---
+    const catEntries = Object.entries(byCategory);
+    if (catEntries.length > 0) {
+        facts.push(() => {
+            const sorted = catEntries.sort((a, b) => b[1].length - a[1].length);
+            const top = sorted[0];
+            const catLabel = top[0];
+            const icon = CATEGORY_ICONS[catLabel] || '📦';
+            return `La categoria più presente è ${icon} ${catLabel} con ${top[1].length} prodotti.`;
+        });
+        if (byCategory['carne'] && byCategory['carne'].length > 0) {
+            facts.push(() => `Hai ${byCategory['carne'].length} prodotti di carne. 🥩`);
+        }
+        if (byCategory['latticini'] && byCategory['latticini'].length > 0) {
+            facts.push(() => `Hai ${byCategory['latticini'].length} latticini in casa. 🥛`);
+        }
+        if (byCategory['verdura'] && byCategory['verdura'].length > 0) {
+            facts.push(() => `Hai ${byCategory['verdura'].length} tipi di verdura. Ottimo per la salute! 🥬`);
+        }
+        if (byCategory['frutta'] && byCategory['frutta'].length > 0) {
+            facts.push(() => `Hai ${byCategory['frutta'].length} tipi di frutta. 🍎`);
+        }
+        if (byCategory['bevande'] && byCategory['bevande'].length > 0) {
+            facts.push(() => `Hai ${byCategory['bevande'].length} bevande disponibili. 🥤`);
+        }
+        if (byCategory['surgelati'] && byCategory['surgelati'].length > 0) {
+            facts.push(() => `Hai ${byCategory['surgelati'].length} surgelati nel freezer. ❄️`);
+        }
+        if (byCategory['pasta'] && byCategory['pasta'].length > 0) {
+            facts.push(() => `Hai ${byCategory['pasta'].length} tipi di pasta. 🍝 Che ne dici di una carbonara?`);
+        }
+        if (byCategory['conserve'] && byCategory['conserve'].length > 0) {
+            facts.push(() => `Hai ${byCategory['conserve'].length} conserve in dispensa. 🥫`);
+        }
+        if (byCategory['snack'] && byCategory['snack'].length > 0) {
+            facts.push(() => `Hai ${byCategory['snack'].length} snack. Resisti alla tentazione! 🍪`);
+        }
+        if (byCategory['condimenti'] && byCategory['condimenti'].length > 0) {
+            facts.push(() => `Hai ${byCategory['condimenti'].length} condimenti a disposizione. 🧂`);
+        }
+    }
+
+    // --- General inventory facts ---
+    if (inv.length > 0) {
+        facts.push(() => `Hai ${totalProducts} prodotti diversi in casa per un totale di ${Math.round(totalItems)} pezzi.`);
+        facts.push(() => {
+            const item = rItem(inv);
+            return `Lo sapevi? Hai ${item.name} in ${LOCATIONS[item.location]?.label || item.location}.`;
+        });
+        facts.push(() => {
+            const item = rItem(inv);
+            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            return `${item.name}: ne hai ${qty}.`;
+        });
+    }
+    if (noExpiry.length > 0) {
+        facts.push(() => `${noExpiry.length} prodotti non hanno una data di scadenza impostata.`);
+    }
+    if (withExpiry.length > 0) {
+        // Find the one expiring furthest away
+        const furthest = withExpiry.reduce((best, item) => {
+            const d = daysUntilExpiry(item.expiry_date);
+            return d > (best.d || 0) ? { item, d } : best;
+        }, { d: 0 });
+        if (furthest.item && furthest.d > 30) {
+            facts.push(() => `Il prodotto con scadenza più lontana è ${furthest.item.name}: ${Math.round(furthest.d / 30)} mesi.`);
+        }
+    }
+
+    // --- Quantity-based facts ---
+    const highQtyItems = inv.filter(i => parseFloat(i.quantity) >= 5);
+    if (highQtyItems.length > 0) {
+        facts.push(() => {
+            const item = rItem(highQtyItems);
+            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            return `Hai una bella scorta di ${item.name}: ${qty}!`;
+        });
+    }
+    const lowQtyItems = inv.filter(i => parseFloat(i.quantity) <= 1 && parseFloat(i.quantity) > 0);
+    if (lowQtyItems.length > 0) {
+        facts.push(() => {
+            const item = rItem(lowQtyItems);
+            return `${item.name} sta per finire. Aggiungilo alla spesa?`;
+        });
+        facts.push(() => `Ci sono ${lowQtyItems.length} prodotti quasi finiti.`);
+    }
+
+    // --- Time-of-day greetings & suggestions ---
+    facts.push(() => `${greeting}! Se vuoi che ti preparo una ricetta, tocca qui.`);
+    facts.push(() => `${greeting}! La tua dispensa è sotto controllo. 😊`);
+    if (hour >= 6 && hour < 10) {
+        facts.push(() => `Buongiorno! Pronto per la colazione? ☕`);
+        if (byCategory['pane']) facts.push(() => `Buongiorno! Hai del pane per la colazione. 🍞`);
+        if (byCategory['latticini']) facts.push(() => `C'è del latte in frigo per il cappuccino? ☕🥛`);
+    }
+    if (hour >= 11 && hour < 14) {
+        facts.push(() => `È quasi ora di pranzo! Cosa cuciniamo? 🍽️`);
+        if (byCategory['pasta']) facts.push(() => `Ora di pranzo… Un bel piatto di pasta? 🍝`);
+    }
+    if (hour >= 17 && hour < 21) {
+        facts.push(() => `Buona sera! Hai pensato alla cena? 🍽️`);
+        if (byCategory['carne']) facts.push(() => `Per cena potresti usare la carne che hai. 🥩`);
+        if (byCategory['pesce']) facts.push(() => `Che ne dici di pesce per cena? 🐟`);
+    }
+    if (hour >= 21 || hour < 6) {
+        facts.push(() => `Buonanotte! Domani controlla le scadenze. 🌙`);
+    }
+
+    // --- Weekly stats ---
+    const recentIn = stats.recent_in || 0;
+    const recentOut = stats.recent_out || 0;
+    if (recentIn > 0) {
+        facts.push(() => `Questa settimana hai aggiunto ${recentIn} prodotti.`);
+    }
+    if (recentOut > 0) {
+        facts.push(() => `Questa settimana hai consumato ${recentOut} prodotti.`);
+    }
+    if (recentIn > 0 && recentOut > 0) {
+        facts.push(() => `Bilancio settimanale: +${recentIn} entrati, -${recentOut} usciti.`);
+    }
+
+    // --- Tips & curiosità (statici ma ruotano) ---
+    facts.push(() => `💡 Lo sapevi? I prodotti in freezer durano molto più a lungo della data di scadenza.`);
+    facts.push(() => `💡 Il pane congelato mantiene la fragranza per settimane.`);
+    facts.push(() => `💡 Le uova si conservano fino a 3-4 settimane dopo la data preferita.`);
+    facts.push(() => `💡 Lo yogurt chiuso in frigo dura spesso 1-2 settimane oltre la scadenza.`);
+    facts.push(() => `💡 Per evitare sprechi, usa prima i prodotti con scadenza più vicina.`);
+    facts.push(() => `💡 La carne in freezer può durare fino a 6 mesi senza problemi.`);
+    facts.push(() => `💡 Le verdure fresche durano di più se conservate nel cassetto del frigo.`);
+    facts.push(() => `💡 Controlla regolarmente la dispensa per evitare doppioni nella spesa.`);
+    facts.push(() => `💡 I latticini vanno conservati nella parte più fredda del frigo.`);
+    facts.push(() => `💡 Non ricongelare mai un alimento già scongelato. Cucinalo subito!`);
+    facts.push(() => `💡 Un frigo ordinato ti fa risparmiare tempo e denaro.`);
+    facts.push(() => `💡 Le conserve aperte vanno in frigo e consumate in pochi giorni.`);
+
+    // --- Brand-based facts ---
+    const brands = inv.filter(i => i.brand).map(i => i.brand);
+    if (brands.length > 0) {
+        const brandCount = {};
+        brands.forEach(b => { brandCount[b] = (brandCount[b] || 0) + 1; });
+        const topBrand = Object.entries(brandCount).sort((a, b) => b[1] - a[1])[0];
+        facts.push(() => `Il marca più presente nella tua dispensa è ${topBrand[0]} con ${topBrand[1]} prodotti.`);
+    }
+
+    // --- Specific food combo facts ---
+    if (byCategory['pasta'] && byCategory['condimenti']) {
+        facts.push(() => `Hai pasta e condimenti: sei pronto per un primo piatto! 🍝`);
+    }
+    if (byCategory['pane'] && byCategory['carne']) {
+        facts.push(() => `Pane e carne: un panino veloce è sempre una buona idea! 🥪`);
+    }
+    if (byCategory['verdura'] && byCategory['carne']) {
+        facts.push(() => `Verdura e carne: hai tutto per un piatto equilibrato! 🥗🥩`);
+    }
+
+    // --- Empty states ---
+    if (inv.length === 0) {
+        facts.push(() => `La dispensa è vuota! Fai una bella spesa. 🛒`);
+        facts.push(() => `Nessun prodotto registrato. Scansiona qualcosa per iniziare!`);
+    }
+
+    // --- Location distribution ---
+    const locCount = Object.keys(byLocation).length;
+    if (locCount > 1) {
+        facts.push(() => {
+            const parts = Object.entries(byLocation).map(([loc, items]) => 
+                `${LOCATIONS[loc]?.icon || '📦'} ${items.length}`
+            );
+            return `Distribuzione: ${parts.join('  ·  ')}`;
+        });
+    }
+
+    // Pick a random fact
+    if (facts.length === 0) {
+        return `${greeting}! La tua Dispensa ti aspetta.`;
+    }
+    return facts[Math.floor(Math.random() * facts.length)]();
+}
+
+function initInactivityWatcher() {
+    const events = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(evt => {
+        document.addEventListener(evt, () => {
+            if (_screensaverActive) {
+                dismissScreensaver();
+            } else {
+                resetInactivityTimer();
+            }
+        }, { passive: true });
+    });
+    resetInactivityTimer();
+}
+
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
     syncSettingsFromDB();
     showPage('dashboard');
+    initInactivityWatcher();
 });
 
 // ===== DUPLICLICK (SPESA ONLINE) =====

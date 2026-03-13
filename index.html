@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260312t">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260313b">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -802,6 +802,10 @@
         <div id="recipe-ask" class="recipe-ask">
             <h3 id="recipe-meal-title">🍳 Ricetta</h3>
             <p class="recipe-desc">Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.</p>
+            <div class="form-group" style="text-align:left">
+                <label>🕐 Per quale pasto?</label>
+                <div class="recipe-meal-grid" id="recipe-meal-grid" onchange="updateRecipeMealTitle()"></div>
+            </div>
             <div class="form-group">
                 <label>👥 Quante persone?</label>
                 <div class="qty-control">
@@ -858,6 +862,14 @@
     <div class="modal-content" id="modal-content" onclick="event.stopPropagation()"></div>
 </div>
 
-<script src="assets/js/app.js?v=20260312z"></script>
+<!-- Screensaver Overlay -->
+<div id="screensaver" class="screensaver-overlay" style="display:none">
+    <div class="screensaver-content">
+        <div class="screensaver-clock" id="screensaver-clock"></div>
+        <div class="screensaver-fact" id="screensaver-fact"></div>
+    </div>
+</div>
+
+<script src="assets/js/app.js?v=20260313b"></script>
 </body>
 </html>
