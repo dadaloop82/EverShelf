@@ -2893,8 +2893,10 @@ async function submitAdd(e) {
 // ===== USE FROM INVENTORY =====
 function showUseForm() {
     renderUsePreview();
+    _useConfMode = null; // reset
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
+    document.getElementById('use-unit-switch').style.display = 'none';
     
     // Reset location buttons
     document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
@@ -2918,33 +2920,127 @@ function renderUsePreview() {
     `;
 }
 
+// Conf-mode tracking for USE form
+let _useConfMode = null; // null = normal, { packageSize, packageUnit, totalSub, unit } = conf mode active
+
 async function loadUseInventoryInfo() {
     try {
         const data = await api('inventory_list');
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
         const infoEl = document.getElementById('use-inventory-info');
+        const unitSwitch = document.getElementById('use-unit-switch');
         
-        if (items.length > 0) {
+        if (items.length === 0) {
+            infoEl.innerHTML = '⚠️ Prodotto non presente nell\'inventario.';
+            unitSwitch.style.display = 'none';
+            _useConfMode = null;
+            return;
+        }
+
+        // Auto-select the first available location
+        const firstLoc = items[0].location;
+        document.getElementById('use-location').value = firstLoc;
+        document.querySelectorAll('#page-use .loc-btn').forEach(b => {
+            b.classList.remove('active');
+            if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + firstLoc + "'")) {
+                b.classList.add('active');
+            }
+        });
+
+        const unit = items[0].unit || 'pz';
+        const pkgSize = parseFloat(items[0].default_quantity) || 0;
+        const pkgUnit = items[0].package_unit || '';
+        const isConf = unit === 'conf' && pkgSize > 0 && pkgUnit;
+
+        if (isConf) {
+            // --- CONF MODE: show sub-unit controls ---
+            const totalConf = items.reduce((s, i) => s + parseFloat(i.quantity), 0);
+            const totalSub = totalConf * pkgSize;
+            const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+            const subLabel = unitLabels[pkgUnit] || pkgUnit;
+
+            _useConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel };
+
+            // Show inventory info with sub-unit total
+            infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
+                const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
+                const confQty = parseFloat(i.quantity);
+                const subQty = Math.round(confQty * pkgSize);
+                const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
+                return `${loc.icon} ${loc.label}: ${confDisplay} conf (${subQty}${subLabel})`;
+            }).join(' · ');
+
+            // Show unit switch
+            unitSwitch.style.display = 'flex';
+            document.getElementById('use-unit-sub').textContent = subLabel;
+            
+            // Default to sub-unit mode
+            switchUseUnit('sub');
+        } else {
+            // --- NORMAL MODE ---
+            _useConfMode = null;
+            unitSwitch.style.display = 'none';
+            
             infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 return `${loc.icon} ${loc.label}: ${i.quantity} ${i.unit}`;
             }).join(' · ');
             
-            // Auto-select the first available location
-            const firstLoc = items[0].location;
-            document.getElementById('use-location').value = firstLoc;
-            document.querySelectorAll('#page-use .loc-btn').forEach(b => {
-                b.classList.remove('active');
-                if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + firstLoc + "'")) {
-                    b.classList.add('active');
-                }
-            });
-        } else {
-            infoEl.innerHTML = '⚠️ Prodotto non presente nell\'inventario.';
+            document.getElementById('use-quantity').value = 1;
+            document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
         }
     } catch(e) {
         console.error(e);
     }
+}
+
+function switchUseUnit(mode) {
+    const subBtn = document.getElementById('use-unit-sub');
+    const confBtn = document.getElementById('use-unit-conf');
+    const qtyInput = document.getElementById('use-quantity');
+    const hint = document.getElementById('use-partial-hint');
+
+    if (mode === 'sub') {
+        subBtn.classList.add('active');
+        confBtn.classList.remove('active');
+        _useConfMode._activeUnit = 'sub';
+        const step = getSubUnitStep(_useConfMode.packageUnit);
+        qtyInput.value = step;
+        qtyInput.step = step;
+        hint.textContent = `Quantità in ${_useConfMode.subLabel} (totale: ${Math.round(_useConfMode.totalSub)}${_useConfMode.subLabel})`;
+    } else {
+        confBtn.classList.add('active');
+        subBtn.classList.remove('active');
+        _useConfMode._activeUnit = 'conf';
+        qtyInput.value = 1;
+        qtyInput.step = 0.5;
+        hint.textContent = `Confezioni da ${_useConfMode.packageSize}${_useConfMode.subLabel} (hai ${_useConfMode.totalConf.toFixed(1)} conf)`;
+    }
+}
+
+function getSubUnitStep(pkgUnit) {
+    switch (pkgUnit) {
+        case 'ml': return 100;
+        case 'l': return 0.25;
+        case 'g': return 50;
+        case 'kg': return 0.1;
+        default: return 1;
+    }
+}
+
+function adjustUseQty(direction) {
+    const input = document.getElementById('use-quantity');
+    let val = parseFloat(input.value) || 0;
+    let step;
+    if (_useConfMode && _useConfMode._activeUnit === 'sub') {
+        step = getSubUnitStep(_useConfMode.packageUnit);
+    } else if (_useConfMode && _useConfMode._activeUnit === 'conf') {
+        step = 0.5;
+    } else {
+        step = 0.5;
+    }
+    val = Math.max(step, val + direction * step);
+    input.value = Math.round(val * 1000) / 1000;
 }
 
 function selectUseLocation(btn, loc) {
@@ -2981,7 +3077,18 @@ async function submitUse(e) {
     e.preventDefault();
     showLoading(true);
     try {
-        const qty = parseFloat(document.getElementById('use-quantity').value) || 1;
+        let qty = parseFloat(document.getElementById('use-quantity').value) || 1;
+        let displayQty = qty;
+        let displayUnit = '';
+        
+        // Convert sub-unit to conf if needed
+        if (_useConfMode && _useConfMode._activeUnit === 'sub') {
+            displayUnit = _useConfMode.subLabel;
+            qty = qty / _useConfMode.packageSize; // convert to conf
+        } else if (_useConfMode && _useConfMode._activeUnit === 'conf') {
+            displayUnit = 'conf';
+        }
+        
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             quantity: qty,
@@ -2989,7 +3096,8 @@ async function submitUse(e) {
         });
         showLoading(false);
         if (result.success) {
-            showToast(`📤 Usato ${qty} di ${currentProduct.name}. Rimasti: ${result.remaining}`, 'success');
+            const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
+            showToast(`📤 Usato ${usedText} di ${currentProduct.name}`, 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }

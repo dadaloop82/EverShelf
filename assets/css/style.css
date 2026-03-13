@@ -826,6 +826,30 @@ body {
     gap: 16px;
 }
 
+.use-unit-switch {
+    display: flex;
+    gap: 0;
+    margin-bottom: 12px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 2px solid var(--primary);
+}
+.use-unit-btn {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.use-unit-btn.active {
+    background: var(--primary);
+    color: #fff;
+}
+
 .use-all-btn {
     min-height: 70px;
     font-size: 1.15rem;

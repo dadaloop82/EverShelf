@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260313d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260313g">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -240,16 +240,20 @@
             </div>
             <div class="form-group">
                 <label>Quanto hai usato?</label>
+                <div class="use-unit-switch" id="use-unit-switch" style="display:none">
+                    <button type="button" class="use-unit-btn active" id="use-unit-sub" onclick="switchUseUnit('sub')"></button>
+                    <button type="button" class="use-unit-btn" id="use-unit-conf" onclick="switchUseUnit('conf')">Confezioni</button>
+                </div>
                 <div class="use-options">
                     <button type="button" class="btn btn-large btn-danger full-width use-all-btn" onclick="submitUseAll()">
                         🗑️ Usato TUTTO / Finito
                     </button>
                     <div class="use-partial">
-                        <p>Oppure specifica la quantità usata:</p>
+                        <p id="use-partial-hint">Oppure specifica la quantità usata:</p>
                         <div class="qty-control">
-                            <button type="button" class="qty-btn" onclick="adjustQty('use-quantity', -0.5)">−</button>
+                            <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
                             <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input">
-                            <button type="button" class="qty-btn" onclick="adjustQty('use-quantity', 0.5)">+</button>
+                            <button type="button" class="qty-btn" id="use-qty-plus" onclick="adjustUseQty(1)">+</button>
                         </div>
                         <button type="submit" class="btn btn-large btn-warning full-width mt-2">📤 Usa questa quantità</button>
                     </div>
@@ -874,6 +878,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260313f"></script>
+<script src="assets/js/app.js?v=20260313g"></script>
 </body>
 </html>
