@@ -753,6 +753,15 @@ function getStats(PDO $db): void {
         ORDER BY i.expiry_date ASC
     ")->fetchAll();
     
+    // Opened (partially used conf items)
+    $opened = $db->query("
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url
+        FROM inventory i JOIN products p ON i.product_id = p.id 
+        WHERE p.unit = 'conf' AND p.default_quantity > 0 AND p.package_unit IS NOT NULL
+          AND i.quantity > 0 AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL)
+        ORDER BY i.updated_at DESC
+    ")->fetchAll();
+
     echo json_encode([
         'total_products' => (int)$totalProducts,
         'total_items' => (float)$totalItems,
@@ -761,6 +770,7 @@ function getStats(PDO $db): void {
         'recent_out' => (int)$recentOut,
         'expiring_soon' => $expiring,
         'expired' => $expired,
+        'opened' => $opened,
     ]);
 }
 

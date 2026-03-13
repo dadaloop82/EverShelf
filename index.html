@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260313g">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260313k">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -67,6 +67,12 @@
         <div class="alert-section" id="alert-expiring" style="display:none">
             <h3>⏰ Prossime Scadenze</h3>
             <div id="expiring-list"></div>
+        </div>
+
+        <!-- Opened (partially used) products -->
+        <div class="alert-section alert-opened" id="alert-opened" style="display:none">
+            <h3>📦 Prodotti Aperti</h3>
+            <div id="opened-list"></div>
         </div>
 
         <!-- Review suspicious quantities -->
@@ -878,6 +884,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260313j"></script>
+<script src="assets/js/app.js?v=20260313k"></script>
 </body>
 </html>

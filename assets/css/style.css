@@ -2908,6 +2908,22 @@ body {
     color: #92400e;
 }
 
+/* ===== OPENED PRODUCTS SECTION ===== */
+.alert-opened {
+    background: #eff6ff;
+    border-color: #3b82f6;
+}
+
+.alert-opened h3 {
+    color: #1e40af;
+}
+
+.alert-item-badge.opened {
+    background: #3b82f6;
+    color: #fff;
+    font-size: 0.7rem;
+}
+
 .review-hint {
     font-size: 0.8rem;
     color: #92400e;

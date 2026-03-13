@@ -813,6 +813,44 @@ async function loadDashboard() {
         
         // Review suspicious quantities
         loadReviewItems();
+
+        // Opened (partially used) products
+        const openedSection = document.getElementById('alert-opened');
+        const openedList = document.getElementById('opened-list');
+        if (statsData.opened && statsData.opened.length > 0) {
+            openedSection.style.display = 'block';
+            openedList.innerHTML = statsData.opened.map(item => {
+                const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+                const qty = parseFloat(item.quantity);
+                const pkgSize = parseFloat(item.default_quantity);
+                const pkgUnit = item.package_unit;
+                const wholeConf = Math.floor(qty + 0.001);
+                const frac = Math.round((qty - wholeConf) * 1000) / 1000;
+                const remainderAmt = frac * pkgSize;
+                const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
+                let qtyText = '';
+                if (wholeConf > 0) {
+                    const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg' };
+                    const pkgLabel = unitLabels[pkgUnit] || pkgUnit;
+                    qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
+                } else {
+                    qtyText = remainderText;
+                }
+                return `
+                <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
+                    <div class="alert-item-info">
+                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
+                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                    </div>
+                    <div class="alert-item-badges">
+                        <span class="alert-item-qty">${locInfo.icon} ${locInfo.label}</span>
+                        <span class="alert-item-badge opened">${qtyText}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            openedSection.style.display = 'none';
+        }
         
     } catch (err) {
         console.error('Dashboard load error:', err);
