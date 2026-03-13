@@ -753,12 +753,19 @@ function getStats(PDO $db): void {
         ORDER BY i.expiry_date ASC
     ")->fetchAll();
     
-    // Opened (partially used conf items)
+    // Opened (partially used) products
+    // 1) conf items with fractional quantity
+    // 2) non-conf items where quantity is not a clean multiple of default_quantity
     $opened = $db->query("
         SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url
         FROM inventory i JOIN products p ON i.product_id = p.id 
-        WHERE p.unit = 'conf' AND p.default_quantity > 0 AND p.package_unit IS NOT NULL
-          AND i.quantity > 0 AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL)
+        WHERE i.quantity > 0 AND p.default_quantity > 0 AND (
+            (p.unit = 'conf' AND p.package_unit IS NOT NULL
+              AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL))
+            OR
+            (p.unit != 'conf' AND p.default_quantity > 1
+              AND ABS((CAST(i.quantity AS REAL) / p.default_quantity) - ROUND(CAST(i.quantity AS REAL) / p.default_quantity)) > 0.03)
+        )
         ORDER BY i.updated_at DESC
     ")->fetchAll();
 
