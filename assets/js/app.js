@@ -683,6 +683,12 @@ function showPage(pageId, param = null) {
     // Show target page
     const page = document.getElementById(`page-${pageId}`);
     if (page) page.classList.add('active');
+
+    // Clear search inputs when navigating away
+    const invSearch = document.getElementById('inventory-search');
+    if (invSearch) invSearch.value = '';
+    const prodSearch = document.getElementById('products-search');
+    if (prodSearch) prodSearch.value = '';
     
     // Update nav
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
