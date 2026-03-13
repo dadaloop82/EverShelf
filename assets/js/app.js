@@ -2348,7 +2348,7 @@ function showProductAction() {
                 <div class="inv-status-items">${invHtml}</div>
             `;
             
-            btnsContainer.className = 'action-buttons-3col';
+            btnsContainer.className = 'action-buttons-4col';
             btnsContainer.innerHTML = `
                 <button class="btn btn-huge btn-success" onclick="showAddForm()">
                     <span class="btn-icon">📥</span>
@@ -2361,6 +2361,10 @@ function showProductAction() {
                 <button class="btn btn-huge btn-throw" onclick="showThrowForm()">
                     <span class="btn-icon">🗑️</span>
                     <span class="btn-text">BUTTA<br><small>butta il prodotto</small></span>
+                </button>
+                <button class="btn btn-huge btn-edit" onclick="editProductFromAction()">
+                    <span class="btn-icon">✏️</span>
+                    <span class="btn-text">MODIFICA<br><small>modifica info</small></span>
                 </button>
             `;
         } else {
@@ -2387,6 +2391,52 @@ async function checkInventoryForProduct(productId) {
     } catch(e) {
         return [];
     }
+}
+
+// === EDIT PRODUCT FROM ACTION PAGE ===
+function editProductFromAction() {
+    if (!currentProduct) return;
+    // Pre-fill the product form with current product data
+    document.getElementById('pf-id').value = currentProduct.id || '';
+    document.getElementById('pf-name').value = currentProduct.name || '';
+    document.getElementById('pf-brand').value = currentProduct.brand || '';
+    document.getElementById('pf-barcode').value = currentProduct.barcode || '';
+    document.getElementById('pf-image').value = currentProduct.image_url || '';
+    document.getElementById('pf-notes').value = currentProduct.notes || '';
+    document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
+    document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
+    document.getElementById('product-form-title').textContent = 'Modifica Prodotto';
+
+    // Restore datalist for editing (was removed for new products)
+    document.getElementById('pf-name').setAttribute('list', 'common-products');
+    document.getElementById('pf-brand').setAttribute('list', 'common-brands');
+
+    // Set category
+    const cat = mapToLocalCategory(currentProduct.category, currentProduct.name);
+    document.getElementById('pf-category').value = cat;
+    document.getElementById('pf-category').dataset.manuallySet = 'true';
+    document.getElementById('pf-defqty').dataset.manuallySet = 'true';
+
+    // Image preview
+    const preview = document.getElementById('pf-image-preview');
+    if (currentProduct.image_url) {
+        preview.src = currentProduct.image_url;
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+
+    // Conf size row
+    const pfConfRow = document.getElementById('pf-conf-size-row');
+    if (currentProduct.unit === 'conf' && pfConfRow) {
+        pfConfRow.style.display = 'block';
+        document.getElementById('pf-conf-size').value = currentProduct.default_quantity || '';
+        document.getElementById('pf-conf-unit').value = currentProduct.package_unit || 'g';
+    } else if (pfConfRow) {
+        pfConfRow.style.display = 'none';
+    }
+
+    showPage('product-form');
 }
 
 // === THROW AWAY FORM ===

@@ -2763,7 +2763,7 @@ body {
     font-weight: 700;
 }
 
-/* ===== THROW AWAY BUTTONS ===== */
+/* ===== ACTION BUTTONS GRID ===== */
 .action-buttons-3col {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -2771,13 +2771,22 @@ body {
     margin-top: 16px;
 }
 
-.action-buttons-3col .btn-huge {
+.action-buttons-4col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.action-buttons-3col .btn-huge,
+.action-buttons-4col .btn-huge {
     min-height: 100px;
     padding: 18px 8px;
     font-size: 1rem;
 }
 
-.action-buttons-3col .btn-icon {
+.action-buttons-3col .btn-icon,
+.action-buttons-4col .btn-icon {
     font-size: 2rem;
 }
 
@@ -2788,6 +2797,15 @@ body {
 
 .btn-throw:active {
     background: #ea580c;
+}
+
+.btn-edit {
+    background: #6366f1;
+    color: white;
+}
+
+.btn-edit:active {
+    background: #4f46e5;
 }
 
 /* ===== STRUCTURED QUANTITY IN INVENTORY ===== */
