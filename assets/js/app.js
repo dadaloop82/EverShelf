@@ -3038,6 +3038,7 @@ function switchUseUnit(mode) {
         const step = getSubUnitStep(_useConfMode.packageUnit);
         qtyInput.value = step;
         qtyInput.step = step;
+        qtyInput.min = step;
         hint.textContent = `Quantità in ${_useConfMode.subLabel} (totale: ${Math.round(_useConfMode.totalSub)}${_useConfMode.subLabel})`;
     } else {
         confBtn.classList.add('active');
@@ -3045,6 +3046,7 @@ function switchUseUnit(mode) {
         _useConfMode._activeUnit = 'conf';
         qtyInput.value = 1;
         qtyInput.step = 0.5;
+        qtyInput.min = 0.5;
         hint.textContent = `Confezioni da ${_useConfMode.packageSize}${_useConfMode.subLabel} (hai ${_useConfMode.totalConf.toFixed(1)} conf)`;
     }
 }
