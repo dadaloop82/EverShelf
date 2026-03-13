@@ -2401,7 +2401,7 @@ function editProductFromAction() {
     document.getElementById('pf-name').value = currentProduct.name || '';
     document.getElementById('pf-brand').value = currentProduct.brand || '';
     document.getElementById('pf-barcode').value = currentProduct.barcode || '';
-    document.getElementById('pf-image').value = currentProduct.image_url || '';
+    document.getElementById('pf-image').value = '';
     document.getElementById('pf-notes').value = currentProduct.notes || '';
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
@@ -2417,14 +2417,9 @@ function editProductFromAction() {
     document.getElementById('pf-category').dataset.manuallySet = 'true';
     document.getElementById('pf-defqty').dataset.manuallySet = 'true';
 
-    // Image preview
+    // Image preview - not shown in edit mode
     const preview = document.getElementById('pf-image-preview');
-    if (currentProduct.image_url) {
-        preview.src = currentProduct.image_url;
-        preview.style.display = 'block';
-    } else {
-        preview.style.display = 'none';
-    }
+    preview.style.display = 'none';
 
     // Conf size row
     const pfConfRow = document.getElementById('pf-conf-size-row');
