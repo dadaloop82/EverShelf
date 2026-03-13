@@ -814,7 +814,7 @@ async function loadDashboard() {
         // Review suspicious quantities
         loadReviewItems();
 
-        // Opened (partially used) products
+        // Opened (partially used conf products with known package capacity)
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
@@ -823,37 +823,19 @@ async function loadDashboard() {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
-                const unit = item.unit;
                 const pkgUnit = item.package_unit;
-                const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+                const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg' };
+                const pkgLabel = unitLabels[pkgUnit] || pkgUnit;
+                const wholeConf = Math.floor(qty + 0.001);
+                const frac = Math.round((qty - wholeConf) * 1000) / 1000;
+                const remainderAmt = frac * pkgSize;
+                const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
                 let qtyText = '';
-
-                if (unit === 'conf' && pkgUnit && pkgSize > 0) {
-                    // Conf product: show whole conf + remainder in sub-unit
-                    const wholeConf = Math.floor(qty + 0.001);
-                    const frac = Math.round((qty - wholeConf) * 1000) / 1000;
-                    const remainderAmt = frac * pkgSize;
-                    const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
-                    const pkgLabel = unitLabels[pkgUnit] || pkgUnit;
-                    if (wholeConf > 0) {
-                        qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
-                    } else {
-                        qtyText = remainderText;
-                    }
+                if (wholeConf > 0) {
+                    qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
                 } else {
-                    // Non-conf product: show qty / package size
-                    const wholePacks = Math.floor(qty / pkgSize + 0.001);
-                    const remainder = Math.round((qty - wholePacks * pkgSize) * 100) / 100;
-                    const uLabel = unitLabels[unit] || unit;
-                    if (wholePacks > 0 && remainder > 0) {
-                        qtyText = `${wholePacks} × ${pkgSize}${uLabel} + ${Math.round(remainder)}${uLabel}`;
-                    } else if (remainder > 0) {
-                        qtyText = `${Math.round(qty)}${uLabel} / ${pkgSize}${uLabel}`;
-                    } else {
-                        qtyText = `${qty} ${uLabel}`;
-                    }
+                    qtyText = remainderText;
                 }
-
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
