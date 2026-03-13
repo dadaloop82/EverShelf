@@ -3020,10 +3020,10 @@ function switchUseUnit(mode) {
 
 function getSubUnitStep(pkgUnit) {
     switch (pkgUnit) {
-        case 'ml': return 100;
-        case 'l': return 0.25;
-        case 'g': return 50;
-        case 'kg': return 0.1;
+        case 'ml': return 50;
+        case 'l': return 0.1;
+        case 'g': return 10;
+        case 'kg': return 0.05;
         default: return 1;
     }
 }
