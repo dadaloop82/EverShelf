@@ -2301,13 +2301,13 @@ function showProductAction() {
             ${currentProduct.weight_info ? `<p style="font-size:0.85rem;color:var(--text-light)">⚖️ ${escapeHtml(currentProduct.weight_info)}</p>` : ''}
             ${currentProduct.barcode ? `<p style="font-size:0.75rem;color:var(--text-muted)">📊 ${currentProduct.barcode}</p>` : ''}
         </div>
+        <button type="button" class="btn-edit-inline" onclick="toggleActionEdit()" title="Modifica nome/marca">✏️</button>
     `;
     
     // Check if product needs editing (unknown name, missing info)
     const isUnknown = !currentProduct.name || 
         /sconosciuto|unknown|^$/i.test(currentProduct.name.trim()) ||
         currentProduct.name.trim().length < 2;
-    const needsEdit = isUnknown || !currentProduct.brand;
     
     // Edit product info section
     let editInfoEl = document.getElementById('action-edit-info');
@@ -2318,42 +2318,38 @@ function showProductAction() {
         preview.parentElement.insertBefore(editInfoEl, preview.nextSibling);
     }
     
-    if (needsEdit) {
-        const categoryOptions = Object.entries(CATEGORY_LABELS).map(([key, label]) => 
-            `<option value="${key}" ${mapToLocalCategory(currentProduct.category, currentProduct.name) === key ? 'selected' : ''}>${label}</option>`
-        ).join('');
-        
-        editInfoEl.innerHTML = `
-            <div class="edit-unknown-card ${isUnknown ? 'highlight' : ''}">
-                <h4>${isUnknown ? '⚠️ Prodotto non riconosciuto' : '✏️ Completa le informazioni'}</h4>
-                <p class="edit-unknown-hint">${isUnknown ? 'Inserisci il nome e le informazioni del prodotto' : 'Puoi modificare o completare le info mancanti'}</p>
-                <div class="edit-unknown-form">
-                    <div class="form-group">
-                        <label>🏷️ Nome prodotto</label>
-                        <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
-                    </div>
-                    <div class="form-group">
-                        <label>🏪 Marca</label>
-                        <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
-                    </div>
-                    <div class="form-group">
-                        <label>📂 Categoria</label>
-                        <select id="edit-action-category" class="form-input">
-                            <option value="">-- Seleziona --</option>
-                            ${categoryOptions}
-                        </select>
-                    </div>
-                    <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">💾 Salva informazioni</button>
+    // Always build the edit form, but only show it auto-opened for unknown products
+    const categoryOptions = Object.entries(CATEGORY_LABELS).map(([key, label]) => 
+        `<option value="${key}" ${mapToLocalCategory(currentProduct.category, currentProduct.name) === key ? 'selected' : ''}>${label}</option>`
+    ).join('');
+    
+    editInfoEl.innerHTML = `
+        <div class="edit-unknown-card ${isUnknown ? 'highlight' : ''}">
+            <h4>${isUnknown ? '⚠️ Prodotto non riconosciuto' : '✏️ Modifica informazioni'}</h4>
+            ${isUnknown ? '<p class="edit-unknown-hint">Inserisci il nome e le informazioni del prodotto</p>' : ''}
+            <div class="edit-unknown-form">
+                <div class="form-group">
+                    <label>🏷️ Nome prodotto</label>
+                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
                 </div>
+                <div class="form-group">
+                    <label>🏪 Marca</label>
+                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
+                </div>
+                <div class="form-group">
+                    <label>📂 Categoria</label>
+                    <select id="edit-action-category" class="form-input">
+                        <option value="">-- Seleziona --</option>
+                        ${categoryOptions}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">💾 Salva informazioni</button>
             </div>
-        `;
-        editInfoEl.style.display = 'block';
-        if (isUnknown) {
-            setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
-        }
-    } else {
-        editInfoEl.style.display = 'none';
-        editInfoEl.innerHTML = '';
+        </div>
+    `;
+    editInfoEl.style.display = isUnknown ? 'block' : 'none';
+    if (isUnknown) {
+        setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
     }
     
     // Show extra product info section below preview
@@ -2631,6 +2627,15 @@ async function throwPartial() {
     } catch(e) {
         showLoading(false);
         showToast('Errore di connessione', 'error');
+    }
+}
+
+function toggleActionEdit() {
+    const el = document.getElementById('action-edit-info');
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') {
+        setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
     }
 }
 
