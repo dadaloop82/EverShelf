@@ -1172,6 +1172,8 @@ function renderInventoryItem(item) {
         expiryBadge = `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${expiryText}</span>`;
     }
     
+    const vacuumBadge = item.vacuum_sealed ? '<span class="vacuum-badge">🫙 Sotto vuoto</span>' : '';
+    
     return `
     <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
         <div class="inv-image">
@@ -1183,6 +1185,7 @@ function renderInventoryItem(item) {
             <div class="inv-meta">
                 <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
                 ${expiryBadge}
+                ${vacuumBadge}
             </div>
         </div>
         <div class="inv-qty-col">
@@ -1260,6 +1263,11 @@ function showItemDetail(inventoryId, productId) {
             <div class="modal-detail-row">
                 <span class="modal-detail-label">📅 Scadenza</span>
                 <span class="modal-detail-value">${formatDate(item.expiry_date)}</span>
+            </div>` : ''}
+            ${item.vacuum_sealed ? `
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">🫙 Conservazione</span>
+                <span class="modal-detail-value">Sotto vuoto</span>
             </div>` : ''}
             ${item.barcode ? `
             <div class="modal-detail-row">
@@ -1383,6 +1391,15 @@ function editInventoryItem(id) {
                 <label>📅 Scadenza</label>
                 <input type="date" id="edit-expiry" value="${item.expiry_date || ''}" class="form-input">
             </div>
+            <div class="form-group">
+                <label class="toggle-row">
+                    <span>🫙 Sotto vuoto</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+            </div>
             <button type="submit" class="btn btn-large btn-primary full-width">💾 Salva</button>
         </form>
     `;
@@ -1402,7 +1419,8 @@ async function submitEditInventory(e, id, productId) {
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
     
-    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId };
+    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId,
+        vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0 };
     
     // Add package info if conf
     if (unit === 'conf') {
@@ -2414,7 +2432,8 @@ function showProductAction() {
                     else if (d <= 7) expiryStr = ` · 🟡 Scade tra ${d}g`;
                     else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
                 }
-                return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
+                const vacuumIcon = inv.vacuum_sealed ? ' 🫙' : '';
+                return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${locInfo.icon} ${locInfo.label}${vacuumIcon}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
             }).join('');
             
             const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit);
@@ -2570,6 +2589,15 @@ function editActionInventoryItem(inventoryId) {
                 <label>📅 Scadenza</label>
                 <input type="date" id="action-edit-expiry" value="${item.expiry_date || ''}" class="form-input">
             </div>
+            <div class="form-group">
+                <label class="toggle-row">
+                    <span>🫙 Sotto vuoto</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+            </div>
             <div class="modal-actions" style="margin-top:12px">
                 <button type="submit" class="btn btn-large btn-primary flex-1">💾 Salva</button>
                 <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
@@ -2592,7 +2620,8 @@ async function submitActionEditInventory(e, id, productId) {
     const expiry = document.getElementById('action-edit-expiry').value || null;
     const unit = document.getElementById('action-edit-unit').value;
     
-    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId };
+    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId,
+        vacuum_sealed: document.getElementById('action-edit-vacuum')?.checked ? 1 : 0 };
     
     if (unit === 'conf') {
         payload.package_unit = document.getElementById('action-edit-conf-unit')?.value || '';
@@ -2862,6 +2891,15 @@ function showAddForm() {
     const estimatedDate = addDays(estimatedDays);
     const estimateLabel = formatEstimatedExpiry(estimatedDays);
     
+    // Reset vacuum sealed toggle
+    const vacuumCb = document.getElementById('add-vacuum-sealed');
+    if (vacuumCb) {
+        vacuumCb.checked = false;
+        document.getElementById('add-vacuum-hint').style.display = 'none';
+    }
+    // Store base expiry for vacuum recalculation
+    window._addBaseExpiryDays = estimatedDays;
+    
     expirySection.innerHTML = `
         <label>🛒 Questo prodotto è...</label>
         <div class="purchase-type-selector">
@@ -2886,6 +2924,39 @@ function showAddForm() {
     `;
     
     showPage('add');
+}
+
+function toggleVacuumSealed() {
+    const cb = document.getElementById('add-vacuum-sealed');
+    if (cb) cb.checked = !cb.checked;
+    onVacuumSealedChange();
+}
+
+function onVacuumSealedChange() {
+    const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
+    const hint = document.getElementById('add-vacuum-hint');
+    if (hint) hint.style.display = isVacuum ? 'block' : 'none';
+    
+    // Recalculate expiry based on vacuum sealed
+    const baseDays = window._addBaseExpiryDays || 180;
+    const days = isVacuum ? getVacuumExpiryDays(baseDays) : baseDays;
+    const newDate = addDays(days);
+    const newLabel = formatEstimatedExpiry(days);
+    
+    const expiryInput = document.getElementById('add-expiry');
+    const estimateEl = document.querySelector('.expiry-estimate-label');
+    const dateEl = document.querySelector('.expiry-estimate-date');
+    if (expiryInput) expiryInput.value = newDate;
+    if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${isVacuum ? ' (sotto vuoto)' : ''}</strong>`;
+    if (dateEl) dateEl.textContent = formatDate(newDate);
+}
+
+function getVacuumExpiryDays(baseDays) {
+    // Vacuum sealing roughly triples fresh food shelf life, less effect on long-lasting items
+    if (baseDays <= 7) return Math.round(baseDays * 3);     // fresh: 3x (e.g., 3→9, 7→21)
+    if (baseDays <= 30) return Math.round(baseDays * 2.5);   // short: 2.5x (e.g., 14→35)
+    if (baseDays <= 90) return Math.round(baseDays * 2);     // medium: 2x
+    return Math.round(baseDays * 1.5);                       // long-lasting: 1.5x
 }
 
 function onAddUnitChange() {
@@ -3061,6 +3132,7 @@ async function submitAdd(e) {
             unit: selectedUnit !== productUnit ? selectedUnit : null,
             package_unit: selectedUnit === 'conf' ? (document.getElementById('add-conf-unit')?.value || null) : null,
             package_size: selectedUnit === 'conf' ? (parseFloat(document.getElementById('add-conf-size')?.value) || null) : null,
+            vacuum_sealed: document.getElementById('add-vacuum-sealed')?.checked ? 1 : 0,
         });
         
         showLoading(false);

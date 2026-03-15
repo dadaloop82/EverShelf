@@ -467,7 +467,8 @@ function searchProducts(PDO $db): void {
 function listInventory(PDO $db): void {
     $location = $_GET['location'] ?? '';
     $query = "
-        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit
+        SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i
         JOIN products p ON i.product_id = p.id
     ";
@@ -510,6 +511,8 @@ function addToInventory(PDO $db): void {
         $stmt->execute([$packageUnit, $packageSize ?: 0, $productId]);
     }
     
+    $vacuumSealed = (int)($input['vacuum_sealed'] ?? 0);
+    
     // Check if product already exists in this location
     $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ?");
     $stmt->execute([$productId, $location]);
@@ -518,13 +521,13 @@ function addToInventory(PDO $db): void {
     if ($existing) {
         // Update quantity
         $newQty = $existing['quantity'] + $quantity;
-        $stmt = $db->prepare("UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$newQty, $expiry, $existing['id']]);
+        $stmt = $db->prepare("UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), vacuum_sealed = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$newQty, $expiry, $vacuumSealed, $existing['id']]);
     } else {
         $newQty = $quantity;
         // Insert new inventory entry
-        $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$productId, $location, $quantity, $expiry]);
+        $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$productId, $location, $quantity, $expiry, $vacuumSealed]);
     }
     
     // Get total across all locations
@@ -711,6 +714,7 @@ function updateInventory(PDO $db): void {
     if (isset($input['quantity'])) { $fields[] = "quantity = ?"; $params[] = $input['quantity']; }
     if (isset($input['location'])) { $fields[] = "location = ?"; $params[] = $input['location']; }
     if (isset($input['expiry_date'])) { $fields[] = "expiry_date = ?"; $params[] = $input['expiry_date']; }
+    if (isset($input['vacuum_sealed'])) { $fields[] = "vacuum_sealed = ?"; $params[] = (int)$input['vacuum_sealed']; }
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
     
@@ -787,7 +791,8 @@ function getStats(PDO $db): void {
     
     // Expiring soonest (next 4 items to expire)
     $expiring = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit 
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
         ORDER BY i.expiry_date ASC
@@ -796,7 +801,8 @@ function getStats(PDO $db): void {
     
     // Expired
     $expired = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit 
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date < date('now')
         ORDER BY i.expiry_date ASC
@@ -804,7 +810,8 @@ function getStats(PDO $db): void {
     
     // Opened (partially used conf items with known package capacity)
     $opened = $db->query("
-        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url
+        SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
         WHERE p.unit = 'conf' AND p.default_quantity > 0 AND p.package_unit IS NOT NULL
           AND i.quantity > 0 AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL)

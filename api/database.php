@@ -140,4 +140,11 @@ function migrateDB(PDO $db): void {
             );
         ");
     }
+
+    // Add vacuum_sealed column to inventory if missing
+    $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
+    $invColNames = array_column($invCols, 'name');
+    if (!in_array('vacuum_sealed', $invColNames)) {
+        $db->exec("ALTER TABLE inventory ADD COLUMN vacuum_sealed INTEGER DEFAULT 0");
+    }
 }

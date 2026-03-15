@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260315d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260315e">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -217,6 +217,16 @@
                     </div>
                 </div>
                 <div id="add-weight-info" class="form-hint" style="display:none"></div>
+            </div>
+            <div class="form-group" id="add-vacuum-group">
+                <label class="toggle-row" onclick="toggleVacuumSealed()">
+                    <span>🫙 Sotto vuoto</span>
+                    <span class="toggle-switch" id="add-vacuum-toggle">
+                        <input type="checkbox" id="add-vacuum-sealed" onchange="onVacuumSealedChange()">
+                        <span class="toggle-slider"></span>
+                    </span>
+                </label>
+                <p class="form-hint" id="add-vacuum-hint" style="display:none">La scadenza verrà estesa automaticamente</p>
             </div>
             <div class="form-group" id="add-expiry-section">
                 <!-- Populated dynamically by showAddForm() -->
@@ -884,6 +894,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260315d"></script>
+<script src="assets/js/app.js?v=20260315e"></script>
 </body>
 </html>
