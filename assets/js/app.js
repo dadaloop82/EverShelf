@@ -260,41 +260,59 @@ const EXPIRY_DAYS = {
 };
 
 // More specific expiry by product name keywords
-function estimateExpiryDays(product) {
+function estimateExpiryDays(product, location) {
     const name = (product.name || '').toLowerCase();
     const cat = (product.category || '').toLowerCase();
+    const loc = (location || '').toLowerCase();
+    
+    let days;
     
     // Specific product overrides
-    if (/latte\s+(fresco|intero|parzial|scremato)/.test(name)) return 7;
-    if (/latte\s+uht|latte\s+a\s+lunga/.test(name)) return 90;
-    if (/yogurt/.test(name)) return 21;
-    if (/mozzarella|burrata|stracciatella/.test(name)) return 5;
-    if (/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) return 10;
-    if (/parmigiano|grana|pecorino|provolone/.test(name)) return 60;
-    if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) return 7;
-    if (/prosciutto\s+crudo|salame|bresaola|speck/.test(name)) return 30;
-    if (/uova/.test(name)) return 28;
-    if (/pane\s+fresco|pane\s+in\s+cassetta/.test(name)) return 5;
-    if (/pane\s+confezionato|pan\s+carr|pancarrè/.test(name)) return 14;
-    if (/insalata|rucola|spinaci\s+freschi/.test(name)) return 5;
-    if (/pollo|tacchino|maiale|manzo|vitello/.test(name)) return 3;
-    if (/salmone|tonno\s+fresco|pesce/.test(name) && !/tonno\s+in\s+scatola|tonno\s+rio/.test(name)) return 2;
-    if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) return 1095;
-    if (/surgelat|frozen|findus|4\s*salti/.test(name)) return 180;
-    if (/gelato/.test(name)) return 365;
-    if (/succo|spremuta/.test(name)) return 7;
-    if (/birra|vino/.test(name)) return 365;
-    if (/acqua/.test(name)) return 365;
-    if (/biscott|cracker|grissini|fette\s+biscott/.test(name)) return 180;
-    if (/nutella|marmellata|miele/.test(name)) return 365;
-    if (/passata|pelati|pomodor/.test(name)) return 730;
-    if (/olio|aceto/.test(name)) return 548;
-    
-    // Fallback to category
-    for (const [key, days] of Object.entries(EXPIRY_DAYS)) {
-        if (cat.includes(key)) return days;
+    if (/latte\s+(fresco|intero|parzial|scremato)/.test(name)) days = 7;
+    else if (/latte\s+uht|latte\s+a\s+lunga/.test(name)) days = 90;
+    else if (/yogurt/.test(name)) days = 21;
+    else if (/mozzarella|burrata|stracciatella/.test(name)) days = 5;
+    else if (/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) days = 10;
+    else if (/parmigiano|grana|pecorino|provolone/.test(name)) days = 60;
+    else if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) days = 7;
+    else if (/prosciutto\s+crudo|salame|bresaola|speck/.test(name)) days = 30;
+    else if (/uova/.test(name)) days = 28;
+    else if (/pane\s+fresco|pane\s+in\s+cassetta/.test(name)) days = 5;
+    else if (/pane\s+confezionato|pan\s+carr|pancarrè/.test(name)) days = 14;
+    else if (/insalata|rucola|spinaci\s+freschi/.test(name)) days = 5;
+    else if (/pollo|tacchino|maiale|manzo|vitello|sovracosci|cosci/.test(name)) days = 3;
+    else if (/salmone|tonno\s+fresco|pesce/.test(name) && !/tonno\s+in\s+scatola|tonno\s+rio/.test(name)) days = 2;
+    else if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) days = 1095;
+    else if (/surgelat|frozen|findus|4\s*salti/.test(name)) days = 180;
+    else if (/gelato/.test(name)) days = 365;
+    else if (/succo|spremuta/.test(name)) days = 7;
+    else if (/birra|vino/.test(name)) days = 365;
+    else if (/acqua/.test(name)) days = 365;
+    else if (/biscott|cracker|grissini|fette\s+biscott/.test(name)) days = 180;
+    else if (/nutella|marmellata|miele/.test(name)) days = 365;
+    else if (/passata|pelati|pomodor/.test(name)) days = 730;
+    else if (/olio|aceto/.test(name)) days = 548;
+    else {
+        // Fallback to category
+        days = 180; // generic default
+        for (const [key, d] of Object.entries(EXPIRY_DAYS)) {
+            if (cat.includes(key)) { days = d; break; }
+        }
     }
-    return 180; // generic default
+    
+    // Freezer extends shelf life significantly
+    if (loc === 'freezer' && days < 180) {
+        // Fresh meat/fish: 3-6 months in freezer
+        if (days <= 4) days = 120;
+        // Short-lived (cheese, dairy, bread): 2-3 months
+        else if (days <= 14) days = 75;
+        // Medium (yogurt, cured meats): 3-4 months
+        else if (days <= 30) days = 120;
+        // Already long-lasting: at least 6 months
+        else days = Math.max(days, 180);
+    }
+    
+    return days;
 }
 
 function formatEstimatedExpiry(days) {
@@ -2887,9 +2905,11 @@ function showAddForm() {
     
     // Show the purchase-type selector  
     const expirySection = document.getElementById('add-expiry-section');
-    const estimatedDays = estimateExpiryDays(currentProduct);
+    const estimatedDays = estimateExpiryDays(currentProduct, autoLoc);
     const estimatedDate = addDays(estimatedDays);
     const estimateLabel = formatEstimatedExpiry(estimatedDays);
+    
+    let expirySuffix = autoLoc === 'freezer' ? ' (freezer)' : '';
     
     // Reset vacuum sealed toggle
     const vacuumCb = document.getElementById('add-vacuum-sealed');
@@ -2912,7 +2932,7 @@ function showAddForm() {
         </div>
         <div id="expiry-detail" class="expiry-detail">
             <div class="expiry-estimate">
-                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}</strong></span>
+                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}${expirySuffix}</strong></span>
                 <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
             </div>
             <div class="expiry-input-row">
@@ -2933,30 +2953,44 @@ function toggleVacuumSealed() {
 }
 
 function onVacuumSealedChange() {
-    const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
     const hint = document.getElementById('add-vacuum-hint');
-    if (hint) hint.style.display = isVacuum ? 'block' : 'none';
+    if (hint) hint.style.display = document.getElementById('add-vacuum-sealed')?.checked ? 'block' : 'none';
+    recalculateAddExpiry();
+}
+
+function recalculateAddExpiry() {
+    if (!currentProduct) return;
+    const loc = document.getElementById('add-location')?.value || '';
+    const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
     
-    // Recalculate expiry based on vacuum sealed
-    const baseDays = window._addBaseExpiryDays || 180;
-    const days = isVacuum ? getVacuumExpiryDays(baseDays) : baseDays;
+    let days = estimateExpiryDays(currentProduct, loc);
+    if (isVacuum) days = getVacuumExpiryDays(days);
+    
+    window._addBaseExpiryDays = estimateExpiryDays(currentProduct, loc);
+    
     const newDate = addDays(days);
     const newLabel = formatEstimatedExpiry(days);
+    
+    let suffix = '';
+    if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
+    else if (loc === 'freezer') suffix = ' (freezer)';
+    else if (isVacuum) suffix = ' (sotto vuoto)';
     
     const expiryInput = document.getElementById('add-expiry');
     const estimateEl = document.querySelector('.expiry-estimate-label');
     const dateEl = document.querySelector('.expiry-estimate-date');
     if (expiryInput) expiryInput.value = newDate;
-    if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${isVacuum ? ' (sotto vuoto)' : ''}</strong>`;
+    if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${suffix}</strong>`;
     if (dateEl) dateEl.textContent = formatDate(newDate);
 }
 
 function getVacuumExpiryDays(baseDays) {
-    // Vacuum sealing roughly triples fresh food shelf life, less effect on long-lasting items
-    if (baseDays <= 7) return Math.round(baseDays * 3);     // fresh: 3x (e.g., 3→9, 7→21)
-    if (baseDays <= 30) return Math.round(baseDays * 2.5);   // short: 2.5x (e.g., 14→35)
-    if (baseDays <= 90) return Math.round(baseDays * 2);     // medium: 2x
-    return Math.round(baseDays * 1.5);                       // long-lasting: 1.5x
+    // Vacuum sealing extends shelf life significantly
+    if (baseDays <= 7) return Math.round(baseDays * 3);       // very fresh: 3x (e.g., 3→9, 7→21)
+    if (baseDays <= 14) return Math.round(baseDays * 3);       // fresh cheese/dairy: 3x (10→30)
+    if (baseDays <= 30) return Math.round(baseDays * 2.5);     // short: 2.5x (e.g., 21→52)
+    if (baseDays <= 90) return Math.round(baseDays * 2.5);     // medium (cheese ~60d): 2.5x (60→150)
+    return Math.round(baseDays * 1.5);                         // long-lasting: 1.5x
 }
 
 function onAddUnitChange() {
@@ -3103,6 +3137,7 @@ function selectLocation(btn, loc) {
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('add-location').value = loc;
+    recalculateAddExpiry();
 }
 
 async function submitAdd(e) {
