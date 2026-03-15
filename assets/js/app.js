@@ -2948,7 +2948,23 @@ async function submitAdd(e) {
         
         showLoading(false);
         if (result.success) {
-            showToast(`✅ ${currentProduct.name} aggiunto!`, 'success');
+            // Build quantity info for toast
+            let qtyInfo = '';
+            if (result.total_qty) {
+                const u = result.unit || 'pz';
+                const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
+                const uLabel = unitLabels[u] || u;
+                if (u === 'conf' && result.package_unit && result.default_quantity > 0) {
+                    const pkgLabel = unitLabels[result.package_unit] || result.package_unit;
+                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel} da ${result.default_quantity}${pkgLabel})`;
+                } else {
+                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel})`;
+                }
+            }
+            showToast(`✅ ${currentProduct.name} aggiunto!${qtyInfo}`, 'success');
+            if (result.removed_from_bring) {
+                setTimeout(() => showToast('🛒 Rimosso dalla lista della spesa', 'info'), 1500);
+            }
             if (!spesaModeAfterAdd()) showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');

@@ -521,16 +521,63 @@ function addToInventory(PDO $db): void {
         $stmt = $db->prepare("UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$newQty, $expiry, $existing['id']]);
     } else {
+        $newQty = $quantity;
         // Insert new inventory entry
         $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date) VALUES (?, ?, ?, ?)");
         $stmt->execute([$productId, $location, $quantity, $expiry]);
     }
     
+    // Get total across all locations
+    $stmt = $db->prepare("SELECT SUM(quantity) FROM inventory WHERE product_id = ? AND quantity > 0");
+    $stmt->execute([$productId]);
+    $totalQty = (float)($stmt->fetchColumn() ?: $newQty);
+    
+    // Get product unit info for display
+    $stmt = $db->prepare("SELECT unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt->execute([$productId]);
+    $prodInfo = $stmt->fetch();
+    
     // Log transaction
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'in', ?, ?)");
     $stmt->execute([$productId, $quantity, $location]);
     
-    echo json_encode(['success' => true]);
+    // Auto-remove from Bring! if product is on the shopping list
+    $removedFromBring = false;
+    try {
+        $stmt = $db->prepare("SELECT name FROM products WHERE id = ?");
+        $stmt->execute([$productId]);
+        $prodName = $stmt->fetchColumn();
+        if ($prodName) {
+            $auth = bringAuth();
+            if ($auth) {
+                $listUUID = $auth['bringListUUID'];
+                $bringKey = italianToBring($prodName);
+                $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+                if ($listData && isset($listData['purchase'])) {
+                    foreach ($listData['purchase'] as $item) {
+                        if (strcasecmp($item['name'] ?? '', $bringKey) === 0) {
+                            $body = http_build_query(['uuid' => $listUUID, 'remove' => $bringKey]);
+                            bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+                            $removedFromBring = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        // Silently fail
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'new_qty' => $newQty,
+        'total_qty' => $totalQty,
+        'unit' => $prodInfo['unit'] ?? 'pz',
+        'default_quantity' => (float)($prodInfo['default_quantity'] ?? 0),
+        'package_unit' => $prodInfo['package_unit'] ?? null,
+        'removed_from_bring' => $removedFromBring,
+    ]);
 }
 
 function useFromInventory(PDO $db): void {
