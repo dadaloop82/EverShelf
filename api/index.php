@@ -109,6 +109,9 @@ try {
         case 'bring_remove':
             bringRemoveItem();
             break;
+        case 'bring_clean_specs':
+            bringCleanSpecs();
+            break;
         case 'bring_suggest':
             bringSuggestItems($db);
             break;
@@ -627,11 +630,10 @@ function useFromInventory(PDO $db): void {
                             // Already on the list, skip adding
                             $addedToBring = false;
                         } else {
-                        $spec = $product['brand'] ?: '';
                         $body = http_build_query([
                             'uuid' => $listUUID,
                             'purchase' => $bringName,
-                            'specification' => $spec,
+                            'specification' => '',
                         ]);
                         $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
                         $addedToBring = ($result !== null);
@@ -1901,7 +1903,6 @@ function bringAddItems(): void {
     
     foreach ($items as $item) {
         $name = $item['name'] ?? '';
-        $spec = $item['specification'] ?? '';
         if (empty($name)) continue;
         
         // Map Italian name to Bring! catalog key (German) for proper recognition
@@ -1916,7 +1917,7 @@ function bringAddItems(): void {
         $body = http_build_query([
             'uuid' => $listUUID,
             'purchase' => $bringName,
-            'specification' => $spec,
+            'specification' => '',
         ]);
         
         $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
@@ -1957,6 +1958,42 @@ function bringRemoveItem(): void {
     
     $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
     echo json_encode(['success' => $result !== null]);
+}
+
+function bringCleanSpecs(): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+
+    $listUUID = $auth['bringListUUID'];
+    if (empty($listUUID)) {
+        echo json_encode(['success' => false, 'error' => 'Lista non trovata']);
+        return;
+    }
+
+    $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+    if (!$data || !isset($data['purchase'])) {
+        echo json_encode(['success' => false, 'error' => 'Errore nel recupero della lista']);
+        return;
+    }
+
+    $cleaned = 0;
+    foreach ($data['purchase'] as $item) {
+        $spec = $item['specification'] ?? '';
+        if ($spec !== '') {
+            $body = http_build_query([
+                'uuid' => $listUUID,
+                'purchase' => $item['name'],
+                'specification' => '',
+            ]);
+            bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+            $cleaned++;
+        }
+    }
+
+    echo json_encode(['success' => true, 'cleaned' => $cleaned]);
 }
 
 function bringSuggestItems(PDO $db): void {
@@ -2098,14 +2135,15 @@ LIMITI:
 - Massimo 12 suggerimenti
 - Ordina per PRIORITÀ REALE (prima le mancanze gravi, poi i nice-to-have)
 - Ogni motivo deve essere SPECIFICO ("non hai proteine fresche" non "è buono")
-- Nel campo "specification" indica SEMPRE la quantità consigliata per una famiglia (es: "500g", "6 uova bio", "2 mazzetti", "1 bottiglia da 1L")
+- NON inserire quantità, marche o dettagli nel campo "specification" — lascialo sempre vuoto.
+- Usa nomi GENERICI dal catalogo Bring! (es: "Latte" non "Latte Granarolo 1L").
 
 Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 {
   "suggestions": [
     {
-      "name": "nome prodotto in italiano",
-      "specification": "quantità consigliata e dettagli (es: 500g, 6 uova bio, 2 mazzetti, 1 bottiglia da 1L)",
+      "name": "nome prodotto generico in italiano",
+      "specification": "",
       "reason": "motivo breve",
       "category": "frutta|verdura|latticini|carne|pesce|pane|pasta|conserve|condimenti|bevande|snack|surgelati|cereali|igiene|pulizia|altro",
       "priority": "alta|media|bassa"
