@@ -2808,6 +2808,14 @@ body {
     font-weight: 700;
 }
 
+.inventory-status-bar .inv-status-item-clickable {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.inventory-status-bar .inv-status-item-clickable:active {
+    background: rgba(59, 130, 246, 0.15);
+}
+
 /* ===== ACTION BUTTONS GRID ===== */
 .action-buttons-3col {
     display: grid;

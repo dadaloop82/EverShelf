@@ -232,15 +232,14 @@ const CATEGORY_LABELS = {
 function detectUnitAndQuantity(quantityInfo) {
     if (!quantityInfo) return { unit: 'pz', quantity: 1, weightInfo: '' };
     const q = quantityInfo.toLowerCase().trim();
-    // Match multi-pack patterns like "6 x 1l", "4 x 125g" → total weight
+    // Match multi-pack patterns like "6 x 1l", "4 x 125g" → confezioni
     const multiMatch = q.match(/(\d+)\s*x\s*([\d.,]+)\s*(ml|l|g|kg|cl)/i);
     if (multiMatch) {
         const count = parseInt(multiMatch[1]);
         let perUnitVal = parseFloat(multiMatch[2].replace(',', '.'));
         let perUnitUnit = multiMatch[3].toLowerCase();
         if (perUnitUnit === 'cl') { perUnitUnit = 'ml'; perUnitVal *= 10; }
-        const totalVal = count * perUnitVal;
-        return { unit: perUnitUnit, quantity: totalVal, weightInfo: quantityInfo };
+        return { unit: 'conf', quantity: perUnitVal, packageUnit: perUnitUnit, confCount: count, weightInfo: quantityInfo };
     }
     // Match single package patterns like "500 g", "1 l", "750 ml", "1.5 kg"
     const match = q.match(/([\d.,]+)\s*(kg|g|l|ml|cl)/i);
@@ -349,6 +348,7 @@ function guessLocation(product) {
 // ===== STATE =====
 let currentProduct = null;
 let currentInventory = [];
+let _actionInventoryItems = [];
 let currentLocation = '';
 let scannerStream = null;
 let quaggaRunning = false;
@@ -1786,6 +1786,8 @@ async function onBarcodeDetected(barcode) {
                         currentProduct.unit = detected.unit;
                         currentProduct.default_quantity = detected.quantity;
                         currentProduct.weight_info = weightStr;
+                        if (detected.packageUnit) currentProduct.package_unit = detected.packageUnit;
+                        if (detected.confCount) currentProduct._confCount = detected.confCount;
                         // Update product in DB for future scans
                         api('product_save', {}, 'POST', {
                             id: currentProduct.id,
@@ -1796,6 +1798,7 @@ async function onBarcodeDetected(barcode) {
                             image_url: currentProduct.image_url || '',
                             unit: detected.unit,
                             default_quantity: detected.quantity,
+                            package_unit: detected.packageUnit || '',
                             notes: currentProduct.notes,
                         });
                     }
@@ -1805,6 +1808,11 @@ async function onBarcodeDetected(barcode) {
             if (!currentProduct.weight_info && currentProduct.notes) {
                 const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
                 if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+            }
+            // Detect confCount from weight_info for multipack pre-fill
+            if (currentProduct.weight_info && currentProduct.unit === 'conf' && !currentProduct._confCount) {
+                const detected = detectUnitAndQuantity(currentProduct.weight_info);
+                if (detected.confCount) currentProduct._confCount = detected.confCount;
             }
             showLoading(false);
             stopScanner();
@@ -1837,6 +1845,7 @@ async function onBarcodeDetected(barcode) {
                 image_url: p.image_url || '',
                 unit: detected.unit,
                 default_quantity: detected.quantity,
+                package_unit: detected.packageUnit || '',
                 notes: notesParts.join(' · '),
             });
             
@@ -1850,6 +1859,8 @@ async function onBarcodeDetected(barcode) {
                     image_url: p.image_url || '',
                     unit: detected.unit,
                     default_quantity: detected.quantity,
+                    package_unit: detected.packageUnit || '',
+                    _confCount: detected.confCount || 0,
                     weight_info: p.quantity_info || '',
                     nutriscore: p.nutriscore || '',
                     ingredients: p.ingredients || '',
@@ -2379,6 +2390,7 @@ function showProductAction() {
     
     // === CHECK INVENTORY FOR THIS PRODUCT ===
     checkInventoryForProduct(currentProduct.id).then(inventoryItems => {
+        _actionInventoryItems = inventoryItems;
         const statusBar = document.getElementById('action-inventory-status');
         const btnsContainer = document.getElementById('action-buttons-container');
         
@@ -2402,7 +2414,7 @@ function showProductAction() {
                     else if (d <= 7) expiryStr = ` · 🟡 Scade tra ${d}g`;
                     else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
                 }
-                return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''}</span></div>`;
+                return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${locInfo.icon} ${locInfo.label}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
             }).join('');
             
             const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit);
@@ -2417,6 +2429,7 @@ function showProductAction() {
                     </div>
                 </div>
                 <div class="inv-status-items">${invHtml}</div>
+                <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;margin:4px 0 0">Tocca una riga per modificare</p>
             `;
             
             btnsContainer.className = 'action-buttons-4col';
@@ -2503,6 +2516,105 @@ function editProductFromAction() {
     }
 
     showPage('product-form');
+}
+
+// === EDIT INVENTORY ITEM FROM ACTION PAGE ===
+function editActionInventoryItem(inventoryId) {
+    const item = _actionInventoryItems.find(i => i.id === inventoryId);
+    if (!item) return;
+    
+    const isConf = (item.unit || 'pz') === 'conf';
+    const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
+    const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>Modifica ${escapeHtml(item.name || currentProduct.name)}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <form class="form" onsubmit="submitActionEditInventory(event, ${inventoryId}, ${item.product_id})">
+            <div class="form-group">
+                <label>📦 Quantità</label>
+                <div class="qty-control">
+                    <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', -1)">−</button>
+                    <input type="number" id="action-edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
+                    <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', 1)">+</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>📏 Unità di misura</label>
+                <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
+                    ${['pz','g','kg','ml','l','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'kg' ? 'kg (chilogrammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'l' ? 'L (litri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
+                <label>📦 Ogni confezione contiene:</label>
+                <div class="conf-size-inputs">
+                    <input type="number" id="action-edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="es. 300">
+                    <select id="action-edit-conf-unit" class="form-input conf-size-unit">
+                        ${['g','kg','ml','l'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u === 'l' ? 'L' : u}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>📍 Posizione</label>
+                <div class="location-selector">
+                    ${Object.entries(LOCATIONS).map(([k, v]) => `
+                        <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
+                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('action-edit-loc').value='${k}'">${v.icon} ${v.label}</button>
+                    `).join('')}
+                </div>
+                <input type="hidden" id="action-edit-loc" value="${item.location}">
+            </div>
+            <div class="form-group">
+                <label>📅 Scadenza</label>
+                <input type="date" id="action-edit-expiry" value="${item.expiry_date || ''}" class="form-input">
+            </div>
+            <div class="modal-actions" style="margin-top:12px">
+                <button type="submit" class="btn btn-large btn-primary flex-1">💾 Salva</button>
+                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
+            </div>
+        </form>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function onActionEditUnitChange() {
+    const unit = document.getElementById('action-edit-unit').value;
+    const confGroup = document.getElementById('action-edit-conf-group');
+    if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
+}
+
+async function submitActionEditInventory(e, id, productId) {
+    e.preventDefault();
+    const qty = parseFloat(document.getElementById('action-edit-qty').value);
+    const loc = document.getElementById('action-edit-loc').value;
+    const expiry = document.getElementById('action-edit-expiry').value || null;
+    const unit = document.getElementById('action-edit-unit').value;
+    
+    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId };
+    
+    if (unit === 'conf') {
+        payload.package_unit = document.getElementById('action-edit-conf-unit')?.value || '';
+        payload.package_size = parseFloat(document.getElementById('action-edit-conf-size')?.value) || 0;
+    } else {
+        payload.package_unit = '';
+        payload.package_size = 0;
+    }
+    
+    await api('inventory_update', {}, 'POST', payload);
+    closeModal();
+    showToast('Aggiornato!', 'success');
+    showProductAction(); // Refresh the action page
+}
+
+async function deleteActionInventoryItem(id) {
+    if (confirm('Vuoi davvero rimuovere questo prodotto dall\'inventario?')) {
+        await api('inventory_delete', {}, 'POST', { id });
+        closeModal();
+        showToast('Prodotto rimosso', 'success');
+        showProductAction(); // Refresh the action page
+    }
 }
 
 // === THROW AWAY FORM ===
@@ -2700,7 +2812,7 @@ function showAddForm() {
     const unitSelect = document.getElementById('add-unit');
     unitSelect.value = unit;
     
-    document.getElementById('add-quantity').value = unit === 'conf' ? (currentProduct.last_qty || 1) : (currentProduct.default_quantity || 1);
+    document.getElementById('add-quantity').value = unit === 'conf' ? (currentProduct._confCount || currentProduct.last_qty || 1) : (currentProduct.default_quantity || 1);
     document.getElementById('add-quantity').dataset.manuallySet = 'false';
     
     // Show/hide conf size row and pre-fill
