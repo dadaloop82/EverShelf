@@ -3246,15 +3246,21 @@ async function loadUseInventoryInfo() {
             return;
         }
 
-        // Auto-select the first available location
+        // Auto-select the first available location and show only relevant location buttons
         const firstLoc = items[0].location;
         document.getElementById('use-location').value = firstLoc;
-        document.querySelectorAll('#page-use .loc-btn').forEach(b => {
-            b.classList.remove('active');
-            if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + firstLoc + "'")) {
-                b.classList.add('active');
-            }
-        });
+        
+        // Build location buttons only for locations where the product exists
+        const productLocations = [...new Set(items.map(i => i.location))];
+        const locSelector = document.getElementById('use-location-selector');
+        locSelector.innerHTML = productLocations.map(loc => {
+            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            const locItems = items.filter(i => i.location === loc);
+            const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
+            const u = locItems[0].unit || 'pz';
+            const qtyLabel = formatQuantity(locQty, u, locItems[0].default_quantity, locItems[0].package_unit);
+            return `<button type="button" class="loc-btn ${loc === firstLoc ? 'active' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
+        }).join('');
 
         const unit = items[0].unit || 'pz';
         const pkgSize = parseFloat(items[0].default_quantity) || 0;
