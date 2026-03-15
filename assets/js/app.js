@@ -1367,6 +1367,18 @@ async function deleteInventoryItem(id) {
     }
 }
 
+function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
+    const product = window._editingProduct;
+    if (!product) return;
+    const loc = document.getElementById(locInputId)?.value || '';
+    const isVacuum = document.getElementById(vacuumInputId)?.checked;
+    let days = estimateExpiryDays(product, loc);
+    if (isVacuum) days = getVacuumExpiryDays(days);
+    const newDate = addDays(days);
+    const expiryInput = document.getElementById(expiryInputId);
+    if (expiryInput) expiryInput.value = newDate;
+}
+
 function editInventoryItem(id) {
     const item = currentInventory.find(i => i.id === id);
     if (!item) {
@@ -1378,6 +1390,8 @@ function editInventoryItem(id) {
     const isConf = (item.unit || 'pz') === 'conf';
     const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
     const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
+    
+    window._editingProduct = { name: item.name, category: item.category || '' };
     
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
@@ -1414,7 +1428,7 @@ function editInventoryItem(id) {
                 <div class="location-selector">
                     ${Object.entries(LOCATIONS).map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
-                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('edit-loc').value='${k}'">${v.icon} ${v.label}</button>
+                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('edit-loc').value='${k}';recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">${v.icon} ${v.label}</button>
                     `).join('')}
                 </div>
                 <input type="hidden" id="edit-loc" value="${item.location}">
@@ -1427,7 +1441,7 @@ function editInventoryItem(id) {
                 <label class="toggle-row">
                     <span>🫙 Sotto vuoto</span>
                     <span class="toggle-switch">
-                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''}>
+                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">
                         <span class="toggle-slider"></span>
                     </span>
                 </label>
@@ -2578,6 +2592,8 @@ function editActionInventoryItem(inventoryId) {
     const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
     const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
     
+    window._editingProduct = { name: item.name || currentProduct.name, category: item.category || currentProduct.category || '' };
+    
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>Modifica ${escapeHtml(item.name || currentProduct.name)}</h3>
@@ -2612,7 +2628,7 @@ function editActionInventoryItem(inventoryId) {
                 <div class="location-selector">
                     ${Object.entries(LOCATIONS).map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
-                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('action-edit-loc').value='${k}'">${v.icon} ${v.label}</button>
+                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('action-edit-loc').value='${k}';recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">${v.icon} ${v.label}</button>
                     `).join('')}
                 </div>
                 <input type="hidden" id="action-edit-loc" value="${item.location}">
@@ -2625,7 +2641,7 @@ function editActionInventoryItem(inventoryId) {
                 <label class="toggle-row">
                     <span>🫙 Sotto vuoto</span>
                     <span class="toggle-switch">
-                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''}>
+                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">
                         <span class="toggle-slider"></span>
                     </span>
                 </label>
@@ -2937,10 +2953,10 @@ function showAddForm() {
     expirySection.innerHTML = `
         <label>🛒 Questo prodotto è...</label>
         <div class="purchase-type-selector">
-            <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new', '${estimatedDate}', '${escapeHtml(estimateLabel)}')">
+            <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
                 🆕 Appena comprato
             </button>
-            <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing', '', '')">
+            <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing')">
                 📦 Ce l'avevo già
             </button>
         </div>
@@ -3085,7 +3101,7 @@ function adjustAddQty(delta) {
     qtyInput.value = val;
 }
 
-function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
+function selectPurchaseType(btn, type) {
     btn.parentElement.querySelectorAll('.purchase-type-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     
@@ -3095,9 +3111,21 @@ function selectPurchaseType(btn, type, estimatedDate, estimateLabel) {
     const currentQty = document.getElementById('add-quantity').value;
     
     if (type === 'new') {
+        // Recalculate fresh expiry based on current location/vacuum
+        const loc = document.getElementById('add-location')?.value || '';
+        const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
+        let days = estimateExpiryDays(currentProduct, loc);
+        if (isVacuum) days = getVacuumExpiryDays(days);
+        const estimatedDate = addDays(days);
+        const estimateLabel = formatEstimatedExpiry(days);
+        let suffix = '';
+        if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
+        else if (loc === 'freezer') suffix = ' (freezer)';
+        else if (isVacuum) suffix = ' (sotto vuoto)';
+        
         detailDiv.innerHTML = `
             <div class="expiry-estimate">
-                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}</strong></span>
+                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}${suffix}</strong></span>
                 <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
             </div>
             <div class="expiry-input-row">
@@ -3418,9 +3446,14 @@ async function moveInventoryLocation(productId, fromLoc, toLoc) {
         const data = await api('inventory_list');
         const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
         if (!item) return;
+        // Recalculate expiry for new location
+        const product = { name: item.name || '', category: item.category || '' };
+        let days = estimateExpiryDays(product, toLoc);
+        if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
         await api('inventory_update', {}, 'POST', {
             id: item.id,
             location: toLoc,
+            expiry_date: addDays(days),
             product_id: productId,
         });
     } catch (e) {
