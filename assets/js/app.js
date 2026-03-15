@@ -832,7 +832,7 @@ async function loadDashboard() {
         // Review suspicious quantities
         loadReviewItems();
 
-        // Opened (partially used conf products with known package capacity)
+        // Opened (partially used products with known package capacity)
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
@@ -841,18 +841,32 @@ async function loadDashboard() {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
-                const pkgUnit = item.package_unit;
-                const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg' };
-                const pkgLabel = unitLabels[pkgUnit] || pkgUnit;
-                const wholeConf = Math.floor(qty + 0.001);
-                const frac = Math.round((qty - wholeConf) * 1000) / 1000;
-                const remainderAmt = frac * pkgSize;
-                const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
+                const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
                 let qtyText = '';
-                if (wholeConf > 0) {
-                    qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
+
+                if (item.unit === 'conf') {
+                    const pkgUnit = item.package_unit;
+                    const pkgLabel = unitLabels[pkgUnit] || pkgUnit;
+                    const wholeConf = Math.floor(qty + 0.001);
+                    const frac = Math.round((qty - wholeConf) * 1000) / 1000;
+                    const remainderAmt = frac * pkgSize;
+                    const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
+                    if (wholeConf > 0) {
+                        qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
+                    } else {
+                        qtyText = remainderText;
+                    }
                 } else {
-                    qtyText = remainderText;
+                    const unitLabel = unitLabels[item.unit] || item.unit || '';
+                    const wholePackages = Math.floor(qty / pkgSize + 0.001);
+                    const remainder = Math.round((qty - wholePackages * pkgSize) * 100) / 100;
+                    if (wholePackages > 0 && remainder > 0.01) {
+                        qtyText = `${wholePackages} × ${pkgSize}${unitLabel} + ${Math.round(remainder)}${unitLabel} rimasti`;
+                    } else if (remainder > 0.01) {
+                        qtyText = `${Math.round(remainder)}${unitLabel} / ${pkgSize}${unitLabel}`;
+                    } else {
+                        qtyText = `${qty}${unitLabel}`;
+                    }
                 }
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">

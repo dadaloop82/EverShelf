@@ -808,13 +808,21 @@ function getStats(PDO $db): void {
         ORDER BY i.expiry_date ASC
     ")->fetchAll();
     
-    // Opened (partially used conf items with known package capacity)
+    // Opened (partially used items with known package capacity)
     $opened = $db->query("
         SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
-        WHERE p.unit = 'conf' AND p.default_quantity > 0 AND p.package_unit IS NOT NULL
-          AND i.quantity > 0 AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL)
+        WHERE i.quantity > 0 AND p.default_quantity > 0
+          AND (
+            -- conf products with fractional quantity
+            (p.unit = 'conf' AND p.package_unit IS NOT NULL
+              AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL))
+            OR
+            -- non-conf products where quantity is not a clean multiple of package size (>2% tolerance)
+            (p.unit != 'conf'
+              AND ABS(i.quantity - ROUND(CAST(i.quantity AS REAL) / p.default_quantity) * p.default_quantity) > (p.default_quantity * 0.02))
+          )
         ORDER BY i.updated_at DESC
     ")->fetchAll();
 
