@@ -3248,8 +3248,7 @@ function showUseForm() {
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
     document.getElementById('use-unit-switch').style.display = 'none';
-    document.getElementById('use-move-group').style.display = 'none';
-    document.getElementById('use-move-location').value = '';
+
     
     // Reset location buttons
     document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
@@ -3306,8 +3305,6 @@ async function loadUseInventoryInfo() {
             return `<button type="button" class="loc-btn ${loc === firstLoc ? 'active' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
         }).join('');
 
-        // Show move-to section
-        updateUseMoveOptions();
 
         const unit = items[0].unit || 'pz';
         const pkgSize = parseFloat(items[0].default_quantity) || 0;
@@ -3411,65 +3408,15 @@ function selectUseLocation(btn, loc) {
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('use-location').value = loc;
-    // Reset move location when source changes
-    updateUseMoveOptions();
-}
-
-function updateUseMoveOptions() {
-    const currentLoc = document.getElementById('use-location').value;
-    const moveGroup = document.getElementById('use-move-group');
-    const moveSelector = document.getElementById('use-move-location-selector');
-    // Show move section and disable the current source location
-    moveGroup.style.display = 'block';
-    document.getElementById('use-move-location').value = '';
-    moveSelector.querySelectorAll('.loc-btn').forEach(b => {
-        b.classList.remove('active');
-        const btnLoc = b.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-        b.style.display = btnLoc === currentLoc ? 'none' : '';
-    });
-}
-
-function selectUseMoveLocation(btn, loc) {
-    const moveSelector = document.getElementById('use-move-location-selector');
-    const wasActive = btn.classList.contains('active');
-    moveSelector.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
-    if (!wasActive) {
-        btn.classList.add('active');
-        document.getElementById('use-move-location').value = loc;
-    } else {
-        document.getElementById('use-move-location').value = '';
-    }
-}
-
-async function moveInventoryLocation(productId, fromLoc, toLoc) {
-    try {
-        const data = await api('inventory_list');
-        const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
-        if (!item) return;
-        // Recalculate expiry for new location
-        const product = { name: item.name || '', category: item.category || '' };
-        let days = estimateExpiryDays(product, toLoc);
-        if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
-        await api('inventory_update', {}, 'POST', {
-            id: item.id,
-            location: toLoc,
-            expiry_date: addDays(days),
-            product_id: productId,
-        });
-    } catch (e) {
-        console.error('Move inventory error:', e);
-    }
 }
 
 async function submitUseAll() {
     showLoading(true);
     try {
-        const moveTo = document.getElementById('use-move-location')?.value;
-        const moveFrom = document.getElementById('use-location').value;
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             use_all: true,
-            location: moveFrom,
+            location: document.getElementById('use-location').value,
         });
         showLoading(false);
         if (result.success) {
@@ -3512,13 +3459,6 @@ async function submitUse(e) {
         if (result.success) {
             const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
             showToast(`📤 Usato ${usedText} di ${currentProduct.name}`, 'success');
-            // Move remaining to new location if selected
-            const moveTo = document.getElementById('use-move-location')?.value;
-            const moveFrom = document.getElementById('use-location').value;
-            if (moveTo && moveTo !== moveFrom && result.remaining > 0) {
-                await moveInventoryLocation(currentProduct.id, moveFrom, moveTo);
-                setTimeout(() => showToast(`📦 Spostato in ${LOCATIONS[moveTo]?.label || moveTo}`, 'info'), 1200);
-            }
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }
