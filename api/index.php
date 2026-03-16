@@ -501,6 +501,15 @@ function addToInventory(PDO $db): void {
     if ($unit) {
         $stmt = $db->prepare("UPDATE products SET unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$unit, $quantity, $productId]);
+    } else {
+        // Auto-set default_quantity if product has none (first add sets package size)
+        $stmt = $db->prepare("SELECT default_quantity, unit FROM products WHERE id = ?");
+        $stmt->execute([$productId]);
+        $prod = $stmt->fetch();
+        if ($prod && (float)($prod['default_quantity'] ?? 0) == 0 && !in_array($prod['unit'], ['pz', 'conf'])) {
+            $stmt = $db->prepare("UPDATE products SET default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$quantity, $productId]);
+        }
     }
     
     // Update package info if conf

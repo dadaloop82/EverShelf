@@ -3410,6 +3410,51 @@ function selectUseLocation(btn, loc) {
     document.getElementById('use-location').value = loc;
 }
 
+function showMoveAfterUseModal(product, fromLoc, remaining) {
+    const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
+    const locButtons = otherLocs.map(([k, v]) =>
+        `<button type="button" class="loc-btn" onclick="confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}')">${v.icon} ${v.label}</button>`
+    ).join('');
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>📦 Spostare il resto?</h3>
+            <button class="modal-close" onclick="closeModal();showPage('dashboard')">✕</button>
+        </div>
+        <div style="padding:0 16px 16px">
+            <p style="margin-bottom:12px">Vuoi spostare il resto di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
+            <div class="location-selector">${locButtons}</div>
+            <button type="button" class="btn btn-secondary full-width" style="margin-top:12px" onclick="closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function confirmMoveAfterUse(productId, fromLoc, toLoc) {
+    closeModal();
+    showLoading(true);
+    try {
+        const data = await api('inventory_list');
+        const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
+        if (item) {
+            const product = { name: item.name || '', category: item.category || '' };
+            let days = estimateExpiryDays(product, toLoc);
+            if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
+            await api('inventory_update', {}, 'POST', {
+                id: item.id,
+                location: toLoc,
+                expiry_date: addDays(days),
+                product_id: productId,
+            });
+            showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+        }
+    } catch (e) {
+        console.error('Move error:', e);
+    }
+    showLoading(false);
+    showPage('dashboard');
+}
+
 async function submitUseAll() {
     showLoading(true);
     try {
@@ -3462,7 +3507,13 @@ async function submitUse(e) {
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }
-            showPage('dashboard');
+            // If there's remaining quantity, offer to move to another location
+            const usedFrom = document.getElementById('use-location').value;
+            if (result.remaining > 0) {
+                showMoveAfterUseModal(currentProduct, usedFrom, result.remaining);
+            } else {
+                showPage('dashboard');
+            }
         } else {
             showToast(result.error || 'Errore', 'error');
         }
