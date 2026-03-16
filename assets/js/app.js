@@ -3482,6 +3482,88 @@ function selectUseLocation(btn, loc) {
     document.getElementById('use-location').value = loc;
 }
 
+// ===== LOW STOCK → BRING! PROMPT =====
+function isLowStock(totalRemaining, unit, defaultQty) {
+    if (totalRemaining <= 0) return false; // already fully depleted → auto-added
+    if (unit === 'pz') return totalRemaining <= 2;
+    if (unit === 'conf') return totalRemaining <= 1;
+    // Weight/volume: use percentage of default_qty or fixed threshold
+    if (defaultQty > 0) return totalRemaining <= defaultQty * 0.25;
+    // Fallback fixed thresholds
+    if (unit === 'g' || unit === 'ml') return totalRemaining <= 100;
+    if (unit === 'kg' || unit === 'l') return totalRemaining <= 0.15;
+    return false;
+}
+
+function showLowStockBringPrompt(result, afterCallback) {
+    const name = result.product_name || currentProduct?.name || '';
+    const unit = result.product_unit || currentProduct?.unit || 'pz';
+    const defaultQty = result.product_default_qty || parseFloat(currentProduct?.default_quantity) || 0;
+    const totalRemaining = result.total_remaining;
+    
+    if (!isLowStock(totalRemaining, unit, defaultQty)) {
+        if (afterCallback) afterCallback();
+        return;
+    }
+    
+    // Format remaining for display
+    let remainLabel = '';
+    if (unit === 'conf' && result.product_package_unit) {
+        const subTotal = Math.round(totalRemaining * defaultQty);
+        remainLabel = `${subTotal}${result.product_package_unit}`;
+    } else {
+        const unitLabels = { pz: 'pz', g: 'g', kg: 'kg', ml: 'ml', l: 'L', conf: 'conf' };
+        remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
+    }
+    
+    // Store callback for after user responds
+    window._lowStockAfterCallback = afterCallback;
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>⚠️ Sta per finire!</h3>
+            <button class="modal-close" onclick="closeLowStockPrompt()">✕</button>
+        </div>
+        <div style="padding:0 16px 16px">
+            <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong> sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
+            <p style="margin-bottom:16px">Vuoi aggiungerlo alla lista della spesa?</p>
+            <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring('${escapeHtml(name).replace(/'/g, "\\'")}')">
+                🛒 Sì, aggiungi a Bring!
+            </button>
+            <button type="button" class="btn btn-secondary full-width" style="margin-top:8px" onclick="closeLowStockPrompt()">
+                No, per ora va bene
+            </button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function addLowStockToBring(productName) {
+    closeModal();
+    try {
+        const payload = { items: [{ name: productName }] };
+        if (shoppingListUUID) payload.listUUID = shoppingListUUID;
+        const data = await api('bring_add', {}, 'POST', payload);
+        if (data.success && data.added > 0) {
+            showToast('🛒 Aggiunto alla lista della spesa!', 'success');
+        } else if (data.success && data.skipped > 0) {
+            showToast('ℹ️ Già nella lista della spesa', 'info');
+        }
+    } catch (e) {
+        showToast('Errore nell\'aggiunta a Bring!', 'error');
+    }
+    const cb = window._lowStockAfterCallback;
+    window._lowStockAfterCallback = null;
+    if (cb) cb();
+}
+
+function closeLowStockPrompt() {
+    closeModal();
+    const cb = window._lowStockAfterCallback;
+    window._lowStockAfterCallback = null;
+    if (cb) cb();
+}
+
 function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
@@ -3555,7 +3637,8 @@ async function submitUseAll() {
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }
-            showPage('dashboard');
+            // Check low stock (product may exist at other locations)
+            showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
             showToast(result.error || 'Errore', 'error');
         }
@@ -3595,11 +3678,11 @@ async function submitUse(e) {
             }
             // If there's remaining quantity, offer to move to another location
             const usedFrom = document.getElementById('use-location').value;
-            if (result.remaining > 0) {
-                showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id);
-            } else {
-                showPage('dashboard');
-            }
+            const moveCallback = result.remaining > 0
+                ? () => showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id)
+                : () => showPage('dashboard');
+            // Check low stock → Bring! prompt
+            showLowStockBringPrompt(result, moveCallback);
         } else {
             showToast(result.error || 'Errore', 'error');
         }
@@ -5149,10 +5232,11 @@ async function submitRecipeUse(useAll) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }
             
-            // Offer to move opened package (stays on recipe page, modal over recipe overlay)
-            if (result.remaining > 0) {
-                setTimeout(() => showRecipeMoveModal(productId, location, result.remaining, result.opened_id), 400);
-            }
+            // Check low stock → Bring! prompt, then offer move
+            const moveCallback = result.remaining > 0
+                ? () => setTimeout(() => showRecipeMoveModal(productId, location, result.remaining, result.opened_id), 300)
+                : null;
+            setTimeout(() => showLowStockBringPrompt(result, moveCallback), 300);
         } else {
             btn.disabled = false;
             btn.textContent = '📦 Usa';

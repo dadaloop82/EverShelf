@@ -764,7 +764,24 @@ function useFromInventory(PDO $db): void {
         }
     }
     
-    $response = ['success' => true, 'remaining' => $remaining, 'added_to_bring' => $addedToBring];
+    // Calculate total remaining across ALL locations
+    $stmt = $db->prepare("SELECT SUM(quantity) as total FROM inventory WHERE product_id = ? AND quantity > 0");
+    $stmt->execute([$productId]);
+    $totalRemaining = round((float)($stmt->fetchColumn() ?: 0), 6);
+    
+    // Get product info for low-stock prompt
+    $stmt = $db->prepare("SELECT name, unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt->execute([$productId]);
+    $prodInfo = $stmt->fetch();
+    
+    $response = ['success' => true, 'remaining' => $remaining, 'added_to_bring' => $addedToBring,
+                  'total_remaining' => $totalRemaining];
+    if ($prodInfo) {
+        $response['product_name'] = $prodInfo['name'];
+        $response['product_unit'] = $prodInfo['unit'];
+        $response['product_default_qty'] = (float)($prodInfo['default_quantity'] ?: 0);
+        $response['product_package_unit'] = $prodInfo['package_unit'] ?: '';
+    }
     if ($openedId) $response['opened_id'] = $openedId;
     echo json_encode($response);
 }
