@@ -1672,6 +1672,10 @@ body {
     padding: 0;
 }
 
+#modal-overlay {
+    z-index: 250;
+}
+
 .modal-content {
     background: var(--bg-card);
     border-radius: var(--radius) var(--radius) 0 0;

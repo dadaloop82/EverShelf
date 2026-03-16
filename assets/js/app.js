@@ -4937,36 +4937,221 @@ function adjustRecipePersons(delta) {
     input.value = val;
 }
 
+let _recipeUseContext = null; // { idx, productId, btn, qtyNumber }
+let _recipeUseConfMode = null;
+
 async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
     if (btn.disabled) return;
     if (!qtyNumber || qtyNumber <= 0) qtyNumber = 1;
+    
+    _recipeUseContext = { idx, productId, btn, qtyNumber };
+    _recipeUseConfMode = null;
+    
+    // Fetch inventory to build the modal
+    try {
+        const data = await api('inventory_list');
+        const items = (data.inventory || []).filter(i => i.product_id == productId);
+        
+        if (items.length === 0) {
+            showToast('⚠️ Prodotto non trovato in inventario', 'error');
+            return;
+        }
+        
+        const unit = items[0].unit || 'pz';
+        const pkgSize = parseFloat(items[0].default_quantity) || 0;
+        const pkgUnit = items[0].package_unit || '';
+        const isConf = unit === 'conf' && pkgSize > 0 && pkgUnit;
+        
+        // Find opened package location
+        const openedItem = items.find(i => {
+            const q = parseFloat(i.quantity);
+            const dq = parseFloat(i.default_quantity) || 0;
+            if (i.unit === 'conf' && dq > 0) return q !== Math.floor(q);
+            if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
+            return false;
+        });
+        const defaultLoc = openedItem ? openedItem.location : (items.find(i => i.location === location) ? location : items[0].location);
+        
+        // Build location buttons
+        const productLocations = [...new Set(items.map(i => i.location))];
+        const locButtons = productLocations.map(loc => {
+            const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
+            const locItems = items.filter(i => i.location === loc);
+            const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
+            const qtyLabel = formatQuantity(locQty, unit, pkgSize, pkgUnit);
+            return `<button type="button" class="loc-btn ${loc === defaultLoc ? 'active' : ''}" onclick="selectRecipeUseLoc(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
+        }).join('');
+        
+        // Build quantity controls
+        let qtySection = '';
+        let defaultQtyValue = qtyNumber;
+        
+        if (isConf) {
+            const totalConf = items.reduce((s, i) => s + parseFloat(i.quantity), 0);
+            const totalSub = totalConf * pkgSize;
+            const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+            const subLabel = unitLabels[pkgUnit] || pkgUnit;
+            _recipeUseConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel, _activeUnit: 'sub' };
+            
+            // qtyNumber from recipe is in sub-units (g, ml)
+            const step = getSubUnitStep(pkgUnit);
+            defaultQtyValue = qtyNumber;
+            
+            qtySection = `
+                <div class="use-unit-switch" style="display:flex;margin-bottom:8px">
+                    <button type="button" class="use-unit-btn active" id="ruse-unit-sub" onclick="switchRecipeUseUnit('sub')">${subLabel}</button>
+                    <button type="button" class="use-unit-btn" id="ruse-unit-conf" onclick="switchRecipeUseUnit('conf')">Confezioni</button>
+                </div>
+                <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità in ${subLabel} (totale: ${Math.round(totalSub)}${subLabel})</p>
+                <div class="qty-control">
+                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
+                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input">
+                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                </div>`;
+        } else {
+            const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml' };
+            const unitLabel = unitLabels[unit] || unit;
+            qtySection = `
+                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità da usare (${unitLabel}):</p>
+                <div class="qty-control">
+                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
+                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="0.1" step="any" class="qty-input">
+                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                </div>`;
+        }
+        
+        // Available info
+        const availInfo = items.map(i => {
+            const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
+            return `${loc.icon} ${formatQuantity(i.quantity, i.unit, i.default_quantity, i.package_unit)}`;
+        }).join(' · ');
+        
+        document.getElementById('modal-content').innerHTML = `
+            <div class="modal-header">
+                <h3>📤 Usa ingrediente</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:0 16px 16px">
+                <p style="margin-bottom:8px;font-weight:600">${escapeHtml(items[0].name)}</p>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">📦 ${availInfo}</p>
+                <div class="form-group">
+                    <label>📍 Da dove?</label>
+                    <div class="location-selector">${locButtons}</div>
+                    <input type="hidden" id="ruse-location" value="${defaultLoc}">
+                </div>
+                <div class="form-group">
+                    <label>Quanto?</label>
+                    ${qtySection}
+                </div>
+                <button type="button" class="btn btn-large btn-danger full-width" onclick="submitRecipeUse(false)" style="margin-top:8px">
+                    📤 Usa questa quantità
+                </button>
+                <button type="button" class="btn btn-large btn-secondary full-width" style="margin-top:8px" onclick="submitRecipeUse(true)">
+                    🗑️ Usa TUTTO / Finito
+                </button>
+            </div>
+        `;
+        document.getElementById('modal-overlay').style.display = 'flex';
+        
+    } catch (err) {
+        console.error('useRecipeIngredient error:', err);
+        showToast('Errore nel caricamento', 'error');
+    }
+}
+
+function selectRecipeUseLoc(btn, loc) {
+    btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('ruse-location').value = loc;
+}
+
+function switchRecipeUseUnit(mode) {
+    if (!_recipeUseConfMode) return;
+    const subBtn = document.getElementById('ruse-unit-sub');
+    const confBtn = document.getElementById('ruse-unit-conf');
+    const qtyInput = document.getElementById('ruse-quantity');
+    const hint = document.getElementById('ruse-hint');
+    
+    if (mode === 'sub') {
+        subBtn.classList.add('active');
+        confBtn.classList.remove('active');
+        _recipeUseConfMode._activeUnit = 'sub';
+        const step = getSubUnitStep(_recipeUseConfMode.packageUnit);
+        qtyInput.value = _recipeUseContext.qtyNumber || step;
+        qtyInput.step = step;
+        qtyInput.min = step;
+        hint.textContent = `Quantità in ${_recipeUseConfMode.subLabel} (totale: ${Math.round(_recipeUseConfMode.totalSub)}${_recipeUseConfMode.subLabel})`;
+    } else {
+        confBtn.classList.add('active');
+        subBtn.classList.remove('active');
+        _recipeUseConfMode._activeUnit = 'conf';
+        qtyInput.value = 1;
+        qtyInput.step = 0.5;
+        qtyInput.min = 0.5;
+        hint.textContent = `Confezioni da ${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel} (hai ${_recipeUseConfMode.totalConf.toFixed(1)} conf)`;
+    }
+}
+
+function adjustRecipeUseQty(direction) {
+    const input = document.getElementById('ruse-quantity');
+    let val = parseFloat(input.value) || 0;
+    let step;
+    if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'sub') {
+        step = getSubUnitStep(_recipeUseConfMode.packageUnit);
+    } else if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'conf') {
+        step = 0.5;
+    } else {
+        step = 0.5;
+    }
+    val = Math.max(step, val + direction * step);
+    input.value = Math.round(val * 1000) / 1000;
+}
+
+async function submitRecipeUse(useAll) {
+    if (!_recipeUseContext) return;
+    const { idx, productId, btn } = _recipeUseContext;
+    const location = document.getElementById('ruse-location').value;
+    
+    let qty;
+    if (useAll) {
+        qty = 0; // API handles use_all
+    } else {
+        qty = parseFloat(document.getElementById('ruse-quantity').value) || 1;
+        if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'sub') {
+            qty = qty / _recipeUseConfMode.packageSize;
+        }
+    }
+    
+    closeModal();
     btn.disabled = true;
     btn.textContent = '⏳...';
-
+    
     try {
         const result = await api('inventory_use', {}, 'POST', {
             product_id: productId,
-            quantity: qtyNumber,
-            use_all: false,
+            quantity: qty,
+            use_all: useAll,
             location: location
         });
-
+        
         if (result.success) {
             const li = document.getElementById(`recipe-ing-${idx}`);
-            if (li) {
-                li.classList.add('recipe-ing-used');
-            }
+            if (li) li.classList.add('recipe-ing-used');
             btn.textContent = '✔️ Scalato';
             btn.classList.add('btn-used');
-
-            // Persist used state in cached recipe
+            
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
                 _cachedRecipe.recipe.ingredients[idx].used = true;
             }
-
+            
             showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+            }
+            
+            // Offer to move opened package (stays on recipe page, modal over recipe overlay)
+            if (result.remaining > 0) {
+                setTimeout(() => showRecipeMoveModal(productId, location, result.remaining, result.opened_id), 400);
             }
         } else {
             btn.disabled = false;
@@ -4974,10 +5159,62 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
             showToast(result.error || 'Errore nello scalare', 'error');
         }
     } catch (err) {
-        console.error('Use ingredient error:', err);
+        console.error('Recipe use error:', err);
         btn.disabled = false;
         btn.textContent = '📦 Usa';
         showToast('Errore di connessione', 'error');
+    }
+    _recipeUseContext = null;
+}
+
+function showRecipeMoveModal(productId, fromLoc, remaining, openedId) {
+    const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
+    const locButtons = otherLocs.map(([k, v]) =>
+        `<button type="button" class="loc-btn" onclick="confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
+    ).join('');
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>📦 Spostare il resto?</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="padding:0 16px 16px">
+            <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} in un'altra posizione?</p>
+            <div class="location-selector">${locButtons}</div>
+            <button type="button" class="btn btn-secondary full-width" style="margin-top:12px" onclick="closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function confirmRecipeMove(productId, fromLoc, toLoc, openedId) {
+    closeModal();
+    try {
+        if (openedId) {
+            let days = estimateExpiryDays({ name: '', category: '' }, toLoc);
+            await api('inventory_update', {}, 'POST', {
+                id: openedId,
+                location: toLoc,
+                expiry_date: addDays(days),
+                product_id: productId,
+            });
+        } else {
+            const data = await api('inventory_list');
+            const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
+            if (item) {
+                let days = estimateExpiryDays({ name: item.name || '', category: item.category || '' }, toLoc);
+                if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
+                await api('inventory_update', {}, 'POST', {
+                    id: item.id,
+                    location: toLoc,
+                    expiry_date: addDays(days),
+                    product_id: productId,
+                });
+            }
+        }
+        showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+    } catch (e) {
+        console.error('Recipe move error:', e);
     }
 }
 
