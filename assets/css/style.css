@@ -275,6 +275,81 @@ body {
     margin-bottom: 12px;
 }
 
+/* Quick recipe bar */
+.quick-recipe-bar {
+    margin-bottom: 12px;
+}
+.btn-quick-recipe {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(249,115,22,0.3);
+}
+.btn-quick-recipe span:first-child { font-size: 1.3rem; }
+.btn-quick-recipe .quick-recipe-text { flex: 1; }
+.btn-quick-recipe span:last-child { font-size: 1.1rem; opacity: 0.8; }
+.btn-quick-recipe:active { transform: scale(0.98); }
+
+/* Waste chart section */
+.waste-chart-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.waste-chart-section h3 {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+}
+.waste-chart-bar {
+    display: flex;
+    height: 24px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-main);
+    margin-bottom: 8px;
+}
+.waste-bar-used {
+    background: var(--success);
+    transition: width 0.5s ease;
+    min-width: 0;
+}
+.waste-bar-wasted {
+    background: var(--danger);
+    transition: width 0.5s ease;
+    min-width: 0;
+}
+.waste-chart-legend {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+.waste-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.waste-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.waste-legend-dot.used { background: var(--success); }
+.waste-legend-dot.wasted { background: var(--danger); }
+
 .alert-section h3 {
     font-size: 1.05rem;
     margin-bottom: 10px;

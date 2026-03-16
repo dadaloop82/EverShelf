@@ -835,6 +835,19 @@ function getStats(PDO $db): void {
         ORDER BY i.updated_at DESC
     ")->fetchAll();
 
+    // Waste vs consumption stats (last 30 days)
+    $wasteStats = $db->query("
+        SELECT type, COUNT(*) as count
+        FROM transactions
+        WHERE type IN ('out', 'waste') AND created_at >= datetime('now', '-30 days')
+        GROUP BY type
+    ")->fetchAll();
+    $used30 = 0; $wasted30 = 0;
+    foreach ($wasteStats as $ws) {
+        if ($ws['type'] === 'out') $used30 = (int)$ws['count'];
+        if ($ws['type'] === 'waste') $wasted30 = (int)$ws['count'];
+    }
+
     echo json_encode([
         'total_products' => (int)$totalProducts,
         'total_items' => (float)$totalItems,
@@ -844,6 +857,8 @@ function getStats(PDO $db): void {
         'expiring_soon' => $expiring,
         'expired' => $expired,
         'opened' => $opened,
+        'used_30d' => $used30,
+        'wasted_30d' => $wasted30,
     ]);
 }
 

@@ -768,6 +768,14 @@ async function loadDashboard() {
         // Load shopping list count from Bring!
         loadShoppingCount();
         
+        // Quick recipe button - show when there are expiring products
+        const recipeBar = document.getElementById('quick-recipe-bar');
+        if (statsData.expiring_soon && statsData.expiring_soon.length > 0) {
+            recipeBar.style.display = 'block';
+        } else {
+            recipeBar.style.display = 'none';
+        }
+        
         // Expiring items
         const expiringSection = document.getElementById('alert-expiring');
         const expiringList = document.getElementById('expiring-list');
@@ -832,6 +840,27 @@ async function loadDashboard() {
         // Review suspicious quantities
         loadReviewItems();
 
+        // Waste vs consumption chart
+        const wasteSection = document.getElementById('waste-chart-section');
+        const used30 = statsData.used_30d || 0;
+        const wasted30 = statsData.wasted_30d || 0;
+        const total30 = used30 + wasted30;
+        if (total30 > 0) {
+            wasteSection.style.display = 'block';
+            const usedPct = Math.round((used30 / total30) * 100);
+            const wastedPct = 100 - usedPct;
+            document.getElementById('waste-chart-bar').innerHTML = `
+                <div class="waste-bar-used" style="width:${usedPct}%"></div>
+                <div class="waste-bar-wasted" style="width:${wastedPct}%"></div>
+            `;
+            document.getElementById('waste-chart-legend').innerHTML = `
+                <span class="waste-legend-item"><span class="waste-legend-dot used"></span> Consumati: ${used30} (${usedPct}%)</span>
+                <span class="waste-legend-item"><span class="waste-legend-dot wasted"></span> Buttati: ${wasted30} (${wastedPct}%)</span>
+            `;
+        } else {
+            wasteSection.style.display = 'none';
+        }
+
         // Opened (partially used products with known package capacity)
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
@@ -887,6 +916,15 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+}
+
+function quickRecipeSuggestion() {
+    // Navigate to chat and auto-send a prompt about expiring products
+    showPage('chat');
+    setTimeout(() => {
+        document.getElementById('chat-input').value = 'Suggeriscimi una ricetta veloce usando i prodotti che scadono prima!';
+        sendChatMessage();
+    }, 500);
 }
 
 // === SUSPICIOUS QUANTITY REVIEW ===

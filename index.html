@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260315f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260316c">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -58,6 +58,15 @@
             </div>
         </div>
 
+        <!-- Quick recipe suggestion -->
+        <div class="quick-recipe-bar" id="quick-recipe-bar" style="display:none">
+            <button class="btn-quick-recipe" onclick="quickRecipeSuggestion()">
+                <span>🍳</span>
+                <span class="quick-recipe-text">Ricetta veloce con prodotti in scadenza</span>
+                <span>→</span>
+            </button>
+        </div>
+
         <!-- Alert for expired items (on top) -->
         <div class="alert-section alert-danger" id="alert-expired" style="display:none">
             <h3>🚫 Scaduti</h3>
@@ -67,6 +76,13 @@
         <div class="alert-section" id="alert-expiring" style="display:none">
             <h3>⏰ Prossime Scadenze</h3>
             <div id="expiring-list"></div>
+        </div>
+
+        <!-- Waste vs consumption mini chart -->
+        <div class="waste-chart-section" id="waste-chart-section" style="display:none">
+            <h3>📊 Ultimi 30 giorni</h3>
+            <div class="waste-chart-bar" id="waste-chart-bar"></div>
+            <div class="waste-chart-legend" id="waste-chart-legend"></div>
         </div>
 
         <!-- Opened (partially used) products -->
@@ -895,6 +911,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260316b"></script>
+<script src="assets/js/app.js?v=20260316c"></script>
 </body>
 </html>
