@@ -958,10 +958,12 @@ function isSuspiciousQty(qty, unit) {
     return n < t.min || n > t.max;
 }
 
-function isSuspiciousDefaultQty(defaultQty, unit) {
+function isSuspiciousDefaultQty(defaultQty, unit, packageUnit) {
     const n = parseFloat(defaultQty);
     if (!n || n <= 0) return false;
-    const t = QTY_THRESHOLDS[unit] || QTY_THRESHOLDS['pz'];
+    // For conf products, default_quantity is in package_unit (g, ml, etc.)
+    const checkUnit = (unit === 'conf' && packageUnit) ? packageUnit : unit;
+    const t = QTY_THRESHOLDS[checkUnit] || QTY_THRESHOLDS['pz'];
     return n > t.max;
 }
 
@@ -988,7 +990,7 @@ async function loadReviewItems() {
         
         const suspicious = items.filter(item => {
             if (confirmed[item.id]) return false;
-            return isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit);
+            return isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
         });
         
         if (suspicious.length === 0) {
@@ -1003,7 +1005,7 @@ async function loadReviewItems() {
             const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
             const t = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
             const suspQty = isSuspiciousQty(item.quantity, item.unit);
-            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit);
+            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
             let warning;
             if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
             else if (parseFloat(item.quantity) < t.min) warning = '⬇️ Troppo poco';
@@ -3480,10 +3482,10 @@ function selectUseLocation(btn, loc) {
     document.getElementById('use-location').value = loc;
 }
 
-function showMoveAfterUseModal(product, fromLoc, remaining) {
+function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
-        `<button type="button" class="loc-btn" onclick="confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}')">${v.icon} ${v.label}</button>`
+        `<button type="button" class="loc-btn" onclick="confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
     
     document.getElementById('modal-content').innerHTML = `
@@ -3492,7 +3494,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining) {
             <button class="modal-close" onclick="closeModal();showPage('dashboard')">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px">Vuoi spostare il resto di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
+            <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
             <div class="location-selector">${locButtons}</div>
             <button type="button" class="btn btn-secondary full-width" style="margin-top:12px" onclick="closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
         </div>
@@ -3500,23 +3502,37 @@ function showMoveAfterUseModal(product, fromLoc, remaining) {
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
-async function confirmMoveAfterUse(productId, fromLoc, toLoc) {
+async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
     closeModal();
     showLoading(true);
     try {
-        const data = await api('inventory_list');
-        const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
-        if (item) {
-            const product = { name: item.name || '', category: item.category || '' };
+        if (openedId) {
+            // Move only the specific opened row
+            const product = { name: currentProduct?.name || '', category: currentProduct?.category || '' };
             let days = estimateExpiryDays(product, toLoc);
-            if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
             await api('inventory_update', {}, 'POST', {
-                id: item.id,
+                id: openedId,
                 location: toLoc,
                 expiry_date: addDays(days),
                 product_id: productId,
             });
-            showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+            showToast(`📦 Confezione aperta spostata in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+        } else {
+            // Legacy: move whatever is at fromLoc
+            const data = await api('inventory_list');
+            const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
+            if (item) {
+                const product = { name: item.name || '', category: item.category || '' };
+                let days = estimateExpiryDays(product, toLoc);
+                if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
+                await api('inventory_update', {}, 'POST', {
+                    id: item.id,
+                    location: toLoc,
+                    expiry_date: addDays(days),
+                    product_id: productId,
+                });
+                showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+            }
         }
     } catch (e) {
         console.error('Move error:', e);
@@ -3580,7 +3596,7 @@ async function submitUse(e) {
             // If there's remaining quantity, offer to move to another location
             const usedFrom = document.getElementById('use-location').value;
             if (result.remaining > 0) {
-                showMoveAfterUseModal(currentProduct, usedFrom, result.remaining);
+                showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id);
             } else {
                 showPage('dashboard');
             }

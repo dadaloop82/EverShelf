@@ -624,7 +624,7 @@ function useFromInventory(PDO $db): void {
         return;
     }
     
-    $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0");
+    $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY (quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC");
     $stmt->execute([$productId, $location]);
     $existing = $stmt->fetch();
     
@@ -636,6 +636,46 @@ function useFromInventory(PDO $db): void {
     
     if ($useAll) {
         $quantity = $existing['quantity'];
+    }
+    
+    // Auto-split conf products: separate whole confs from opened (fractional) part
+    $openedId = null;
+    $stmt2 = $db->prepare("SELECT unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt2->execute([$productId]);
+    $prodInfo = $stmt2->fetch();
+    
+    if ($prodInfo && $prodInfo['unit'] === 'conf' && $prodInfo['default_quantity'] > 0 && !$useAll) {
+        $totalQty = (float)$existing['quantity'];
+        $wholeConfs = floor($totalQty + 0.001);
+        $fraction = round($totalQty - $wholeConfs, 6);
+        
+        // Has both whole and fractional, and we're using less than or equal to the fractional part
+        if ($wholeConfs >= 1 && $fraction > 0.001 && $quantity <= $fraction + 0.001) {
+            // Split: keep whole confs in original row, create new row for opened part
+            $stmt3 = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt3->execute([$wholeConfs, $existing['id']]);
+            
+            // Get expiry and vacuum_sealed from original row
+            $stmt3 = $db->prepare("SELECT expiry_date, vacuum_sealed FROM inventory WHERE id = ?");
+            $stmt3->execute([$existing['id']]);
+            $origRow = $stmt3->fetch();
+            
+            $newFraction = round($fraction - $quantity, 6);
+            if ($newFraction > 0.001) {
+                $stmt3 = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed) VALUES (?, ?, ?, ?, ?)");
+                $stmt3->execute([$productId, $location, $newFraction, $origRow['expiry_date'], $origRow['vacuum_sealed'] ?? 0]);
+                $openedId = (int)$db->lastInsertId();
+            }
+            
+            // Log transaction
+            $type = ($notes === 'Buttato') ? 'waste' : 'out';
+            $stmt3 = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
+            $stmt3->execute([$productId, $type, $quantity, $location, $notes]);
+            
+            $remaining = $newFraction > 0.001 ? $newFraction : 0;
+            // Skip the normal flow — jump to Bring! check and response
+            goto afterDeduct;
+        }
     }
     
     $newQty = max(0, $existing['quantity'] - $quantity);
@@ -653,9 +693,22 @@ function useFromInventory(PDO $db): void {
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$productId, $type, $quantity, $location, $notes]);
     
+    $remaining = $newQty;
+    
+    // Check if opened part remains (for non-split path)
+    if ($remaining > 0 && $prodInfo && $prodInfo['unit'] === 'conf') {
+        $w = floor($remaining + 0.001);
+        $f = round($remaining - $w, 6);
+        if ($f > 0.001) {
+            $openedId = (int)$existing['id'];
+        }
+    }
+    
+    afterDeduct:
+    
     // Auto-add to Bring! if product is completely finished (no inventory left anywhere)
     $addedToBring = false;
-    if ($newQty <= 0) {
+    if ($remaining <= 0) {
         $stmt = $db->prepare("SELECT SUM(quantity) as total FROM inventory WHERE product_id = ? AND quantity > 0");
         $stmt->execute([$productId]);
         $totalLeft = (float)($stmt->fetchColumn() ?: 0);
@@ -711,7 +764,9 @@ function useFromInventory(PDO $db): void {
         }
     }
     
-    echo json_encode(['success' => true, 'remaining' => $newQty, 'added_to_bring' => $addedToBring]);
+    $response = ['success' => true, 'remaining' => $remaining, 'added_to_bring' => $addedToBring];
+    if ($openedId) $response['opened_id'] = $openedId;
+    echo json_encode($response);
 }
 
 function updateInventory(PDO $db): void {
