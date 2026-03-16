@@ -958,6 +958,13 @@ function isSuspiciousQty(qty, unit) {
     return n < t.min || n > t.max;
 }
 
+function isSuspiciousDefaultQty(defaultQty, unit) {
+    const n = parseFloat(defaultQty);
+    if (!n || n <= 0) return false;
+    const t = QTY_THRESHOLDS[unit] || QTY_THRESHOLDS['pz'];
+    return n > t.max;
+}
+
 function getReviewConfirmed() {
     return _reviewConfirmedCache || {};
 }
@@ -981,7 +988,7 @@ async function loadReviewItems() {
         
         const suspicious = items.filter(item => {
             if (confirmed[item.id]) return false;
-            return isSuspiciousQty(item.quantity, item.unit);
+            return isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit);
         });
         
         if (suspicious.length === 0) {
@@ -995,8 +1002,12 @@ async function loadReviewItems() {
             const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
             const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
             const t = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
-            const isTooSmall = parseFloat(item.quantity) < t.min;
-            const warning = isTooSmall ? '⬇️ Troppo poco' : '⬆️ Troppo';
+            const suspQty = isSuspiciousQty(item.quantity, item.unit);
+            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit);
+            let warning;
+            if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
+            else if (parseFloat(item.quantity) < t.min) warning = '⬇️ Troppo poco';
+            else warning = '⬆️ Troppo';
             
             return `
             <div class="review-item" id="review-item-${item.id}">
