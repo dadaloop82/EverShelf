@@ -865,6 +865,11 @@ async function loadDashboard() {
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
+            // Sort by remaining fraction ascending (least remaining first)
+            statsData.opened.sort((a, b) => {
+                const fA = openedFraction(a), fB = openedFraction(b);
+                return fA - fB;
+            });
             openedSection.style.display = 'block';
             openedList.innerHTML = statsData.opened.map(item => {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
@@ -916,6 +921,15 @@ async function loadDashboard() {
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+}
+
+function openedFraction(item) {
+    const qty = parseFloat(item.quantity);
+    const pkgSize = parseFloat(item.default_quantity);
+    if (item.unit === 'conf') {
+        return qty - Math.floor(qty + 0.001);
+    }
+    return (qty - Math.floor(qty / pkgSize + 0.001) * pkgSize) / pkgSize;
 }
 
 function quickRecipeSuggestion() {
