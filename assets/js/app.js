@@ -936,7 +936,7 @@ function quickRecipeSuggestion() {
     // Navigate to chat and auto-send a prompt about expiring products
     showPage('chat');
     setTimeout(() => {
-        document.getElementById('chat-input').value = 'Suggeriscimi una ricetta veloce usando i prodotti che scadono prima!';
+        document.getElementById('chat-input').value = 'Suggeriscimi una ricetta veloce PER UNA PERSONA usando i prodotti che scadono prima! Ignora i prodotti in freezer (hanno scadenze molto lunghe), concentrati su frigo e dispensa.';
         sendChatMessage();
     }, 500);
 }
@@ -3341,8 +3341,15 @@ async function loadUseInventoryInfo() {
             return;
         }
 
-        // Auto-select the first available location and show only relevant location buttons
-        const firstLoc = items[0].location;
+        // Auto-select the location with an opened package first (use from opened before sealed)
+        const openedItem = items.find(i => {
+            const q = parseFloat(i.quantity);
+            const dq = parseFloat(i.default_quantity) || 0;
+            if (i.unit === 'conf' && dq > 0) return q !== Math.floor(q);
+            if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
+            return false;
+        });
+        const firstLoc = openedItem ? openedItem.location : items[0].location;
         document.getElementById('use-location').value = firstLoc;
         
         // Build location buttons only for locations where the product exists
