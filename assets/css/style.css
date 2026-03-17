@@ -751,6 +751,12 @@ body {
     border: 2px solid var(--border);
 }
 
+.move-countdown-btn {
+    position: relative;
+    overflow: hidden;
+    transition: none;
+}
+
 .btn-accent {
     background: var(--accent);
     color: white;

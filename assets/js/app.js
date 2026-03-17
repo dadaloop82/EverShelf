@@ -3570,27 +3570,58 @@ function closeLowStockPrompt() {
     if (cb) cb();
 }
 
+let _moveModalTimer = null;
+let _moveModalRAF = null;
+
+function clearMoveModalTimer() {
+    if (_moveModalTimer) { clearTimeout(_moveModalTimer); _moveModalTimer = null; }
+    if (_moveModalRAF) { cancelAnimationFrame(_moveModalRAF); _moveModalRAF = null; }
+}
+
+function startMoveModalCountdown(btnId, onExpire) {
+    clearMoveModalTimer();
+    const duration = 15000;
+    const start = performance.now();
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    function tick() {
+        const elapsed = performance.now() - start;
+        const pct = Math.max(0, 100 - (elapsed / duration) * 100);
+        btn.style.background = `linear-gradient(to right, var(--bg-tertiary) ${pct}%, transparent ${pct}%)`;
+        if (elapsed < duration) {
+            _moveModalRAF = requestAnimationFrame(tick);
+        }
+    }
+    _moveModalRAF = requestAnimationFrame(tick);
+    _moveModalTimer = setTimeout(() => {
+        clearMoveModalTimer();
+        onExpire();
+    }, duration);
+}
+
 function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
-        `<button type="button" class="loc-btn" onclick="confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
+        `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>📦 Spostare il resto?</h3>
-            <button class="modal-close" onclick="closeModal();showPage('dashboard')">✕</button>
+            <button class="modal-close" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">✕</button>
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
             <div class="location-selector">${locButtons}</div>
-            <button type="button" class="btn btn-secondary full-width" style="margin-top:12px" onclick="closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+    startMoveModalCountdown('btn-move-stay', () => { closeModal(); showPage('dashboard'); });
 }
 
 async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
+    clearMoveModalTimer();
     closeModal();
     showLoading(true);
     try {
@@ -5260,24 +5291,26 @@ async function submitRecipeUse(useAll) {
 function showRecipeMoveModal(productId, fromLoc, remaining, openedId) {
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
-        `<button type="button" class="loc-btn" onclick="confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
+        `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>📦 Spostare il resto?</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
+            <button class="modal-close" onclick="clearMoveModalTimer();closeModal()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} in un'altra posizione?</p>
             <div class="location-selector">${locButtons}</div>
-            <button type="button" class="btn btn-secondary full-width" style="margin-top:12px" onclick="closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+    startMoveModalCountdown('btn-move-stay', () => { closeModal(); });
 }
 
 async function confirmRecipeMove(productId, fromLoc, toLoc, openedId) {
+    clearMoveModalTimer();
     closeModal();
     try {
         if (openedId) {
