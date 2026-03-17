@@ -742,10 +742,12 @@ function useFromInventory(PDO $db): void {
                             // Already on the list, skip adding
                             $addedToBring = false;
                         } else {
+                        // Build specification from brand
+                        $spec = $product['brand'] ? $product['brand'] : '';
                         $body = http_build_query([
                             'uuid' => $listUUID,
                             'purchase' => $bringName,
-                            'specification' => '',
+                            'specification' => $spec,
                         ]);
                         $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
                         $addedToBring = ($result !== null);
@@ -770,7 +772,7 @@ function useFromInventory(PDO $db): void {
     $totalRemaining = round((float)($stmt->fetchColumn() ?: 0), 6);
     
     // Get product info for low-stock prompt
-    $stmt = $db->prepare("SELECT name, unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt = $db->prepare("SELECT name, brand, unit, default_quantity, package_unit FROM products WHERE id = ?");
     $stmt->execute([$productId]);
     $prodInfo = $stmt->fetch();
     
@@ -778,6 +780,7 @@ function useFromInventory(PDO $db): void {
                   'total_remaining' => $totalRemaining];
     if ($prodInfo) {
         $response['product_name'] = $prodInfo['name'];
+        $response['product_brand'] = $prodInfo['brand'] ?: '';
         $response['product_unit'] = $prodInfo['unit'];
         $response['product_default_qty'] = (float)($prodInfo['default_quantity'] ?: 0);
         $response['product_package_unit'] = $prodInfo['package_unit'] ?: '';
@@ -1356,7 +1359,9 @@ function generateRecipe(PDO $db): void {
     $mealLabels = [
         'colazione' => 'colazione (mattina)',
         'pranzo' => 'pranzo (mezzogiorno)',
-        'cena' => 'cena (sera)'
+        'cena' => 'cena (sera)',
+        'dolce' => 'dolce/dessert',
+        'succo' => 'succo di frutta/bevanda'
     ];
     $mealLabel = $mealLabels[$mealType] ?? $mealType;
 
@@ -2072,10 +2077,11 @@ function bringAddItems(): void {
             continue;
         }
         
+        $spec = $item['specification'] ?? '';
         $body = http_build_query([
             'uuid' => $listUUID,
             'purchase' => $bringName,
-            'specification' => '',
+            'specification' => $spec,
         ]);
         
         $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
