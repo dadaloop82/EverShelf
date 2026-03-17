@@ -4986,6 +4986,7 @@ async function loadRecipeArchive() {
 function viewArchivedRecipe(idx) {
     const entry = _recipeArchiveEntries[idx];
     if (!entry) return;
+    _cachedRecipe = { meal: entry.meal, recipe: entry.recipe };
     renderRecipe(entry.recipe);
     document.getElementById('recipe-overlay').style.display = 'flex';
     document.getElementById('recipe-ask').style.display = 'none';
@@ -5262,6 +5263,8 @@ async function submitRecipeUse(useAll) {
             
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
                 _cachedRecipe.recipe.ingredients[idx].used = true;
+                // Persist used state to DB
+                saveRecipeToArchive(_cachedRecipe.recipe);
             }
             
             showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
