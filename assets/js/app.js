@@ -426,7 +426,7 @@ function getSettings() {
     if (s.pref_pocafame) s.recipe_prefs.push('pocafame');
     if (s.pref_scadenze) s.recipe_prefs.push('scadenze');
     if (s.pref_healthy) s.recipe_prefs.push('salutare');
-    if (s.pref_comfort) s.recipe_prefs.push('comfort');
+    if (s.pref_opened) s.recipe_prefs.push('opened');
     if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
     s.dietary_restrictions = s.dietary || '';
     return s;
@@ -451,7 +451,7 @@ const _debouncedSyncSettings = debounce(function() {
         pref_pocafame: s.pref_pocafame,
         pref_scadenze: s.pref_scadenze,
         pref_healthy: s.pref_healthy,
-        pref_comfort: s.pref_comfort,
+        pref_opened: s.pref_opened,
         pref_zerowaste: s.pref_zerowaste,
         dietary: s.dietary,
         appliances: s.appliances,
@@ -480,7 +480,7 @@ async function syncSettingsFromDB() {
                 const s = getSettings();
                 // Merge DB settings into local (DB wins for shared prefs)
                 for (const key of ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-                    'pref_healthy','pref_comfort','pref_zerowaste','dietary','appliances',
+                    'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
                     'spesa_provider','spesa_ai_prompt','spesa_email','spesa_password',
                     'spesa_logged_in','spesa_user','spesa_data','spesa_token']) {
                     if (db[key] !== undefined) s[key] = db[key];
@@ -505,7 +505,7 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-pocafame').checked = !!s.pref_pocafame;
     document.getElementById('setting-pref-scadenze').checked = !!s.pref_scadenze;
     document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
-    document.getElementById('setting-pref-comfort').checked = !!s.pref_comfort;
+    document.getElementById('setting-pref-opened').checked = !!s.pref_opened;
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
     document.getElementById('setting-dietary').value = s.dietary || '';
     // Camera
@@ -606,7 +606,7 @@ async function saveSettings() {
     s.pref_pocafame = document.getElementById('setting-pref-pocafame').checked;
     s.pref_scadenze = document.getElementById('setting-pref-scadenze').checked;
     s.pref_healthy = document.getElementById('setting-pref-healthy').checked;
-    s.pref_comfort = document.getElementById('setting-pref-comfort').checked;
+    s.pref_opened = document.getElementById('setting-pref-opened').checked;
     s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
     s.dietary = document.getElementById('setting-dietary').value.trim();
     // Camera
@@ -4991,7 +4991,7 @@ function openRecipeDialog() {
         'pocafame': 'recipe-opt-pocafame', 
         'scadenze': 'recipe-opt-scadenze',
         'salutare': 'recipe-opt-healthy',
-        'comfort': 'recipe-opt-comfort',
+        'opened': 'recipe-opt-opened',
         'zerowaste': 'recipe-opt-zerowaste'
     };
     Object.entries(prefMap).forEach(([key, id]) => {
@@ -5407,7 +5407,7 @@ async function generateRecipe() {
         'recipe-opt-pocafame': 'pocafame',
         'recipe-opt-scadenze': 'scadenze',
         'recipe-opt-healthy': 'salutare',
-        'recipe-opt-comfort': 'comfort',
+        'recipe-opt-opened': 'opened',
         'recipe-opt-zerowaste': 'zerowaste'
     };
     Object.entries(optMap).forEach(([id, key]) => {

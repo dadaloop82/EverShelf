@@ -1367,7 +1367,7 @@ function generateRecipe(PDO $db): void {
         'pocafame' => 'L\'utente ha POCA FAME: proponi una porzione leggera, magari uno snack, un\'insalata o qualcosa di semplice e poco abbondante.',
         'scadenze' => 'PRIORITÀ SCADENZE: usa ASSOLUTAMENTE per primi gli ingredienti più vicini alla scadenza o già scaduti (se ancora commestibili).',
         'salutare' => 'Ricetta EXTRA SALUTARE: prediligi ingredienti integrali, tante verdure, pochi grassi, cotture leggere.',
-        'comfort' => 'Ricetta COMFORT FOOD: qualcosa di appagante, gustoso e che dia soddisfazione.',
+        'opened' => 'PRIORITÀ COSE APERTE: dai la MASSIMA PRIORITÀ ai prodotti con confezione aperta (contrassegnati [CONFEZIONE APERTA]) e a quelli in FRIGO (contrassegnati [IN FRIGO]). Questi prodotti si deteriorano più in fretta e DEVONO essere usati per primi. Costruisci la ricetta attorno a questi ingredienti.',
         'zerowaste' => 'ZERO SPRECHI: cerca di usare quanti più ingredienti in scadenza possibile, combina anche ingredienti insoliti pur di non sprecare nulla.'
     ];
     foreach ($options as $opt) {
