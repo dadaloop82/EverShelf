@@ -4831,12 +4831,12 @@ async function loadLog(more = false) {
 
 // ===== RECIPE GENERATION =====
 const MEAL_TYPES = [
-    { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 9  },
-    { id: 'break',      icon: '🥐', label: 'Break Mattutino',  from: 9,  to: 11 },
+    { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 11 },
     { id: 'pranzo',     icon: '🍽️', label: 'Pranzo',           from: 11, to: 14 },
     { id: 'merenda',    icon: '🍪', label: 'Merenda',          from: 14, to: 17 },
-    { id: 'cena',       icon: '🌙', label: 'Cena',             from: 17, to: 22 },
-    { id: 'spuntino',   icon: '🌜', label: 'Spuntino Serale',  from: 22, to: 6  },
+    { id: 'cena',       icon: '🌙', label: 'Cena',             from: 17, to: 6  },
+    { id: 'torta',      icon: '🎂', label: 'Torta',            from: -1, to: -1 },
+    { id: 'succo',      icon: '🧃', label: 'Succo di Frutta',  from: -1, to: -1 },
 ];
 
 function getMealType() {
