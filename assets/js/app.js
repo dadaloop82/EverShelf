@@ -3587,7 +3587,7 @@ function startMoveModalCountdown(btnId, onExpire) {
     function tick() {
         const elapsed = performance.now() - start;
         const pct = Math.max(0, 100 - (elapsed / duration) * 100);
-        btn.style.background = `linear-gradient(to right, var(--bg-tertiary) ${pct}%, transparent ${pct}%)`;
+        btn.style.background = `linear-gradient(to right, rgba(45,80,22,0.2) ${pct}%, transparent ${pct}%)`;
         if (elapsed < duration) {
             _moveModalRAF = requestAnimationFrame(tick);
         }
