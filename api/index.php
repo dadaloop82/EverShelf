@@ -742,8 +742,8 @@ function useFromInventory(PDO $db): void {
                             // Already on the list, skip adding
                             $addedToBring = false;
                         } else {
-                        // Build specification from brand
-                        $spec = $product['brand'] ? $product['brand'] : '';
+                        // Build specification from product name (variant info, not brand)
+                        $spec = $product['name'] ? $product['name'] : '';
                         $body = http_build_query([
                             'uuid' => $listUUID,
                             'purchase' => $bringName,

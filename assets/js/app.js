@@ -3497,7 +3497,6 @@ function isLowStock(totalRemaining, unit, defaultQty) {
 
 function showLowStockBringPrompt(result, afterCallback) {
     const name = result.product_name || currentProduct?.name || '';
-    const brand = result.product_brand || currentProduct?.brand || '';
     const unit = result.product_unit || currentProduct?.unit || 'pz';
     const defaultQty = result.product_default_qty || parseFloat(currentProduct?.default_quantity) || 0;
     const totalRemaining = result.total_remaining;
@@ -3517,19 +3516,18 @@ function showLowStockBringPrompt(result, afterCallback) {
         remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
     }
     
-    // Build specification from brand for Bring
-    const spec = brand || '';
+    // Build specification from product name (not brand) for Bring
+    const spec = name || '';
     window._lowStockAfterCallback = afterCallback;
     window._lowStockSpec = spec;
     
-    const brandNote = brand ? ` (${escapeHtml(brand)})` : '';
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>⚠️ Sta per finire!</h3>
             <button class="modal-close" onclick="closeLowStockPrompt()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong>${brandNote} sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
+            <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong> sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
             <p style="margin-bottom:16px">Vuoi aggiungerlo alla lista della spesa?</p>
             <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring('${escapeHtml(name).replace(/'/g, "\\'")}')">
                 🛒 Sì, aggiungi a Bring!
@@ -4912,8 +4910,9 @@ async function saveRecipeToArchive(recipe) {
     const today = new Date().toISOString().slice(0, 10);
     try {
         await api('recipes_save', {}, 'POST', { date: today, meal: recipe.meal, recipe });
-        // Invalidate cache so next load fetches fresh data
+        // Invalidate cache and refresh the archive list
         _recipeArchiveCache = null;
+        loadRecipeArchive();
     } catch(e) { console.error('Failed to save recipe:', e); }
 }
 
