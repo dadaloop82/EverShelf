@@ -2120,6 +2120,11 @@ body {
     z-index: 250;
 }
 
+/* Raise modal above cooking overlay when in cooking mode */
+.cooking-mode-active #modal-overlay {
+    z-index: 600;
+}
+
 .modal-content {
     background: var(--bg-card);
     border-radius: var(--radius) var(--radius) 0 0;
@@ -2927,6 +2932,220 @@ body {
     color: var(--text-muted);
     font-size: 0.78rem;
     line-height: 1.3;
+}
+
+/* ===== SHOPPING SECTION (REPARTO) HEADERS ===== */
+.shopping-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 2px 4px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+    margin-top: 4px;
+}
+
+.shopping-section-divider:first-child {
+    margin-top: 0;
+    padding-top: 2px;
+    border-bottom: none;
+}
+
+.shopping-section-divider span.sec-icon {
+    font-size: 1rem;
+}
+
+/* ===== COOKING MODE ===== */
+.cooking-overlay {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0a;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: hidden;
+    touch-action: pan-y;
+}
+
+.cooking-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    flex-shrink: 0;
+    min-height: 54px;
+}
+
+.cooking-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    margin: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cooking-close-btn,
+.cooking-tts-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.cooking-close-btn:active,
+.cooking-tts-btn:active {
+    background: rgba(255,255,255,0.2);
+}
+
+.cooking-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    gap: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.cooking-step-num {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.1em;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.cooking-step-text {
+    font-size: clamp(1.4rem, 5vw, 2.2rem);
+    line-height: 1.5;
+    font-weight: 500;
+    color: #fff;
+    text-align: center;
+    max-width: 560px;
+    width: 100%;
+}
+
+.cooking-step-ings {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cooking-ing-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 10px 14px;
+}
+
+.cooking-ing-name {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.9);
+    flex: 1;
+    min-width: 0;
+}
+
+.cooking-use-btn {
+    flex-shrink: 0;
+    background: #16a34a;
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.cooking-use-btn:active {
+    background: #15803d;
+}
+
+.cooking-use-btn.btn-used {
+    background: #374151;
+    cursor: default;
+}
+
+.cooking-nav {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.04);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+
+.cooking-nav-btn {
+    flex: 1;
+    padding: 14px 10px;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    border: 1.5px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: center;
+}
+
+.cooking-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.cooking-next-btn {
+    background: rgba(22, 163, 74, 0.35);
+    border-color: rgba(22, 163, 74, 0.6);
+}
+
+.cooking-next-btn.is-finish {
+    background: rgba(22, 163, 74, 0.6);
+}
+
+.cooking-nav-btn:not(:disabled):active {
+    background: rgba(255,255,255,0.2);
+}
+
+/* Cooking button in recipe dialog */
+.btn-cooking {
+    background: linear-gradient(135deg, #1e3a5f, #2d5016);
+    color: #fff;
+}
+
+.btn-cooking:hover, .btn-cooking:active {
+    opacity: 0.9;
 }
 
 /* ===== LOG PAGE ===== */

@@ -928,6 +928,9 @@
         </div>
         <div id="recipe-result" style="display:none" class="recipe-result">
             <div id="recipe-content"></div>
+            <button class="btn btn-large btn-cooking full-width mt-2" onclick="startCookingMode()">
+                👨‍🍳 Modalità Cucina
+            </button>
             <button class="btn btn-large btn-secondary full-width mt-2" onclick="regenerateRecipe()">
                 🔄 Generane un'altra
             </button>
@@ -958,6 +961,24 @@
         <div class="screensaver-clock" id="screensaver-clock"></div>
         <div class="screensaver-fact" id="screensaver-fact"></div>
     </div>
+
+<!-- ===== COOKING MODE OVERLAY ===== -->
+<div id="cooking-overlay" class="cooking-overlay" style="display:none" aria-live="polite">
+    <div class="cooking-header">
+        <button class="cooking-close-btn" onclick="closeCookingMode()" title="Chiudi">✕</button>
+        <span class="cooking-title" id="cooking-title"></span>
+        <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" title="Leggi ad alta voce">🔊</button>
+    </div>
+    <div class="cooking-body">
+        <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
+        <div class="cooking-step-text" id="cooking-step-text"></div>
+        <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
+    </div>
+    <div class="cooking-nav">
+        <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)">◀ Precedente</button>
+        <button class="cooking-nav-btn cooking-next-btn" id="cooking-next" onclick="navigateCookingStep(1)">Successivo ▶</button>
+    </div>
+</div>
     <div class="screensaver-shortcuts">
         <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" title="Ricette">
             🍳

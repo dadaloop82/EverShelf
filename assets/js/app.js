@@ -75,6 +75,34 @@ const CATEGORY_LOCATION = {
     'cereali': 'dispensa', 'igiene': 'altro', 'pulizia': 'altro', 'altro': 'dispensa'
 };
 
+// Shopping section (reparto) map — groups categories into grocery departments
+const SHOPPING_SECTIONS = [
+    { key: 'frutta_verdura', icon: '🥬', label: 'Frutta & Verdura', cats: new Set(['frutta','verdura']) },
+    { key: 'carne_pesce',    icon: '🥩', label: 'Carne & Pesce',    cats: new Set(['carne','pesce']) },
+    { key: 'latticini',      icon: '🥛', label: 'Latticini & Fresco', cats: new Set(['latticini']) },
+    { key: 'pane_dolci',     icon: '🍞', label: 'Pane & Dolci',     cats: new Set(['pane','snack','cereali']) },
+    { key: 'pasta',          icon: '🍝', label: 'Pasta & Cereali',  cats: new Set(['pasta']) },
+    { key: 'conserve',       icon: '🥫', label: 'Conserve & Salse', cats: new Set(['conserve','condimenti']) },
+    { key: 'surgelati',      icon: '❄️',  label: 'Surgelati',        cats: new Set(['surgelati']) },
+    { key: 'bevande',        icon: '🥤', label: 'Bevande',          cats: new Set(['bevande']) },
+    { key: 'pulizia_igiene', icon: '🧴', label: 'Pulizia & Igiene', cats: new Set(['igiene','pulizia']) },
+    { key: 'altro',          icon: '📦', label: 'Altro',            cats: new Set(['altro']) },
+];
+
+function getItemSection(name) {
+    const cat = guessCategoryFromName(name) || 'altro';
+    for (const s of SHOPPING_SECTIONS) { if (s.cats.has(cat)) return s; }
+    return SHOPPING_SECTIONS[SHOPPING_SECTIONS.length - 1];
+}
+
+const URGENCY_WEIGHT = { critical: 4, high: 3, medium: 2, low: 1 };
+const URGENCY_BG = {
+    critical: 'rgba(194,65,12,0.14)',
+    high:     'rgba(234,88,12,0.09)',
+    medium:   'rgba(245,158,11,0.07)',
+    low:      'rgba(34,197,94,0.05)',
+};
+
 // Map Open Food Facts categories to local categories
 function mapToLocalCategory(ofCategory, productName) {
     if (!ofCategory) {
@@ -4404,11 +4432,40 @@ function renderSmartShopping() {
         low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: 'Previsione' },
     };
 
-    container.innerHTML = items.map((item, idx) => {
-        const u = urgencyConfig[item.urgency] || urgencyConfig.low;
-        const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
-        const checked = !item.on_bring ? 'checked' : '';
-        const globalIdx = smartShoppingItems.indexOf(item);
+    // Group by section
+    const smartSectionMap = new Map();
+    items.forEach(item => {
+        const sec = getItemSection(item.name);
+        if (!smartSectionMap.has(sec.key)) smartSectionMap.set(sec.key, { sec, items: [] });
+        smartSectionMap.get(sec.key).items.push(item);
+    });
+
+    let smartHtml = '';
+    for (const secDef of SHOPPING_SECTIONS) {
+        const group = smartSectionMap.get(secDef.key);
+        if (!group) continue;
+        smartHtml += `<div class="shopping-section-divider"><span class="sec-icon">${secDef.icon}</span>${secDef.label}</div>`;
+        for (const item of group.items) {
+            smartHtml += renderSmartItem(item, items);
+        }
+    }
+    container.innerHTML = smartHtml;
+
+    // Show/hide add button based on checkable items
+    const hasCheckable = items.some(i => !i.on_bring);
+    actionsEl.style.display = hasCheckable ? 'block' : 'none';
+}
+
+function renderSmartItem(item) {
+    const urgencyConfig = {
+        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: 'Urgente' },
+        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: 'Presto' },
+        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: 'Pianifica' },
+        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: 'Previsione' },
+    };
+    const u = urgencyConfig[item.urgency] || urgencyConfig.low;
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+    const globalIdx = smartShoppingItems.indexOf(item);
 
         // Stock bar
         const pct = Math.min(100, Math.max(0, item.pct_left));
@@ -4448,7 +4505,7 @@ function renderSmartShopping() {
         return `
         <div class="smart-item" style="border-left: 3px solid ${u.color}; background: ${u.bg}">
             <div class="smart-item-top">
-                ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}" ${checked}>` : ''}
+                ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}">` : ''}
                 <span class="smart-item-icon">${catIcon}</span>
                 <div class="smart-item-info">
                     <div class="smart-item-name">${escapeHtml(item.name)}${item.brand ? ` <small class="smart-brand">${escapeHtml(item.brand)}</small>` : ''}</div>
@@ -4466,11 +4523,6 @@ function renderSmartShopping() {
                 </div>
             </div>
         </div>`;
-    }).join('');
-
-    // Show/hide add button based on checkable items
-    const hasCheckable = items.some(i => !i.on_bring);
-    actionsEl.style.display = hasCheckable ? 'block' : 'none';
 }
 
 async function addSmartToBring() {
@@ -4581,8 +4633,11 @@ async function loadShoppingList() {
         renderShoppingItems();
         currentEl.style.display = 'block';
         
-        // Load smart shopping predictions (auto-add critical after loading)
-        loadSmartShopping().then(() => autoAddCriticalItems());
+        // Load smart shopping predictions, then re-render to show badges + auto-add critical
+        loadSmartShopping().then(() => {
+            autoAddCriticalItems();
+            renderShoppingItems(); // re-render to apply urgency badges from smart data
+        });
 
         // Show tabs once data is ready
         updateShoppingTabCounts();
@@ -4598,15 +4653,6 @@ async function renderShoppingItems() {
     const container = document.getElementById('shopping-items');
     const countEl = document.getElementById('shopping-count');
 
-    // Sort shoppingItems in-place by use_count (cross-reference smartShoppingItems), most frequent first
-    shoppingItems.sort((a, b) => {
-        const smartA = smartShoppingItems.find(s => s.name.toLowerCase() === a.name.toLowerCase());
-        const smartB = smartShoppingItems.find(s => s.name.toLowerCase() === b.name.toLowerCase());
-        const freqA = smartA ? smartA.use_count : 0;
-        const freqB = smartB ? smartB.use_count : 0;
-        return freqB - freqA;
-    });
-    
     countEl.textContent = shoppingItems.length;
     // Update tab count too
     const tabCount = document.getElementById('tab-count-acquisto');
@@ -4634,110 +4680,144 @@ async function renderShoppingItems() {
             }
         } catch (e) { /* ignore */ }
     }
-    
-    container.innerHTML = shoppingItems.map((item, idx) => {
-        const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
-        const priceKey = item.name.toLowerCase();
-        const priceData = shoppingPrices[priceKey];
 
-        // Cross-reference with smart shopping for urgency + frequency
-        const smartData = smartShoppingItems.find(s => s.name.toLowerCase() === item.name.toLowerCase());
-        const localTags = getShoppingTags(item.name);
-        // Urgency/frequency badges
-        let urgencyBadge = '';
-        if (smartData) {
-            const urgencyMap = {
-                critical: { icon: '🔴', label: 'Urgente', cls: 'badge-critical' },
-                high:     { icon: '🟠', label: 'Presto',  cls: 'badge-high' },
-                medium:   { icon: '🟡', label: 'Presto',  cls: 'badge-medium' },
-                low:      { icon: '🟢', label: 'Ok',      cls: 'badge-low' },
-            };
-            const u = urgencyMap[smartData.urgency];
-            if (u) urgencyBadge = `<span class="sinv-badge ${u.cls}">${u.icon} ${u.label}</span>`;
-        }
+    // Build section groups, sorted by urgency weight within each section
+    const TAG_LABELS = { urgente: '🔴 Urgente', prio: '⭐ Priorità', check: '✅ Verificare' };
+    const urgencyMap = {
+        critical: { icon: '🔴', label: 'Urgente', cls: 'badge-critical' },
+        high:     { icon: '🟠', label: 'Presto',  cls: 'badge-high' },
+        medium:   { icon: '🟡', label: 'Medio',   cls: 'badge-medium' },
+        low:      { icon: '🟢', label: 'Ok',       cls: 'badge-low' },
+    };
 
-        let freqBadge = '';
-        if (smartData && smartData.use_count >= 8) freqBadge = `<span class="sinv-badge badge-freq-high">📈 ${smartData.use_count}x</span>`;
-        else if (smartData && smartData.use_count >= 4) freqBadge = `<span class="sinv-badge badge-freq-med">📊 ${smartData.use_count}x</span>`;
-        else if (smartData && smartData.use_count >= 2) freqBadge = `<span class="sinv-badge badge-freq-low">📉 ${smartData.use_count}x</span>`;
+    // Map each item to its section + urgency
+    const enriched = shoppingItems.map((item, idx) => {
+        const smartData = smartShoppingItems.find(sd => sd.name.toLowerCase() === item.name.toLowerCase());
+        const urgency = smartData?.urgency || null;
+        const sec = getItemSection(item.name);
+        return { item, idx, smartData, urgency, sec };
+    });
 
-        // Local tags
-        const TAG_LABELS = { urgente: '🔴 Urgente', prio: '⭐ Priorità', check: '✅ Verificare' };
-        const localTagHtml = localTags.map(t =>
-            `<span class="sinv-badge badge-local-tag" onclick="event.stopPropagation(); toggleShoppingTag(${idx}, '${t}')">${TAG_LABELS[t] || t} ✕</span>`
-        ).join('');
+    // Group by section key, preserving SHOPPING_SECTIONS order
+    const sectionMap = new Map();
+    for (const e of enriched) {
+        const key = e.sec.key;
+        if (!sectionMap.has(key)) sectionMap.set(key, { sec: e.sec, items: [] });
+        sectionMap.get(key).items.push(e);
+    }
 
-        // Tag add button
-        const tagMenu = `<div class="shopping-tag-menu" onclick="event.stopPropagation()">
-            ${Object.entries(TAG_LABELS).map(([k, v]) =>
-                `<button class="sinv-badge badge-tag-add ${localTags.includes(k) ? 'active' : ''}" onclick="toggleShoppingTag(${idx}, '${k}')">${v}</button>`
-            ).join('')}
-        </div>`;
-        
-        let detailHtml = '';
-        let priceTag = '';
-        let spesaBar = '';
-        if (hasSpesa) {
-            if (priceData && priceData.loading) {
-                detailHtml = `<div class="spesa-loading">🔍 Cerco...</div>`;
-            } else if (priceData && priceData.product) {
-                const p = priceData.product;
-                const promoHtml = p.promo 
-                    ? `<span class="spesa-promo-badge">${escapeHtml(p.promo.label)} -${Math.round(p.promo.discountPerc)}%</span>`
-                    : '';
-                const est = estimateItemPrice(p, item.specification || priceData.spec || '');
-                if (est) {
-                    priceTag = `<div class="shopping-item-price">~€${est.estimated.toFixed(2)}</div>`;
-                } else {
-                    priceTag = `<div class="shopping-item-price">€${p.price.toFixed(2)}</div>`;
-                }
-                detailHtml = `<div class="spesa-detail-left">
-                    <span class="spesa-found-name">${escapeHtml(p.name)}</span>
-                    <span class="spesa-pkg">${escapeHtml(p.packageDescr)}${est ? ' · ' + escapeHtml(String(p.priceUm || '')) + '/kg' : ''}</span>
-                    ${promoHtml}
-                </div>`;
-                spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
-                    <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)} - ${escapeHtml(p.brand)}" onclick="event.stopPropagation()">🔗 Apri</a>
-                </div>`;
-            } else if (priceData && priceData.searched && !priceData.product) {
-                detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
-                spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
-                </div>`;
-            } else {
-                spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
-                </div>`;
+    // Sort items within each section: by urgency weight desc, then by use_count desc
+    for (const [, group] of sectionMap) {
+        group.items.sort((a, b) => {
+            const wa = URGENCY_WEIGHT[a.urgency] || 0;
+            const wb = URGENCY_WEIGHT[b.urgency] || 0;
+            if (wb !== wa) return wb - wa;
+            return (b.smartData?.use_count || 0) - (a.smartData?.use_count || 0);
+        });
+    }
+
+    // Render sections in canonical order
+    let html = '';
+    for (const secDef of SHOPPING_SECTIONS) {
+        const group = sectionMap.get(secDef.key);
+        if (!group) continue;
+
+        html += `<div class="shopping-section-divider"><span class="sec-icon">${secDef.icon}</span>${secDef.label}</div>`;
+
+        for (const { item, idx, smartData, urgency } of group.items) {
+            const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
+            const priceKey = item.name.toLowerCase();
+            const priceData = shoppingPrices[priceKey];
+            const bgStyle = urgency && URGENCY_BG[urgency] ? ` style="background:${URGENCY_BG[urgency]}"` : '';
+            const localTags = getShoppingTags(item.name);
+
+            // Urgency badge
+            let urgencyBadge = '';
+            if (urgency && urgencyMap[urgency]) {
+                const u = urgencyMap[urgency];
+                urgencyBadge = `<span class="sinv-badge ${u.cls}">${u.icon} ${u.label}</span>`;
             }
-        }
-        
-        return `
-        <div class="shopping-item ${priceData && priceData.product && priceData.product.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="Tocca per scansionare">
-            <span class="shopping-item-icon">${catIcon}</span>
-            <div class="shopping-item-body">
-                <div class="shopping-item-top">
-                    <div class="shopping-item-info">
-                        <div class="shopping-item-name-row">
-                            <span class="shopping-item-name">${escapeHtml(item.name)}</span>
-                            <span class="shopping-item-scan-hint">📷</span>
+
+            // Frequency badge
+            let freqBadge = '';
+            if (smartData && smartData.use_count >= 8) freqBadge = `<span class="sinv-badge badge-freq-high">📈 ${smartData.use_count}x</span>`;
+            else if (smartData && smartData.use_count >= 4) freqBadge = `<span class="sinv-badge badge-freq-med">📊 ${smartData.use_count}x</span>`;
+            else if (smartData && smartData.use_count >= 2) freqBadge = `<span class="sinv-badge badge-freq-low">📉 ${smartData.use_count}x</span>`;
+
+            const localTagHtml = localTags.map(t =>
+                `<span class="sinv-badge badge-local-tag" onclick="event.stopPropagation(); toggleShoppingTag(${idx}, '${t}')">${TAG_LABELS[t] || t} ✕</span>`
+            ).join('');
+
+            const tagMenu = `<div class="shopping-tag-menu" onclick="event.stopPropagation()">
+                ${Object.entries(TAG_LABELS).map(([k, v]) =>
+                    `<button class="sinv-badge badge-tag-add ${localTags.includes(k) ? 'active' : ''}" onclick="toggleShoppingTag(${idx}, '${k}')">${v}</button>`
+                ).join('')}
+            </div>`;
+
+            let detailHtml = '';
+            let priceTag = '';
+            let spesaBar = '';
+            if (hasSpesa) {
+                if (priceData && priceData.loading) {
+                    detailHtml = `<div class="spesa-loading">🔍 Cerco...</div>`;
+                } else if (priceData && priceData.product) {
+                    const p = priceData.product;
+                    const promoHtml = p.promo
+                        ? `<span class="spesa-promo-badge">${escapeHtml(p.promo.label)} -${Math.round(p.promo.discountPerc)}%</span>`
+                        : '';
+                    const est = estimateItemPrice(p, item.specification || priceData.spec || '');
+                    priceTag = est
+                        ? `<div class="shopping-item-price">~€${est.estimated.toFixed(2)}</div>`
+                        : `<div class="shopping-item-price">€${p.price.toFixed(2)}</div>`;
+                    detailHtml = `<div class="spesa-detail-left">
+                        <span class="spesa-found-name">${escapeHtml(p.name)}</span>
+                        <span class="spesa-pkg">${escapeHtml(p.packageDescr)}${est ? ' · ' + escapeHtml(String(p.priceUm || '')) + '/kg' : ''}</span>
+                        ${promoHtml}
+                    </div>`;
+                    spesaBar = `<div class="spesa-bar">
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
+                        <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)}" onclick="event.stopPropagation()">🔗 Apri</a>
+                    </div>`;
+                } else if (priceData && priceData.searched && !priceData.product) {
+                    detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
+                    spesaBar = `<div class="spesa-bar">
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
+                    </div>`;
+                } else {
+                    spesaBar = `<div class="spesa-bar">
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
+                    </div>`;
+                }
+            }
+
+            html += `
+            <div class="shopping-item ${priceData?.product?.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="Tocca per scansionare"${bgStyle}>
+                <span class="shopping-item-icon">${catIcon}</span>
+                <div class="shopping-item-body">
+                    <div class="shopping-item-top">
+                        <div class="shopping-item-info">
+                            <div class="shopping-item-name-row">
+                                <span class="shopping-item-name">${escapeHtml(item.name)}</span>
+                                <span class="shopping-item-scan-hint">📷</span>
+                            </div>
+                            ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+                            ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
+                            ${detailHtml}
                         </div>
-                        ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
-                        ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
-                        ${detailHtml}
+                        <div class="shopping-item-right" onclick="event.stopPropagation()">
+                            ${priceTag}
+                            <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="Tag">🏷️</button>
+                            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
+                        </div>
                     </div>
-                    <div class="shopping-item-right" onclick="event.stopPropagation()">
-                        ${priceTag}
-                        <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="Tag">🏷️</button>
-                        <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
-                    </div>
+                    ${spesaBar}
+                    <div class="shopping-tag-menu-container" style="display:none">${tagMenu}</div>
                 </div>
-                ${spesaBar}
-                <div class="shopping-tag-menu-container" style="display:none">${tagMenu}</div>
-            </div>
-        </div>`;
-    }).join('');
-    
+            </div>`;
+        }
+    }
+
+    container.innerHTML = html;
     updateSpesaTotal();
 }
 
@@ -5866,6 +5946,133 @@ function renderRecipe(r) {
 
     document.getElementById('recipe-content').innerHTML = html;
 }
+
+// ===== COOKING MODE =====
+let _cookingRecipe = null;
+let _cookingStep = 0;
+let _cookingTTS = true;
+
+function startCookingMode() {
+    const recipe = _cachedRecipe && _cachedRecipe.recipe ? _cachedRecipe.recipe : null;
+    if (!recipe || !(recipe.steps || []).length) {
+        showToast('Nessun procedimento disponibile', 'info');
+        return;
+    }
+    _cookingRecipe = JSON.parse(JSON.stringify(recipe)); // deep copy so we can track .used
+    _cookingStep = 0;
+    _cookingTTS = 'speechSynthesis' in window;
+    document.getElementById('cooking-title').textContent = _cookingRecipe.title || '';
+    document.getElementById('cooking-tts-btn').textContent = _cookingTTS ? '🔊' : '🔇';
+    document.getElementById('cooking-overlay').style.display = 'flex';
+    document.body.classList.add('cooking-mode-active');
+    try { screen.orientation?.lock('portrait'); } catch (_) { /* ignore */ }
+    // Preload voices for TTS
+    if (_cookingTTS) window.speechSynthesis.getVoices();
+    renderCookingStep();
+}
+
+function closeCookingMode() {
+    document.getElementById('cooking-overlay').style.display = 'none';
+    document.body.classList.remove('cooking-mode-active');
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    try { screen.orientation?.unlock(); } catch (_) { /* ignore */ }
+}
+
+function renderCookingStep() {
+    if (!_cookingRecipe) return;
+    const steps = _cookingRecipe.steps || [];
+    const step = steps[_cookingStep] || '';
+    const cleanStep = step.replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+    const total = steps.length;
+
+    document.getElementById('cooking-step-num').textContent = `${_cookingStep + 1} / ${total}`;
+    document.getElementById('cooking-step-text').textContent = cleanStep;
+
+    // Find pantry ingredients that appear in this step's text and haven't been used yet
+    const stepLower = cleanStep.toLowerCase();
+    const ings = (_cookingRecipe.ingredients || [])
+        .map((ing, idx) => ({ ...ing, _idx: idx }))
+        .filter(ing => ing.from_pantry && ing.product_id && ing.used !== true)
+        .filter(ing => {
+            const name = (ing.name || '').toLowerCase();
+            return name.split(' ').some(word => word.length > 2 && stepLower.includes(word));
+        });
+
+    const ingsEl = document.getElementById('cooking-step-ings');
+    if (ings.length > 0) {
+        ingsEl.innerHTML = ings.map(ing => {
+            const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
+            const qtyNum = ing.qty_number || 0;
+            return `<div class="cooking-ing-row">
+                <span class="cooking-ing-name">📦 <strong>${escapeHtml(ing.name)}</strong>: ${escapeHtml(ing.qty)}</span>
+                <button class="cooking-use-btn" onclick="cookingUseIngredient(${ing._idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)">📤 Usa</button>
+            </div>`;
+        }).join('');
+        ingsEl.style.display = 'flex';
+    } else {
+        ingsEl.innerHTML = '';
+        ingsEl.style.display = 'none';
+    }
+
+    // Navigation button states
+    const prevBtn = document.getElementById('cooking-prev');
+    const nextBtn = document.getElementById('cooking-next');
+    prevBtn.disabled = _cookingStep === 0;
+    nextBtn.textContent = _cookingStep === total - 1 ? '✅ Fine' : 'Successivo ▶';
+
+    // Speak step
+    if (_cookingTTS) speakCookingStep(cleanStep);
+}
+
+function speakCookingStep(text) {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'it-IT';
+    utt.rate = 0.9;
+    utt.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const itVoice = voices.find(v => v.lang.startsWith('it'));
+    if (itVoice) utt.voice = itVoice;
+    window.speechSynthesis.speak(utt);
+}
+
+function toggleCookingTTS() {
+    _cookingTTS = !_cookingTTS;
+    const btn = document.getElementById('cooking-tts-btn');
+    btn.textContent = _cookingTTS ? '🔊' : '🔇';
+    if (_cookingTTS) {
+        const steps = _cookingRecipe?.steps || [];
+        const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        speakCookingStep(text);
+    } else {
+        window.speechSynthesis?.cancel();
+    }
+}
+
+function navigateCookingStep(delta) {
+    if (!_cookingRecipe) return;
+    const total = (_cookingRecipe.steps || []).length;
+    const next = _cookingStep + delta;
+    if (next < 0) return;
+    if (next >= total) {
+        closeCookingMode();
+        return;
+    }
+    _cookingStep = next;
+    renderCookingStep();
+}
+
+function cookingUseIngredient(idx, productId, location, qtyNumber, btn) {
+    // Reuse the same modal used in the recipe dialog
+    useRecipeIngredient(idx, productId, location, qtyNumber, btn);
+    // Mark ingredient as used so it's hidden from further steps
+    if (_cookingRecipe && _cookingRecipe.ingredients && _cookingRecipe.ingredients[idx]) {
+        _cookingRecipe.ingredients[idx].used = true;
+    }
+    setTimeout(() => renderCookingStep(), 400);
+}
+// ===== END COOKING MODE =====
 
 function updateRecipeMealTitle() {
     const meal = getSelectedMealType();
