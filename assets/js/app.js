@@ -6423,6 +6423,7 @@ function resetInactivityTimer() {
 
 function activateScreensaver() {
     if (_screensaverActive) return;
+    if (document.body.classList.contains('cooking-mode-active')) return;
     _screensaverActive = true;
     const overlay = document.getElementById('screensaver');
     overlay.style.display = 'flex';
