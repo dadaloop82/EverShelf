@@ -6077,18 +6077,35 @@ function renderCookingStep() {
     if (_cookingTTS) speakCookingStep(cleanStep);
 }
 
+function _bestItalianVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    const it = voices.filter(v => v.lang.startsWith('it'));
+    if (it.length === 0) return null;
+    // Prefer high-quality online voices (Google / Microsoft) over local robotic ones
+    const priority = [
+        v => /google/i.test(v.name),
+        v => /microsoft/i.test(v.name) && !v.localService,
+        v => !v.localService,
+        v => /alice|federica|luca|paola/i.test(v.name),
+        () => true, // any italian
+    ];
+    for (const pred of priority) {
+        const match = it.find(pred);
+        if (match) return match;
+    }
+    return it[0];
+}
+
 function speakCookingStep(text) {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utt = new SpeechSynthesisUtterance(text);
     utt.lang = 'it-IT';
-    utt.rate = 0.9;
+    utt.rate = 0.88;
     utt.pitch = 1.0;
-    // Pick Italian voice if available; fall back to browser default
-    const voices = window.speechSynthesis.getVoices();
-    const itVoice = voices.find(v => v.lang.startsWith('it'));
-    if (itVoice) utt.voice = itVoice;
-    // Must stay synchronous to preserve the user-gesture chain on iOS/Android
+    utt.volume = 1.0;
+    const voice = _bestItalianVoice();
+    if (voice) utt.voice = voice;
     window.speechSynthesis.speak(utt);
 }
 
