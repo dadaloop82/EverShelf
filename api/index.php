@@ -2308,7 +2308,10 @@ function smartShopping(PDO $db): void {
 
         // --- Frequency & recency metrics ---
         // Uses per month (30 days) — measures how frequently the product is actually used
-        $usesPerMonth = $daysSinceFirst >= 30 ? ($useCount / $daysSinceFirst) * 30 : $useCount;
+        // For items tracked < 30 days, normalize over at least 14 days to avoid inflation
+        $usesPerMonth = $daysSinceFirst >= 30
+            ? ($useCount / $daysSinceFirst) * 30
+            : ($daysSinceFirst >= 7 ? ($useCount / $daysSinceFirst) * 30 : $useCount * 0.5);
         // Days since last use/purchase — measures recency
         $daysSinceLastUse = $lastOut ? ($now - $lastOut) / 86400 : ($lastIn ? ($now - $lastIn) / 86400 : 999);
         // Is this a frequently used product? (≥ 1.5 uses/month)
@@ -2325,12 +2328,15 @@ function smartShopping(PDO $db): void {
 
         // Out of stock
         if ($qty <= 0) {
-            if ($isFrequent && $isRecent) {
-                // Frequently used AND recently active → critical
+            if ($isFrequent && $isRecent && $buyCount >= 2) {
+                // Frequently used, recently active, AND bought multiple times → critical
                 $urgency = 'critical';
                 $reasons[] = 'Esaurito';
                 $score += 100;
                 if ($useCount >= 5) { $score += 20; $reasons[] = "Uso frequente ({$useCount}x)"; }
+            } elseif ($isFrequent && $isRecent && $buyCount == 1) {
+                // Frequent use but only bought once — not yet a proven staple → skip
+                continue;
             } elseif ($isRegular && $isRecent && ($useCount >= 4 || $buyCount >= 3)) {
                 // Regularly used, recently active → high
                 $urgency = 'high';
