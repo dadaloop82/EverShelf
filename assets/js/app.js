@@ -6009,15 +6009,34 @@ function startCookingMode() {
     }
     _cookingRecipe = JSON.parse(JSON.stringify(recipe)); // deep copy so we can track .used
     _cookingStep = 0;
-    _cookingTTS = 'speechSynthesis' in window;
+    _cookingTTS = true;
     document.getElementById('cooking-title').textContent = _cookingRecipe.title || '';
-    document.getElementById('cooking-tts-btn').textContent = _cookingTTS ? '🔊' : '🔇';
+    document.getElementById('cooking-tts-btn').textContent = '🔊';
     document.getElementById('cooking-overlay').style.display = 'flex';
     document.body.classList.add('cooking-mode-active');
     try { screen.orientation?.lock('portrait'); } catch (_) { /* ignore */ }
-    // Preload voices for TTS
-    if (_cookingTTS) window.speechSynthesis.getVoices();
-    renderCookingStep();
+
+    // Ensure voices are loaded, then render (and speak) the first step
+    if ('speechSynthesis' in window) {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            renderCookingStep();
+        } else {
+            // Voices not yet loaded — render immediately (muted), then re-speak after voices arrive
+            renderCookingStep();
+            window.speechSynthesis.addEventListener('voiceschanged', function _onVoices() {
+                window.speechSynthesis.removeEventListener('voiceschanged', _onVoices);
+                if (_cookingTTS && _cookingStep === 0) {
+                    const text = (_cookingRecipe.steps[0] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+                    if (text) speakCookingStep(text);
+                }
+            });
+        }
+    } else {
+        _cookingTTS = false;
+        document.getElementById('cooking-tts-btn').textContent = '🔇';
+        renderCookingStep();
+    }
 }
 
 function closeCookingMode() {
@@ -6062,10 +6081,6 @@ function renderCookingStep() {
         ingsEl.innerHTML = '';
         ingsEl.style.display = 'none';
     }
-
-    // Replay button
-    const replayBtn = document.getElementById('cooking-replay');
-    if (replayBtn) replayBtn.style.display = 'speechSynthesis' in window ? 'inline-flex' : 'none';
 
     // Navigation button states
     const prevBtn = document.getElementById('cooking-prev');
