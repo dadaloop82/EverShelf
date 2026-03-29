@@ -3643,6 +3643,32 @@ function isLowStock(totalRemaining, unit, defaultQty) {
     return false;
 }
 
+/**
+ * Return the significant tokens of a product name for similarity matching.
+ * Strips stopwords and short tokens.
+ */
+function _nameTokens(name) {
+    const stop = new Set(['di','del','della','dei','degli','delle','da','in','con','per','su','a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo']);
+    return (name || '').toLowerCase()
+        .replace(/[^a-z\u00c0-\u024f\s]/gi, ' ')
+        .split(/\s+/)
+        .filter(t => t.length > 2 && !stop.has(t));
+}
+
+/**
+ * Check whether `name` matches any item in `list` (array of {name}).
+ * Returns the matching item or null.
+ * A match = at least one significant token in common.
+ */
+function _findSimilarItem(name, list) {
+    const tokens = _nameTokens(name);
+    if (tokens.length === 0) return null;
+    return (list || []).find(item => {
+        const iTokens = _nameTokens(item.name || '');
+        return tokens.some(t => iTokens.includes(t));
+    }) || null;
+}
+
 function showLowStockBringPrompt(result, afterCallback) {
     const name = result.product_name || currentProduct?.name || '';
     const unit = result.product_unit || currentProduct?.unit || 'pz';
@@ -3663,11 +3689,33 @@ function showLowStockBringPrompt(result, afterCallback) {
         const unitLabels = { pz: 'pz', g: 'g', kg: 'kg', ml: 'ml', l: 'L', conf: 'conf' };
         remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
     }
-    
-    // Build specification from product name (not brand) for Bring
-    const spec = name || '';
+
+    // --- Deduplication check ---
+    // 1. Already on Bring! list (shoppingItems)?
+    const alreadyOnBring = _findSimilarItem(name, shoppingItems);
+    if (alreadyOnBring) {
+        // Already present (same or similar item). Just inform and continue.
+        showToast(`🛒 "${escapeHtml(alreadyOnBring.name)}" già nella lista della spesa`, 'info');
+        if (afterCallback) afterCallback();
+        return;
+    }
+
+    // 2. In smart shopping predictions?
+    const smartMatch = _findSimilarItem(name, smartShoppingItems);
+    const smartUrgencyLabel = {
+        critical: '🔴 Urgente', high: '🟠 Presto', medium: '🟡 Pianifica', low: '🟢 Previsione'
+    };
+    let smartNote = '';
+    if (smartMatch) {
+        const lbl = smartUrgencyLabel[smartMatch.urgency] || '';
+        smartNote = `<div style="margin-bottom:12px;padding:8px 10px;background:rgba(249,115,22,0.1);border-radius:8px;border-left:3px solid #f97316;font-size:0.85rem">
+            📊 La spesa intelligente prevede già <strong>${escapeHtml(smartMatch.name)}</strong>${lbl ? ` (${lbl})` : ''}.
+        </div>`;
+    }
+
+    // Build specification from product name for Bring
     window._lowStockAfterCallback = afterCallback;
-    window._lowStockSpec = spec;
+    window._lowStockSpec = name;
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -3676,6 +3724,7 @@ function showLowStockBringPrompt(result, afterCallback) {
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong> sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
+            ${smartNote}
             <p style="margin-bottom:16px">Vuoi aggiungerlo alla lista della spesa?</p>
             <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring('${escapeHtml(name).replace(/'/g, "\\'")}')">
                 🛒 Sì, aggiungi a Bring!
