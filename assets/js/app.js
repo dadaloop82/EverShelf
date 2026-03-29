@@ -6063,6 +6063,10 @@ function renderCookingStep() {
         ingsEl.style.display = 'none';
     }
 
+    // Replay button
+    const replayBtn = document.getElementById('cooking-replay');
+    if (replayBtn) replayBtn.style.display = 'speechSynthesis' in window ? 'inline-flex' : 'none';
+
     // Navigation button states
     const prevBtn = document.getElementById('cooking-prev');
     const nextBtn = document.getElementById('cooking-next');
@@ -6076,26 +6080,23 @@ function renderCookingStep() {
 function speakCookingStep(text) {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-
-    function _doSpeak() {
-        const utt = new SpeechSynthesisUtterance(text);
-        utt.lang = 'it-IT';
-        utt.rate = 0.9;
-        utt.pitch = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const itVoice = voices.find(v => v.lang.startsWith('it'));
-        if (itVoice) utt.voice = itVoice;
-        window.speechSynthesis.speak(utt);
-    }
-
-    // Voices may not be ready yet on first load — wait for voiceschanged if empty
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'it-IT';
+    utt.rate = 0.9;
+    utt.pitch = 1.0;
+    // Pick Italian voice if available; fall back to browser default
     const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-        // Small delay after cancel() to avoid the speak being silently dropped
-        setTimeout(_doSpeak, 50);
-    } else {
-        window.speechSynthesis.addEventListener('voiceschanged', () => setTimeout(_doSpeak, 50), { once: true });
-    }
+    const itVoice = voices.find(v => v.lang.startsWith('it'));
+    if (itVoice) utt.voice = itVoice;
+    // Must stay synchronous to preserve the user-gesture chain on iOS/Android
+    window.speechSynthesis.speak(utt);
+}
+
+function replayCookingTTS() {
+    if (!_cookingRecipe) return;
+    const steps = _cookingRecipe.steps || [];
+    const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+    if (text) speakCookingStep(text);
 }
 
 function toggleCookingTTS() {
