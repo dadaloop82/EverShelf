@@ -274,8 +274,11 @@ function estimateExpiryDays(product, location) {
     else if (/mozzarella|burrata|stracciatella/.test(name)) days = 5;
     else if (/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) days = 10;
     else if (/parmigiano|grana|pecorino|provolone/.test(name)) days = 60;
+    else if (/burro/.test(name)) days = 60;
+    else if (/panna/.test(name)) days = 14;
     else if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) days = 7;
     else if (/prosciutto\s+crudo|salame|bresaola|speck/.test(name)) days = 30;
+    else if (/nduja/.test(name)) days = 90;
     else if (/uova/.test(name)) days = 28;
     else if (/pane\s+fresco|pane\s+in\s+cassetta/.test(name)) days = 5;
     else if (/pane\s+confezionato|pan\s+carr|pancarrè/.test(name)) days = 14;
@@ -288,6 +291,14 @@ function estimateExpiryDays(product, location) {
     else if (/succo|spremuta/.test(name)) days = 7;
     else if (/birra|vino/.test(name)) days = 365;
     else if (/acqua/.test(name)) days = 365;
+    else if (/mela|mele\b/.test(name)) days = 7;
+    else if (/arancia|arance|mandarini|agrumi/.test(name)) days = 7;
+    else if (/banana|banane/.test(name)) days = 5;
+    else if (/pera|pere\b|fragola|fragole|uva|kiwi/.test(name)) days = 5;
+    else if (/carota|carote|zucchina|zucchine|peperoni|melanzane/.test(name)) days = 7;
+    else if (/broccoli|cavolfiore|cavolo|spinaci|bietola/.test(name)) days = 5;
+    else if (/cipolla|cipolle/.test(name)) days = 10;
+    else if (/patata|patate/.test(name)) days = 14;
     else if (/biscott|cracker|grissini|fette\s+biscott/.test(name)) days = 180;
     else if (/nutella|marmellata|miele/.test(name)) days = 365;
     else if (/passata|pelati|pomodor/.test(name)) days = 730;
@@ -297,6 +308,28 @@ function estimateExpiryDays(product, location) {
         days = 180; // generic default
         for (const [key, d] of Object.entries(EXPIRY_DAYS)) {
             if (cat.includes(key)) { days = d; break; }
+        }
+    }
+    
+    // Fridge extends shelf life for produce and short-lived items (sealed only)
+    if (loc === 'frigo') {
+        // Specific fridge-friendly produce overrides
+        if (/mela|mele/.test(name)) days = Math.max(days, 28);
+        else if (/arancia|arance|agrumi|mandarini|limone|limoni/.test(name)) days = Math.max(days, 21);
+        else if (/carota|carote/.test(name)) days = Math.max(days, 21);
+        else if (/cipolla/.test(name)) days = Math.max(days, 14);
+        else if (/patata|patate/.test(name)) days = Math.max(days, 21);
+        else if (/pera|pere/.test(name)) days = Math.max(days, 21);
+        else if (/kiwi/.test(name)) days = Math.max(days, 28);
+        else if (/uva/.test(name)) days = Math.max(days, 14);
+        else if (/fragola|fragole/.test(name)) days = Math.max(days, 7);
+        else if (/peperoni/.test(name)) days = Math.max(days, 14);
+        else if (/zucchina|zucchine/.test(name)) days = Math.max(days, 14);
+        else if (/melanzane/.test(name)) days = Math.max(days, 14);
+        else if (/broccoli|cavolfiore|cavolo/.test(name)) days = Math.max(days, 10);
+        // General fridge bonus: fruits and vegs that aren't already long
+        else if (days <= 7 && (/frutta|fruit/.test(cat) || /verdur|vegetable|plant-based/.test(cat))) {
+            days = Math.round(days * 2); // ~double shelf life in fridge
         }
     }
     
@@ -320,6 +353,60 @@ function formatEstimatedExpiry(days) {
     if (days <= 30) return `~${Math.round(days / 7)} settimane`;
     if (days <= 365) return `~${Math.round(days / 30)} mesi`;
     return `~${Math.round(days / 365)} anni`;
+}
+
+/**
+ * Estimate shelf life in days for an OPENED product.
+ * Much shorter than sealed shelf life — based on typical "once opened, consume within X days".
+ */
+function estimateOpenedExpiryDays(product, location) {
+    const name = (product.name || '').toLowerCase();
+    const cat = (product.category || '').toLowerCase();
+    const loc = (location || '').toLowerCase();
+
+    // Freezer: opened items still last a long time
+    if (loc === 'freezer') return 90;
+    // Dispensa: opened dry goods
+    if (loc === 'dispensa') return 30;
+
+    // Specific product overrides (fridge)
+    if (/latte\s+(fresco|intero|parzial|scremato)/.test(name)) return 3;
+    if (/latte\s+uht|latte\s+a\s+lunga/.test(name)) return 5;
+    if (/latte/.test(name)) return 4;
+    if (/yogurt/.test(name)) return 3;
+    if (/mozzarella|burrata|stracciatella/.test(name)) return 2;
+    if (/philadelphia|spalmabile/.test(name)) return 7;
+    if (/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) return 5;
+    if (/parmigiano|grana|pecorino|provolone/.test(name)) return 21;
+    if (/formaggio/.test(name)) return 10;
+    if (/burro/.test(name)) return 21;
+    if (/panna/.test(name)) return 3;
+    if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) return 3;
+    if (/prosciutto\s+crudo|salame|bresaola|speck|pancetta|nduja/.test(name)) return 7;
+    if (/pollo|tacchino|maiale|manzo|vitello/.test(name)) return 2;
+    if (/salmone|tonno\s+fresco|pesce/.test(name)) return 2;
+    if (/passata|pelati|polpa|sugo/.test(name)) return 5;
+    if (/marmellata|confettura/.test(name)) return 30;
+    if (/miele/.test(name)) return 180;
+    if (/nutella/.test(name)) return 60;
+    if (/succo|spremuta/.test(name)) return 4;
+    if (/olio|aceto/.test(name)) return 90;
+    if (/vino|birra/.test(name)) return 5;
+    if (/limone|limmi/.test(name)) return 21;
+    if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) return 3;
+    if (/insalata|rucola|spinaci/.test(name)) return 3;
+
+    // Category fallbacks
+    if (/dairy|latticin|lait|dairies/.test(cat)) return 5;
+    if (/meat|carne|meats/.test(cat)) return 3;
+    if (/fish|pesce/.test(cat)) return 2;
+    if (/fruit|frutta/.test(cat)) return 5;
+    if (/verdur|vegetable|plant-based/.test(cat)) return 5;
+    if (/conserve/.test(cat)) return 5;
+    if (/condimenti|sauce/.test(cat)) return 21;
+    if (/bevand|beverage/.test(cat)) return 4;
+
+    return 5; // safe default for fridge
 }
 
 function addDays(days) {
@@ -1270,6 +1357,7 @@ function renderInventoryItem(item) {
     }
     
     const vacuumBadge = item.vacuum_sealed ? '<span class="vacuum-badge">🫙 Sotto vuoto</span>' : '';
+    const openedBadge = item.opened_at ? '<span class="opened-badge">📭 Aperto</span>' : '';
     
     return `
     <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
@@ -1282,6 +1370,7 @@ function renderInventoryItem(item) {
             <div class="inv-meta">
                 <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
                 ${expiryBadge}
+                ${openedBadge}
                 ${vacuumBadge}
             </div>
         </div>
@@ -1366,6 +1455,11 @@ function showItemDetail(inventoryId, productId) {
                 <span class="modal-detail-label">🫙 Conservazione</span>
                 <span class="modal-detail-value">Sotto vuoto</span>
             </div>` : ''}
+            ${item.opened_at ? `
+            <div class="modal-detail-row">
+                <span class="modal-detail-label">📭 Stato</span>
+                <span class="modal-detail-value">Aperto dal ${formatDateTime(item.opened_at)}</span>
+            </div>` : ''}
             ${item.barcode ? `
             <div class="modal-detail-row">
                 <span class="modal-detail-label">🔖 Barcode</span>
@@ -1437,7 +1531,10 @@ function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
     if (!product) return;
     const loc = document.getElementById(locInputId)?.value || '';
     const isVacuum = document.getElementById(vacuumInputId)?.checked;
-    let days = estimateExpiryDays(product, loc);
+    // Use opened shelf life if item is already opened
+    let days = product._isOpened
+        ? estimateOpenedExpiryDays(product, loc)
+        : estimateExpiryDays(product, loc);
     if (isVacuum) days = getVacuumExpiryDays(days);
     const newDate = addDays(days);
     const expiryInput = document.getElementById(expiryInputId);
@@ -1456,7 +1553,7 @@ function editInventoryItem(id) {
     const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
     const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
     
-    window._editingProduct = { name: item.name, category: item.category || '' };
+    window._editingProduct = { name: item.name, category: item.category || '', _isOpened: !!item.opened_at };
     
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
@@ -2594,6 +2691,29 @@ function showProductAction() {
         }
     });
     
+    // Update back button: go back to shopping if came from shopping list scan
+    const backBtn = document.getElementById('action-back-btn');
+    if (backBtn) backBtn.onclick = _spesaScanTarget ? () => { _spesaScanTarget = null; showPage('shopping'); } : () => showPage('scan');
+
+    // Show "shopping target" banner if we came from the shopping list
+    const banner = document.getElementById('shopping-scan-target-banner');
+    if (banner && _spesaScanTarget) {
+        const targetName = _spesaScanTarget.name;
+        banner.style.display = 'block';
+        banner.innerHTML = `
+            <div class="shopping-scan-target-info">
+                <span class="stb-label">🛒 Stai cercando</span>
+                <span class="stb-name">${escapeHtml(targetName)}</span>
+            </div>
+            <div class="shopping-scan-target-actions">
+                <button class="btn btn-success stb-btn" onclick="confirmShoppingItemFound()">✅ Trovato! Rimuovi dalla lista</button>
+                <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>showPage('scan')">✕ Annulla</button>
+            </div>
+        `;
+    } else if (banner) {
+        banner.style.display = 'none';
+    }
+
     showPage('action');
 }
 
@@ -3624,9 +3744,9 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
     showLoading(true);
     try {
         if (openedId) {
-            // Move only the specific opened row
+            // Move only the specific opened row — use opened shelf life
             const product = { name: currentProduct?.name || '', category: currentProduct?.category || '' };
-            let days = estimateExpiryDays(product, toLoc);
+            let days = estimateOpenedExpiryDays(product, toLoc);
             await api('inventory_update', {}, 'POST', {
                 id: openedId,
                 location: toLoc,
@@ -4048,6 +4168,92 @@ let shoppingListUUID = '';
 let shoppingItems = [];
 let suggestionItems = [];
 let shoppingPrices = {}; // { itemName: { product, searched: true } }
+let _spesaScanTarget = null; // { name, rawName, idx } when tapping item to scan
+
+// ===== SHOPPING TABS =====
+function switchShoppingTab(tab) {
+    document.querySelectorAll('.shopping-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel-shopping').forEach(p => p.classList.remove('active'));
+    document.getElementById(`tab-${tab}`)?.classList.add('active');
+    document.getElementById(`tab-panel-${tab}`)?.classList.add('active');
+}
+
+function updateShoppingTabCounts() {
+    const acquistoCount = shoppingItems.length;
+    const previsioneCount = smartShoppingItems.filter(i => !i.on_bring).length;
+    const acqEl = document.getElementById('tab-count-acquisto');
+    const prevEl = document.getElementById('tab-count-previsione');
+    if (acqEl) acqEl.textContent = acquistoCount;
+    if (prevEl) prevEl.textContent = previsioneCount;
+    document.getElementById('shopping-tabs')?.style.setProperty('display', 'flex');
+}
+
+// ===== LOCAL SHOPPING TAGS =====
+function getShoppingTags(itemName) {
+    try {
+        const tags = JSON.parse(localStorage.getItem('shopping_tags') || '{}');
+        return tags[itemName.toLowerCase()] || [];
+    } catch { return []; }
+}
+
+function toggleShoppingTag(itemIdx, tag) {
+    const item = shoppingItems[itemIdx];
+    if (!item) return;
+    const key = item.name.toLowerCase();
+    try {
+        const tags = JSON.parse(localStorage.getItem('shopping_tags') || '{}');
+        const existing = tags[key] || [];
+        const pos = existing.indexOf(tag);
+        if (pos >= 0) existing.splice(pos, 1);
+        else existing.push(tag);
+        if (existing.length) tags[key] = existing;
+        else delete tags[key];
+        localStorage.setItem('shopping_tags', JSON.stringify(tags));
+        renderShoppingItems();
+    } catch (e) { console.error('toggleShoppingTag', e); }
+}
+
+// ===== SCAN FROM SHOPPING LIST =====
+function openScanForItem(idx) {
+    const item = shoppingItems[idx];
+    if (!item) return;
+    _spesaScanTarget = { name: item.name, rawName: item.rawName || '', idx };
+    showPage('scan');
+    showToast(`📷 Scansiona: ${item.name}`, 'info');
+}
+
+async function confirmShoppingItemFound() {
+    if (!_spesaScanTarget) return;
+    const { name, rawName } = _spesaScanTarget;
+    _spesaScanTarget = null;
+    document.getElementById('shopping-scan-target-banner').style.display = 'none';
+    try {
+        const r = await api('bring_remove', {}, 'POST', { name, rawName, listUUID: shoppingListUUID });
+        if (r.success) {
+            const idx = shoppingItems.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
+            if (idx >= 0) shoppingItems.splice(idx, 1);
+            showToast(`✅ ${name} rimosso dalla lista!`, 'success');
+            loadShoppingCount();
+        }
+    } catch (e) { console.error('confirmShoppingItemFound', e); }
+    showPage('shopping');
+}
+
+// ===== AUTO-ADD CRITICAL ITEMS TO BRING! =====
+async function autoAddCriticalItems() {
+    if (sessionStorage.getItem('_autoAddedCritical')) return;
+    sessionStorage.setItem('_autoAddedCritical', '1');
+    const critical = smartShoppingItems.filter(i => i.urgency === 'critical' && !i.on_bring);
+    if (critical.length === 0) return;
+    const itemsToAdd = critical.map(i => ({ name: i.name, specification: i.brand || '' }));
+    try {
+        const result = await api('bring_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
+        if (result.success && result.added > 0) {
+            showToast(`🔴 ${result.added} prodott${result.added === 1 ? 'o urgente aggiunto' : 'i urgenti aggiunti'} automaticamente a Bring!`, 'success');
+            loadShoppingList();
+        }
+    } catch (e) { /* ignore */ }
+}
 
 const DEFAULT_SPESA_AI_PROMPT = `Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
 
@@ -4142,6 +4348,173 @@ function estimateItemPrice(product, spec) {
     return null;
 }
 
+// ===== SMART SHOPPING =====
+let smartShoppingItems = [];
+let smartShoppingFilter = 'all';
+
+async function loadSmartShopping() {
+    try {
+        const data = await api('smart_shopping');
+        if (data.success && data.items && data.items.length > 0) {
+            smartShoppingItems = data.items;
+            renderSmartShopping();
+            document.getElementById('smart-shopping-empty').style.display = 'none';
+            document.getElementById('smart-shopping-content').style.display = 'block';
+        } else {
+            smartShoppingItems = [];
+            document.getElementById('smart-shopping-empty').style.display = 'block';
+            document.getElementById('smart-shopping-content').style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Smart shopping error:', e);
+        smartShoppingItems = [];
+    }
+    updateShoppingTabCounts();
+}
+
+function filterSmart(filter) {
+    smartShoppingFilter = filter;
+    document.querySelectorAll('.smart-filter').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.smart-filter[data-filter="${filter}"]`)?.classList.add('active');
+    renderSmartShopping();
+}
+
+function renderSmartShopping() {
+    const container = document.getElementById('smart-items');
+    const countEl = document.getElementById('smart-count');
+    const actionsEl = document.getElementById('smart-actions');
+
+    let items = smartShoppingItems;
+    if (smartShoppingFilter !== 'all') {
+        items = items.filter(i => i.urgency === smartShoppingFilter);
+    }
+
+    countEl.textContent = items.length;
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:16px"><p>Nessun prodotto in questa categoria</p></div>';
+        actionsEl.style.display = 'none';
+        return;
+    }
+
+    const urgencyConfig = {
+        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: 'Urgente' },
+        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: 'Presto' },
+        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: 'Pianifica' },
+        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: 'Previsione' },
+    };
+
+    container.innerHTML = items.map((item, idx) => {
+        const u = urgencyConfig[item.urgency] || urgencyConfig.low;
+        const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+        const checked = !item.on_bring ? 'checked' : '';
+        const globalIdx = smartShoppingItems.indexOf(item);
+
+        // Stock bar
+        const pct = Math.min(100, Math.max(0, item.pct_left));
+        const barColor = pct <= 15 ? '#ef4444' : pct <= 30 ? '#f97316' : pct <= 50 ? '#eab308' : '#22c55e';
+
+        // Quantity display
+        let qtyText = '';
+        if (item.current_qty > 0) {
+            qtyText = `${item.current_qty} ${item.unit}`;
+            if (item.pct_left < 100) qtyText += ` (${pct}%)`;
+        } else {
+            qtyText = 'Esaurito';
+        }
+
+        // Usage frequency badge
+        let freqBadge = '';
+        if (item.use_count >= 8) freqBadge = '<span class="smart-freq-badge freq-high">📈 Uso frequente</span>';
+        else if (item.use_count >= 4) freqBadge = '<span class="smart-freq-badge freq-med">📊 Uso regolare</span>';
+        else if (item.use_count >= 2) freqBadge = '<span class="smart-freq-badge freq-low">📉 Uso occasionale</span>';
+
+        // Days left prediction
+        let predBadge = '';
+        if (item.days_left <= 3 && item.days_left > 0 && item.current_qty > 0) {
+            predBadge = `<span class="smart-pred-badge pred-urgent">⏳ ~${item.days_left}gg rimasti</span>`;
+        } else if (item.days_left <= 7 && item.days_left > 0 && item.current_qty > 0) {
+            predBadge = `<span class="smart-pred-badge pred-soon">⏳ ~${item.days_left}gg rimasti</span>`;
+        }
+
+        // Expiry badge
+        let expiryBadge = '';
+        if (item.days_to_expiry < 0 && item.current_qty > 0) {
+            expiryBadge = `<span class="smart-pred-badge pred-urgent">⚠️ Scaduto</span>`;
+        } else if (item.days_to_expiry <= 3 && item.days_to_expiry >= 0 && item.current_qty > 0) {
+            expiryBadge = `<span class="smart-pred-badge pred-urgent">⚠️ Scade tra ${item.days_to_expiry}gg</span>`;
+        }
+
+        return `
+        <div class="smart-item" style="border-left: 3px solid ${u.color}; background: ${u.bg}">
+            <div class="smart-item-top">
+                ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}" ${checked}>` : ''}
+                <span class="smart-item-icon">${catIcon}</span>
+                <div class="smart-item-info">
+                    <div class="smart-item-name">${escapeHtml(item.name)}${item.brand ? ` <small class="smart-brand">${escapeHtml(item.brand)}</small>` : ''}</div>
+                    <div class="smart-item-reasons">${item.reasons.map(r => `<span>${escapeHtml(r)}</span>`).join(' · ')}</div>
+                    <div class="smart-item-badges">
+                        <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
+                        ${freqBadge}${predBadge}${expiryBadge}
+                        ${item.is_opened ? '<span class="smart-freq-badge freq-low">📭 Aperto</span>' : ''}
+                        ${item.on_bring ? '<span class="smart-bring-badge">🛒 Già su Bring!</span>' : ''}
+                    </div>
+                </div>
+                <div class="smart-item-stock">
+                    <span class="smart-qty">${qtyText}</span>
+                    ${item.current_qty > 0 ? `<div class="smart-stock-bar"><div class="smart-stock-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Show/hide add button based on checkable items
+    const hasCheckable = items.some(i => !i.on_bring);
+    actionsEl.style.display = hasCheckable ? 'block' : 'none';
+}
+
+async function addSmartToBring() {
+    const checks = document.querySelectorAll('.smart-check:checked');
+    if (checks.length === 0) {
+        showToast('Seleziona almeno un prodotto', 'info');
+        return;
+    }
+
+    const itemsToAdd = [];
+    checks.forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        const item = smartShoppingItems[idx];
+        if (item) {
+            itemsToAdd.push({
+                name: item.name,
+                specification: item.brand || '',
+            });
+        }
+    });
+
+    showLoading(true);
+    try {
+        const result = await api('bring_add', {}, 'POST', {
+            items: itemsToAdd,
+            listUUID: shoppingListUUID,
+        });
+        showLoading(false);
+        if (result.success) {
+            const msg = result.added > 0
+                ? `🛒 ${result.added} prodotti aggiunti a Bring!${result.skipped > 0 ? ` (${result.skipped} già presenti)` : ''}`
+                : `Tutti i prodotti erano già su Bring!`;
+            showToast(msg, result.added > 0 ? 'success' : 'info');
+            // Reload to refresh badges
+            loadShoppingList();
+        } else {
+            showToast(result.error || 'Errore', 'error');
+        }
+    } catch (e) {
+        showLoading(false);
+        showToast('Errore di connessione', 'error');
+    }
+}
+
 // Load just the shopping count for dashboard stat card
 async function loadShoppingCount() {
     try {
@@ -4154,6 +4527,20 @@ async function loadShoppingCount() {
     } catch {
         document.getElementById('stat-spesa').textContent = '-';
     }
+    // Smart urgency badge
+    try {
+        const smart = await api('smart_shopping');
+        const urgentEl = document.getElementById('stat-urgent');
+        if (smart.success && smart.items) {
+            const urgent = smart.items.filter(i => i.urgency === 'critical' || i.urgency === 'high').length;
+            if (urgent > 0) {
+                urgentEl.textContent = `⚠ ${urgent}`;
+                urgentEl.style.display = '';
+            } else {
+                urgentEl.style.display = 'none';
+            }
+        }
+    } catch { /* ignore */ }
 }
 
 async function loadShoppingList() {
@@ -4194,6 +4581,12 @@ async function loadShoppingList() {
         renderShoppingItems();
         currentEl.style.display = 'block';
         
+        // Load smart shopping predictions (auto-add critical after loading)
+        loadSmartShopping().then(() => autoAddCriticalItems());
+
+        // Show tabs once data is ready
+        updateShoppingTabCounts();
+        
     } catch (err) {
         console.error('Bring! error:', err);
         statusEl.style.display = 'block';
@@ -4204,8 +4597,20 @@ async function loadShoppingList() {
 async function renderShoppingItems() {
     const container = document.getElementById('shopping-items');
     const countEl = document.getElementById('shopping-count');
+
+    // Sort shoppingItems in-place by use_count (cross-reference smartShoppingItems), most frequent first
+    shoppingItems.sort((a, b) => {
+        const smartA = smartShoppingItems.find(s => s.name.toLowerCase() === a.name.toLowerCase());
+        const smartB = smartShoppingItems.find(s => s.name.toLowerCase() === b.name.toLowerCase());
+        const freqA = smartA ? smartA.use_count : 0;
+        const freqB = smartB ? smartB.use_count : 0;
+        return freqB - freqA;
+    });
     
     countEl.textContent = shoppingItems.length;
+    // Update tab count too
+    const tabCount = document.getElementById('tab-count-acquisto');
+    if (tabCount) tabCount.textContent = shoppingItems.length;
     
     if (shoppingItems.length === 0) {
         container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>Lista della spesa vuota!<br>Usa il pulsante sotto per generare suggerimenti.</p></div>';
@@ -4234,6 +4639,40 @@ async function renderShoppingItems() {
         const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
         const priceKey = item.name.toLowerCase();
         const priceData = shoppingPrices[priceKey];
+
+        // Cross-reference with smart shopping for urgency + frequency
+        const smartData = smartShoppingItems.find(s => s.name.toLowerCase() === item.name.toLowerCase());
+        const localTags = getShoppingTags(item.name);
+        // Urgency/frequency badges
+        let urgencyBadge = '';
+        if (smartData) {
+            const urgencyMap = {
+                critical: { icon: '🔴', label: 'Urgente', cls: 'badge-critical' },
+                high:     { icon: '🟠', label: 'Presto',  cls: 'badge-high' },
+                medium:   { icon: '🟡', label: 'Presto',  cls: 'badge-medium' },
+                low:      { icon: '🟢', label: 'Ok',      cls: 'badge-low' },
+            };
+            const u = urgencyMap[smartData.urgency];
+            if (u) urgencyBadge = `<span class="sinv-badge ${u.cls}">${u.icon} ${u.label}</span>`;
+        }
+
+        let freqBadge = '';
+        if (smartData && smartData.use_count >= 8) freqBadge = `<span class="sinv-badge badge-freq-high">📈 ${smartData.use_count}x</span>`;
+        else if (smartData && smartData.use_count >= 4) freqBadge = `<span class="sinv-badge badge-freq-med">📊 ${smartData.use_count}x</span>`;
+        else if (smartData && smartData.use_count >= 2) freqBadge = `<span class="sinv-badge badge-freq-low">📉 ${smartData.use_count}x</span>`;
+
+        // Local tags
+        const TAG_LABELS = { urgente: '🔴 Urgente', prio: '⭐ Priorità', check: '✅ Verificare' };
+        const localTagHtml = localTags.map(t =>
+            `<span class="sinv-badge badge-local-tag" onclick="event.stopPropagation(); toggleShoppingTag(${idx}, '${t}')">${TAG_LABELS[t] || t} ✕</span>`
+        ).join('');
+
+        // Tag add button
+        const tagMenu = `<div class="shopping-tag-menu" onclick="event.stopPropagation()">
+            ${Object.entries(TAG_LABELS).map(([k, v]) =>
+                `<button class="sinv-badge badge-tag-add ${localTags.includes(k) ? 'active' : ''}" onclick="toggleShoppingTag(${idx}, '${k}')">${v}</button>`
+            ).join('')}
+        </div>`;
         
         let detailHtml = '';
         let priceTag = '';
@@ -4258,42 +4697,57 @@ async function renderShoppingItems() {
                     ${promoHtml}
                 </div>`;
                 spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
-                    <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)} - ${escapeHtml(p.brand)}">🔗 Apri</a>
+                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
+                    <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)} - ${escapeHtml(p.brand)}" onclick="event.stopPropagation()">🔗 Apri</a>
                 </div>`;
             } else if (priceData && priceData.searched && !priceData.product) {
                 detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
                 spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
+                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
                 </div>`;
             } else {
                 spesaBar = `<div class="spesa-bar">
-                    <button class="spesa-bar-btn" onclick="searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
+                    <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
                 </div>`;
             }
         }
         
         return `
-        <div class="shopping-item ${priceData && priceData.product && priceData.product.promo ? 'has-promo' : ''}" id="shop-item-${idx}">
+        <div class="shopping-item ${priceData && priceData.product && priceData.product.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="Tocca per scansionare">
             <span class="shopping-item-icon">${catIcon}</span>
             <div class="shopping-item-body">
                 <div class="shopping-item-top">
                     <div class="shopping-item-info">
-                        <div class="shopping-item-name">${escapeHtml(item.name)}</div>
+                        <div class="shopping-item-name-row">
+                            <span class="shopping-item-name">${escapeHtml(item.name)}</span>
+                            <span class="shopping-item-scan-hint">📷</span>
+                        </div>
                         ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+                        ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
                         ${detailHtml}
                     </div>
-                    <div class="shopping-item-right">
+                    <div class="shopping-item-right" onclick="event.stopPropagation()">
                         ${priceTag}
+                        <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="Tag">🏷️</button>
                         <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
                     </div>
                 </div>
                 ${spesaBar}
+                <div class="shopping-tag-menu-container" style="display:none">${tagMenu}</div>
             </div>
         </div>`;
     }).join('');
     
     updateSpesaTotal();
+}
+
+function toggleShoppingTagMenu(btn) {
+    const container = btn.closest('.shopping-item-body').querySelector('.shopping-tag-menu-container');
+    if (!container) return;
+    const isOpen = container.style.display !== 'none';
+    // Close all other menus first
+    document.querySelectorAll('.shopping-tag-menu-container').forEach(c => c.style.display = 'none');
+    container.style.display = isOpen ? 'none' : 'block';
 }
 
 function updateSpesaTotal() {
@@ -5723,7 +6177,7 @@ function updateScreensaverClock() {
     if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
 }
 
-function dismissScreensaver() {
+function dismissScreensaver(targetPage) {
     if (!_screensaverActive) return;
     clearInterval(_screensaverClockInterval);
     clearInterval(_screensaverFactInterval);
@@ -5733,8 +6187,11 @@ function dismissScreensaver() {
         overlay.style.display = 'none';
         _screensaverActive = false;
         _screensaverData = null;
-        // Reload all data for the current page
-        refreshCurrentPage();
+        if (targetPage) {
+            showPage(targetPage);
+        } else {
+            refreshCurrentPage();
+        }
         resetInactivityTimer();
     }, 400);
 }
@@ -6161,6 +6618,45 @@ function spesaModeAfterAdd() {
     return true;
 }
 
+function _initScreensaverShortcutBtn(btnId, targetPage, longPressFn) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    let ssLongPress = null;
+    btn.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (longPressFn) {
+            ssLongPress = setTimeout(() => {
+                ssLongPress = null;
+                dismissScreensaver(targetPage);
+                setTimeout(longPressFn, 500);
+            }, 600);
+        }
+    });
+    btn.addEventListener('pointerup', (e) => {
+        e.stopPropagation();
+        if (longPressFn && ssLongPress) {
+            clearTimeout(ssLongPress);
+            ssLongPress = null;
+        }
+        dismissScreensaver(targetPage);
+    });
+    btn.addEventListener('pointerleave', (e) => {
+        e.stopPropagation();
+        if (ssLongPress) {
+            clearTimeout(ssLongPress);
+            ssLongPress = null;
+        }
+    });
+    ['click', 'touchstart', 'touchend'].forEach(evt => {
+        btn.addEventListener(evt, (e) => e.stopPropagation(), { passive: false });
+    });
+}
+
+function initScreensaverShortcuts() {
+    _initScreensaverShortcutBtn('screensaver-scan-btn', 'scan', () => startSpesaMode());
+    _initScreensaverShortcutBtn('screensaver-recipe-btn', 'recipe', null);
+}
+
 function initInactivityWatcher() {
     const events = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'];
     events.forEach(evt => {
@@ -6181,6 +6677,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showPage('dashboard');
     initInactivityWatcher();
     initSpesaMode();
+    initScreensaverShortcuts();
 });
 
 // ===== DUPLICLICK (SPESA ONLINE) =====

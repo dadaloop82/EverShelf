@@ -115,6 +115,9 @@ try {
         case 'bring_suggest':
             bringSuggestItems($db);
             break;
+        case 'smart_shopping':
+            smartShopping($db);
+            break;
 
         case 'save_settings':
             saveSettings();
@@ -468,7 +471,7 @@ function listInventory(PDO $db): void {
     $location = $_GET['location'] ?? '';
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at
         FROM inventory i
         JOIN products p ON i.product_id = p.id
     ";
@@ -624,7 +627,7 @@ function useFromInventory(PDO $db): void {
         return;
     }
     
-    $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY (quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC");
+    $stmt = $db->prepare("SELECT id, quantity, opened_at, vacuum_sealed FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY (quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC");
     $stmt->execute([$productId, $location]);
     $existing = $stmt->fetch();
     
@@ -640,7 +643,7 @@ function useFromInventory(PDO $db): void {
     
     // Auto-split conf products: separate whole confs from opened (fractional) part
     $openedId = null;
-    $stmt2 = $db->prepare("SELECT unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt2 = $db->prepare("SELECT name, category, unit, default_quantity, package_unit FROM products WHERE id = ?");
     $stmt2->execute([$productId]);
     $prodInfo = $stmt2->fetch();
     
@@ -662,8 +665,13 @@ function useFromInventory(PDO $db): void {
             
             $newFraction = round($fraction - $quantity, 6);
             if ($newFraction > 0.001) {
-                $stmt3 = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed) VALUES (?, ?, ?, ?, ?)");
-                $stmt3->execute([$productId, $location, $newFraction, $origRow['expiry_date'], $origRow['vacuum_sealed'] ?? 0]);
+                // Opened item: calculate shorter shelf life from now
+                $vacuum = (int)($origRow['vacuum_sealed'] ?? 0);
+                $openedDays = estimateOpenedExpiryDaysPHP($prodInfo['name'] ?? '', $prodInfo['category'] ?? '', $location);
+                if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
+                $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
+                $stmt3 = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
+                $stmt3->execute([$productId, $location, $newFraction, $openedExpiry, $vacuum]);
                 $openedId = (int)$db->lastInsertId();
             }
             
@@ -684,8 +692,33 @@ function useFromInventory(PDO $db): void {
         $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
         $stmt->execute([$existing['id']]);
     } else {
-        $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$newQty, $existing['id']]);
+        // Check if item is now opened (first use reduces quantity)
+        $wasOpened = !empty($existing['opened_at']);
+        $isNowOpened = false;
+        $unit = $prodInfo['unit'] ?? 'pz';
+        $defQty = (float)($prodInfo['default_quantity'] ?? 0);
+        if ($unit === 'conf') {
+            $w = floor($newQty + 0.001);
+            $f = round($newQty - $w, 6);
+            if ($f > 0.001) $isNowOpened = true;
+        } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0 && $newQty < $defQty - 0.001) {
+            $isNowOpened = true;
+        }
+
+        if ($isNowOpened && !$wasOpened) {
+            // First time opened: recalculate expiry with shorter shelf life
+            $pName = $prodInfo['name'] ?? '';
+            $pCat = $prodInfo['category'] ?? '';
+            $vacuum = (int)($existing['vacuum_sealed'] ?? 0);
+            $openedDays = estimateOpenedExpiryDaysPHP($pName, $pCat, $location);
+            if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
+            $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
+            $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
+        } else {
+            $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$newQty, $existing['id']]);
+        }
     }
     
     // Log transaction
@@ -2158,6 +2191,223 @@ function bringCleanSpecs(): void {
     }
 
     echo json_encode(['success' => true, 'cleaned' => $cleaned]);
+}
+
+/**
+ * Smart Shopping List: analyzes usage frequency, stock levels, expiry to produce
+ * intelligent urgency-ranked shopping recommendations.
+ */
+function smartShopping(PDO $db): void {
+    $now = time();
+    $today = date('Y-m-d');
+
+    // 1. Get all products with their inventory and transaction history
+    $products = $db->query("
+        SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit
+        FROM products p
+        ORDER BY p.name
+    ")->fetchAll();
+
+    // 2. Get all inventory grouped by product
+    $invStmt = $db->query("
+        SELECT i.product_id, SUM(i.quantity) as total_qty, 
+               MIN(i.expiry_date) as nearest_expiry,
+               GROUP_CONCAT(DISTINCT i.location) as locations,
+               MAX(i.opened_at) as opened_at
+        FROM inventory i
+        WHERE i.quantity > 0
+        GROUP BY i.product_id
+    ");
+    $inventory = [];
+    foreach ($invStmt->fetchAll() as $inv) {
+        $inventory[$inv['product_id']] = $inv;
+    }
+
+    // 3. Get transaction stats per product
+    $txStmt = $db->query("
+        SELECT product_id,
+               COUNT(CASE WHEN type IN ('out','waste') THEN 1 END) as use_count,
+               SUM(CASE WHEN type IN ('out','waste') THEN quantity ELSE 0 END) as total_used,
+               COUNT(CASE WHEN type = 'in' THEN 1 END) as buy_count,
+               SUM(CASE WHEN type = 'in' THEN quantity ELSE 0 END) as total_bought,
+               MIN(CASE WHEN type = 'in' THEN created_at END) as first_in,
+               MAX(CASE WHEN type = 'in' THEN created_at END) as last_in,
+               MAX(CASE WHEN type IN ('out','waste') THEN created_at END) as last_out
+        FROM transactions
+        GROUP BY product_id
+    ");
+    $txData = [];
+    foreach ($txStmt->fetchAll() as $tx) {
+        $txData[$tx['product_id']] = $tx;
+    }
+
+    // 4. Fetch current Bring! list to know what's already there
+    $bringItems = [];
+    try {
+        $auth = bringAuth();
+        if ($auth) {
+            $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$auth['bringListUUID']}");
+            if ($listData && isset($listData['purchase'])) {
+                foreach ($listData['purchase'] as $bi) {
+                    $bringItems[mb_strtolower(bringToItalian($bi['name'] ?? ''))] = true;
+                    $bringItems[mb_strtolower($bi['name'] ?? '')] = true;
+                }
+            }
+        }
+    } catch (Exception $e) { /* ignore */ }
+
+    // 5. Analyze each product
+    $items = [];
+    foreach ($products as $p) {
+        $pid = $p['id'];
+        $inv = $inventory[$pid] ?? null;
+        $tx = $txData[$pid] ?? null;
+
+        // Skip products never bought/used and not in inventory
+        if (!$tx && !$inv) continue;
+
+        $qty = $inv ? (float)$inv['total_qty'] : 0;
+        $unit = $p['unit'] ?: 'pz';
+        $defQty = (float)($p['default_quantity'] ?: 0);
+        $isOpened = $inv && !empty($inv['opened_at']);
+
+        // --- Usage frequency ---
+        $useCount = $tx ? (int)$tx['use_count'] : 0;
+        $buyCount = $tx ? (int)$tx['buy_count'] : 0;
+        $totalUsed = $tx ? (float)$tx['total_used'] : 0;
+        $totalBought = $tx ? (float)$tx['total_bought'] : 0;
+
+        // Days since first purchase
+        $firstIn = $tx && $tx['first_in'] ? strtotime($tx['first_in']) : null;
+        $lastIn = $tx && $tx['last_in'] ? strtotime($tx['last_in']) : null;
+        $lastOut = $tx && $tx['last_out'] ? strtotime($tx['last_out']) : null;
+        $daysSinceFirst = $firstIn ? max(1, ($now - $firstIn) / 86400) : 999;
+
+        // Average daily consumption rate
+        $dailyRate = $daysSinceFirst < 999 && $totalUsed > 0 ? $totalUsed / $daysSinceFirst : 0;
+
+        // Days of stock remaining
+        $daysLeft = ($dailyRate > 0 && $qty > 0) ? $qty / $dailyRate : ($qty > 0 ? 999 : 0);
+
+        // --- Expiry check ---
+        $expiryDate = $inv ? $inv['nearest_expiry'] : null;
+        $daysToExpiry = $expiryDate ? (strtotime($expiryDate) - $now) / 86400 : 999;
+        $isExpired = $daysToExpiry < 0;
+        $isExpiringSoon = !$isExpired && $daysToExpiry <= 3;
+
+        // --- Stock level assessment ---
+        // percentage_left: how much is left vs typical purchase size
+        // Use average of totalBought/buyCount if available, else default_quantity, else best-guess from defQty or 1
+        $refQty = $totalBought > 0 && $buyCount > 0
+            ? $totalBought / $buyCount
+            : ($defQty > 0 ? $defQty : max(1, $qty)); // avoid inflating pctLeft for products with no history
+        $pctLeft = $refQty > 0 ? min(200, ($qty / $refQty) * 100) : ($qty > 0 ? 100 : 0);
+
+        // Cap daysLeft at a reasonable ceiling to avoid 999-day noise in reason strings
+        $daysLeft = min($daysLeft, 365);
+
+        // --- Determine urgency ---
+        $urgency = 'none'; // none, low, medium, high, critical
+        $reasons = [];
+        $score = 0;
+
+        // Out of stock
+        if ($qty <= 0) {
+            if ($useCount >= 3 || $buyCount >= 2) {
+                $urgency = 'critical';
+                $reasons[] = 'Esaurito';
+                $score += 100;
+                if ($useCount >= 5) { $score += 20; $reasons[] = "Uso frequente ({$useCount}x)"; }
+            } else {
+                // Rarely used — not urgent even if finished
+                continue;
+            }
+        }
+
+        // Almost finished
+        if ($qty > 0 && $pctLeft <= 15) {
+            $urgency = 'high';
+            $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
+            $score += 80;
+        } elseif ($qty > 0 && $pctLeft <= 30) {
+            if ($dailyRate > 0 && $daysLeft <= 5) {
+                $urgency = 'high';
+                $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
+                $score += 75;
+            } elseif ($dailyRate > 0 && $daysLeft <= 10) {
+                $urgency = 'medium';
+                $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
+                $score += 50;
+            } else {
+                $urgency = 'low';
+                $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
+                $score += 30;
+            }
+        }
+
+        // Expiring soon or expired (needs replacement)
+        if ($isExpired && $qty > 0) {
+            $urgency = 'critical';
+            $reasons[] = 'Scaduto!';
+            $score += 90;
+        } elseif ($isExpiringSoon && $qty > 0) {
+            if ($urgency === 'none') $urgency = 'medium';
+            $reasons[] = 'Scade tra ' . max(0, round($daysToExpiry)) . 'gg';
+            $score += 40;
+        }
+
+        // Frequently used but stock getting low (predictive)
+        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $useCount >= 3) {
+            $urgency = 'low';
+            $reasons[] = 'Previsto esaurimento tra ~' . round($daysLeft) . 'gg';
+            $score += 25;
+        }
+
+        // Opened item with fast consumption
+        if ($isOpened && $urgency === 'none' && $dailyRate > 0 && $daysLeft <= 7) {
+            $urgency = 'low';
+            $reasons[] = 'Aperto, finisce presto';
+            $score += 20;
+        }
+
+        if ($urgency === 'none') continue;
+
+        // Boost score for very frequent items
+        if ($useCount >= 8) $score += 15;
+        elseif ($useCount >= 5) $score += 10;
+
+        // Is already on Bring?
+        $onBring = isset($bringItems[mb_strtolower($p['name'])]);
+
+        $items[] = [
+            'product_id' => $pid,
+            'name' => $p['name'],
+            'brand' => $p['brand'] ?: '',
+            'category' => $p['category'] ?: '',
+            'unit' => $unit,
+            'current_qty' => round($qty, 1),
+            'default_qty' => $defQty,
+            'package_unit' => $p['package_unit'] ?: '',
+            'pct_left' => round($pctLeft),
+            'use_count' => $useCount,
+            'buy_count' => $buyCount,
+            'daily_rate' => round($dailyRate, 2),
+            'days_left' => round($daysLeft),
+            'expiry_date' => $expiryDate,
+            'days_to_expiry' => round($daysToExpiry),
+            'is_opened' => $isOpened,
+            'urgency' => $urgency,
+            'reasons' => $reasons,
+            'score' => $score,
+            'on_bring' => $onBring,
+            'locations' => $inv ? $inv['locations'] : '',
+        ];
+    }
+
+    // Sort by score descending (most urgent first)
+    usort($items, fn($a, $b) => $b['score'] - $a['score']);
+
+    echo json_encode(['success' => true, 'items' => $items], JSON_UNESCAPED_UNICODE);
 }
 
 function bringSuggestItems(PDO $db): void {

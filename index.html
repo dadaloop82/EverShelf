@@ -9,7 +9,7 @@
     <title>Dispensa Manager</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260319a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260329a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -55,6 +55,7 @@
                 <span class="stat-icon">🛒</span>
                 <span class="stat-value" id="stat-spesa">-</span>
                 <span class="stat-label">Spesa</span>
+                <span class="stat-urgent" id="stat-urgent" style="display:none"></span>
             </div>
         </div>
 
@@ -168,9 +169,11 @@
     <!-- ===== PRODUCT ACTION (IN/OUT after scan) ===== -->
     <section class="page" id="page-action">
         <div class="page-header">
-            <button class="back-btn" onclick="showPage('scan')">← Indietro</button>
+            <button class="back-btn" id="action-back-btn" onclick="showPage('scan')">← Indietro</button>
             <h2>Cosa vuoi fare?</h2>
         </div>
+        <!-- Banner: shopping list scan context -->
+        <div id="shopping-scan-target-banner" class="shopping-scan-target-banner" style="display:none"></div>
         <div class="product-preview product-preview-large" id="action-product-preview"></div>
         <div class="inventory-status-bar" id="action-inventory-status" style="display:none"></div>
         <div class="action-buttons" id="action-buttons-container">
@@ -513,40 +516,86 @@
             <div class="bring-status" id="bring-status">
                 <div class="bring-loading">Connessione a Bring!...</div>
             </div>
-            <!-- Price total banner -->
-            <div class="spesa-total-banner" id="spesa-total-banner" style="display:none">
-                <div class="spesa-total-row">
-                    <span class="spesa-total-label">💰 Totale stimato</span>
-                    <span class="spesa-total-value" id="spesa-total-value">€ 0,00</span>
-                </div>
-                <div class="spesa-total-detail" id="spesa-total-detail"></div>
+
+            <!-- Tab navigation -->
+            <div class="shopping-tabs" id="shopping-tabs" style="display:none">
+                <button class="shopping-tab active" id="tab-acquisto" onclick="switchShoppingTab('acquisto')">
+                    🛍️ Da comprare <span class="shopping-tab-count" id="tab-count-acquisto">0</span>
+                </button>
+                <button class="shopping-tab" id="tab-previsione" onclick="switchShoppingTab('previsione')">
+                    🧠 In previsione <span class="shopping-tab-count" id="tab-count-previsione">0</span>
+                </button>
             </div>
-            <div class="shopping-current" id="shopping-current" style="display:none">
-                <div class="shopping-section-header">
-                    <h3>🛍️ Da comprare</h3>
-                    <span class="shopping-count" id="shopping-count">0</span>
+
+            <!-- Tab panel: Da comprare -->
+            <div id="tab-panel-acquisto" class="tab-panel-shopping active">
+                <!-- Price total banner -->
+                <div class="spesa-total-banner" id="spesa-total-banner" style="display:none">
+                    <div class="spesa-total-row">
+                        <span class="spesa-total-label">💰 Totale stimato</span>
+                        <span class="spesa-total-value" id="spesa-total-value">€ 0,00</span>
+                    </div>
+                    <div class="spesa-total-detail" id="spesa-total-detail"></div>
                 </div>
-                <div class="shopping-items" id="shopping-items"></div>
-            </div>
-            <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
-                <div class="shopping-section-header">
-                    <h3>💡 Suggerimenti AI</h3>
+                <div class="shopping-current" id="shopping-current" style="display:none">
+                    <div class="shopping-section-header">
+                        <h3>🛍️ Da comprare</h3>
+                        <span class="shopping-count" id="shopping-count">0</span>
+                    </div>
+                    <div class="shopping-items" id="shopping-items"></div>
                 </div>
-                <div class="seasonal-tip" id="seasonal-tip" style="display:none"></div>
-                <div class="suggestion-items" id="suggestion-items"></div>
-                <div class="suggestion-actions" id="suggestion-actions" style="display:none">
-                    <button class="btn btn-success" onclick="addSelectedSuggestions()">
-                        ✅ Aggiungi selezionati a Bring!
+                <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
+                    <div class="shopping-section-header">
+                        <h3>💡 Suggerimenti AI</h3>
+                    </div>
+                    <div class="seasonal-tip" id="seasonal-tip" style="display:none"></div>
+                    <div class="suggestion-items" id="suggestion-items"></div>
+                    <div class="suggestion-actions" id="suggestion-actions" style="display:none">
+                        <button class="btn btn-success" onclick="addSelectedSuggestions()">
+                            ✅ Aggiungi selezionati a Bring!
+                        </button>
+                    </div>
+                </div>
+                <div class="shopping-actions">
+                    <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices">
+                        🔍 Cerca tutti i prezzi
+                    </button>
+                    <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
+                        🤖 Suggerisci cosa comprare
                     </button>
                 </div>
             </div>
-            <div class="shopping-actions">
-                <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices">
-                    🔍 Cerca tutti i prezzi
-                </button>
-                <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
-                    🤖 Suggerisci cosa comprare
-                </button>
+
+            <!-- Tab panel: In previsione -->
+            <div id="tab-panel-previsione" class="tab-panel-shopping">
+                <!-- Smart shopping predictions -->
+                <div class="smart-shopping" id="smart-shopping">
+                    <div class="smart-shopping-empty" id="smart-shopping-empty" style="display:none">
+                        <div class="empty-state" style="padding:30px">
+                            <div class="empty-state-icon">🧠</div>
+                            <p>Nessuna previsione disponibile.<br>Aggiungi prodotti alla dispensa per ricevere previsioni intelligenti.</p>
+                        </div>
+                    </div>
+                    <div id="smart-shopping-content">
+                        <div class="shopping-section-header" style="margin-bottom:4px">
+                            <h3>🧠 Previsioni intelligenti</h3>
+                            <span class="shopping-count" id="smart-count">0</span>
+                        </div>
+                        <div class="smart-filter-row" id="smart-filter-row">
+                            <button class="smart-filter active" data-filter="all" onclick="filterSmart('all')">Tutti</button>
+                            <button class="smart-filter" data-filter="critical" onclick="filterSmart('critical')">🔴 Urgenti</button>
+                            <button class="smart-filter" data-filter="high" onclick="filterSmart('high')">🟠 Presto</button>
+                            <button class="smart-filter" data-filter="medium" onclick="filterSmart('medium')">🟡 Pianifica</button>
+                            <button class="smart-filter" data-filter="low" onclick="filterSmart('low')">🟢 Previsione</button>
+                        </div>
+                        <div class="smart-items" id="smart-items"></div>
+                        <div class="smart-actions" id="smart-actions" style="display:none">
+                            <button class="btn btn-success full-width" onclick="addSmartToBring()">
+                                🛒 Aggiungi selezionati a Bring!
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -908,6 +957,14 @@
     <div class="screensaver-content">
         <div class="screensaver-clock" id="screensaver-clock"></div>
         <div class="screensaver-fact" id="screensaver-fact"></div>
+    </div>
+    <div class="screensaver-shortcuts">
+        <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" title="Ricette">
+            🍳
+        </button>
+        <button class="screensaver-shortcut-btn" id="screensaver-scan-btn" title="Scansiona prodotto (tieni premuto per modalità spesa)">
+            📷
+        </button>
     </div>
 </div>
 
