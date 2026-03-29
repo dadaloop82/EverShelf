@@ -4332,6 +4332,54 @@ async function autoAddCriticalItems() {
     } catch (e) { /* ignore */ }
 }
 
+/**
+ * One-time cleanup: remove items from Bring! that the new smart algorithm no longer considers relevant.
+ * Compares current shoppingItems vs smartShoppingItems — if a Bring! item has NO match in
+ * smart predictions (or matches a product with urgency 'none' that was filtered out), remove it.
+ */
+async function cleanupObsoleteBringItems() {
+    if (sessionStorage.getItem('_bringCleanupDone')) return;
+    sessionStorage.setItem('_bringCleanupDone', '1');
+    if (!shoppingItems.length || !smartShoppingItems.length) return;
+
+    // Build a set of names that the smart algorithm still considers relevant
+    const smartNames = new Set(smartShoppingItems.map(i => i.name.toLowerCase()));
+
+    // Find Bring! items that have NO match in smart predictions AND are not manually added
+    // (We consider items "auto-added" if their name matches a known product in our DB)
+    const toRemove = [];
+    for (const item of shoppingItems) {
+        const nameLower = item.name.toLowerCase();
+        // If smart shopping still flags this item, keep it
+        if (smartNames.has(nameLower)) continue;
+        // Check with token matching too
+        const smartMatch = _findSimilarItem(item.name, smartShoppingItems);
+        if (smartMatch) continue;
+        // This item is no longer predicted by smart shopping — candidate for removal
+        toRemove.push(item);
+    }
+
+    if (toRemove.length === 0) return;
+
+    // Remove them from Bring!
+    let removed = 0;
+    for (const item of toRemove) {
+        try {
+            const r = await api('bring_remove', {}, 'POST', {
+                name: item.name,
+                rawName: item.rawName || '',
+                listUUID: shoppingListUUID
+            });
+            if (r.success) removed++;
+        } catch (e) { /* ignore individual failures */ }
+    }
+
+    if (removed > 0) {
+        showToast(`🧹 ${removed} prodott${removed === 1 ? 'o non più necessario rimosso' : 'i non più necessari rimossi'} dalla lista`, 'info');
+        loadShoppingList();
+    }
+}
+
 const DEFAULT_SPESA_AI_PROMPT = `Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
 
 Regole di selezione:
@@ -4685,6 +4733,7 @@ async function loadShoppingList() {
         // Load smart shopping predictions, then re-render to show badges + auto-add critical
         loadSmartShopping().then(() => {
             autoAddCriticalItems();
+            cleanupObsoleteBringItems();
             renderShoppingItems(); // re-render to apply urgency badges from smart data
         });
 
