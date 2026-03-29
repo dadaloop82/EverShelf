@@ -982,6 +982,13 @@
         <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
         <div class="cooking-step-text" id="cooking-step-text"></div>
         <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" title="Rileggi questo passo">🔊 Rileggi</button>
+        <div class="cooking-timer-wrap" id="cooking-timer-wrap" style="display:none">
+            <div class="cooking-timer-display" id="cooking-timer-display">00:00</div>
+            <div class="cooking-timer-actions">
+                <button class="cooking-timer-btn" id="cooking-timer-start" onclick="toggleCookingTimer()">⏱️ Avvia timer</button>
+                <button class="cooking-timer-btn cooking-timer-reset" id="cooking-timer-reset" onclick="resetCookingTimer()" style="display:none">↩ Reset</button>
+            </div>
+        </div>
         <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
     </div>
     <div class="cooking-nav">
@@ -990,6 +997,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260329c"></script>
+<script src="assets/js/app.js?v=20260329d"></script>
 </body>
 </html>

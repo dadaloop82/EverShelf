@@ -3067,6 +3067,76 @@ body {
     background: rgba(255,255,255,0.22);
 }
 
+.cooking-timer-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 360px;
+    margin-top: 4px;
+}
+
+.cooking-timer-display {
+    font-size: clamp(2.4rem, 10vw, 4rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    letter-spacing: 0.04em;
+    text-align: center;
+    transition: color 0.4s;
+}
+
+.cooking-timer-display.timer-warning {
+    color: #f97316;
+}
+
+.cooking-timer-display.timer-done {
+    color: #ef4444;
+    animation: timerPulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes timerPulse {
+    from { opacity: 1; transform: scale(1); }
+    to   { opacity: 0.5; transform: scale(1.06); }
+}
+
+.cooking-timer-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.cooking-timer-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.20);
+    color: #fff;
+    border-radius: 20px;
+    padding: 8px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cooking-timer-btn:active {
+    background: rgba(255,255,255,0.22);
+}
+
+.cooking-timer-btn.timer-running {
+    background: rgba(239,68,68,0.25);
+    border-color: rgba(239,68,68,0.5);
+}
+
+.cooking-timer-reset {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.12);
+    font-size: 0.9rem;
+}
+
 .cooking-step-ings {
     width: 100%;
     max-width: 480px;

@@ -6043,6 +6043,7 @@ function closeCookingMode() {
     document.getElementById('cooking-overlay').style.display = 'none';
     document.body.classList.remove('cooking-mode-active');
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    clearCookingTimer();
     try { screen.orientation?.unlock(); } catch (_) { /* ignore */ }
 }
 
@@ -6088,6 +6089,9 @@ function renderCookingStep() {
     prevBtn.disabled = _cookingStep === 0;
     nextBtn.textContent = _cookingStep === total - 1 ? '✅ Fine' : 'Successivo ▶';
 
+    // Timer: detect durations in step text
+    setupCookingTimer(cleanStep);
+
     // Speak step
     if (_cookingTTS) speakCookingStep(cleanStep);
 }
@@ -6130,6 +6134,140 @@ function replayCookingTTS() {
     const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
     if (text) speakCookingStep(text);
 }
+
+// ===== COOKING TIMER =====
+let _cookingTimerInterval = null;
+let _cookingTimerSeconds = 0;
+let _cookingTimerRunning = false;
+let _cookingTimerTotal = 0; // original total seconds
+
+/**
+ * Parse time durations from step text.
+ * Returns total seconds or 0 if no time found.
+ * Handles: "10 minuti", "1 ora", "1 ora e 30 minuti", "30 secondi",
+ *           "un'ora", "mezz'ora", "un paio di minuti", "qualche minuto"
+ */
+function _parseStepTimer(text) {
+    const t = text.toLowerCase();
+    let totalSec = 0;
+
+    // "mezz'ora" / "mezzora"
+    if (/mezz['']?\s*ora/i.test(t)) totalSec += 30 * 60;
+    // "un quarto d'ora"
+    if (/un\s+quarto\s+d['']?\s*ora/i.test(t)) totalSec += 15 * 60;
+    // "un'ora" (without other numbers)
+    if (/un['']?\s*ora(?!\s*e)/i.test(t) && !/\d\s*or[ae]/i.test(t)) totalSec += 60 * 60;
+
+    if (totalSec > 0) return totalSec;
+
+    // Numeric patterns: "N ore/ora [e M minuti]", "N minuti/min", "N secondi/sec"
+    const reOre = /(\d+(?:[.,]\d+)?)\s*or[ae]/gi;
+    const reMin = /(\d+(?:[.,]\d+)?)\s*min(?:ut[oi])?/gi;
+    const reSec = /(\d+(?:[.,]\d+)?)\s*second[oi]/gi;
+
+    let m;
+    while ((m = reOre.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 3600;
+    while ((m = reMin.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 60;
+    while ((m = reSec.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.'));
+
+    // "un paio di minuti" / "qualche minuto" / "pochi minuti"
+    if (totalSec === 0 && /(?:un\s+paio\s+di|qualche|pochi)\s+minut/i.test(t)) totalSec = 2 * 60;
+    // "qualche secondo"
+    if (totalSec === 0 && /qualche\s+second/i.test(t)) totalSec = 15;
+
+    return Math.round(totalSec);
+}
+
+function _formatTimerDisplay(sec) {
+    const m = Math.floor(Math.abs(sec) / 60);
+    const s = Math.abs(sec) % 60;
+    const sign = sec < 0 ? '-' : '';
+    return `${sign}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function setupCookingTimer(stepText) {
+    clearCookingTimer();
+    const seconds = _parseStepTimer(stepText);
+    const wrap = document.getElementById('cooking-timer-wrap');
+    if (seconds <= 0) {
+        wrap.style.display = 'none';
+        return;
+    }
+    _cookingTimerTotal = seconds;
+    _cookingTimerSeconds = seconds;
+    _cookingTimerRunning = false;
+    wrap.style.display = 'flex';
+    document.getElementById('cooking-timer-display').textContent = _formatTimerDisplay(seconds);
+    document.getElementById('cooking-timer-display').className = 'cooking-timer-display';
+    document.getElementById('cooking-timer-start').textContent = '⏱️ Avvia timer';
+    document.getElementById('cooking-timer-start').classList.remove('timer-running');
+    document.getElementById('cooking-timer-reset').style.display = 'none';
+}
+
+function toggleCookingTimer() {
+    if (_cookingTimerRunning) {
+        // Pause
+        clearInterval(_cookingTimerInterval);
+        _cookingTimerInterval = null;
+        _cookingTimerRunning = false;
+        document.getElementById('cooking-timer-start').textContent = '▶️ Riprendi';
+        document.getElementById('cooking-timer-start').classList.remove('timer-running');
+        document.getElementById('cooking-timer-reset').style.display = 'inline-flex';
+    } else {
+        // Start / Resume
+        _cookingTimerRunning = true;
+        document.getElementById('cooking-timer-start').textContent = '⏸️ Pausa';
+        document.getElementById('cooking-timer-start').classList.add('timer-running');
+        document.getElementById('cooking-timer-reset').style.display = 'inline-flex';
+        _cookingTimerInterval = setInterval(() => {
+            _cookingTimerSeconds--;
+            const display = document.getElementById('cooking-timer-display');
+            display.textContent = _formatTimerDisplay(Math.abs(_cookingTimerSeconds));
+
+            if (_cookingTimerSeconds <= 0 && _cookingTimerSeconds > -1) {
+                // Timer just finished
+                display.classList.add('timer-done');
+                display.classList.remove('timer-warning');
+                _cookingTimerDone();
+            } else if (_cookingTimerSeconds > 0 && _cookingTimerSeconds <= 30) {
+                display.classList.add('timer-warning');
+            }
+            if (_cookingTimerSeconds < 0) {
+                // Counting overtime (negative)
+                display.textContent = '+' + _formatTimerDisplay(Math.abs(_cookingTimerSeconds));
+            }
+        }, 1000);
+    }
+}
+
+function resetCookingTimer() {
+    clearInterval(_cookingTimerInterval);
+    _cookingTimerInterval = null;
+    _cookingTimerRunning = false;
+    _cookingTimerSeconds = _cookingTimerTotal;
+    document.getElementById('cooking-timer-display').textContent = _formatTimerDisplay(_cookingTimerTotal);
+    document.getElementById('cooking-timer-display').className = 'cooking-timer-display';
+    document.getElementById('cooking-timer-start').textContent = '⏱️ Avvia timer';
+    document.getElementById('cooking-timer-start').classList.remove('timer-running');
+    document.getElementById('cooking-timer-reset').style.display = 'none';
+}
+
+function clearCookingTimer() {
+    if (_cookingTimerInterval) clearInterval(_cookingTimerInterval);
+    _cookingTimerInterval = null;
+    _cookingTimerRunning = false;
+    _cookingTimerSeconds = 0;
+    _cookingTimerTotal = 0;
+}
+
+function _cookingTimerDone() {
+    // Vibrate if supported
+    if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+    // TTS announcement
+    if (_cookingTTS) speakCookingStep('Tempo scaduto!');
+    // Visual alert already handled by .timer-done CSS animation
+}
+// ===== END COOKING TIMER =====
 
 function toggleCookingTTS() {
     _cookingTTS = !_cookingTTS;
