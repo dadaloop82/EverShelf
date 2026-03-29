@@ -2306,6 +2306,18 @@ function smartShopping(PDO $db): void {
         // Cap daysLeft at a reasonable ceiling to avoid 999-day noise in reason strings
         $daysLeft = min($daysLeft, 365);
 
+        // --- Frequency & recency metrics ---
+        // Uses per month (30 days) — measures how frequently the product is actually used
+        $usesPerMonth = $daysSinceFirst >= 30 ? ($useCount / $daysSinceFirst) * 30 : $useCount;
+        // Days since last use/purchase — measures recency
+        $daysSinceLastUse = $lastOut ? ($now - $lastOut) / 86400 : ($lastIn ? ($now - $lastIn) / 86400 : 999);
+        // Is this a frequently used product? (≥ 1.5 uses/month)
+        $isFrequent = $usesPerMonth >= 1.5;
+        // Is it a regular product? (≥ 0.5 uses/month = at least once every 2 months)
+        $isRegular = $usesPerMonth >= 0.5;
+        // Is it recently relevant? (used/bought in last 60 days)
+        $isRecent = $daysSinceLastUse <= 60;
+
         // --- Determine urgency ---
         $urgency = 'none'; // none, low, medium, high, critical
         $reasons = [];
@@ -2313,39 +2325,50 @@ function smartShopping(PDO $db): void {
 
         // Out of stock
         if ($qty <= 0) {
-            if ($useCount >= 3 || $buyCount >= 2) {
+            if ($isFrequent && $isRecent) {
+                // Frequently used AND recently active → critical
                 $urgency = 'critical';
                 $reasons[] = 'Esaurito';
                 $score += 100;
                 if ($useCount >= 5) { $score += 20; $reasons[] = "Uso frequente ({$useCount}x)"; }
+            } elseif ($isRegular && $isRecent && ($useCount >= 4 || $buyCount >= 3)) {
+                // Regularly used, recently active → high
+                $urgency = 'high';
+                $reasons[] = 'Esaurito';
+                $score += 70;
+            } elseif ($isRecent && $buyCount >= 2) {
+                // At least bought a couple times recently → low
+                $urgency = 'low';
+                $reasons[] = 'Esaurito';
+                $score += 30;
             } else {
-                // Rarely used — not urgent even if finished
+                // Rarely used or not used recently — skip
                 continue;
             }
         }
 
-        // Almost finished
-        if ($qty > 0 && $pctLeft <= 15) {
-            $urgency = 'high';
+        // Almost finished — only flag if usage frequency justifies it
+        if ($qty > 0 && $pctLeft <= 15 && $isRegular) {
+            $urgency = $isFrequent ? 'high' : 'medium';
             $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
             $score += 80;
-        } elseif ($qty > 0 && $pctLeft <= 30) {
-            if ($dailyRate > 0 && $daysLeft <= 5) {
+        } elseif ($qty > 0 && $pctLeft <= 30 && $isRegular) {
+            if ($dailyRate > 0 && $daysLeft <= 5 && $isFrequent) {
                 $urgency = 'high';
                 $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
                 $score += 75;
-            } elseif ($dailyRate > 0 && $daysLeft <= 10) {
+            } elseif ($dailyRate > 0 && $daysLeft <= 10 && $isRecent) {
                 $urgency = 'medium';
                 $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
                 $score += 50;
-            } else {
+            } elseif ($isRecent) {
                 $urgency = 'low';
                 $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
                 $score += 30;
             }
         }
 
-        // Expiring soon or expired (needs replacement)
+        // Expiring soon or expired (needs replacement) — valid regardless of frequency
         if ($isExpired && $qty > 0) {
             $urgency = 'critical';
             $reasons[] = 'Scaduto!';
@@ -2356,15 +2379,15 @@ function smartShopping(PDO $db): void {
             $score += 40;
         }
 
-        // Frequently used but stock getting low (predictive)
-        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $useCount >= 3) {
+        // Frequently used but stock getting low (predictive) — stricter thresholds
+        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isFrequent && $isRecent) {
             $urgency = 'low';
             $reasons[] = 'Previsto esaurimento tra ~' . round($daysLeft) . 'gg';
             $score += 25;
         }
 
-        // Opened item with fast consumption
-        if ($isOpened && $urgency === 'none' && $dailyRate > 0 && $daysLeft <= 7) {
+        // Opened item with fast consumption — only if actually used regularly
+        if ($isOpened && $urgency === 'none' && $dailyRate > 0 && $daysLeft <= 7 && $isRegular) {
             $urgency = 'low';
             $reasons[] = 'Aperto, finisce presto';
             $score += 20;
@@ -2392,6 +2415,8 @@ function smartShopping(PDO $db): void {
             'use_count' => $useCount,
             'buy_count' => $buyCount,
             'daily_rate' => round($dailyRate, 2),
+            'uses_per_month' => round($usesPerMonth, 1),
+            'days_since_last_use' => round($daysSinceLastUse),
             'days_left' => round($daysLeft),
             'expiry_date' => $expiryDate,
             'days_to_expiry' => round($daysToExpiry),
