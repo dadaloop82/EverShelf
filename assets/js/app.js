@@ -267,6 +267,8 @@ function detectUnitAndQuantity(quantityInfo) {
         let perUnitVal = parseFloat(multiMatch[2].replace(',', '.'));
         let perUnitUnit = multiMatch[3].toLowerCase();
         if (perUnitUnit === 'cl') { perUnitUnit = 'ml'; perUnitVal *= 10; }
+        if (perUnitUnit === 'kg') { perUnitUnit = 'g'; perUnitVal *= 1000; }
+        if (perUnitUnit === 'l') { perUnitUnit = 'ml'; perUnitVal *= 1000; }
         return { unit: 'conf', quantity: perUnitVal, packageUnit: perUnitUnit, confCount: count, weightInfo: quantityInfo };
     }
     // Match single package patterns like "500 g", "1 l", "750 ml", "1.5 kg"
@@ -275,6 +277,8 @@ function detectUnitAndQuantity(quantityInfo) {
         let unit = match[2].toLowerCase();
         let val = parseFloat(match[1].replace(',', '.'));
         if (unit === 'cl') { unit = 'ml'; val *= 10; }
+        if (unit === 'kg') { unit = 'g'; val *= 1000; }
+        if (unit === 'l') { unit = 'ml'; val *= 1000; }
         return { unit, quantity: val, weightInfo: quantityInfo };
     }
     return { unit: 'pz', quantity: 1, weightInfo: quantityInfo };
@@ -990,7 +994,7 @@ async function loadDashboard() {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
-                const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+                const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': 'pz' };
                 let qtyText = '';
 
                 if (item.unit === 'conf') {
@@ -1061,9 +1065,7 @@ const QTY_THRESHOLDS = {
     'pz':   { min: 0.3,  max: 50 },
     'conf': { min: 0.3,  max: 50 },
     'g':    { min: 3,    max: 10000 },
-    'kg':   { min: 0.005, max: 50 },
     'ml':   { min: 3,    max: 10000 },
-    'l':    { min: 0.005, max: 50 },
 };
 
 function isSuspiciousQty(qty, unit) {
@@ -1252,9 +1254,7 @@ function showAlertItemDetail(inventoryId, productId) {
 }
 
 function formatSubRemainder(amt, pkgUnit) {
-    const uL = { 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml' };
-    if (pkgUnit === 'l' && amt < 1) return `${Math.round(amt * 1000)}ml`;
-    if (pkgUnit === 'kg' && amt < 1) return `${Math.round(amt * 1000)}g`;
+    const uL = { 'g': 'g', 'ml': 'ml' };
     if (pkgUnit === 'ml' || pkgUnit === 'g') return `${Math.round(amt)}${uL[pkgUnit] || pkgUnit}`;
     return `${Math.round(amt * 10) / 10}${uL[pkgUnit] || pkgUnit}`;
 }
@@ -1262,7 +1262,7 @@ function formatSubRemainder(amt, pkgUnit) {
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
-    const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
+    const unitLabels = { 'pz': 'pz', 'g': 'g', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
 
     // Special handling for conf with partial packages
@@ -1292,7 +1292,7 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
 // Returns { mainQty: '10', unitLabel: 'conf', packageDetail: 'da 36g', fraction: '¼' }
 function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     const n = parseFloat(qty) || 0;
-    const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
+    const unitLabels = { 'pz': 'pz', 'g': 'g', 'ml': 'ml', 'conf': 'conf' };
     const label = unitLabels[unit] || unit || 'pz';
 
     // Special handling for conf with partial packages
@@ -1601,7 +1601,7 @@ function editInventoryItem(id) {
             <div class="form-group">
                 <label>📏 Unità di misura</label>
                 <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
-                    ${['pz','g','kg','ml','l','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'kg' ? 'kg (chilogrammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'l' ? 'L (litri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
@@ -1609,7 +1609,7 @@ function editInventoryItem(id) {
                 <div class="conf-size-inputs">
                     <input type="number" id="edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="es. 300">
                     <select id="edit-conf-unit" class="form-input conf-size-unit">
-                        ${['g','kg','ml','l'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u === 'l' ? 'L' : u}</option>`).join('')}
+                        ${['g','ml'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -2423,12 +2423,12 @@ function onCategoryChange(fromAutoDetect = false) {
         'latticini': { unit: 'pz', qty: 1 },
         'carne': { unit: 'g', qty: 500 },
         'pesce': { unit: 'g', qty: 300 },
-        'frutta': { unit: 'kg', qty: 1 },
-        'verdura': { unit: 'kg', qty: 0.5 },
+        'frutta': { unit: 'g', qty: 1000 },
+        'verdura': { unit: 'g', qty: 500 },
         'pasta': { unit: 'g', qty: 500 },
         'pane': { unit: 'pz', qty: 1 },
         'surgelati': { unit: 'g', qty: 450 },
-        'bevande': { unit: 'l', qty: 1 },
+        'bevande': { unit: 'ml', qty: 1000 },
         'condimenti': { unit: 'pz', qty: 1 },
         'snack': { unit: 'g', qty: 250 },
         'conserve': { unit: 'g', qty: 400 },
@@ -2824,7 +2824,7 @@ function editActionInventoryItem(inventoryId) {
             <div class="form-group">
                 <label>📏 Unità di misura</label>
                 <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
-                    ${['pz','g','kg','ml','l','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'kg' ? 'kg (chilogrammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'l' ? 'L (litri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
+                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
                 </select>
             </div>
             <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
@@ -2832,7 +2832,7 @@ function editActionInventoryItem(inventoryId) {
                 <div class="conf-size-inputs">
                     <input type="number" id="action-edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="es. 300">
                     <select id="action-edit-conf-unit" class="form-input conf-size-unit">
-                        ${['g','kg','ml','l'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u === 'l' ? 'L' : u}</option>`).join('')}
+                        ${['g','ml'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u}</option>`).join('')}
                     </select>
                 </div>
             </div>
@@ -3270,9 +3270,7 @@ function onAddUnitChange() {
     
     // Convert between related units if logical
     if (unit === 'g' && currentQty <= 10) qtyInput.value = currentProduct.weight_info ? parseFloat(currentProduct.weight_info) || 250 : 250;
-    if (unit === 'kg' && currentQty > 100) qtyInput.value = (currentQty / 1000).toFixed(1);
     if (unit === 'ml' && currentQty <= 10) qtyInput.value = 500;
-    if (unit === 'l' && currentQty > 100) qtyInput.value = (currentQty / 1000).toFixed(1);
     if (unit === 'pz' && currentQty > 100) qtyInput.value = 1;
     if (unit === 'conf' && currentQty > 10) qtyInput.value = 1;
 }
@@ -3283,8 +3281,6 @@ function updateAddQtyStep() {
     qtyInput.step = 'any';
     if (unit === 'g' || unit === 'ml') {
         qtyInput.min = '1';
-    } else if (unit === 'kg' || unit === 'l') {
-        qtyInput.min = '0.1';
     } else {
         qtyInput.min = '1';
     }
@@ -3300,9 +3296,7 @@ function adjustAddQty(delta) {
     const unit = document.getElementById('add-unit').value;
     let val = parseFloat(qtyInput.value) || 0;
     let step;
-    if (unit === 'kg' || unit === 'l') {
-        step = val < 1 ? 0.1 : 0.5;
-    } else if (unit === 'g' || unit === 'ml') {
+    if (unit === 'g' || unit === 'ml') {
         step = val < 50 ? 1 : (val < 500 ? 10 : 50);
     } else {
         step = 1;
@@ -3431,7 +3425,7 @@ async function submitAdd(e) {
             let qtyInfo = '';
             if (result.total_qty) {
                 const u = result.unit || 'pz';
-                const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml', 'conf': 'conf' };
+                const unitLabels = { 'pz': 'pz', 'g': 'g', 'ml': 'ml', 'conf': 'conf' };
                 const uLabel = unitLabels[u] || u;
                 if (u === 'conf' && result.package_unit && result.default_quantity > 0) {
                     const pkgLabel = unitLabels[result.package_unit] || result.package_unit;
@@ -3536,7 +3530,7 @@ async function loadUseInventoryInfo() {
             // --- CONF MODE: show sub-unit controls ---
             const totalConf = items.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const totalSub = totalConf * pkgSize;
-            const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+            const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': 'pz' };
             const subLabel = unitLabels[pkgUnit] || pkgUnit;
 
             _useConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel };
@@ -3568,9 +3562,9 @@ async function loadUseInventoryInfo() {
             }).join(' · ');
             
             const qtyInput = document.getElementById('use-quantity');
-            qtyInput.value = (unit === 'kg' || unit === 'l') ? 0.1 : 1;
+            qtyInput.value = 1;
             qtyInput.step = 'any';
-            qtyInput.min = (unit === 'kg' || unit === 'l') ? '0.01' : (unit === 'g' || unit === 'ml') ? '1' : '1';
+            qtyInput.min = (unit === 'g' || unit === 'ml') ? '1' : '1';
             document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
         }
     } catch(e) {
@@ -3607,9 +3601,7 @@ function switchUseUnit(mode) {
 function getSubUnitStep(pkgUnit) {
     switch (pkgUnit) {
         case 'ml': return 50;
-        case 'l': return 0.1;
         case 'g': return 10;
-        case 'kg': return 0.05;
         default: return 1;
     }
 }
@@ -3625,16 +3617,13 @@ function adjustUseQty(direction) {
     } else {
         // Unit-aware step for normal mode
         const u = _useNormalUnit || 'pz';
-        if (u === 'kg' || u === 'l') {
-            step = val <= 0.1 ? 0.01 : (val < 1 ? 0.1 : 0.5);
-        } else if (u === 'g' || u === 'ml') {
+        if (u === 'g' || u === 'ml') {
             step = val < 50 ? 1 : (val < 500 ? 10 : 50);
         } else {
             step = 1;
         }
     }
-    const minVal = ((_useNormalUnit === 'kg' || _useNormalUnit === 'l') && !_useConfMode) ? 0.01 : step;
-    val = Math.max(minVal, val + direction * step);
+    val = Math.max(step, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
 }
 
@@ -3653,7 +3642,6 @@ function isLowStock(totalRemaining, unit, defaultQty) {
     if (defaultQty > 0) return totalRemaining <= defaultQty * 0.25;
     // Fallback fixed thresholds
     if (unit === 'g' || unit === 'ml') return totalRemaining <= 100;
-    if (unit === 'kg' || unit === 'l') return totalRemaining <= 0.15;
     return false;
 }
 
@@ -3700,7 +3688,7 @@ function showLowStockBringPrompt(result, afterCallback) {
         const subTotal = Math.round(totalRemaining * defaultQty);
         remainLabel = `${subTotal}${result.product_package_unit}`;
     } else {
-        const unitLabels = { pz: 'pz', g: 'g', kg: 'kg', ml: 'ml', l: 'L', conf: 'conf' };
+        const unitLabels = { pz: 'pz', g: 'g', ml: 'ml', conf: 'conf' };
         remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
     }
 
@@ -4481,10 +4469,10 @@ function parseQtyFromSpec(spec) {
         let val = parseFloat(m[1].replace(',', '.'));
         const unit = m[2].toLowerCase();
         if (unit === 'g' || unit === 'gr') return { kg: val / 1000, label: val + 'g', type: 'weight' };
-        if (unit === 'kg') return { kg: val, label: val + 'kg', type: 'weight' };
+        if (unit === 'kg') return { kg: val, label: (val * 1000) + 'g', type: 'weight' };
         if (unit === 'ml') return { kg: val / 1000, label: val + 'ml', type: 'weight' };
         if (unit === 'cl') return { kg: val / 100, label: val * 10 + 'ml', type: 'weight' };
-        if (unit === 'l' || unit === 'lt') return { kg: val, label: val + 'L', type: 'weight' };
+        if (unit === 'l' || unit === 'lt') return { kg: val, label: (val * 1000) + 'ml', type: 'weight' };
     }
     // Match unit count: 2 pz, 3 pezzi, 5, 2x, ~5 pz
     const pzMatch = s.match(/~?(\d+)\s*(pz|pezzi|x|$)/i);
@@ -5792,7 +5780,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
         if (isConf) {
             const totalConf = items.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const totalSub = totalConf * pkgSize;
-            const unitLabels = { 'ml': 'ml', 'l': 'L', 'g': 'g', 'kg': 'kg', 'pz': 'pz' };
+            const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': 'pz' };
             const subLabel = unitLabels[pkgUnit] || pkgUnit;
             _recipeUseConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel, _activeUnit: 'sub' };
             
@@ -5813,9 +5801,9 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                 </div>`;
         } else {
             _recipeUseNormalUnit = unit;
-            const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml' };
+            const unitLabels = { 'pz': 'pz', 'g': 'g', 'ml': 'ml' };
             const unitLabel = unitLabels[unit] || unit;
-            const inputMin = (unit === 'kg' || unit === 'l') ? '0.01' : '0.1';
+            const inputMin = '0.1';
             qtySection = `
                 <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità da usare (${unitLabel}):</p>
                 <div class="qty-control">
@@ -5907,16 +5895,13 @@ function adjustRecipeUseQty(direction) {
         step = 0.5;
     } else {
         const u = _recipeUseNormalUnit || 'pz';
-        if (u === 'kg' || u === 'l') {
-            step = val <= 0.1 ? 0.01 : (val < 1 ? 0.1 : 0.5);
-        } else if (u === 'g' || u === 'ml') {
+        if (u === 'g' || u === 'ml') {
             step = val < 50 ? 1 : (val < 500 ? 10 : 50);
         } else {
             step = 1;
         }
     }
-    const minVal = ((_recipeUseNormalUnit === 'kg' || _recipeUseNormalUnit === 'l') && !_recipeUseConfMode) ? 0.01 : step;
-    val = Math.max(minVal, val + direction * step);
+    val = Math.max(step, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
 }
 

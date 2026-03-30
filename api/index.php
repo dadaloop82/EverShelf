@@ -135,6 +135,10 @@ try {
             getClientLog();
             break;
 
+        case 'migrate_units':
+            migrateUnitsToBase($db);
+            break;
+
         // ===== SPESA ONLINE =====
         case 'dupliclick_login':
             dupliclickLogin();
@@ -1480,7 +1484,7 @@ REGOLE IMPORTANTI:
 5. Adatta le quantità per $persons persona/e
 6. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
 7. La ricetta deve essere adatta al pasto: $mealLabel
-8. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2 kg" e servono 300g, qty_number = 0.3. Per ingredienti non dalla dispensa, qty_number = 0.
+8. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Le unità ammesse sono SOLO: g (grammi), ml (millilitri), pz (pezzi), conf (confezioni). NON usare mai kg o litri. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2000 g" e servono 300g, qty_number = 300. Per ingredienti non dalla dispensa, qty_number = 0.
 9. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
@@ -1622,27 +1626,27 @@ PROMPT;
                                 $recipeVal = (float)str_replace(',', '.', $qm[1]);
                                 $ru = strtolower($qm[2]);
                                 if (strpos($ru, 'g') === 0) $recipeUnit = 'g';
-                                elseif ($ru === 'kg') $recipeUnit = 'kg';
+                                elseif ($ru === 'kg') { $recipeUnit = 'g'; $recipeVal *= 1000; }
                                 elseif ($ru === 'ml') $recipeUnit = 'ml';
-                                elseif ($ru === 'cl') $recipeUnit = 'ml'; // cl→ml
-                                elseif ($ru === 'l' || strpos($ru, 'litr') === 0) $recipeUnit = 'l';
+                                elseif ($ru === 'cl') { $recipeUnit = 'ml'; $recipeVal *= 10; }
+                                elseif ($ru === 'l' || strpos($ru, 'litr') === 0) { $recipeUnit = 'ml'; $recipeVal *= 1000; }
                                 elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
                                 elseif (strpos($ru, 'conf') === 0) $recipeUnit = 'conf';
                             }
                             
                             // Convert qty_number to inventory unit if mismatch detected
                             if ($recipeUnit && $recipeUnit !== $invUnit) {
-                                // Weight conversions
+                                // Weight conversions (both should be 'g' now, but handle legacy 'kg')
                                 if ($recipeUnit === 'g' && $invUnit === 'kg') {
                                     $qtyNum = $recipeVal / 1000;
-                                } elseif ($recipeUnit === 'kg' && $invUnit === 'g') {
-                                    $qtyNum = $recipeVal * 1000;
-                                // Volume conversions
+                                } elseif ($recipeUnit === 'g' && $invUnit === 'g') {
+                                    $qtyNum = $recipeVal;
+                                // Volume conversions (both should be 'ml' now, but handle legacy 'l')
                                 } elseif ($recipeUnit === 'ml' && $invUnit === 'l') {
                                     $qtyNum = $recipeVal / 1000;
-                                } elseif ($recipeUnit === 'l' && $invUnit === 'ml') {
-                                    $qtyNum = $recipeVal * 1000;
-                                // g/kg/ml/l → pz (approximate to nearest piece)
+                                } elseif ($recipeUnit === 'ml' && $invUnit === 'ml') {
+                                    $qtyNum = $recipeVal;
+                                // g/ml → pz (approximate to nearest piece)
                                 } elseif ($invUnit === 'pz' || $invUnit === 'conf') {
                                     $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                                     if ($defQty > 0) {
@@ -3122,4 +3126,52 @@ function chatSave(PDO $db): void {
 function chatClear(PDO $db): void {
     $db->exec("DELETE FROM chat_messages");
     echo json_encode(['success' => true]);
+}
+
+/**
+ * One-time migration: convert all kg→g and l→ml in products table,
+ * and scale inventory quantities accordingly.
+ */
+function migrateUnitsToBase(PDO $db): void {
+    $changes = 0;
+
+    // Get products with kg or l units
+    $stmt = $db->query("SELECT id, unit, default_quantity, package_unit FROM products WHERE unit IN ('kg','l') OR package_unit IN ('kg','l')");
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($products as $p) {
+        $newUnit = $p['unit'];
+        $newDefQty = (float)$p['default_quantity'];
+        $newPkgUnit = $p['package_unit'];
+        $scaleInventory = false;
+
+        if ($p['unit'] === 'kg') {
+            $newUnit = 'g';
+            $newDefQty = $newDefQty * 1000;
+            $scaleInventory = true;
+        } elseif ($p['unit'] === 'l') {
+            $newUnit = 'ml';
+            $newDefQty = $newDefQty * 1000;
+            $scaleInventory = true;
+        }
+
+        if ($p['package_unit'] === 'kg') {
+            $newPkgUnit = 'g';
+            if ($p['unit'] === 'conf') $newDefQty = $newDefQty * 1000;
+        } elseif ($p['package_unit'] === 'l') {
+            $newPkgUnit = 'ml';
+            if ($p['unit'] === 'conf') $newDefQty = $newDefQty * 1000;
+        }
+
+        $upd = $db->prepare("UPDATE products SET unit = ?, default_quantity = ?, package_unit = ? WHERE id = ?");
+        $upd->execute([$newUnit, $newDefQty, $newPkgUnit, $p['id']]);
+        $changes++;
+
+        // Scale inventory quantities (kg→g means multiply by 1000)
+        if ($scaleInventory) {
+            $db->prepare("UPDATE inventory SET quantity = quantity * 1000 WHERE product_id = ?")->execute([$p['id']]);
+        }
+    }
+
+    echo json_encode(['success' => true, 'changes' => $changes]);
 }
