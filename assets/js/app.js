@@ -3487,6 +3487,7 @@ function renderUsePreview() {
 
 // Conf-mode tracking for USE form
 let _useConfMode = null; // null = normal, { packageSize, packageUnit, totalSub, unit } = conf mode active
+let _useNormalUnit = 'pz'; // unit when not in conf mode
 
 async function loadUseInventoryInfo() {
     try {
@@ -3558,6 +3559,7 @@ async function loadUseInventoryInfo() {
         } else {
             // --- NORMAL MODE ---
             _useConfMode = null;
+            _useNormalUnit = unit;
             unitSwitch.style.display = 'none';
             
             infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
@@ -3565,7 +3567,10 @@ async function loadUseInventoryInfo() {
                 return `${loc.icon} ${loc.label}: ${i.quantity} ${i.unit}`;
             }).join(' · ');
             
-            document.getElementById('use-quantity').value = 1;
+            const qtyInput = document.getElementById('use-quantity');
+            qtyInput.value = (unit === 'kg' || unit === 'l') ? 0.1 : 1;
+            qtyInput.step = 'any';
+            qtyInput.min = (unit === 'kg' || unit === 'l') ? '0.01' : (unit === 'g' || unit === 'ml') ? '1' : '1';
             document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
         }
     } catch(e) {
@@ -3618,9 +3623,18 @@ function adjustUseQty(direction) {
     } else if (_useConfMode && _useConfMode._activeUnit === 'conf') {
         step = 0.5;
     } else {
-        step = 0.5;
+        // Unit-aware step for normal mode
+        const u = _useNormalUnit || 'pz';
+        if (u === 'kg' || u === 'l') {
+            step = val <= 0.1 ? 0.01 : (val < 1 ? 0.1 : 0.5);
+        } else if (u === 'g' || u === 'ml') {
+            step = val < 50 ? 1 : (val < 500 ? 10 : 50);
+        } else {
+            step = 1;
+        }
     }
-    val = Math.max(step, val + direction * step);
+    const minVal = ((_useNormalUnit === 'kg' || _useNormalUnit === 'l') && !_useConfMode) ? 0.01 : step;
+    val = Math.max(minVal, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
 }
 
@@ -5727,6 +5741,7 @@ function adjustRecipePersons(delta) {
 
 let _recipeUseContext = null; // { idx, productId, btn, qtyNumber }
 let _recipeUseConfMode = null;
+let _recipeUseNormalUnit = 'pz';
 
 async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
     if (btn.disabled) return;
@@ -5797,13 +5812,15 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                 </div>`;
         } else {
+            _recipeUseNormalUnit = unit;
             const unitLabels = { 'pz': 'pz', 'kg': 'kg', 'g': 'g', 'l': 'L', 'ml': 'ml' };
             const unitLabel = unitLabels[unit] || unit;
+            const inputMin = (unit === 'kg' || unit === 'l') ? '0.01' : '0.1';
             qtySection = `
                 <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità da usare (${unitLabel}):</p>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
-                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="0.1" step="any" class="qty-input">
+                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                 </div>`;
         }
@@ -5889,9 +5906,17 @@ function adjustRecipeUseQty(direction) {
     } else if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'conf') {
         step = 0.5;
     } else {
-        step = 0.5;
+        const u = _recipeUseNormalUnit || 'pz';
+        if (u === 'kg' || u === 'l') {
+            step = val <= 0.1 ? 0.01 : (val < 1 ? 0.1 : 0.5);
+        } else if (u === 'g' || u === 'ml') {
+            step = val < 50 ? 1 : (val < 500 ? 10 : 50);
+        } else {
+            step = 1;
+        }
     }
-    val = Math.max(step, val + direction * step);
+    const minVal = ((_recipeUseNormalUnit === 'kg' || _recipeUseNormalUnit === 'l') && !_recipeUseConfMode) ? 0.01 : step;
+    val = Math.max(minVal, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
 }
 
