@@ -4310,6 +4310,7 @@ async function confirmShoppingItemFound() {
             const idx = shoppingItems.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
             if (idx >= 0) shoppingItems.splice(idx, 1);
             showToast(`✅ ${name} rimosso dalla lista!`, 'success');
+            logOperation('bring_found', { name });
             loadShoppingCount();
         }
     } catch (e) { console.error('confirmShoppingItemFound', e); }
@@ -4327,42 +4328,61 @@ async function autoAddCriticalItems() {
         const result = await api('bring_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
             showToast(`🔴 ${result.added} prodott${result.added === 1 ? 'o urgente aggiunto' : 'i urgenti aggiunti'} automaticamente a Bring!`, 'success');
+            logOperation('bring_auto_add', { added: itemsToAdd.map(i => i.name) });
             loadShoppingList();
         }
     } catch (e) { /* ignore */ }
 }
 
 /**
- * One-time cleanup: remove items from Bring! that the new smart algorithm no longer considers relevant.
- * Compares current shoppingItems vs smartShoppingItems — if a Bring! item has NO match in
- * smart predictions (or matches a product with urgency 'none' that was filtered out), remove it.
+ * One-time cleanup: remove items from Bring! that were auto-added but the algorithm no
+ * longer considers relevant.  CONSERVATIVE: only removes items that match a known product
+ * in our inventory with current_qty > 0 AND that no longer appear in smart predictions.
+ * Items not matching any DB product are left untouched (likely manually added by user).
  */
 async function cleanupObsoleteBringItems() {
     if (sessionStorage.getItem('_bringCleanupDone')) return;
     sessionStorage.setItem('_bringCleanupDone', '1');
     if (!shoppingItems.length || !smartShoppingItems.length) return;
 
-    // Build a set of names that the smart algorithm still considers relevant
+    // Build set of smart-flagged names (these should stay)
     const smartNames = new Set(smartShoppingItems.map(i => i.name.toLowerCase()));
 
-    // Find Bring! items that have NO match in smart predictions AND are not manually added
-    // (We consider items "auto-added" if their name matches a known product in our DB)
+    // Load all products from our DB to cross-reference
+    let allProducts = [];
+    try {
+        const res = await api('products');
+        allProducts = res.products || res.data || [];
+    } catch (e) { return; }
+    if (!allProducts.length) return;
+
+    // Index our products by lowercase name
+    const dbByName = {};
+    for (const p of allProducts) {
+        dbByName[p.name.toLowerCase()] = p;
+    }
+
     const toRemove = [];
     for (const item of shoppingItems) {
         const nameLower = item.name.toLowerCase();
-        // If smart shopping still flags this item, keep it
+        // If smart shopping still flags it, keep it
         if (smartNames.has(nameLower)) continue;
-        // Check with token matching too
-        const smartMatch = _findSimilarItem(item.name, smartShoppingItems);
-        if (smartMatch) continue;
-        // This item is no longer predicted by smart shopping — candidate for removal
+        if (_findSimilarItem(item.name, smartShoppingItems)) continue;
+
+        // Must match a known DB product — otherwise it's likely a manual addition
+        const dbProduct = dbByName[nameLower] || _findSimilarItem(item.name, allProducts);
+        if (!dbProduct) continue;
+
+        // Only remove if we have stock (qty > 0) — if qty == 0 user may still need it
+        if ((dbProduct.quantity || 0) <= 0) continue;
+
         toRemove.push(item);
     }
 
     if (toRemove.length === 0) return;
 
-    // Remove them from Bring!
     let removed = 0;
+    const removedNames = [];
     for (const item of toRemove) {
         try {
             const r = await api('bring_remove', {}, 'POST', {
@@ -4370,14 +4390,29 @@ async function cleanupObsoleteBringItems() {
                 rawName: item.rawName || '',
                 listUUID: shoppingListUUID
             });
-            if (r.success) removed++;
+            if (r.success) { removed++; removedNames.push(item.name); }
         } catch (e) { /* ignore individual failures */ }
     }
 
     if (removed > 0) {
-        showToast(`🧹 ${removed} prodott${removed === 1 ? 'o non più necessario rimosso' : 'i non più necessari rimossi'} dalla lista`, 'info');
+        showToast(`🧹 ${removed} prodott${removed === 1 ? 'o con scorte sufficienti rimosso' : 'i con scorte sufficienti rimossi'} dalla lista`, 'info');
+        logOperation('bring_cleanup', { removed: removedNames });
         loadShoppingList();
     }
+}
+
+/**
+ * Log an app operation (not a food transaction) for auditing/debugging.
+ * Stored in localStorage under '_opLog', capped at 200 entries.
+ */
+function logOperation(action, details) {
+    try {
+        const log = JSON.parse(localStorage.getItem('_opLog') || '[]');
+        log.push({ ts: new Date().toISOString(), action, details });
+        // Keep last 200 entries
+        if (log.length > 200) log.splice(0, log.length - 200);
+        localStorage.setItem('_opLog', JSON.stringify(log));
+    } catch (e) { /* ignore */ }
 }
 
 const DEFAULT_SPESA_AI_PROMPT = `Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
@@ -5092,6 +5127,7 @@ async function removeBringItem(idx) {
             shoppingItems.splice(idx, 1);
             renderShoppingItems();
             showToast('Rimosso dalla lista', 'success');
+            logOperation('bring_manual_remove', { name: item.name });
             // Update dashboard shopping count
             loadShoppingCount();
         }
