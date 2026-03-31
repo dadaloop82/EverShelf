@@ -3029,6 +3029,15 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
+.cooking-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-shrink: 0;
+    width: 100%;
+}
+
 .cooking-step-num {
     font-size: 0.85rem;
     font-weight: 700;
@@ -3036,6 +3045,51 @@ body {
     letter-spacing: 0.1em;
     text-align: center;
     flex-shrink: 0;
+}
+
+.cooking-restart-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.45);
+    border-radius: 14px;
+    padding: 4px 11px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.cooking-restart-btn:active {
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+}
+
+/* Progress dots */
+.cooking-progress-dots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    flex-shrink: 0;
+    max-width: 320px;
+    width: 100%;
+}
+.cprog-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    border: 1.5px solid rgba(255,255,255,0.18);
+    transition: background 0.25s, border-color 0.25s, transform 0.2s;
+    flex-shrink: 0;
+}
+.cprog-dot.visited {
+    background: rgba(255,255,255,0.50);
+    border-color: rgba(255,255,255,0.50);
+}
+.cprog-dot.current {
+    background: #f59e0b;
+    border-color: #fbbf24;
+    transform: scale(1.35);
 }
 
 .cooking-step-text {
@@ -3068,30 +3122,55 @@ body {
 }
 
 .cooking-timer-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    max-width: 360px;
-    margin-top: 4px;
+    display: none; /* legacy - replaced by cooking-timers-bar */
 }
 
-.cooking-timer-display {
-    font-size: clamp(2.4rem, 10vw, 4rem);
+/* ===== Persistent timers bar (fixed below header, survives step changes) ===== */
+.cooking-timers-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    overflow-x: auto;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    flex-shrink: 0;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.cooking-timers-bar::-webkit-scrollbar { display: none; }
+
+.cooking-timer-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.09);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 14px;
+    padding: 6px 10px 6px 14px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.ctimer-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.60);
+    max-width: 85px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ctimer-display {
+    font-size: 1.15rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: #fff;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
+    min-width: 48px;
     text-align: center;
-    transition: color 0.4s;
 }
-
-.cooking-timer-display.timer-warning {
-    color: #f97316;
-}
-
-.cooking-timer-display.timer-done {
+.ctimer-display.ctimer-warning { color: #f97316; }
+.ctimer-display.ctimer-done {
     color: #ef4444;
     animation: timerPulse 0.8s ease-in-out infinite alternate;
 }
@@ -3101,41 +3180,60 @@ body {
     to   { opacity: 0.5; transform: scale(1.06); }
 }
 
-.cooking-timer-actions {
+.ctimer-btns {
     display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
+    gap: 4px;
+    align-items: center;
 }
+.ctimer-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    font-size: 0.80rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.ctimer-btn:active { background: rgba(255,255,255,0.25); }
+.ctimer-toggle.running {
+    background: rgba(239,68,68,0.28);
+    border-color: rgba(239,68,68,0.55);
+}
+.ctimer-remove {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.45);
+    font-size: 0.65rem;
+}
+.ctimer-remove:active { background: rgba(239,68,68,0.25); }
 
-.cooking-timer-btn {
+/* ===== Step timer suggestion button ===== */
+.cooking-timer-suggest {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.cooking-timer-add-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.20);
-    color: #fff;
-    border-radius: 20px;
-    padding: 8px 20px;
-    font-size: 1rem;
+    background: rgba(251,191,36,0.12);
+    border: 1.5px dashed rgba(251,191,36,0.45);
+    color: #fbbf24;
+    border-radius: 22px;
+    padding: 10px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
     cursor: pointer;
     transition: background 0.2s;
 }
-
-.cooking-timer-btn:active {
-    background: rgba(255,255,255,0.22);
-}
-
-.cooking-timer-btn.timer-running {
-    background: rgba(239,68,68,0.25);
-    border-color: rgba(239,68,68,0.5);
-}
-
-.cooking-timer-reset {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.12);
-    font-size: 0.9rem;
-}
+.cooking-timer-add-btn:active { background: rgba(251,191,36,0.26); }
 
 .cooking-step-ings {
     width: 100%;

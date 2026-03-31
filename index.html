@@ -970,16 +970,19 @@
         <span class="cooking-title" id="cooking-title"></span>
         <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" title="Leggi ad alta voce">🔊</button>
     </div>
+    <div id="cooking-timers-bar" class="cooking-timers-bar" style="display:none"></div>
     <div class="cooking-body">
-        <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
+        <div class="cooking-step-header">
+            <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
+            <button class="cooking-restart-btn" onclick="restartCookingMode()" title="Ricomincia dall'inizio">↺ Ricomincia</button>
+        </div>
+        <div class="cooking-progress-dots" id="cooking-progress-dots"></div>
         <div class="cooking-step-text" id="cooking-step-text"></div>
         <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" title="Rileggi questo passo">🔊 Rileggi</button>
-        <div class="cooking-timer-wrap" id="cooking-timer-wrap" style="display:none">
-            <div class="cooking-timer-display" id="cooking-timer-display">00:00</div>
-            <div class="cooking-timer-actions">
-                <button class="cooking-timer-btn" id="cooking-timer-start" onclick="toggleCookingTimer()">⏱️ Avvia timer</button>
-                <button class="cooking-timer-btn cooking-timer-reset" id="cooking-timer-reset" onclick="resetCookingTimer()" style="display:none">↩ Reset</button>
-            </div>
+        <div class="cooking-timer-suggest" id="cooking-timer-suggest" style="display:none">
+            <button class="cooking-timer-add-btn" onclick="addSuggestedCookingTimer()">
+                <span id="cooking-timer-suggest-text">⏱️ 00:00 · Timer</span>
+            </button>
         </div>
         <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
     </div>

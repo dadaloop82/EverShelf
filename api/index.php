@@ -1359,8 +1359,37 @@ function generateRecipe(PDO $db): void {
         return;
     }
 
-    // Build ingredient list with expiry info
-    $ingredientLines = [];
+    // Helper to compute priority group for an item:
+    // 1=scaduto, 2=scadenza imminente ≤3gg, 3=scadenza ravvicinata ≤7gg, 4=scadenza lontana, 5=confezione aperta, 6=chiuso
+    $getItemPriority = function($item) {
+        $daysLeft = floatval($item['days_left']);
+        $isOpen = (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
+        if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
+        if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
+        if (!empty($item['expiry_date'])) return 4;
+        if ($isOpen) return 5;
+        return 6;
+    };
+
+    // Sort by priority group, then by days_left within each group
+    usort($items, function($a, $b) use ($getItemPriority) {
+        $pa = $getItemPriority($a);
+        $pb = $getItemPriority($b);
+        if ($pa !== $pb) return $pa - $pb;
+        return floatval($a['days_left']) - floatval($b['days_left']);
+    });
+
+    // Build ingredient list grouped by priority
+    $priorityHeaders = [
+        1 => '⚠️ PRODOTTI SCADUTI (PRIORITÀ MASSIMA - USA SUBITO SE ANCORA COMMESTIBILI)',
+        2 => '🔴 SCADENZA IMMINENTE (entro 3 giorni - USA PER PRIMI)',
+        3 => '🟠 SCADENZA RAVVICINATA (entro 7 giorni)',
+        4 => '🟡 ALTRI PRODOTTI CON SCADENZA',
+        5 => '📦 CONFEZIONI APERTE (da consumare prima dei chiusi)',
+        6 => '🟢 ALTRI PRODOTTI',
+    ];
+    $priorityGroups = [];
     foreach ($items as $item) {
         $line = "- {$item['name']}";
         if ($item['brand']) $line .= " ({$item['brand']})";
@@ -1371,27 +1400,44 @@ function generateRecipe(PDO $db): void {
         if ($item['expiry_date']) {
             $daysLeft = intval($item['days_left']);
             if ($daysLeft < 0) {
-                $line .= " [SCADUTO da " . abs($daysLeft) . " giorni!]";
-            } elseif ($daysLeft <= 3) {
-                $line .= " [SCADE TRA $daysLeft GIORNI - PRIORITÀ ALTA!]";
-            } elseif ($daysLeft <= 7) {
-                $line .= " [scade tra $daysLeft giorni - priorità media]";
+                $line .= " [SCADUTO da " . abs($daysLeft) . " giorni]";
+            } else {
+                $line .= " [scade tra $daysLeft giorni]";
             }
         }
-        // Flag fridge items for priority
         if (strtolower($item['location']) === 'frigo') {
-            $line .= " [IN FRIGO - PRIORITÀ]";
+            $line .= " [FRIGO]";
         }
-        // Flag opened packages (fractional quantity = already opened)
         $qty = floatval($item['quantity']);
         if ($qty > 0 && $qty < 1 && $item['unit'] === 'conf') {
-            $line .= " [CONFEZIONE APERTA - USA PRIMA]";
+            $line .= " [APERTO]";
         }
         $line .= " (in {$item['location']})";
-        $ingredientLines[] = $line;
+
+        $group = $getItemPriority($item);
+        $priorityGroups[$group][] = $line;
     }
 
-    $ingredientsText = implode("\n", $ingredientLines);
+    $ingredientSections = [];
+    foreach ($priorityHeaders as $g => $header) {
+        if (!empty($priorityGroups[$g])) {
+            $ingredientSections[] = "=== {$header} ===\n" . implode("\n", $priorityGroups[$g]);
+        }
+    }
+    $ingredientsText = implode("\n\n", $ingredientSections);
+
+    // Build a mandatory-use list from the most urgent items (groups 1 + 2)
+    $urgentItems = [];
+    foreach ($items as $item) {
+        $g = $getItemPriority($item);
+        if ($g <= 2) {
+            $urgentItems[] = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . " — scade: {$item['expiry_date']}";
+        }
+    }
+    $mustUseText = '';
+    if (!empty($urgentItems)) {
+        $mustUseText = "\n\n⚠️⚠️⚠️ INGREDIENTI OBBLIGATORI (SCADUTI O IN SCADENZA IMMINENTE) ⚠️⚠️⚠️\nLa ricetta DEVE usare ALMENO uno (meglio se tutti) di questi ingredienti come ingrediente PRINCIPALE della ricetta. Non sono opzionali!\n" . implode("\n", array_map(fn($n) => "→ $n", $urgentItems));
+    }
 
     $mealLabels = [
         'colazione' => 'colazione (mattina)',
@@ -1409,7 +1455,7 @@ function generateRecipe(PDO $db): void {
         'pocafame' => 'L\'utente ha POCA FAME: proponi una porzione leggera, magari uno snack, un\'insalata o qualcosa di semplice e poco abbondante.',
         'scadenze' => 'PRIORITÀ SCADENZE: usa ASSOLUTAMENTE per primi gli ingredienti più vicini alla scadenza o già scaduti (se ancora commestibili).',
         'salutare' => 'Ricetta EXTRA SALUTARE: prediligi ingredienti integrali, tante verdure, pochi grassi, cotture leggere.',
-        'opened' => 'PRIORITÀ COSE APERTE: dai la MASSIMA PRIORITÀ ai prodotti con confezione aperta (contrassegnati [CONFEZIONE APERTA]) e a quelli in FRIGO (contrassegnati [IN FRIGO]). Questi prodotti si deteriorano più in fretta e DEVONO essere usati per primi. Costruisci la ricetta attorno a questi ingredienti.',
+        'opened' => 'PRIORITÀ COSE APERTE: dai la MASSIMA PRIORITÀ ai prodotti con confezione aperta (contrassegnati [APERTO]) e a quelli in FRIGO (contrassegnati [FRIGO]). Questi prodotti si deteriorano più in fretta e DEVONO essere usati per primi. Costruisci la ricetta attorno a questi ingredienti.',
         'zerowaste' => 'ZERO SPRECHI: cerca di usare quanti più ingredienti in scadenza possibile, combina anche ingredienti insoliti pur di non sprecare nulla.'
     ];
     foreach ($options as $opt) {
@@ -1474,18 +1520,25 @@ function generateRecipe(PDO $db): void {
 
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$varietyText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$varietyText}{$mustUseText}
 
 REGOLE IMPORTANTI:
-1. PRIORITÀ ASSOLUTA: usa prima gli ingredienti in scadenza o già scaduti (se ancora utilizzabili)
-2. SUGGERIMENTO (non obbligatorio): quando possibile, preferisci ingredienti in FRIGO (contrassegnati [IN FRIGO]) e quelli con CONFEZIONE APERTA (contrassegnati [CONFEZIONE APERTA]) perché si deteriorano più in fretta. Ma se la ricetta migliore usa altri ingredienti, va benissimo.
-3. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
-4. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
-5. Adatta le quantità per $persons persona/e
-6. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
-7. La ricetta deve essere adatta al pasto: $mealLabel
-8. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Le unità ammesse sono SOLO: g (grammi), ml (millilitri), pz (pezzi), conf (confezioni). NON usare mai kg o litri. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2000 g" e servono 300g, qty_number = 300. Per ingredienti non dalla dispensa, qty_number = 0.
-9. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
+1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
+   a) PRODOTTI SCADUTI: se ancora commestibili, usali SUBITO — hanno la priorità massima assoluta
+   b) PRODOTTI IN SCADENZA IMMINENTE (≤3 giorni): usa questi per primi dopo gli scaduti
+   c) PRODOTTI IN SCADENZA RAVVICINATA (≤7 giorni): poi questi
+   d) PRODOTTI CON SCADENZA PIÙ LONTANA: poi questi
+   e) CONFEZIONI APERTE (contrassegnate [APERTO]): preferiscile rispetto a quelle chiuse
+   f) PRODOTTI CHIUSI SENZA SCADENZA: usa per ultimi
+   Costruisci la ricetta partendo dagli ingredienti delle categorie più urgenti! Usa il maggior numero possibile di ingredienti ad alta priorità.
+   *** OBBLIGO: se nella sezione "INGREDIENTI OBBLIGATORI" sopra ci sono prodotti, la ricetta DEVE contenere ALMENO UNO di quei prodotti come ingrediente principale. Se li ignori, la ricetta è SBAGLIATA. ***
+2. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
+3. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
+4. Adatta le quantità per $persons persona/e
+5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
+6. La ricetta deve essere adatta al pasto: $mealLabel
+7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Le unità ammesse sono SOLO: g (grammi), ml (millilitri), pz (pezzi), conf (confezioni). NON usare mai kg o litri. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2000 g" e servono 300g, qty_number = 300. Per ingredienti non dalla dispensa, qty_number = 0.
+8. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
 $ingredientsText

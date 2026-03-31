@@ -6095,6 +6095,7 @@ function renderRecipe(r) {
 let _cookingRecipe = null;
 let _cookingStep = 0;
 let _cookingTTS = true;
+let _cookingVisited = new Set(); // indices of steps already seen
 
 function startCookingMode() {
     const recipe = _cachedRecipe && _cachedRecipe.recipe ? _cachedRecipe.recipe : null;
@@ -6102,8 +6103,14 @@ function startCookingMode() {
         showToast('Nessun procedimento disponibile', 'info');
         return;
     }
-    _cookingRecipe = JSON.parse(JSON.stringify(recipe)); // deep copy so we can track .used
-    _cookingStep = 0;
+    // Resume if same recipe; otherwise start fresh
+    const isSame = _cookingRecipe && _cookingRecipe.title === recipe.title;
+    if (!isSame) {
+        _cookingRecipe = JSON.parse(JSON.stringify(recipe));
+        _cookingStep = 0;
+        _cookingVisited = new Set();
+        clearAllCookingTimers();
+    }
     _cookingTTS = true;
     document.getElementById('cooking-title').textContent = _cookingRecipe.title || '';
     document.getElementById('cooking-tts-btn').textContent = '🔊';
@@ -6138,8 +6145,16 @@ function closeCookingMode() {
     document.getElementById('cooking-overlay').style.display = 'none';
     document.body.classList.remove('cooking-mode-active');
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    clearCookingTimer();
+    // NOTE: intentionally keep _cookingRecipe, _cookingStep, _cookingVisited
+    // so the user can resume from the same step when they reopen
     try { screen.orientation?.unlock(); } catch (_) { /* ignore */ }
+}
+
+function restartCookingMode() {
+    _cookingStep = 0;
+    _cookingVisited = new Set();
+    clearAllCookingTimers();
+    renderCookingStep();
 }
 
 function renderCookingStep() {
@@ -6149,8 +6164,22 @@ function renderCookingStep() {
     const cleanStep = step.replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
     const total = steps.length;
 
+    // Mark current step as visited
+    _cookingVisited.add(_cookingStep);
+
     document.getElementById('cooking-step-num').textContent = `${_cookingStep + 1} / ${total}`;
     document.getElementById('cooking-step-text').textContent = cleanStep;
+
+    // Progress dots
+    const dotsEl = document.getElementById('cooking-progress-dots');
+    if (dotsEl) {
+        dotsEl.innerHTML = Array.from({ length: total }, (_, i) => {
+            let cls = 'cprog-dot';
+            if (i === _cookingStep) cls += ' current';
+            else if (_cookingVisited.has(i)) cls += ' visited';
+            return `<span class="${cls}"></span>`;
+        }).join('');
+    }
 
     // Find pantry ingredients that appear in this step's text and haven't been used yet
     const stepLower = cleanStep.toLowerCase();
@@ -6184,8 +6213,8 @@ function renderCookingStep() {
     prevBtn.disabled = _cookingStep === 0;
     nextBtn.textContent = _cookingStep === total - 1 ? '✅ Fine' : 'Successivo ▶';
 
-    // Timer: detect durations in step text
-    setupCookingTimer(cleanStep);
+    // Timer: detect duration in step text and show suggestion
+    setupCookingTimerSuggestion(cleanStep);
 
     // Speak step
     if (_cookingTTS) speakCookingStep(cleanStep);
@@ -6230,139 +6259,185 @@ function replayCookingTTS() {
     if (text) speakCookingStep(text);
 }
 
-// ===== COOKING TIMER =====
-let _cookingTimerInterval = null;
-let _cookingTimerSeconds = 0;
-let _cookingTimerRunning = false;
-let _cookingTimerTotal = 0; // original total seconds
+// ===== COOKING TIMER SYSTEM =====
+let _cookingTimers = [];          // { id, label, total, seconds, running, interval }
+let _cookingTimerIdCounter = 0;
+let _cookingSuggestedSeconds = 0;
+let _cookingSuggestedLabel = '';
 
 /**
  * Parse time durations from step text.
  * Returns total seconds or 0 if no time found.
- * Handles: "10 minuti", "1 ora", "1 ora e 30 minuti", "30 secondi",
- *           "un'ora", "mezz'ora", "un paio di minuti", "qualche minuto"
  */
 function _parseStepTimer(text) {
     const t = text.toLowerCase();
     let totalSec = 0;
-
-    // "mezz'ora" / "mezzora"
     if (/mezz['']?\s*ora/i.test(t)) totalSec += 30 * 60;
-    // "un quarto d'ora"
     if (/un\s+quarto\s+d['']?\s*ora/i.test(t)) totalSec += 15 * 60;
-    // "un'ora" (without other numbers)
     if (/un['']?\s*ora(?!\s*e)/i.test(t) && !/\d\s*or[ae]/i.test(t)) totalSec += 60 * 60;
-
     if (totalSec > 0) return totalSec;
-
-    // Numeric patterns: "N ore/ora [e M minuti]", "N minuti/min", "N secondi/sec"
     const reOre = /(\d+(?:[.,]\d+)?)\s*or[ae]/gi;
     const reMin = /(\d+(?:[.,]\d+)?)\s*min(?:ut[oi])?/gi;
     const reSec = /(\d+(?:[.,]\d+)?)\s*second[oi]/gi;
-
     let m;
     while ((m = reOre.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 3600;
     while ((m = reMin.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 60;
     while ((m = reSec.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.'));
-
-    // "un paio di minuti" / "qualche minuto" / "pochi minuti"
     if (totalSec === 0 && /(?:un\s+paio\s+di|qualche|pochi)\s+minut/i.test(t)) totalSec = 2 * 60;
-    // "qualche secondo"
     if (totalSec === 0 && /qualche\s+second/i.test(t)) totalSec = 15;
-
     return Math.round(totalSec);
 }
 
 function _formatTimerDisplay(sec) {
-    const m = Math.floor(Math.abs(sec) / 60);
-    const s = Math.abs(sec) % 60;
-    const sign = sec < 0 ? '-' : '';
+    const abs = Math.abs(sec);
+    const m = Math.floor(abs / 60);
+    const s = abs % 60;
+    const sign = sec < 0 ? '+' : '';
     return `${sign}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function setupCookingTimer(stepText) {
-    clearCookingTimer();
+/** Extract a short 2-3 word label from the step text for the timer. */
+function _extractTimerLabel(text, stepNum) {
+    const fillers = new Set(['il','la','lo','le','gli','i','dell','della','dello','delle','degli','dei',
+        'un','una','uno','del','al','alla','allo','alle','agli','ai','nel','nella','nello','nelle',
+        'negli','nei','per','con','che','poi','e','o','non','se','in','di','a','da','fino','mentre',
+        'quando','dopo','prima','circa','bene','ancora','subito','su','ad','ed','più','meno','tutto','tutta']);
+    const timePatterns = [/mezz['']?\s*ora/i, /\bor[ae]\b/i, /\bmin(?:ut[oi])?\b/i, /\bsecond[oi]\b/i, /\bquarto\s+d['']?\s*ora/i];
+    let timeIdx = text.length;
+    for (const p of timePatterns) { const r = p.exec(text); if (r && r.index < timeIdx) timeIdx = r.index; }
+    const beforeTime = (text.slice(0, timeIdx).trim() || text);
+    const words = beforeTime.replace(/[.,!?;:'"()\[\]]/g, '').split(/\s+/).filter(w => w.length > 2 && !/^\d+$/.test(w));
+    const meaningful = words.filter(w => !fillers.has(w.toLowerCase()));
+    if (meaningful.length >= 1) return meaningful.slice(0, 3).join(' ');
+    return `Passo ${stepNum + 1}`;
+}
+
+function setupCookingTimerSuggestion(stepText) {
     const seconds = _parseStepTimer(stepText);
-    const wrap = document.getElementById('cooking-timer-wrap');
+    const suggestEl = document.getElementById('cooking-timer-suggest');
     if (seconds <= 0) {
-        wrap.style.display = 'none';
+        suggestEl.style.display = 'none';
+        _cookingSuggestedSeconds = 0;
+        _cookingSuggestedLabel = '';
         return;
     }
-    _cookingTimerTotal = seconds;
-    _cookingTimerSeconds = seconds;
-    _cookingTimerRunning = false;
-    wrap.style.display = 'flex';
-    document.getElementById('cooking-timer-display').textContent = _formatTimerDisplay(seconds);
-    document.getElementById('cooking-timer-display').className = 'cooking-timer-display';
-    document.getElementById('cooking-timer-start').textContent = '⏱️ Avvia timer';
-    document.getElementById('cooking-timer-start').classList.remove('timer-running');
-    document.getElementById('cooking-timer-reset').style.display = 'none';
+    _cookingSuggestedSeconds = seconds;
+    _cookingSuggestedLabel = _extractTimerLabel(stepText, _cookingStep);
+    document.getElementById('cooking-timer-suggest-text').textContent =
+        `⏱️ ${_formatTimerDisplay(seconds)}  ·  ${_cookingSuggestedLabel}`;
+    suggestEl.style.display = 'flex';
 }
 
-function toggleCookingTimer() {
-    if (_cookingTimerRunning) {
-        // Pause
-        clearInterval(_cookingTimerInterval);
-        _cookingTimerInterval = null;
-        _cookingTimerRunning = false;
-        document.getElementById('cooking-timer-start').textContent = '▶️ Riprendi';
-        document.getElementById('cooking-timer-start').classList.remove('timer-running');
-        document.getElementById('cooking-timer-reset').style.display = 'inline-flex';
-    } else {
-        // Start / Resume
-        _cookingTimerRunning = true;
-        document.getElementById('cooking-timer-start').textContent = '⏸️ Pausa';
-        document.getElementById('cooking-timer-start').classList.add('timer-running');
-        document.getElementById('cooking-timer-reset').style.display = 'inline-flex';
-        _cookingTimerInterval = setInterval(() => {
-            _cookingTimerSeconds--;
-            const display = document.getElementById('cooking-timer-display');
-            display.textContent = _formatTimerDisplay(Math.abs(_cookingTimerSeconds));
+function addSuggestedCookingTimer() {
+    if (_cookingSuggestedSeconds <= 0) return;
+    addCookingTimer(_cookingSuggestedSeconds, _cookingSuggestedLabel);
+    document.getElementById('cooking-timer-suggest').style.display = 'none';
+    _cookingSuggestedSeconds = 0;
+}
 
-            if (_cookingTimerSeconds <= 0 && _cookingTimerSeconds > -1) {
-                // Timer just finished
-                display.classList.add('timer-done');
-                display.classList.remove('timer-warning');
-                _cookingTimerDone();
-            } else if (_cookingTimerSeconds > 0 && _cookingTimerSeconds <= 30) {
-                display.classList.add('timer-warning');
-            }
-            if (_cookingTimerSeconds < 0) {
-                // Counting overtime (negative)
-                display.textContent = '+' + _formatTimerDisplay(Math.abs(_cookingTimerSeconds));
-            }
+function addCookingTimer(seconds, label) {
+    const id = ++_cookingTimerIdCounter;
+    _cookingTimers.push({ id, label, total: seconds, seconds, running: false, interval: null });
+    renderTimersBar();
+    toggleCookingTimerById(id); // auto-start
+}
+
+function removeCookingTimer(id) {
+    const t = _cookingTimers.find(t => t.id === id);
+    if (t && t.interval) clearInterval(t.interval);
+    _cookingTimers = _cookingTimers.filter(t => t.id !== id);
+    renderTimersBar();
+}
+
+function toggleCookingTimerById(id) {
+    const t = _cookingTimers.find(t => t.id === id);
+    if (!t) return;
+    if (t.running) {
+        clearInterval(t.interval);
+        t.interval = null;
+        t.running = false;
+    } else {
+        t.running = true;
+        t.interval = setInterval(() => {
+            t.seconds--;
+            if (t.seconds === 0) _cookingTimerDoneById(id);
+            _updateTimerCard(id);
         }, 1000);
     }
+    _updateTimerCard(id);
 }
 
-function resetCookingTimer() {
-    clearInterval(_cookingTimerInterval);
-    _cookingTimerInterval = null;
-    _cookingTimerRunning = false;
-    _cookingTimerSeconds = _cookingTimerTotal;
-    document.getElementById('cooking-timer-display').textContent = _formatTimerDisplay(_cookingTimerTotal);
-    document.getElementById('cooking-timer-display').className = 'cooking-timer-display';
-    document.getElementById('cooking-timer-start').textContent = '⏱️ Avvia timer';
-    document.getElementById('cooking-timer-start').classList.remove('timer-running');
-    document.getElementById('cooking-timer-reset').style.display = 'none';
+function resetCookingTimerById(id) {
+    const t = _cookingTimers.find(t => t.id === id);
+    if (!t) return;
+    clearInterval(t.interval);
+    t.interval = null;
+    t.running = false;
+    t.seconds = t.total;
+    _updateTimerCard(id);
 }
 
-function clearCookingTimer() {
-    if (_cookingTimerInterval) clearInterval(_cookingTimerInterval);
-    _cookingTimerInterval = null;
-    _cookingTimerRunning = false;
-    _cookingTimerSeconds = 0;
-    _cookingTimerTotal = 0;
-}
-
-function _cookingTimerDone() {
-    // Vibrate if supported
+function _cookingTimerDoneById(id) {
     if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
-    // TTS announcement
-    if (_cookingTTS) speakCookingStep('Tempo scaduto!');
-    // Visual alert already handled by .timer-done CSS animation
+    const t = _cookingTimers.find(t => t.id === id);
+    if (_cookingTTS && t) speakCookingStep(`Timer ${t.label} scaduto!`);
 }
-// ===== END COOKING TIMER =====
+
+function _updateTimerCard(id) {
+    const t = _cookingTimers.find(t => t.id === id);
+    if (!t) return;
+    const card = document.getElementById(`ctimer-${id}`);
+    if (!card) { renderTimersBar(); return; }
+    const sec = t.seconds;
+    const dispEl = card.querySelector('.ctimer-display');
+    const toggleBtn = card.querySelector('.ctimer-toggle');
+    dispEl.textContent = _formatTimerDisplay(sec);
+    if (sec <= 0) {
+        dispEl.className = 'ctimer-display ctimer-done';
+    } else if (sec <= 30) {
+        dispEl.className = 'ctimer-display ctimer-warning';
+    } else {
+        dispEl.className = 'ctimer-display';
+    }
+    toggleBtn.textContent = t.running ? '⏸' : '▶';
+    toggleBtn.classList.toggle('running', t.running);
+}
+
+function renderTimersBar() {
+    const bar = document.getElementById('cooking-timers-bar');
+    if (!bar) return;
+    if (_cookingTimers.length === 0) {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+    }
+    bar.style.display = 'flex';
+    bar.innerHTML = _cookingTimers.map(t => {
+        const sec = t.seconds;
+        const doneClass = sec <= 0 ? ' ctimer-done' : sec <= 30 ? ' ctimer-warning' : '';
+        const runClass = t.running ? ' running' : '';
+        return `<div class="cooking-timer-card" id="ctimer-${t.id}">
+            <span class="ctimer-label">${escapeHtml(t.label)}</span>
+            <span class="ctimer-display${doneClass}">${_formatTimerDisplay(sec)}</span>
+            <div class="ctimer-btns">
+                <button class="ctimer-btn ctimer-toggle${runClass}" onclick="toggleCookingTimerById(${t.id})">${t.running ? '⏸' : '▶'}</button>
+                <button class="ctimer-btn ctimer-reset" onclick="resetCookingTimerById(${t.id})">↩</button>
+                <button class="ctimer-btn ctimer-remove" onclick="removeCookingTimer(${t.id})">✕</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function clearAllCookingTimers() {
+    _cookingTimers.forEach(t => { if (t.interval) clearInterval(t.interval); });
+    _cookingTimers = [];
+    _cookingTimerIdCounter = 0;
+    _cookingSuggestedSeconds = 0;
+    _cookingSuggestedLabel = '';
+    const bar = document.getElementById('cooking-timers-bar');
+    if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+}
+// ===== END COOKING TIMER SYSTEM =====
 
 function toggleCookingTTS() {
     _cookingTTS = !_cookingTTS;
@@ -6383,6 +6458,8 @@ function navigateCookingStep(delta) {
     const next = _cookingStep + delta;
     if (next < 0) return;
     if (next >= total) {
+        // All steps done: mark all visited, close overlay
+        for (let i = 0; i < total; i++) _cookingVisited.add(i);
         closeCookingMode();
         return;
     }
