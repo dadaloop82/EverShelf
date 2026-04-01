@@ -4513,17 +4513,48 @@ function estimateItemPrice(product, spec) {
 // ===== SMART SHOPPING =====
 let smartShoppingItems = [];
 let smartShoppingFilter = 'all';
+let _smartShoppingLastFetch = 0;      // timestamp of last successful fetch
+let _bgShoppingInterval = null; // kept for compatibility, cron handles refresh server-side
+
+/** Update dashboard badge from already-cached data */
+function _updateSmartUrgencyBadge() {
+    const urgentEl = document.getElementById('stat-urgent');
+    if (!urgentEl) return;
+    const urgent = smartShoppingItems.filter(i => i.urgency === 'critical' || i.urgency === 'high').length;
+    if (urgent > 0) {
+        urgentEl.textContent = `⚠ ${urgent}`;
+        urgentEl.style.display = '';
+    } else {
+        urgentEl.style.display = 'none';
+    }
+}
+
+function _renderSmartLastUpdate() {
+    const el = document.getElementById('smart-last-update');
+    if (!el || !_smartShoppingLastFetch) return;
+    const d = new Date(_smartShoppingLastFetch);
+    el.textContent = `Aggiornato ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+function startBgShoppingRefresh() {
+    // No-op: server-side cron handles refresh every 5 minutes.
+    // The JS fetches pre-computed cache on demand (instant response).
+}
 
 async function loadSmartShopping() {
     try {
         const data = await api('smart_shopping');
         if (data.success && data.items && data.items.length > 0) {
             smartShoppingItems = data.items;
+            _smartShoppingLastFetch = Date.now();
             renderSmartShopping();
+            _renderSmartLastUpdate();
+            _updateSmartUrgencyBadge();
             document.getElementById('smart-shopping-empty').style.display = 'none';
             document.getElementById('smart-shopping-content').style.display = 'block';
         } else {
             smartShoppingItems = [];
+            _smartShoppingLastFetch = Date.now();
             document.getElementById('smart-shopping-empty').style.display = 'block';
             document.getElementById('smart-shopping-content').style.display = 'none';
         }
@@ -4713,20 +4744,19 @@ async function loadShoppingCount() {
     } catch {
         document.getElementById('stat-spesa').textContent = '-';
     }
-    // Smart urgency badge
-    try {
-        const smart = await api('smart_shopping');
-        const urgentEl = document.getElementById('stat-urgent');
-        if (smart.success && smart.items) {
-            const urgent = smart.items.filter(i => i.urgency === 'critical' || i.urgency === 'high').length;
-            if (urgent > 0) {
-                urgentEl.textContent = `⚠ ${urgent}`;
-                urgentEl.style.display = '';
-            } else {
-                urgentEl.style.display = 'none';
+    // Smart urgency badge: use cached data if fresh (< 2 min), else fetch
+    if (smartShoppingItems.length > 0 && (Date.now() - _smartShoppingLastFetch) < 2 * 60 * 1000) {
+        _updateSmartUrgencyBadge();
+    } else {
+        try {
+            const smart = await api('smart_shopping');
+            if (smart.success && smart.items) {
+                smartShoppingItems = smart.items;
+                _smartShoppingLastFetch = Date.now();
+                _updateSmartUrgencyBadge();
             }
-        }
-    } catch { /* ignore */ }
+        } catch { /* ignore */ }
+    }
 }
 
 async function loadShoppingList() {
@@ -7290,6 +7320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initInactivityWatcher();
     initSpesaMode();
     initScreensaverShortcuts();
+    startBgShoppingRefresh();
 });
 
 // ===== DUPLICLICK (SPESA ONLINE) =====

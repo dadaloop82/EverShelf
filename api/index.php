@@ -4,6 +4,12 @@
  * Handles all CRUD operations for products and inventory
  */
 
+// database.php must always be loaded (used both by HTTP router and cron)
+require_once __DIR__ . '/database.php';
+
+// When included by the cron script, skip HTTP headers and routing entirely
+if (!defined('CRON_MODE')) {
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -13,8 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
-
-require_once __DIR__ . '/database.php';
 
 try {
     $db = getDB();
@@ -27,6 +31,9 @@ try {
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
+} // end !CRON_MODE block for router bootstrap
+
+if (!defined('CRON_MODE')):
 try {
     switch ($action) {
         // ===== PRODUCTS =====
@@ -116,7 +123,7 @@ try {
             bringSuggestItems($db);
             break;
         case 'smart_shopping':
-            smartShopping($db);
+            smartShoppingCached($db);
             break;
 
         case 'save_settings':
@@ -192,6 +199,7 @@ try {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
 }
+endif; // end !CRON_MODE
 
 // ===== CLIENT LOG =====
 
@@ -1426,17 +1434,31 @@ function generateRecipe(PDO $db): void {
     }
     $ingredientsText = implode("\n\n", $ingredientSections);
 
-    // Build a mandatory-use list from the most urgent items (groups 1 + 2)
-    $urgentItems = [];
+    // Build mandatory/recommended lists:
+    // - Truly mandatory: expired (group 1) OR expiring within 1 day (group 2 + daysLeft ≤ 1)
+    //   These are genuinely at risk of being wasted RIGHT NOW.
+    // - Highly recommended: expiring in 2-3 days (group 2 + daysLeft > 1)
+    //   Fresh products like milk naturally have short shelf lives and are often used anyway,
+    //   so we suggest rather than force them.
+    $mandatoryItems = [];
+    $recommendedItems = [];
     foreach ($items as $item) {
         $g = $getItemPriority($item);
-        if ($g <= 2) {
-            $urgentItems[] = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . " — scade: {$item['expiry_date']}";
+        $daysLeft = floatval($item['days_left']);
+        $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . " — scade: {$item['expiry_date']}";
+        if ($g === 1 || ($g === 2 && $daysLeft <= 1)) {
+            $mandatoryItems[] = $label;
+        } elseif ($g === 2) {
+            $recommendedItems[] = $label;
         }
     }
+
     $mustUseText = '';
-    if (!empty($urgentItems)) {
-        $mustUseText = "\n\n⚠️⚠️⚠️ INGREDIENTI OBBLIGATORI (SCADUTI O IN SCADENZA IMMINENTE) ⚠️⚠️⚠️\nLa ricetta DEVE usare ALMENO uno (meglio se tutti) di questi ingredienti come ingrediente PRINCIPALE della ricetta. Non sono opzionali!\n" . implode("\n", array_map(fn($n) => "→ $n", $urgentItems));
+    if (!empty($mandatoryItems)) {
+        $mustUseText .= "\n\n⚠️⚠️⚠️ INGREDIENTI OBBLIGATORI (SCADUTI O IN SCADENZA OGGI/DOMANI) ⚠️⚠️⚠️\nLa ricetta DEVE usare ALMENO uno (meglio se tutti) di questi ingredienti come ingrediente PRINCIPALE. Non sono opzionali!\n" . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
+    }
+    if (!empty($recommendedItems)) {
+        $mustUseText .= "\n\n🔶 INGREDIENTI FORTEMENTE CONSIGLIATI (scadono tra 2-3 giorni)\nCerca di includerli se la ricetta lo permette, ma non è obbligatorio se non si abbinano bene:\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
     }
 
     $mealLabels = [
@@ -1532,6 +1554,7 @@ REGOLE IMPORTANTI:
    f) PRODOTTI CHIUSI SENZA SCADENZA: usa per ultimi
    Costruisci la ricetta partendo dagli ingredienti delle categorie più urgenti! Usa il maggior numero possibile di ingredienti ad alta priorità.
    *** OBBLIGO: se nella sezione "INGREDIENTI OBBLIGATORI" sopra ci sono prodotti, la ricetta DEVE contenere ALMENO UNO di quei prodotti come ingrediente principale. Se li ignori, la ricetta è SBAGLIATA. ***
+   *** CONSIGLIO: gli "INGREDIENTI FORTEMENTE CONSIGLIATI" vanno usati se si abbinano bene alla ricetta, ma puoi escluderli se non si adattano — spesso sono prodotti freschi come il latte che si usano comunque. ***
 2. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
 3. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
 4. Adatta le quantità per $persons persona/e
@@ -2248,6 +2271,34 @@ function bringCleanSpecs(): void {
     }
 
     echo json_encode(['success' => true, 'cleaned' => $cleaned]);
+}
+
+/**
+ * Serve smart shopping from cache (written by cron), falling back to live computation.
+ * Cache is valid for up to 10 minutes; if stale or missing, compute on the fly.
+ */
+function smartShoppingCached(PDO $db): void {
+    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    $maxAge    = 10 * 60; // 10 minutes
+
+    if (file_exists($cacheFile)) {
+        $mtime = filemtime($cacheFile);
+        if ((time() - $mtime) <= $maxAge) {
+            $raw = file_get_contents($cacheFile);
+            if ($raw !== false) {
+                // Inject how many seconds ago the cache was created
+                $data = json_decode($raw, true);
+                if ($data && isset($data['success'])) {
+                    $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
+                    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Cache missing or stale — compute live
+    smartShopping($db);
 }
 
 /**
