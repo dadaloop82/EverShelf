@@ -648,6 +648,15 @@ async function loadSettingsUI() {
             `<span class="mplan-badge" style="opacity:0.85">${t.icon} ${t.label}</span>`
         ).join('');
     }
+    // TTS settings
+    const ttsEnabledEl = document.getElementById('setting-tts-enabled');
+    if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
+    const ttsUrlEl = document.getElementById('setting-tts-url');
+    if (ttsUrlEl) ttsUrlEl.value = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    const ttsTokenEl = document.getElementById('setting-tts-token');
+    if (ttsTokenEl) ttsTokenEl.value = s.tts_token || '';
+    const ttsPayloadKeyEl = document.getElementById('setting-tts-payload-key');
+    if (ttsPayloadKeyEl) ttsPayloadKeyEl.value = s.tts_payload_key || 'message';
     
     // Load server-side settings if not already set locally
     try {
@@ -748,6 +757,15 @@ async function saveSettings() {
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
+    // TTS settings
+    const ttsEnabledEl = document.getElementById('setting-tts-enabled');
+    if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
+    const ttsUrlEl = document.getElementById('setting-tts-url');
+    if (ttsUrlEl) s.tts_url = ttsUrlEl.value.trim();
+    const ttsTokenEl = document.getElementById('setting-tts-token');
+    if (ttsTokenEl) s.tts_token = ttsTokenEl.value.trim();
+    const ttsPayloadKeyEl = document.getElementById('setting-tts-payload-key');
+    if (ttsPayloadKeyEl) s.tts_payload_key = ttsPayloadKeyEl.value.trim() || 'message';
     // Save spesa AI prompt if the field exists
     const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
     if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
@@ -6495,34 +6513,11 @@ function startCookingMode() {
     document.getElementById('cooking-overlay').style.display = 'flex';
     document.body.classList.add('cooking-mode-active');
     try { screen.orientation?.lock('portrait'); } catch (_) { /* ignore */ }
-
-    // Ensure voices are loaded, then render (and speak) the first step
-    if ('speechSynthesis' in window) {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            renderCookingStep();
-        } else {
-            // Voices not yet loaded — render immediately (muted), then re-speak after voices arrive
-            renderCookingStep();
-            window.speechSynthesis.addEventListener('voiceschanged', function _onVoices() {
-                window.speechSynthesis.removeEventListener('voiceschanged', _onVoices);
-                if (_cookingTTS && _cookingStep === 0) {
-                    const text = (_cookingRecipe.steps[0] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
-                    if (text) speakCookingStep(text);
-                }
-            });
-        }
-    } else {
-        _cookingTTS = false;
-        document.getElementById('cooking-tts-btn').textContent = '🔇';
-        renderCookingStep();
-    }
+    renderCookingStep();
 }
-
 function closeCookingMode() {
     document.getElementById('cooking-overlay').style.display = 'none';
     document.body.classList.remove('cooking-mode-active');
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     // NOTE: intentionally keep _cookingRecipe, _cookingStep, _cookingVisited
     // so the user can resume from the same step when they reopen
     try { screen.orientation?.unlock(); } catch (_) { /* ignore */ }
@@ -6598,36 +6593,23 @@ function renderCookingStep() {
     if (_cookingTTS) speakCookingStep(cleanStep);
 }
 
-function _bestItalianVoice() {
-    const voices = window.speechSynthesis.getVoices();
-    const it = voices.filter(v => v.lang.startsWith('it'));
-    if (it.length === 0) return null;
-    // Prefer high-quality online voices (Google / Microsoft) over local robotic ones
-    const priority = [
-        v => /google/i.test(v.name),
-        v => /microsoft/i.test(v.name) && !v.localService,
-        v => !v.localService,
-        v => /alice|federica|luca|paola/i.test(v.name),
-        () => true, // any italian
-    ];
-    for (const pred of priority) {
-        const match = it.find(pred);
-        if (match) return match;
-    }
-    return it[0];
-}
-
-function speakCookingStep(text) {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = 'it-IT';
-    utt.rate = 0.88;
-    utt.pitch = 1.0;
-    utt.volume = 1.0;
-    const voice = _bestItalianVoice();
-    if (voice) utt.voice = voice;
-    window.speechSynthesis.speak(utt);
+async function speakCookingStep(text) {
+    if (!text) return;
+    const s = getSettings();
+    if (!s.tts_enabled) return;
+    const url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    const token = s.tts_token || '';
+    const payloadKey = s.tts_payload_key || 'message';
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ [payloadKey]: text })
+        });
+    } catch(e) { /* silent — TTS is non-critical */ }
 }
 
 function replayCookingTTS() {
@@ -6635,6 +6617,39 @@ function replayCookingTTS() {
     const steps = _cookingRecipe.steps || [];
     const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
     if (text) speakCookingStep(text);
+}
+
+async function testTTS() {
+    const statusEl = document.getElementById('tts-test-status');
+    // Read values directly from the form (not yet saved settings)
+    const enabled = document.getElementById('setting-tts-enabled')?.checked;
+    const url = (document.getElementById('setting-tts-url')?.value || '').trim() || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    const token = (document.getElementById('setting-tts-token')?.value || '').trim();
+    const payloadKey = (document.getElementById('setting-tts-payload-key')?.value || '').trim() || 'message';
+
+    if (!enabled) {
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
+        return;
+    }
+    if (!token) {
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ Bearer Token mancante.'; }
+        return;
+    }
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio in corso…'; }
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [payloadKey]: 'Test vocale Dispensa Manager' })
+        });
+        if (res.ok || res.status === 200) {
+            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Richiesta inviata! Controlla che il tuo altoparlante abbia parlato.'; }
+        } else {
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `⚠️ Risposta HTTP ${res.status}: ${res.statusText}`; }
+        }
+    } catch(e) {
+        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ Errore di rete: ${e.message}`; }
+    }
 }
 
 // ===== COOKING TIMER SYSTEM =====
@@ -6846,8 +6861,6 @@ function toggleCookingTTS() {
         const steps = _cookingRecipe?.steps || [];
         const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
         speakCookingStep(text);
-    } else {
-        window.speechSynthesis?.cancel();
     }
 }
 

@@ -648,6 +648,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-spesa')" data-tab="tab-spesa" title="Spesa Online">🛍️</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)">🔊</button>
         </div>
         <div class="settings-panels">
             <!-- API Keys Tab -->
@@ -843,6 +844,38 @@
                         4. Spunta "Considera attendibile per identificare siti web"<br>
                         5. Riavvia Chrome
                     </div>
+                </div>
+            </div>
+            <!-- TTS Tab -->
+            <div class="settings-panel" id="tab-tts">
+                <div class="settings-card">
+                    <h4>🔊 Voce & TTS</h4>
+                    <p class="settings-hint">Configura la sintesi vocale tramite Home Assistant. I passi della ricetta e i timer verranno letti ad alta voce attraverso l'altoparlante configurato.</p>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span>✅ Attiva TTS via Home Assistant</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-tts-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>🌐 URL Evento</label>
+                        <input type="url" id="setting-tts-url" class="form-input" placeholder="http://192.168.1.133:8123/api/events/noemi_speak">
+                    </div>
+                    <div class="form-group">
+                        <label>🔑 Bearer Token</label>
+                        <input type="password" id="setting-tts-token" class="form-input" placeholder="eyJhbGci...">
+                        <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-tts-token')">👁️ Mostra/Nascondi</button>
+                    </div>
+                    <div class="form-group">
+                        <label>🗝️ Chiave payload</label>
+                        <input type="text" id="setting-tts-payload-key" class="form-input" placeholder="message">
+                        <p class="settings-hint">Nome del campo JSON inviato all'evento (default: <code>message</code>).</p>
+                    </div>
+                    <button class="btn btn-large btn-accent full-width mt-2" onclick="testTTS()">🔊 Invia Test Vocale</button>
+                    <div id="tts-test-status" style="display:none;margin-top:8px"></div>
                 </div>
             </div>
         </div>
