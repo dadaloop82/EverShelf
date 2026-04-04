@@ -648,15 +648,38 @@ async function loadSettingsUI() {
             `<span class="mplan-badge" style="opacity:0.85">${t.icon} ${t.label}</span>`
         ).join('');
     }
-    // TTS settings
+    // TTS settings — init defaults on first load
+    if (!s._tts_initialized) {
+        s.tts_url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+        s.tts_token = s.tts_token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI2OGQ3Njk1N2E0MjY0ZTBjOWQ4YjczZDY4ZDVmMWJlZCIsImlhdCI6MTc2MDI1NjIxNSwiZXhwIjoyMDc1NjE2MjE1fQ.X5UyMMPd7wTA6Gh11Nzg7Ox-enlDDom_lJIAJruUtcE';
+        s.tts_payload_key = s.tts_payload_key || 'message';
+        s.tts_method = s.tts_method || 'POST';
+        s.tts_auth_type = s.tts_auth_type || 'bearer';
+        s.tts_content_type = s.tts_content_type || 'application/json';
+        s.tts_enabled = s.tts_enabled !== undefined ? s.tts_enabled : true;
+        s._tts_initialized = true;
+        saveSettingsToStorage(s);
+    }
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
     const ttsUrlEl = document.getElementById('setting-tts-url');
-    if (ttsUrlEl) ttsUrlEl.value = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    if (ttsUrlEl) ttsUrlEl.value = s.tts_url || '';
+    const ttsMethEl = document.getElementById('setting-tts-method');
+    if (ttsMethEl) ttsMethEl.value = s.tts_method || 'POST';
+    const ttsAuthTypeEl = document.getElementById('setting-tts-auth-type');
+    if (ttsAuthTypeEl) { ttsAuthTypeEl.value = s.tts_auth_type || 'bearer'; onTtsAuthTypeChange(ttsAuthTypeEl.value); }
     const ttsTokenEl = document.getElementById('setting-tts-token');
     if (ttsTokenEl) ttsTokenEl.value = s.tts_token || '';
+    const ttsAuthHdrNameEl = document.getElementById('setting-tts-auth-header-name');
+    if (ttsAuthHdrNameEl) ttsAuthHdrNameEl.value = s.tts_auth_header_name || '';
+    const ttsAuthHdrValEl = document.getElementById('setting-tts-auth-header-value');
+    if (ttsAuthHdrValEl) ttsAuthHdrValEl.value = s.tts_auth_header_value || '';
+    const ttsCtEl = document.getElementById('setting-tts-content-type');
+    if (ttsCtEl) ttsCtEl.value = s.tts_content_type || 'application/json';
     const ttsPayloadKeyEl = document.getElementById('setting-tts-payload-key');
     if (ttsPayloadKeyEl) ttsPayloadKeyEl.value = s.tts_payload_key || 'message';
+    const ttsExtraEl = document.getElementById('setting-tts-extra-fields');
+    if (ttsExtraEl) ttsExtraEl.value = s.tts_extra_fields || '';
     
     // Load server-side settings if not already set locally
     try {
@@ -760,12 +783,24 @@ async function saveSettings() {
     // TTS settings
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
-    const ttsUrlEl = document.getElementById('setting-tts-url');
-    if (ttsUrlEl) s.tts_url = ttsUrlEl.value.trim();
-    const ttsTokenEl = document.getElementById('setting-tts-token');
-    if (ttsTokenEl) s.tts_token = ttsTokenEl.value.trim();
-    const ttsPayloadKeyEl = document.getElementById('setting-tts-payload-key');
-    if (ttsPayloadKeyEl) s.tts_payload_key = ttsPayloadKeyEl.value.trim() || 'message';
+    const ttsUrlEl2 = document.getElementById('setting-tts-url');
+    if (ttsUrlEl2) s.tts_url = ttsUrlEl2.value.trim();
+    const ttsMethEl2 = document.getElementById('setting-tts-method');
+    if (ttsMethEl2) s.tts_method = ttsMethEl2.value;
+    const ttsAuthTypeEl2 = document.getElementById('setting-tts-auth-type');
+    if (ttsAuthTypeEl2) s.tts_auth_type = ttsAuthTypeEl2.value;
+    const ttsTokenEl2 = document.getElementById('setting-tts-token');
+    if (ttsTokenEl2) s.tts_token = ttsTokenEl2.value.trim();
+    const ttsAuthHdrNameEl2 = document.getElementById('setting-tts-auth-header-name');
+    if (ttsAuthHdrNameEl2) s.tts_auth_header_name = ttsAuthHdrNameEl2.value.trim();
+    const ttsAuthHdrValEl2 = document.getElementById('setting-tts-auth-header-value');
+    if (ttsAuthHdrValEl2) s.tts_auth_header_value = ttsAuthHdrValEl2.value.trim();
+    const ttsCtEl2 = document.getElementById('setting-tts-content-type');
+    if (ttsCtEl2) s.tts_content_type = ttsCtEl2.value;
+    const ttsPayloadKeyEl2 = document.getElementById('setting-tts-payload-key');
+    if (ttsPayloadKeyEl2) s.tts_payload_key = ttsPayloadKeyEl2.value.trim() || 'message';
+    const ttsExtraEl2 = document.getElementById('setting-tts-extra-fields');
+    if (ttsExtraEl2) s.tts_extra_fields = ttsExtraEl2.value.trim();
     // Save spesa AI prompt if the field exists
     const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
     if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
@@ -6593,22 +6628,40 @@ function renderCookingStep() {
     if (_cookingTTS) speakCookingStep(cleanStep);
 }
 
+function _buildTtsRequest(text, s) {
+    const url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    const method = s.tts_method || 'POST';
+    const authType = s.tts_auth_type || 'bearer';
+    const token = s.tts_token || '';
+    const payloadKey = s.tts_payload_key || 'message';
+    const contentType = s.tts_content_type || 'application/json';
+    let extraFields = {};
+    try { extraFields = JSON.parse(s.tts_extra_fields || '{}'); } catch(e) { /* invalid JSON, ignore */ }
+    const headers = { 'Content-Type': contentType };
+    if (authType === 'bearer' && token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    } else if (authType === 'header' && s.tts_auth_header_name) {
+        headers[s.tts_auth_header_name] = s.tts_auth_header_value || '';
+    }
+    const payload = { [payloadKey]: text, ...extraFields };
+    let body;
+    if (contentType === 'application/json') {
+        body = JSON.stringify(payload);
+    } else if (contentType === 'application/x-www-form-urlencoded') {
+        body = new URLSearchParams(Object.entries(payload).map(([k, v]) => [k, String(v)])).toString();
+    } else {
+        body = text;
+    }
+    return { url, method, headers, body };
+}
+
 async function speakCookingStep(text) {
     if (!text) return;
     const s = getSettings();
     if (!s.tts_enabled) return;
-    const url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
-    const token = s.tts_token || '';
-    const payloadKey = s.tts_payload_key || 'message';
     try {
-        await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ [payloadKey]: text })
-        });
+        const req = _buildTtsRequest(text, s);
+        await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
     } catch(e) { /* silent — TTS is non-critical */ }
 }
 
@@ -6619,33 +6672,46 @@ function replayCookingTTS() {
     if (text) speakCookingStep(text);
 }
 
+function onTtsAuthTypeChange(type) {
+    const tokenGroup = document.getElementById('tts-token-group');
+    const headerGroup = document.getElementById('tts-custom-header-group');
+    if (tokenGroup) tokenGroup.style.display = type === 'bearer' ? '' : 'none';
+    if (headerGroup) headerGroup.style.display = type === 'header' ? '' : 'none';
+}
+
 async function testTTS() {
     const statusEl = document.getElementById('tts-test-status');
-    // Read values directly from the form (not yet saved settings)
+    // Build settings from current form values (before saving)
+    let extraFields = {};
+    try { extraFields = JSON.parse((document.getElementById('setting-tts-extra-fields')?.value || '{}').trim() || '{}'); } catch(e) { /* ignore */ }
+    const formSettings = {
+        tts_url: (document.getElementById('setting-tts-url')?.value || '').trim(),
+        tts_method: document.getElementById('setting-tts-method')?.value || 'POST',
+        tts_auth_type: document.getElementById('setting-tts-auth-type')?.value || 'bearer',
+        tts_token: (document.getElementById('setting-tts-token')?.value || '').trim(),
+        tts_auth_header_name: (document.getElementById('setting-tts-auth-header-name')?.value || '').trim(),
+        tts_auth_header_value: (document.getElementById('setting-tts-auth-header-value')?.value || '').trim(),
+        tts_content_type: document.getElementById('setting-tts-content-type')?.value || 'application/json',
+        tts_payload_key: (document.getElementById('setting-tts-payload-key')?.value || '').trim() || 'message',
+        tts_extra_fields: document.getElementById('setting-tts-extra-fields')?.value || ''
+    };
     const enabled = document.getElementById('setting-tts-enabled')?.checked;
-    const url = (document.getElementById('setting-tts-url')?.value || '').trim() || 'http://192.168.1.133:8123/api/events/noemi_speak';
-    const token = (document.getElementById('setting-tts-token')?.value || '').trim();
-    const payloadKey = (document.getElementById('setting-tts-payload-key')?.value || '').trim() || 'message';
-
     if (!enabled) {
         if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
         return;
     }
-    if (!token) {
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ Bearer Token mancante.'; }
+    if (!formSettings.tts_url) {
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ URL endpoint mancante.'; }
         return;
     }
     if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio in corso…'; }
     try {
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ [payloadKey]: 'Test vocale Dispensa Manager' })
-        });
+        const req = _buildTtsRequest('Test vocale Dispensa Manager', formSettings);
+        const res = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
         if (res.ok || res.status === 200) {
-            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Richiesta inviata! Controlla che il tuo altoparlante abbia parlato.'; }
+            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ Risposta ${res.status} — controlla che l'altoparlante abbia parlato.`; }
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `⚠️ Risposta HTTP ${res.status}: ${res.statusText}`; }
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `⚠️ HTTP ${res.status}: ${res.statusText}`; }
         }
     } catch(e) {
         if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ Errore di rete: ${e.message}`; }

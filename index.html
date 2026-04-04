@@ -850,10 +850,10 @@
             <div class="settings-panel" id="tab-tts">
                 <div class="settings-card">
                     <h4>🔊 Voce & TTS</h4>
-                    <p class="settings-hint">Configura la sintesi vocale tramite Home Assistant. I passi della ricetta e i timer verranno letti ad alta voce attraverso l'altoparlante configurato.</p>
+                    <p class="settings-hint">Configura la sintesi vocale tramite qualsiasi API REST esterna. I passi della ricetta e i timer scaduti verranno inviati all'endpoint configurato.</p>
                     <div class="form-group" style="margin-bottom:10px">
                         <label class="toggle-row">
-                            <span>✅ Attiva TTS via Home Assistant</span>
+                            <span>✅ Attiva TTS</span>
                             <span class="toggle-switch">
                                 <input type="checkbox" id="setting-tts-enabled">
                                 <span class="toggle-slider"></span>
@@ -861,18 +861,58 @@
                         </label>
                     </div>
                     <div class="form-group">
-                        <label>🌐 URL Evento</label>
-                        <input type="url" id="setting-tts-url" class="form-input" placeholder="http://192.168.1.133:8123/api/events/noemi_speak">
+                        <label>🌐 URL Endpoint</label>
+                        <input type="url" id="setting-tts-url" class="form-input" placeholder="https://...">
                     </div>
                     <div class="form-group">
+                        <label>📡 Metodo HTTP</label>
+                        <select id="setting-tts-method" class="form-input">
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="GET">GET</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>🔐 Autenticazione</label>
+                        <select id="setting-tts-auth-type" class="form-input" onchange="onTtsAuthTypeChange(this.value)">
+                            <option value="bearer">Bearer Token</option>
+                            <option value="header">Header personalizzato</option>
+                            <option value="none">Nessuna</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="tts-token-group">
                         <label>🔑 Bearer Token</label>
                         <input type="password" id="setting-tts-token" class="form-input" placeholder="eyJhbGci...">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-tts-token')">👁️ Mostra/Nascondi</button>
                     </div>
+                    <div id="tts-custom-header-group" style="display:none">
+                        <div class="form-group">
+                            <label>📋 Nome header</label>
+                            <input type="text" id="setting-tts-auth-header-name" class="form-input" placeholder="X-API-Key">
+                        </div>
+                        <div class="form-group">
+                            <label>📋 Valore header</label>
+                            <input type="text" id="setting-tts-auth-header-value" class="form-input" placeholder="...">
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label>🗝️ Chiave payload</label>
+                        <label>📄 Content-Type</label>
+                        <select id="setting-tts-content-type" class="form-input">
+                            <option value="application/json">application/json</option>
+                            <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                            <option value="text/plain">text/plain</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>🗝️ Campo testo nel payload</label>
                         <input type="text" id="setting-tts-payload-key" class="form-input" placeholder="message">
-                        <p class="settings-hint">Nome del campo JSON inviato all'evento (default: <code>message</code>).</p>
+                        <p class="settings-hint">Nome del campo JSON che conterrà il testo da leggere (es: <code>message</code>, <code>text</code>).</p>
+                    </div>
+                    <div class="form-group">
+                        <label>➕ Campi extra (JSON)</label>
+                        <textarea id="setting-tts-extra-fields" class="form-input" rows="3" placeholder='{"entity_id": "media_player.living_room"}'></textarea>
+                        <p class="settings-hint">Campi aggiuntivi da includere nel payload, in formato JSON. Lascia vuoto se non necessario.</p>
                     </div>
                     <button class="btn btn-large btn-accent full-width mt-2" onclick="testTTS()">🔊 Invia Test Vocale</button>
                     <div id="tts-test-status" style="display:none;margin-top:8px"></div>
