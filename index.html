@@ -643,6 +643,7 @@
             <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys">🔑</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Bring!">🛒</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale">📅</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici">🔌</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-spesa')" data-tab="tab-spesa" title="Spesa Online">🛍️</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
@@ -705,6 +706,36 @@
                         <label>🚫 Intolleranze / Restrizioni</label>
                         <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
                     </div>
+                </div>
+            </div>
+            <!-- Weekly Meal Plan Tab -->
+            <div class="settings-panel" id="tab-mealplan">
+                <div class="settings-card">
+                    <h4>📅 Piano Pasti Settimanale</h4>
+                    <p class="settings-hint">Imposta la tipologia di pasto per ogni giorno. Sarà usata come guida nella generazione delle ricette.</p>
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span>✅ Attiva piano pasti settimanale</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-meal-plan-enabled" onchange="onMealPlanEnabledChange(this)">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="meal-plan-config-section">
+                        <div id="meal-plan-grid" class="mplan-grid"></div>
+                        <div id="meal-plan-picker" class="mplan-picker" style="display:none"></div>
+                        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap">
+                            <button class="btn btn-small btn-secondary" onclick="resetMealPlan()">↺ Ripristina default</button>
+                        </div>
+                        <div class="settings-hint" style="margin-top:10px">
+                            🌤️ = Pranzo &nbsp;·&nbsp; 🌙 = Cena &nbsp;·&nbsp; Tocca un badge per cambiarlo.
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-card" id="meal-plan-legend-card">
+                    <h4>📋 Tipologie disponibili</h4>
+                    <div class="mplan-legend"></div>
                 </div>
             </div>
             <!-- Appliances Tab -->
@@ -884,6 +915,7 @@
 <!-- Recipe Dialog -->
 <div class="modal-overlay" id="recipe-overlay" style="display:none" onclick="closeRecipeDialog()">
     <div class="modal-content recipe-dialog" onclick="event.stopPropagation()">
+        <div id="recipe-mealplan-banner" class="recipe-mealplan-banner" style="display:none"></div>
         <div id="recipe-ask" class="recipe-ask">
             <h3 id="recipe-meal-title">🍳 Ricetta</h3>
             <p class="recipe-desc">Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.</p>
@@ -891,6 +923,7 @@
                 <label>🕐 Per quale pasto?</label>
                 <div class="recipe-meal-grid" id="recipe-meal-grid" onchange="updateRecipeMealTitle()"></div>
             </div>
+            <div id="recipe-mealplan-hint" class="recipe-mealplan-hint" style="display:none"></div>
             <div class="form-group">
                 <label>👥 Quante persone?</label>
                 <div class="qty-control">
@@ -902,6 +935,7 @@
             <div class="form-group" style="text-align:left">
                 <label>🎯 Tipo di pasto</label>
                 <div class="recipe-options-grid">
+                    <label class="recipe-option-chip recipe-opt-mealplan-chip" id="recipe-opt-mealplan-wrap" style="display:none"><input type="checkbox" id="recipe-opt-mealplan" checked> <span id="recipe-opt-mealplan-label"></span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-veloce"> ⚡ Pasto Veloce</label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> 🥗 Poca Fame</label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> ⏰ Priorità Scadenze</label>
@@ -954,6 +988,7 @@
 <div id="screensaver" class="screensaver-overlay" style="display:none">
     <div class="screensaver-content">
         <div class="screensaver-clock" id="screensaver-clock"></div>
+        <div id="screensaver-mealplan" class="screensaver-mealplan" style="display:none"></div>
         <div class="screensaver-fact" id="screensaver-fact"></div>
     </div>
     <div class="screensaver-shortcuts">
@@ -968,6 +1003,7 @@
 
 <!-- ===== COOKING MODE OVERLAY ===== -->
 <div id="cooking-overlay" class="cooking-overlay" style="display:none" aria-live="polite">
+    <div id="cooking-flash-overlay" class="cooking-flash-overlay"></div>
     <div class="cooking-header">
         <button class="cooking-close-btn" onclick="closeCookingMode()" title="Chiudi">✕</button>
         <span class="cooking-title" id="cooking-title"></span>

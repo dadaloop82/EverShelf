@@ -633,6 +633,21 @@ async function loadSettingsUI() {
     loadCameraDevices();
     renderAppliances(s.appliances || []);
     loadSpesaSettings();
+    const mealPlanEnabled = s.meal_plan_enabled !== false;
+    const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
+    if (mpEnabledEl) mpEnabledEl.checked = mealPlanEnabled;
+    const mpConfigSection = document.getElementById('meal-plan-config-section');
+    if (mpConfigSection) mpConfigSection.style.display = mealPlanEnabled ? '' : 'none';
+    const mpLegendCard = document.getElementById('meal-plan-legend-card');
+    if (mpLegendCard) mpLegendCard.style.display = mealPlanEnabled ? '' : 'none';
+    renderMealPlanEditor();
+    // Render legend
+    const legend = document.querySelector('.mplan-legend');
+    if (legend) {
+        legend.innerHTML = MEAL_PLAN_TYPES.map(t =>
+            `<span class="mplan-badge" style="opacity:0.85">${t.icon} ${t.label}</span>`
+        ).join('');
+    }
     
     // Load server-side settings if not already set locally
     try {
@@ -730,6 +745,9 @@ async function saveSettings() {
     s.dietary = document.getElementById('setting-dietary').value.trim();
     // Camera
     s.camera_facing = document.getElementById('setting-camera-facing').value;
+    // Meal plan enabled toggle
+    const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
+    if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
     // Save spesa AI prompt if the field exists
     const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
     if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
@@ -3661,6 +3679,7 @@ function _nameTokens(name) {
  * Check whether `name` matches any item in `list` (array of {name}).
  * Returns the matching item or null.
  * A match = at least one significant token in common.
+ * NOTE: intentionally loose — use _matchBringToSmart for display/urgency matching.
  */
 function _findSimilarItem(name, list) {
     const tokens = _nameTokens(name);
@@ -3669,6 +3688,40 @@ function _findSimilarItem(name, list) {
         const iTokens = _nameTokens(item.name || '');
         return tokens.some(t => iTokens.includes(t));
     }) || null;
+}
+
+/**
+ * Strict matching: find the smart item that corresponds to a Bring item by name.
+ * Rules (in order):
+ *  1. Exact case-insensitive match.
+ *  2. First significant token of both names must be identical
+ *     ("Latte" → "Latte Parzialmente Scremato" ✓; "Frutta" ≠ "Muesli Frutta Secca" ✗).
+ *  3. For multi-token Bring names: all Bring tokens appear in the smart item tokens.
+ * This avoids false positives when a generic word ("frutta", "noci") appears as a
+ * secondary word inside an unrelated long product name.
+ */
+function _matchBringToSmart(bringName, smartItems) {
+    const bLower = bringName.toLowerCase();
+    const exact = smartItems.find(sd => sd.name.toLowerCase() === bLower);
+    if (exact) return exact;
+    const bTokens = _nameTokens(bringName);
+    if (bTokens.length === 0) return null;
+    const bFirst = bTokens[0];
+    // Rule 2: first token match
+    const firstMatch = smartItems.find(sd => {
+        const sdTokens = _nameTokens(sd.name);
+        return sdTokens.length > 0 && sdTokens[0] === bFirst;
+    });
+    if (firstMatch) return firstMatch;
+    // Rule 3: multi-token full subset
+    if (bTokens.length >= 2) {
+        const allMatch = smartItems.find(sd => {
+            const sdTokens = _nameTokens(sd.name);
+            return bTokens.every(t => sdTokens.includes(t));
+        });
+        if (allMatch) return allMatch;
+    }
+    return null;
 }
 
 function showLowStockBringPrompt(result, afterCallback) {
@@ -4288,6 +4341,19 @@ function toggleShoppingTag(itemIdx, tag) {
         if (existing.length) tags[key] = existing;
         else delete tags[key];
         localStorage.setItem('shopping_tags', JSON.stringify(tags));
+
+        // Sync urgente/presto tag to Bring specification so it's visible in the Bring app
+        if (tag === 'urgente' && shoppingListUUID) {
+            const isNowUrgent = existing.includes('urgente');
+            const newSpec = isNowUrgent ? '⚡ Urgente' : '';
+            api('bring_add', {}, 'POST', {
+                items: [{ name: item.name, specification: newSpec, update_spec: true }],
+                listUUID: shoppingListUUID,
+            }).catch(() => {});
+            // Update local item spec for immediate re-render
+            item.specification = newSpec;
+        }
+
         renderShoppingItems();
     } catch (e) { console.error('toggleShoppingTag', e); }
 }
@@ -4320,12 +4386,24 @@ async function confirmShoppingItemFound() {
 }
 
 // ===== AUTO-ADD CRITICAL ITEMS TO BRING! =====
+
+/** Build a Bring specification string that encodes urgency + optional brand. */
+function _urgencyToSpec(urgency, brand) {
+    const urgencyLabels = { critical: '⚡ Urgente', high: '🟠 Presto', medium: '', low: '' };
+    const urgLabel = urgencyLabels[urgency] || '';
+    if (urgLabel && brand) return `${urgLabel} · ${brand}`;
+    if (urgLabel) return urgLabel;
+    return brand || '';
+}
+
 async function autoAddCriticalItems() {
-    if (sessionStorage.getItem('_autoAddedCritical')) return;
-    sessionStorage.setItem('_autoAddedCritical', '1');
+    // Time-based guard: run at most once every 10 minutes (not session-based, so new critical items get added promptly)
+    const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
+    if (Date.now() - lastRun < 10 * 60 * 1000) return;
+    localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
     const critical = smartShoppingItems.filter(i => i.urgency === 'critical' && !i.on_bring);
     if (critical.length === 0) return;
-    const itemsToAdd = critical.map(i => ({ name: i.name, specification: i.brand || '' }));
+    const itemsToAdd = critical.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
     try {
         const result = await api('bring_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
@@ -4353,7 +4431,7 @@ async function cleanupObsoleteBringItems() {
     // Load all products from our DB to cross-reference
     let allProducts = [];
     try {
-        const res = await api('products');
+        const res = await api('products_list');
         allProducts = res.products || res.data || [];
     } catch (e) { return; }
     if (!allProducts.length) return;
@@ -4526,6 +4604,28 @@ function _updateSmartUrgencyBadge() {
         urgentEl.style.display = '';
     } else {
         urgentEl.style.display = 'none';
+    }
+}
+
+/**
+ * Sync the on_bring flag for every smartShoppingItem against the current shoppingItems list.
+ * The server cache can be up to 10 min old so on_bring may be stale — this corrects it
+ * client-side using strict first-token matching: a Bring item matches a smart item only when
+ * the first significant token of the Bring item's name equals the first significant token of
+ * the smart item's name (or exact name match). This avoids false positives like
+ * "Frutta" (fresh fruit on Bring) matching "Muesli Frutta Secca" (a different product).
+ */
+function _syncOnBringFlags() {
+    for (const si of smartShoppingItems) {
+        const siLower = si.name.toLowerCase();
+        const siFirst = _nameTokens(si.name)[0];
+        si.on_bring = !!(
+            shoppingItems.find(bi => bi.name.toLowerCase() === siLower) ||
+            (siFirst && shoppingItems.find(bi => {
+                const biFirst = _nameTokens(bi.name)[0];
+                return biFirst === siFirst;
+            }))
+        );
     }
 }
 
@@ -4704,7 +4804,7 @@ async function addSmartToBring() {
         if (item) {
             itemsToAdd.push({
                 name: item.name,
-                specification: item.brand || '',
+                specification: _urgencyToSpec(item.urgency, item.brand),
             });
         }
     });
@@ -4759,6 +4859,67 @@ async function loadShoppingCount() {
     }
 }
 
+/**
+ * Sync local 'urgente' tag from Bring specification.
+ * If a Bring item's specification contains 'urgente', ensure the local tag is set.
+ * If a Bring item's specification is empty/cleared, remove the local urgente tag
+ * UNLESS smart shopping considers it critical (to avoid losing urgency on stale specs).
+ */
+function _syncTagsFromBringSpec() {
+    try {
+        const tags = JSON.parse(localStorage.getItem('shopping_tags') || '{}');
+        let changed = false;
+        for (const item of shoppingItems) {
+            const key = item.name.toLowerCase();
+            const spec = (item.specification || '').toLowerCase();
+            const existing = tags[key] || [];
+            const hasUrgente = existing.includes('urgente');
+            const smartMatch = _matchBringToSmart(item.name, smartShoppingItems);
+            const smartIsCritical = smartMatch && (smartMatch.urgency === 'critical' || smartMatch.urgency === 'high');
+            if ((spec.includes('urgente') || spec.includes('presto') || smartIsCritical) && !hasUrgente) {
+                existing.push('urgente');
+                tags[key] = existing;
+                changed = true;
+            } else if (!spec.includes('urgente') && !spec.includes('presto') && !smartIsCritical && hasUrgente) {
+                existing.splice(existing.indexOf('urgente'), 1);
+                if (existing.length) tags[key] = existing;
+                else delete tags[key];
+                changed = true;
+            }
+        }
+        if (changed) localStorage.setItem('shopping_tags', JSON.stringify(tags));
+    } catch (e) { /* ignore */ }
+}
+
+/**
+ * After smart shopping loads, push urgency specifications to Bring for all matched items.
+ * This makes urgency visible in the native Bring app via the item specification field.
+ * Only updates if the spec has changed (to avoid unnecessary API calls).
+ */
+async function autoSyncUrgencySpecs() {
+    if (!shoppingListUUID || !smartShoppingItems.length) return;
+    const toUpdate = [];
+    for (const item of shoppingItems) {
+        const smartMatch = _matchBringToSmart(item.name, smartShoppingItems);
+        if (!smartMatch) continue;
+        const expectedSpec = _urgencyToSpec(smartMatch.urgency, '');
+        const currentSpec = (item.specification || '').toLowerCase();
+        // Only update if urgency marker changed (don't clobber user-set spec info that isn't urgency)
+        const currentHasUrgencyMarker = currentSpec.includes('urgente') || currentSpec.includes('presto');
+        const needsUpdate = expectedSpec && !currentHasUrgencyMarker;
+        const needsClear = !expectedSpec && currentHasUrgencyMarker;
+        if (needsUpdate || needsClear) {
+            toUpdate.push({ name: item.name, specification: expectedSpec, update_spec: true });
+            // Optimistically update local item so re-render is immediate
+            item.specification = expectedSpec;
+        }
+    }
+    if (toUpdate.length === 0) return;
+    try {
+        await api('bring_add', {}, 'POST', { items: toUpdate, listUUID: shoppingListUUID });
+    } catch (e) { /* ignore - sync is best-effort */ }
+}
+
 async function loadShoppingList() {
     const statusEl = document.getElementById('bring-status');
     const currentEl = document.getElementById('shopping-current');
@@ -4794,24 +4955,46 @@ async function loadShoppingList() {
         if (pricesChanged) saveShoppingPrices();
         
         loadShoppingPrices();
+        // Sync urgente local tags from Bring specification (items marked urgent by us or manually)
+        _syncTagsFromBringSpec();
         renderShoppingItems();
         currentEl.style.display = 'block';
         
         // Load smart shopping predictions, then re-render to show badges + auto-add critical
         loadSmartShopping().then(() => {
+            _syncOnBringFlags();          // sync on_bring against current Bring list before any logic reads it
+            _syncTagsFromBringSpec();     // re-sync tags now that smart data is available
+            autoSyncUrgencySpecs();       // push urgency specs to Bring for matched items
+            renderSmartShopping();        // re-render smart tab with corrected on_bring flags
+            updateShoppingTabCounts();    // update tab badges with corrected counts
             autoAddCriticalItems();
             cleanupObsoleteBringItems();
-            renderShoppingItems(); // re-render to apply urgency badges from smart data
+            renderShoppingItems();        // re-render shopping tab with urgency badges
         });
 
-        // Show tabs once data is ready
-        updateShoppingTabCounts();
-        
     } catch (err) {
         console.error('Bring! error:', err);
         statusEl.style.display = 'block';
         statusEl.innerHTML = '<div class="bring-error">⚠️ Errore di connessione a Bring!</div>';
     }
+}
+
+/** Return the spec text to show in the UI, stripping urgency markers (those are shown as badges). */
+function _specDisplayText(spec) {
+    if (!spec) return '';
+    // Strip known urgency prefixes set by _urgencyToSpec (case-insensitive, then trim separator)
+    const lower = spec.toLowerCase();
+    for (const prefix of ['⚡ urgente', '🟠 presto']) {
+        if (lower.startsWith(prefix)) {
+            return spec.slice(prefix.length).replace(/^\s*[·\-]\s*/, '').trim();
+        }
+    }
+    return spec;
+}
+
+/** Return the spec for price search, stripping urgency markers that would confuse the AI. */
+function _cleanSpecForSearch(spec) {
+    return _specDisplayText(spec);
 }
 
 async function renderShoppingItems() {
@@ -4855,10 +5038,17 @@ async function renderShoppingItems() {
         low:      { icon: '🟢', label: 'Ok',       cls: 'badge-low' },
     };
 
-    // Map each item to its section + urgency
+    // Map each item to its section + urgency (strict first-token matching to avoid false positives)
+    // Also derive urgency from Bring specification if smart matching fails
     const enriched = shoppingItems.map((item, idx) => {
-        const smartData = smartShoppingItems.find(sd => sd.name.toLowerCase() === item.name.toLowerCase());
-        const urgency = smartData?.urgency || null;
+        const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+        let urgency = smartData?.urgency || null;
+        // Fallback: read urgency from Bring specification (set by our app when adding)
+        if (!urgency && item.specification) {
+            const spec = item.specification.toLowerCase();
+            if (spec.includes('urgente')) urgency = 'critical';
+            else if (spec.includes('presto')) urgency = 'high';
+        }
         const sec = getItemSection(item.name);
         return { item, idx, smartData, urgency, sec };
     });
@@ -4965,7 +5155,7 @@ async function renderShoppingItems() {
                                 <span class="shopping-item-name">${escapeHtml(item.name)}</span>
                                 <span class="shopping-item-scan-hint">📷</span>
                             </div>
-                            ${item.specification ? `<div class="shopping-item-spec">${escapeHtml(item.specification)}</div>` : ''}
+                            ${_specDisplayText(item.specification) ? `<div class="shopping-item-spec">${escapeHtml(_specDisplayText(item.specification))}</div>` : ''}
                             ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
                             ${detailHtml}
                         </div>
@@ -5052,9 +5242,9 @@ async function searchItemPrice(idx, force = false) {
     renderShoppingItems();
     
     try {
-        // Send item name as query, spec separately for AI selection
+        // Send item name as query, spec separately for AI selection (strip urgency markers)
         const searchQ = item.name;
-        const spec = item.specification || '';
+        const spec = _cleanSpecForSearch(item.specification || '');
         
         const s2 = getSettings();
         const aiPrompt = s2.spesa_ai_prompt || '';
@@ -5064,7 +5254,7 @@ async function searchItemPrice(idx, force = false) {
             prompt: aiPrompt
         });
         if (res.success && res.product) {
-            shoppingPrices[priceKey] = { searched: true, product: res.product, spec: item.specification || '' };
+            shoppingPrices[priceKey] = { searched: true, product: res.product, spec: _cleanSpecForSearch(item.specification || '') };
         } else {
             shoppingPrices[priceKey] = { searched: true, product: null };
         }
@@ -5120,11 +5310,11 @@ async function searchAllPrices() {
             const aiPrompt = s.spesa_ai_prompt || '';
             const res = await api(`${provider}_search`, { 
                 q: item.name, 
-                spec: item.specification || '',
+                spec: _cleanSpecForSearch(item.specification || ''),
                 prompt: aiPrompt
             });
             if (res.success && res.product) {
-                shoppingPrices[priceKey] = { searched: true, product: res.product, spec: item.specification || '' };
+                shoppingPrices[priceKey] = { searched: true, product: res.product, spec: _cleanSpecForSearch(item.specification || '') };
             } else {
                 shoppingPrices[priceKey] = { searched: true, product: null };
             }
@@ -5564,6 +5754,161 @@ async function loadLog(more = false) {
     }
 }
 
+// ===== WEEKLY MEAL PLAN =====
+
+/**
+ * All selectable meal categories per slot.
+ * id must be URL-safe; icon + label shown in UI.
+ */
+const MEAL_PLAN_TYPES = [
+    { id: 'pasta',      icon: '🍝', label: 'Pasta' },
+    { id: 'riso',       icon: '🍚', label: 'Riso' },
+    { id: 'carne',      icon: '🥩', label: 'Carne' },
+    { id: 'pesce',      icon: '🐟', label: 'Pesce' },
+    { id: 'legumi',     icon: '🫘', label: 'Legumi' },
+    { id: 'uova',       icon: '🥚', label: 'Uova' },
+    { id: 'formaggio',  icon: '🧀', label: 'Formaggio' },
+    { id: 'pizza',      icon: '🍕', label: 'Pizza' },
+    { id: 'affettati',  icon: '🥓', label: 'Affettati' },
+    { id: 'verdure',    icon: '🥦', label: 'Verdure' },
+    { id: 'zuppa',      icon: '🍲', label: 'Zuppa' },
+    { id: 'insalata',   icon: '🥗', label: 'Insalata' },
+    { id: 'pane',       icon: '🥪', label: 'Pane/Sandwich' },
+    { id: 'dolce',      icon: '🍰', label: 'Dolce' },
+    { id: 'libero',     icon: '🎲', label: 'Libero' },
+];
+
+const MEAL_PLAN_TYPE_MAP = {};
+MEAL_PLAN_TYPES.forEach(t => { MEAL_PLAN_TYPE_MAP[t.id] = t; });
+
+const WEEK_DAYS = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+const WEEK_DAYS_SHORT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+
+/** Default weekly plan as requested. */
+const DEFAULT_MEAL_PLAN = {
+    1: { pranzo: 'pasta',   cena: 'pesce' },
+    2: { pranzo: 'riso',    cena: 'carne' },
+    3: { pranzo: 'legumi',  cena: 'uova' },
+    4: { pranzo: 'pasta',   cena: 'pesce' },
+    5: { pranzo: 'riso',    cena: 'formaggio' },
+    6: { pranzo: 'legumi',  cena: 'pizza' },
+    0: { pranzo: 'carne',   cena: 'affettati' },  // 0 = Sunday (getDay())
+};
+
+function getMealPlan() {
+    const s = getSettings();
+    return s.meal_plan || DEFAULT_MEAL_PLAN;
+}
+
+/** Return today's planned meal type for a given slot ('pranzo'|'cena'), or null. */
+function getTodayMealPlanType(slot) {
+    const s = getSettings();
+    if (s.meal_plan_enabled === false) return null;
+    const dow = new Date().getDay(); // 0=Sun,1=Mon,...,6=Sat
+    const plan = getMealPlan();
+    return plan[dow]?.[slot] || null;
+}
+
+/** Toggle handler for the enable/disable switch in settings. */
+function onMealPlanEnabledChange(el) {
+    const s = getSettings();
+    s.meal_plan_enabled = el.checked;
+    saveSettingsToStorage(s);
+    const mpConfigSection = document.getElementById('meal-plan-config-section');
+    if (mpConfigSection) mpConfigSection.style.display = el.checked ? '' : 'none';
+    const mpLegendCard = document.getElementById('meal-plan-legend-card');
+    if (mpLegendCard) mpLegendCard.style.display = el.checked ? '' : 'none';
+    // Close picker if open
+    const picker = document.getElementById('meal-plan-picker');
+    if (picker) picker.style.display = 'none';
+}
+
+/**
+ * Render the weekly meal plan editor into #meal-plan-grid.
+ * Each cell shows the current type badge + a picker dropdown.
+ */
+function renderMealPlanEditor() {
+    const container = document.getElementById('meal-plan-grid');
+    if (!container) return;
+    const plan = getMealPlan();
+    // JS getDay: 0=Sun … but we display Mon-Sun (1..6,0)
+    const dayOrder = [1,2,3,4,5,6,0];
+    const today = new Date().getDay();
+
+    const header = `<div class="mplan-header">
+        <span class="mplan-col-header">🌤️ Pranzo</span>
+        <span class="mplan-col-header">🌙 Cena</span>
+    </div>`;
+
+    const rows = dayOrder.map((dow, i) => {
+        const pranzo = plan[dow]?.pranzo || 'libero';
+        const cena   = plan[dow]?.cena   || 'libero';
+        const pt = MEAL_PLAN_TYPE_MAP[pranzo] || MEAL_PLAN_TYPE_MAP.libero;
+        const ct = MEAL_PLAN_TYPE_MAP[cena]   || MEAL_PLAN_TYPE_MAP.libero;
+        const todayClass = dow === today ? ' mplan-row-today' : '';
+        return `<div class="mplan-row${todayClass}">
+            <div class="mplan-day-name">${WEEK_DAYS_SHORT[i]}</div>
+            <span class="mplan-badge mplan-badge-pranzo" onclick="openMealPlanPicker(${dow},'pranzo',this)">${pt.icon} ${pt.label}</span>
+            <span class="mplan-badge mplan-badge-cena" onclick="openMealPlanPicker(${dow},'cena',this)">${ct.icon} ${ct.label}</span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = header + rows;
+}
+
+let _mplanPickerTarget = null; // {dow, slot, badgeEl}
+function openMealPlanPicker(dow, slot, badgeEl) {
+    // Close any open picker first
+    closeMealPlanPicker();
+    _mplanPickerTarget = { dow, slot, badgeEl };
+    const picker = document.getElementById('meal-plan-picker');
+    if (!picker) return;
+    const plan = getMealPlan();
+    const current = plan[dow]?.[slot] || 'libero';
+    picker.innerHTML = MEAL_PLAN_TYPES.map(t =>
+        `<button class="mplan-pick-btn${t.id === current ? ' active' : ''}" onclick="selectMealPlanType(${dow},'${slot}','${t.id}')">${t.icon} ${t.label}</button>`
+    ).join('');
+    // Position vertically near the badge, centered horizontally (CSS handles centering)
+    const rect = badgeEl.getBoundingClientRect();
+    const pickerEl = picker;
+    // Show first to measure height
+    pickerEl.style.display = 'flex';
+    const pickerH = pickerEl.offsetHeight || 160;
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const top = spaceBelow >= pickerH
+        ? rect.bottom + 8
+        : Math.max(8, rect.top - pickerH - 8);
+    pickerEl.style.top = top + 'px';
+    // Close on outside tap
+    setTimeout(() => document.addEventListener('click', _mplanPickerOutside, { once: true }), 0);
+}
+function _mplanPickerOutside(e) {
+    const picker = document.getElementById('meal-plan-picker');
+    if (picker && !picker.contains(e.target)) closeMealPlanPicker();
+}
+function closeMealPlanPicker() {
+    const picker = document.getElementById('meal-plan-picker');
+    if (picker) picker.style.display = 'none';
+    _mplanPickerTarget = null;
+    document.removeEventListener('click', _mplanPickerOutside);
+}
+function selectMealPlanType(dow, slot, typeId) {
+    const s = getSettings();
+    if (!s.meal_plan) s.meal_plan = JSON.parse(JSON.stringify(DEFAULT_MEAL_PLAN));
+    if (!s.meal_plan[dow]) s.meal_plan[dow] = {};
+    s.meal_plan[dow][slot] = typeId;
+    saveSettingsToStorage(s);
+    closeMealPlanPicker();
+    renderMealPlanEditor();
+}
+function resetMealPlan() {
+    const s = getSettings();
+    s.meal_plan = JSON.parse(JSON.stringify(DEFAULT_MEAL_PLAN));
+    saveSettingsToStorage(s);
+    renderMealPlanEditor();
+    showToast('Piano settimanale ripristinato', 'success');
+}
+
 // ===== RECIPE GENERATION =====
 const MEAL_TYPES = [
     { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 11 },
@@ -5709,6 +6054,9 @@ function openRecipeDialog() {
         }).join('');
     }
     updateRecipeMealTitle();
+
+    // Show today's meal plan hint
+    _renderMealPlanHint(meal);
 
     // Check for cached recipe matching current meal type
     if (_cachedRecipe && _cachedRecipe.meal === meal && _cachedRecipe.recipe) {
@@ -6377,6 +6725,7 @@ function removeCookingTimer(id) {
     if (t && t.interval) clearInterval(t.interval);
     _cookingTimers = _cookingTimers.filter(t => t.id !== id);
     renderTimersBar();
+    _updateScreenFlash();
 }
 
 function toggleCookingTimerById(id) {
@@ -6431,6 +6780,25 @@ function _updateTimerCard(id) {
     }
     toggleBtn.textContent = t.running ? '⏸' : '▶';
     toggleBtn.classList.toggle('running', t.running);
+    _updateScreenFlash();
+}
+
+/** Update the full-screen colour flash based on the worst active timer state. */
+function _updateScreenFlash() {
+    const flashEl = document.getElementById('cooking-flash-overlay');
+    if (!flashEl) return;
+    let hasDone = false, hasWarning = false;
+    for (const t of _cookingTimers) {
+        if (t.seconds <= 0) { hasDone = true; break; }
+        if (t.seconds <= 30 && t.running) hasWarning = true;
+    }
+    if (hasDone) {
+        flashEl.className = 'cooking-flash-overlay flash-done';
+    } else if (hasWarning) {
+        flashEl.className = 'cooking-flash-overlay flash-warning';
+    } else {
+        flashEl.className = 'cooking-flash-overlay';
+    }
 }
 
 function renderTimersBar() {
@@ -6466,6 +6834,7 @@ function clearAllCookingTimers() {
     _cookingSuggestedLabel = '';
     const bar = document.getElementById('cooking-timers-bar');
     if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
+    _updateScreenFlash();
 }
 // ===== END COOKING TIMER SYSTEM =====
 
@@ -6511,6 +6880,48 @@ function cookingUseIngredient(idx, productId, location, qtyNumber, btn) {
 function updateRecipeMealTitle() {
     const meal = getSelectedMealType();
     document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    _renderMealPlanHint(meal);
+}
+
+/** Show/hide the meal-plan badge hint + top banner in the recipe dialog. */
+function _renderMealPlanHint(mealSlot) {
+    const el = document.getElementById('recipe-mealplan-hint');
+    const banner = document.getElementById('recipe-mealplan-banner');
+    const chipWrap = document.getElementById('recipe-opt-mealplan-wrap');
+    const chipLabel = document.getElementById('recipe-opt-mealplan-label');
+    const chipCb = document.getElementById('recipe-opt-mealplan');
+    // mealSlot = 'pranzo' or 'cena' (from getMealType/getSelectedMealType)
+    const typeId = (mealSlot === 'pranzo' || mealSlot === 'cena')
+        ? getTodayMealPlanType(mealSlot)
+        : null;
+    if (!typeId || typeId === 'libero') {
+        if (el) el.style.display = 'none';
+        if (banner) banner.style.display = 'none';
+        if (chipWrap) chipWrap.style.display = 'none';
+        return;
+    }
+    const t = MEAL_PLAN_TYPE_MAP[typeId];
+    if (!t) {
+        if (el) el.style.display = 'none';
+        if (banner) banner.style.display = 'none';
+        if (chipWrap) chipWrap.style.display = 'none';
+        return;
+    }
+    if (el) {
+        el.innerHTML = `<span class="mplan-hint-badge">${t.icon} ${t.label}</span> <span class="mplan-hint-label">suggerito dal piano settimanale</span>`;
+        el.style.display = 'flex';
+    }
+    if (banner) {
+        const slotLabel = mealSlot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
+        banner.innerHTML = `<span style="opacity:0.75;font-weight:500">${slotLabel}</span><span style="opacity:0.45">·</span><span>${t.icon} ${t.label}</span>`;
+        banner.style.display = 'flex';
+    }
+    // Show the meal-plan chip (active by default, user can uncheck to ignore the plan)
+    if (chipWrap) {
+        chipWrap.style.display = '';
+        if (chipLabel) chipLabel.textContent = `${t.icon} ${t.label}`;
+        if (chipCb) chipCb.checked = true;
+    }
 }
 
 function regenerateRecipe() {
@@ -6535,6 +6946,15 @@ async function generateRecipe() {
     const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
+
+    // Determine meal plan type for today's selected slot,
+    // but only if the user has NOT unchecked the meal-plan chip
+    const mealPlanChipWrap = document.getElementById('recipe-opt-mealplan-wrap');
+    const mealPlanCb = document.getElementById('recipe-opt-mealplan');
+    const mealPlanChipActive = !mealPlanChipWrap || mealPlanChipWrap.style.display === 'none' || (mealPlanCb && mealPlanCb.checked);
+    const mealPlanType = mealPlanChipActive && (meal === 'pranzo' || meal === 'cena')
+        ? (getTodayMealPlanType(meal) || null)
+        : null;
     
     // Gather active options from checkboxes
     const options = [];
@@ -6562,7 +6982,8 @@ async function generateRecipe() {
             options,
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
-            today_recipes: await getTodayRecipeTitles()
+            today_recipes: await getTodayRecipeTitles(),
+            meal_plan_type: mealPlanType,
         });
 
         if (!result.success) {
@@ -6817,6 +7238,25 @@ function updateScreensaverClock() {
     const date = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
     const el = document.getElementById('screensaver-clock');
     if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
+    updateScreensaverMealPlan();
+}
+
+/** Show/hide the planned meal type badge on the screensaver based on current time slot. */
+function updateScreensaverMealPlan() {
+    const el = document.getElementById('screensaver-mealplan');
+    if (!el) return;
+    const s = getSettings();
+    if (s.meal_plan_enabled === false) { el.style.display = 'none'; return; }
+    const hour = new Date().getHours();
+    // Before 15:00 show pranzo, from 15:00 onwards show cena
+    const slot = hour < 15 ? 'pranzo' : 'cena';
+    const typeId = getTodayMealPlanType(slot);
+    if (!typeId || typeId === 'libero') { el.style.display = 'none'; return; }
+    const t = MEAL_PLAN_TYPE_MAP[typeId];
+    if (!t) { el.style.display = 'none'; return; }
+    const slotLabel = slot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
+    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${t.icon} ${t.label}</span>`;
+    el.style.display = 'block';
 }
 
 function dismissScreensaver(targetPage) {
@@ -7315,13 +7755,106 @@ function initInactivityWatcher() {
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+    // Migrate old session-based flags to time-based
+    if (sessionStorage.getItem('_autoAddedCritical')) {
+        sessionStorage.removeItem('_autoAddedCritical');
+    }
+    // One-time reset of bg sync timestamp so first load always triggers a sync
+    if (!localStorage.getItem('_bgBringSyncReset_v1')) {
+        localStorage.removeItem('_bgBringSyncTs');
+        localStorage.setItem('_bgBringSyncReset_v1', '1');
+    }
     syncSettingsFromDB();
     showPage('dashboard');
     initInactivityWatcher();
     initSpesaMode();
     initScreensaverShortcuts();
     startBgShoppingRefresh();
+
+    // Auto-refresh Bring list when user returns to the browser tab (e.g. was in the Bring app)
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _currentPageId === 'shopping') {
+            loadShoppingList();
+        }
+    });
+
+    // Silent background sync: update urgency specs on Bring and add missing critical items
+    // Runs once at startup (time-gated: max every 10 min) without affecting the UI
+    _backgroundBringSync();
 });
+
+/**
+ * Background sync at startup:
+ * 1. Fetches Bring list + smart shopping in parallel
+ * 2. Adds any critical items missing from Bring
+ * 3. Updates urgency specs for items already on Bring that need it
+ * Fully silent — no toasts, no loading spinners.
+ */
+async function _backgroundBringSync() {
+    const lastRun = parseInt(localStorage.getItem('_bgBringSyncTs') || '0');
+    if (Date.now() - lastRun < 10 * 60 * 1000) return;
+    localStorage.setItem('_bgBringSyncTs', String(Date.now()));
+
+    try {
+        const [bringData, smartData] = await Promise.all([
+            api('bring_list').catch(() => null),
+            api('smart_shopping').catch(() => null),
+        ]);
+
+        if (!bringData?.success || !smartData?.success) return;
+
+        const listUUID = bringData.listUUID;
+        const bringItems = bringData.purchase || [];
+        const smartItems = smartData.items || [];
+
+        if (!listUUID || !smartItems.length) return;
+
+        // Update local smart cache so other functions can use it
+        if (!smartShoppingItems.length) {
+            smartShoppingItems = smartItems;
+            _smartShoppingLastFetch = Date.now();
+        }
+        if (!shoppingListUUID) shoppingListUUID = listUUID;
+        if (!shoppingItems.length) shoppingItems = bringItems;
+
+        const toAdd = [];    // new items not yet on Bring
+        const toUpdate = []; // items on Bring that need spec updated
+
+        for (const si of smartItems) {
+            if (si.urgency === 'none' || si.urgency === 'low') continue;
+            const expectedSpec = _urgencyToSpec(si.urgency, '');
+            const bringMatch = bringItems.find(bi => {
+                const biL = bi.name.toLowerCase();
+                const siL = si.name.toLowerCase();
+                if (biL === siL) return true;
+                const biFirst = _nameTokens(bi.name)[0];
+                const siFirst = _nameTokens(si.name)[0];
+                return biFirst && biFirst === siFirst;
+            });
+
+            if (!bringMatch) {
+                // Not on Bring — add if critical
+                if (si.urgency === 'critical') {
+                    toAdd.push({ name: si.name, specification: expectedSpec });
+                }
+            } else {
+                // On Bring — update spec if urgency marker is missing/wrong
+                const currentSpec = (bringMatch.specification || '').toLowerCase();
+                const hasUrgencyMarker = currentSpec.includes('urgente') || currentSpec.includes('presto');
+                if (!hasUrgencyMarker && expectedSpec) {
+                    toUpdate.push({ name: si.name, specification: expectedSpec, update_spec: true });
+                    bringMatch.specification = expectedSpec; // update local copy
+                }
+            }
+        }
+
+        const allChanges = [...toAdd, ...toUpdate];
+        if (allChanges.length === 0) return;
+
+        await api('bring_add', {}, 'POST', { items: allChanges, listUUID });
+        logOperation('bg_bring_sync', { added: toAdd.map(i=>i.name), updated: toUpdate.map(i=>i.name) });
+    } catch (e) { /* silent — best effort */ }
+}
 
 // ===== DUPLICLICK (SPESA ONLINE) =====
 

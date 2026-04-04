@@ -1350,6 +1350,7 @@ function generateRecipe(PDO $db): void {
     $appliances = $input['appliances'] ?? [];
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
     $todayRecipes = $input['today_recipes'] ?? [];
+    $mealPlanType = $input['meal_plan_type'] ?? ''; // e.g. 'pasta', 'pesce', 'legumi', ...
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
@@ -1503,6 +1504,79 @@ function generateRecipe(PDO $db): void {
         $dietaryText = "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni.";
     }
 
+    // Weekly meal plan type hint
+    $mealPlanTypeLabels = [
+        'pasta'     => 'Pasta (primo piatto a base di pasta)',
+        'riso'      => 'Riso (risotto, insalata di riso, riso saltato, ecc.)',
+        'carne'     => 'Carne (secondo piatto a base di carne)',
+        'pesce'     => 'Pesce (secondo piatto a base di pesce o frutti di mare)',
+        'legumi'    => 'Legumi (zuppa, insalata, hummus, pasta e fagioli, ecc.)',
+        'uova'      => 'Uova (frittata, uova strapazzate, quiche, ecc.)',
+        'formaggio' => 'Formaggio (fonduta, gnocchi al formaggio, torta salata, ecc.)',
+        'pizza'     => 'Pizza o focaccia (impastata in casa o usi ingredienti simili)',
+        'affettati' => 'Affettati (tagliere misto, piadina, panino, ecc.)',
+        'verdure'   => 'Verdure (piatto principale a base di verdure, contorno abbondante)',
+        'zuppa'     => 'Zuppa o minestra (zuppe, vellutate, minestrone)',
+        'insalata'  => 'Insalata (insalata mista, insalata di riso o pasta, poke)',
+        'pane'      => 'Pane / Sandwich (toast, tramezzino, bruschette)',
+        'dolce'     => 'Dolce o dessert',
+        'libero'    => '',
+    ];
+
+    // Keywords to match inventory names against each meal plan type
+    $typeKeywords = [
+        'pesce'     => ['tonno', 'salmone', 'merluzzo', 'branzino', 'orata', 'sardine', 'acciughe', 'alici', 'gamberi', 'cozze', 'vongole', 'polpo', 'calamari', 'seppia', 'sgombro', 'trota', 'baccalà', 'dentice', 'spigola', 'pesce'],
+        'carne'     => ['pollo', 'manzo', 'maiale', 'vitello', 'agnello', 'tacchino', 'salsiccia', 'hamburger', 'bistecca', 'cotoletta', 'pancetta', 'speck', 'carne', 'arrosto', 'filetto', 'lonza', 'braciola'],
+        'pasta'     => ['pasta', 'spaghetti', 'penne', 'rigatoni', 'fusilli', 'tagliatelle', 'lasagne', 'farfalle', 'orecchiette', 'bucatini', 'linguine', 'maccheroni', 'gnocchi', 'pennette', 'bavette'],
+        'riso'      => ['riso', 'basmati', 'arborio', 'carnaroli', 'parboiled', 'riso integrale'],
+        'legumi'    => ['fagioli', 'ceci', 'lenticchie', 'piselli', 'fave', 'lupini', 'soia', 'legumi', 'borlotti', 'cannellini', 'azuki'],
+        'uova'      => ['uova', 'uovo'],
+        'formaggio' => ['formaggio', 'parmigiano', 'mozzarella', 'ricotta', 'pecorino', 'grana', 'gorgonzola', 'scamorza', 'fontina', 'emmental', 'asiago', 'provola', 'provolone', 'taleggio', 'stracchino'],
+        'pizza'     => ['farina', 'lievito', 'pizza', 'focaccia'],
+        'affettati' => ['prosciutto', 'salame', 'bresaola', 'mortadella', 'speck', 'coppa', 'affettati', 'wurstel', 'würstel', 'piadina', 'pancetta cotta'],
+        'verdure'   => ['zucchine', 'zucchina', 'melanzane', 'peperoni', 'spinaci', 'cavolfiore', 'broccoli', 'carote', 'zucca', 'bietole', 'cavolo', 'carciofi', 'asparagi', 'lattuga', 'rucola', 'radicchio', 'cicoria', 'finocchio', 'cipolla', 'porri', 'verdure'],
+        'zuppa'     => ['brodo', 'zuppa', 'minestra', 'minestrone', 'vellutata', 'orzo', 'farro', 'fagioli', 'ceci', 'lenticchie'],
+        'insalata'  => ['insalata', 'lattuga', 'rucola', 'spinaci', 'radicchio', 'misticanza', 'valeriana', 'songino'],
+        'pane'      => ['pane', 'pancarrè', 'baguette', 'toast', 'tramezzino', 'crackers', 'grissini', 'ciabatta', 'rosetta'],
+        'dolce'     => ['cioccolato', 'cacao', 'zucchero', 'miele', 'marmellata', 'nutella', 'creme caramel', 'savoiardi', 'biscotti', 'pan di spagna', 'panna'],
+    ];
+
+    $mealPlanText = '';
+    $mealPlanRule = '';
+    if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
+        $hint = $mealPlanTypeLabels[$mealPlanType];
+
+        // Scan inventory for ingredients matching this meal plan type
+        $matchingItems = [];
+        if (isset($typeKeywords[$mealPlanType])) {
+            foreach ($items as $item) {
+                $nameLower = mb_strtolower($item['name'] . ' ' . ($item['brand'] ?? ''));
+                foreach ($typeKeywords[$mealPlanType] as $kw) {
+                    if (mb_strpos($nameLower, $kw) !== false) {
+                        $entry = "→ {$item['name']}" . ($item['brand'] ? " ({$item['brand']})" : '') . ": {$item['quantity']} {$item['unit']}";
+                        if (!empty($item['expiry_date'])) {
+                            $dl = intval($item['days_left']);
+                            $entry .= $dl < 0 ? " [SCADUTO]" : " [scade tra $dl giorni]";
+                        }
+                        $matchingItems[] = $entry;
+                        break;
+                    }
+                }
+            }
+            $matchingItems = array_unique($matchingItems);
+        }
+
+        if (!empty($matchingItems)) {
+            $matchingList = implode("\n", $matchingItems);
+            $matchingBlock = "Ingredienti disponibili in dispensa compatibili con questa tipologia (usa almeno uno di questi come BASE della ricetta):\n{$matchingList}";
+        } else {
+            $matchingBlock = "Nessun ingrediente perfettamente corrispondente trovato — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
+        }
+
+        $mealPlanText = "\n\n🎯 TIPOLOGIA PASTO PIANIFICATA — OBBLIGATORIA:\nOggi questo pasto DEVE essere: {$hint}\nQuesta è una regola del piano alimentare personale dell'utente, NON un suggerimento.\n{$matchingBlock}";
+        $mealPlanRule = "0. TIPOLOGIA PASTO OBBLIGATORIA: la ricetta DEVE rispettare il tipo pianificato ({$hint}). Usa gli ingredienti compatibili evidenziati sopra come base principale del piatto. Non ignorare questa regola.\n   ";
+    }
+
     // Today's previous recipes from DB - avoid repetition
     $todayText = '';
     $today = date('Y-m-d');
@@ -1542,10 +1616,10 @@ function generateRecipe(PDO $db): void {
 
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$varietyText}{$mustUseText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$mealPlanText}{$varietyText}{$mustUseText}
 
 REGOLE IMPORTANTI:
-1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
+{$mealPlanRule}1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
    a) PRODOTTI SCADUTI: se ancora commestibili, usali SUBITO — hanno la priorità massima assoluta
    b) PRODOTTI IN SCADENZA IMMINENTE (≤3 giorni): usa questi per primi dopo gli scaduti
    c) PRODOTTI IN SCADENZA RAVVICINATA (≤7 giorni): poi questi
@@ -2165,15 +2239,16 @@ function bringAddItems(): void {
     }
     
     $added = 0;
+    $updated = 0;
     $skipped = 0;
     $errors = [];
     
-    // Fetch current list to check for duplicates
-    $existingNames = [];
+    // Fetch current list to check for duplicates and existing specs
+    $existingItems = [];  // strtolower(name) => specification
     $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
     if ($listData && isset($listData['purchase'])) {
         foreach ($listData['purchase'] as $existingItem) {
-            $existingNames[] = strtolower($existingItem['name'] ?? '');
+            $existingItems[strtolower($existingItem['name'] ?? '')] = $existingItem['specification'] ?? '';
         }
     }
     
@@ -2183,14 +2258,26 @@ function bringAddItems(): void {
         
         // Map Italian name to Bring! catalog key (German) for proper recognition
         $bringName = italianToBring($name);
+        $bringKey = strtolower($bringName);
+        $spec = $item['specification'] ?? '';
+        $update_spec = $item['update_spec'] ?? false;  // explicit flag to force spec update
         
-        // Skip if already on the list
-        if (in_array(strtolower($bringName), $existingNames)) {
-            $skipped++;
+        if (array_key_exists($bringKey, $existingItems)) {
+            // Item already on the list — only update if specification changed and update_spec requested
+            if ($update_spec && $existingItems[$bringKey] !== $spec) {
+                $body = http_build_query([
+                    'uuid' => $listUUID,
+                    'purchase' => $bringName,
+                    'specification' => $spec,
+                ]);
+                $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+                if ($result !== null) $updated++;
+            } else {
+                $skipped++;
+            }
             continue;
         }
         
-        $spec = $item['specification'] ?? '';
         $body = http_build_query([
             'uuid' => $listUUID,
             'purchase' => $bringName,
@@ -2205,7 +2292,11 @@ function bringAddItems(): void {
         }
     }
     
-    echo json_encode(['success' => true, 'added' => $added, 'skipped' => $skipped, 'errors' => $errors]);
+    if ($added > 0 || $updated > 0) {
+        // Invalidate cache so next smart_shopping request reflects the updated Bring! list
+        @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
+    }
+    echo json_encode(['success' => true, 'added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => $errors]);
 }
 
 function bringRemoveItem(): void {
@@ -2234,6 +2325,10 @@ function bringRemoveItem(): void {
     ]);
     
     $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+    if ($result !== null) {
+        // Invalidate cache so next smart_shopping request reflects the updated Bring! list
+        @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
+    }
     echo json_encode(['success' => $result !== null]);
 }
 
@@ -2305,6 +2400,43 @@ function smartShoppingCached(PDO $db): void {
  * Smart Shopping List: analyzes usage frequency, stock levels, expiry to produce
  * intelligent urgency-ranked shopping recommendations.
  */
+
+/**
+ * Token-based fuzzy match: returns true if the product name shares at least one
+ * significant word (> 2 chars, not a stopword) with any key in $bringItems.
+ * Mirrors the JS _findSimilarItem / _nameTokens logic.
+ */
+/**
+ * Strict matching: returns true only when a Bring item's name "covers" the product name,
+ * i.e. the FIRST significant token of the product matches the FIRST significant token of
+ * a Bring item name. This prevents false positives like "Früchte/Frutta" matching the
+ * product "Muesli Frutta Secca" (which has "frutta" as a secondary token, not the first).
+ * Mirrors JS _matchBringToSmart / _syncOnBringFlags logic.
+ */
+function _productOnBring(string $productName, array $bringItems): bool {
+    // Exact key match (both German raw and Italian translated keys are stored)
+    if (isset($bringItems[mb_strtolower($productName)])) return true;
+    static $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per','su',
+                    'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
+    $tokenize = function(string $s) use ($stop): array {
+        $clean = mb_strtolower(preg_replace('/[^\p{L}\s]/u', ' ', $s));
+        return array_values(array_filter(
+            preg_split('/\s+/', trim($clean)),
+            fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
+        ));
+    };
+    $pTokens = $tokenize($productName);
+    if (empty($pTokens)) return false;
+    $pFirst = $pTokens[0];
+    foreach (array_keys($bringItems) as $bKey) {
+        $bTokens = $tokenize($bKey);
+        if (empty($bTokens)) continue;
+        // First token of product must equal first token of Bring item
+        if ($bTokens[0] === $pFirst) return true;
+    }
+    return false;
+}
+
 function smartShopping(PDO $db): void {
     $now = time();
     $today = date('Y-m-d');
@@ -2513,8 +2645,8 @@ function smartShopping(PDO $db): void {
         if ($useCount >= 8) $score += 15;
         elseif ($useCount >= 5) $score += 10;
 
-        // Is already on Bring?
-        $onBring = isset($bringItems[mb_strtolower($p['name'])]);
+        // Is already on Bring? (fuzzy token match — mirrors JS _findSimilarItem logic)
+        $onBring = _productOnBring($p['name'], $bringItems);
 
         $items[] = [
             'product_id' => $pid,
