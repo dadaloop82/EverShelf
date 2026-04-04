@@ -7032,21 +7032,13 @@ function _renderMealPlanHint(mealSlot) {
 
 function regenerateRecipe() {
     _cachedRecipe = null;
-    const meal = getMealType();
+    // Use the meal the user currently has selected (not the auto-detected one)
+    const meal = getSelectedMealType();
     // increment variation counter for this meal slot
     _recipeVariationCount[meal] = (_recipeVariationCount[meal] || 0) + 1;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
-    // Rebuild meal selector with auto-detected default
-    const mealGrid = document.getElementById('recipe-meal-grid');
-    if (mealGrid) {
-        mealGrid.innerHTML = MEAL_TYPES.map(m => {
-            const checked = m.id === meal ? ' checked' : '';
-            return `<label class="recipe-meal-chip"><input type="radio" name="recipe-meal" value="${m.id}"${checked}> ${m.icon} ${m.label}</label>`;
-        }).join('');
-    }
-    updateRecipeMealTitle();
-    document.getElementById('recipe-persons').value = 1;
+    // Keep all existing form settings (persons, chips, meal) — just show the form again
     document.getElementById('recipe-ask').style.display = '';
 }
 
