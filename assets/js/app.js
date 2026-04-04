@@ -7037,7 +7037,6 @@ function regenerateRecipe() {
     _recipeVariationCount[meal] = (_recipeVariationCount[meal] || 0) + 1;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
-    const meal = getMealType();
     // Rebuild meal selector with auto-detected default
     const mealGrid = document.getElementById('recipe-meal-grid');
     if (mealGrid) {
