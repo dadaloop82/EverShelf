@@ -6092,6 +6092,8 @@ function viewArchivedRecipe(idx) {
 }
 
 let _cachedRecipe = null;
+let _generatedTodayTitles = []; // client-side list, robust vs race conditions
+let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
 
 function openRecipeDialog() {
     const meal = getMealType();
@@ -6980,6 +6982,14 @@ function updateRecipeMealTitle() {
 }
 
 /** Show/hide the meal-plan badge hint + top banner in the recipe dialog. */
+function onMealPlanChipChange(cb) {
+    const show = cb.checked;
+    const banner = document.getElementById('recipe-mealplan-banner');
+    const hint   = document.getElementById('recipe-mealplan-hint');
+    if (banner) banner.style.display = show ? 'flex' : 'none';
+    if (hint)   hint.style.display   = show ? 'flex' : 'none';
+}
+
 function _renderMealPlanHint(mealSlot) {
     const el = document.getElementById('recipe-mealplan-hint');
     const banner = document.getElementById('recipe-mealplan-banner');
@@ -7022,6 +7032,9 @@ function _renderMealPlanHint(mealSlot) {
 
 function regenerateRecipe() {
     _cachedRecipe = null;
+    const meal = getMealType();
+    // increment variation counter for this meal slot
+    _recipeVariationCount[meal] = (_recipeVariationCount[meal] || 0) + 1;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
     const meal = getMealType();
@@ -7078,8 +7091,9 @@ async function generateRecipe() {
             options,
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
-            today_recipes: await getTodayRecipeTitles(),
+            today_recipes: [...new Set([...await getTodayRecipeTitles(), ..._generatedTodayTitles])],
             meal_plan_type: mealPlanType,
+            variation: _recipeVariationCount[meal] || 0,
         });
 
         if (!result.success) {
@@ -7096,8 +7110,11 @@ async function generateRecipe() {
         const r = result.recipe;
         renderRecipe(r);
 
+        // Track title client-side immediately (before DB save completes)
+        if (r.title) _generatedTodayTitles.push(r.title);
+
         // Save to archive
-        saveRecipeToArchive(r);
+        await saveRecipeToArchive(r);
 
         // Cache the recipe for this meal type (in-memory only)
         _cachedRecipe = { meal, recipe: r };

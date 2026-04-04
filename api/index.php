@@ -1403,6 +1403,7 @@ function generateRecipe(PDO $db): void {
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
     $todayRecipes = $input['today_recipes'] ?? [];
     $mealPlanType = $input['meal_plan_type'] ?? ''; // e.g. 'pasta', 'pesce', 'legumi', ...
+    $variation    = max(0, intval($input['variation'] ?? 0)); // 0=first attempt, 1+=re-generation
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
@@ -1665,10 +1666,18 @@ function generateRecipe(PDO $db): void {
         $weekList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, array_values($weekOnly)));
         $varietyText .= "\n\nRICETTE DEGLI ULTIMI 7 GIORNI:\n{$weekList}\nCerca di variare rispetto a queste ricette recenti: evita piatti troppo simili o con gli stessi ingredienti principali. Alterna pasta, riso, zuppe, carne, pesce, verdure, piatti freddi, ecc.";
     }
+    // If this is a re-generation, stress the need for a truly different recipe
+    $regenText = '';
+    if ($variation > 0) {
+        $regenText = "\n\n🔁 RIGENERAZIONE #{$variation}: L'utente ha già visto e scartato le ricette precedenti. " .
+            "Devi proporre qualcosa di COMPLETAMENTE DIVERSO: stile di cucina diverso, ingrediente principale diverso, " .
+            "tecnica di cottura diversa, piatto di un'altra tradizione culinaria o di un'altra categoria. " .
+            "Non basta cambiare il nome della stessa idea. Sorprendi! Sii creativo!";
+    }
 
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$mealPlanText}{$varietyText}{$mustUseText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE IMPORTANTI:
 {$mealPlanRule}1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
@@ -1724,7 +1733,7 @@ PROMPT;
             ]
         ],
         'generationConfig' => [
-            'temperature' => 0.7,
+            'temperature' => min(1.4, 0.7 + $variation * 0.25),
             'maxOutputTokens' => 2048
         ]
     ];
