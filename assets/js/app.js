@@ -6655,13 +6655,27 @@ function _buildTtsRequest(text, s) {
     return { url, method, headers, body };
 }
 
+async function _ttsViaProxy(req) {
+    // Route through server-side proxy to avoid mixed-content / CORS issues
+    return fetch('api/index.php?action=tts_proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            url: req.url,
+            method: req.method,
+            headers: req.headers,
+            payload: req.body
+        })
+    });
+}
+
 async function speakCookingStep(text) {
     if (!text) return;
     const s = getSettings();
     if (!s.tts_enabled) return;
     try {
         const req = _buildTtsRequest(text, s);
-        await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
+        await _ttsViaProxy(req);
     } catch(e) { /* silent — TTS is non-critical */ }
 }
 
@@ -6707,14 +6721,17 @@ async function testTTS() {
     if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio in corso…'; }
     try {
         const req = _buildTtsRequest('Test vocale Dispensa Manager', formSettings);
-        const res = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
-        if (res.ok || res.status === 200) {
-            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ Risposta ${res.status} — controlla che l'altoparlante abbia parlato.`; }
+        const res = await _ttsViaProxy(req);
+        const data = await res.json().catch(() => ({}));
+        const httpCode = data.status || res.status;
+        if (res.ok && httpCode >= 200 && httpCode < 300) {
+            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ Risposta ${httpCode} — controlla che l'altoparlante abbia parlato.`; }
         } else {
-            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `⚠️ HTTP ${res.status}: ${res.statusText}`; }
+            const errDetail = data.error || data.body || res.statusText;
+            if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `⚠️ HTTP ${httpCode}: ${errDetail}`; }
         }
     } catch(e) {
-        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ Errore di rete: ${e.message}`; }
+        if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ Errore: ${e.message}`; }
     }
 }
 

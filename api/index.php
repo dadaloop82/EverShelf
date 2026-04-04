@@ -190,6 +190,9 @@ try {
         case 'chat_clear':
             chatClear($db);
             break;
+        case 'tts_proxy':
+            ttsProxy();
+            break;
 
         default:
             http_response_code(404);
@@ -200,6 +203,55 @@ try {
     echo json_encode(['error' => $e->getMessage()]);
 }
 endif; // end !CRON_MODE
+
+// ===== TTS PROXY =====
+function ttsProxy() {
+    $body = json_decode(file_get_contents('php://input'), true);
+    $url     = isset($body['url'])     ? trim($body['url'])     : '';
+    $method  = isset($body['method'])  ? strtoupper(trim($body['method'])) : 'POST';
+    $headers = isset($body['headers']) && is_array($body['headers']) ? $body['headers'] : [];
+    $payload = isset($body['payload']) ? $body['payload'] : '';
+    $contentType = '';
+    foreach ($headers as $k => $v) {
+        if (strtolower($k) === 'content-type') { $contentType = $v; break; }
+    }
+
+    if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'URL non valido']);
+        return;
+    }
+
+    $curlHeaders = [];
+    foreach ($headers as $k => $v) {
+        $curlHeaders[] = "$k: $v";
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    if ($method !== 'GET' && $payload !== '') {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    }
+    if ($curlHeaders) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
+    }
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // allow self-signed certs on local network
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        http_response_code(502);
+        echo json_encode(['error' => 'cURL error: ' . $curlErr]);
+        return;
+    }
+
+    http_response_code($httpCode ?: 200);
+    echo json_encode(['status' => $httpCode, 'body' => $response]);
+}
 
 // ===== CLIENT LOG =====
 
