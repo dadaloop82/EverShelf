@@ -490,6 +490,30 @@ let currentLocation = '';
 let scannerStream = null;
 let quaggaRunning = false;
 let aiStream = null;
+let _scanZoomLevel = 1; // 1 or 2
+
+async function toggleScanZoom() {
+    _scanZoomLevel = _scanZoomLevel === 1 ? 2 : 1;
+    const btn = document.getElementById('scan-zoom-btn');
+    if (btn) btn.textContent = `x${_scanZoomLevel}`;
+    if (scannerStream) {
+        const track = scannerStream.getVideoTracks()[0];
+        if (track) {
+            const caps = track.getCapabilities ? track.getCapabilities() : {};
+            if (caps.zoom) {
+                // Hardware zoom (Android Chrome)
+                const z = _scanZoomLevel === 2
+                    ? Math.min(caps.zoom.max, caps.zoom.min * 2 || 2)
+                    : caps.zoom.min;
+                try { await track.applyConstraints({ advanced: [{ zoom: z }] }); } catch(e) {}
+            } else {
+                // Software zoom via CSS scale on the video element
+                const video = document.getElementById('scanner-video');
+                if (video) video.style.transform = _scanZoomLevel === 2 ? 'scale(2)' : 'scale(1)';
+            }
+        }
+    }
+}
 
 // ===== CAMERA HELPER =====
 function getCameraConstraints(extraVideo = {}) {
@@ -2074,12 +2098,15 @@ function enhanceCanvasForBarcode(ctx, w, h) {
 
 function stopScanner() {
     quaggaRunning = false;
+    _scanZoomLevel = 1;
     if (scannerStream) {
         scannerStream.getTracks().forEach(t => t.stop());
         scannerStream = null;
     }
     const video = document.getElementById('scanner-video');
     if (video) video.srcObject = null;
+    const zoomBtn = document.getElementById('scan-zoom-btn');
+    if (zoomBtn) zoomBtn.textContent = 'x1';
     
     // Also stop AI camera
     if (aiStream) {
@@ -7834,6 +7861,7 @@ function generateScreensaverFact() {
 // ===== SPESA MODE (long-press camera for continuous scanning) =====
 let _spesaMode = false;
 let _longPressTimer = null;
+let _spesaSession = []; // { name, qty, unit } per ogni prodotto aggiunto
 
 function initSpesaMode() {
     const btn = document.getElementById('btn-header-scan');
@@ -7863,6 +7891,7 @@ function initSpesaMode() {
 
 function startSpesaMode() {
     _spesaMode = true;
+    _spesaSession = [];
     showToast('🛒 Modalità Spesa attivata!', 'success');
     showPage('scan');
     updateSpesaBanner();
@@ -7877,14 +7906,43 @@ function endSpesaMode() {
 
 function updateSpesaBanner() {
     const banner = document.getElementById('spesa-mode-banner');
-    if (banner) banner.style.display = _spesaMode ? 'flex' : 'none';
+    if (!banner) return;
+    banner.style.display = _spesaMode ? 'flex' : 'none';
+    const statEl = banner.querySelector('.spesa-stat');
+    if (statEl) statEl.textContent = _spesaBannerStat();
 }
 
 // Called after successful add — returns true if spesa mode handled navigation
 function spesaModeAfterAdd() {
     if (!_spesaMode) return false;
+    // Track this product in the session
+    if (currentProduct) {
+        _spesaSession.push({ name: currentProduct.name, category: currentProduct.category || '' });
+        updateSpesaBanner();
+    }
     showPage('scan');
     return true;
+}
+
+function _spesaBannerStat() {
+    const n = _spesaSession.length;
+    if (n === 0) return '🛒 Nessun prodotto ancora';
+    const cats = {};
+    _spesaSession.forEach(p => { const c = p.category || 'altro'; cats[c] = (cats[c]||0)+1; });
+    const topCat = Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
+    const names = _spesaSession.map(p => p.name);
+    const unique = [...new Set(names)];
+    const dupes = names.length - unique.length;
+    const phrases = [
+        n === 1 ? `Primo prodotto: ${_spesaSession[0].name}!` : null,
+        n >= 2 && n < 5 ? `${n} prodotti — stai scaldando i motori 🚀` : null,
+        n >= 5 && n < 10 ? `${n} prodotti — ottimo ritmo! 💪` : null,
+        n >= 10 && n < 20 ? `${n} prodotti — quasi un recordman 🏆` : null,
+        n >= 20 ? `${n} prodotti — spesa epica! 🛒🔥` : null,
+        dupes > 0 ? `${dupes} bis ${dupes===1?'(stessa cosa due volte)':'(roba presa più volte)'}` : null,
+        topCat && topCat[1] > 1 ? `Categoria top: ${topCat[0]} (${topCat[1]}×)` : null,
+    ].filter(Boolean);
+    return phrases[n % phrases.length] || `${n} prodott${n===1?'o':'i'} aggiunti`;
 }
 
 function _initScreensaverShortcutBtn(btnId, targetPage, longPressFn) {

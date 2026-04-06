@@ -127,7 +127,10 @@
             <h2>Scansiona Prodotto</h2>
         </div>
         <div class="spesa-mode-banner" id="spesa-mode-banner" style="display:none">
-            <span>🛒 Modalità Spesa attiva</span>
+            <div class="spesa-banner-left">
+                <span>🛒 Modalità Spesa</span>
+                <span class="spesa-stat"></span>
+            </div>
             <button class="btn btn-small" onclick="endSpesaMode()">✅ Fine spesa</button>
         </div>
         <div class="scan-container">
@@ -135,6 +138,7 @@
                 <div class="scanner-overlay">
                     <div class="scanner-line"></div>
                 </div>
+                <button class="scan-zoom-btn" id="scan-zoom-btn" onclick="toggleScanZoom()" title="Zoom">x1</button>
                 <video id="scanner-video" autoplay playsinline></video>
                 <canvas id="scanner-canvas" style="display:none"></canvas>
             </div>
