@@ -3231,6 +3231,9 @@ function showAddForm() {
         vacuumCb.checked = false;
         document.getElementById('add-vacuum-hint').style.display = 'none';
     }
+    // Reset historical expiry for this product; will be fetched async
+    window._historyExpiryDays = null;
+    window._historyExpiryCount = 0;
     // Store base expiry for vacuum recalculation
     window._addBaseExpiryDays = estimatedDays;
     
@@ -3258,6 +3261,10 @@ function showAddForm() {
     `;
     
     showPage('add');
+    // After rendering, fetch history-based expiry prediction
+    if (currentProduct && currentProduct.id) {
+        _fetchExpiryHistoryAndUpdate(currentProduct.id);
+    }
 }
 
 function toggleVacuumSealed() {
@@ -3277,16 +3284,17 @@ function recalculateAddExpiry() {
     const loc = document.getElementById('add-location')?.value || '';
     const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
     
-    let days = estimateExpiryDays(currentProduct, loc);
-    if (isVacuum) days = getVacuumExpiryDays(days);
+    const baseDays = window._historyExpiryDays ?? estimateExpiryDays(currentProduct, loc);
+    let days = isVacuum ? getVacuumExpiryDays(baseDays) : baseDays;
     
-    window._addBaseExpiryDays = estimateExpiryDays(currentProduct, loc);
+    window._addBaseExpiryDays = baseDays;
     
     const newDate = addDays(days);
     const newLabel = formatEstimatedExpiry(days);
     
     let suffix = '';
-    if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
+    if (window._historyExpiryDays) suffix = ' (da storico)';
+    else if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
     else if (loc === 'freezer') suffix = ' (freezer)';
     else if (isVacuum) suffix = ' (sotto vuoto)';
     
@@ -3296,6 +3304,33 @@ function recalculateAddExpiry() {
     if (expiryInput) expiryInput.value = newDate;
     if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${suffix}</strong>`;
     if (dateEl) dateEl.textContent = formatDate(newDate);
+}
+
+async function _fetchExpiryHistoryAndUpdate(productId) {
+    try {
+        const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}`);
+        const data = await res.json();
+        if (data.avg_days && data.avg_days > 0 && data.count >= 1) {
+            window._historyExpiryDays = data.avg_days;
+            window._historyExpiryCount = data.count;
+            // Update the displayed date and label
+            const loc = document.getElementById('add-location')?.value || '';
+            const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
+            let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
+            const newDate = addDays(days);
+            const newLabel = formatEstimatedExpiry(days);
+            const suffix = ` <span class="history-badge" title="Media da ${data.count} insertiment${data.count === 1 ? 'o' : 'i'} precedent${data.count === 1 ? 'e' : 'i'}">📊 storico</span>`;
+            const expiryInput = document.getElementById('add-expiry');
+            const estimateEl = document.querySelector('.expiry-estimate-label');
+            const dateEl = document.querySelector('.expiry-estimate-date');
+            if (expiryInput) expiryInput.value = newDate;
+            if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${suffix}</strong>`;
+            if (dateEl) dateEl.textContent = formatDate(newDate);
+            window._addBaseExpiryDays = data.avg_days;
+        }
+    } catch (e) {
+        // silently fall back to rule-based estimate
+    }
 }
 
 function getVacuumExpiryDays(baseDays) {
@@ -3392,12 +3427,13 @@ function selectPurchaseType(btn, type) {
         // Recalculate fresh expiry based on current location/vacuum
         const loc = document.getElementById('add-location')?.value || '';
         const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
-        let days = estimateExpiryDays(currentProduct, loc);
-        if (isVacuum) days = getVacuumExpiryDays(days);
+        const baseDays = window._historyExpiryDays ?? estimateExpiryDays(currentProduct, loc);
+        let days = isVacuum ? getVacuumExpiryDays(baseDays) : baseDays;
         const estimatedDate = addDays(days);
         const estimateLabel = formatEstimatedExpiry(days);
         let suffix = '';
-        if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
+        if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="Media da ${window._historyExpiryCount} inserimento/i precedente/i">📊 storico</span>`;
+        else if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
         else if (loc === 'freezer') suffix = ' (freezer)';
         else if (isVacuum) suffix = ' (sotto vuoto)';
         

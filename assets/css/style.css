@@ -2531,6 +2531,17 @@ body {
     font-weight: 600;
 }
 
+.history-badge {
+    font-size: 0.75rem;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 7px;
+    vertical-align: middle;
+    font-weight: 500;
+    cursor: default;
+}
+
 .form-hint {
     font-size: 0.8rem;
     color: var(--text-muted);

@@ -194,6 +194,10 @@ try {
             ttsProxy();
             break;
 
+        case 'expiry_history':
+            getExpiryHistory($db);
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -254,6 +258,36 @@ function ttsProxy() {
 }
 
 // ===== CLIENT LOG =====
+
+// ===== EXPIRY HISTORY =====
+function getExpiryHistory($db): void {
+    $productId = (int)($_GET['product_id'] ?? $_POST['product_id'] ?? 0);
+    if (!$productId) {
+        echo json_encode(['avg_days' => null, 'count' => 0]);
+        return;
+    }
+
+    // Compute average shelf life (expiry_date - added_at) for this product
+    // Only use entries where expiry_date is clearly in the future relative to added_at
+    $stmt = $db->prepare("
+        SELECT ROUND(AVG(CAST(JULIANDAY(expiry_date) - JULIANDAY(added_at) AS REAL))) AS avg_days,
+               COUNT(*) AS count
+        FROM inventory
+        WHERE product_id = ?
+          AND expiry_date IS NOT NULL
+          AND expiry_date > date(added_at)
+          AND added_at >= date('now', '-730 days')
+    ");
+    $stmt->execute([$productId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row || !$row['count'] || $row['avg_days'] === null) {
+        echo json_encode(['avg_days' => null, 'count' => 0]);
+        return;
+    }
+
+    echo json_encode(['avg_days' => (int)$row['avg_days'], 'count' => (int)$row['count']]);
+}
 
 function clientLog(): void {
     $input = json_decode(file_get_contents('php://input'), true);
