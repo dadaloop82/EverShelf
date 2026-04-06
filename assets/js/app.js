@@ -4044,7 +4044,7 @@ async function submitUseAll() {
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             use_all: true,
-            location: document.getElementById('use-location').value,
+            location: '__all__',
         });
         showLoading(false);
         if (result.success) {
@@ -6934,8 +6934,8 @@ function renderCookingStep() {
     // Timer: detect duration in step text and show suggestion
     setupCookingTimerSuggestion(cleanStep);
 
-    // Speak step
-    if (_cookingTTS) speakCookingStep(cleanStep);
+    // TTS: only speak when explicitly requested via "Rileggi" button
+    // (auto-speak removed — use replayCookingTTS() to trigger manually)
 }
 
 function _buildTtsRequest(text, s) {
