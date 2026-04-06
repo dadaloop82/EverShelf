@@ -4449,12 +4449,43 @@ function _urgencyToSpec(urgency, brand) {
     return brand || '';
 }
 
+// ===== BRING! PURCHASED BLOCKLIST =====
+// When an item disappears from Bring (user bought it), we block auto-re-add for 4h.
+const _BRING_PURCHASED_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+function _getBringPurchasedBlocklist() {
+    try {
+        const raw = localStorage.getItem('_bringPurchasedBlocklist');
+        const map = raw ? JSON.parse(raw) : {};
+        const now = Date.now();
+        // Prune expired entries
+        let changed = false;
+        for (const key of Object.keys(map)) {
+            if (now - map[key] > _BRING_PURCHASED_TTL) { delete map[key]; changed = true; }
+        }
+        if (changed) localStorage.setItem('_bringPurchasedBlocklist', JSON.stringify(map));
+        return map;
+    } catch(e) { return {}; }
+}
+
+function _markBringPurchased(names) {
+    const map = _getBringPurchasedBlocklist();
+    const now = Date.now();
+    for (const n of names) map[n.toLowerCase()] = now;
+    localStorage.setItem('_bringPurchasedBlocklist', JSON.stringify(map));
+}
+
+function _isBringPurchased(name) {
+    const map = _getBringPurchasedBlocklist();
+    return Object.keys(map).some(k => _nameTokens(name)[0] === _nameTokens(k)[0] || k === name.toLowerCase());
+}
+
 async function autoAddCriticalItems() {
     // Time-based guard: run at most once every 10 minutes (not session-based, so new critical items get added promptly)
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
     if (Date.now() - lastRun < 10 * 60 * 1000) return;
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
-    const critical = smartShoppingItems.filter(i => i.urgency === 'critical' && !i.on_bring);
+    const critical = smartShoppingItems.filter(i => i.urgency === 'critical' && !i.on_bring && !_isBringPurchased(i.name));
     if (critical.length === 0) return;
     const itemsToAdd = critical.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
     try {
@@ -4994,7 +5025,15 @@ async function loadShoppingList() {
         }
         
         shoppingListUUID = data.listUUID;
-        shoppingItems = data.purchase || [];
+        // Detect items removed from Bring since last load (= just purchased by user)
+        const prevNames = new Set((shoppingItems || []).map(i => i.name.toLowerCase()));
+        const newItems  = data.purchase || [];
+        const newNames  = new Set(newItems.map(i => i.name.toLowerCase()));
+        if (prevNames.size > 0) {
+            const removedNames = [...prevNames].filter(n => !newNames.has(n));
+            if (removedNames.length) _markBringPurchased(removedNames);
+        }
+        shoppingItems = newItems;
         
         // Clean up shoppingPrices for items no longer on the list
         const currentKeys = new Set(shoppingItems.map(i => i.name.toLowerCase()));
@@ -7937,8 +7976,8 @@ async function _backgroundBringSync() {
             });
 
             if (!bringMatch) {
-                // Not on Bring — add if critical
-                if (si.urgency === 'critical') {
+                // Not on Bring — add if critical AND not recently purchased
+                if (si.urgency === 'critical' && !_isBringPurchased(si.name)) {
                     toAdd.push({ name: si.name, specification: expectedSpec });
                 }
             } else {
