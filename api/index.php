@@ -2734,6 +2734,36 @@ function smartShopping(PDO $db): void {
             $score += 20;
         }
 
+        // Absolute minimum stock fallback: flag items with very low stock regardless of usage frequency.
+        // Applies to products bought at least once, even if rarely used.
+        if ($urgency === 'none' && $buyCount >= 1 && $qty > 0) {
+            if ($unit === 'conf') {
+                if ($qty <= 1) {
+                    $urgency = 'high';
+                    $reasons[] = 'Solo 1 confezione rimasta';
+                    $score += 60;
+                } elseif ($qty <= 2) {
+                    $urgency = 'medium';
+                    $reasons[] = 'Solo 2 confezioni rimaste';
+                    $score += 40;
+                }
+            } elseif ($unit === 'pz') {
+                if ($qty <= 1) {
+                    $urgency = 'high';
+                    $reasons[] = 'Solo 1 pezzo rimasto';
+                    $score += 60;
+                } elseif ($qty <= 2) {
+                    $urgency = 'medium';
+                    $reasons[] = 'Solo 2 pezzi rimasti';
+                    $score += 40;
+                }
+            } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0 && $qty <= $defQty * 0.20) {
+                $urgency = 'medium';
+                $reasons[] = 'Scorta minima (' . round($qty) . $unit . ')';
+                $score += 40;
+            }
+        }
+
         if ($urgency === 'none') continue;
 
         // Boost score for very frequent items

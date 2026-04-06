@@ -3781,7 +3781,7 @@ function selectUseLocation(btn, loc) {
 
 // ===== LOW STOCK → BRING! PROMPT =====
 function isLowStock(totalRemaining, unit, defaultQty) {
-    if (totalRemaining <= 0) return false; // already fully depleted → auto-added
+    if (totalRemaining <= 0) return true; // fully depleted → definitely needs restocking
     if (unit === 'pz') return totalRemaining <= 2;
     if (unit === 'conf') return totalRemaining <= 1;
     // Weight/volume: use percentage of default_qty or fixed threshold
