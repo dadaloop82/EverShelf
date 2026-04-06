@@ -3183,6 +3183,10 @@ function showAddForm() {
         if (unit === 'conf' && currentProduct.package_unit && currentProduct.default_quantity > 0) {
             document.getElementById('add-conf-size').value = currentProduct.default_quantity;
             document.getElementById('add-conf-unit').value = currentProduct.package_unit;
+        } else if (unit === 'conf' && ['g', 'ml', 'kg', 'l'].includes(currentProduct.unit) && currentProduct.default_quantity > 0) {
+            // Product was defined in weight/volume — that quantity IS the package size
+            document.getElementById('add-conf-size').value = currentProduct.default_quantity;
+            document.getElementById('add-conf-unit').value = currentProduct.unit;
         } else if (unit === 'conf') {
             document.getElementById('add-conf-size').value = '';
             document.getElementById('add-conf-unit').value = 'g';
@@ -3359,6 +3363,10 @@ function onAddUnitChange() {
             if (currentProduct.package_unit && currentProduct.default_quantity > 1) {
                 sizeInput.value = currentProduct.default_quantity;
                 unitSelect.value = currentProduct.package_unit;
+            } else if (['g', 'ml', 'kg', 'l'].includes(currentProduct.unit) && currentProduct.default_quantity > 0) {
+                // Product was defined in weight/volume — that quantity IS the package size
+                sizeInput.value = currentProduct.default_quantity;
+                unitSelect.value = currentProduct.unit;
             } else {
                 sizeInput.value = '';
                 unitSelect.value = 'g';
