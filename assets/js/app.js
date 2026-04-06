@@ -2423,6 +2423,8 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-image').value = '';
     document.getElementById('pf-image-preview').style.display = 'none';
     document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
+    const pfAiRow = document.getElementById('pf-ai-fill-row');
+    if (pfAiRow) pfAiRow.style.display = 'block';
     
     // Remove datalist/autocomplete suggestions for new products (they cause confusion)
     document.getElementById('pf-name').removeAttribute('list');
@@ -2866,6 +2868,8 @@ function editProductFromAction() {
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
     document.getElementById('product-form-title').textContent = 'Modifica Prodotto';
+    const pfAiRow = document.getElementById('pf-ai-fill-row');
+    if (pfAiRow) pfAiRow.style.display = 'none';
 
     // Restore datalist for editing (was removed for new products)
     document.getElementById('pf-name').setAttribute('list', 'common-products');
@@ -4349,6 +4353,200 @@ async function saveAIProductDirect() {
         showLoading(false);
         showToast('Errore di connessione', 'error');
     }
+}
+
+// ===== AI PHOTO FILL FOR PRODUCT FORM =====
+let _pfAiStream = null;
+
+async function captureForAIFormFill() {
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>📷 Identifica con AI</h3>
+            <button class="modal-close" onclick="closePfAiScanner()">✕</button>
+        </div>
+        <div class="expiry-scanner">
+            <div id="pfai-cam-container" style="position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3">
+                <video id="pfai-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+                <canvas id="pfai-canvas" style="display:none"></canvas>
+                <div style="position:absolute;inset:0;border:2px dashed rgba(255,255,255,0.4);border-radius:10px;pointer-events:none"></div>
+            </div>
+            <div id="pfai-preview-container" style="display:none;border-radius:10px;overflow:hidden;aspect-ratio:4/3">
+                <img id="pfai-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover">
+            </div>
+            <div id="pfai-status" style="display:none;text-align:center;padding:12px">
+                <div class="loading-spinner" style="margin:0 auto 8px"></div>
+                <p>🤖 Identifico il prodotto...</p>
+            </div>
+            <div id="pfai-result" style="display:none"></div>
+            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem" id="pfai-hint">Inquadra l'etichetta del prodotto</p>
+            <div style="display:flex;gap:8px;margin-top:8px">
+                <button class="btn btn-large btn-accent" style="flex:1" id="pfai-capture-btn" onclick="pfAiCapture()">📸 Scatta</button>
+                <button class="btn btn-large btn-secondary" style="flex:1;display:none" id="pfai-retake-btn" onclick="pfAiRetake()">🔄 Riscatta</button>
+            </div>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+
+    try {
+        _pfAiStream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
+        const video = document.getElementById('pfai-video');
+        video.srcObject = _pfAiStream;
+        await video.play();
+    } catch (err) {
+        document.getElementById('pfai-cam-container').innerHTML =
+            `<p style="color:var(--danger);text-align:center;padding:20px">⚠️ Impossibile accedere alla fotocamera</p>`;
+    }
+}
+
+function closePfAiScanner() {
+    if (_pfAiStream) { _pfAiStream.getTracks().forEach(t => t.stop()); _pfAiStream = null; }
+    closeModal();
+}
+
+function pfAiCapture() {
+    const video = document.getElementById('pfai-video');
+    const canvas = document.getElementById('pfai-canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    document.getElementById('pfai-preview-img').src = dataUrl;
+
+    if (_pfAiStream) { _pfAiStream.getTracks().forEach(t => t.stop()); _pfAiStream = null; }
+    video.srcObject = null;
+
+    document.getElementById('pfai-cam-container').style.display = 'none';
+    document.getElementById('pfai-preview-container').style.display = 'block';
+    document.getElementById('pfai-capture-btn').style.display = 'none';
+    document.getElementById('pfai-retake-btn').style.display = 'inline-flex';
+    document.getElementById('pfai-hint').style.display = 'none';
+
+    _pfAiAnalyze(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+}
+
+function pfAiRetake() {
+    document.getElementById('pfai-cam-container').style.display = 'block';
+    document.getElementById('pfai-preview-container').style.display = 'none';
+    document.getElementById('pfai-capture-btn').style.display = 'inline-flex';
+    document.getElementById('pfai-retake-btn').style.display = 'none';
+    document.getElementById('pfai-status').style.display = 'none';
+    document.getElementById('pfai-result').style.display = 'none';
+    document.getElementById('pfai-hint').style.display = 'block';
+
+    navigator.mediaDevices.getUserMedia(getCameraConstraints()).then(stream => {
+        _pfAiStream = stream;
+        const video = document.getElementById('pfai-video');
+        video.srcObject = stream;
+        video.play();
+    });
+}
+
+async function _pfAiAnalyze(base64) {
+    const statusEl = document.getElementById('pfai-status');
+    const resultEl = document.getElementById('pfai-result');
+    statusEl.style.display = 'block';
+    resultEl.style.display = 'none';
+
+    try {
+        const result = await api('gemini_identify', {}, 'POST', { image: base64 });
+
+        statusEl.style.display = 'none';
+        resultEl.style.display = 'block';
+
+        if (!result.success) {
+            resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ ${escapeHtml(result.error || 'Errore identificazione')}</p>
+                <button class="btn btn-secondary full-width" onclick="pfAiRetake()">🔄 Riprova</button>`;
+            return;
+        }
+
+        const id = result.identified;
+        const matches = result.off_matches || [];
+
+        let html = `<div class="ai-identified-card" style="margin-bottom:10px">
+            <strong>${escapeHtml(id.name)}</strong>`;
+        if (id.brand) html += ` <span style="color:var(--text-muted)">— ${escapeHtml(id.brand)}</span>`;
+        if (id.description) html += `<p style="font-size:0.82rem;color:var(--text-light);margin:4px 0 0">${escapeHtml(id.description)}</p>`;
+        html += `</div>`;
+
+        if (matches.length > 0) {
+            html += `<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:6px">Seleziona la variante esatta o usa i dati AI:</p>`;
+            html += `<div class="ai-matches-list" style="max-height:160px;overflow-y:auto;margin-bottom:10px">`;
+            matches.forEach((m, idx) => {
+                html += `<div class="ai-match-item" onclick="_pfAiFillFromMatch(${idx})">`;
+                if (m.image_url) html += `<img src="${escapeHtml(m.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
+                html += `<div class="ai-match-info"><strong>${escapeHtml(m.name)}</strong>`;
+                if (m.brand) html += `<br><small>${escapeHtml(m.brand)}</small>`;
+                if (m.quantity_info) html += `<br><small style="color:var(--text-muted)">${escapeHtml(m.quantity_info)}</small>`;
+                html += `</div><span class="ai-match-barcode">${escapeHtml(m.barcode)}</span></div>`;
+            });
+            html += `</div>`;
+        }
+
+        html += `<button class="btn btn-primary full-width" onclick="_pfAiFillFromAI()">✅ Usa dati AI${matches.length > 0 ? ' (senza barcode)' : ''}</button>`;
+        resultEl.innerHTML = html;
+
+        window._pfAiIdentified = id;
+        window._pfAiMatches = matches;
+
+    } catch (err) {
+        statusEl.style.display = 'none';
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ Errore di connessione</p>
+            <button class="btn btn-secondary full-width" onclick="pfAiRetake()">🔄 Riprova</button>`;
+    }
+}
+
+function _pfAiFillFields(name, brand, category, barcode, imageUrl, quantityInfo) {
+    if (name) document.getElementById('pf-name').value = name;
+    if (brand) document.getElementById('pf-brand').value = brand;
+    if (category) {
+        const cat = mapToLocalCategory(category, name || '');
+        document.getElementById('pf-category').value = cat;
+        document.getElementById('pf-category').dataset.manuallySet = 'true';
+        onCategoryChange(true);
+    }
+    if (barcode) document.getElementById('pf-barcode').value = barcode;
+    if (imageUrl) {
+        document.getElementById('pf-image').value = imageUrl;
+        const preview = document.getElementById('pf-image-preview');
+        document.getElementById('pf-image-img').src = imageUrl;
+        preview.style.display = 'block';
+    }
+    if (quantityInfo) {
+        const detected = detectUnitAndQuantity(quantityInfo);
+        document.getElementById('pf-unit').value = detected.unit;
+        document.getElementById('pf-defqty').value = detected.quantity;
+        document.getElementById('pf-defqty').dataset.manuallySet = 'true';
+        onPfUnitChange();
+    }
+    // Trigger auto-detect for remaining empty fields
+    if (name && !category) autoDetectCategory();
+    closePfAiScanner();
+    showToast('✅ Campi compilati dall\'AI', 'success');
+}
+
+function _pfAiFillFromAI() {
+    const id = window._pfAiIdentified;
+    if (!id) return;
+    _pfAiFillFields(id.name, id.brand, id.category, '', '', '');
+}
+
+async function _pfAiFillFromMatch(idx) {
+    const match = window._pfAiMatches[idx];
+    if (!match) return;
+    closePfAiScanner();
+    showLoading(true);
+    try {
+        const lookupResult = await api('lookup_barcode', { barcode: match.barcode });
+        if (lookupResult.found && lookupResult.product) {
+            const p = lookupResult.product;
+            _pfAiFillFields(p.name || match.name, p.brand || match.brand, p.category || '', match.barcode, p.image_url || match.image_url, p.quantity_info || '');
+            showLoading(false);
+            return;
+        }
+    } catch (e) {}
+    showLoading(false);
+    _pfAiFillFields(match.name, match.brand, match.category, match.barcode, match.image_url, '');
 }
 
 // ===== ALL PRODUCTS =====

@@ -306,6 +306,12 @@
         </div>
         <form class="form" onsubmit="submitProduct(event)">
             <input type="hidden" id="pf-id">
+            <div id="pf-ai-fill-row" class="form-group">
+                <button type="button" class="btn btn-accent full-width" onclick="captureForAIFormFill()">
+                    📷 Scatta foto e identifica con AI
+                </button>
+                <p class="form-hint" style="text-align:center;margin-top:4px">L'AI compilerà automaticamente i campi del prodotto</p>
+            </div>
             <div class="form-group">
                 <label>🏷️ Nome Prodotto *</label>
                 <input type="text" id="pf-name" class="form-input" required placeholder="Es: Latte intero, Pasta penne rigate..."
