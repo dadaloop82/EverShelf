@@ -1354,6 +1354,15 @@ function formatSubRemainder(amt, pkgUnit) {
     return `${Math.round(amt * 10) / 10}${uL[pkgUnit] || pkgUnit}`;
 }
 
+function _pzFractionLabel(n) {
+    const whole = Math.floor(n);
+    const frac = Math.round((n - whole) * 4) / 4; // nearest quarter
+    const fracMap = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+    const fracStr = fracMap[frac] || '';
+    if (whole === 0) return fracStr || '0';
+    return `${whole}${fracStr}`;
+}
+
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
     if (!qty && qty !== 0) return '';
     const n = parseFloat(qty);
@@ -1378,7 +1387,7 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
 
     let result;
     if (n === Math.floor(n)) result = `${Math.floor(n)} ${label}`;
-    else if (unit === 'pz') result = `${Math.round(n)} ${label}`;
+    else if (unit === 'pz') result = `${_pzFractionLabel(n)} ${label}`;
     else result = `${n.toFixed(1)} ${label}`;
     return result;
 }
@@ -1408,7 +1417,7 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
 
     let mainQty;
     if (n === Math.floor(n)) mainQty = `${Math.floor(n)}`;
-    else if (unit === 'pz') mainQty = `${Math.round(n)}`;
+    else if (unit === 'pz') mainQty = _pzFractionLabel(n);
     else mainQty = `${n.toFixed(1)}`;
     
     let packageDetail = '';
@@ -3957,14 +3966,33 @@ async function loadUseInventoryInfo() {
             
             infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
-                return `${loc.icon} ${loc.label}: ${i.quantity} ${i.unit}`;
+                const qLabel = formatQuantity(parseFloat(i.quantity), i.unit, i.default_quantity, i.package_unit);
+                return `${loc.icon} ${loc.label}: ${qLabel}`;
             }).join(' · ');
             
             const qtyInput = document.getElementById('use-quantity');
             qtyInput.value = 1;
-            qtyInput.step = 'any';
-            qtyInput.min = (unit === 'g' || unit === 'ml') ? '1' : '1';
+            qtyInput.step = unit === 'pz' ? '0.5' : 'any';
+            qtyInput.min = (unit === 'g' || unit === 'ml') ? '1' : '0.25';
             document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
+
+            // Fraction buttons for pz unit
+            const existingFrac = document.getElementById('pz-fraction-btns');
+            if (existingFrac) existingFrac.remove();
+            if (unit === 'pz') {
+                const fracDiv = document.createElement('div');
+                fracDiv.id = 'pz-fraction-btns';
+                fracDiv.className = 'pz-fraction-btns';
+                fracDiv.innerHTML = `
+                    <p class="form-hint">Hai usato solo una parte?</p>
+                    <div class="fraction-btn-row">
+                        <button type="button" class="frac-btn" data-frac="0.25" onclick="setPzFraction(0.25)">¼ pezzo</button>
+                        <button type="button" class="frac-btn" data-frac="0.5" onclick="setPzFraction(0.5)">½ pezzo</button>
+                        <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ pezzo</button>
+                        <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">1 intero</button>
+                    </div>`;
+                document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+            }
         }
     } catch(e) {
         console.error(e);
@@ -4019,17 +4047,29 @@ function adjustUseQty(direction) {
         if (u === 'g' || u === 'ml') {
             step = val < 50 ? 1 : (val < 500 ? 10 : 50);
         } else {
-            step = 1;
+            step = 0.5; // pz: allow half-piece steps
         }
     }
     val = Math.max(step, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
+    // Sync fraction button highlight if visible
+    const newVal = parseFloat(input.value);
+    document.querySelectorAll('#pz-fraction-btns .frac-btn').forEach(b => {
+        b.classList.toggle('active', parseFloat(b.dataset.frac) === newVal);
+    });
 }
 
 function selectUseLocation(btn, loc) {
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('use-location').value = loc;
+}
+
+function setPzFraction(frac) {
+    document.getElementById('use-quantity').value = frac;
+    document.querySelectorAll('#pz-fraction-btns .frac-btn').forEach(b => {
+        b.classList.toggle('active', parseFloat(b.dataset.frac) === frac);
+    });
 }
 
 // ===== LOW STOCK → BRING! PROMPT =====

@@ -963,6 +963,40 @@ body {
     color: var(--text-light);
 }
 
+/* Fraction quick-select for pz unit */
+.pz-fraction-btns {
+    width: 100%;
+}
+.pz-fraction-btns .form-hint {
+    font-size: 0.82rem;
+    color: var(--text-light);
+    text-align: center;
+    margin: 0 0 6px;
+}
+.fraction-btn-row {
+    display: flex;
+    gap: 6px;
+}
+.frac-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border: 2px solid var(--primary);
+    background: transparent;
+    color: var(--primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.frac-btn.active {
+    background: var(--primary);
+    color: #fff;
+}
+.frac-btn:hover:not(.active) {
+    background: var(--primary-light, rgba(74,158,255,0.12));
+}
+
 /* ===== SCANNER ===== */
 .scan-container {
     display: flex;
