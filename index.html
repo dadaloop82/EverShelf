@@ -472,7 +472,11 @@
             </div>
             <div class="form-group">
                 <label>🔖 Barcode</label>
-                <input type="text" id="pf-barcode" class="form-input" placeholder="Codice a barre (se disponibile)">
+                <div class="expiry-input-row">
+                    <input type="text" id="pf-barcode" class="form-input" placeholder="Codice a barre (se disponibile)" inputmode="numeric">
+                    <button type="button" class="btn btn-accent btn-scan-expiry" id="pf-barcode-scan-btn" onclick="scanBarcodeForForm()" title="Scansiona barcode">📷</button>
+                </div>
+                <p class="form-hint" id="pf-barcode-hint" style="display:none">⚠️ Aggiungi il barcode così al prossimo acquisto basta scansionarlo!</p>
             </div>
             <input type="hidden" id="pf-image">
             <div class="product-image-preview" id="pf-image-preview" style="display:none">

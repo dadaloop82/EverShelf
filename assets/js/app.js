@@ -2425,6 +2425,10 @@ function startManualEntry(barcode = '') {
     document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'block';
+
+    // Show barcode hint when no barcode was passed
+    _updateBarcodeHint();
+    document.getElementById('pf-barcode').addEventListener('input', _updateBarcodeHint);
     
     // Remove datalist/autocomplete suggestions for new products (they cause confusion)
     document.getElementById('pf-name').removeAttribute('list');
@@ -2550,6 +2554,102 @@ function onPfUnitChange() {
     const unit = document.getElementById('pf-unit').value;
     const confRow = document.getElementById('pf-conf-size-row');
     if (confRow) confRow.style.display = unit === 'conf' ? 'block' : 'none';
+}
+
+function _updateBarcodeHint() {
+    const hint = document.getElementById('pf-barcode-hint');
+    const val = (document.getElementById('pf-barcode')?.value || '').trim();
+    if (hint) hint.style.display = val ? 'none' : 'block';
+}
+
+/**
+ * Open a temporary camera modal to scan a barcode and fill the pf-barcode field.
+ * Uses BarcodeDetector if available, otherwise shows manual-input fallback.
+ */
+async function scanBarcodeForForm() {
+    const overlayEl = document.getElementById('modal-overlay');
+    const contentEl = document.getElementById('modal-content');
+
+    let stream = null;
+    let scanning = true;
+
+    const stopStream = () => {
+        scanning = false;
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = null;
+    };
+
+    const closeScanner = () => {
+        stopStream();
+        overlayEl.style.display = 'none';
+    };
+
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3>🔖 Scansiona Barcode</h3>
+            <button class="modal-close" onclick="document.getElementById('modal-overlay').style.display='none'">✕</button>
+        </div>
+        <div style="position:relative;width:100%;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3">
+            <video id="pf-bc-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+            <div class="scanner-line scanning" style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:2px;background:rgba(59,130,246,0.8)"></div>
+        </div>
+        <p style="text-align:center;margin-top:12px;color:var(--text-muted);font-size:0.88rem">Inquadra il codice a barre del prodotto</p>
+        <div style="margin-top:10px;text-align:center">
+            <input type="text" id="pf-bc-manual" class="form-input" placeholder="O inserisci manualmente..." inputmode="numeric" style="max-width:260px;display:inline-block">
+            <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="
+                const v = document.getElementById('pf-bc-manual').value.trim();
+                if(v){ document.getElementById('pf-barcode').value=v; _updateBarcodeHint(); document.getElementById('modal-overlay').style.display='none'; }
+            ">✅ Usa questo codice</button>
+        </div>
+    `;
+    overlayEl.style.display = 'flex';
+
+    // Attach close handler (clicking backdrop)
+    overlayEl.onclick = (e) => { if (e.target === overlayEl) { stopStream(); overlayEl.style.display = 'none'; overlayEl.onclick = null; } };
+
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const video = document.getElementById('pf-bc-video');
+        video.srcObject = stream;
+        await video.play();
+
+        if (!('BarcodeDetector' in window)) {
+            // No native API — just let user type manually
+            return;
+        }
+
+        const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e'] });
+        const detectionHistory = {};
+
+        const scanFrame = async () => {
+            if (!scanning || !stream) return;
+            try {
+                const barcodes = await detector.detect(video);
+                if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    detectionHistory[code] = (detectionHistory[code] || 0) + 1;
+                    if (detectionHistory[code] >= 2) {
+                        scanning = false;
+                        stopStream();
+                        overlayEl.style.display = 'none';
+                        overlayEl.onclick = null;
+                        document.getElementById('pf-barcode').value = code;
+                        _updateBarcodeHint();
+                        if (navigator.vibrate) navigator.vibrate(80);
+                        showToast(`🔖 Barcode acquisito: ${code}`, 'success');
+                        return;
+                    }
+                }
+            } catch (_) {}
+            if (scanning) requestAnimationFrame(scanFrame);
+        };
+        requestAnimationFrame(scanFrame);
+
+    } catch (err) {
+        // Camera not available — user can still type manually
+        const videoEl = document.getElementById('pf-bc-video');
+        if (videoEl) videoEl.style.display = 'none';
+    }
 }
 
 async function submitProduct(e) {
@@ -2870,6 +2970,9 @@ function editProductFromAction() {
     document.getElementById('product-form-title').textContent = 'Modifica Prodotto';
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'none';
+    // Keep barcode hint hidden in edit mode
+    const pfBcHint = document.getElementById('pf-barcode-hint');
+    if (pfBcHint) pfBcHint.style.display = 'none';
 
     // Restore datalist for editing (was removed for new products)
     document.getElementById('pf-name').setAttribute('list', 'common-products');
