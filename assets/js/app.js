@@ -3269,6 +3269,8 @@ function showAddForm() {
     // Reset historical expiry for this product; will be fetched async
     window._historyExpiryDays = null;
     window._historyExpiryCount = 0;
+    // Reset extra batches from previous add
+    window._addExtraBatches = [];
     // Store base expiry for vacuum recalculation
     window._addBaseExpiryDays = estimatedDays;
     
@@ -3292,6 +3294,12 @@ function showAddForm() {
                 <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="Scansiona data scadenza">📷</button>
             </div>
             <p class="form-hint">📝 Puoi modificare la data o scansionarla con la fotocamera</p>
+        </div>
+        <div id="multi-batch-section" style="display:${unit === 'conf' ? 'block' : 'none'}">
+            <div id="multi-batch-container"></div>
+            <button type="button" class="btn btn-outline btn-small full-width" style="margin-top:8px" onclick="addExpiryBatch()">
+                📦 + Lotto con scadenza diversa
+            </button>
         </div>
     `;
     
@@ -3406,6 +3414,10 @@ function onAddUnitChange() {
         // Scroll into view so the user sees the new field
         if (isConf) setTimeout(() => confRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
     }
+
+    // Show/hide multi-batch section (only for conf unit)
+    const mbSection = document.getElementById('multi-batch-section');
+    if (mbSection) mbSection.style.display = unit === 'conf' ? 'block' : 'none';
     
     // If switching units, suggest a sensible quantity
     // BUT only if the user hasn't manually changed the quantity in this form
@@ -3457,6 +3469,11 @@ function selectPurchaseType(btn, type) {
     btn.parentElement.querySelectorAll('.purchase-type-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     
+    // Reset extra batches when switching purchase type
+    window._addExtraBatches = [];
+    const mbContainer = document.getElementById('multi-batch-container');
+    if (mbContainer) mbContainer.innerHTML = '';
+
     const detailDiv = document.getElementById('expiry-detail');
     
     // Save current quantity before switching, so we can preserve it
@@ -3489,6 +3506,9 @@ function selectPurchaseType(btn, type) {
         `;
         // Restore quantity - switching purchase type should NOT change it
         document.getElementById('add-quantity').value = currentQty;
+        // Show multi-batch section only in "new" mode (and only for conf unit)
+        const mbSection = document.getElementById('multi-batch-section');
+        if (mbSection) mbSection.style.display = (document.getElementById('add-unit')?.value === 'conf') ? 'block' : 'none';
     } else {
         detailDiv.innerHTML = `
             <div class="form-group">
@@ -3511,6 +3531,9 @@ function selectPurchaseType(btn, type) {
             </div>
         `;
         // DON'T auto-set remaining percentage - keep the quantity the user already entered
+        // Hide multi-batch section in "existing" mode
+        const mbSection = document.getElementById('multi-batch-section');
+        if (mbSection) mbSection.style.display = 'none';
     }
 }
 
@@ -3526,6 +3549,50 @@ function setRemainingPct(pct) {
         adjustedQty = Math.round(baseQty * pct * 10) / 10;
     }
     document.getElementById('add-quantity').value = adjustedQty;
+}
+
+// ===== MULTI-EXPIRY BATCHES (for conf products with different expiry dates) =====
+window._addExtraBatches = [];
+
+function addExpiryBatch() {
+    const loc = document.getElementById('add-location')?.value || '';
+    const baseDays = window._historyExpiryDays ?? estimateExpiryDays(currentProduct, loc);
+    const estimatedDate = addDays(baseDays);
+    window._addExtraBatches.push({ qty: 1, expiry: estimatedDate });
+    _rebuildMultiBatchUI();
+}
+
+function removeExpiryBatch(i) {
+    window._addExtraBatches.splice(i, 1);
+    _rebuildMultiBatchUI();
+}
+
+function adjustBatchQty(i, delta) {
+    window._addExtraBatches[i].qty = Math.max(1, (window._addExtraBatches[i].qty || 1) + delta);
+    _rebuildMultiBatchUI();
+}
+
+function _rebuildMultiBatchUI() {
+    const container = document.getElementById('multi-batch-container');
+    if (!container) return;
+    if (window._addExtraBatches.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = window._addExtraBatches.map((b, i) => `
+        <div class="multi-batch-row">
+            <div class="multi-batch-qty">
+                <button type="button" class="qty-btn" onclick="adjustBatchQty(${i}, -1)">−</button>
+                <input type="number" class="qty-input" value="${b.qty}" min="1" step="1" style="width:60px"
+                    onchange="window._addExtraBatches[${i}].qty = parseInt(this.value)||1">
+                <button type="button" class="qty-btn" onclick="adjustBatchQty(${i}, 1)">+</button>
+                <span class="multi-batch-unit">conf</span>
+            </div>
+            <input type="date" class="form-input multi-batch-date" value="${b.expiry}"
+                onchange="window._addExtraBatches[${i}].expiry = this.value">
+            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="Rimuovi">✕</button>
+        </div>
+    `).join('');
 }
 
 function selectLocation(btn, loc) {
@@ -3583,8 +3650,46 @@ async function submitAdd(e) {
             showToast(`✅ ${currentProduct.name} aggiunto!${qtyInfo}`, 'success');
             if (result.removed_from_bring) {
                 setTimeout(() => showToast('🛒 Rimosso dalla lista della spesa', 'info'), 1500);
+            } else if (shoppingItems.length > 0 && shoppingListUUID) {
+                // PHP matching may have missed the item (custom name / no catalog match) —
+                // try a client-side fuzzy remove using the already-loaded shoppingItems
+                const match = _findSimilarItem(currentProduct.name, shoppingItems);
+                if (match) {
+                    api('bring_remove', {}, 'POST', {
+                        name: match.name,
+                        rawName: match.rawName || '',
+                        listUUID: shoppingListUUID
+                    }).then(r => {
+                        if (r && r.success) {
+                            shoppingItems = shoppingItems.filter(i => i !== match);
+                            setTimeout(() => showToast('🛒 Rimosso dalla lista della spesa', 'info'), 1500);
+                        }
+                    }).catch(() => {});
+                }
             }
             if (!spesaModeAfterAdd()) showPage('dashboard');
+
+            // Submit extra batches (different expiry dates) in the background, silently
+            if ((window._addExtraBatches || []).length > 0) {
+                const loc = document.getElementById('add-location')?.value || result.location || 'dispensa';
+                const selectedUnit = document.getElementById('add-unit').value;
+                const productUnit = currentProduct.unit || 'pz';
+                const confUnit = document.getElementById('add-conf-unit')?.value || null;
+                const confSize = parseFloat(document.getElementById('add-conf-size')?.value) || null;
+                for (const batch of window._addExtraBatches) {
+                    if (!batch.qty || batch.qty <= 0) continue;
+                    api('inventory_add', {}, 'POST', {
+                        product_id: currentProduct.id,
+                        quantity: batch.qty,
+                        location: loc,
+                        expiry_date: batch.expiry || null,
+                        unit: selectedUnit !== productUnit ? selectedUnit : null,
+                        package_unit: selectedUnit === 'conf' ? confUnit : null,
+                        package_size: selectedUnit === 'conf' ? confSize : null,
+                    }).catch(() => {});
+                }
+                window._addExtraBatches = [];
+            }
         } else {
             showToast(result.error || 'Errore', 'error');
         }
@@ -6911,11 +7016,25 @@ function renderCookingStep() {
 
     const ingsEl = document.getElementById('cooking-step-ings');
     if (ings.length > 0) {
+        const LOC_LABELS = { dispensa: '🏠 Dispensa', frigo: '❄️ Frigo', freezer: '🧊 Freezer' };
         ingsEl.innerHTML = ings.map(ing => {
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const qtyNum = ing.qty_number || 0;
+            // Build info chips: brand, location, expiry
+            const chips = [];
+            if (ing.brand) chips.push(`<span class="cooking-ing-chip">${escapeHtml(ing.brand)}</span>`);
+            const locLabel = LOC_LABELS[ing.location] || (ing.location ? `📍 ${ing.location}` : '🏠 Dispensa');
+            chips.push(`<span class="cooking-ing-chip">${locLabel}</span>`);
+            if (ing.expiry_date) {
+                const daysLeft = Math.round((new Date(ing.expiry_date) - new Date()) / 86400000);
+                const expClass = daysLeft <= 3 ? 'exp-soon' : daysLeft <= 7 ? 'exp-close' : '';
+                chips.push(`<span class="cooking-ing-chip ${expClass}">📅 scade ${formatDate(ing.expiry_date)}</span>`);
+            }
             return `<div class="cooking-ing-row">
-                <span class="cooking-ing-name">📦 <strong>${escapeHtml(ing.name)}</strong>: ${escapeHtml(ing.qty)}</span>
+                <div style="flex:1;min-width:0">
+                    <span class="cooking-ing-name">📦 <strong>${escapeHtml(ing.name)}</strong>: ${escapeHtml(ing.qty)}</span>
+                    <div class="cooking-ing-meta">${chips.join('')}</div>
+                </div>
                 <button class="cooking-use-btn" onclick="cookingUseIngredient(${ing._idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)">📤 Usa</button>
             </div>`;
         }).join('');

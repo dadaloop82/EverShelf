@@ -2671,6 +2671,47 @@ body {
     font-weight: 600;
 }
 
+/* ===== MULTI-BATCH EXPIRY (conf products with different expiry dates) ===== */
+.multi-batch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.04);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.multi-batch-qty {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.multi-batch-unit {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.multi-batch-date {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem !important;
+}
+
+.btn-icon-sm {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
 /* ===== PRODUCT DETAILS CARD (Action Page) ===== */
 .product-details-card {
     background: var(--bg-card);
@@ -3487,6 +3528,32 @@ body {
     color: rgba(255,255,255,0.9);
     flex: 1;
     min-width: 0;
+}
+
+.cooking-ing-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.cooking-ing-chip {
+    font-size: 0.72rem;
+    background: rgba(255,255,255,0.12);
+    border-radius: 5px;
+    padding: 2px 7px;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+}
+
+.cooking-ing-chip.exp-soon {
+    background: rgba(239,68,68,0.3);
+    color: #fca5a5;
+}
+
+.cooking-ing-chip.exp-close {
+    background: rgba(234,179,8,0.3);
+    color: #fde047;
 }
 
 .cooking-use-btn {

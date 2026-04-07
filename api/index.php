@@ -667,12 +667,44 @@ function addToInventory(PDO $db): void {
                 $bringKey = italianToBring($prodName);
                 $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
                 if ($listData && isset($listData['purchase'])) {
+                    // Token-based matching — same logic as _productOnBring() in smart_shopping
+                    $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per',
+                             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
+                    $tokenize = function(string $s) use ($stop): array {
+                        $clean = mb_strtolower(preg_replace('/[^\p{L}\s]/u', ' ', $s));
+                        return array_values(array_filter(
+                            preg_split('/\s+/', trim($clean)),
+                            fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
+                        ));
+                    };
+                    $prodTokens = $tokenize($prodName);
+                    $keyTokens  = $tokenize($bringKey);
+                    $prodFirst  = $prodTokens[0] ?? '';
+                    $keyFirst   = $keyTokens[0] ?? '';
                     foreach ($listData['purchase'] as $item) {
-                        if (strcasecmp($item['name'] ?? '', $bringKey) === 0) {
-                            $body = http_build_query(['uuid' => $listUUID, 'remove' => $bringKey]);
-                            bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $body);
+                        $rawName = $item['name'] ?? '';
+                        // 1. Exact match on translated catalog key or original Italian name
+                        if (strcasecmp($rawName, $bringKey) === 0 || strcasecmp($rawName, $prodName) === 0) {
+                            bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+                                http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
                             $removedFromBring = true;
                             break;
+                        }
+                        // 2. Token-based fuzzy: first significant word must match
+                        if ($prodFirst || $keyFirst) {
+                            $rawTokens = $tokenize($rawName);
+                            $rawFirst  = $rawTokens[0] ?? '';
+                            if ($rawFirst && (
+                                $rawFirst === $prodFirst ||
+                                $rawFirst === $keyFirst  ||
+                                in_array($prodFirst, $rawTokens) ||
+                                in_array($keyFirst,  $rawTokens)
+                            )) {
+                                bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+                                    http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
+                                $removedFromBring = true;
+                                break;
+                            }
                         }
                     }
                 }
