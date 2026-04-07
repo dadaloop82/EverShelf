@@ -2884,7 +2884,6 @@ function showProductAction() {
                     </div>
                 </div>
                 <div class="inv-status-items">${invHtml}</div>
-                <p style="font-size:0.75rem;color:var(--text-muted);text-align:center;margin:4px 0 0">Tocca una riga per modificare</p>
             `;
             
             btnsContainer.className = 'action-buttons-4col';
@@ -2901,11 +2900,16 @@ function showProductAction() {
                     <span class="btn-icon">🗑️</span>
                     <span class="btn-text">BUTTA<br><small>butta il prodotto</small></span>
                 </button>
-                <button class="btn btn-huge btn-edit" onclick="editProductFromAction()">
+                <button class="btn btn-huge btn-edit" onclick="openInventoryEdit()">
                     <span class="btn-icon">✏️</span>
-                    <span class="btn-text">MODIFICA<br><small>modifica info</small></span>
+                    <span class="btn-text">MODIFICA<br><small>scadenza, luogo…</small></span>
                 </button>
             `;
+            // Secondary: catalog edit link below the buttons
+            const catalogLink = document.createElement('div');
+            catalogLink.style.cssText = 'text-align:center;margin-top:6px';
+            catalogLink.innerHTML = `<button type="button" class="btn-link-small" onclick="editProductFromAction()">⚙️ Modifica scheda prodotto (nome, marca, categoria…)</button>`;
+            btnsContainer.after(catalogLink);
         } else {
             // Product NOT in inventory - show only AGGIUNGI
             statusBar.style.display = 'none';
@@ -3002,6 +3006,47 @@ function editProductFromAction() {
 }
 
 // === EDIT INVENTORY ITEM FROM ACTION PAGE ===
+// === OPEN INVENTORY EDIT — picks item or shows location picker ===
+function openInventoryEdit() {
+    const items = _actionInventoryItems;
+    if (!items || items.length === 0) {
+        showToast('Nessuna voce di inventario trovata', 'error');
+        return;
+    }
+    if (items.length === 1) {
+        editActionInventoryItem(items[0].id);
+        return;
+    }
+    // Multiple locations → let user pick which one to edit
+    const contentEl = document.getElementById('modal-content');
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3>✏️ Quale modifica?</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 12px">Scegli la posizione da modificare:</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            ${items.map(inv => {
+                const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
+                const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
+                let expiryStr = '';
+                if (inv.expiry_date) {
+                    const d = daysUntilExpiry(inv.expiry_date);
+                    expiryStr = ` · ${d < 0 ? '⚠️ Scaduto' : '📅 ' + formatDate(inv.expiry_date)}`;
+                }
+                const vacuumStr = inv.vacuum_sealed ? ' 🫙' : '';
+                return `<button class="btn btn-secondary full-width" style="justify-content:flex-start;gap:10px;text-align:left"
+                    onclick="editActionInventoryItem(${inv.id})">
+                    <span style="font-size:1.3rem">${locInfo.icon}</span>
+                    <span><strong>${locInfo.label}</strong>${vacuumStr}<br>
+                    <small style="color:var(--text-muted)">${qtyStr}${expiryStr}</small></span>
+                </button>`;
+            }).join('')}
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
 function editActionInventoryItem(inventoryId) {
     const item = _actionInventoryItems.find(i => i.id === inventoryId);
     if (!item) return;

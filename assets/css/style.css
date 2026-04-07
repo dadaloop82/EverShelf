@@ -2712,6 +2712,18 @@ body {
     flex-shrink: 0;
 }
 
+.btn-link-small {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
 /* ===== PRODUCT DETAILS CARD (Action Page) ===== */
 .product-details-card {
     background: var(--bg-card);
