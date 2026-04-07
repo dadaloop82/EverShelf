@@ -5067,18 +5067,11 @@ async function autoAddCriticalItems() {
  * Items not matching any DB product are left untouched (likely manually added by user).
  */
 async function cleanupObsoleteBringItems() {
-    // Run at most once every 30 minutes (not once per session — user may restock mid-session)
+    // Run at most once every 30 minutes
     const lastCleanup = parseInt(localStorage.getItem('_bringCleanupTs') || '0');
     if (Date.now() - lastCleanup < 30 * 60 * 1000) return;
     localStorage.setItem('_bringCleanupTs', String(Date.now()));
-    if (!shoppingItems.length) return;
-
-    // Build set of smart-flagged names (these should stay if still urgently needed)
-    const smartUrgent = new Set(
-        smartShoppingItems
-            .filter(i => i.urgency === 'critical' || i.urgency === 'high')
-            .map(i => i.name.toLowerCase())
-    );
+    if (!shoppingItems.length || !smartShoppingItems.length) return;
 
     // Load live inventory (has actual quantities unlike products_list)
     let invItems = [];
@@ -5087,43 +5080,43 @@ async function cleanupObsoleteBringItems() {
         invItems = res.inventory || [];
     } catch (e) { return; }
 
-    // Build map: lowercase product name → total inventory qty
-    const invQtyByName = {};
-    const invQtyById = {};
+    // Build: first-significant-token → total in-stock qty across all products with that token
+    const stockByFirstToken = new Map();
     for (const inv of invItems) {
-        const key = (inv.name || '').toLowerCase();
-        invQtyByName[key] = (invQtyByName[key] || 0) + parseFloat(inv.quantity || 0);
-        invQtyById[inv.product_id] = (invQtyById[inv.product_id] || 0) + parseFloat(inv.quantity || 0);
+        const qty = parseFloat(inv.quantity || 0);
+        if (qty <= 0) continue;
+        const tok = _nameTokens(inv.name || '')[0];
+        if (tok) stockByFirstToken.set(tok, (stockByFirstToken.get(tok) || 0) + qty);
+    }
+
+    // Build: first-significant-token → smart item (critical/high only)
+    // This tells us which tokens still urgently need buying
+    const urgentSmartByToken = new Map();
+    for (const si of smartShoppingItems) {
+        if (si.urgency !== 'critical' && si.urgency !== 'high') continue;
+        const tok = _nameTokens(si.name)[0];
+        if (tok) urgentSmartByToken.set(tok, si);
     }
 
     const toRemove = [];
     for (const item of shoppingItems) {
-        const nameLower = item.name.toLowerCase();
+        const itemFirst = _nameTokens(item.name)[0];
+        const stockQty = (itemFirst && stockByFirstToken.get(itemFirst)) || 0;
 
-        // Keep if still urgent according to smart shopping
-        if (smartUrgent.has(nameLower)) continue;
-        const urgentMatch = smartShoppingItems.find(si =>
-            (si.urgency === 'critical' || si.urgency === 'high') &&
-            _nameTokens(si.name)[0] === _nameTokens(item.name)[0]
-        );
-        if (urgentMatch) continue;
+        // No stock of anything similar → nothing to remove
+        if (stockQty <= 0) continue;
 
-        // Check if we have stock in inventory (exact name match or first-token match)
-        let hasStock = false;
-        const exactQty = invQtyByName[nameLower] || 0;
-        if (exactQty > 0) {
-            hasStock = true;
-        } else {
-            // Fuzzy: find inventory item with matching first token
-            const itemFirst = _nameTokens(item.name)[0];
-            if (itemFirst) {
-                const match = invItems.find(inv => _nameTokens(inv.name || '')[0] === itemFirst);
-                if (match && invQtyById[match.product_id] > 0) hasStock = true;
-            }
+        // Check if smart shopping flags something with this token as urgently needed
+        const urgSi = itemFirst && urgentSmartByToken.get(itemFirst);
+        if (urgSi) {
+            // Smart shopping says this type is urgent.
+            // BUT: if the flagged product is COMPLETELY depleted (qty=0) yet we have
+            // a different in-stock product with the same root token (e.g. "Aglio rosso"
+            // depleted but "Aglio" has 3 pz), the user's need is already covered → remove.
+            // If the flagged product still has some qty but is running low → keep (genuine need).
+            if (urgSi.current_qty > 0) continue; // genuinely running low → keep in list
+            // depleted variant but equivalent in stock → fall through to remove
         }
-
-        // Only remove Bring items for products we actually track (have inventory entry)
-        if (!hasStock) continue;
 
         toRemove.push(item);
     }

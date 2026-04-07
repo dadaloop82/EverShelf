@@ -2568,6 +2568,14 @@ function smartShopping(PDO $db): void {
     $now = time();
     $today = date('Y-m-d');
 
+    // Helper: extract significant tokens from a product name (mirrors JS _nameTokens)
+    $nameTokens = function(string $name): array {
+        $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
+                 'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
+        $tokens = preg_split('/\s+/', strtolower(preg_replace('/[^\p{L}\s]/u', ' ', $name)));
+        return array_values(array_filter($tokens, fn($t) => strlen($t) > 2 && !in_array($t, $stop)));
+    };
+
     // 1. Get all products with their inventory and transaction history
     $products = $db->query("
         SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit
@@ -2622,6 +2630,20 @@ function smartShopping(PDO $db): void {
             }
         }
     } catch (Exception $e) { /* ignore */ }
+
+    // 4b. Build stockByFirstToken: first-significant-token → total in-stock qty.
+    // Used to skip depleted products that have an equivalent product in stock
+    // (e.g. "Aglio rosso" depleted but "Aglio" has 3 pz → don't re-add Aglio rosso to list)
+    $stockByFirstToken = [];
+    foreach ($products as $pStock) {
+        $qty = isset($inventory[$pStock['id']]) ? (float)$inventory[$pStock['id']]['total_qty'] : 0;
+        if ($qty <= 0) continue;
+        $toks = $nameTokens($pStock['name']);
+        if (!empty($toks)) {
+            $tok = $toks[0];
+            $stockByFirstToken[$tok] = ($stockByFirstToken[$tok] ?? 0) + $qty;
+        }
+    }
 
     // 5. Analyze each product
     $items = [];
@@ -2699,6 +2721,12 @@ function smartShopping(PDO $db): void {
 
         // Out of stock
         if ($qty <= 0) {
+            // If another product with the same first-token has stock, this depletion is covered
+            // (e.g. "Aglio rosso" depleted but "Aglio" has 3 pz → skip "Aglio rosso")
+            $pToks = $nameTokens($p['name']);
+            $pFirst = $pToks[0] ?? null;
+            if ($pFirst && ($stockByFirstToken[$pFirst] ?? 0) > 0) continue;
+
             if ($isFrequent && $isRecent && $buyCount >= 2) {
                 // Frequently used, recently active, AND bought multiple times → critical
                 $urgency = 'critical';
