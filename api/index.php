@@ -2681,6 +2681,10 @@ function smartShopping(PDO $db): void {
             : ($daysSinceFirst >= 7 ? ($useCount / $daysSinceFirst) * 30 : $useCount * 0.5);
         // Days since last use/purchase — measures recency
         $daysSinceLastUse = $lastOut ? ($now - $lastOut) / 86400 : ($lastIn ? ($now - $lastIn) / 86400 : 999);
+        // Days since last PURCHASE specifically
+        $daysSinceLastBuy = $lastIn ? ($now - $lastIn) / 86400 : 999;
+        // Product was restocked very recently (within 3 days) — suppress non-expiry urgency
+        $justRestocked = $daysSinceLastBuy <= 3;
         // Is this a frequently used product? (≥ 1.5 uses/month)
         $isFrequent = $usesPerMonth >= 1.5;
         // Is it a regular product? (≥ 0.5 uses/month = at least once every 2 months)
@@ -2766,9 +2770,10 @@ function smartShopping(PDO $db): void {
             $score += 20;
         }
 
-        // Absolute minimum stock fallback: flag items with very low stock regardless of usage frequency.
-        // Applies to products bought at least once, even if rarely used.
-        if ($urgency === 'none' && $buyCount >= 1 && $qty > 0) {
+        // Absolute minimum stock fallback: flag items with critically low stock.
+        // Requires: product is regularly consumed (isRegular), bought ≥2 times (proven staple),
+        // and stock is clearly depleted relative to normal purchase (pctLeft < 80).
+        if ($urgency === 'none' && $isRegular && $buyCount >= 2 && $qty > 0 && $pctLeft < 80) {
             if ($unit === 'conf') {
                 if ($qty <= 1) {
                     $urgency = 'high';
@@ -2804,6 +2809,12 @@ function smartShopping(PDO $db): void {
 
         // Is already on Bring? (fuzzy token match — mirrors JS _findSimilarItem logic)
         $onBring = _productOnBring($p['name'], $bringItems);
+
+        // "Just restocked" suppression: if bought in the last 3 days AND stock is above 50%
+        // of reference qty, skip non-expiry urgency flags. The product doesn't need rebuying yet.
+        if ($justRestocked && $pctLeft >= 50 && !$isExpired && !$isExpiringSoon) {
+            continue;
+        }
 
         $items[] = [
             'product_id' => $pid,

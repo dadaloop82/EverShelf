@@ -4075,7 +4075,7 @@ function setPzFraction(frac) {
 // ===== LOW STOCK → BRING! PROMPT =====
 function isLowStock(totalRemaining, unit, defaultQty) {
     if (totalRemaining <= 0) return true; // fully depleted → definitely needs restocking
-    if (unit === 'pz') return totalRemaining <= 2;
+    if (unit === 'pz') return totalRemaining <= 1; // only 1 piece left
     if (unit === 'conf') return totalRemaining <= 1;
     // Weight/volume: use percentage of default_qty or fixed threshold
     if (defaultQty > 0) return totalRemaining <= defaultQty * 0.25;
