@@ -3972,8 +3972,8 @@ async function loadUseInventoryInfo() {
             
             const qtyInput = document.getElementById('use-quantity');
             qtyInput.value = 1;
-            qtyInput.step = unit === 'pz' ? '0.5' : 'any';
-            qtyInput.min = (unit === 'g' || unit === 'ml') ? '1' : '0.25';
+            qtyInput.step = 'any';
+            qtyInput.min = '0.01';
             document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
 
             // Fraction buttons for pz unit
@@ -5067,40 +5067,63 @@ async function autoAddCriticalItems() {
  * Items not matching any DB product are left untouched (likely manually added by user).
  */
 async function cleanupObsoleteBringItems() {
-    if (sessionStorage.getItem('_bringCleanupDone')) return;
-    sessionStorage.setItem('_bringCleanupDone', '1');
-    if (!shoppingItems.length || !smartShoppingItems.length) return;
+    // Run at most once every 30 minutes (not once per session — user may restock mid-session)
+    const lastCleanup = parseInt(localStorage.getItem('_bringCleanupTs') || '0');
+    if (Date.now() - lastCleanup < 30 * 60 * 1000) return;
+    localStorage.setItem('_bringCleanupTs', String(Date.now()));
+    if (!shoppingItems.length) return;
 
-    // Build set of smart-flagged names (these should stay)
-    const smartNames = new Set(smartShoppingItems.map(i => i.name.toLowerCase()));
+    // Build set of smart-flagged names (these should stay if still urgently needed)
+    const smartUrgent = new Set(
+        smartShoppingItems
+            .filter(i => i.urgency === 'critical' || i.urgency === 'high')
+            .map(i => i.name.toLowerCase())
+    );
 
-    // Load all products from our DB to cross-reference
-    let allProducts = [];
+    // Load live inventory (has actual quantities unlike products_list)
+    let invItems = [];
     try {
-        const res = await api('products_list');
-        allProducts = res.products || res.data || [];
+        const res = await api('inventory_list');
+        invItems = res.inventory || [];
     } catch (e) { return; }
-    if (!allProducts.length) return;
 
-    // Index our products by lowercase name
-    const dbByName = {};
-    for (const p of allProducts) {
-        dbByName[p.name.toLowerCase()] = p;
+    // Build map: lowercase product name → total inventory qty
+    const invQtyByName = {};
+    const invQtyById = {};
+    for (const inv of invItems) {
+        const key = (inv.name || '').toLowerCase();
+        invQtyByName[key] = (invQtyByName[key] || 0) + parseFloat(inv.quantity || 0);
+        invQtyById[inv.product_id] = (invQtyById[inv.product_id] || 0) + parseFloat(inv.quantity || 0);
     }
 
     const toRemove = [];
     for (const item of shoppingItems) {
         const nameLower = item.name.toLowerCase();
-        // If smart shopping still flags it, keep it
-        if (smartNames.has(nameLower)) continue;
-        if (_findSimilarItem(item.name, smartShoppingItems)) continue;
 
-        // Must match a known DB product — otherwise it's likely a manual addition
-        const dbProduct = dbByName[nameLower] || _findSimilarItem(item.name, allProducts);
-        if (!dbProduct) continue;
+        // Keep if still urgent according to smart shopping
+        if (smartUrgent.has(nameLower)) continue;
+        const urgentMatch = smartShoppingItems.find(si =>
+            (si.urgency === 'critical' || si.urgency === 'high') &&
+            _nameTokens(si.name)[0] === _nameTokens(item.name)[0]
+        );
+        if (urgentMatch) continue;
 
-        // Only remove if we have stock (qty > 0) — if qty == 0 user may still need it
-        if ((dbProduct.quantity || 0) <= 0) continue;
+        // Check if we have stock in inventory (exact name match or first-token match)
+        let hasStock = false;
+        const exactQty = invQtyByName[nameLower] || 0;
+        if (exactQty > 0) {
+            hasStock = true;
+        } else {
+            // Fuzzy: find inventory item with matching first token
+            const itemFirst = _nameTokens(item.name)[0];
+            if (itemFirst) {
+                const match = invItems.find(inv => _nameTokens(inv.name || '')[0] === itemFirst);
+                if (match && invQtyById[match.product_id] > 0) hasStock = true;
+            }
+        }
+
+        // Only remove Bring items for products we actually track (have inventory entry)
+        if (!hasStock) continue;
 
         toRemove.push(item);
     }
