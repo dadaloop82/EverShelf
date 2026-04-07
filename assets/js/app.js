@@ -5080,42 +5080,43 @@ async function cleanupObsoleteBringItems() {
         invItems = res.inventory || [];
     } catch (e) { return; }
 
-    // Build: first-significant-token → total in-stock qty across all products with that token
-    const stockByFirstToken = new Map();
+    // Build: every significant token of in-stock products → total qty
+    // Any-token matching groups product families:
+    // 'Passata di pomodoro' + 'Polpa di pomodoro' share 'pomodoro' → same need
+    const stockByAnyToken = new Map();
     for (const inv of invItems) {
         const qty = parseFloat(inv.quantity || 0);
         if (qty <= 0) continue;
-        const tok = _nameTokens(inv.name || '')[0];
-        if (tok) stockByFirstToken.set(tok, (stockByFirstToken.get(tok) || 0) + qty);
+        for (const tok of _nameTokens(inv.name || '')) {
+            stockByAnyToken.set(tok, (stockByAnyToken.get(tok) || 0) + qty);
+        }
     }
 
-    // Build: first-significant-token → smart item (critical/high only)
-    // This tells us which tokens still urgently need buying
+    // Build: any matching token → smart item (critical/high only)
     const urgentSmartByToken = new Map();
     for (const si of smartShoppingItems) {
         if (si.urgency !== 'critical' && si.urgency !== 'high') continue;
-        const tok = _nameTokens(si.name)[0];
-        if (tok) urgentSmartByToken.set(tok, si);
+        for (const tok of _nameTokens(si.name)) {
+            if (!urgentSmartByToken.has(tok)) urgentSmartByToken.set(tok, si);
+        }
     }
 
     const toRemove = [];
     for (const item of shoppingItems) {
-        const itemFirst = _nameTokens(item.name)[0];
-        const stockQty = (itemFirst && stockByFirstToken.get(itemFirst)) || 0;
+        // Check if any significant token of this Bring item has stock in inventory
+        const itemTokens = _nameTokens(item.name);
+        const stockQty = itemTokens.reduce((sum, tok) => sum + (stockByAnyToken.get(tok) || 0), 0);
 
-        // No stock of anything similar → nothing to remove
+        // No inventory stock for any related product → nothing to remove
         if (stockQty <= 0) continue;
 
-        // Check if smart shopping flags something with this token as urgently needed
-        const urgSi = itemFirst && urgentSmartByToken.get(itemFirst);
+        // Check if smart shopping flags something with a matching token as urgently needed
+        const urgSi = itemTokens.map(tok => urgentSmartByToken.get(tok)).find(Boolean);
         if (urgSi) {
-            // Smart shopping says this type is urgent.
-            // BUT: if the flagged product is COMPLETELY depleted (qty=0) yet we have
-            // a different in-stock product with the same root token (e.g. "Aglio rosso"
-            // depleted but "Aglio" has 3 pz), the user's need is already covered → remove.
-            // If the flagged product still has some qty but is running low → keep (genuine need).
-            if (urgSi.current_qty > 0) continue; // genuinely running low → keep in list
-            // depleted variant but equivalent in stock → fall through to remove
+            // Smart says something with this root token is urgent.
+            // If the flagged product still has qty > 0, it's genuinely running low → keep.
+            // If depleted (qty=0) but we have equivalent stock via another token → remove.
+            if (urgSi.current_qty > 0) continue;
         }
 
         toRemove.push(item);
@@ -5307,8 +5308,20 @@ async function loadSmartShopping() {
     try {
         const data = await api('smart_shopping');
         if (data.success && data.items && data.items.length > 0) {
+            const prevCriticalNames = new Set(
+                smartShoppingItems.filter(i => i.urgency === 'critical').map(i => i.name)
+            );
             smartShoppingItems = data.items;
             _smartShoppingLastFetch = Date.now();
+            // If the set of critical items changed, reset autoAdd/cleanup timers so
+            // they run with fresh data on next shopping page load
+            const newCriticalNames = new Set(data.items.filter(i => i.urgency === 'critical').map(i => i.name));
+            const criticalChanged = [...prevCriticalNames].some(n => !newCriticalNames.has(n)) ||
+                                    [...newCriticalNames].some(n => !prevCriticalNames.has(n));
+            if (criticalChanged) {
+                localStorage.removeItem('_autoAddedCriticalTs');
+                localStorage.removeItem('_bringCleanupTs');
+            }
             renderSmartShopping();
             _renderSmartLastUpdate();
             _updateSmartUrgencyBadge();

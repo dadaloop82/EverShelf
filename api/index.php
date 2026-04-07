@@ -2631,17 +2631,18 @@ function smartShopping(PDO $db): void {
         }
     } catch (Exception $e) { /* ignore */ }
 
-    // 4b. Build stockByFirstToken: first-significant-token → total in-stock qty.
-    // Used to skip depleted products that have an equivalent product in stock
-    // (e.g. "Aglio rosso" depleted but "Aglio" has 3 pz → don't re-add Aglio rosso to list)
-    $stockByFirstToken = [];
+    // 4b. Build stockByAnyToken: every significant token of in-stock products → total qty.
+    // Used to skip depleted products covered by any equivalent in-stock product.
+    // Any-token (not just first) groups product families:
+    //   'Passata di pomodoro' + 'Polpa di pomodoro' + 'Pelato Cirio' all share 'pomodoro'
+    //   'Aglio rosso' + 'Aglio' share 'aglio'
+    //   'Latte di Montagna' + 'Latte Parzialmente Scremato' share 'latte'
+    $stockByAnyToken = [];
     foreach ($products as $pStock) {
         $qty = isset($inventory[$pStock['id']]) ? (float)$inventory[$pStock['id']]['total_qty'] : 0;
         if ($qty <= 0) continue;
-        $toks = $nameTokens($pStock['name']);
-        if (!empty($toks)) {
-            $tok = $toks[0];
-            $stockByFirstToken[$tok] = ($stockByFirstToken[$tok] ?? 0) + $qty;
+        foreach ($nameTokens($pStock['name']) as $tok) {
+            $stockByAnyToken[$tok] = ($stockByAnyToken[$tok] ?? 0) + $qty;
         }
     }
 
@@ -2721,11 +2722,16 @@ function smartShopping(PDO $db): void {
 
         // Out of stock
         if ($qty <= 0) {
-            // If another product with the same first-token has stock, this depletion is covered
-            // (e.g. "Aglio rosso" depleted but "Aglio" has 3 pz → skip "Aglio rosso")
+            // If ANY significant token of this depleted product also appears in an in-stock product,
+            // the user's need is already covered — skip flagging it.
+            // Examples: 'Passata di pomodoro' depleted, 'Polpa di pomodoro' in stock → share 'pomodoro' → skip
+            //           'Aglio rosso' depleted, 'Aglio' in stock → share 'aglio' → skip
             $pToks = $nameTokens($p['name']);
-            $pFirst = $pToks[0] ?? null;
-            if ($pFirst && ($stockByFirstToken[$pFirst] ?? 0) > 0) continue;
+            $coveredByEquivalent = false;
+            foreach ($pToks as $tok) {
+                if (($stockByAnyToken[$tok] ?? 0) > 0) { $coveredByEquivalent = true; break; }
+            }
+            if ($coveredByEquivalent) continue;
 
             if ($isFrequent && $isRecent && $buyCount >= 2) {
                 // Frequently used, recently active, AND bought multiple times → critical
