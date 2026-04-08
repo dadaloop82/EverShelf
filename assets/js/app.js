@@ -396,47 +396,85 @@ function estimateOpenedExpiryDays(product, location) {
     const cat = (product.category || '').toLowerCase();
     const loc = (location || '').toLowerCase();
 
-    // Freezer: opened items still last a long time
-    if (loc === 'freezer') return 90;
-    // Dispensa: opened dry goods
-    if (loc === 'dispensa') return 30;
+    // ── A: Non-perishables — check BEFORE location ──────────────────────
+    if (/\bsale\b|\bsel\s+mar|\bsalt\b/.test(name) && !/\b(salmone|salame|salsa)\b/.test(name)) return 9999;
+    if (/\bzucchero\b|\bsugar\b/.test(name)) return 9999;
+    if (/\bmiele\b/.test(name)) return 9999;
+    if (/\baceto\b/.test(name)) return 9999;
+    if (/\bbicarbonato\b|\blievito\s+chimico\b/.test(name)) return 9999;
 
-    // Specific product overrides (fridge)
+    // ── B: Spirits ───────────────────────────────────────────────────────
+    if (/\b(sambuca|rum\b|brandy|whiskey|whisky|vodka|gin\b|grappa|amaro|aperol|campari|limoncello|cognac|porto|marsala|baileys|amaretto|vermouth)\b/.test(name)) return 730;
+
+    // ── C: Long-life regardless of location ─────────────────────────────
+    if (/\b(aroma|estratto|essenza|vanilli|colorante)\b/.test(name)) return 730;
+    if (/\b(t[eè]\b|tea\b|tisana|camomilla|verbena|infuso|rooibos)\b/.test(name)) return 730;
+    if (/\b(caff[eè]|coffee|nespresso)\b/.test(name)) return 365;
+    if (/\bolio\b/.test(name)) return 365;
+    if (/salsa\s+di\s+soia|soy\s*sauce/.test(name)) return 90; // soy sauce fine opened anywhere
+    if (loc !== 'frigo') {
+        if (/\b(pasta|spaghetti|penne|rigatoni|fusilli|farfalle|tagliatelle|linguine|bucatini|lasagn|tortiglioni)\b/.test(name)) return 365;
+        if (/\b(riso|risotto|orzo|farro|quinoa|couscous)\b/.test(name) && !/\b(pronto|cotto)\b/.test(name)) return 365;
+        if (/\b(polenta|semola|maizena|amido|farina)\b/.test(name)) return 180;
+    }
+
+    // ── D: Freezer ───────────────────────────────────────────────────────
+    if (loc === 'freezer') return 90;
+
+    // ── E: Pantry fallbacks ───────────────────────────────────────────────
+    if (loc !== 'frigo') {
+        if (/\b(biscott[io]|cookies|wafer|tarall[io]|crackers?)\b/.test(name)) return 60;
+        if (/\b(muesli|cereali|corn\s*flakes|granola|fiocchi)\b/.test(name)) return 60;
+        if (/\b(confettura|marmellata)\b/.test(name)) return 90;
+        if (/\b(nutella|cioccolat)\b/.test(name)) return 90;
+        if (/\bpane\b/.test(name)) return 4;
+        return 60;
+    }
+
     if (/latte\s+(fresco|intero|parzial|scremato)/.test(name)) return 3;
-    if (/latte\s+uht|latte\s+a\s+lunga/.test(name)) return 5;
-    if (/latte/.test(name)) return 4;
-    if (/yogurt/.test(name)) return 3;
-    if (/mozzarella|burrata|stracciatella/.test(name)) return 2;
+    if (/latte\s+(uht|a\s+lunga)/.test(name)) return 5;
+    if (/\blatte\b/.test(name)) return 4;
+    if (/\byogurt\b/.test(name)) return 5;
+    if (/mozzarella|burrata|stracciatella/.test(name)) return 3;
     if (/philadelphia|spalmabile/.test(name)) return 7;
     if (/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) return 5;
     if (/parmigiano|grana|pecorino|provolone/.test(name)) return 21;
     if (/formaggio/.test(name)) return 10;
-    if (/burro/.test(name)) return 21;
-    if (/panna/.test(name)) return 3;
-    if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) return 3;
+    if (/\bburro\b/.test(name)) return 30;
+    if (/\bpanna\b/.test(name)) return 4;
+    if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) return 5;
     if (/prosciutto\s+crudo|salame|bresaola|speck|pancetta|nduja/.test(name)) return 7;
-    if (/pollo|tacchino|maiale|manzo|vitello/.test(name)) return 2;
-    if (/salmone|tonno\s+fresco|pesce/.test(name)) return 2;
-    if (/passata|pelati|polpa|sugo/.test(name)) return 5;
-    if (/marmellata|confettura/.test(name)) return 30;
-    if (/miele/.test(name)) return 180;
-    if (/nutella/.test(name)) return 60;
-    if (/succo|spremuta/.test(name)) return 4;
-    if (/olio|aceto/.test(name)) return 90;
-    if (/vino|birra/.test(name)) return 5;
-    if (/limone|limmi/.test(name)) return 21;
-    if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) return 3;
-    if (/insalata|rucola|spinaci/.test(name)) return 3;
+    if (/\b(pollo|tacchino|maiale|manzo|vitello|agnello)\b/.test(name)) return 2;
+    if (/salmone|tonno\s+fresco|pesce(?!\s+in)/.test(name)) return 2;
+    if (/\b(passata|pelati|polpa|sugo|salsa\s+di\s+pomodoro)\b/.test(name)) return 5;
+    if (/insalata|rucola|spinaci|lattuga/.test(name)) return 4;
+    if (/\b(succo|spremuta)\b/.test(name)) return 5;
+    if (/\blimone\b/.test(name)) return 14;
+    if (/\b(birra|beer)\b/.test(name)) return 3;
+    if (/\bvino\b/.test(name)) return 5;
+    if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) return 4;
+    if (/\b(banana|banane|mela|pera|pesca|albicocca|ciliegia|uva|fragola|lampone|kiwi)\b/.test(name)) return 10;
+    if (/\b(arancia|mandarino|pompelmo|clementina)\b/.test(name)) return 14;
+    if (/\b(carota|zucchina|peperone|melanzana|broccolo|cavolfiore|sedano|finocchio)\b/.test(name)) return 7;
 
-    // Category fallbacks
-    if (/dairy|latticin|lait|dairies/.test(cat)) return 5;
-    if (/meat|carne|meats/.test(cat)) return 3;
+    // ── G: Fridge condiments ─────────────────────────────────────────────
+    if (/maionese|mayo|mayon/.test(name)) return 90;
+    if (/\bketchup\b/.test(name)) return 90;
+    if (/\b(senape|mustard)\b/.test(name)) return 90;
+    if (/salsa\s+di\s+soia|soy\s*sauce/.test(name)) return 90;
+    if (/\b(tabasco|worcestershire|sriracha)\b/.test(name)) return 180;
+    if (/confettura|marmellata/.test(name)) return 60;
+    if (/nutella|cioccolat/.test(name)) return 60;
+
+    // ── H: Category fallbacks ────────────────────────────────────────────
+    if (/dairy|latticin/.test(cat)) return 5;
+    if (/meat|carne/.test(cat)) return 3;
     if (/fish|pesce/.test(cat)) return 2;
-    if (/fruit|frutta/.test(cat)) return 5;
-    if (/verdur|vegetable|plant-based/.test(cat)) return 5;
-    if (/conserve/.test(cat)) return 5;
-    if (/condimenti|sauce/.test(cat)) return 21;
-    if (/bevand|beverage/.test(cat)) return 4;
+    if (/fruit|frutta/.test(cat)) return 7;
+    if (/verdur|vegetable/.test(cat)) return 5;
+    if (/conserve/.test(cat)) return 7;
+    if (/condimenti|sauce/.test(cat)) return 30;
+    if (/bevand|beverage/.test(cat)) return 5;
 
     return 5; // safe default for fridge
 }
@@ -1098,8 +1136,10 @@ async function loadDashboard() {
                     const frac = Math.round((qty - wholeConf) * 1000) / 1000;
                     const remainderAmt = frac * pkgSize;
                     const remainderText = formatSubRemainder(remainderAmt, pkgUnit);
-                    if (wholeConf > 0) {
+                    if (wholeConf > 0 && remainderAmt >= 1) {
                         qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel}) + ${remainderText}`;
+                    } else if (wholeConf > 0) {
+                        qtyText = `${wholeConf} conf (da ${pkgSize}${pkgLabel})`;
                     } else {
                         qtyText = remainderText;
                     }
@@ -1125,6 +1165,9 @@ async function loadDashboard() {
                     if (!isEdible) {
                         expiryClass = 'opened-expiry-spoiled';
                         expiryText = '⛔ Scaduto!';
+                    } else if (days > 365) {
+                        expiryClass = 'opened-expiry-ok';
+                        expiryText = '✅ Stabile';
                     } else if (days === 0) {
                         expiryClass = 'opened-expiry-today';
                         expiryText = '⚠️ Scade oggi!';

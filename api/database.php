@@ -217,47 +217,90 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
     $cat = mb_strtolower($category);
     $loc = mb_strtolower($location);
 
-    // Freezer: opened items still last a long time
-    if ($loc === 'freezer') return 90;
-    // Dispensa: opened dry goods
-    if ($loc === 'dispensa') return 30;
+    // ── A: Non-perishables — check BEFORE location so dispensa doesn't swallow them ──
+    if (preg_match('/\bsale\b|\bsel\s+mar|\bsalt\b/', $n) && !preg_match('/\b(salmone|salame|salsa)\b/', $n)) return 9999;
+    if (preg_match('/\bzucchero\b|\bsugar\b/', $n)) return 9999;
+    if (preg_match('/\bmiele\b/', $n)) return 9999;
+    if (preg_match('/\baceto\b/', $n)) return 9999; // all vinegars
+    if (preg_match('/\bbicarbonato\b|\blievito\s+chimico\b/', $n)) return 9999;
 
-    // Specific product overrides (fridge)
+    // ── B: High-ABV spirits ──────────────────────────────────────────────
+    if (preg_match('/\b(sambuca|rum\b|brandy|whiskey|whisky|vodka|gin\b|grappa|amaro|aperol|campari|limoncello|cognac|porto|marsala|baileys|amaretto|vermouth)\b/', $n)) return 730;
+
+    // ── C: Long-life regardless of location ─────────────────────────────
+    if (preg_match('/\b(aroma|estratto|essenza|vanilli|colorante)\b/', $n)) return 730;
+    if (preg_match('/\b(t[eè]\b|tea\b|tisana|camomilla|verbena|infuso|rooibos)\b/', $n)) return 730;
+    if (preg_match('/\b(caff[eè]|coffee|nespresso)\b/', $n)) return 365;
+    if (preg_match('/\bolio\b/', $n)) return 365;
+    if (preg_match('/salsa\s+di\s+soia|soy\s*sauce/', $n)) return 90; // soy sauce fine opened anywhere
+    // Dry goods only outside fridge (uncooked)
+    if ($loc !== 'frigo') {
+        if (preg_match('/\b(pasta|spaghetti|penne|rigatoni|fusilli|farfalle|tagliatelle|linguine|bucatini|lasagn|tortiglioni)\b/', $n)) return 365;
+        if (preg_match('/\b(riso|risotto|orzo|farro|quinoa|couscous)\b/', $n) && !preg_match('/\b(pronto|cotto)\b/', $n)) return 365;
+        if (preg_match('/\b(polenta|semola|maizena|amido|farina)\b/', $n)) return 180;
+        if (preg_match('/\b(lenticchie|ceci|fagioli|piselli)\b/', $n) && !preg_match('/\b(cotto|vapore|scatola)\b/', $n)) return 365;
+    }
+
+    // ── D: Freezer ───────────────────────────────────────────────────────
+    if ($loc === 'freezer') return 90;
+
+    // ── E: Pantry/dispensa — specific products then generic fallback ─────
+    if ($loc !== 'frigo') {
+        if (preg_match('/\b(biscott[io]|cookies|wafer|tarall[io]|crackers?)\b/', $n)) return 60;
+        if (preg_match('/\b(muesli|cereali|corn\s*flakes|granola|fiocchi)\b/', $n)) return 60;
+        if (preg_match('/\b(confettura|marmellata)\b/', $n)) return 90;
+        if (preg_match('/\b(nutella|cioccolat)\b/', $n)) return 90;
+        if (preg_match('/\bpane\b/', $n)) return 4;
+        // Specific jarred tomato sauce in pantry (opened, not refrigerated)
+        if (preg_match('/salsa\s+di\s+(pomodoro|pronta)/', $n)) return 5;
+        return 60; // generic pantry fallback (was 30, doubled)
+    }
+
+    // ── F: Fridge — short-life perishables ──────────────────────────────
     if (preg_match('/latte\s+(fresco|intero|parzial|scremato)/', $n)) return 3;
-    if (preg_match('/latte\s+uht|latte\s+a\s+lunga/', $n)) return 5;
-    if (preg_match('/latte/', $n)) return 4;
-    if (preg_match('/yogurt/', $n)) return 3;
-    if (preg_match('/mozzarella|burrata|stracciatella/', $n)) return 2;
+    if (preg_match('/latte\s+(uht|a\s+lunga)/', $n)) return 5;
+    if (preg_match('/\blatte\b/', $n)) return 4;
+    if (preg_match('/\byogurt\b/', $n)) return 5;
+    if (preg_match('/mozzarella|burrata|stracciatella/', $n)) return 3;
     if (preg_match('/philadelphia|spalmabile/', $n)) return 7;
     if (preg_match('/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/', $n)) return 5;
     if (preg_match('/parmigiano|grana|pecorino|provolone/', $n)) return 21;
     if (preg_match('/formaggio/', $n)) return 10;
-    if (preg_match('/burro/', $n)) return 21;
-    if (preg_match('/panna/', $n)) return 3;
-    if (preg_match('/prosciutto\s+cotto|mortadella|wurstel/', $n)) return 3;
+    if (preg_match('/\bburro\b/', $n)) return 30;
+    if (preg_match('/\bpanna\b/', $n)) return 4;
+    if (preg_match('/prosciutto\s+cotto|mortadella|wurstel/', $n)) return 5;
     if (preg_match('/prosciutto\s+crudo|salame|bresaola|speck|pancetta|nduja/', $n)) return 7;
-    if (preg_match('/pollo|tacchino|maiale|manzo|vitello/', $n)) return 2;
-    if (preg_match('/salmone|tonno\s+fresco|pesce/', $n)) return 2;
-    if (preg_match('/passata|pelati|polpa|sugo/', $n)) return 5;
-    if (preg_match('/marmellata|confettura/', $n)) return 30;
-    if (preg_match('/miele/', $n)) return 180;
-    if (preg_match('/nutella/', $n)) return 60;
-    if (preg_match('/succo|spremuta/', $n)) return 4;
-    if (preg_match('/olio|aceto/', $n)) return 90;
-    if (preg_match('/vino|birra/', $n)) return 5;
-    if (preg_match('/limone|limmi/', $n)) return 21;
-    if (preg_match('/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/', $n)) return 3;
-    if (preg_match('/insalata|rucola|spinaci/', $n)) return 3;
+    if (preg_match('/\b(pollo|tacchino|maiale|manzo|vitello|agnello)\b/', $n)) return 2;
+    if (preg_match('/salmone|tonno\s+fresco|pesce(?!\s+in)/', $n)) return 2;
+    if (preg_match('/\b(passata|pelati|polpa|sugo|salsa\s+di\s+pomodoro)\b/', $n)) return 5;
+    if (preg_match('/insalata|rucola|spinaci|lattuga/', $n)) return 4;
+    if (preg_match('/\b(succo|spremuta)\b/', $n)) return 5;
+    if (preg_match('/\blimone\b/', $n)) return 14;
+    if (preg_match('/\b(birra|beer)\b/', $n)) return 3;
+    if (preg_match('/\bvino\b/', $n)) return 5;
+    if (preg_match('/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/', $n)) return 4;
+    if (preg_match('/\b(banana|banane|mela|pera|pesca|albicocca|ciliegia|uva|fragola|lampone|kiwi)\b/', $n)) return 10;
+    if (preg_match('/\b(arancia|mandarino|pompelmo|clementina)\b/', $n)) return 14;
+    if (preg_match('/\b(carota|zucchina|peperone|melanzana|broccolo|cavolfiore|sedano|finocchio)\b/', $n)) return 7;
 
-    // Category fallbacks
-    if (preg_match('/dairy|latticin|lait|dairies/', $cat)) return 5;
-    if (preg_match('/meat|carne|meats/', $cat)) return 3;
+    // ── G: Fridge condiments — medium shelf-life ─────────────────────────
+    if (preg_match('/maionese|mayo|mayon/', $n)) return 90;
+    if (preg_match('/\bketchup\b/', $n)) return 90;
+    if (preg_match('/\b(senape|mustard)\b/', $n)) return 90;
+    if (preg_match('/salsa\s+di\s+soia|soy\s*sauce/', $n)) return 90;
+    if (preg_match('/\b(tabasco|worcestershire|sriracha)\b/', $n)) return 180;
+    if (preg_match('/confettura|marmellata/', $n)) return 60;
+    if (preg_match('/nutella|cioccolat/', $n)) return 60;
+
+    // ── H: Category fallbacks ────────────────────────────────────────────
+    if (preg_match('/dairy|latticin/', $cat)) return 5;
+    if (preg_match('/meat|carne/', $cat)) return 3;
     if (preg_match('/fish|pesce/', $cat)) return 2;
-    if (preg_match('/fruit|frutta/', $cat)) return 5;
-    if (preg_match('/verdur|vegetable|plant-based/', $cat)) return 5;
-    if (preg_match('/conserve/', $cat)) return 5;
-    if (preg_match('/condimenti|sauce/', $cat)) return 21;
-    if (preg_match('/bevand|beverage/', $cat)) return 4;
+    if (preg_match('/fruit|frutta/', $cat)) return 7;
+    if (preg_match('/verdur|vegetable/', $cat)) return 5;
+    if (preg_match('/conserve/', $cat)) return 7;
+    if (preg_match('/condimenti|sauce/', $cat)) return 30;
+    if (preg_match('/bevand|beverage/', $cat)) return 5;
 
     return 5; // safe default for fridge
 }

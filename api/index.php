@@ -800,6 +800,10 @@ function useFromInventory(PDO $db): void {
                 $openedDays = estimateOpenedExpiryDaysPHP($prodInfo['name'] ?? '', $prodInfo['category'] ?? '', $location);
                 if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
                 $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
+                // Respect original sealed expiry if it expires sooner
+                if (!empty($origRow['expiry_date']) && strtotime($origRow['expiry_date']) < strtotime($openedExpiry)) {
+                    $openedExpiry = $origRow['expiry_date'];
+                }
                 $stmt3 = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
                 $stmt3->execute([$productId, $location, $newFraction, $openedExpiry, $vacuum]);
                 $openedId = (int)$db->lastInsertId();
@@ -843,6 +847,10 @@ function useFromInventory(PDO $db): void {
             $openedDays = estimateOpenedExpiryDaysPHP($pName, $pCat, $location);
             if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
             $openedExpiry = date('Y-m-d', strtotime("+{$openedDays} days"));
+            // Respect original sealed expiry if it expires sooner
+            if (!empty($existing['expiry_date']) && strtotime($existing['expiry_date']) < strtotime($openedExpiry)) {
+                $openedExpiry = $existing['expiry_date'];
+            }
             $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
         } else {
@@ -1089,12 +1097,9 @@ function getStats(PDO $db): void {
             $openedDays = estimateOpenedExpiryDaysPHP($item['name'], $item['category'], $item['location']);
             if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
             $computedExpiry = strtotime($item['opened_at']) + $openedDays * 86400;
-            // Use the sooner of computed opened expiry vs original sealed expiry
-            if ($originalExpiry !== null) {
-                $finalExpiry = min($computedExpiry, $originalExpiry);
-            } else {
-                $finalExpiry = $computedExpiry;
-            }
+            // Use the computed opened expiry only — stored expiry_date may have been set by
+            // an older (inaccurate) estimation and would give wrong results if mixed in.
+            $finalExpiry = $computedExpiry;
             $item['opened_expiry'] = date('Y-m-d', $finalExpiry);
             $item['days_to_expiry'] = (int)round(($finalExpiry - $today) / 86400);
         } else {
@@ -1106,6 +1111,8 @@ function getStats(PDO $db): void {
         }
         $item['is_edible'] = $item['days_to_expiry'] === null || $item['days_to_expiry'] >= 0;
         $item['has_opened_at'] = !empty($item['opened_at']);
+        // Hide non-perishable items (salt, sugar, spirits, oil, etc.) — they won't expire usefully
+        if ($item['days_to_expiry'] !== null && $item['days_to_expiry'] > 365) continue;
         // Hide legacy fractional items (no opened_at) with far-off expiry — not useful for home widget
         if (!$item['has_opened_at'] && ($item['days_to_expiry'] === null || $item['days_to_expiry'] > 14)) continue;
         $opened[] = $item;
