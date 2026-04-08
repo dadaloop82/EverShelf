@@ -1079,13 +1079,12 @@ async function loadDashboard() {
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
-            // Sort by remaining fraction ascending (least remaining first)
-            statsData.opened.sort((a, b) => {
-                const fA = openedFraction(a), fB = openedFraction(b);
-                return fA - fB;
-            });
+            // Sorted server-side by days_to_expiry ASC
             openedSection.style.display = 'block';
-            openedList.innerHTML = statsData.opened.map(item => {
+            const MAX_SHOWN = 10;
+            const visible = statsData.opened.slice(0, MAX_SHOWN);
+            const extra = statsData.opened.length - visible.length;
+            openedList.innerHTML = visible.map(item => {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
                 const pkgSize = parseFloat(item.default_quantity);
@@ -1116,8 +1115,35 @@ async function loadDashboard() {
                         qtyText = `${qty}${unitLabel}`;
                     }
                 }
+
+                // Expiry badge
+                const days = item.days_to_expiry;
+                const isEdible = item.is_edible;
+                let expiryBadge = '';
+                if (days !== null && days !== undefined) {
+                    let expiryClass, expiryText;
+                    if (!isEdible) {
+                        expiryClass = 'opened-expiry-spoiled';
+                        expiryText = '⛔ Scaduto!';
+                    } else if (days === 0) {
+                        expiryClass = 'opened-expiry-today';
+                        expiryText = '⚠️ Scade oggi!';
+                    } else if (days <= 2) {
+                        expiryClass = 'opened-expiry-urgent';
+                        expiryText = `⏰ Scade fra ${days}gg`;
+                    } else if (days <= 5) {
+                        expiryClass = 'opened-expiry-soon';
+                        expiryText = `⏰ Scade fra ${days}gg`;
+                    } else {
+                        expiryClass = 'opened-expiry-ok';
+                        expiryText = `✅ Ancora ${days}gg`;
+                    }
+                    const vacuumNote = item.vacuum_sealed ? ' 🔒' : '';
+                    expiryBadge = `<span class="alert-item-badge opened-expiry ${expiryClass}">${expiryText}${vacuumNote}</span>`;
+                }
+
                 return `
-                <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
+                <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -1125,9 +1151,10 @@ async function loadDashboard() {
                     <div class="alert-item-badges">
                         <span class="alert-item-qty">${locInfo.icon} ${locInfo.label}</span>
                         <span class="alert-item-badge opened">${qtyText}</span>
+                        ${expiryBadge}
                     </div>
                 </div>`;
-            }).join('');
+            }).join('') + (extra > 0 ? `<div class="alert-more-note">e altri ${extra} prodotti aperti...</div>` : '');
         } else {
             openedSection.style.display = 'none';
         }

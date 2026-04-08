@@ -1055,23 +1055,70 @@ function getStats(PDO $db): void {
         ORDER BY i.expiry_date ASC
     ")->fetchAll();
     
-    // Opened (partially used items with known package capacity)
-    $opened = $db->query("
+    // Opened (items with opened_at set by the app, OR fractional-qty items as legacy fallback)
+    // opened_at IS NOT NULL → already has recalculated expiry_date stored when first opened
+    $openedRaw = $db->query("
         SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit, p.image_url,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
-        FROM inventory i JOIN products p ON i.product_id = p.id 
-        WHERE i.quantity > 0 AND p.default_quantity > 0
+        FROM inventory i JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
           AND (
-            -- conf products with fractional quantity
-            (p.unit = 'conf' AND p.package_unit IS NOT NULL
-              AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL))
+            -- Primary: tracked as opened by the app (expiry_date already recalculated)
+            i.opened_at IS NOT NULL
             OR
-            -- non-conf products where quantity is not a clean multiple of package size (>2% tolerance)
-            (p.unit != 'conf'
-              AND ABS(i.quantity - ROUND(CAST(i.quantity AS REAL) / p.default_quantity) * p.default_quantity) > (p.default_quantity * 0.02))
+            -- Fallback: fractional quantity pattern (legacy items before opened_at tracking)
+            (p.default_quantity > 0 AND (
+              (p.unit = 'conf' AND p.package_unit IS NOT NULL
+                AND CAST(i.quantity AS REAL) != CAST(CAST(i.quantity AS INTEGER) AS REAL))
+              OR
+              (p.unit != 'conf'
+                AND ABS(i.quantity - ROUND(CAST(i.quantity AS REAL) / p.default_quantity) * p.default_quantity) > (p.default_quantity * 0.02))
+            ))
           )
-        ORDER BY i.updated_at DESC
     ")->fetchAll();
+
+    // Compute opened_expiry and days_to_expiry for each opened item
+    $opened = [];
+    $today = strtotime('today midnight');
+    foreach ($openedRaw as $item) {
+        $vacuum = (int)($item['vacuum_sealed'] ?? 0);
+        $originalExpiry = !empty($item['expiry_date']) ? strtotime($item['expiry_date']) : null;
+
+        if (!empty($item['opened_at'])) {
+            // Compute the opened shelf-life from the moment it was opened
+            $openedDays = estimateOpenedExpiryDaysPHP($item['name'], $item['category'], $item['location']);
+            if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
+            $computedExpiry = strtotime($item['opened_at']) + $openedDays * 86400;
+            // Use the sooner of computed opened expiry vs original sealed expiry
+            if ($originalExpiry !== null) {
+                $finalExpiry = min($computedExpiry, $originalExpiry);
+            } else {
+                $finalExpiry = $computedExpiry;
+            }
+            $item['opened_expiry'] = date('Y-m-d', $finalExpiry);
+            $item['days_to_expiry'] = (int)round(($finalExpiry - $today) / 86400);
+        } else {
+            // Legacy: no opened_at, use stored expiry_date as-is
+            $item['opened_expiry'] = $item['expiry_date'] ?? null;
+            $item['days_to_expiry'] = $originalExpiry !== null
+                ? (int)round(($originalExpiry - $today) / 86400)
+                : null;
+        }
+        $item['is_edible'] = $item['days_to_expiry'] === null || $item['days_to_expiry'] >= 0;
+        $item['has_opened_at'] = !empty($item['opened_at']);
+        // Hide legacy fractional items (no opened_at) with far-off expiry — not useful for home widget
+        if (!$item['has_opened_at'] && ($item['days_to_expiry'] === null || $item['days_to_expiry'] > 14)) continue;
+        $opened[] = $item;
+    }
+    // Sort by days_to_expiry ascending (soonest first; nulls last)
+    usort($opened, function($a, $b) {
+        $da = $a['days_to_expiry'];
+        $db2 = $b['days_to_expiry'];
+        if ($da === null && $db2 === null) return 0;
+        if ($da === null) return 1;
+        if ($db2 === null) return -1;
+        return $da <=> $db2;
+    });
 
     // Waste vs consumption stats (last 30 days)
     $wasteStats = $db->query("
