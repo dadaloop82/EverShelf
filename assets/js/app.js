@@ -2987,11 +2987,15 @@ function showProductAction() {
                     <span class="btn-text">MODIFICA<br><small>scadenza, luogo…</small></span>
                 </button>
             `;
-            // Secondary: catalog edit link below the buttons
-            const catalogLink = document.createElement('div');
-            catalogLink.style.cssText = 'text-align:center;margin-top:6px';
+            // Secondary: catalog edit link below the buttons (one instance only)
+            let catalogLink = document.getElementById('catalog-edit-link');
+            if (!catalogLink) {
+                catalogLink = document.createElement('div');
+                catalogLink.id = 'catalog-edit-link';
+                catalogLink.style.cssText = 'text-align:center;margin-top:6px';
+                btnsContainer.after(catalogLink);
+            }
             catalogLink.innerHTML = `<button type="button" class="btn-link-small" onclick="editProductFromAction()">⚙️ Modifica scheda prodotto (nome, marca, categoria…)</button>`;
-            btnsContainer.after(catalogLink);
         } else {
             // Product NOT in inventory - show only AGGIUNGI
             statusBar.style.display = 'none';
@@ -3002,6 +3006,9 @@ function showProductAction() {
                     <span class="btn-text">AGGIUNGI<br><small>in dispensa/frigo</small></span>
                 </button>
             `;
+            // Remove catalog-edit link if left over from a previous product
+            const orphan = document.getElementById('catalog-edit-link');
+            if (orphan) orphan.remove();
         }
     });
     
