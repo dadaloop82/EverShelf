@@ -447,15 +447,25 @@ function estimateOpenedExpiryDays(product, location) {
     if (/\b(pollo|tacchino|maiale|manzo|vitello|agnello)\b/.test(name)) return 2;
     if (/salmone|tonno\s+fresco|pesce(?!\s+in)/.test(name)) return 2;
     if (/\b(passata|pelati|polpa|sugo|salsa\s+di\s+pomodoro)\b/.test(name)) return 5;
-    if (/insalata|rucola|spinaci|lattuga/.test(name)) return 4;
-    if (/\b(succo|spremuta)\b/.test(name)) return 5;
-    if (/\blimone\b/.test(name)) return 14;
+    if (/insalata|rucola|spinaci|lattuga|crescione|germogli/.test(name)) return 2;
+    if (/\b(succo|spremuta)\b/.test(name)) return 3;
     if (/\b(birra|beer)\b/.test(name)) return 3;
     if (/\bvino\b/.test(name)) return 5;
     if (/tonno\s+in\s+scatola|tonno\s+rio|sgombro\s+in/.test(name)) return 4;
-    if (/\b(banana|banane|mela|pera|pesca|albicocca|ciliegia|uva|fragola|lampone|kiwi)\b/.test(name)) return 10;
-    if (/\b(arancia|mandarino|pompelmo|clementina)\b/.test(name)) return 14;
-    if (/\b(carota|zucchina|peperone|melanzana|broccolo|cavolfiore|sedano|finocchio)\b/.test(name)) return 7;
+    // Fruit opened/cut in fridge
+    if (/\bavocado\b/.test(name)) return 2;
+    if (/\b(banana|banane|fragola|lampone|pesca|albicocca|ciliegia|mango|papaya)\b/.test(name)) return 2;
+    if (/\b(mela|pera|nettarina|prugna|kiwi|ananas|uva|melone|anguria)\b/.test(name)) return 3;
+    if (/\b(arancia|mandarino|pompelmo|clementina|limone)\b/.test(name)) return 3;
+    // Vegetables opened/cut in fridge
+    if (/\b(zucchina|zucchine|melanzana|pomodor)\b/.test(name)) return 3;
+    if (/\b(peperone|peperoni)\b/.test(name)) return 3;
+    if (/\b(broccolo|broccoli|cavolfiore|cavolo)\b/.test(name)) return 3;
+    if (/\bsedano\b|\bfinocchio\b/.test(name)) return 3;
+    if (/\b(cipolla|cipolle|cipollotto|scalogno|porro)\b/.test(name)) return 4;
+    if (/\b(carota|carote)\b/.test(name)) return 5;
+    if (/\b(patata|patate|tubero)\b/.test(name)) return 3;
+    if (/\baglio\b/.test(name)) return 10;
 
     // ── G: Fridge condiments ─────────────────────────────────────────────
     if (/maionese|mayo|mayon/.test(name)) return 90;

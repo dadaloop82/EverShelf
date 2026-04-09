@@ -1364,7 +1364,7 @@ function geminiChat(PDO $db): void {
 
     // Fetch inventory context
     $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date,
+        SELECT p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -1381,6 +1381,9 @@ function geminiChat(PDO $db): void {
         if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
             $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
         }
+        $isOpen = !empty($item['opened_at']) ||
+                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        if ($isOpen) $line .= ' [APERTO]';
         if ($item['expiry_date']) {
             $daysLeft = intval($item['days_left']);
             if ($daysLeft < 0) {
@@ -1527,7 +1530,7 @@ function generateRecipe(PDO $db): void {
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date,
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -1542,10 +1545,14 @@ function generateRecipe(PDO $db): void {
     }
 
     // Helper to compute priority group for an item:
-    // 1=scaduto, 2=scadenza imminente ≤3gg, 3=scadenza ravvicinata ≤7gg, 4=scadenza lontana, 5=confezione aperta, 6=chiuso
+    // 1=scaduto, 2=scadenza imminente ≤3gg, 3=scadenza ravvicinata ≤7gg,
+    // 4=scadenza lontana, 5=aperto (opened_at set o conf parziale), 6=chiuso
     $getItemPriority = function($item) {
         $daysLeft = floatval($item['days_left']);
-        $isOpen = (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        // "Aperto" = opened_at è impostato (frutta/verdura/qualsiasi cosa usata parzialmente)
+        //             OPPURE confezione parzialmente usata (qty < 1 conf)
+        $isOpen = !empty($item['opened_at']) ||
+                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
         if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
         if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
         if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
@@ -1568,7 +1575,7 @@ function generateRecipe(PDO $db): void {
         2 => '🔴 SCADENZA IMMINENTE (entro 3 giorni - USA PER PRIMI)',
         3 => '🟠 SCADENZA RAVVICINATA (entro 7 giorni)',
         4 => '🟡 ALTRI PRODOTTI CON SCADENZA',
-        5 => '📦 CONFEZIONI APERTE (da consumare prima dei chiusi)',
+        5 => '📦 PRODOTTI APERTI (già aperti/tagliati — da consumare prima delle confezioni chiuse)',
         6 => '🟢 ALTRI PRODOTTI',
     ];
     $priorityGroups = [];
@@ -1591,8 +1598,10 @@ function generateRecipe(PDO $db): void {
             $line .= " [FRIGO]";
         }
         $qty = floatval($item['quantity']);
-        if ($qty > 0 && $qty < 1 && $item['unit'] === 'conf') {
-            $line .= " [APERTO]";
+        $isOpen = !empty($item['opened_at']) ||
+                  ($qty > 0 && $qty < 1 && $item['unit'] === 'conf');
+        if ($isOpen) {
+            $line .= ' [APERTO]';
         }
         $line .= " (in {$item['location']})";
 
@@ -1619,10 +1628,18 @@ function generateRecipe(PDO $db): void {
     foreach ($items as $item) {
         $g = $getItemPriority($item);
         $daysLeft = floatval($item['days_left']);
-        $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . " — scade: {$item['expiry_date']}";
+        $isOpen = !empty($item['opened_at']) ||
+                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        $expiryNote = !empty($item['expiry_date']) ? " — scade: {$item['expiry_date']}" : '';
+        $openNote   = $isOpen ? ' [APERTO]' : '';
+        $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
         if ($g === 1 || ($g === 2 && $daysLeft <= 1)) {
             $mandatoryItems[] = $label;
         } elseif ($g === 2) {
+            $recommendedItems[] = $label;
+        } elseif ($isOpen && $daysLeft <= 5 && $daysLeft >= 0) {
+            // Opened items expiring within 5 days but not already in mandatory/recommended
+            // → bump to "strongly recommended" so the AI knows to use them
             $recommendedItems[] = $label;
         }
     }
@@ -1632,7 +1649,7 @@ function generateRecipe(PDO $db): void {
         $mustUseText .= "\n\n⚠️⚠️⚠️ INGREDIENTI OBBLIGATORI (SCADUTI O IN SCADENZA OGGI/DOMANI) ⚠️⚠️⚠️\nLa ricetta DEVE usare ALMENO uno (meglio se tutti) di questi ingredienti come ingrediente PRINCIPALE. Non sono opzionali!\n" . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
     }
     if (!empty($recommendedItems)) {
-        $mustUseText .= "\n\n🔶 INGREDIENTI FORTEMENTE CONSIGLIATI (scadono tra 2-3 giorni)\nCerca di includerli se la ricetta lo permette, ma non è obbligatorio se non si abbinano bene:\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
+        $mustUseText .= "\n\n🔶 INGREDIENTI FORTEMENTE CONSIGLIATI (aperti e/o in scadenza a breve)\nSono già aperti e/o scadono presto — includi più di questi possibile nella ricetta:\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
     }
 
     $mealLabels = [
