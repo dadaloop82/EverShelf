@@ -8620,12 +8620,22 @@ document.addEventListener('DOMContentLoaded', () => {
     initScreensaverShortcuts();
     startBgShoppingRefresh();
 
-    // Auto-refresh Bring list when user returns to the browser tab (e.g. was in the Bring app)
+    // ── Auto-refresh dati ogni 10 minuti ──────────────────────────────────
+    // Garantisce che scadenze e contatori si aggiornino anche senza toccare
+    // la schermata (es. pagina aperta tutta la notte).
+    const DATA_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minuti
+    setInterval(() => {
+        if (!_screensaverActive) {
+            refreshCurrentPage();
+        }
+    }, DATA_REFRESH_INTERVAL);
+    // Aggiorna anche quando la tab torna visibile dopo essere stata in background
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && _currentPageId === 'shopping') {
-            loadShoppingList();
+        if (!document.hidden) {
+            refreshCurrentPage();
         }
     });
+    // ─────────────────────────────────────────────────────────────────────
 
     // Silent background sync: update urgency specs on Bring and add missing critical items
     // Runs once at startup (time-gated: max every 10 min) without affecting the UI
