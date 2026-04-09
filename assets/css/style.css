@@ -2352,6 +2352,18 @@ body {
     font-weight: 500;
 }
 
+#use-expiry-hint {
+    background: #fef3c7;
+    border: 1.5px solid #f59e0b;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: #92400e;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
 /* ===== EMPTY STATE ===== */
 .empty-state {
     text-align: center;

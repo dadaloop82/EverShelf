@@ -3971,6 +3971,52 @@ function renderUsePreview() {
 let _useConfMode = null; // null = normal, { packageSize, packageUnit, totalSub, unit } = conf mode active
 let _useNormalUnit = 'pz'; // unit when not in conf mode
 
+/**
+ * Mostra un suggerimento giallo sotto le info inventario quando ci sono più
+ * confezioni con scadenze diverse (o in posti diversi con scadenze diverse).
+ * Es: "⚠️ Usa prima quella in Frigo — scade il 12/04 (tra 3 giorni)!"
+ */
+function _renderUseExpiryHint(items) {
+    const hintEl = document.getElementById('use-expiry-hint');
+
+    // Filtra solo item con scadenza e quantità > 0
+    const withExpiry = items.filter(i => i.expiry_date && parseFloat(i.quantity) > 0);
+
+    // Serve almeno 2 item con scadenze diverse (o locazioni diverse con scadenze)
+    if (withExpiry.length < 2) { hintEl.style.display = 'none'; return; }
+
+    const dates = withExpiry.map(i => i.expiry_date);
+    const uniqueDates = new Set(dates);
+    const uniqueLocs  = new Set(withExpiry.map(i => i.location));
+
+    // Mostra hint se scadenze diverse OPPURE stessa scadenza ma luoghi diversi
+    if (uniqueDates.size < 2 && uniqueLocs.size < 2) { hintEl.style.display = 'none'; return; }
+
+    // Trova il più vicino alla scadenza
+    withExpiry.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+    const soonest = withExpiry[0];
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const expDate = new Date(soonest.expiry_date);
+    const diffDays = Math.round((expDate - today) / 86400000);
+
+    const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
+    const dateStr  = expDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+
+    let whenStr;
+    if (diffDays < 0)       whenStr = `scaduta da ${-diffDays} giorn${-diffDays === 1 ? 'o' : 'i'}`;
+    else if (diffDays === 0) whenStr = 'scade <strong>oggi</strong>';
+    else if (diffDays === 1) whenStr = 'scade <strong>domani</strong>';
+    else                     whenStr = `scade tra <strong>${diffDays} giorni</strong>`;
+
+    const locLabel = uniqueLocs.size > 1
+        ? ` (${locInfo.icon} ${locInfo.label})`
+        : '';
+
+    hintEl.innerHTML = `⚠️ Usa prima quella${locLabel} che scade il <strong>${dateStr}</strong> — ${whenStr}!`;
+    hintEl.style.display = 'block';
+}
+
 async function loadUseInventoryInfo() {
     try {
         const data = await api('inventory_list');
@@ -3982,8 +4028,13 @@ async function loadUseInventoryInfo() {
             infoEl.innerHTML = '⚠️ Prodotto non presente nell\'inventario.';
             unitSwitch.style.display = 'none';
             _useConfMode = null;
+            document.getElementById('use-expiry-hint').style.display = 'none';
             return;
         }
+
+        // ── Suggerisci quale confezione usare per prima ──────────────────
+        _renderUseExpiryHint(items);
+        // ─────────────────────────────────────────────────────────────────
 
         // Auto-select the location with an opened package first (use from opened before sealed)
         const openedItem = items.find(i => {
