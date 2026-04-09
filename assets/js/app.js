@@ -942,6 +942,9 @@ function refreshCurrentPage() {
         case 'inventory': loadInventory(); break;
         case 'shopping': loadShoppingList(); break;
         case 'products': loadAllProducts(); break;
+        case 'recipe':   loadRecipeArchive(); break;
+        case 'log':      loadLog(); break;
+        // scan/ai/settings/chat: nessun dato live da ricaricare
     }
 }
 
@@ -8620,20 +8623,28 @@ document.addEventListener('DOMContentLoaded', () => {
     initScreensaverShortcuts();
     startBgShoppingRefresh();
 
-    // ── Auto-refresh dati ogni 10 minuti ──────────────────────────────────
-    // Garantisce che scadenze e contatori si aggiornino anche senza toccare
-    // la schermata (es. pagina aperta tutta la notte).
-    const DATA_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minuti
+    // ── Auto-refresh dati ─────────────────────────────────────────────────
+    // 1) Ogni 5 minuti: ricarica la pagina corrente (scadenze, inventario, ecc.)
     setInterval(() => {
-        if (!_screensaverActive) {
-            refreshCurrentPage();
+        if (!_screensaverActive) refreshCurrentPage();
+    }, 5 * 60 * 1000);
+
+    // 2) Ogni 2 minuti: aggiorna lista spesa in background (anche se non sei
+    //    sulla pagina Shopping), così i prodotti aggiunti da un altro dispositivo
+    //    su Bring! appaiono subito quando torni sulla schermata.
+    setInterval(() => {
+        if (_screensaverActive) return;
+        if (_currentPageId === 'shopping') {
+            loadShoppingList(); // già visibile → aggiorna tutto
+        } else {
+            // Aggiorna solo il badge/contatore senza cambiare pagina
+            loadShoppingCount();
         }
-    }, DATA_REFRESH_INTERVAL);
-    // Aggiorna anche quando la tab torna visibile dopo essere stata in background
+    }, 2 * 60 * 1000);
+
+    // 3) Aggiorna immediatamente quando la tab torna visibile (es. torni da Bring! app)
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            refreshCurrentPage();
-        }
+        if (!document.hidden) refreshCurrentPage();
     });
     // ─────────────────────────────────────────────────────────────────────
 
