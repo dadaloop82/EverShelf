@@ -268,10 +268,13 @@ The application uses no build tools — edit files directly and refresh.
 
 ## 📋 Roadmap
 
-- [ ] Multi-language support (i18n)
+- [x] Multi-language support (i18n) — 3 languages (it/en/de), 347 keys
 - [ ] User authentication / multi-user support
-- [ ] Docker container for easy deployment
+- [x] Docker container for easy deployment — see [Dockerfile](Dockerfile) + [docker-compose.yml](docker-compose.yml)
 - [x] REST API documentation (OpenAPI/Swagger) — see [docs/openapi.yaml](docs/openapi.yaml)
+- [x] First-run setup wizard — 4-step guided configuration
+- [x] API rate limiting — file-based, 3 tiers (120/15/5 req/min)
+- [x] CI/CD pipeline — GitHub Actions (lint, Docker build, translation validation)
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products
