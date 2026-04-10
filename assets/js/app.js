@@ -850,11 +850,23 @@ async function loadSettingsUI() {
         s.tts_auth_type = s.tts_auth_type || 'bearer';
         s.tts_content_type = s.tts_content_type || 'application/json';
         s.tts_enabled = s.tts_enabled !== undefined ? s.tts_enabled : false;
+        // Default engine: 'server' if a URL was already configured, else 'browser'
+        if (!s.tts_engine) s.tts_engine = s.tts_url ? 'server' : 'browser';
+        s.tts_voice = s.tts_voice || '';
+        s.tts_rate = s.tts_rate !== undefined ? s.tts_rate : 1;
+        s.tts_pitch = s.tts_pitch !== undefined ? s.tts_pitch : 1;
         s._tts_initialized = true;
         saveSettingsToStorage(s);
     }
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
+    const ttsEngineEl = document.getElementById('setting-tts-engine');
+    if (ttsEngineEl) { ttsEngineEl.value = s.tts_engine || 'browser'; onTtsEngineChange(ttsEngineEl.value); }
+    const ttsRateEl = document.getElementById('setting-tts-rate');
+    if (ttsRateEl) { ttsRateEl.value = s.tts_rate || 1; document.getElementById('tts-rate-label').textContent = parseFloat(s.tts_rate || 1).toFixed(1); }
+    const ttsPitchEl = document.getElementById('setting-tts-pitch');
+    if (ttsPitchEl) { ttsPitchEl.value = s.tts_pitch || 1; document.getElementById('tts-pitch-label').textContent = parseFloat(s.tts_pitch || 1).toFixed(1); }
+    _initBrowserTtsVoices(s.tts_voice || '');
     const ttsUrlEl = document.getElementById('setting-tts-url');
     if (ttsUrlEl) ttsUrlEl.value = s.tts_url || '';
     const ttsMethEl = document.getElementById('setting-tts-method');
@@ -993,6 +1005,14 @@ async function saveSettings() {
     if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
     const ttsUrlEl2 = document.getElementById('setting-tts-url');
     if (ttsUrlEl2) s.tts_url = ttsUrlEl2.value.trim();
+    const ttsEngineEl2 = document.getElementById('setting-tts-engine');
+    if (ttsEngineEl2) s.tts_engine = ttsEngineEl2.value;
+    const ttsVoiceEl2 = document.getElementById('setting-tts-voice');
+    if (ttsVoiceEl2) s.tts_voice = ttsVoiceEl2.value;
+    const ttsRateEl2 = document.getElementById('setting-tts-rate');
+    if (ttsRateEl2) s.tts_rate = parseFloat(ttsRateEl2.value) || 1;
+    const ttsPitchEl2 = document.getElementById('setting-tts-pitch');
+    if (ttsPitchEl2) s.tts_pitch = parseFloat(ttsPitchEl2.value) || 1;
     const ttsMethEl2 = document.getElementById('setting-tts-method');
     if (ttsMethEl2) s.tts_method = ttsMethEl2.value;
     const ttsAuthTypeEl2 = document.getElementById('setting-tts-auth-type');
@@ -7597,8 +7617,12 @@ async function speakCookingStep(text) {
     const s = getSettings();
     if (!s.tts_enabled) return;
     try {
-        const req = _buildTtsRequest(text, s);
-        await _ttsViaProxy(req);
+        if ((s.tts_engine || 'browser') === 'browser') {
+            _speakBrowser(text);
+        } else {
+            const req = _buildTtsRequest(text, s);
+            await _ttsViaProxy(req);
+        }
     } catch(e) { /* silent — TTS is non-critical */ }
 }
 
@@ -7616,9 +7640,87 @@ function onTtsAuthTypeChange(type) {
     if (headerGroup) headerGroup.style.display = type === 'header' ? '' : 'none';
 }
 
+function onTtsEngineChange(engine) {
+    const browserSect = document.getElementById('tts-browser-section');
+    const serverSect = document.getElementById('tts-server-section');
+    if (browserSect) browserSect.style.display = engine === 'browser' ? '' : 'none';
+    if (serverSect) serverSect.style.display = engine === 'server' ? '' : 'none';
+}
+
+/** Populate voice selector from Web Speech API. Called on settings load and on voiceschanged. */
+function _initBrowserTtsVoices(selectedVoice) {
+    const sel = document.getElementById('setting-tts-voice');
+    if (!sel || !window.speechSynthesis) return;
+
+    const populate = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+        // Italian voices first, then others
+        const it = voices.filter(v => v.lang.startsWith('it'));
+        const others = voices.filter(v => !v.lang.startsWith('it'));
+        const sorted = [...it, ...others];
+        sel.innerHTML = sorted.map(v =>
+            `<option value="${v.name}" ${v.name === selectedVoice ? 'selected' : ''}>${v.name} (${v.lang})${v.localService ? '' : ' ☁️'}</option>`
+        ).join('');
+        // Auto-select Paola if no preference and it exists
+        if (!selectedVoice) {
+            const paola = sorted.find(v => v.name === 'Paola');
+            const firstIt = sorted.find(v => v.lang.startsWith('it'));
+            if (paola) sel.value = paola.name;
+            else if (firstIt) sel.value = firstIt.name;
+        }
+    };
+
+    populate();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = populate;
+    }
+}
+
+/** Speak text using the browser Web Speech API (offline). */
+function _speakBrowser(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const s = getSettings();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = parseFloat(s.tts_rate) || 1;
+    utt.pitch = parseFloat(s.tts_pitch) || 1;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name === s.tts_voice);
+    if (preferred) {
+        utt.voice = preferred;
+        utt.lang = preferred.lang;
+    } else {
+        utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
+    }
+    window.speechSynthesis.speak(utt);
+}
+
 async function testTTS() {
     const statusEl = document.getElementById('tts-test-status');
-    // Build settings from current form values (before saving)
+    const enabled = document.getElementById('setting-tts-enabled')?.checked;
+    if (!enabled) {
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
+        return;
+    }
+    const engine = document.getElementById('setting-tts-engine')?.value || 'browser';
+    if (engine === 'browser') {
+        if (!window.speechSynthesis) {
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
+            return;
+        }
+        // Temporarily apply form values for the test
+        const s = getSettings();
+        const voiceName = document.getElementById('setting-tts-voice')?.value;
+        s.tts_voice = voiceName || s.tts_voice;
+        s.tts_rate = parseFloat(document.getElementById('setting-tts-rate')?.value) || 1;
+        s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
+        saveSettingsToStorage(s);
+        _speakBrowser('Test vocale Dispensa Manager. La sintesi vocale funziona correttamente.');
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Riproduzione in corso — controlla l\'audio del dispositivo.'; }
+        return;
+    }
+    // Server engine
     let extraFields = {};
     try { extraFields = JSON.parse((document.getElementById('setting-tts-extra-fields')?.value || '{}').trim() || '{}'); } catch(e) { /* ignore */ }
     const formSettings = {
@@ -7632,11 +7734,6 @@ async function testTTS() {
         tts_payload_key: (document.getElementById('setting-tts-payload-key')?.value || '').trim() || 'message',
         tts_extra_fields: document.getElementById('setting-tts-extra-fields')?.value || ''
     };
-    const enabled = document.getElementById('setting-tts-enabled')?.checked;
-    if (!enabled) {
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
-        return;
-    }
     if (!formSettings.tts_url) {
         if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ URL endpoint mancante.'; }
         return;
