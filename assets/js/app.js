@@ -8821,10 +8821,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== SETUP WIZARD =====
 let _setupStep = 0;
+let _setupPendingSteps = [];
 const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '' };
 
-function _isFirstRun() {
-    return !localStorage.getItem('dispensa_setup_done');
+/**
+ * Returns indices of setup steps that still need configuration.
+ * Existing settings are never overwritten — only missing ones trigger the wizard.
+ */
+function _getMissingSetupSteps() {
+    const missing = [];
+    const s = getSettings();
+
+    // Step 0 — language: missing only if never set at all (fresh install)
+    if (!localStorage.getItem('dispensa_lang') && !localStorage.getItem('dispensa_setup_done')) {
+        missing.push(0);
+    }
+    // Step 1 — Gemini API key
+    if (!s.gemini_key) missing.push(1);
+    // Step 2 — Bring! credentials (both must be set)
+    if (!s.bring_email || !s.bring_password) missing.push(2);
+    // Note: step 3 (done screen) gets appended automatically when there are missing steps
+
+    return missing;
 }
 
 function _setupSteps() {
@@ -8884,18 +8902,29 @@ function _setupSteps() {
     ];
 }
 
-function showSetupWizard() {
+function showSetupWizard(pendingSteps) {
+    _setupPendingSteps = pendingSteps || _getMissingSetupSteps();
+    if (_setupPendingSteps.length === 0) return;
+    // Append the "done" step (3) at the end
+    _setupPendingSteps.push(3);
     _setupStep = 0;
+    // Pre-fill _setupData from existing settings so we don't lose them
+    const s = getSettings();
+    if (s.gemini_key) _setupData.gemini_key = s.gemini_key;
+    if (s.bring_email) _setupData.bring_email = s.bring_email;
+    if (s.bring_password) _setupData.bring_password = s.bring_password;
     document.getElementById('setup-wizard').style.display = '';
     _renderSetupStep();
 }
 
 function _renderSetupStep() {
-    const steps = _setupSteps();
-    const step = steps[_setupStep];
+    const allSteps = _setupSteps();
+    const totalPending = _setupPendingSteps.length;
+    const realIndex = _setupPendingSteps[_setupStep];
+    const step = allSteps[realIndex];
 
-    // Progress dots
-    const dotsHtml = steps.map((_, i) => {
+    // Progress dots (based on pending steps only)
+    const dotsHtml = _setupPendingSteps.map((_, i) => {
         let cls = 'setup-dot';
         if (i < _setupStep) cls += ' done';
         if (i === _setupStep) cls += ' active';
@@ -8912,7 +8941,7 @@ function _renderSetupStep() {
     prevBtn.style.display = _setupStep > 0 ? '' : 'none';
     prevBtn.textContent = t('btn.back');
 
-    if (_setupStep === steps.length - 1) {
+    if (_setupStep === totalPending - 1) {
         nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : '🚀 Start!';
     } else {
         nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : 'Next →';
@@ -8931,10 +8960,11 @@ function _setupSkipStep() {
 }
 
 function _setupCollectCurrent() {
-    if (_setupStep === 1) {
+    const realIndex = _setupPendingSteps[_setupStep];
+    if (realIndex === 1) {
         const el = document.getElementById('setup-gemini-key');
         if (el) _setupData.gemini_key = el.value.trim();
-    } else if (_setupStep === 2) {
+    } else if (realIndex === 2) {
         const email = document.getElementById('setup-bring-email');
         const pass = document.getElementById('setup-bring-password');
         if (email) _setupData.bring_email = email.value.trim();
@@ -8944,24 +8974,25 @@ function _setupCollectCurrent() {
 
 function setupWizardNav(dir) {
     _setupCollectCurrent();
-    const steps = _setupSteps();
+    const totalPending = _setupPendingSteps.length;
+    const realIndex = _setupPendingSteps[_setupStep];
 
-    if (dir === 1 && _setupStep === steps.length - 1) {
-        // Finish wizard
+    if (dir === 1 && _setupStep === totalPending - 1) {
         _finishSetup();
         return;
     }
 
     // If language changed, apply it
-    if (_setupStep === 0 && dir === 1 && _setupData.lang !== _currentLang) {
+    if (realIndex === 0 && dir === 1 && _setupData.lang !== _currentLang) {
         localStorage.setItem('dispensa_lang', _setupData.lang);
-        localStorage.setItem('dispensa_setup_step', '1');
+        localStorage.setItem('dispensa_setup_step', String(_setupStep + 1));
+        localStorage.setItem('dispensa_setup_pending', JSON.stringify(_setupPendingSteps));
         localStorage.setItem('dispensa_setup_data', JSON.stringify(_setupData));
         location.reload();
         return;
     }
 
-    _setupStep = Math.max(0, Math.min(steps.length - 1, _setupStep + dir));
+    _setupStep = Math.max(0, Math.min(totalPending - 1, _setupStep + dir));
     _renderSetupStep();
 }
 
@@ -8992,15 +9023,22 @@ function _initApp() {
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('dispensa_setup_step');
     const resumeData = localStorage.getItem('dispensa_setup_data');
-    if (resumeStep) {
+    const resumePending = localStorage.getItem('dispensa_setup_pending');
+    if (resumeStep && resumePending) {
         try { Object.assign(_setupData, JSON.parse(resumeData)); } catch(e) {}
+        try { _setupPendingSteps = JSON.parse(resumePending); } catch(e) {}
         _setupStep = parseInt(resumeStep) || 0;
         localStorage.removeItem('dispensa_setup_step');
         localStorage.removeItem('dispensa_setup_data');
+        localStorage.removeItem('dispensa_setup_pending');
         document.getElementById('setup-wizard').style.display = '';
         _renderSetupStep();
-    } else if (_isFirstRun()) {
-        showSetupWizard();
+    } else {
+        // Check for any missing settings and show wizard only for those
+        const missing = _getMissingSetupSteps();
+        if (missing.length > 0) {
+            showSetupWizard(missing);
+        }
     }
 
     // Migrate old session-based flags to time-based
