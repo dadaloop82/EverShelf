@@ -1,6 +1,10 @@
 /**
  * Dispensa Manager - Main Application JS
- * Complete pantry management with barcode scanning and AI identification
+ * Complete pantry management with barcode scanning, AI identification,
+ * Bring! shopping list integration, recipe generation, and TTS cooking mode.
+ *
+ * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @license MIT
  */
 
 // ===== REMOTE LOGGING =====
@@ -722,13 +726,13 @@ async function loadSettingsUI() {
     }
     // TTS settings — init defaults on first load
     if (!s._tts_initialized) {
-        s.tts_url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
-        s.tts_token = s.tts_token || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI2OGQ3Njk1N2E0MjY0ZTBjOWQ4YjczZDY4ZDVmMWJlZCIsImlhdCI6MTc2MDI1NjIxNSwiZXhwIjoyMDc1NjE2MjE1fQ.X5UyMMPd7wTA6Gh11Nzg7Ox-enlDDom_lJIAJruUtcE';
+        s.tts_url = s.tts_url || '';
+        s.tts_token = s.tts_token || '';
         s.tts_payload_key = s.tts_payload_key || 'message';
         s.tts_method = s.tts_method || 'POST';
         s.tts_auth_type = s.tts_auth_type || 'bearer';
         s.tts_content_type = s.tts_content_type || 'application/json';
-        s.tts_enabled = s.tts_enabled !== undefined ? s.tts_enabled : true;
+        s.tts_enabled = s.tts_enabled !== undefined ? s.tts_enabled : false;
         s._tts_initialized = true;
         saveSettingsToStorage(s);
     }
@@ -761,6 +765,21 @@ async function loadSettingsUI() {
         }
         if (!s.bring_email && serverSettings.bring_email) {
             document.getElementById('setting-bring-email').value = serverSettings.bring_email;
+        }
+        // Load TTS defaults from server .env if not set locally
+        if (!s.tts_url && serverSettings.tts_url) {
+            s.tts_url = serverSettings.tts_url;
+            s.tts_token = serverSettings.tts_token || '';
+            s.tts_method = serverSettings.tts_method || 'POST';
+            s.tts_auth_type = serverSettings.tts_auth_type || 'bearer';
+            s.tts_content_type = serverSettings.tts_content_type || 'application/json';
+            s.tts_payload_key = serverSettings.tts_payload_key || 'message';
+            s.tts_enabled = serverSettings.tts_enabled || false;
+            saveSettingsToStorage(s);
+            // Update UI fields with server values
+            if (ttsUrlEl) ttsUrlEl.value = s.tts_url;
+            if (ttsTokenEl) ttsTokenEl.value = s.tts_token;
+            if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled;
         }
     } catch(e) { /* ignore */ }
 }
@@ -7416,7 +7435,7 @@ function renderCookingStep() {
 }
 
 function _buildTtsRequest(text, s) {
-    const url = s.tts_url || 'http://192.168.1.133:8123/api/events/noemi_speak';
+    const url = s.tts_url || '';
     const method = s.tts_method || 'POST';
     const authType = s.tts_auth_type || 'bearer';
     const token = s.tts_token || '';

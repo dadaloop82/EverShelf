@@ -1,11 +1,43 @@
 <?php
 /**
  * Dispensa Manager - Main API Router
- * Handles all CRUD operations for products and inventory
+ * Handles all CRUD operations for products, inventory, shopping lists,
+ * AI-powered features (Gemini), and third-party integrations (Bring!, DupliClick).
+ *
+ * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @license MIT
  */
 
 // database.php must always be loaded (used both by HTTP router and cron)
 require_once __DIR__ . '/database.php';
+
+/**
+ * Load environment variables from .env file.
+ * Returns associative array of key => value pairs.
+ */
+function loadEnv(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $envFile = __DIR__ . '/../.env';
+    $cache = [];
+    if (file_exists($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
+            list($key, $val) = explode('=', $line, 2);
+            $cache[trim($key)] = trim($val);
+        }
+    }
+    return $cache;
+}
+
+/**
+ * Get a single environment variable, with optional default.
+ */
+function env(string $key, string $default = ''): string {
+    $vars = loadEnv();
+    return $vars[$key] ?? $default;
+}
 
 // When included by the cron script, skip HTTP headers and routing entirely
 if (!defined('CRON_MODE')) {
@@ -586,8 +618,8 @@ function listInventory(PDO $db): void {
 
 function addToInventory(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
-    $productId = $input['product_id'] ?? 0;
-    $quantity = $input['quantity'] ?? 1;
+    $productId = (int)($input['product_id'] ?? 0);
+    $quantity = (float)($input['quantity'] ?? 1);
     $location = $input['location'] ?? 'dispensa';
     $expiry = $input['expiry_date'] ?? null;
     $unit = $input['unit'] ?? null;
@@ -595,6 +627,21 @@ function addToInventory(PDO $db): void {
     if (!$productId) {
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
+        return;
+    }
+
+    // Validate quantity bounds
+    if ($quantity <= 0 || $quantity > 100000) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid quantity']);
+        return;
+    }
+
+    // Validate location
+    $validLocations = ['dispensa', 'frigo', 'freezer', 'altro'];
+    if (!in_array($location, $validLocations)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid location']);
         return;
     }
     
@@ -1157,47 +1204,29 @@ function getStats(PDO $db): void {
 // ===== SETTINGS =====
 
 function getServerSettings(): void {
-    $envFile = __DIR__ . '/../.env';
-    $envVars = [];
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
-            list($key, $val) = explode('=', $line, 2);
-            $envVars[trim($key)] = trim($val);
-        }
-    }
-    
-    // Return masked versions for security
-    $geminiKey = $envVars['GEMINI_API_KEY'] ?? '';
-    $bringEmail = $envVars['BRING_EMAIL'] ?? '';
-    $bringPassword = $envVars['BRING_PASSWORD'] ?? '';
+    // Return values for client — passwords are never exposed
+    $geminiKey = env('GEMINI_API_KEY');
+    $bringEmail = env('BRING_EMAIL');
     
     echo json_encode([
         'gemini_key' => $geminiKey,
         'gemini_key_set' => !empty($geminiKey),
         'bring_email' => $bringEmail,
-        'bring_password_set' => !empty($bringPassword)
+        'bring_password_set' => !empty(env('BRING_PASSWORD')),
+        'tts_url' => env('TTS_URL'),
+        'tts_token' => env('TTS_TOKEN'),
+        'tts_method' => env('TTS_METHOD', 'POST'),
+        'tts_auth_type' => env('TTS_AUTH_TYPE', 'bearer'),
+        'tts_content_type' => env('TTS_CONTENT_TYPE', 'application/json'),
+        'tts_payload_key' => env('TTS_PAYLOAD_KEY', 'message'),
+        'tts_enabled' => env('TTS_ENABLED', 'false') === 'true',
     ]);
 }
 
 function saveSettings(): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $envFile = __DIR__ . '/../.env';
-    
-    // Read existing .env content
-    $envContent = '';
-    $envVars = [];
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0 || strpos($line, '=') === false) {
-                continue;
-            }
-            list($key, $val) = explode('=', $line, 2);
-            $envVars[trim($key)] = trim($val);
-        }
-    }
+    $envVars = loadEnv();
     
     // Update values from input — only overwrite if new value is non-empty
     if (!empty($input['gemini_key'])) {
@@ -1227,22 +1256,7 @@ function saveSettings(): void {
 // ===== GEMINI AI FUNCTIONS =====
 
 function geminiReadExpiry(): void {
-    // Load API key from .env
-    $envFile = __DIR__ . '/../.env';
-    $apiKey = '';
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $val) = explode('=', $line, 2);
-                if (trim($key) === 'GEMINI_API_KEY') {
-                    $apiKey = trim($val);
-                }
-            }
-        }
-    }
-    
+    $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -1330,22 +1344,7 @@ function geminiReadExpiry(): void {
 
 // ===== GEMINI CHAT =====
 function geminiChat(PDO $db): void {
-    // Load API key
-    $envFile = __DIR__ . '/../.env';
-    $apiKey = '';
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $val) = explode('=', $line, 2);
-                if (trim($key) === 'GEMINI_API_KEY') {
-                    $apiKey = trim($val);
-                }
-            }
-        }
-    }
-
+    $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -1497,22 +1496,7 @@ PROMPT;
 
 // ===== RECIPE GENERATION WITH GEMINI =====
 function generateRecipe(PDO $db): void {
-    // Load API key from .env
-    $envFile = __DIR__ . '/../.env';
-    $apiKey = '';
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $val) = explode('=', $line, 2);
-                if (trim($key) === 'GEMINI_API_KEY') {
-                    $apiKey = trim($val);
-                }
-            }
-        }
-    }
-
+    $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -2034,22 +2018,7 @@ PROMPT;
 
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====
 function geminiIdentifyProduct(): void {
-    // Load API key
-    $envFile = __DIR__ . '/../.env';
-    $apiKey = '';
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $val) = explode('=', $line, 2);
-                if (trim($key) === 'GEMINI_API_KEY') {
-                    $apiKey = trim($val);
-                }
-            }
-        }
-    }
-
+    $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -2200,26 +2169,9 @@ function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): 
 
 // ===== BRING! SHOPPING LIST INTEGRATION =====
 
-function loadEnvVars(): array {
-    $envFile = __DIR__ . '/../.env';
-    $vars = [];
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($key, $val) = explode('=', $line, 2);
-                $vars[trim($key)] = trim($val);
-            }
-        }
-    }
-    return $vars;
-}
-
 function bringAuth(): ?array {
-    $env = loadEnvVars();
-    $email = $env['BRING_EMAIL'] ?? '';
-    $password = $env['BRING_PASSWORD'] ?? '';
+    $email = env('BRING_EMAIL');
+    $password = env('BRING_PASSWORD');
     
     if (empty($email) || empty($password)) {
         return null;
@@ -2955,8 +2907,7 @@ function smartShopping(PDO $db): void {
 }
 
 function bringSuggestItems(PDO $db): void {
-    $env = loadEnvVars();
-    $apiKey = $env['GEMINI_API_KEY'] ?? '';
+    $apiKey = env('GEMINI_API_KEY');
     
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'API Key Gemini non configurata']);
@@ -3441,8 +3392,7 @@ function dupliclickExtractSpecKeywords(string $spec): string {
  * Use Gemini AI to pick the best product from search results
  */
 function aiSelectBestProduct(string $itemName, string $spec, array $products, string $customPrompt = ''): ?array {
-    $env = loadEnvVars();
-    $apiKey = $env['GEMINI_API_KEY'] ?? '';
+    $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) return null;
 
     $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare (con eventuale descrizione tra parentesi) e una lista di prodotti trovati nel catalogo del supermercato.

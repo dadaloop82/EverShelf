@@ -1,28 +1,31 @@
-# Environment variables (secrets)
+# Environment variables (secrets — copy .env.example to .env)
 .env
 
-# SQLite WAL/SHM temp files
+# Data directory (user-specific runtime data)
+data/dispensa.db
 data/*.db-wal
 data/*.db-shm
-
-# Bring! auth token cache
+data/backups/
+data/cron.log
+data/smart_shopping_cache.json
 data/bring_token.json
 data/bring_catalog.json
-
-# DupliClick token cache
 data/dupliclick_token.json
-
-# Client debug log (runtime only)
 data/client_debug.log
 
-# SSL CA cert (local only)
-ca.crt
+# SSL certificates (local only)
+data/*.crt
+data/*.pem
+*.crt
+*.pem
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Editor
+# Editor / IDE
 *.swp
 *.swo
 *~
+.idea/
+.vscode/

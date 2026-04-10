@@ -1,3 +1,11 @@
+/**
+ * Dispensa Manager - UI Styles
+ * Mobile-first PWA design with CSS custom properties.
+ *
+ * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @license MIT
+ */
+
 /* ===== CSS VARIABLES & RESET ===== */
 :root {
     --primary: #2d5016;

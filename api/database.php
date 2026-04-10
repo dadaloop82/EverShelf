@@ -1,6 +1,10 @@
 <?php
 /**
- * Database initialization and connection for Dispensa Manager
+ * Dispensa Manager - Database initialization, schema, and migrations.
+ * Uses SQLite with WAL journal mode for concurrent read/write performance.
+ *
+ * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @license MIT
  */
 
 define('DB_PATH', __DIR__ . '/../data/dispensa.db');

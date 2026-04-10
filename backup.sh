@@ -1,18 +1,23 @@
 #!/bin/bash
-# Daily backup of Dispensa database to GitHub
-# Runs via cron: commits and pushes data/dispensa.db
+# Daily backup of Dispensa database (local only)
+# The database is NOT pushed to remote repositories.
+# Runs via cron: creates a local timestamped backup copy
+#
+# Example crontab entry:
+#   0 3 * * * /var/www/html/dispensa/backup.sh
 
-cd /var/www/html/dispensa || exit 1
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKUP_DIR="${INSTALL_DIR}/data/backups"
 
-# Only commit if there are actual changes
-if git diff --quiet data/ 2>/dev/null && git diff --cached --quiet data/ 2>/dev/null; then
-    # Check for untracked files in data/
-    if [ -z "$(git ls-files --others --exclude-standard data/)" ]; then
-        exit 0  # Nothing changed
-    fi
+mkdir -p "$BACKUP_DIR"
+
+DB_FILE="${INSTALL_DIR}/data/dispensa.db"
+if [ ! -f "$DB_FILE" ]; then
+    exit 0
 fi
 
-DATE=$(date '+%Y-%m-%d %H:%M')
-git add data/dispensa.db
-git commit -m "📦 Backup database automatico - $DATE"
-git push
+DATE=$(date '+%Y-%m-%d_%H%M')
+cp "$DB_FILE" "${BACKUP_DIR}/dispensa_${DATE}.db"
+
+# Keep only the last 7 backups
+ls -t "${BACKUP_DIR}"/dispensa_*.db 2>/dev/null | tail -n +8 | xargs -r rm --

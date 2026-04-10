@@ -1,0 +1,280 @@
+# 🏠 Dispensa Manager
+
+> **Self-hosted pantry management system** — Track your food inventory, scan barcodes, get AI-powered recipe suggestions, and reduce waste.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PHP](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/)
+[![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
+
+<p align="center">
+  <img src="assets/img/screenshot-dashboard.png" alt="Dashboard Screenshot" width="320" />
+</p>
+
+---
+
+## ✨ Features
+
+### 📦 Inventory Management
+- **Barcode scanning** — Scan products with your phone camera using QuaggaJS
+- **AI identification** — Take a photo and let Google Gemini identify the product
+- **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
+- **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
+- **Opened product tracking** — Reduced shelf-life calculation when packages are opened
+- **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items
+
+### 🤖 AI-Powered (Google Gemini)
+- **Expiry date reading** — Photograph a label and extract the expiry date automatically
+- **Product identification** — Point your camera at any product for instant recognition
+- **Recipe generation** — Get personalized recipes based on what's in your pantry
+- **Smart chat assistant** — Ask questions about your inventory, get cooking tips
+- **Shopping suggestions** — AI-powered purchase recommendations
+
+### 🛒 Shopping List
+- **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
+- **Smart predictions** — Know what you'll need before you run out
+- **Auto-remove on scan** — Products are removed from the shopping list when scanned in
+- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
+
+### 🍳 Cooking Mode
+- **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
+- **Text-to-Speech** — Voice readout of recipe steps (configurable TTS endpoint)
+- **Built-in timer** — Automatic timer suggestions based on recipe instructions
+- **Ingredient tracking** — Mark ingredients as used during cooking
+
+### 📊 Dashboard
+- **Waste tracking** — Monitor consumed vs. wasted products over 30 days
+- **Expiry alerts** — Visual warnings for expired and soon-to-expire items
+- **Safety ratings** — Smart assessment of expired product safety (by category)
+- **Quick recipe bar** — One-tap recipe suggestion using expiring products
+
+### 📱 Progressive Web App
+- **Mobile-first design** — Optimized for phones, works on tablets and desktop
+- **Installable** — Add to home screen for a native app experience
+- **Multi-device** — Settings and data sync across devices on the same server
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Web server** with PHP 8.0+ (Apache or Nginx)
+- **PHP extensions**: `pdo_sqlite`, `curl`, `mbstring`, `json`
+- **HTTPS** recommended (required for camera access on mobile)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/dadaloop82/dispensa.git
+cd dispensa
+
+# 2. Create configuration file
+cp .env.example .env
+
+# 3. Set permissions
+chmod 755 data/
+chmod 664 data/.gitkeep
+chown -R www-data:www-data data/
+
+# 4. Edit your configuration
+nano .env
+```
+
+### Configuration (.env)
+
+```ini
+# Required for AI features (get a key at https://aistudio.google.com/app/apikey)
+GEMINI_API_KEY=your_api_key_here
+
+# Optional: Bring! shopping list integration
+BRING_EMAIL=your_email@example.com
+BRING_PASSWORD=your_password
+
+# Optional: Text-to-Speech for cooking mode
+TTS_URL=http://your-home-assistant:8123/api/events/tts_speak
+TTS_TOKEN=your_long_lived_token
+TTS_ENABLED=true
+```
+
+### Web Server Configuration
+
+<details>
+<summary><strong>Apache (.htaccess)</strong></summary>
+
+The app works out of the box with Apache if placed in the web root or a subdirectory. Make sure `mod_rewrite` is enabled and `AllowOverride All` is set.
+
+```apache
+<Directory /var/www/html/dispensa>
+    AllowOverride All
+    Require all granted
+</Directory>
+```
+
+</details>
+
+<details>
+<summary><strong>Nginx</strong></summary>
+
+```nginx
+server {
+    listen 80;
+    server_name your-server.local;
+    root /var/www/html/dispensa;
+    index index.html;
+
+    location /api/ {
+        try_files $uri $uri/ =404;
+        location ~ \.php$ {
+            fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+    }
+
+    # Deny access to sensitive files
+    location ~ /\.env { deny all; }
+    location ~ /data/ { deny all; }
+    location ~ /backup\.sh { deny all; }
+}
+```
+
+</details>
+
+### HTTPS Setup (Recommended)
+
+Camera access requires HTTPS on most mobile browsers. Options:
+- **Let's Encrypt** with Certbot (for public-facing servers)
+- **Self-signed certificate** (for local network only)
+- **Reverse proxy** (e.g., Caddy, Traefik) with automatic TLS
+
+### Cron Job (Optional)
+
+Set up a cron job for smart shopping predictions:
+
+```bash
+# Run every 5 minutes
+*/5 * * * * php /path/to/dispensa/api/cron_smart_shopping.php >> /path/to/dispensa/data/cron.log 2>&1
+```
+
+### Backup (Optional)
+
+The included `backup.sh` creates local daily backups of your database:
+
+```bash
+# Run daily at 3 AM
+0 3 * * * /path/to/dispensa/backup.sh
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+dispensa/
+├── index.html              # Single-page application (SPA)
+├── manifest.json           # PWA manifest
+├── .env.example            # Configuration template
+├── backup.sh               # Local database backup script
+├── LICENSE                 # MIT License
+│
+├── api/
+│   ├── index.php           # Main API router (all endpoints)
+│   ├── database.php        # SQLite schema, migrations, helpers
+│   └── cron_smart_shopping.php  # Background job for predictions
+│
+├── assets/
+│   ├── css/style.css       # All application styles
+│   ├── js/app.js           # All application logic
+│   └── img/                # Static images
+│
+└── data/                   # Runtime data (gitignored)
+    ├── dispensa.db         # SQLite database (auto-created)
+    ├── backups/            # Local DB backups
+    └── *.json              # Token/cache files
+```
+
+### API Endpoints
+
+| Category | Action | Method | Description |
+|----------|--------|--------|-------------|
+| **Products** | `search_barcode` | GET | Find product by barcode |
+| | `lookup_barcode` | GET | Look up barcode on Open Food Facts |
+| | `product_save` | POST | Create or update a product |
+| | `products_list` | GET | List all products |
+| **Inventory** | `inventory_list` | GET | List inventory items |
+| | `inventory_add` | POST | Add product to inventory |
+| | `inventory_use` | POST | Use/consume from inventory |
+| | `inventory_summary` | GET | Count by location |
+| **AI** | `gemini_identify` | POST | Identify product from photo |
+| | `gemini_expiry` | POST | Read expiry date from photo |
+| | `gemini_chat` | POST | Chat with AI assistant |
+| | `generate_recipe` | POST | Generate recipe from inventory |
+| **Shopping** | `bring_list` | GET | Get Bring! shopping list |
+| | `bring_add` | POST | Add items to Bring! |
+| | `smart_shopping` | GET | Smart shopping predictions |
+| **Settings** | `get_settings` | GET | Get server configuration |
+| | `save_settings` | POST | Update server configuration |
+
+---
+
+## 🔒 Security Notes
+
+- **Credentials** are stored in `.env` (server-side, never committed to Git)
+- **Database** stays local — never pushed to remote repositories
+- **API keys** are passed server-side only — never exposed to the browser
+- The API uses **parameterized SQL queries** (PDO prepared statements) against injection
+- **Input validation** on all inventory operations (quantity bounds, location whitelist)
+- Consider adding **authentication** if the server is accessible from the internet
+
+---
+
+## 🛠️ Development
+
+```bash
+# Run PHP's built-in server for local development
+php -S localhost:8080 -t /path/to/dispensa
+
+# Check PHP syntax
+php -l api/index.php
+php -l api/database.php
+```
+
+The application uses no build tools — edit files directly and refresh.
+
+---
+
+## 📋 Roadmap
+
+- [ ] Multi-language support (i18n)
+- [ ] User authentication / multi-user support
+- [ ] Docker container for easy deployment
+- [ ] REST API documentation (OpenAPI/Swagger)
+- [ ] Offline mode with service worker
+- [ ] Export/import inventory data
+- [ ] Notification system (Telegram, email) for expiring products
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes (`git commit -m 'Add my feature'`)
+4. Push to the branch (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👨‍💻 Author
+
+**Stimpfl Daniel** — [dadaloop82@gmail.com](mailto:dadaloop82@gmail.com)
+
+- GitHub: [@dadaloop82](https://github.com/dadaloop82)
