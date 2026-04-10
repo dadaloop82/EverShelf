@@ -868,7 +868,7 @@
             <div class="settings-panel" id="tab-tts">
                 <div class="settings-card">
                     <h4 data-i18n="settings.tts.title">🔊 Voce & TTS</h4>
-                    <p class="settings-hint" data-i18n="settings.tts.hint">Configura la sintesi vocale tramite qualsiasi API REST esterna. I passi della ricetta e i timer scaduti verranno inviati all'endpoint configurato.</p>
+                    <p class="settings-hint" data-i18n="settings.tts.hint">Configura la sintesi vocale. Puoi usare la voce offline del browser oppure un endpoint REST esterno (Home Assistant, ecc.).</p>
                     <div class="form-group" style="margin-bottom:10px">
                         <label class="toggle-row">
                             <span>✅ Attiva TTS</span>
@@ -878,6 +878,35 @@
                             </span>
                         </label>
                     </div>
+                    <div class="form-group">
+                        <label>⚙️ Motore TTS</label>
+                        <select id="setting-tts-engine" class="form-input" onchange="onTtsEngineChange(this.value)">
+                            <option value="browser">🔇 Browser (offline, nessuna configurazione)</option>
+                            <option value="server">🌐 Server esterno (Home Assistant, API REST...)</option>
+                        </select>
+                    </div>
+
+                    <!-- Browser TTS section -->
+                    <div id="tts-browser-section">
+                        <div class="form-group">
+                            <label>🗣️ Voce</label>
+                            <select id="setting-tts-voice" class="form-input">
+                                <option value="">— Caricamento voci… —</option>
+                            </select>
+                            <p class="settings-hint">Le voci disponibili dipendono dal sistema operativo e dal browser. Su macOS/iOS è disponibile la voce <strong>Paola</strong> (italiano).</p>
+                        </div>
+                        <div class="form-group">
+                            <label>⚡ Velocità: <span id="tts-rate-label">1.0</span>×</label>
+                            <input type="range" id="setting-tts-rate" class="form-input" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('tts-rate-label').textContent=parseFloat(this.value).toFixed(1)">
+                        </div>
+                        <div class="form-group">
+                            <label>🎵 Tono: <span id="tts-pitch-label">1.0</span></label>
+                            <input type="range" id="setting-tts-pitch" class="form-input" min="0" max="2" step="0.1" value="1" oninput="document.getElementById('tts-pitch-label').textContent=parseFloat(this.value).toFixed(1)">
+                        </div>
+                    </div>
+
+                    <!-- Server TTS section -->
+                    <div id="tts-server-section" style="display:none">
                     <div class="form-group">
                         <label>🌐 URL Endpoint</label>
                         <input type="url" id="setting-tts-url" class="form-input" placeholder="https://...">
@@ -932,6 +961,8 @@
                         <textarea id="setting-tts-extra-fields" class="form-input" rows="3" placeholder='{"entity_id": "media_player.living_room"}'></textarea>
                         <p class="settings-hint">Campi aggiuntivi da includere nel payload, in formato JSON. Lascia vuoto se non necessario.</p>
                     </div>
+                    </div><!-- /tts-server-section -->
+
                     <button class="btn btn-large btn-accent full-width mt-2" onclick="testTTS()">🔊 Invia Test Vocale</button>
                     <div id="tts-test-status" style="display:none;margin-top:8px"></div>
                 </div>
