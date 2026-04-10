@@ -1,0 +1,18 @@
+services:
+  dispensa:
+    build: .
+    container_name: dispensa
+    ports:
+      - "8080:80"
+    volumes:
+      # Persist database and runtime data
+      - dispensa_data:/var/www/html/data
+      # Mount your local .env configuration
+      - ./.env:/var/www/html/.env:ro
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Rome
+
+volumes:
+  dispensa_data:
+    driver: local

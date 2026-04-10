@@ -5072,3 +5072,113 @@ body {
     background: rgba(255,255,255,0.25);
     transform: scale(0.92);
 }
+
+/* ===== SETUP WIZARD ===== */
+.setup-wizard-content {
+    max-width: 480px;
+    width: 95%;
+    margin: auto;
+    border-radius: 20px;
+    overflow: hidden;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.setup-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 24px 20px 16px;
+    text-align: center;
+}
+.setup-header h2 {
+    margin: 0 0 12px;
+    font-size: 1.5rem;
+}
+.setup-progress {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+.setup-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transition: background 0.3s, transform 0.3s;
+}
+.setup-dot.active {
+    background: #fff;
+    transform: scale(1.3);
+}
+.setup-dot.done {
+    background: var(--success-light);
+}
+.setup-body {
+    padding: 24px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+.setup-body h3 {
+    margin: 0 0 8px;
+    font-size: 1.2rem;
+}
+.setup-body p {
+    color: #666;
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.setup-body .form-group {
+    margin-bottom: 16px;
+}
+.setup-body .form-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+.setup-lang-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin: 12px 0;
+}
+.setup-lang-btn {
+    padding: 14px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    text-align: center;
+    font-size: 1rem;
+    transition: border-color 0.2s, background 0.2s;
+}
+.setup-lang-btn.selected {
+    border-color: var(--primary);
+    background: rgba(45,80,22,0.08);
+}
+.setup-lang-btn:hover {
+    border-color: var(--primary-light);
+}
+.setup-footer {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid #e2e8f0;
+    gap: 12px;
+}
+.setup-footer .btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 1rem;
+}
+.setup-skip-link {
+    display: block;
+    text-align: center;
+    color: #999;
+    font-size: 0.8rem;
+    margin-top: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.setup-skip-link:hover {
+    color: #666;
+}

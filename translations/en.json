@@ -1,0 +1,431 @@
+{
+  "app": {
+    "name": "Dispensa Manager",
+    "loading": "Loading..."
+  },
+  "nav": {
+    "title": "🏠 Pantry",
+    "home": "Home",
+    "inventory": "Pantry",
+    "recipes": "Recipes",
+    "shopping": "Shopping",
+    "log": "Log"
+  },
+  "btn": {
+    "back": "← Back",
+    "save": "💾 Save",
+    "cancel": "✕ Cancel",
+    "close": "Close",
+    "add": "✅ Add",
+    "delete": "Delete",
+    "edit": "✏️ Edit",
+    "search": "🔍 Search",
+    "go": "✅ Go",
+    "toggle_password": "👁️ Show/Hide",
+    "load_more": "Load more...",
+    "save_config": "💾 Save Configuration",
+    "save_product": "💾 Save Product",
+    "restart": "↺ Restart",
+    "reset_default": "↺ Reset to default"
+  },
+  "locations": {
+    "dispensa": "Pantry",
+    "frigo": "Fridge",
+    "freezer": "Freezer",
+    "altro": "Other"
+  },
+  "categories": {
+    "latticini": "Dairy",
+    "carne": "Meat",
+    "pesce": "Fish",
+    "frutta": "Fruit",
+    "verdura": "Vegetables",
+    "pasta": "Pasta & Rice",
+    "pane": "Bread & Bakery",
+    "surgelati": "Frozen",
+    "bevande": "Beverages",
+    "condimenti": "Condiments",
+    "snack": "Snacks & Sweets",
+    "conserve": "Canned Goods",
+    "cereali": "Cereals & Legumes",
+    "igiene": "Hygiene",
+    "pulizia": "Household",
+    "altro": "Other",
+    "select": "-- Select --"
+  },
+  "units": {
+    "pz": "pcs",
+    "conf": "pkg",
+    "g": "g",
+    "ml": "ml",
+    "pieces": "Pieces",
+    "grams": "Grams",
+    "box": "Package",
+    "boxes": "Packages"
+  },
+  "shopping_sections": {
+    "frutta_verdura": "Fruits & Vegetables",
+    "carne_pesce": "Meat & Fish",
+    "latticini": "Dairy & Fresh",
+    "pane_dolci": "Bread & Sweets",
+    "pasta": "Pasta & Cereals",
+    "conserve": "Canned & Sauces",
+    "surgelati": "Frozen",
+    "bevande": "Beverages",
+    "pulizia_igiene": "Cleaning & Hygiene",
+    "altro": "Other"
+  },
+  "dashboard": {
+    "expired_title": "🚫 Expired",
+    "expiring_title": "⏰ Expiring Soon",
+    "stats_period": "📊 Last 30 days",
+    "opened_title": "📦 Opened Products",
+    "review_title": "🔍 To Review",
+    "review_hint": "Quantities that seem unusual. Confirm if correct or modify.",
+    "quick_recipe": "🍳 Quick recipe with expiring products"
+  },
+  "inventory": {
+    "title": "Pantry",
+    "filter_all": "All",
+    "search_placeholder": "🔍 Search product...",
+    "empty": "No products here.\nScan a product to add it!",
+    "no_items_found": "No inventory items found"
+  },
+  "scan": {
+    "title": "Scan Product",
+    "mode_shopping": "🛒 Shopping Mode",
+    "mode_shopping_end": "✅ End shopping",
+    "zoom": "Zoom",
+    "barcode_placeholder": "Enter barcode...",
+    "quick_name_divider": "or type the name",
+    "quick_name_placeholder": "E.g.: Apples, Zucchini, Bread...",
+    "manual_entry": "✏️ Manual Entry",
+    "ai_identify": "🤖 Identify with AI",
+    "hint": "Scan the barcode, type the product name, or use AI to identify it",
+    "debug_toggle": "🐛 Debug Log",
+    "barcode_acquired": "🔖 Barcode scanned: {code}",
+    "scan_barcode": "🔖 Scan Barcode"
+  },
+  "action": {
+    "title": "What do you want to do?",
+    "add_btn": "📥 ADD",
+    "add_sub": "to pantry/fridge",
+    "use_btn": "📤 USE / CONSUME",
+    "use_sub": "from pantry/fridge"
+  },
+  "add": {
+    "title": "Add to Pantry",
+    "location_label": "📍 Where do you put it?",
+    "quantity_label": "📦 Quantity",
+    "conf_size_label": "📦 Each package contains:",
+    "conf_size_placeholder": "e.g. 300",
+    "vacuum_label": "🫙 Vacuum sealed",
+    "vacuum_hint": "Expiry date will be extended automatically",
+    "submit": "✅ Add"
+  },
+  "use": {
+    "title": "Use / Consume",
+    "location_label": "📍 From where?",
+    "quantity_label": "How much did you use?",
+    "partial_hint": "Or specify the quantity used:",
+    "use_all": "🗑️ Used ALL / Finished",
+    "submit": "📤 Use this quantity",
+    "available": "📦 Available:",
+    "not_in_inventory": "⚠️ Product not in inventory.",
+    "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!"
+  },
+  "product": {
+    "title_new": "New Product",
+    "title_edit": "Edit Product",
+    "ai_fill": "📷 Take photo and identify with AI",
+    "ai_fill_hint": "AI will automatically fill in the product fields",
+    "name_label": "🏷️ Product Name *",
+    "name_placeholder": "E.g.: Whole milk, Penne pasta...",
+    "brand_label": "🏢 Brand",
+    "brand_placeholder": "E.g.: Barilla, Granarolo, Mutti...",
+    "category_label": "📂 Category",
+    "unit_label": "📏 Unit of measure",
+    "default_qty_label": "🔢 Default quantity",
+    "conf_size_label": "📦 Each package contains:",
+    "conf_size_placeholder": "e.g. 300",
+    "notes_label": "📝 Notes",
+    "notes_placeholder": "E.g.: lactose free, organic, store in fridge after opening...",
+    "barcode_label": "🔖 Barcode",
+    "barcode_placeholder": "Barcode (if available)",
+    "barcode_hint": "⚠️ Add the barcode so next time you just need to scan it!",
+    "submit": "💾 Save Product",
+    "name_required": "Enter the product name",
+    "conf_size_required": "Specify the package content",
+    "expiry_estimated": "Estimated expiry:",
+    "scan_expiry": "Scan expiry date",
+    "expiry_hint": "📝 You can edit the date or scan it with the camera",
+    "add_batch": "📦 + Batch with different expiry",
+    "package_info": "📦 Package: {info}",
+    "edit_catalog": "⚙️ Edit product info (name, brand, category…)",
+    "not_recognized": "⚠️ Product not recognized",
+    "edit_info": "✏️ Edit information",
+    "modify_details": "EDIT\nexpiry, location…"
+  },
+  "products": {
+    "title": "📦 All Products",
+    "search_placeholder": "🔍 Search product...",
+    "empty": "No products in database.\nScan a product to get started!",
+    "no_category": "No products in this category"
+  },
+  "recipes": {
+    "title": "🍳 Recipes",
+    "generate": "✨ Generate new recipe"
+  },
+  "shopping": {
+    "title": "🛒 Shopping List",
+    "bring_loading": "Connecting to Bring!...",
+    "tab_to_buy": "🛍️ To buy",
+    "tab_forecast": "🧠 Forecast",
+    "total_label": "💰 Estimated total",
+    "section_to_buy": "🛍️ To buy",
+    "suggestions_title": "💡 AI Suggestions",
+    "suggestions_add": "✅ Add selected to Bring!",
+    "search_prices": "🔍 Search all prices",
+    "suggest_btn": "🤖 Suggest what to buy",
+    "smart_title": "🧠 Smart Predictions",
+    "smart_empty": "No predictions available.<br>Add products to your pantry to receive smart predictions.",
+    "smart_filter_all": "All",
+    "smart_filter_critical": "🔴 Urgent",
+    "smart_filter_high": "🟠 Soon",
+    "smart_filter_medium": "🟡 Plan",
+    "smart_filter_low": "🟢 Forecast",
+    "smart_add": "🛒 Add selected to Bring!",
+    "empty": "Shopping list empty!\nUse the button below to generate suggestions.",
+    "already_in_list": "🛒 \"{name}\" is already in the shopping list",
+    "already_in_list_short": "ℹ️ Already in the shopping list",
+    "add_prompt": "Do you want to add it to the shopping list?",
+    "smart_already": "📊 Smart shopping already predicts {name}",
+    "all_searched": "All products have already been searched. Use 🔄 to search individual ones.",
+    "search_complete": "Search complete: {count} products",
+    "removed_sufficient": "🧹 {removed} product(s) with sufficient stock removed from the list"
+  },
+  "ai": {
+    "title": "🤖 AI Identification",
+    "capture": "📸 Take Photo",
+    "retake": "🔄 Retake",
+    "hint": "Take a photo of the product and AI will try to identify it",
+    "identifying": "🤖 Identifying product...",
+    "no_api_key": "⚠️ Gemini API key not configured.\n<small>Add GEMINI_API_KEY to the .env file on the server.</small>",
+    "fields_filled": "✅ Fields filled by AI"
+  },
+  "log": {
+    "title": "📒 Operations Log"
+  },
+  "chat": {
+    "title": "Gemini Chef",
+    "welcome": "Hi! I'm your kitchen assistant",
+    "welcome_desc": "Ask me to make you a juice, a snack, a quick dish... I know your pantry, your appliances and your preferences!",
+    "suggestion_snack": "🍿 Quick snack",
+    "suggestion_juice": "🥤 Juice/Smoothie",
+    "suggestion_light": "🥗 Something light",
+    "suggestion_expiry": "⏰ Use expiring items",
+    "clear": "New conversation",
+    "placeholder": "Ask something..."
+  },
+  "cooking": {
+    "close": "Close",
+    "tts_btn": "Read aloud",
+    "restart": "↺ Restart",
+    "replay": "🔊 Replay",
+    "timer": "⏱️ {time} · Timer",
+    "prev": "◀ Previous",
+    "next": "Next ▶"
+  },
+  "settings": {
+    "title": "⚙️ Settings",
+    "tab_api": "API Keys",
+    "tab_bring": "Bring!",
+    "tab_recipe": "Recipes",
+    "tab_mealplan": "Weekly Plan",
+    "tab_appliances": "Appliances",
+    "tab_spesa": "Online Shopping",
+    "tab_camera": "Camera",
+    "tab_security": "Security",
+    "tab_tts": "Voice (TTS)",
+    "tab_language": "Language",
+    "gemini": {
+      "title": "🤖 Google Gemini AI",
+      "hint": "API key for product identification, expiry dates and recipes.",
+      "key_label": "Gemini API Key"
+    },
+    "bring": {
+      "title": "🛒 Bring! Shopping List",
+      "hint": "Credentials for the Bring! shopping list integration.",
+      "email_label": "📧 Bring! Email",
+      "password_label": "🔒 Bring! Password"
+    },
+    "recipe": {
+      "title": "🍳 Recipe Preferences",
+      "hint": "Configure the default options for recipe generation.",
+      "persons_label": "👥 Default servings",
+      "options_label": "🎯 Default recipe options",
+      "fast": "⚡ Quick Meal",
+      "light": "🥗 Light Meal",
+      "expiry": "⏰ Expiry Priority",
+      "healthy": "💚 Extra Healthy",
+      "opened": "📦 Open Items Priority",
+      "zerowaste": "♻️ Zero Waste",
+      "dietary_label": "🚫 Intolerances / Restrictions",
+      "dietary_placeholder": "E.g.: gluten free, lactose free, vegetarian..."
+    },
+    "mealplan": {
+      "title": "📅 Weekly Meal Plan",
+      "hint": "Set the meal type for each day. It will be used as a guide in recipe generation.",
+      "enabled": "✅ Enable weekly meal plan",
+      "legend": "🌤️ = Lunch · 🌙 = Dinner · Tap a badge to change it.",
+      "types_title": "📋 Available types"
+    },
+    "appliances": {
+      "title": "🔌 Available Appliances",
+      "hint": "Indicate the appliances you have. They will be considered in recipe generation.",
+      "new_placeholder": "E.g.: Bread machine, Thermomix, Air fryer...",
+      "quick_title": "Quick add:",
+      "oven": "🔥 Oven",
+      "microwave": "📡 Microwave",
+      "air_fryer": "🍟 Air fryer",
+      "bread_maker": "🍞 Bread maker",
+      "bimby": "🤖 Thermomix/Cookeo",
+      "mixer": "🌀 Stand mixer",
+      "steamer": "♨️ Steamer",
+      "pressure_cooker": "🫕 Pressure cooker",
+      "toaster": "🍞 Toaster",
+      "blender": "🍹 Blender",
+      "empty": "No appliances added"
+    },
+    "spesa": {
+      "title": "🛍️ Online Shopping",
+      "hint": "Configure the online shopping provider.",
+      "provider_label": "🏪 Provider",
+      "email_label": "📧 Email",
+      "password_label": "🔒 Password",
+      "login_btn": "🔐 Login",
+      "ai_prompt_label": "🤖 AI product selection prompt",
+      "ai_prompt_placeholder": "Instructions for AI when choosing between multiple products...",
+      "ai_prompt_hint": "AI uses this prompt to choose the most appropriate product from results. Leave empty for default behavior.",
+      "configure_first": "Configure Online Shopping in settings first"
+    },
+    "camera": {
+      "title": "📷 Camera",
+      "hint": "Choose which camera to use for barcode scanning and AI identification.",
+      "device_label": "📸 Default camera",
+      "back": "📱 Rear (default)",
+      "front": "🤳 Front",
+      "devices_hint": "If you have multiple cameras, you can select a specific one from the list above after granting permissions.",
+      "detect_btn": "🔄 Detect cameras"
+    },
+    "security": {
+      "title": "🔒 HTTPS Certificate",
+      "hint": "If the browser shows the error \"Your connection is not private\" (ERR_CERT_AUTHORITY_INVALID), you need to install the CA certificate on the device.",
+      "download_btn": "📥 Download CA Certificate"
+    },
+    "tts": {
+      "title": "🔊 Voice & TTS",
+      "hint": "Configure text-to-speech via any external REST API. Recipe steps and expired timers will be sent to the configured endpoint.",
+      "enabled": "✅ Enable TTS",
+      "url_label": "🌐 Endpoint URL",
+      "method_label": "📡 HTTP Method",
+      "auth_label": "🔐 Authentication",
+      "auth_bearer": "Bearer Token",
+      "auth_custom": "Custom Header",
+      "auth_none": "None",
+      "token_label": "🔑 Bearer Token",
+      "custom_header_name": "📋 Header name",
+      "custom_header_value": "📋 Header value",
+      "content_type_label": "📄 Content-Type",
+      "payload_key_label": "🗝️ Text field in payload",
+      "payload_key_hint": "Name of the JSON field that will contain the text to read (e.g.: message, text).",
+      "extra_fields_label": "➕ Extra fields (JSON)",
+      "extra_fields_placeholder": "{\"entity_id\": \"media_player.living_room\"}",
+      "extra_fields_hint": "Additional fields to include in the payload, in JSON format. Leave empty if not needed.",
+      "test_btn": "🔊 Send Test Voice"
+    },
+    "language": {
+      "title": "🌐 Language",
+      "hint": "Select the interface language.",
+      "label": "🌐 Language",
+      "restart_notice": "The page will reload to apply the new language."
+    },
+    "saved": "✅ Configuration saved!",
+    "saved_local": "✅ Configuration saved locally",
+    "saved_local_error": "⚠️ Saved locally, server error: {error}"
+  },
+  "expiry": {
+    "today": "TODAY",
+    "tomorrow": "Tomorrow",
+    "days": "{days} days",
+    "expired_days": "{days}d ago",
+    "expired_yesterday": "Yesterday",
+    "expired_today": "Today"
+  },
+  "status": {
+    "ok": "OK",
+    "check": "Check",
+    "discard": "Discard"
+  },
+  "toast": {
+    "product_saved": "Product saved!",
+    "product_created": "Product created!",
+    "product_updated": "✅ Product updated!",
+    "product_removed": "Product removed",
+    "updated": "Updated!",
+    "quantity_confirmed": "✓ Quantity confirmed",
+    "added_to_inventory": "✅ {name} added!",
+    "removed_from_list": "✅ {name} removed from the list!",
+    "removed_from_list_short": "Removed from the list",
+    "added_to_shopping": "🛒 Added to the shopping list!",
+    "removed_from_shopping": "🛒 Removed from the shopping list",
+    "finished_to_bring": "🛒 Product finished → added to Bring!",
+    "thrown_away": "🗑️ {name} thrown away!",
+    "thrown_away_partial": "🗑️ Thrown away {qty} {unit} of {name}",
+    "appliance_added": "Appliance added",
+    "item_added": "{name} added"
+  },
+  "error": {
+    "generic": "Error",
+    "loading": "Error loading product",
+    "not_found": "Product not found",
+    "not_found_manual": "Product not found. Enter it manually.",
+    "search": "Search error. Try again.",
+    "search_short": "Search error",
+    "save": "Error saving",
+    "connection": "Connection error",
+    "camera": "Cannot access camera",
+    "bring_add": "Error adding to Bring!",
+    "bring_connection": "Bring! connection error",
+    "identification": "Identification error",
+    "barcode_empty": "Enter a barcode",
+    "barcode_format": "Barcode must contain only numbers (4-14 digits)",
+    "min_chars": "Type at least 2 characters",
+    "not_in_inventory": "Product not in inventory",
+    "appliance_exists": "Appliance already exists",
+    "already_exists": "Already exists"
+  },
+  "confirm": {
+    "remove_item": "Do you really want to remove this product from inventory?"
+  },
+  "edit": {
+    "title": "Edit {name}"
+  },
+  "screensaver": {
+    "recipe_btn": "Recipes",
+    "scan_btn": "Scan product"
+  },
+  "days": {
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday",
+    "sat": "Saturday",
+    "sun": "Sunday"
+  },
+  "meal_types": {
+    "lunch": "Lunch",
+    "dinner": "Dinner"
+  }
+}

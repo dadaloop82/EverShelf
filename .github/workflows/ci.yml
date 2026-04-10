@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-php:
+    name: PHP Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, curl, mbstring
+
+      - name: Check PHP syntax
+        run: |
+          find api/ -name '*.php' -exec php -l {} \;
+
+  lint-js:
+    name: JavaScript Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JS syntax
+        run: |
+          node -c assets/js/app.js
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t dispensa-test .
+
+      - name: Test container starts
+        run: |
+          docker run -d --name test-dispensa -p 8080:80 dispensa-test
+          sleep 5
+          curl -f http://localhost:8080/ || exit 1
+          docker stop test-dispensa
+
+  validate-translations:
+    name: Validate Translation Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate JSON syntax
+        run: |
+          for f in translations/*.json; do
+            echo "Checking $f..."
+            python3 -c "import json; json.load(open('$f'))" || exit 1
+          done
+          echo "All translation files valid."
+
+      - name: Check translation completeness
+        run: |
+          python3 -c "
+          import json, sys
+          base = json.load(open('translations/it.json'))
+          base_keys = set(base.keys())
+          ok = True
+          import glob
+          for f in glob.glob('translations/*.json'):
+              if 'it.json' in f:
+                  continue
+              lang = json.load(open(f))
+              lang_keys = set(lang.keys())
+              missing = base_keys - lang_keys
+              if missing:
+                  print(f'{f}: {len(missing)} missing keys')
+                  for k in sorted(missing)[:10]:
+                      print(f'  - {k}')
+                  if len(missing) > 10:
+                      print(f'  ... and {len(missing)-10} more')
+              else:
+                  print(f'{f}: complete ✓')
+          "

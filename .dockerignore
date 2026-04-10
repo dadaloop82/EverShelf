@@ -1,0 +1,34 @@
+# Docker runtime files
+data/dispensa.db
+data/*.db-wal
+data/*.db-shm
+data/backups/
+data/cron.log
+data/smart_shopping_cache.json
+data/bring_token.json
+data/bring_catalog.json
+data/dupliclick_token.json
+data/client_debug.log
+data/*.crt
+data/*.pem
+
+# Config (mounted as volume)
+.env
+
+# Git
+.git
+.gitignore
+
+# Docs (not needed in container)
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+*.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

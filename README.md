@@ -5,10 +5,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/)
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
+[![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE-orange.svg)](translations/)
 
+<!--
 <p align="center">
-  <img src="assets/img/screenshot-dashboard.png" alt="Dashboard Screenshot" width="320" />
+  <img src="assets/img/screenshots/dashboard.png" alt="Dashboard Screenshot" width="320" />
 </p>
+-->
 
 ---
 
@@ -62,6 +66,25 @@
 - **HTTPS** recommended (required for camera access on mobile)
 
 ### Installation
+
+#### Option A: Docker (recommended)
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/dadaloop82/dispensa.git
+cd dispensa
+
+# 2. Create configuration file
+cp .env.example .env
+nano .env
+
+# 3. Start with Docker Compose
+docker compose up -d
+
+# → Open http://localhost:8080
+```
+
+#### Option B: Manual
 
 ```bash
 # 1. Clone the repository
@@ -248,16 +271,30 @@ The application uses no build tools — edit files directly and refresh.
 - [ ] Multi-language support (i18n)
 - [ ] User authentication / multi-user support
 - [ ] Docker container for easy deployment
-- [ ] REST API documentation (OpenAPI/Swagger)
+- [x] REST API documentation (OpenAPI/Swagger) — see [docs/openapi.yaml](docs/openapi.yaml)
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products
 
 ---
 
+## 🌐 Translations
+
+The app supports multiple languages via JSON translation files in the `translations/` folder.
+
+| Language | Status |
+|----------|--------|
+| 🇮🇹 Italian (it) | ✅ Complete (base) |
+| 🇬🇧 English (en) | ✅ Complete |
+| 🇩🇪 German (de) | ✅ Complete |
+
+**Want to add your language?** See the [Translation Guide](CONTRIBUTING.md#-adding-translations) — just copy `translations/it.json`, translate the values, and submit a PR!
+
+---
+
 ## 🤝 Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
