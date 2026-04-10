@@ -8826,20 +8826,22 @@ const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_
 
 /**
  * Returns indices of setup steps that still need configuration.
- * Existing settings are never overwritten — only missing ones trigger the wizard.
+ * Accepts optional serverSettings fetched from the API so server-side
+ * credentials (stored in .env) are also considered.
  */
-function _getMissingSetupSteps() {
+function _getMissingSetupSteps(serverSettings) {
     const missing = [];
     const s = getSettings();
+    const srv = serverSettings || {};
 
     // Step 0 — language: missing only if never set at all (fresh install)
     if (!localStorage.getItem('dispensa_lang') && !localStorage.getItem('dispensa_setup_done')) {
         missing.push(0);
     }
-    // Step 1 — Gemini API key
-    if (!s.gemini_key) missing.push(1);
-    // Step 2 — Bring! credentials (both must be set)
-    if (!s.bring_email || !s.bring_password) missing.push(2);
+    // Step 1 — Gemini API key (check both localStorage and server .env)
+    if (!s.gemini_key && !srv.gemini_key) missing.push(1);
+    // Step 2 — Bring! credentials (check both localStorage and server .env)
+    if ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password)) missing.push(2);
     // Note: step 3 (done screen) gets appended automatically when there are missing steps
 
     return missing;
@@ -9019,7 +9021,7 @@ async function _finishSetup() {
     document.getElementById('setup-wizard').style.display = 'none';
 }
 
-function _initApp() {
+async function _initApp() {
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('dispensa_setup_step');
     const resumeData = localStorage.getItem('dispensa_setup_data');
@@ -9034,8 +9036,11 @@ function _initApp() {
         document.getElementById('setup-wizard').style.display = '';
         _renderSetupStep();
     } else {
-        // Check for any missing settings and show wizard only for those
-        const missing = _getMissingSetupSteps();
+        // Fetch server settings first so .env credentials (Bring!, Gemini)
+        // are taken into account before deciding which wizard steps to show.
+        let serverSettings = {};
+        try { serverSettings = await api('get_settings'); } catch(e) {}
+        const missing = _getMissingSetupSteps(serverSettings);
         if (missing.length > 0) {
             showSetupWizard(missing);
         }
