@@ -57,6 +57,123 @@ window.addEventListener('unhandledrejection', function(e) {
 
 // ===== CONFIGURATION =====
 const API_BASE = 'api/index.php';
+
+// ===== i18n TRANSLATION SYSTEM =====
+let _i18nStrings = null;   // current language translations (flat)
+let _i18nFallback = null;  // Italian fallback (flat)
+let _currentLang = localStorage.getItem('dispensa_lang') || navigator.language?.slice(0, 2) || 'it';
+const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch' };
+if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'it';
+
+// Flatten nested JSON: { a: { b: "x" } } → { "a.b": "x" }
+function _flattenI18n(obj, prefix = '') {
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+            Object.assign(result, _flattenI18n(v, key));
+        } else {
+            result[key] = v;
+        }
+    }
+    return result;
+}
+
+// Translation function: t('toast.thrown_away', {name: 'Latte'})
+function t(key, params) {
+    let str = (_i18nStrings && _i18nStrings[key]) || (_i18nFallback && _i18nFallback[key]) || key;
+    if (params) {
+        for (const [k, v] of Object.entries(params)) {
+            str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+        }
+    }
+    return str;
+}
+
+// Load translations from JSON files
+async function loadTranslations(lang) {
+    lang = lang || _currentLang;
+    try {
+        // Always load Italian as fallback
+        if (!_i18nFallback) {
+            const fbRes = await fetch(`translations/it.json?v=${Date.now()}`);
+            if (fbRes.ok) _i18nFallback = _flattenI18n(await fbRes.json());
+        }
+        if (lang === 'it') {
+            _i18nStrings = _i18nFallback;
+        } else {
+            const res = await fetch(`translations/${encodeURIComponent(lang)}.json?v=${Date.now()}`);
+            if (res.ok) _i18nStrings = _flattenI18n(await res.json());
+            else _i18nStrings = _i18nFallback;
+        }
+        _currentLang = lang;
+        localStorage.setItem('dispensa_lang', lang);
+        _applyI18nToLabels();
+        translatePage();
+    } catch (e) {
+        console.warn('i18n: Failed to load translations for', lang, e);
+        _i18nStrings = _i18nFallback;
+    }
+}
+
+// Update LOCATIONS / SHOPPING_SECTIONS labels from translations
+function _applyI18nToLabels() {
+    if (!_i18nStrings) return;
+    for (const key of Object.keys(LOCATIONS)) {
+        const tKey = `locations.${key}`;
+        if (_i18nStrings[tKey]) LOCATIONS[key].label = _i18nStrings[tKey];
+    }
+    for (const sec of SHOPPING_SECTIONS) {
+        const tKey = `shopping_sections.${sec.key}`;
+        if (_i18nStrings[tKey]) sec.label = _i18nStrings[tKey];
+    }
+}
+
+// Translate all elements with data-i18n attributes
+function translatePage() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (key) el.textContent = t(key);
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const key = el.getAttribute('data-i18n-html');
+        if (key) el.innerHTML = t(key);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (key) el.placeholder = t(key);
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (key) el.title = t(key);
+    });
+    // Update HTML lang attribute
+    document.documentElement.lang = _currentLang;
+    // Populate language selector if present
+    _populateLanguageSelector();
+}
+
+// Populate the language selector dropdown
+function _populateLanguageSelector() {
+    const sel = document.getElementById('setting-language');
+    if (!sel) return;
+    sel.innerHTML = '';
+    for (const [code, name] of Object.entries(_SUPPORTED_LANGS)) {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = name;
+        if (code === _currentLang) opt.selected = true;
+        sel.appendChild(opt);
+    }
+}
+
+// Change language and reload the page
+function changeLanguage(lang) {
+    if (lang === _currentLang) return;
+    localStorage.setItem('dispensa_lang', lang);
+    location.reload();
+}
+
 const LOCATIONS = {
     'dispensa': { icon: '🗄️', label: 'Dispensa' },
     'frigo': { icon: '🧊', label: 'Frigo' },
@@ -822,21 +939,21 @@ function addAppliance() {
     const s = getSettings();
     if (!s.appliances) s.appliances = [];
     if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
-        showToast('Elettrodomestico già presente', 'error');
+        showToast(t('error.appliance_exists'), 'error');
         return;
     }
     s.appliances.push(name);
     saveSettingsToStorage(s);
     renderAppliances(s.appliances);
     input.value = '';
-    showToast('Elettrodomestico aggiunto', 'success');
+    showToast(t('toast.appliance_added'), 'success');
 }
 
 function addApplianceQuick(name) {
     const s = getSettings();
     if (!s.appliances) s.appliances = [];
     if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
-        showToast('Già presente', 'error');
+        showToast(t('error.already_exists'), 'error');
         return;
     }
     s.appliances.push(name);
@@ -1364,7 +1481,7 @@ function confirmReviewItem(inventoryId) {
             }
         }, 300);
     }
-    showToast('✓ Quantità confermata', 'success');
+    showToast(t('toast.quantity_confirmed'), 'success');
 }
 
 function editReviewItem(inventoryId, productId) {
@@ -1747,7 +1864,7 @@ async function quickUse(productId, location) {
     } catch (err) {
         showLoading(false);
         console.error('quickUse error:', err);
-        showToast('Errore nel caricamento del prodotto', 'error');
+        showToast(t('error.loading'), 'error');
     }
 }
 
@@ -1755,7 +1872,7 @@ async function deleteInventoryItem(id) {
     if (confirm('Vuoi davvero rimuovere questo prodotto dall\'inventario?')) {
         await api('inventory_delete', {}, 'POST', { id });
         closeModal();
-        showToast('Prodotto rimosso', 'success');
+        showToast(t('toast.product_removed'), 'success');
         refreshCurrentPage();
     }
 }
@@ -1779,7 +1896,7 @@ function editInventoryItem(id) {
     const item = currentInventory.find(i => i.id === id);
     if (!item) {
         closeModal();
-        showToast('Prodotto non trovato', 'error');
+        showToast(t('error.not_found'), 'error');
         return;
     }
     
@@ -2359,7 +2476,7 @@ function submitManualBarcode() {
     const input = document.getElementById('manual-barcode-input');
     const barcode = (input.value || '').trim();
     if (!barcode) {
-        showToast('Inserisci un codice a barre', 'error');
+        showToast(t('error.barcode_empty'), 'error');
         input.focus();
         return;
     }
@@ -2377,7 +2494,7 @@ async function submitQuickName() {
     const input = document.getElementById('quick-product-name');
     const name = (input.value || '').trim();
     if (!name || name.length < 2) {
-        showToast('Scrivi almeno 2 caratteri', 'error');
+        showToast(t('error.min_chars'), 'error');
         input.focus();
         return;
     }
@@ -2402,7 +2519,7 @@ async function submitQuickName() {
     } catch (err) {
         showLoading(false);
         console.error('Quick name search error:', err);
-        showToast('Errore nella ricerca', 'error');
+        showToast(t('error.search_short'), 'error');
     }
 }
 
@@ -2506,7 +2623,7 @@ async function createQuickProduct(name) {
     } catch (err) {
         showLoading(false);
         console.error('Quick product creation error:', err);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -2794,7 +2911,7 @@ async function submitProduct(e) {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -3270,7 +3387,7 @@ async function deleteActionInventoryItem(id) {
     if (confirm('Vuoi davvero rimuovere questo prodotto dall\'inventario?')) {
         await api('inventory_delete', {}, 'POST', { id });
         closeModal();
-        showToast('Prodotto rimosso', 'success');
+        showToast(t('toast.product_removed'), 'success');
         showProductAction(); // Refresh the action page
     }
 }
@@ -3371,7 +3488,7 @@ async function throwAll() {
         }
     } catch(e) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -3396,7 +3513,7 @@ async function throwPartial() {
         }
     } catch(e) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -3412,7 +3529,7 @@ function toggleActionEdit() {
 async function saveEditedProductInfo() {
     const name = (document.getElementById('edit-action-name')?.value || '').trim();
     if (!name) {
-        showToast('Inserisci il nome del prodotto', 'error');
+        showToast(t('product.name_required'), 'error');
         document.getElementById('edit-action-name')?.focus();
         return;
     }
@@ -3446,7 +3563,7 @@ async function saveEditedProductInfo() {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -3915,7 +4032,7 @@ async function submitAdd(e) {
             }
             showToast(`✅ ${currentProduct.name} aggiunto!${qtyInfo}`, 'success');
             if (result.removed_from_bring) {
-                setTimeout(() => showToast('🛒 Rimosso dalla lista della spesa', 'info'), 1500);
+                setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
             } else if (shoppingItems.length > 0 && shoppingListUUID) {
                 // PHP matching may have missed the item (custom name / no catalog match) —
                 // try a client-side fuzzy remove using the already-loaded shoppingItems
@@ -3928,7 +4045,7 @@ async function submitAdd(e) {
                     }).then(r => {
                         if (r && r.success) {
                             shoppingItems = shoppingItems.filter(i => i !== match);
-                            setTimeout(() => showToast('🛒 Rimosso dalla lista della spesa', 'info'), 1500);
+                            setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
                         }
                     }).catch(() => {});
                 }
@@ -3961,7 +4078,7 @@ async function submitAdd(e) {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -4384,7 +4501,7 @@ async function addLowStockToBring(productName) {
         if (data.success && data.added > 0) {
             showToast('🛒 Aggiunto alla lista della spesa!', 'success');
         } else if (data.success && data.skipped > 0) {
-            showToast('ℹ️ Già nella lista della spesa', 'info');
+            showToast(t('shopping.already_in_list_short'), 'info');
         }
     } catch (e) {
         showToast('Errore nell\'aggiunta a Bring!', 'error');
@@ -4512,7 +4629,7 @@ async function submitUseAll() {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -4556,7 +4673,7 @@ async function submitUse(e) {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -4770,12 +4887,12 @@ async function selectAIMatch(idx) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast('Errore nel salvataggio', 'error');
+            showToast(t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
         console.error('AI match select error:', err);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -4804,7 +4921,7 @@ async function saveAIProductDirect() {
         }
     } catch (err) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -5062,7 +5179,7 @@ async function selectProductForAction(productId) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast('Prodotto non trovato', 'error');
+            showToast(t('error.not_found'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -5663,7 +5780,7 @@ async function addSmartToBring() {
         }
     } catch (e) {
         showLoading(false);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -6191,7 +6308,7 @@ async function removeBringItem(idx) {
         if (data.success) {
             shoppingItems.splice(idx, 1);
             renderShoppingItems();
-            showToast('Rimosso dalla lista', 'success');
+            showToast(t('toast.removed_from_list_short'), 'success');
             logOperation('bring_manual_remove', { name: item.name });
             // Update dashboard shopping count
             loadShoppingCount();
@@ -6242,7 +6359,7 @@ async function generateSuggestions() {
         btn.disabled = false;
         btn.innerHTML = '🤖 Suggerisci cosa comprare';
         console.error('Suggestion error:', err);
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -6328,7 +6445,7 @@ async function addSelectedSuggestions() {
             showToast(data.error || 'Errore', 'error');
         }
     } catch (err) {
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
     
     btn.disabled = false;
@@ -7186,7 +7303,7 @@ async function submitRecipeUse(useAll) {
         console.error('Recipe use error:', err);
         btn.disabled = false;
         btn.textContent = '📦 Usa';
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
     _recipeUseContext = null;
 }
@@ -7921,7 +8038,7 @@ async function generateRecipe() {
         console.error('Recipe error:', err);
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-ask').style.display = '';
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -8694,6 +8811,198 @@ function initInactivityWatcher() {
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+    // Load translations first, then initialize the app
+    loadTranslations(_currentLang).then(() => {
+        _initApp();
+    }).catch(() => {
+        _initApp(); // fallback: initialize even if translations fail
+    });
+});
+
+// ===== SETUP WIZARD =====
+let _setupStep = 0;
+const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '' };
+
+function _isFirstRun() {
+    return !localStorage.getItem('dispensa_setup_done');
+}
+
+function _setupSteps() {
+    return [
+        {
+            title: '🌐 ' + t('settings.language.label'),
+            desc: t('settings.language.hint'),
+            render: () => {
+                let html = '<div class="setup-lang-grid">';
+                for (const [code, name] of Object.entries(_SUPPORTED_LANGS)) {
+                    const sel = code === _setupData.lang ? ' selected' : '';
+                    html += `<button class="setup-lang-btn${sel}" onclick="_setupSelectLang('${code}')">${name}</button>`;
+                }
+                html += '</div>';
+                return html;
+            }
+        },
+        {
+            title: '🤖 Google Gemini AI',
+            desc: t('settings.gemini.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label>${t('settings.gemini.key_label')}</label>
+                    <input type="text" id="setup-gemini-key" class="form-input" placeholder="AIza..." value="${_setupData.gemini_key}">
+                    <p style="color:#999;font-size:0.8rem;margin-top:8px">
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">→ Get a free API key from Google AI Studio</a>
+                    </p>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${_currentLang === 'it' ? 'configura dopo' : 'configure later'}</span>
+            `
+        },
+        {
+            title: '🛒 Bring! Shopping List',
+            desc: t('settings.bring.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label>${t('settings.bring.email_label')}</label>
+                    <input type="email" id="setup-bring-email" class="form-input" placeholder="email@example.com" value="${_setupData.bring_email}">
+                </div>
+                <div class="form-group">
+                    <label>${t('settings.bring.password_label')}</label>
+                    <input type="password" id="setup-bring-password" class="form-input" placeholder="Password" value="${_setupData.bring_password}">
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${_currentLang === 'it' ? 'configura dopo' : 'configure later'}</span>
+            `
+        },
+        {
+            title: '✅ ' + (_currentLang === 'it' ? 'Tutto pronto!' : _currentLang === 'de' ? 'Alles bereit!' : 'All set!'),
+            desc: _currentLang === 'it' ? 'La configurazione è completata. Puoi sempre modificare queste impostazioni dalla pagina Configurazione.'
+                 : _currentLang === 'de' ? 'Die Konfiguration ist abgeschlossen. Du kannst diese Einstellungen jederzeit ändern.'
+                 : 'Setup is complete. You can always change these settings from the Settings page.',
+            render: () => {
+                let summary = '<div style="text-align:center;font-size:2.5rem;margin:12px 0">🎉</div>';
+                return summary;
+            }
+        }
+    ];
+}
+
+function showSetupWizard() {
+    _setupStep = 0;
+    document.getElementById('setup-wizard').style.display = '';
+    _renderSetupStep();
+}
+
+function _renderSetupStep() {
+    const steps = _setupSteps();
+    const step = steps[_setupStep];
+
+    // Progress dots
+    const dotsHtml = steps.map((_, i) => {
+        let cls = 'setup-dot';
+        if (i < _setupStep) cls += ' done';
+        if (i === _setupStep) cls += ' active';
+        return `<div class="${cls}"></div>`;
+    }).join('');
+    document.getElementById('setup-progress').innerHTML = dotsHtml;
+
+    // Body
+    document.getElementById('setup-body').innerHTML = `<h3>${step.title}</h3><p>${step.desc}</p>${step.render()}`;
+
+    // Buttons
+    const prevBtn = document.getElementById('setup-prev');
+    const nextBtn = document.getElementById('setup-next');
+    prevBtn.style.display = _setupStep > 0 ? '' : 'none';
+    prevBtn.textContent = t('btn.back');
+
+    if (_setupStep === steps.length - 1) {
+        nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : '🚀 Start!';
+    } else {
+        nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : 'Next →';
+    }
+}
+
+function _setupSelectLang(lang) {
+    _setupData.lang = lang;
+    document.querySelectorAll('.setup-lang-btn').forEach(b => b.classList.remove('selected'));
+    event.target.classList.add('selected');
+}
+
+function _setupSkipStep() {
+    _setupStep++;
+    _renderSetupStep();
+}
+
+function _setupCollectCurrent() {
+    if (_setupStep === 1) {
+        const el = document.getElementById('setup-gemini-key');
+        if (el) _setupData.gemini_key = el.value.trim();
+    } else if (_setupStep === 2) {
+        const email = document.getElementById('setup-bring-email');
+        const pass = document.getElementById('setup-bring-password');
+        if (email) _setupData.bring_email = email.value.trim();
+        if (pass) _setupData.bring_password = pass.value.trim();
+    }
+}
+
+function setupWizardNav(dir) {
+    _setupCollectCurrent();
+    const steps = _setupSteps();
+
+    if (dir === 1 && _setupStep === steps.length - 1) {
+        // Finish wizard
+        _finishSetup();
+        return;
+    }
+
+    // If language changed, apply it
+    if (_setupStep === 0 && dir === 1 && _setupData.lang !== _currentLang) {
+        localStorage.setItem('dispensa_lang', _setupData.lang);
+        localStorage.setItem('dispensa_setup_step', '1');
+        localStorage.setItem('dispensa_setup_data', JSON.stringify(_setupData));
+        location.reload();
+        return;
+    }
+
+    _setupStep = Math.max(0, Math.min(steps.length - 1, _setupStep + dir));
+    _renderSetupStep();
+}
+
+async function _finishSetup() {
+    // Save settings
+    const s = getSettings();
+    if (_setupData.gemini_key) s.gemini_key = _setupData.gemini_key;
+    if (_setupData.bring_email) s.bring_email = _setupData.bring_email;
+    if (_setupData.bring_password) s.bring_password = _setupData.bring_password;
+    saveSettingsToStorage(s);
+
+    // Save server-side settings (.env)
+    try {
+        await api('save_settings', {}, 'POST', {
+            gemini_key: _setupData.gemini_key,
+            bring_email: _setupData.bring_email,
+            bring_password: _setupData.bring_password
+        });
+    } catch(e) { /* will work locally */ }
+
+    localStorage.setItem('dispensa_setup_done', '1');
+    localStorage.removeItem('dispensa_setup_step');
+    localStorage.removeItem('dispensa_setup_data');
+    document.getElementById('setup-wizard').style.display = 'none';
+}
+
+function _initApp() {
+    // Check for setup wizard resume (after language change)
+    const resumeStep = localStorage.getItem('dispensa_setup_step');
+    const resumeData = localStorage.getItem('dispensa_setup_data');
+    if (resumeStep) {
+        try { Object.assign(_setupData, JSON.parse(resumeData)); } catch(e) {}
+        _setupStep = parseInt(resumeStep) || 0;
+        localStorage.removeItem('dispensa_setup_step');
+        localStorage.removeItem('dispensa_setup_data');
+        document.getElementById('setup-wizard').style.display = '';
+        _renderSetupStep();
+    } else if (_isFirstRun()) {
+        showSetupWizard();
+    }
+
     // Migrate old session-based flags to time-based
     if (sessionStorage.getItem('_autoAddedCritical')) {
         sessionStorage.removeItem('_autoAddedCritical');
@@ -8738,7 +9047,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Silent background sync: update urgency specs on Bring and add missing critical items
     // Runs once at startup (time-gated: max every 10 min) without affecting the UI
     _backgroundBringSync();
-});
+}
 
 /**
  * Background sync at startup:

@@ -1,0 +1,431 @@
+{
+  "app": {
+    "name": "Dispensa Manager",
+    "loading": "Caricamento..."
+  },
+  "nav": {
+    "title": "🏠 Dispensa",
+    "home": "Home",
+    "inventory": "Dispensa",
+    "recipes": "Ricette",
+    "shopping": "Spesa",
+    "log": "Log"
+  },
+  "btn": {
+    "back": "← Indietro",
+    "save": "💾 Salva",
+    "cancel": "✕ Annulla",
+    "close": "Chiudi",
+    "add": "✅ Aggiungi",
+    "delete": "Elimina",
+    "edit": "✏️ Modifica",
+    "search": "🔍 Cerca",
+    "go": "✅ Vai",
+    "toggle_password": "👁️ Mostra/Nascondi",
+    "load_more": "Carica altri...",
+    "save_config": "💾 Salva Configurazione",
+    "save_product": "💾 Salva Prodotto",
+    "restart": "↺ Ricomincia",
+    "reset_default": "↺ Ripristina default"
+  },
+  "locations": {
+    "dispensa": "Dispensa",
+    "frigo": "Frigo",
+    "freezer": "Freezer",
+    "altro": "Altro"
+  },
+  "categories": {
+    "latticini": "Latticini",
+    "carne": "Carne",
+    "pesce": "Pesce",
+    "frutta": "Frutta",
+    "verdura": "Verdura",
+    "pasta": "Pasta & Riso",
+    "pane": "Pane & Forno",
+    "surgelati": "Surgelati",
+    "bevande": "Bevande",
+    "condimenti": "Condimenti",
+    "snack": "Snack & Dolci",
+    "conserve": "Conserve",
+    "cereali": "Cereali & Legumi",
+    "igiene": "Igiene",
+    "pulizia": "Pulizia Casa",
+    "altro": "Altro",
+    "select": "-- Seleziona --"
+  },
+  "units": {
+    "pz": "pz",
+    "conf": "conf",
+    "g": "g",
+    "ml": "ml",
+    "pieces": "Pezzi",
+    "grams": "Grammi",
+    "box": "Confezione",
+    "boxes": "Confezioni"
+  },
+  "shopping_sections": {
+    "frutta_verdura": "Frutta & Verdura",
+    "carne_pesce": "Carne & Pesce",
+    "latticini": "Latticini & Fresco",
+    "pane_dolci": "Pane & Dolci",
+    "pasta": "Pasta & Cereali",
+    "conserve": "Conserve & Salse",
+    "surgelati": "Surgelati",
+    "bevande": "Bevande",
+    "pulizia_igiene": "Pulizia & Igiene",
+    "altro": "Altro"
+  },
+  "dashboard": {
+    "expired_title": "🚫 Scaduti",
+    "expiring_title": "⏰ Prossime Scadenze",
+    "stats_period": "📊 Ultimi 30 giorni",
+    "opened_title": "📦 Prodotti Aperti",
+    "review_title": "🔍 Da revisionare",
+    "review_hint": "Quantità che sembrano anomale. Conferma se corrette o modifica.",
+    "quick_recipe": "🍳 Ricetta veloce con prodotti in scadenza"
+  },
+  "inventory": {
+    "title": "Dispensa",
+    "filter_all": "Tutti",
+    "search_placeholder": "🔍 Cerca prodotto...",
+    "empty": "Nessun prodotto qui.\nScansiona un prodotto per aggiungerlo!",
+    "no_items_found": "Nessuna voce di inventario trovata"
+  },
+  "scan": {
+    "title": "Scansiona Prodotto",
+    "mode_shopping": "🛒 Modalità Spesa",
+    "mode_shopping_end": "✅ Fine spesa",
+    "zoom": "Zoom",
+    "barcode_placeholder": "Inserisci codice a barre...",
+    "quick_name_divider": "oppure scrivi il nome",
+    "quick_name_placeholder": "Es: Mele, Zucchine, Pane...",
+    "manual_entry": "✏️ Inserimento Manuale",
+    "ai_identify": "🤖 Identifica con AI",
+    "hint": "Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo",
+    "debug_toggle": "🐛 Debug Log",
+    "barcode_acquired": "🔖 Barcode acquisito: {code}",
+    "scan_barcode": "🔖 Scansiona Barcode"
+  },
+  "action": {
+    "title": "Cosa vuoi fare?",
+    "add_btn": "📥 AGGIUNGI",
+    "add_sub": "in dispensa/frigo",
+    "use_btn": "📤 USA / CONSUMA",
+    "use_sub": "dalla dispensa/frigo"
+  },
+  "add": {
+    "title": "Aggiungi alla Dispensa",
+    "location_label": "📍 Dove lo metti?",
+    "quantity_label": "📦 Quantità",
+    "conf_size_label": "📦 Ogni confezione contiene:",
+    "conf_size_placeholder": "es. 300",
+    "vacuum_label": "🫙 Sotto vuoto",
+    "vacuum_hint": "La scadenza verrà estesa automaticamente",
+    "submit": "✅ Aggiungi"
+  },
+  "use": {
+    "title": "Usa / Consuma",
+    "location_label": "📍 Da dove?",
+    "quantity_label": "Quanto hai usato?",
+    "partial_hint": "Oppure specifica la quantità usata:",
+    "use_all": "🗑️ Usato TUTTO / Finito",
+    "submit": "📤 Usa questa quantità",
+    "available": "📦 Disponibile:",
+    "not_in_inventory": "⚠️ Prodotto non presente nell'inventario.",
+    "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!"
+  },
+  "product": {
+    "title_new": "Nuovo Prodotto",
+    "title_edit": "Modifica Prodotto",
+    "ai_fill": "📷 Scatta foto e identifica con AI",
+    "ai_fill_hint": "L'AI compilerà automaticamente i campi del prodotto",
+    "name_label": "🏷️ Nome Prodotto *",
+    "name_placeholder": "Es: Latte intero, Pasta penne rigate...",
+    "brand_label": "🏢 Marca",
+    "brand_placeholder": "Es: Barilla, Granarolo, Mutti...",
+    "category_label": "📂 Categoria",
+    "unit_label": "📏 Unità di misura",
+    "default_qty_label": "🔢 Quantità default",
+    "conf_size_label": "📦 Ogni confezione contiene:",
+    "conf_size_placeholder": "es. 300",
+    "notes_label": "📝 Note",
+    "notes_placeholder": "Es: senza lattosio, bio, conservare in frigo dopo apertura...",
+    "barcode_label": "🔖 Barcode",
+    "barcode_placeholder": "Codice a barre (se disponibile)",
+    "barcode_hint": "⚠️ Aggiungi il barcode così al prossimo acquisto basta scansionarlo!",
+    "submit": "💾 Salva Prodotto",
+    "name_required": "Inserisci il nome del prodotto",
+    "conf_size_required": "Specifica il contenuto di ogni confezione",
+    "expiry_estimated": "Scadenza stimata:",
+    "scan_expiry": "Scansiona data scadenza",
+    "expiry_hint": "📝 Puoi modificare la data o scansionarla con la fotocamera",
+    "add_batch": "📦 + Lotto con scadenza diversa",
+    "package_info": "📦 Confezione: {info}",
+    "edit_catalog": "⚙️ Modifica scheda prodotto (nome, marca, categoria…)",
+    "not_recognized": "⚠️ Prodotto non riconosciuto",
+    "edit_info": "✏️ Modifica informazioni",
+    "modify_details": "MODIFICA\nscadenza, luogo…"
+  },
+  "products": {
+    "title": "📦 Tutti i Prodotti",
+    "search_placeholder": "🔍 Cerca prodotto...",
+    "empty": "Nessun prodotto nel database.\nScansiona un prodotto per iniziare!",
+    "no_category": "Nessun prodotto in questa categoria"
+  },
+  "recipes": {
+    "title": "🍳 Ricette",
+    "generate": "✨ Genera nuova ricetta"
+  },
+  "shopping": {
+    "title": "🛒 Lista della Spesa",
+    "bring_loading": "Connessione a Bring!...",
+    "tab_to_buy": "🛍️ Da comprare",
+    "tab_forecast": "🧠 In previsione",
+    "total_label": "💰 Totale stimato",
+    "section_to_buy": "🛍️ Da comprare",
+    "suggestions_title": "💡 Suggerimenti AI",
+    "suggestions_add": "✅ Aggiungi selezionati a Bring!",
+    "search_prices": "🔍 Cerca tutti i prezzi",
+    "suggest_btn": "🤖 Suggerisci cosa comprare",
+    "smart_title": "🧠 Previsioni intelligenti",
+    "smart_empty": "Nessuna previsione disponibile.<br>Aggiungi prodotti alla dispensa per ricevere previsioni intelligenti.",
+    "smart_filter_all": "Tutti",
+    "smart_filter_critical": "🔴 Urgenti",
+    "smart_filter_high": "🟠 Presto",
+    "smart_filter_medium": "🟡 Pianifica",
+    "smart_filter_low": "🟢 Previsione",
+    "smart_add": "🛒 Aggiungi selezionati a Bring!",
+    "empty": "Lista della spesa vuota!\nUsa il pulsante sotto per generare suggerimenti.",
+    "already_in_list": "🛒 \"{name}\" già nella lista della spesa",
+    "already_in_list_short": "ℹ️ Già nella lista della spesa",
+    "add_prompt": "Vuoi aggiungerlo alla lista della spesa?",
+    "smart_already": "📊 La spesa intelligente prevede già {name}",
+    "all_searched": "Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.",
+    "search_complete": "Ricerca completata: {count} prodotti",
+    "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista"
+  },
+  "ai": {
+    "title": "🤖 Identificazione AI",
+    "capture": "📸 Scatta Foto",
+    "retake": "🔄 Riscatta",
+    "hint": "Scatta una foto del prodotto e l'AI cercherà di identificarlo",
+    "identifying": "🤖 Identifico il prodotto...",
+    "no_api_key": "⚠️ Chiave API Gemini non configurata.\n<small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small>",
+    "fields_filled": "✅ Campi compilati dall'AI"
+  },
+  "log": {
+    "title": "📒 Log Operazioni"
+  },
+  "chat": {
+    "title": "Gemini Chef",
+    "welcome": "Ciao! Sono il tuo assistente cucina",
+    "welcome_desc": "Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!",
+    "suggestion_snack": "🍿 Spuntino veloce",
+    "suggestion_juice": "🥤 Succo/Frullato",
+    "suggestion_light": "🥗 Qualcosa di leggero",
+    "suggestion_expiry": "⏰ Usa le scadenze",
+    "clear": "Nuova conversazione",
+    "placeholder": "Chiedi qualcosa..."
+  },
+  "cooking": {
+    "close": "Chiudi",
+    "tts_btn": "Leggi ad alta voce",
+    "restart": "↺ Ricomincia",
+    "replay": "🔊 Rileggi",
+    "timer": "⏱️ {time} · Timer",
+    "prev": "◀ Precedente",
+    "next": "Successivo ▶"
+  },
+  "settings": {
+    "title": "⚙️ Configurazione",
+    "tab_api": "API Keys",
+    "tab_bring": "Bring!",
+    "tab_recipe": "Ricette",
+    "tab_mealplan": "Piano Settimanale",
+    "tab_appliances": "Elettrodomestici",
+    "tab_spesa": "Spesa Online",
+    "tab_camera": "Fotocamera",
+    "tab_security": "Sicurezza",
+    "tab_tts": "Voce (TTS)",
+    "tab_language": "Lingua",
+    "gemini": {
+      "title": "🤖 Google Gemini AI",
+      "hint": "Chiave API per identificazione prodotti, scadenze e ricette.",
+      "key_label": "API Key Gemini"
+    },
+    "bring": {
+      "title": "🛒 Bring! Shopping List",
+      "hint": "Credenziali per l'integrazione con la lista della spesa Bring!",
+      "email_label": "📧 Email Bring!",
+      "password_label": "🔒 Password Bring!"
+    },
+    "recipe": {
+      "title": "🍳 Preferenze Ricette",
+      "hint": "Configura le opzioni predefinite per la generazione delle ricette.",
+      "persons_label": "👥 Persone predefinite",
+      "options_label": "🎯 Opzioni ricetta predefinite",
+      "fast": "⚡ Pasto Veloce",
+      "light": "🥗 Poca Fame",
+      "expiry": "⏰ Priorità Scadenze",
+      "healthy": "💚 Extra Salutare",
+      "opened": "📦 Priorità Cose Aperte",
+      "zerowaste": "♻️ Zero Sprechi",
+      "dietary_label": "🚫 Intolleranze / Restrizioni",
+      "dietary_placeholder": "Es: senza glutine, senza lattosio, vegetariano..."
+    },
+    "mealplan": {
+      "title": "📅 Piano Pasti Settimanale",
+      "hint": "Imposta la tipologia di pasto per ogni giorno. Sarà usata come guida nella generazione delle ricette.",
+      "enabled": "✅ Attiva piano pasti settimanale",
+      "legend": "🌤️ = Pranzo · 🌙 = Cena · Tocca un badge per cambiarlo.",
+      "types_title": "📋 Tipologie disponibili"
+    },
+    "appliances": {
+      "title": "🔌 Elettrodomestici Disponibili",
+      "hint": "Indica gli elettrodomestici che hai a disposizione. Saranno considerati nella generazione delle ricette.",
+      "new_placeholder": "Es: Macchina del pane, Bimby, Friggitrice ad aria...",
+      "quick_title": "Aggiungi velocemente:",
+      "oven": "🔥 Forno",
+      "microwave": "📡 Microonde",
+      "air_fryer": "🍟 Friggitrice ad aria",
+      "bread_maker": "🍞 Macchina pane",
+      "bimby": "🤖 Bimby/Cookeo",
+      "mixer": "🌀 Planetaria",
+      "steamer": "♨️ Vaporiera",
+      "pressure_cooker": "🫕 Pentola pressione",
+      "toaster": "🍞 Tostapane",
+      "blender": "🍹 Frullatore",
+      "empty": "Nessun elettrodomestico aggiunto"
+    },
+    "spesa": {
+      "title": "🛍️ Spesa Online",
+      "hint": "Configura il provider per la spesa online.",
+      "provider_label": "🏪 Provider",
+      "email_label": "📧 Email",
+      "password_label": "🔒 Password",
+      "login_btn": "🔐 Accedi",
+      "ai_prompt_label": "🤖 Prompt AI selezione prodotto",
+      "ai_prompt_placeholder": "Istruzioni per l'AI quando deve scegliere tra più prodotti...",
+      "ai_prompt_hint": "L'AI usa questo prompt per scegliere il prodotto più appropriato tra i risultati. Lascia vuoto per il comportamento predefinito.",
+      "configure_first": "Configura prima la Spesa Online nelle impostazioni"
+    },
+    "camera": {
+      "title": "📷 Fotocamera",
+      "hint": "Scegli quale fotocamera utilizzare per la scansione barcode e l'identificazione AI.",
+      "device_label": "📸 Fotocamera predefinita",
+      "back": "📱 Posteriore (default)",
+      "front": "🤳 Anteriore",
+      "devices_hint": "Se hai più fotocamere, puoi selezionarne una specifica dall'elenco sopra dopo aver concesso i permessi.",
+      "detect_btn": "🔄 Rileva fotocamere"
+    },
+    "security": {
+      "title": "🔒 Certificato HTTPS",
+      "hint": "Se il browser mostra l'errore \"La connessione non è privata\" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.",
+      "download_btn": "📥 Scarica Certificato CA"
+    },
+    "tts": {
+      "title": "🔊 Voce & TTS",
+      "hint": "Configura la sintesi vocale tramite qualsiasi API REST esterna. I passi della ricetta e i timer scaduti verranno inviati all'endpoint configurato.",
+      "enabled": "✅ Attiva TTS",
+      "url_label": "🌐 URL Endpoint",
+      "method_label": "📡 Metodo HTTP",
+      "auth_label": "🔐 Autenticazione",
+      "auth_bearer": "Bearer Token",
+      "auth_custom": "Header personalizzato",
+      "auth_none": "Nessuna",
+      "token_label": "🔑 Bearer Token",
+      "custom_header_name": "📋 Nome header",
+      "custom_header_value": "📋 Valore header",
+      "content_type_label": "📄 Content-Type",
+      "payload_key_label": "🗝️ Campo testo nel payload",
+      "payload_key_hint": "Nome del campo JSON che conterrà il testo da leggere (es: message, text).",
+      "extra_fields_label": "➕ Campi extra (JSON)",
+      "extra_fields_placeholder": "{\"entity_id\": \"media_player.living_room\"}",
+      "extra_fields_hint": "Campi aggiuntivi da includere nel payload, in formato JSON. Lascia vuoto se non necessario.",
+      "test_btn": "🔊 Invia Test Vocale"
+    },
+    "language": {
+      "title": "🌐 Lingua / Language",
+      "hint": "Seleziona la lingua dell'interfaccia. Select the interface language.",
+      "label": "🌐 Lingua",
+      "restart_notice": "La pagina verrà ricaricata per applicare la nuova lingua."
+    },
+    "saved": "✅ Configurazione salvata!",
+    "saved_local": "✅ Configurazione salvata localmente",
+    "saved_local_error": "⚠️ Salvato localmente, errore server: {error}"
+  },
+  "expiry": {
+    "today": "OGGI",
+    "tomorrow": "Domani",
+    "days": "{days} giorni",
+    "expired_days": "Da {days}g",
+    "expired_yesterday": "Da ieri",
+    "expired_today": "Oggi"
+  },
+  "status": {
+    "ok": "OK",
+    "check": "Controlla",
+    "discard": "Buttare"
+  },
+  "toast": {
+    "product_saved": "Prodotto salvato!",
+    "product_created": "Prodotto creato!",
+    "product_updated": "✅ Prodotto aggiornato!",
+    "product_removed": "Prodotto rimosso",
+    "updated": "Aggiornato!",
+    "quantity_confirmed": "✓ Quantità confermata",
+    "added_to_inventory": "✅ {name} aggiunto!",
+    "removed_from_list": "✅ {name} rimosso dalla lista!",
+    "removed_from_list_short": "Rimosso dalla lista",
+    "added_to_shopping": "🛒 Aggiunto alla lista della spesa!",
+    "removed_from_shopping": "🛒 Rimosso dalla lista della spesa",
+    "finished_to_bring": "🛒 Prodotto finito → aggiunto a Bring!",
+    "thrown_away": "🗑️ {name} buttato!",
+    "thrown_away_partial": "🗑️ Buttato {qty} {unit} di {name}",
+    "appliance_added": "Elettrodomestico aggiunto",
+    "item_added": "{name} aggiunto"
+  },
+  "error": {
+    "generic": "Errore",
+    "loading": "Errore nel caricamento del prodotto",
+    "not_found": "Prodotto non trovato",
+    "not_found_manual": "Prodotto non trovato. Inseriscilo manualmente.",
+    "search": "Errore nella ricerca. Riprova.",
+    "search_short": "Errore nella ricerca",
+    "save": "Errore nel salvataggio",
+    "connection": "Errore di connessione",
+    "camera": "Impossibile accedere alla fotocamera",
+    "bring_add": "Errore nell'aggiunta a Bring!",
+    "bring_connection": "Errore connessione Bring!",
+    "identification": "Errore nell'identificazione",
+    "barcode_empty": "Inserisci un codice a barre",
+    "barcode_format": "Il codice a barre deve contenere solo numeri (4-14 cifre)",
+    "min_chars": "Scrivi almeno 2 caratteri",
+    "not_in_inventory": "Prodotto non nell'inventario",
+    "appliance_exists": "Elettrodomestico già presente",
+    "already_exists": "Già presente"
+  },
+  "confirm": {
+    "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?"
+  },
+  "edit": {
+    "title": "Modifica {name}"
+  },
+  "screensaver": {
+    "recipe_btn": "Ricette",
+    "scan_btn": "Scansiona prodotto"
+  },
+  "days": {
+    "mon": "Lunedì",
+    "tue": "Martedì",
+    "wed": "Mercoledì",
+    "thu": "Giovedì",
+    "fri": "Venerdì",
+    "sat": "Sabato",
+    "sun": "Domenica"
+  },
+  "meal_types": {
+    "lunch": "Pranzo",
+    "dinner": "Cena"
+  }
+}

@@ -52,6 +52,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// ===== RATE LIMITING =====
+/**
+ * Simple file-based rate limiter.
+ * Limits: 120 req/min general, 15 req/min for AI endpoints, 5 req/min for login.
+ */
+function checkRateLimit(string $action): void {
+    $rateLimitDir = __DIR__ . '/../data/rate_limits';
+    if (!is_dir($rateLimitDir)) {
+        mkdir($rateLimitDir, 0755, true);
+    }
+
+    // Determine limit based on action
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
+    $loginActions = ['dupliclick_login'];
+
+    if (in_array($action, $aiActions)) {
+        $limit = 15;
+        $window = 60;
+        $bucket = 'ai';
+    } elseif (in_array($action, $loginActions)) {
+        $limit = 5;
+        $window = 60;
+        $bucket = 'login';
+    } else {
+        $limit = 120;
+        $window = 60;
+        $bucket = 'general';
+    }
+
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $file = $rateLimitDir . '/' . md5($ip . '_' . $bucket) . '.json';
+
+    // Clean up old rate limit files periodically (1% chance per request)
+    if (mt_rand(1, 100) === 1) {
+        foreach (glob($rateLimitDir . '/*.json') as $f) {
+            if (filemtime($f) < time() - 300) @unlink($f);
+        }
+    }
+
+    $now = time();
+    $data = [];
+    if (file_exists($file)) {
+        $raw = @file_get_contents($file);
+        if ($raw) $data = json_decode($raw, true) ?: [];
+    }
+
+    // Remove entries outside the window
+    $data = array_values(array_filter($data, function($ts) use ($now, $window) {
+        return $ts > $now - $window;
+    }));
+
+    if (count($data) >= $limit) {
+        http_response_code(429);
+        header('Retry-After: ' . $window);
+        echo json_encode(['error' => 'Too many requests. Please try again later.']);
+        exit;
+    }
+
+    $data[] = $now;
+    @file_put_contents($file, json_encode($data), LOCK_EX);
+}
+
+// Apply rate limiting
+$rateLimitAction = $_GET['action'] ?? '';
+if ($rateLimitAction) {
+    checkRateLimit($rateLimitAction);
+}
+
 try {
     $db = getDB();
 } catch (Exception $e) {

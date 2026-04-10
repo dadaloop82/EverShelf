@@ -1,0 +1,691 @@
+openapi: "3.1.0"
+info:
+  title: Dispensa Manager API
+  description: |
+    REST API for Dispensa Manager — a self-hosted pantry management system.
+    All endpoints use the query parameter `action` to determine the operation.
+    
+    **Base URL:** `api/index.php?action={action_name}`
+    
+    Rate limits apply:
+    - General: 120 requests/minute
+    - AI endpoints: 15 requests/minute
+    - Login endpoints: 5 requests/minute
+  version: "1.0.0"
+  contact:
+    name: Stimpfl Daniel
+    email: dadaloop82@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /api
+    description: Local server
+
+paths:
+  /index.php?action=search_barcode:
+    get:
+      summary: Search product by barcode in local database
+      tags: [Products]
+      parameters:
+        - name: barcode
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+
+  /index.php?action=lookup_barcode:
+    get:
+      summary: Lookup barcode on Open Food Facts
+      tags: [Products]
+      parameters:
+        - name: barcode
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product data from Open Food Facts
+
+  /index.php?action=product_save:
+    post:
+      summary: Create or update a product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200":
+          description: Product saved
+
+  /index.php?action=product_get:
+    get:
+      summary: Get product by ID
+      tags: [Products]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /index.php?action=product_delete:
+    post:
+      summary: Delete a product
+      tags: [Products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+      responses:
+        "200":
+          description: Product deleted
+
+  /index.php?action=products_list:
+    get:
+      summary: List all products
+      tags: [Products]
+      responses:
+        "200":
+          description: Array of all products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /index.php?action=products_search:
+    get:
+      summary: Search products by name
+      tags: [Products]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching products
+
+  /index.php?action=inventory_list:
+    get:
+      summary: List all inventory items
+      tags: [Inventory]
+      responses:
+        "200":
+          description: Inventory items grouped by product
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+
+  /index.php?action=inventory_add:
+    post:
+      summary: Add item to inventory
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, quantity, location]
+              properties:
+                product_id:
+                  type: integer
+                quantity:
+                  type: number
+                location:
+                  type: string
+                  enum: [dispensa, frigo, freezer, altro]
+                expiry_date:
+                  type: string
+                  format: date
+                conf_size:
+                  type: number
+                vacuum:
+                  type: boolean
+      responses:
+        "200":
+          description: Item added to inventory
+
+  /index.php?action=inventory_use:
+    post:
+      summary: Use/consume items from inventory
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, quantity, location]
+              properties:
+                product_id:
+                  type: integer
+                quantity:
+                  type: number
+                location:
+                  type: string
+                use_all:
+                  type: boolean
+      responses:
+        "200":
+          description: Item consumed
+
+  /index.php?action=inventory_update:
+    post:
+      summary: Update an inventory entry
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+                quantity:
+                  type: number
+                location:
+                  type: string
+                expiry_date:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Inventory entry updated
+
+  /index.php?action=inventory_delete:
+    post:
+      summary: Remove an inventory entry
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+      responses:
+        "200":
+          description: Inventory entry removed
+
+  /index.php?action=inventory_summary:
+    get:
+      summary: Get inventory summary (counts per location)
+      tags: [Inventory]
+      responses:
+        "200":
+          description: Summary object with counts
+
+  /index.php?action=transactions_list:
+    get:
+      summary: List operations log
+      tags: [Log]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Array of transactions
+
+  /index.php?action=stats:
+    get:
+      summary: Get waste/consumption statistics
+      tags: [Log]
+      responses:
+        "200":
+          description: Statistics for the last 30 days
+
+  /index.php?action=gemini_expiry:
+    post:
+      summary: Use AI to read expiry date from image
+      tags: [AI / Gemini]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: Base64-encoded image
+      responses:
+        "200":
+          description: Parsed expiry date
+
+  /index.php?action=generate_recipe:
+    post:
+      summary: Generate a recipe based on available ingredients
+      tags: [AI / Gemini]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                persons:
+                  type: integer
+                preferences:
+                  type: object
+      responses:
+        "200":
+          description: Generated recipe
+
+  /index.php?action=gemini_identify:
+    post:
+      summary: Identify a product from photo using AI
+      tags: [AI / Gemini]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: Base64-encoded image
+      responses:
+        "200":
+          description: Identified product data
+
+  /index.php?action=gemini_chat:
+    post:
+      summary: Chat with Gemini AI kitchen assistant
+      tags: [AI / Gemini]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                history:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        "200":
+          description: AI response
+
+  /index.php?action=bring_list:
+    get:
+      summary: Get Bring! shopping list
+      tags: [Bring! Integration]
+      responses:
+        "200":
+          description: Shopping list items
+
+  /index.php?action=bring_add:
+    post:
+      summary: Add item to Bring! shopping list
+      tags: [Bring! Integration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                spec:
+                  type: string
+      responses:
+        "200":
+          description: Item added
+
+  /index.php?action=bring_remove:
+    post:
+      summary: Remove item from Bring! shopping list
+      tags: [Bring! Integration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: Item removed
+
+  /index.php?action=bring_suggest:
+    post:
+      summary: Get AI shopping suggestions
+      tags: [Bring! Integration]
+      responses:
+        "200":
+          description: AI-generated shopping suggestions
+
+  /index.php?action=smart_shopping:
+    get:
+      summary: Get smart shopping predictions
+      tags: [Bring! Integration]
+      responses:
+        "200":
+          description: Predicted shopping needs
+
+  /index.php?action=save_settings:
+    post:
+      summary: Save server-side settings (.env values)
+      tags: [Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Settings saved
+
+  /index.php?action=get_settings:
+    get:
+      summary: Get server settings (masked passwords)
+      tags: [Settings]
+      responses:
+        "200":
+          description: Current settings
+
+  /index.php?action=app_settings_get:
+    get:
+      summary: Get application settings from database
+      tags: [Settings]
+      responses:
+        "200":
+          description: App settings object
+
+  /index.php?action=app_settings_save:
+    post:
+      summary: Save application settings to database
+      tags: [Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: App settings saved
+
+  /index.php?action=recipes_list:
+    get:
+      summary: List saved recipes
+      tags: [Recipes]
+      responses:
+        "200":
+          description: Array of saved recipes
+
+  /index.php?action=recipes_save:
+    post:
+      summary: Save a recipe
+      tags: [Recipes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Recipe saved
+
+  /index.php?action=recipes_delete:
+    post:
+      summary: Delete a recipe
+      tags: [Recipes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+      responses:
+        "200":
+          description: Recipe deleted
+
+  /index.php?action=dupliclick_login:
+    post:
+      summary: Login to DupliClick (online shopping)
+      tags: [DupliClick]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful
+
+  /index.php?action=dupliclick_search:
+    get:
+      summary: Search DupliClick product catalog
+      tags: [DupliClick]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+
+  /index.php?action=tts_proxy:
+    post:
+      summary: Proxy TTS request to external endpoint
+      tags: [TTS]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        "200":
+          description: TTS request sent
+
+  /index.php?action=expiry_history:
+    get:
+      summary: Get expiry scan history for a product
+      tags: [Inventory]
+      parameters:
+        - name: product_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Expiry history entries
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        brand:
+          type: string
+        barcode:
+          type: string
+        category:
+          type: string
+          enum:
+            - latticini
+            - carne
+            - pesce
+            - frutta
+            - verdura
+            - pasta
+            - pane
+            - surgelati
+            - bevande
+            - condimenti
+            - snack
+            - conserve
+            - cereali
+            - igiene
+            - pulizia
+            - altro
+        unit:
+          type: string
+          enum: [pz, conf, g, ml]
+        default_quantity:
+          type: number
+        package_size:
+          type: number
+        package_unit:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ProductInput:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: integer
+          description: If provided, updates existing product
+        name:
+          type: string
+        brand:
+          type: string
+        barcode:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        default_quantity:
+          type: number
+        package_size:
+          type: number
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: number
+        location:
+          type: string
+        expiry_date:
+          type: string
+          format: date
+        opened:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+tags:
+  - name: Products
+    description: Product catalog management
+  - name: Inventory
+    description: Inventory tracking (stock in/out)
+  - name: Log
+    description: Operations log and statistics
+  - name: AI / Gemini
+    description: Google Gemini AI integration (identification, recipes, chat)
+  - name: Bring! Integration
+    description: Bring! shopping list integration
+  - name: Recipes
+    description: Recipe storage
+  - name: Settings
+    description: Application and server settings
+  - name: DupliClick
+    description: DupliClick online shopping integration
+  - name: TTS
+    description: Text-to-Speech proxy
