@@ -1,10 +1,10 @@
 <?php
 /**
- * Dispensa Manager - Main API Router
+ * EverShelf - Main API Router
  * Handles all CRUD operations for products, inventory, shopping lists,
  * AI-powered features (Gemini), and third-party integrations (Bring!, DupliClick).
  *
- * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @author Stimpfl Daniel <evershelfproject@gmail.com>
  * @license MIT
  */
 

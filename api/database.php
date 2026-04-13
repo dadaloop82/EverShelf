@@ -1,13 +1,13 @@
 <?php
 /**
- * Dispensa Manager - Database initialization, schema, and migrations.
+ * EverShelf - Database initialization, schema, and migrations.
  * Uses SQLite with WAL journal mode for concurrent read/write performance.
  *
- * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @author Stimpfl Daniel <evershelfproject@gmail.com>
  * @license MIT
  */
 
-define('DB_PATH', __DIR__ . '/../data/dispensa.db');
+define('DB_PATH', __DIR__ . '/../data/evershelf.db');
 
 function getDB(): PDO {
     $isNew = !file_exists(DB_PATH);

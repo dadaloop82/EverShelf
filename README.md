@@ -1,4 +1,4 @@
-# 🏠 Dispensa Manager
+# 🏠 EverShelf
 
 > **Self-hosted pantry management system** — Track your food inventory, scan barcodes, get AI-powered recipe suggestions, and reduce waste.
 
@@ -71,8 +71,8 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/dadaloop82/dispensa.git
-cd dispensa
+git clone https://github.com/dadaloop82/EverShelf.git
+cd EverShelf
 
 # 2. Create configuration file
 cp .env.example .env
@@ -88,8 +88,8 @@ docker compose up -d
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/dadaloop82/dispensa.git
-cd dispensa
+git clone https://github.com/dadaloop82/EverShelf.git
+cd EverShelf
 
 # 2. Create configuration file
 cp .env.example .env
@@ -127,7 +127,7 @@ TTS_ENABLED=true
 The app works out of the box with Apache if placed in the web root or a subdirectory. Make sure `mod_rewrite` is enabled and `AllowOverride All` is set.
 
 ```apache
-<Directory /var/www/html/dispensa>
+<Directory /var/www/html/evershelf>
     AllowOverride All
     Require all granted
 </Directory>
@@ -142,7 +142,7 @@ The app works out of the box with Apache if placed in the web root or a subdirec
 server {
     listen 80;
     server_name your-server.local;
-    root /var/www/html/dispensa;
+    root /var/www/html/evershelf;
     index index.html;
 
     location /api/ {
@@ -176,7 +176,7 @@ Set up a cron job for smart shopping predictions:
 
 ```bash
 # Run every 5 minutes
-*/5 * * * * php /path/to/dispensa/api/cron_smart_shopping.php >> /path/to/dispensa/data/cron.log 2>&1
+*/5 * * * * php /path/to/evershelf/api/cron_smart_shopping.php >> /path/to/evershelf/data/cron.log 2>&1
 ```
 
 ### Backup (Optional)
@@ -185,7 +185,7 @@ The included `backup.sh` creates local daily backups of your database:
 
 ```bash
 # Run daily at 3 AM
-0 3 * * * /path/to/dispensa/backup.sh
+0 3 * * * /path/to/evershelf/backup.sh
 ```
 
 ---
@@ -193,7 +193,7 @@ The included `backup.sh` creates local daily backups of your database:
 ## 🏗️ Architecture
 
 ```
-dispensa/
+evershelf/
 ├── index.html              # Single-page application (SPA)
 ├── manifest.json           # PWA manifest
 ├── .env.example            # Configuration template
@@ -211,7 +211,7 @@ dispensa/
 │   └── img/                # Static images
 │
 └── data/                   # Runtime data (gitignored)
-    ├── dispensa.db         # SQLite database (auto-created)
+    ├── evershelf.db         # SQLite database (auto-created)
     ├── backups/            # Local DB backups
     └── *.json              # Token/cache files
 ```
@@ -255,7 +255,7 @@ dispensa/
 
 ```bash
 # Run PHP's built-in server for local development
-php -S localhost:8080 -t /path/to/dispensa
+php -S localhost:8080 -t /path/to/evershelf
 
 # Check PHP syntax
 php -l api/index.php
@@ -315,6 +315,6 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 ## 👨‍💻 Author
 
-**Stimpfl Daniel** — [dadaloop82@gmail.com](mailto:dadaloop82@gmail.com)
+**Stimpfl Daniel** — [evershelfproject@gmail.com](mailto:evershelfproject@gmail.com)
 
 - GitHub: [@dadaloop82](https://github.com/dadaloop82)

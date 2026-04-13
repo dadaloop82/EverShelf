@@ -8,10 +8,10 @@
     <meta name="theme-color" content="#2d5016">
     <meta name="author" content="Stimpfl Daniel">
     <meta name="description" content="Self-hosted pantry manager with barcode scanning, AI identification, and shopping list integration.">
-    <title>Dispensa Manager</title>
+    <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260329a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260413a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -20,7 +20,7 @@
 <!-- Top Header -->
 <header class="app-header">
     <div class="header-content">
-        <h1 class="header-title" onclick="showPage('dashboard')" data-i18n="nav.title">🏠 Dispensa</h1>
+        <h1 class="header-title" onclick="showPage('dashboard')" data-i18n="nav.title">🏠 EverShelf<span class="header-version">v1.2.0</span></h1>
         <div class="header-actions">
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
                 <svg class="gemini-icon" viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
@@ -846,13 +846,13 @@
                     <h4>🔒 Certificato HTTPS</h4>
                     <p class="settings-hint">Se il browser mostra l'errore "La connessione non è privata" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.</p>
                     <div class="form-group">
-                        <a href="ca.crt" download="Dispensa_CA.crt" class="btn btn-large btn-accent full-width" style="text-align:center;text-decoration:none;display:block">📥 Scarica Certificato CA</a>
+                        <a href="ca.crt" download="EverShelf_CA.crt" class="btn btn-large btn-accent full-width" style="text-align:center;text-decoration:none;display:block">📥 Scarica Certificato CA</a>
                     </div>
                     <div class="settings-hint" style="margin-top:12px;line-height:1.6">
                         <strong>Istruzioni per Chrome (Android):</strong><br>
                         1. Scarica il certificato qui sopra<br>
                         2. Vai in <em>Impostazioni → Sicurezza e privacy → Altre impostazioni di sicurezza → Installa da archivio dispositivo</em><br>
-                        3. Seleziona il file <em>Dispensa_CA.crt</em> scaricato<br>
+                        3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>
                         4. Scegli "CA" e conferma<br>
                         5. Riavvia Chrome<br><br>
                         <strong>Istruzioni per Chrome (PC):</strong><br>
@@ -1109,7 +1109,7 @@
 <div class="modal-overlay" id="setup-wizard" style="display:none">
     <div class="modal-content setup-wizard-content" onclick="event.stopPropagation()">
         <div class="setup-header">
-            <h2>🏠 Dispensa Manager</h2>
+            <h2>🏠 EverShelf</h2>
             <div class="setup-progress" id="setup-progress"></div>
         </div>
         <div class="setup-body" id="setup-body"></div>
@@ -1181,6 +1181,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260330c"></script>
+<script src="assets/js/app.js?v=20260413a"></script>
 </body>
 </html>

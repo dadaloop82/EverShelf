@@ -2,7 +2,7 @@
 /**
  * Cron: pre-compute smart shopping list and save to cache.
  * Install with:  crontab -e
- *   *\/5 * * * * php /var/www/html/dispensa/api/cron_smart_shopping.php >> /var/www/html/dispensa/data/cron.log 2>&1
+ *   *\/5 * * * * php /var/www/html/evershelf/api/cron_smart_shopping.php >> /var/www/html/evershelf/data/cron.log 2>&1
  */
 
 // Only allow CLI execution — block HTTP access

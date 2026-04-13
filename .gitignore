@@ -2,6 +2,7 @@
 .env
 
 # Data directory (user-specific runtime data)
+data/evershelf.db
 data/dispensa.db
 data/*.db-wal
 data/*.db-shm

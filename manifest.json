@@ -1,8 +1,9 @@
 {
-    "name": "Dispensa Manager",
-    "short_name": "Dispensa",
+    "name": "EverShelf",
+    "short_name": "EverShelf",
     "description": "Gestione completa della dispensa di casa con scansione barcode",
-    "start_url": "/dispensa/",
+    "version": "1.2.0",
+    "start_url": "/evershelf/",
     "display": "standalone",
     "background_color": "#f0f4e8",
     "theme_color": "#2d5016",

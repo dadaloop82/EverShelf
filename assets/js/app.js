@@ -1,9 +1,9 @@
 /**
- * Dispensa Manager - Main Application JS
+ * EverShelf - Main Application JS
  * Complete pantry management with barcode scanning, AI identification,
  * Bring! shopping list integration, recipe generation, and TTS cooking mode.
  *
- * @author Stimpfl Daniel <dadaloop82@gmail.com>
+ * @author Stimpfl Daniel <evershelfproject@gmail.com>
  * @license MIT
  */
 
@@ -61,7 +61,7 @@ const API_BASE = 'api/index.php';
 // ===== i18n TRANSLATION SYSTEM =====
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
-let _currentLang = localStorage.getItem('dispensa_lang') || navigator.language?.slice(0, 2) || 'it';
+let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'it';
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch' };
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'it';
 
@@ -107,7 +107,7 @@ async function loadTranslations(lang) {
             else _i18nStrings = _i18nFallback;
         }
         _currentLang = lang;
-        localStorage.setItem('dispensa_lang', lang);
+        localStorage.setItem('evershelf_lang', lang);
         _applyI18nToLabels();
         translatePage();
     } catch (e) {
@@ -170,7 +170,7 @@ function _populateLanguageSelector() {
 // Change language and reload the page
 function changeLanguage(lang) {
     if (lang === _currentLang) return;
-    localStorage.setItem('dispensa_lang', lang);
+    localStorage.setItem('evershelf_lang', lang);
     location.reload();
 }
 
@@ -728,7 +728,7 @@ let _settingsDirty = false;
 function getSettings() {
     if (!_settingsCache) {
         try {
-            _settingsCache = JSON.parse(localStorage.getItem('dispensa_settings') || '{}');
+            _settingsCache = JSON.parse(localStorage.getItem('evershelf_settings') || '{}');
         } catch(e) { _settingsCache = {}; }
     }
     const s = _settingsCache;
@@ -746,7 +746,7 @@ function getSettings() {
 
 function saveSettingsToStorage(settings) {
     _settingsCache = settings;
-    localStorage.setItem('dispensa_settings', JSON.stringify(settings));
+    localStorage.setItem('evershelf_settings', JSON.stringify(settings));
     // Persist to DB
     _settingsDirty = true;
     _debouncedSyncSettings();
@@ -798,7 +798,7 @@ async function syncSettingsFromDB() {
                     if (db[key] !== undefined) s[key] = db[key];
                 }
                 _settingsCache = s;
-                localStorage.setItem('dispensa_settings', JSON.stringify(s));
+                localStorage.setItem('evershelf_settings', JSON.stringify(s));
             }
             if (res.settings.review_confirmed) {
                 _reviewConfirmedCache = res.settings.review_confirmed;
@@ -7716,7 +7716,7 @@ async function testTTS() {
         s.tts_rate = parseFloat(document.getElementById('setting-tts-rate')?.value) || 1;
         s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
         saveSettingsToStorage(s);
-        _speakBrowser('Test vocale Dispensa Manager. La sintesi vocale funziona correttamente.');
+        _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
         if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Riproduzione in corso — controlla l\'audio del dispositivo.'; }
         return;
     }
@@ -7740,7 +7740,7 @@ async function testTTS() {
     }
     if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio in corso…'; }
     try {
-        const req = _buildTtsRequest('Test vocale Dispensa Manager', formSettings);
+        const req = _buildTtsRequest('Test vocale EverShelf', formSettings);
         const res = await _ttsViaProxy(req);
         const data = await res.json().catch(() => ({}));
         const httpCode = data.status || res.status;
@@ -8932,7 +8932,7 @@ function _getMissingSetupSteps(serverSettings) {
     const srv = serverSettings || {};
 
     // Step 0 — language: missing only if never set at all (fresh install)
-    if (!localStorage.getItem('dispensa_lang') && !localStorage.getItem('dispensa_setup_done')) {
+    if (!localStorage.getItem('evershelf_lang') && !localStorage.getItem('evershelf_setup_done')) {
         missing.push(0);
     }
     // Step 1 — Gemini API key (check both localStorage and server .env)
@@ -9083,10 +9083,10 @@ function setupWizardNav(dir) {
 
     // If language changed, apply it
     if (realIndex === 0 && dir === 1 && _setupData.lang !== _currentLang) {
-        localStorage.setItem('dispensa_lang', _setupData.lang);
-        localStorage.setItem('dispensa_setup_step', String(_setupStep + 1));
-        localStorage.setItem('dispensa_setup_pending', JSON.stringify(_setupPendingSteps));
-        localStorage.setItem('dispensa_setup_data', JSON.stringify(_setupData));
+        localStorage.setItem('evershelf_lang', _setupData.lang);
+        localStorage.setItem('evershelf_setup_step', String(_setupStep + 1));
+        localStorage.setItem('evershelf_setup_pending', JSON.stringify(_setupPendingSteps));
+        localStorage.setItem('evershelf_setup_data', JSON.stringify(_setupData));
         location.reload();
         return;
     }
@@ -9112,24 +9112,24 @@ async function _finishSetup() {
         });
     } catch(e) { /* will work locally */ }
 
-    localStorage.setItem('dispensa_setup_done', '1');
-    localStorage.removeItem('dispensa_setup_step');
-    localStorage.removeItem('dispensa_setup_data');
+    localStorage.setItem('evershelf_setup_done', '1');
+    localStorage.removeItem('evershelf_setup_step');
+    localStorage.removeItem('evershelf_setup_data');
     document.getElementById('setup-wizard').style.display = 'none';
 }
 
 async function _initApp() {
     // Check for setup wizard resume (after language change)
-    const resumeStep = localStorage.getItem('dispensa_setup_step');
-    const resumeData = localStorage.getItem('dispensa_setup_data');
-    const resumePending = localStorage.getItem('dispensa_setup_pending');
+    const resumeStep = localStorage.getItem('evershelf_setup_step');
+    const resumeData = localStorage.getItem('evershelf_setup_data');
+    const resumePending = localStorage.getItem('evershelf_setup_pending');
     if (resumeStep && resumePending) {
         try { Object.assign(_setupData, JSON.parse(resumeData)); } catch(e) {}
         try { _setupPendingSteps = JSON.parse(resumePending); } catch(e) {}
         _setupStep = parseInt(resumeStep) || 0;
-        localStorage.removeItem('dispensa_setup_step');
-        localStorage.removeItem('dispensa_setup_data');
-        localStorage.removeItem('dispensa_setup_pending');
+        localStorage.removeItem('evershelf_setup_step');
+        localStorage.removeItem('evershelf_setup_data');
+        localStorage.removeItem('evershelf_setup_pending');
         document.getElementById('setup-wizard').style.display = '';
         _renderSetupStep();
     } else {

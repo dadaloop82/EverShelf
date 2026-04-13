@@ -29,8 +29,8 @@ RUN [ ! -f /var/www/html/.env ] && cp /var/www/html/.env.example /var/www/html/.
 RUN echo '<Directory /var/www/html>\n\
     AllowOverride All\n\
     Require all granted\n\
-</Directory>' > /etc/apache2/conf-available/dispensa.conf \
-    && a2enconf dispensa
+</Directory>' > /etc/apache2/conf-available/evershelf.conf \
+    && a2enconf evershelf
 
 # Expose port 80
 EXPOSE 80

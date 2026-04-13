@@ -1,8 +1,8 @@
 openapi: "3.1.0"
 info:
-  title: Dispensa Manager API
+  title: EverShelf API
   description: |
-    REST API for Dispensa Manager — a self-hosted pantry management system.
+    REST API for EverShelf — a self-hosted pantry management system.
     All endpoints use the query parameter `action` to determine the operation.
     
     **Base URL:** `api/index.php?action={action_name}`
@@ -11,10 +11,10 @@ info:
     - General: 120 requests/minute
     - AI endpoints: 15 requests/minute
     - Login endpoints: 5 requests/minute
-  version: "1.0.0"
+  version: "1.2.0"
   contact:
     name: Stimpfl Daniel
-    email: dadaloop82@gmail.com
+    email: evershelfproject@gmail.com
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
