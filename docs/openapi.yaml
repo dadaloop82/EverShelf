@@ -11,7 +11,7 @@ info:
     - General: 120 requests/minute
     - AI endpoints: 15 requests/minute
     - Login endpoints: 5 requests/minute
-  version: "1.0.0"
+  version: "1.2.0"
   contact:
     name: Stimpfl Daniel
     email: evershelfproject@gmail.com

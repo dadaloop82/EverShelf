@@ -81,6 +81,16 @@ body {
     font-size: 1.3rem;
     font-weight: 700;
     cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.header-version {
+    font-size: 0.6rem;
+    font-weight: 400;
+    opacity: 0.7;
+    letter-spacing: 0.03em;
 }
 
 .header-btn {
