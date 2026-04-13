@@ -1,5 +1,5 @@
 # Docker runtime files
-data/dispensa.db
+data/evershelf.db
 data/*.db-wal
 data/*.db-shm
 data/backups/

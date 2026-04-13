@@ -1,4 +1,4 @@
-# Contributing to Dispensa Manager
+# Contributing to EverShelf
 
 Thank you for your interest in contributing! This guide will help you get started.
 
@@ -7,8 +7,8 @@ Thank you for your interest in contributing! This guide will help you get starte
 1. **Fork** the repository
 2. **Clone** your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/dispensa.git
-   cd dispensa
+   git clone https://github.com/YOUR_USERNAME/EverShelf.git
+   cd EverShelf
    ```
 3. **Create a branch** from `develop`:
    ```bash
@@ -55,7 +55,7 @@ Translations are one of the easiest ways to contribute! Each language is a singl
 
 ```json
 {
-  "app.title": "Dispensa Manager",
+  "app.title": "EverShelf",
   "nav.dashboard": "Dashboard",
   "nav.inventory": "Inventario",
   ...
@@ -110,7 +110,7 @@ node -c assets/js/app.js
 python3 -c "import json; json.load(open('translations/it.json'))"
 
 # Test Docker build
-docker build -t dispensa-test .
+docker build -t evershelf-test .
 ```
 
 ## 📝 Pull Request Process

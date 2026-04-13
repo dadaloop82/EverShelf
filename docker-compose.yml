@@ -1,12 +1,12 @@
 services:
-  dispensa:
+  evershelf:
     build: .
-    container_name: dispensa
+    container_name: evershelf
     ports:
       - "8080:80"
     volumes:
       # Persist database and runtime data
-      - dispensa_data:/var/www/html/data
+      - evershelf_data:/var/www/html/data
       # Mount your local .env configuration
       - ./.env:/var/www/html/.env:ro
     restart: unless-stopped
@@ -14,5 +14,5 @@ services:
       - TZ=Europe/Rome
 
 volumes:
-  dispensa_data:
+  evershelf_data:
     driver: local

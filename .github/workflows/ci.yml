@@ -40,14 +40,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t dispensa-test .
+        run: docker build -t evershelf-test .
 
       - name: Test container starts
         run: |
-          docker run -d --name test-dispensa -p 8080:80 dispensa-test
+          docker run -d --name test-evershelf -p 8080:80 evershelf-test
           sleep 5
           curl -f http://localhost:8080/ || exit 1
-          docker stop test-dispensa
+          docker stop test-evershelf
 
   validate-translations:
     name: Validate Translation Files
