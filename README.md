@@ -8,11 +8,18 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE-orange.svg)](translations/)
 
-<!--
-<p align="center">
-  <img src="assets/img/screenshots/dashboard.png" alt="Dashboard Screenshot" width="320" />
-</p>
--->
+---
+
+## 📸 Screenshots
+
+| | | |
+|:---:|:---:|:---:|
+| ![Dashboard](assets/img/screenshots/01_dashboard.jpg) | ![Inventario](assets/img/screenshots/02_inventory.jpg) | ![Scanner Barcode](assets/img/screenshots/03_barcode_scanner.jpg) |
+| **Dashboard** — Panoramica dell'inventario con contatori per posizione (dispensa, frigo, freezer), avvisi di scadenza imminente e tracciamento consumo vs spreco negli ultimi 30 giorni. | **Inventario** — Lista completa dei prodotti filtrabili per posizione (Tutti / Dispensa / Frigo / Freezer) e ricercabili per nome, con categoria, quantità e scadenza. | **Scanner barcode** — Scansione del codice a barre con la fotocamera (QuaggaJS) o inserimento manuale. Modalità Spesa per registrare i prodotti acquistati in sequenza rapida. |
+| ![Dettaglio ricetta](assets/img/screenshots/04_recipe_detail.jpg) | ![Ricette](assets/img/screenshots/05_recipes.jpg) | ![Modalità cucina](assets/img/screenshots/06_cooking_mode.jpg) |
+| **Dettaglio ricetta AI** — Ricetta generata da Gemini AI usando gli ingredienti in scadenza: ingredienti abbinati all'inventario reale con quantità e posizione, pronti da scalare. | **Ricette** — Storico delle ricette generate dall'AI, organizzate per giorno e pasto (pranzo / cena / altro), con tempo di preparazione e cottura. | **Modalità cucina** — Guida passo-passo a schermo intero con sintesi vocale (TTS). Ogni step mostra l'ingrediente da usare dalla tua dispensa con pulsante "Usa" integrato. |
+| ![Chat AI](assets/img/screenshots/07_ai_chat.jpg) | ![Lista della spesa](assets/img/screenshots/08_shopping_list.jpg) | ![Previsioni intelligenti](assets/img/screenshots/09_smart_predictions.jpg) |
+| **Chat Gemini** — Assistente AI che conosce la tua dispensa, i tuoi elettrodomestici e le tue preferenze. Suggerisce snack, frullati o piatti veloci con un tap. | **Lista della spesa** — Lista sincronizzata con Bring!, organizzata per categoria merceologica, con indicatori di urgenza e link per cercare il prezzo online. | **Previsioni intelligenti** — Analisi AI dei consumi storici: mostra cosa si sta finendo, con quanto tempo rimane e perché è consigliato riacquistarlo (uso regolare, quasi finito, aperto). |
 
 ---
 

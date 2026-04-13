@@ -31,3 +31,6 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Raw screenshots (working folder, not for distribution)
+/screenshots/
