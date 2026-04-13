@@ -172,6 +172,7 @@ function changeLanguage(lang) {
     if (lang === _currentLang) return;
     localStorage.setItem('evershelf_lang', lang);
     location.reload();
+}
 
 const LOCATIONS = {
     'dispensa': { icon: '🗄️', label: 'Dispensa' },
