@@ -1,12 +1,13 @@
 name: Build & Release Scale Gateway APK
 
-# Builds the Scale Gateway APK and publishes it to GitHub Releases
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -35,21 +36,18 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p artifacts
-          cp evershelf-scale-gateway/app/build/outputs/apk/debug/app-debug.apk \
-             artifacts/evershelf-scale-gateway.apk
+          cp evershelf-scale-gateway/app/build/outputs/apk/debug/app-debug.apk artifacts/evershelf-scale-gateway.apk
 
       - name: Get version name
         id: version
         run: |
-          VERSION=$(grep 'versionName' evershelf-scale-gateway/app/build.gradle.kts \
-            | grep -oP '"\K[^"]+')
+          VERSION=$(grep 'versionName' evershelf-scale-gateway/app/build.gradle.kts | grep -oP '"\K[^"]+')
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Delete existing latest release (if any)
+      - name: Delete existing latest release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete latest --yes || true
+        run: gh release delete latest --yes || true
 
       - name: Create GitHub Release and upload APK
         env:
@@ -57,10 +55,6 @@ jobs:
         run: |
           gh release create latest \
             --title "EverShelf Scale Gateway v${{ steps.version.outputs.name }}" \
-            --notes "Automated release of EverShelf Scale Gateway v${{ steps.version.outputs.name }}.
-
-## Download
-Download the APK below and install it on your Android device (Android 7.0+).
-Make sure to allow installation from unknown sources in your device settings." \
+            --notes "Download the APK and install it on your Android device (7.0+). Allow installation from unknown sources in settings." \
             --latest \
             artifacts/evershelf-scale-gateway.apk
