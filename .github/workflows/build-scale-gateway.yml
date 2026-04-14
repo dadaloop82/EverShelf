@@ -1,0 +1,69 @@
+name: Build & Release Scale Gateway APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'evershelf-scale-gateway/**'
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make gradlew executable
+        run: chmod +x evershelf-scale-gateway/gradlew
+        working-directory: ${{ github.workspace }}
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: evershelf-scale-gateway
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp evershelf-scale-gateway/app/build/outputs/apk/debug/app-debug.apk \
+             artifacts/evershelf-scale-gateway.apk
+
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' evershelf-scale-gateway/app/build.gradle.kts \
+            | grep -oP '"\K[^"]+')
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing latest release (if any)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes || true
+
+      - name: Create GitHub Release and upload APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create latest \
+            --title "EverShelf Scale Gateway v${{ steps.version.outputs.name }}" \
+            --notes "Automated release of EverShelf Scale Gateway v${{ steps.version.outputs.name }}.
+
+## Download
+Download the APK below and install it on your Android device (Android 7.0+).
+Make sure to allow installation from unknown sources in your device settings." \
+            --latest \
+            artifacts/evershelf-scale-gateway.apk
