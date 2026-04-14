@@ -90,17 +90,12 @@ class BleScaleManager(
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        // Filter for known weight/body-composition services; also allow unfiltered scan
-        val filters: List<ScanFilter> = listOf(
-            ScanFilter.Builder().setServiceUuid(android.os.ParcelUuid(BleUuids.WEIGHT_SCALE_SERVICE)).build(),
-            ScanFilter.Builder().setServiceUuid(android.os.ParcelUuid(BleUuids.BODY_COMPOSITION_SERVICE)).build(),
-        )
-
+        // No service UUID filters — many consumer scales use proprietary UUIDs
+        // and would be invisible with strict filtering. We show all named BLE devices.
         isScanning = true
         try {
-            leScanner?.startScan(filters, settings, scanCallback)
+            leScanner?.startScan(null, settings, scanCallback)
         } catch (e: Exception) {
-            // Some devices reject filtered scan; fall back to unfiltered
             leScanner?.startScan(scanCallback)
         }
 
