@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'evershelf-scale-gateway/**'
-      - '.github/workflows/build-scale-gateway.yml'
 
   workflow_dispatch:
 
