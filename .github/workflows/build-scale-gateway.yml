@@ -27,13 +27,11 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
-
-      - name: Make gradlew executable
-        run: chmod +x evershelf-scale-gateway/gradlew
-        working-directory: ${{ github.workspace }}
+        with:
+          gradle-version: '8.4'
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
         working-directory: evershelf-scale-gateway
 
       - name: Rename APK
