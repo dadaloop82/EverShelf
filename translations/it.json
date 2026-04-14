@@ -248,6 +248,7 @@
     "tab_security": "Sicurezza",
     "tab_tts": "Voce (TTS)",
     "tab_language": "Lingua",
+    "tab_scale": "Bilancia Smart",
     "gemini": {
       "title": "🤖 Google Gemini AI",
       "hint": "Chiave API per identificazione prodotti, scadenze e ricette.",
@@ -350,6 +351,19 @@
       "label": "🌐 Lingua",
       "restart_notice": "La pagina verrà ricaricata per applicare la nuova lingua."
     },
+    "scale": {
+      "title": "⚖️ Bilancia Smart",
+      "hint": "Collega una bilancia Bluetooth tramite il gateway Android per leggere il peso automaticamente.",
+      "tab": "Bilancia Smart",
+      "enabled": "✅ Abilita bilancia smart",
+      "url_label": "🌐 URL Gateway WebSocket",
+      "url_placeholder": "ws://192.168.1.x:8765",
+      "url_hint": "URL mostrato dall'app Android (stessa rete Wi-Fi). Es:",
+      "test_btn": "🔗 Testa connessione",
+      "download_btn": "📥 Scarica Gateway Android (APK)",
+      "download_hint": "App Android che fa da ponte tra la bilancia BLE e questo sito.",
+      "download_sub": "Sorgente: evershelf-scale-gateway/ nella root del progetto"
+    },
     "saved": "✅ Configurazione salvata!",
     "saved_local": "✅ Configurazione salvata localmente",
     "saved_local_error": "⚠️ Salvato localmente, errore server: {error}"
@@ -427,5 +441,22 @@
   "meal_types": {
     "lunch": "Pranzo",
     "dinner": "Cena"
+  },
+  "scale": {
+    "status_connected": "Bilancia connessa",
+    "status_searching": "Connesso al gateway, attesa bilancia…",
+    "status_disconnected": "Gateway bilancia non raggiungibile",
+    "status_error": "Errore connessione gateway",
+    "not_connected": "Gateway bilancia non connesso",
+    "read_btn": "⚖️ Leggi dalla bilancia",
+    "reading_title": "Lettura bilancia",
+    "place_on_scale": "Metti il prodotto sulla bilancia…",
+    "waiting_stable": "Il peso venire rilevato automaticamente quando la lettura sarà stabile.",
+    "no_url": "Inserisci l'URL del gateway",
+    "testing": "⏳ Test connessione…",
+    "connected_ok": "Connessione gateway riuscita!",
+    "timeout": "Timeout: nessuna risposta dal gateway",
+    "error_connect": "Impossibile connettersi al gateway",
+    "tab": "Bilancia Smart"
   }
 }

@@ -248,6 +248,7 @@
     "tab_security": "Security",
     "tab_tts": "Voice (TTS)",
     "tab_language": "Language",
+    "tab_scale": "Smart Scale",
     "gemini": {
       "title": "🤖 Google Gemini AI",
       "hint": "API key for product identification, expiry dates and recipes.",
@@ -350,6 +351,19 @@
       "label": "🌐 Language",
       "restart_notice": "The page will reload to apply the new language."
     },
+    "scale": {
+      "title": "⚖️ Smart Scale",
+      "hint": "Connect a Bluetooth scale via the Android gateway to automatically read weight.",
+      "tab": "Smart Scale",
+      "enabled": "✅ Enable smart scale",
+      "url_label": "🌐 WebSocket Gateway URL",
+      "url_placeholder": "ws://192.168.1.x:8765",
+      "url_hint": "URL shown by the Android app (same Wi-Fi network). E.g.:",
+      "test_btn": "🔗 Test connection",
+      "download_btn": "📥 Download Android Gateway (APK)",
+      "download_hint": "Android app that bridges your BLE scale and EverShelf.",
+      "download_sub": "Source: evershelf-scale-gateway/ in the project root"
+    },
     "saved": "✅ Configuration saved!",
     "saved_local": "✅ Configuration saved locally",
     "saved_local_error": "⚠️ Saved locally, server error: {error}"
@@ -427,5 +441,22 @@
   "meal_types": {
     "lunch": "Lunch",
     "dinner": "Dinner"
+  },
+  "scale": {
+    "status_connected": "Scale connected",
+    "status_searching": "Gateway connected, waiting for scale…",
+    "status_disconnected": "Scale gateway unreachable",
+    "status_error": "Gateway connection error",
+    "not_connected": "Scale gateway not connected",
+    "read_btn": "⚖️ Read from scale",
+    "reading_title": "Scale reading",
+    "place_on_scale": "Place the product on the scale…",
+    "waiting_stable": "Weight will be captured automatically once the reading is stable.",
+    "no_url": "Enter the gateway URL",
+    "testing": "⏳ Testing connection…",
+    "connected_ok": "Gateway connection successful!",
+    "timeout": "Timeout: no response from gateway",
+    "error_connect": "Cannot connect to gateway",
+    "tab": "Smart Scale"
   }
 }

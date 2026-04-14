@@ -2,6 +2,8 @@
 
 > **Self-hosted pantry management system** — Track your food inventory, scan barcodes, get AI-powered recipe suggestions, and reduce waste.
 
+🌐 **Website:** [evershelfproject.dadaloop.it](https://evershelfproject.dadaloop.it/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/)
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
@@ -49,6 +51,13 @@
 - **Mobile-first design** — Optimized for phones, works on tablets and desktop
 - **Installable** — Add to home screen for a native app experience
 - **Multi-device** — Settings and data sync across devices on the same server
+
+### ⚖️ Smart Scale Integration (Add-on)
+- **Bluetooth gateway** — Connects a BLE smart scale to EverShelf via local WebSocket
+- **Auto weight reading** — When adding/using a product with unit g/ml, tap "⚖️ Read from scale"
+- **Real-time status** — Scale connection indicator always visible in the header
+- **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
+- **Android gateway app** — [`evershelf-scale-gateway/`](evershelf-scale-gateway/) — open-source, downloadable APK
 
 ---
 
@@ -208,6 +217,10 @@ evershelf/
     ├── evershelf.db         # SQLite database (auto-created)
     ├── backups/            # Local DB backups
     └── *.json              # Token/cache files
+
+evershelf-scale-gateway/    # ⚖️ Android BLE gateway (add-on)
+    ├── README.md           # Setup & protocol docs
+    └── app/src/            # Kotlin Android source (WebSocket + BLE)
 ```
 
 ### API Endpoints
@@ -311,6 +324,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 **Stimpfl Daniel** — [evershelfproject@gmail.com](mailto:evershelfproject@gmail.com)
 
+- Website: [evershelfproject.dadaloop.it](https://evershelfproject.dadaloop.it/)
 - GitHub: [@dadaloop82](https://github.com/dadaloop82)
 
 ---

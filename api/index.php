@@ -1669,30 +1669,38 @@ function generateRecipe(PDO $db): void {
     }
     $ingredientsText = implode("\n\n", $ingredientSections);
 
-    // Build mandatory/recommended lists:
-    // - Truly mandatory: expired (group 1) OR expiring within 1 day (group 2 + daysLeft ≤ 1)
-    //   These are genuinely at risk of being wasted RIGHT NOW.
-    // - Highly recommended: expiring in 2-3 days (group 2 + daysLeft > 1)
-    //   Fresh products like milk naturally have short shelf lives and are often used anyway,
-    //   so we suggest rather than force them.
+    // Build mandatory/recommended lists ONLY when user explicitly selected
+    // 'scadenze' (expiry priority) or 'zerowaste' (zero waste) options.
+    // Without these options, the recipe should use ALL available ingredients freely
+    // without being biased toward expiring items.
     $mandatoryItems = [];
     $recommendedItems = [];
-    foreach ($items as $item) {
-        $g = $getItemPriority($item);
-        $daysLeft = floatval($item['days_left']);
-        $isOpen = !empty($item['opened_at']) ||
-                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
-        $expiryNote = !empty($item['expiry_date']) ? " — scade: {$item['expiry_date']}" : '';
-        $openNote   = $isOpen ? ' [APERTO]' : '';
-        $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
-        if ($g === 1 || ($g === 2 && $daysLeft <= 1)) {
-            $mandatoryItems[] = $label;
-        } elseif ($g === 2) {
-            $recommendedItems[] = $label;
-        } elseif ($isOpen && $daysLeft <= 5 && $daysLeft >= 0) {
-            // Opened items expiring within 5 days but not already in mandatory/recommended
-            // → bump to "strongly recommended" so the AI knows to use them
-            $recommendedItems[] = $label;
+    $wantsExpiryPriority = in_array('scadenze', $options) || in_array('zerowaste', $options);
+    $wantsOpenedPriority = in_array('opened', $options);
+
+    if ($wantsExpiryPriority || $wantsOpenedPriority) {
+        foreach ($items as $item) {
+            $g = $getItemPriority($item);
+            $daysLeft = floatval($item['days_left']);
+            $isOpen = !empty($item['opened_at']) ||
+                      (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+            $expiryNote = !empty($item['expiry_date']) ? " — scade: {$item['expiry_date']}" : '';
+            $openNote   = $isOpen ? ' [APERTO]' : '';
+            $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
+
+            if ($wantsExpiryPriority) {
+                if ($g === 1 || ($g === 2 && $daysLeft <= 1)) {
+                    $mandatoryItems[] = $label;
+                } elseif ($g === 2) {
+                    $recommendedItems[] = $label;
+                }
+            }
+            if (($wantsOpenedPriority || $wantsExpiryPriority) && $isOpen && $daysLeft <= 5 && $daysLeft >= 0) {
+                // Opened items expiring within 5 days but not already in mandatory/recommended
+                if (!in_array($label, $mandatoryItems) && !in_array($label, $recommendedItems)) {
+                    $recommendedItems[] = $label;
+                }
+            }
         }
     }
 

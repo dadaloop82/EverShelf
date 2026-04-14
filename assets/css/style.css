@@ -137,6 +137,52 @@ body {
     align-items: center;
 }
 
+/* ── Smart Scale status indicator in header ─────────────────────────── */
+.scale-status-indicator {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: default;
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: background 0.4s, box-shadow 0.4s;
+}
+.scale-status-connected    { background: #22c55e; box-shadow: 0 0 6px #22c55eaa; }
+.scale-status-searching    { background: #f59e0b; animation: scaleStatusPulse 1.4s infinite; }
+.scale-status-disconnected { background: rgba(255,255,255,0.18); }
+.scale-status-error        { background: #ef4444; box-shadow: 0 0 4px #ef4444aa; }
+@keyframes scaleStatusPulse {
+    0%, 100% { box-shadow: 0 0 4px #f59e0b88; }
+    50%       { box-shadow: 0 0 10px #f59e0bcc; }
+}
+
+/* ── Scale read button (add/use forms) ──────────────────────────────── */
+.scale-read-btn {
+    width: 100%;
+    margin-top: 8px !important;
+    font-size: 0.88rem;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1.5px dashed rgba(124,58,237,0.5);
+    background: rgba(124,58,237,0.06);
+    color: #7c3aed;
+    font-weight: 600;
+}
+.scale-read-btn:active { background: rgba(124,58,237,0.15); }
+
+/* ── Scale reading modal live display ──────────────────────────────── */
+.scale-reading-live {
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: var(--accent, #7c3aed);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    padding: 12px 0;
+}
+
 .header-gemini-btn {
     width: 44px;
     height: 44px;
