@@ -58,6 +58,204 @@ window.addEventListener('unhandledrejection', function(e) {
 // ===== CONFIGURATION =====
 const API_BASE = 'api/index.php';
 
+// ===== SMART SCALE GATEWAY =====
+// Connects to the Android BLE-WebSocket gateway and provides auto weight reading.
+
+let _scaleWs = null;
+let _scaleConnected = false;
+let _scaleDevice = null;
+let _scaleBattery = null;
+let _scaleReconnectTimer = null;
+let _scaleWeightCallback = null; // pending on-demand weight request callback
+let _scaleLatestWeight = null;   // last received weight message
+
+function scaleInit() {
+    const s = getSettings();
+    const indicator = document.getElementById('scale-status-indicator');
+    if (!s.scale_enabled || !s.scale_gateway_url) {
+        if (indicator) indicator.style.display = 'none';
+        if (_scaleWs) { try { _scaleWs.close(); } catch(e) {} _scaleWs = null; }
+        return;
+    }
+    if (indicator) indicator.style.display = '';
+    _scaleConnect(s.scale_gateway_url);
+}
+
+function _scaleConnect(url) {
+    if (_scaleWs) { try { _scaleWs.close(); } catch(e) {} _scaleWs = null; }
+    if (_scaleReconnectTimer) { clearTimeout(_scaleReconnectTimer); _scaleReconnectTimer = null; }
+    try {
+        _scaleWs = new WebSocket(url);
+        _scaleWs.onopen = () => {
+            _scaleUpdateStatus('searching');
+            try { _scaleWs.send(JSON.stringify({ type: 'get_status' })); } catch(e) {}
+        };
+        _scaleWs.onmessage = (evt) => {
+            try { _scaleOnMessage(JSON.parse(evt.data)); } catch(e) {}
+        };
+        _scaleWs.onclose = () => {
+            _scaleConnected = false;
+            _scaleDevice = null;
+            _scaleUpdateStatus('disconnected');
+            _scaleReconnectTimer = setTimeout(() => {
+                _scaleReconnectTimer = null;
+                const s = getSettings();
+                if (s.scale_enabled && s.scale_gateway_url) _scaleConnect(s.scale_gateway_url);
+            }, 8000);
+        };
+        _scaleWs.onerror = () => _scaleUpdateStatus('error');
+    } catch(e) {
+        _scaleUpdateStatus('error');
+    }
+}
+
+function _scaleOnMessage(msg) {
+    if (msg.type === 'status') {
+        _scaleConnected = msg.state === 'connected';
+        _scaleDevice = msg.device || null;
+        _scaleBattery = msg.battery ?? null;
+        _scaleUpdateStatus(_scaleConnected ? 'connected' : 'searching');
+    } else if (msg.type === 'weight') {
+        _scaleLatestWeight = msg;
+        // Update live reading overlay if visible
+        const live = document.getElementById('scale-reading-live');
+        if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        // Fulfil pending callback on stable reading
+        if (msg.stable && _scaleWeightCallback) {
+            const cb = _scaleWeightCallback;
+            _scaleWeightCallback = null;
+            cb(msg);
+        }
+    }
+}
+
+function _scaleUpdateStatus(state) {
+    const el = document.getElementById('scale-status-indicator');
+    if (!el) return;
+    el.className = `scale-status-indicator scale-status-${state}`;
+    const labels = {
+        connected:    `⚖️ ${t('scale.status_connected')}${_scaleDevice ? ': ' + _scaleDevice : ''}`,
+        searching:    `⚖️ ${t('scale.status_searching')}`,
+        disconnected: `⚖️ ${t('scale.status_disconnected')}`,
+        error:        `⚖️ ${t('scale.status_error')}`,
+    };
+    el.title = labels[state] || '';
+}
+
+/**
+ * Show the scale reading modal and wait for a stable weight, then populate the input.
+ * @param {string} targetInputId  — ID of the <input> to fill
+ * @param {Function} getUnit      — function that returns the current unit string ('g', 'ml', 'kg')
+ */
+function readScaleWeight(targetInputId, getUnit) {
+    if (!_scaleWs || _scaleWs.readyState !== WebSocket.OPEN) {
+        showToast('⚖️ ' + t('scale.not_connected'), 'error');
+        return;
+    }
+    const unit = typeof getUnit === 'function' ? getUnit() : getUnit;
+    _scaleShowReadingModal(targetInputId, unit);
+    _scaleWeightCallback = (msg) => {
+        let val = parseFloat(msg.value);
+        const srcUnit = (msg.unit || 'kg').toLowerCase();
+        // Convert to target unit
+        if (srcUnit === 'kg' && unit === 'g')   val = Math.round(val * 1000);
+        if (srcUnit === 'g'  && unit === 'kg')  val = +(val / 1000).toFixed(3);
+        if (srcUnit === 'lbs'|| srcUnit === 'lb') {
+            val = val * 453.592;
+            if (unit === 'kg') val = +(val / 1000).toFixed(2); else val = Math.round(val);
+        }
+        if (srcUnit === 'kg' && unit === 'ml')  val = Math.round(val * 1000); // approximate (water density)
+        const inp = document.getElementById(targetInputId);
+        if (inp) { inp.value = val; inp.dispatchEvent(new Event('input')); }
+        closeModal();
+        showToast(`⚖️ ${val} ${unit}`, 'success');
+    };
+    try { _scaleWs.send(JSON.stringify({ type: 'get_weight' })); } catch(e) {}
+}
+
+function _scaleShowReadingModal(targetInputId, unit) {
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>⚖️ ${t('scale.reading_title')}</h3>
+            <button class="modal-close" onclick="closeModal(); _scaleWeightCallback = null;">✕</button>
+        </div>
+        <div style="padding:16px;text-align:center">
+            <p style="margin-bottom:16px">${t('scale.place_on_scale')}</p>
+            <div id="scale-reading-live" class="scale-reading-live">— — —</div>
+            <p class="settings-hint" style="margin-top:12px">${t('scale.waiting_stable')}</p>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+/**
+ * Show/hide "⚖️ Leggi dalla bilancia" buttons based on current settings and unit.
+ * Called after unit change or when navigating to the add/use form.
+ */
+function updateScaleReadButtons() {
+    const s = getSettings();
+    const ready = s.scale_enabled && s.scale_gateway_url;
+
+    const btnAdd = document.getElementById('btn-scale-add');
+    if (btnAdd) {
+        const addUnit = document.getElementById('add-unit')?.value;
+        btnAdd.style.display = (ready && (addUnit === 'g' || addUnit === 'ml')) ? '' : 'none';
+    }
+    const btnUse = document.getElementById('btn-scale-use');
+    if (btnUse) {
+        btnUse.style.display = (ready && (_useNormalUnit === 'g' || _useNormalUnit === 'ml')) ? '' : 'none';
+    }
+}
+
+function onScaleEnabledChange() {
+    const s = getSettings();
+    const el = document.getElementById('setting-scale-enabled');
+    s.scale_enabled = el ? el.checked : false;
+    saveSettingsToStorage(s);
+    scaleInit();
+    updateScaleReadButtons();
+}
+
+function testScaleConnection() {
+    const urlEl = document.getElementById('setting-scale-url');
+    const statusEl = document.getElementById('scale-test-status');
+    if (!urlEl || !statusEl) return;
+    const url = urlEl.value.trim();
+    if (!url) { showToast(t('scale.no_url'), 'error'); return; }
+
+    statusEl.textContent = t('scale.testing');
+    statusEl.className = 'settings-status';
+    statusEl.style.display = 'block';
+
+    let testWs;
+    const timeout = setTimeout(() => {
+        if (testWs) testWs.close();
+        statusEl.textContent = '❌ ' + t('scale.timeout');
+        statusEl.className = 'settings-status error';
+    }, 6000);
+    try {
+        testWs = new WebSocket(url);
+        testWs.onopen = () => {
+            try { testWs.send(JSON.stringify({ type: 'ping' })); } catch(e) {}
+        };
+        testWs.onmessage = () => {
+            clearTimeout(timeout);
+            testWs.close();
+            statusEl.textContent = '✅ ' + t('scale.connected_ok');
+            statusEl.className = 'settings-status success';
+        };
+        testWs.onerror = () => {
+            clearTimeout(timeout);
+            statusEl.textContent = '❌ ' + t('scale.error_connect');
+            statusEl.className = 'settings-status error';
+        };
+    } catch(e) {
+        clearTimeout(timeout);
+        statusEl.textContent = '❌ ' + (e.message || t('scale.error_connect'));
+        statusEl.className = 'settings-status error';
+    }
+}
+
 // ===== i18n TRANSLATION SYSTEM =====
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
@@ -911,6 +1109,11 @@ async function loadSettingsUI() {
             if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled;
         }
     } catch(e) { /* ignore */ }
+    // Scale settings
+    const scaleEnabledUiEl = document.getElementById('setting-scale-enabled');
+    if (scaleEnabledUiEl) scaleEnabledUiEl.checked = !!s.scale_enabled;
+    const scaleUrlUiEl = document.getElementById('setting-scale-url');
+    if (scaleUrlUiEl) scaleUrlUiEl.value = s.scale_gateway_url || '';
 }
 
 function renderAppliances(appliances) {
@@ -1032,6 +1235,11 @@ async function saveSettings() {
     // Save spesa AI prompt if the field exists
     const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
     if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
+    // Scale settings
+    const scaleEnabledEl = document.getElementById('setting-scale-enabled');
+    if (scaleEnabledEl) s.scale_enabled = scaleEnabledEl.checked;
+    const scaleUrlEl = document.getElementById('setting-scale-url');
+    if (scaleUrlEl) s.scale_gateway_url = scaleUrlEl.value.trim();
     saveSettingsToStorage(s);
     
     // Also save to server .env
@@ -3707,6 +3915,7 @@ function showAddForm() {
     `;
     
     showPage('add');
+    updateScaleReadButtons();
     // After rendering, fetch history-based expiry prediction
     if (currentProduct && currentProduct.id) {
         _fetchExpiryHistoryAndUpdate(currentProduct.id);
@@ -3833,6 +4042,9 @@ function onAddUnitChange() {
     if (unit === 'ml' && currentQty <= 10) qtyInput.value = 500;
     if (unit === 'pz' && currentQty > 100) qtyInput.value = 1;
     if (unit === 'conf' && currentQty > 10) qtyInput.value = 1;
+
+    // Show/hide scale read button based on new unit
+    updateScaleReadButtons();
 }
 
 function updateAddQtyStep() {
@@ -4117,6 +4329,7 @@ function showUseForm() {
     
     loadUseInventoryInfo();
     showPage('use');
+    updateScaleReadButtons();
 }
 
 function renderUsePreview() {
@@ -9158,6 +9371,7 @@ async function _initApp() {
     initSpesaMode();
     initScreensaverShortcuts();
     startBgShoppingRefresh();
+    scaleInit(); // connect to smart scale gateway if configured
 
     // ── Auto-refresh dati ─────────────────────────────────────────────────
     // 1) Ogni 5 minuti: ricarica la pagina corrente (scadenze, inventario, ecc.)

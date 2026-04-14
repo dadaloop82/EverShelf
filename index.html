@@ -22,6 +22,7 @@
     <div class="header-content">
         <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.2.0</span></h1>
         <div class="header-actions">
+            <span id="scale-status-indicator" class="scale-status-indicator scale-status-disconnected" style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia">⚖️</span>
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
                 <svg class="gemini-icon" viewBox="0 0 24 24" width="28" height="28" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
             </button>
@@ -227,6 +228,7 @@
                         <option value="ml">ml</option>
                     </select>
                 </div>
+                <button type="button" id="btn-scale-add" class="btn btn-secondary scale-read-btn" style="display:none" onclick="readScaleWeight('add-quantity', function(){ return document.getElementById('add-unit').value; })" data-i18n="scale.read_btn">⚖️ Leggi dalla bilancia</button>
                 <div id="add-conf-size-row" class="conf-size-row" style="display:none">
                     <label class="conf-size-label">📦 Ogni confezione contiene:</label>
                     <div class="conf-size-inputs">
@@ -278,6 +280,7 @@
             </div>
             <div class="form-group">
                 <label>Quanto hai usato?</label>
+                <button type="button" id="btn-scale-use" class="btn btn-secondary scale-read-btn" style="display:none" onclick="readScaleWeight('use-quantity', function(){ return _useNormalUnit || 'g'; })" data-i18n="scale.read_btn">⚖️ Leggi dalla bilancia</button>
                 <div class="use-unit-switch" id="use-unit-switch" style="display:none">
                     <button type="button" class="use-unit-btn active" id="use-unit-sub" onclick="switchUseUnit('sub')"></button>
                     <button type="button" class="use-unit-btn" id="use-unit-conf" onclick="switchUseUnit('conf')">Confezioni</button>
@@ -667,6 +670,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts">🔊</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-language')" data-tab="tab-language" title="Lingua" data-i18n-title="settings.tab_language">🌐</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab">⚖️</button>
         </div>
         <div class="settings-panels">
             <!-- API Keys Tab -->
@@ -965,6 +969,54 @@
 
                     <button class="btn btn-large btn-accent full-width mt-2" onclick="testTTS()">🔊 Invia Test Vocale</button>
                     <div id="tts-test-status" style="display:none;margin-top:8px"></div>
+                </div>
+            </div>
+            <!-- Scale Tab -->
+            <div class="settings-panel" id="tab-scale">
+                <div class="settings-card">
+                    <h4 data-i18n="settings.scale.title">⚖️ Bilancia Smart</h4>
+                    <p class="settings-hint" data-i18n="settings.scale.hint">Collega una bilancia Bluetooth tramite il gateway Android per leggere il peso automaticamente.</p>
+
+                    <!-- Download gateway app -->
+                    <div style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px;margin-bottom:16px">
+                        <p style="margin:0 0 4px;font-weight:600">📱 EverShelf Scale Gateway</p>
+                        <p class="settings-hint" style="margin-bottom:10px" data-i18n="settings.scale.download_hint">App Android che fa da ponte tra la bilancia BLE e questo sito.</p>
+                        <a href="https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center" data-i18n="settings.scale.download_btn">📥 Scarica Gateway Android (APK)</a>
+                        <p class="settings-hint" style="margin-top:8px" data-i18n="settings.scale.download_sub">Sorgente: <code>evershelf-scale-gateway/</code> nella root del progetto</p>
+                    </div>
+
+                    <!-- Enable toggle -->
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.scale.enabled">✅ Abilita bilancia smart</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-scale-enabled" onchange="onScaleEnabledChange()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <!-- Gateway URL -->
+                    <div class="form-group">
+                        <label data-i18n="settings.scale.url_label">🌐 URL Gateway WebSocket</label>
+                        <input type="url" id="setting-scale-url" class="form-input" placeholder="ws://192.168.1.x:8765" data-i18n-placeholder="settings.scale.url_placeholder">
+                        <p class="settings-hint" data-i18n="settings.scale.url_hint">Copia l'URL mostrato dall'app Android (stessa rete Wi-Fi). Es: <code>ws://192.168.1.100:8765</code></p>
+                    </div>
+
+                    <!-- Test button -->
+                    <button class="btn btn-secondary full-width mt-2" onclick="testScaleConnection()" data-i18n="settings.scale.test_btn">🔗 Testa connessione</button>
+                    <div id="scale-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
+
+                    <!-- Protocol info -->
+                    <div class="settings-hint" style="margin-top:16px;padding:10px;background:var(--bg-secondary,#f8fafc);border-radius:8px">
+                        <p style="margin:0 0 6px;font-weight:600">🔌 Protocolli BLE supportati:</p>
+                        <ul style="margin:0 0 0 16px;padding:0;font-size:0.8rem">
+                            <li>Bluetooth SIG Weight Scale (0x181D)</li>
+                            <li>Bluetooth SIG Body Composition (0x181B) — peso, grasso, BMI</li>
+                            <li>Xiaomi Mi Body Composition Scale 2</li>
+                            <li>Generico — heuristica automatica su 100+ modelli</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <!-- Language Tab -->

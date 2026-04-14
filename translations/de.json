@@ -248,6 +248,7 @@
     "tab_security": "Sicherheit",
     "tab_tts": "Sprache (TTS)",
     "tab_language": "Sprache",
+    "tab_scale": "Smart-Waage",
     "gemini": {
       "title": "🤖 Google Gemini AI",
       "hint": "API-Schlüssel für Produkterkennung, Ablaufdaten und Rezepte.",
@@ -350,6 +351,19 @@
       "label": "🌐 Sprache",
       "restart_notice": "Die Seite wird neu geladen, um die neue Sprache anzuwenden."
     },
+    "scale": {
+      "title": "⚖️ Smart-Waage",
+      "hint": "Verbinde eine Bluetooth-Waage über das Android-Gateway, um das Gewicht automatisch auszulesen.",
+      "tab": "Smart-Waage",
+      "enabled": "✅ Smart-Waage aktivieren",
+      "url_label": "🌐 WebSocket-Gateway-URL",
+      "url_placeholder": "ws://192.168.1.x:8765",
+      "url_hint": "URL der Android-App (gleiches WLAN). z.B.:",
+      "test_btn": "🔗 Verbindung testen",
+      "download_btn": "📥 Android-Gateway herunterladen (APK)",
+      "download_hint": "Android-App als Brücke zwischen BLE-Waage und EverShelf.",
+      "download_sub": "Quellcode: evershelf-scale-gateway/ im Projektstamm"
+    },
     "saved": "✅ Konfiguration gespeichert!",
     "saved_local": "✅ Konfiguration lokal gespeichert",
     "saved_local_error": "⚠️ Lokal gespeichert, Serverfehler: {error}"
@@ -427,5 +441,22 @@
   "meal_types": {
     "lunch": "Mittagessen",
     "dinner": "Abendessen"
+  },
+  "scale": {
+    "status_connected": "Waage verbunden",
+    "status_searching": "Gateway verbunden, warte auf Waage…",
+    "status_disconnected": "Waagen-Gateway nicht erreichbar",
+    "status_error": "Verbindungsfehler zum Gateway",
+    "not_connected": "Waagen-Gateway nicht verbunden",
+    "read_btn": "⚖️ Von Waage lesen",
+    "reading_title": "Waage lesen",
+    "place_on_scale": "Produkt auf die Waage legen…",
+    "waiting_stable": "Das Gewicht wird automatisch erfasst, wenn die Messung stabil ist.",
+    "no_url": "Gateway-URL eingeben",
+    "testing": "⏳ Verbindung wird getestet…",
+    "connected_ok": "Gateway-Verbindung erfolgreich!",
+    "timeout": "Timeout: keine Antwort vom Gateway",
+    "error_connect": "Verbindung zum Gateway nicht möglich",
+    "tab": "Smart-Waage"
   }
 }
