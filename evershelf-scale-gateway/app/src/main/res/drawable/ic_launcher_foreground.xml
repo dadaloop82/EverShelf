@@ -3,15 +3,7 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Background circle -->
-    <path
-        android:fillColor="#6C63FF"
-        android:pathData="M54,54m-54,0a54,54 0,1 1,108 0a54,54 0,1 1,-108 0" />
-    <!-- Scale icon (simplified balance) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,28L54,72M38,36L70,36M34,52L42,36M66,52L74,36M34,52A8,4 0,0 1,42 52M66,52A8,4 0,0 1,74 52"
-        android:strokeWidth="3"
-        android:strokeColor="#FFFFFF"
-        android:fillColor="#00000000" />
+        android:pathData="M54,30L54,70 M40,38L68,38 M36,54L44,38 M64,54L72,38 M36,54C36,56 44,56 44,54 M64,54C64,56 72,56 72,54" />
 </vector>
