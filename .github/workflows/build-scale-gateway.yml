@@ -1,5 +1,6 @@
 name: Build & Release Scale Gateway APK
 
+# Builds the Scale Gateway APK and publishes it to GitHub Releases
 on:
   push:
     branches:
