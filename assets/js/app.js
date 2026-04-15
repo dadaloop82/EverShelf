@@ -128,25 +128,79 @@ function _scaleOnMessage(msg) {
 }
 
 /**
+ * Returns the liquid density (g/ml) for a product based on its name/category.
+ * Used to convert scale grams → ml for products stored in ml.
+ */
+function _scaleDensityForProduct(product) {
+    const n   = (product?.name     || '').toLowerCase();
+    const cat = (product?.category || '').toLowerCase();
+    // Oils (lighter than water)
+    if (/olio.oliva|olive.oil/.test(n))               return 0.91;
+    if (/olio.girasole|sunflower.oil/.test(n))         return 0.92;
+    if (/\bolio\b|\boil\b/.test(n))                   return 0.92;
+    // Spirits / alcohol (lighter than water)
+    if (/vodka|whisky|whiskey|grappa|rum|gin\b/.test(n)) return 0.94;
+    // Vinegar, wine, beer (close to water)
+    if (/aceto|vinegar/.test(n))                      return 1.01;
+    if (/\bvino\b|\bwine\b|\bbirra\b|\bbeer\b/.test(n)) return 1.00;
+    // Milk & dairy liquids
+    if (/\blatte\b|\bmilk\b/.test(n))                 return 1.03;
+    if (/panna|cream/.test(n))                        return 1.01;
+    if (/yogurt/.test(n))                             return 1.05;
+    // Juice
+    if (/succo|juice|spremuta/.test(n))               return 1.04;
+    // Honey / syrups (dense)
+    if (/miele|honey|sciroppo|syrup/.test(n))         return 1.40;
+    // Water / sparkling
+    if (/\bacqua\b|\bwater\b/.test(n))                return 1.00;
+    // Category-level fallbacks
+    if (/latticin/.test(cat))                         return 1.03;
+    if (/condiment/.test(cat))                        return 0.92; // likely oil-based
+    if (/bevand/.test(cat))                           return 1.00;
+    return 1.00; // safe default (water)
+}
+
+/**
  * Auto-fill the use-quantity input with a stable scale reading (no modal needed).
  * Only active when on the 'use' page with g/ml unit and user hasn't manually edited.
+ * Skips pz, conf, and all other non-weight units.
  */
 function _scaleAutoFillUse(msg) {
     if (!msg) return;
     const unit = _useNormalUnit;
-    if (unit !== 'g' && unit !== 'ml') return;
-    let val = parseFloat(msg.value);
-    if (!isFinite(val) || val <= 0) return;
+    if (unit !== 'g' && unit !== 'ml') return; // never touch pz/conf/etc
+
+    const rawVal = parseFloat(msg.value);
+    if (!isFinite(rawVal) || rawVal <= 0) return;
     const srcUnit = (msg.unit || '').toLowerCase();
-    if (srcUnit === 'kg') val = Math.round(val * 1000);
-    else if (srcUnit === 'lbs' || srcUnit === 'lb') val = Math.round(val * 453.592);
-    else if (srcUnit === 'oz' && unit === 'ml') val = Math.round(val * 29.574);
+
+    // Step 1 — normalise scale reading to grams
+    let grams;
+    if      (srcUnit === 'g')                    grams = rawVal;
+    else if (srcUnit === 'kg')                   grams = rawVal * 1000;
+    else if (srcUnit === 'lbs' || srcUnit === 'lb') grams = rawVal * 453.592;
+    else if (srcUnit === 'oz')                   grams = rawVal * 28.3495;
+    else                                         grams = rawVal; // unknown — use as-is
+
+    // Step 2 — convert grams to target unit
+    let val;
+    let hintExtra = '';
+    if (unit === 'g') {
+        val = Math.round(grams);
+    } else { // ml
+        const density = _scaleDensityForProduct(currentProduct);
+        val = Math.round(grams / density);
+        if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+    }
+
     const inp = document.getElementById('use-quantity');
     if (inp) {
         inp.value = val;
-        // Show live hint
         const hint = document.getElementById('scale-autofill-hint');
-        if (hint) hint.style.display = '';
+        if (hint) {
+            hint.textContent = `⚖️ Lettura live dalla bilancia${hintExtra}`;
+            hint.style.display = '';
+        }
     }
 }
 
