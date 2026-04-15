@@ -33,6 +33,10 @@ object BleUuids {
     // Acaia coffee scales
     val ACAIA_SERVICE = UUID.fromString("49535343-fe7d-4ae5-8fa9-9fafd205e455")
     val ACAIA_CHAR = UUID.fromString("49535343-8841-43f4-a8d4-ecbe34729bb3")
+
+    // QN/Yolanda food scale (e.g. QN-KS) secondary service
+    val QN_AE00 = UUID.fromString("0000ae00-0000-1000-8000-00805f9b34fb")
+    val QN_AE02 = UUID.fromString("0000ae02-0000-1000-8000-00805f9b34fb")
 }
 
 // --- Food scale protocol parser ---
@@ -60,8 +64,37 @@ object ScaleProtocol {
             BleUuids.WEIGHT_MEASUREMENT_CHAR -> return parseSigWeight(data, debug)
         }
 
+        // QN/Yolanda food scale (QN-KS, etc.): 18-byte frame, opcode=0x10, weight at bytes 9-10 BE
+        // Frame: [0x10][0x12=len][...][flags][weight_hi][weight_lo][...][crc]
+        if (data.size == 18 && (data[0].toInt() and 0xFF) == 0x10
+            && (data[1].toInt() and 0xFF) == 0x12) {
+            return parseQNFood(data, debug)
+        }
+
         // Try pattern-based parsers on any characteristic
         return parseGeneric(data, debug)
+    }
+
+    // --- QN/Yolanda food scale (QN-KS) ---
+    // Observed protocol: 18-byte notification on 0000FFF1
+    //   [0x10][0x12][00][78][01][02][05][01][flags][weight_hi][weight_lo][7E][1F][02][58][02][01][crc]
+    // Weight = u16BE(data, 9) in grams (1g resolution, up to ~5000g)
+    // Stable  = bit 3 of data[8]: 0xF8 => stable, 0xF0 => settling
+    // CRC     = (sum of bytes 0..16) mod 256
+
+    private fun parseQNFood(data: ByteArray, debug: ((String) -> Unit)? = null): WeightReading? {
+        // Verify checksum
+        val crc = data.take(17).sumOf { it.toInt() and 0xFF } and 0xFF
+        if (crc != (data[17].toInt() and 0xFF)) {
+            debug?.invoke("QN-KS: CRC mismatch (calc=0x%02X got=0x%02X)".format(crc, data[17].toInt() and 0xFF))
+            return null
+        }
+        val grams = u16be(data, 9)
+        val stable = (data[8].toInt() and 0x08) != 0
+        debug?.invoke("QN-KS: ${grams}g stable=$stable")
+        if (grams == 0) return null   // scale empty / tared
+        if (grams in MIN_GRAMS..MAX_GRAMS) return WeightReading(grams, stable)
+        return null
     }
 
     // --- BLE SIG 0x2A9D Weight Measurement ---
