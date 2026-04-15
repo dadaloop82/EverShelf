@@ -11,8 +11,8 @@ android {
         applicationId = "it.dadaloop.evershelf.scalegate"
         minSdk = 24
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.5.0"
+        versionCode = 5
+        versionName = "1.6.0"
     }
 
     buildFeatures {

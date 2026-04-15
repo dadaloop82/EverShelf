@@ -222,8 +222,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     }
 
     override fun onWeightReceived(reading: WeightReading) {
-        val kg = "%.2f".format(reading.weightKg)
-        binding.tvWeight.text = "$kg kg"
+        val isFood = reading.weightKg < 15f
+        if (isFood) {
+            val grams = (reading.weightKg * 1000).toInt()
+            binding.tvWeight.text = "$grams g"
+        } else {
+            val kg = "%.2f".format(reading.weightKg)
+            binding.tvWeight.text = "$kg kg"
+        }
 
         val extras = buildString {
             reading.fatPct?.let { append("Grasso: ${"%.1f".format(it)}%  ") }

@@ -267,7 +267,7 @@ object ScaleProtocol {
         return null
     }
 
-    // --- Safe generic fallback ---
+    // --- Safe generic fallback (body + food scales) ---
 
     fun parseGenericSafe(data: ByteArray, debug: ((String) -> Unit)? = null): WeightReading? {
         if (data.size < 4) {
@@ -275,30 +275,51 @@ object ScaleProtocol {
             return null
         }
 
-        data class Candidate(val pos: Int, val div: Float, val be: Boolean, val label: String)
+        data class Candidate(
+            val pos: Int, val div: Float, val be: Boolean,
+            val minKg: Float, val maxKg: Float, val label: String,
+        )
 
         val candidates = listOf(
-            Candidate(1, 100f, true, "pos1 BE/100"),
-            Candidate(1, 100f, false, "pos1 LE/100"),
-            Candidate(3, 100f, true, "pos3 BE/100"),
-            Candidate(3, 100f, false, "pos3 LE/100"),
-            Candidate(2, 100f, true, "pos2 BE/100"),
-            Candidate(2, 100f, false, "pos2 LE/100"),
-            Candidate(1, 10f, true, "pos1 BE/10"),
-            Candidate(1, 10f, false, "pos1 LE/10"),
-            Candidate(3, 10f, true, "pos3 BE/10"),
-            Candidate(3, 10f, false, "pos3 LE/10"),
-            Candidate(1, 20f, true, "pos1 BE/20"),
-            Candidate(1, 20f, false, "pos1 LE/20"),
+            // Food scale: raw value in grams (div=1 -> kg=raw/1000 via pos)
+            Candidate(1, 1000f, false, 0.001f, 15f, "pos1 LE/g"),
+            Candidate(1, 1000f, true, 0.001f, 15f, "pos1 BE/g"),
+            Candidate(2, 1000f, false, 0.001f, 15f, "pos2 LE/g"),
+            Candidate(2, 1000f, true, 0.001f, 15f, "pos2 BE/g"),
+            Candidate(3, 1000f, false, 0.001f, 15f, "pos3 LE/g"),
+            Candidate(3, 1000f, true, 0.001f, 15f, "pos3 BE/g"),
+            // Food scale: raw in 0.1g (div=10000)
+            Candidate(1, 10000f, false, 0.001f, 15f, "pos1 LE/0.1g"),
+            Candidate(1, 10000f, true, 0.001f, 15f, "pos1 BE/0.1g"),
+            Candidate(2, 10000f, false, 0.001f, 15f, "pos2 LE/0.1g"),
+            Candidate(2, 10000f, true, 0.001f, 15f, "pos2 BE/0.1g"),
+            // Food scale: raw in 0.5g (div=2000)
+            Candidate(1, 2000f, false, 0.001f, 15f, "pos1 LE/0.5g"),
+            Candidate(1, 2000f, true, 0.001f, 15f, "pos1 BE/0.5g"),
+            // Body scale: standard divisors
+            Candidate(1, 100f, true, 2f, 250f, "pos1 BE/100"),
+            Candidate(1, 100f, false, 2f, 250f, "pos1 LE/100"),
+            Candidate(3, 100f, true, 2f, 250f, "pos3 BE/100"),
+            Candidate(3, 100f, false, 2f, 250f, "pos3 LE/100"),
+            Candidate(2, 100f, true, 2f, 250f, "pos2 BE/100"),
+            Candidate(2, 100f, false, 2f, 250f, "pos2 LE/100"),
+            Candidate(1, 10f, true, 2f, 250f, "pos1 BE/10"),
+            Candidate(1, 10f, false, 2f, 250f, "pos1 LE/10"),
+            Candidate(3, 10f, true, 2f, 250f, "pos3 BE/10"),
+            Candidate(3, 10f, false, 2f, 250f, "pos3 LE/10"),
+            Candidate(1, 20f, true, 2f, 250f, "pos1 BE/20"),
+            Candidate(1, 20f, false, 2f, 250f, "pos1 LE/20"),
         )
 
         for (c in candidates) {
             if (c.pos + 1 >= data.size) continue
             val raw = if (c.be) u16be(data, c.pos) else u16le(data, c.pos)
+            if (raw == 0) continue
             val w = raw / c.div
-            if (w in 2f..250f) {
-                val wStr = "%.2f".format(w)
-                debug?.invoke("generic [" + c.label + "]: raw=$raw -> ${wStr}kg (UNSTABLE)")
+            if (w in c.minKg..c.maxKg) {
+                val grams = (w * 1000).toInt()
+                val wStr = "%.3f".format(w)
+                debug?.invoke("generic [" + c.label + "]: raw=$raw -> ${wStr}kg (${grams}g) (UNSTABLE)")
                 return WeightReading(w, stable = false)
             }
         }

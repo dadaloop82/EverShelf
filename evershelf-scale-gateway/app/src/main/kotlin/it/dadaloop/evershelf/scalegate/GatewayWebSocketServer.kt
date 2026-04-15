@@ -136,12 +136,18 @@ class GatewayWebSocketServer(
     }
 
     private fun buildWeightJson(weightKg: Float, stable: Boolean): String {
-        // Round to 2 decimal places
-        val rounded = (weightKg * 100).toLong() / 100.0
         val obj = JSONObject()
         obj.put("type", "weight")
-        obj.put("value", rounded)
-        obj.put("unit", "kg")
+        // Food scale (<15kg): send grams for better precision
+        if (weightKg < 15f) {
+            val grams = Math.round(weightKg * 1000f)
+            obj.put("value", grams)
+            obj.put("unit", "g")
+        } else {
+            val rounded = (weightKg * 100).toLong() / 100.0
+            obj.put("value", rounded)
+            obj.put("unit", "kg")
+        }
         obj.put("stable", stable)
         obj.put("timestamp", System.currentTimeMillis())
         return obj.toString()

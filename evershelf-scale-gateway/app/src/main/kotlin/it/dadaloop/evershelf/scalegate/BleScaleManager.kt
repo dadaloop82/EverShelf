@@ -423,7 +423,12 @@ class BleScaleManager(
         if (reading != null && reading.weightKg > 0f) {
             mainHandler.post { listener.onWeightReceived(reading) }
         } else {
-            mainHandler.post { listener.onDebugEvent("⚠️ Peso non decodificato") }
+            val rawDump = data.mapIndexed { i, b ->
+                val v = b.toInt() and 0xFF
+                val h = "%02X".format(v)
+                "[$i]=$v(0x$h)"
+            }.joinToString(" ")
+            mainHandler.post { listener.onDebugEvent("⚠️ Peso non decodificato\n   RAW: $rawDump") }
         }
     }
 }
