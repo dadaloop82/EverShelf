@@ -155,9 +155,3 @@ object ScaleProtocol {
     private fun u16be(b: ByteArray, off: Int): Int =
         ((b[off].toInt() and 0xFF) shl 8) or (b[off + 1].toInt() and 0xFF)
 }
-package it.dadaloop.evershelf.scalegate
-
-import android.bluetooth.BluetoothGattCharacteristic
-import java.util.UUID
-
-/**

@@ -1,0 +1,13 @@
+#Wed Apr 15 16:33:29 UTC 2026
+path.3=3/classes.dex
+path.2=15/classes.dex
+path.1=0/classes.dex
+path.0=classes.dex
+base.3=/var/www/html/dispensa/evershelf-scale-gateway/app/build/intermediates/dex/debug/mergeProjectDexDebug/3/classes.dex
+base.2=/var/www/html/dispensa/evershelf-scale-gateway/app/build/intermediates/dex/debug/mergeProjectDexDebug/15/classes.dex
+base.1=/var/www/html/dispensa/evershelf-scale-gateway/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+base.0=/var/www/html/dispensa/evershelf-scale-gateway/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
+renamed.3=classes4.dex
+renamed.2=classes3.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
