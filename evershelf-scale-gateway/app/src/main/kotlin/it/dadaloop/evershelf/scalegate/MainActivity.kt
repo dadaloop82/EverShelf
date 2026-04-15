@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -90,8 +91,31 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         binding.btnDebug.setOnClickListener {
             debugVisible = !debugVisible
             binding.svDebugLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
-            binding.btnDebug.text = if (debugVisible) "🐛 Nascondi Debug" else "🐛 Debug"
+            binding.btnCopyLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
+            binding.btnShareLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
+            binding.btnDebug.text = if (debugVisible) "\uD83D\uDC1B Nascondi Debug" else "\uD83D\uDC1B Debug"
         }
+        binding.btnCopyLog.setOnClickListener {
+            val log = debugLines.joinToString("\n")
+            val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("EverShelf Scale Log", log))
+            Toast.makeText(this, "Log copiato negli appunti", Toast.LENGTH_SHORT).show()
+        }
+        binding.btnShareLog.setOnClickListener {
+            val log = debugLines.joinToString("\n")
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "EverShelf Scale Gateway - Debug Log")
+                putExtra(Intent.EXTRA_TEXT, log)
+            }
+            startActivity(Intent.createChooser(intent, "Condividi log"))
+        }
+
+        // Show app version
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            binding.tvVersion.text = "v${pInfo.versionName} (${pInfo.longVersionCode})"
+        } catch (_: Exception) { }
 
         updateGatewayUrl()
         checkPermissionsAndStart()

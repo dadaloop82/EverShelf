@@ -21,13 +21,31 @@
             android:textColor="#1E293B"
             android:paddingBottom="4dp" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Collega la tua bilancia smart a EverShelf via Bluetooth"
-            android:textSize="13sp"
-            android:textColor="#64748B"
-            android:paddingBottom="16dp" />
+            android:orientation="horizontal"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Collega la tua bilancia smart a EverShelf via Bluetooth"
+                android:textSize="13sp"
+                android:textColor="#64748B" />
+
+            <TextView
+                android:id="@+id/tv_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="v?.?.?"
+                android:textSize="11sp"
+                android:textColor="#94A3B8"
+                android:fontFamily="monospace"
+                android:gravity="end" />
+
+        </LinearLayout>
 
         <!-- ── Gateway URL card ───────────────────────────────────────────── -->
         <androidx.cardview.widget.CardView
@@ -186,15 +204,47 @@
             android:layout_marginBottom="8dp"
             style="@style/Widget.MaterialComponents.Button" />
 
-        <Button
-            android:id="@+id/btn_debug"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🐛 Debug"
-            android:backgroundTint="#374151"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="8dp"
-            style="@style/Widget.MaterialComponents.Button" />
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btn_debug"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="\uD83D\uDC1B Debug"
+                android:backgroundTint="#374151"
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="4dp"
+                style="@style/Widget.MaterialComponents.Button" />
+
+            <Button
+                android:id="@+id/btn_copy_log"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="\uD83D\uDCCB"
+                android:backgroundTint="#374151"
+                android:textColor="#FFFFFF"
+                android:minWidth="48dp"
+                android:layout_marginEnd="4dp"
+                android:visibility="gone"
+                style="@style/Widget.MaterialComponents.Button" />
+
+            <Button
+                android:id="@+id/btn_share_log"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="\uD83D\uDCE4"
+                android:backgroundTint="#374151"
+                android:textColor="#FFFFFF"
+                android:minWidth="48dp"
+                android:visibility="gone"
+                style="@style/Widget.MaterialComponents.Button" />
+
+        </LinearLayout>
 
         <ScrollView
             android:id="@+id/sv_debug_log"
