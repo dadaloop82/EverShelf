@@ -61,7 +61,7 @@ const API_BASE = 'api/index.php';
 // ===== SMART SCALE GATEWAY =====
 // Connects to the Android BLE-WebSocket gateway and provides auto weight reading.
 
-let _scaleWs = null;
+let _scaleEs = null;           // EventSource for the SSE relay
 let _scaleConnected = false;
 let _scaleDevice = null;
 let _scaleBattery = null;
@@ -74,7 +74,7 @@ function scaleInit() {
     const indicator = document.getElementById('scale-status-indicator');
     if (!s.scale_enabled || !s.scale_gateway_url) {
         if (indicator) indicator.style.display = 'none';
-        if (_scaleWs) { try { _scaleWs.close(); } catch(e) {} _scaleWs = null; }
+        if (_scaleEs) { try { _scaleEs.close(); } catch(e) {} _scaleEs = null; }
         return;
     }
     if (indicator) indicator.style.display = '';
@@ -82,28 +82,21 @@ function scaleInit() {
 }
 
 function _scaleConnect(url) {
-    if (_scaleWs) { try { _scaleWs.close(); } catch(e) {} _scaleWs = null; }
+    if (_scaleEs) { try { _scaleEs.close(); } catch(e) {} _scaleEs = null; }
     if (_scaleReconnectTimer) { clearTimeout(_scaleReconnectTimer); _scaleReconnectTimer = null; }
     try {
-        _scaleWs = new WebSocket(url);
-        _scaleWs.onopen = () => {
-            _scaleUpdateStatus('searching');
-            try { _scaleWs.send(JSON.stringify({ type: 'get_status' })); } catch(e) {}
-        };
-        _scaleWs.onmessage = (evt) => {
+        // Connect via the PHP SSE relay so the HTTPS page is not blocked by mixed-content
+        _scaleEs = new EventSource('/api/scale_relay.php?url=' + encodeURIComponent(url));
+        _scaleEs.onopen  = () => _scaleUpdateStatus('searching');
+        _scaleEs.onmessage = (evt) => {
             try { _scaleOnMessage(JSON.parse(evt.data)); } catch(e) {}
         };
-        _scaleWs.onclose = () => {
+        _scaleEs.onerror = () => {
             _scaleConnected = false;
             _scaleDevice = null;
             _scaleUpdateStatus('disconnected');
-            _scaleReconnectTimer = setTimeout(() => {
-                _scaleReconnectTimer = null;
-                const s = getSettings();
-                if (s.scale_enabled && s.scale_gateway_url) _scaleConnect(s.scale_gateway_url);
-            }, 8000);
+            // EventSource auto-reconnects; no manual timer needed
         };
-        _scaleWs.onerror = () => _scaleUpdateStatus('error');
     } catch(e) {
         _scaleUpdateStatus('error');
     }
@@ -148,7 +141,7 @@ function _scaleUpdateStatus(state) {
  * @param {Function} getUnit      — function that returns the current unit string ('g', 'ml', 'kg')
  */
 function readScaleWeight(targetInputId, getUnit) {
-    if (!_scaleWs || _scaleWs.readyState !== WebSocket.OPEN) {
+    if (!_scaleConnected) {
         showToast('⚖️ ' + t('scale.not_connected'), 'error');
         return;
     }
@@ -170,7 +163,7 @@ function readScaleWeight(targetInputId, getUnit) {
         closeModal();
         showToast(`⚖️ ${val} ${unit}`, 'success');
     };
-    try { _scaleWs.send(JSON.stringify({ type: 'get_weight' })); } catch(e) {}
+    // Weight data streams continuously via SSE; _scaleWeightCallback fires on the next stable reading
 }
 
 function _scaleShowReadingModal(targetInputId, unit) {
@@ -227,33 +220,31 @@ function testScaleConnection() {
     statusEl.className = 'settings-status';
     statusEl.style.display = 'block';
 
-    let testWs;
+    const ac = new AbortController();
     const timeout = setTimeout(() => {
-        if (testWs) testWs.close();
+        ac.abort();
         statusEl.textContent = '❌ ' + t('scale.timeout');
         statusEl.className = 'settings-status error';
-    }, 6000);
-    try {
-        testWs = new WebSocket(url);
-        testWs.onopen = () => {
-            try { testWs.send(JSON.stringify({ type: 'ping' })); } catch(e) {}
-        };
-        testWs.onmessage = () => {
+    }, 8000);
+    fetch('/api/scale_ping.php?url=' + encodeURIComponent(url), { signal: ac.signal })
+        .then(r => r.json())
+        .then(data => {
             clearTimeout(timeout);
-            testWs.close();
-            statusEl.textContent = '✅ ' + t('scale.connected_ok');
-            statusEl.className = 'settings-status success';
-        };
-        testWs.onerror = () => {
+            if (data.ok) {
+                statusEl.textContent = '✅ ' + t('scale.connected_ok');
+                statusEl.className = 'settings-status success';
+            } else {
+                statusEl.textContent = '❌ ' + (data.error || t('scale.error_connect'));
+                statusEl.className = 'settings-status error';
+            }
+        })
+        .catch(e => {
             clearTimeout(timeout);
-            statusEl.textContent = '❌ ' + t('scale.error_connect');
-            statusEl.className = 'settings-status error';
-        };
-    } catch(e) {
-        clearTimeout(timeout);
-        statusEl.textContent = '❌ ' + (e.message || t('scale.error_connect'));
-        statusEl.className = 'settings-status error';
-    }
+            if (e.name !== 'AbortError') {
+                statusEl.textContent = '❌ ' + t('scale.error_connect');
+                statusEl.className = 'settings-status error';
+            }
+        });
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
