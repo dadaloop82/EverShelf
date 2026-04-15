@@ -21,6 +21,8 @@ data class BleDeviceInfo(
     val device: BluetoothDevice,
     val name: String,
     val rssi: Int,
+    val proximity: String,
+    val scaleScore: Int,
 )
 
 /**
@@ -35,6 +37,7 @@ interface BleScaleListener {
     fun onBatteryReceived(level: Int)
     fun onError(message: String)
     fun onScanStopped()
+    fun onDebugEvent(message: String)
 }
 
 /**
@@ -118,8 +121,11 @@ class BleScaleManager(
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device
-            val name = getDeviceName(device).takeIf { it.isNotBlank() } ?: return
-            val info = BleDeviceInfo(device, name, result.rssi)
+            val name = result.scanRecord?.deviceName?.takeIf { it.isNotBlank() }
+                ?: getDeviceName(device)
+            val proximity = rssiToProximity(result.rssi)
+            val score = scoreLikelyScale(name, result.scanRecord)
+            val info = BleDeviceInfo(device, name, result.rssi, proximity, score)
             mainHandler.post { listener.onDeviceFound(info) }
         }
 
@@ -131,10 +137,29 @@ class BleScaleManager(
 
     private fun getDeviceName(device: BluetoothDevice): String {
         return try {
-            device.name?.takeIf { it.isNotBlank() } ?: device.address
+            device.name?.takeIf { it.isNotBlank() } ?: "Senza nome"
         } catch (e: SecurityException) {
-            device.address
+            "Senza nome"
         }
+    }
+
+    private fun rssiToProximity(rssi: Int) = when {
+        rssi >= -60 -> "📶 Vicino"
+        rssi >= -80 -> "📶 Medio"
+        else        -> "📶 Lontano"
+    }
+
+    private fun scoreLikelyScale(name: String, scanRecord: android.bluetooth.le.ScanRecord?): Int {
+        var score = 0
+        val lower = name.lowercase()
+        if (listOf("scale", "bilancia", "weight", "body", "balance",
+                   "lepulse", "qardio", "xiaomi", "mi body", "körper")
+                .any { lower.contains(it) }) score += 10
+        scanRecord?.serviceUuids?.let { uuids ->
+            val us = uuids.map { it.uuid.toString().lowercase() }
+            if (us.any { it.startsWith("0000181d") || it.startsWith("0000181b") }) score += 20
+        }
+        return score
     }
 
     // ─── Connection ────────────────────────────────────────────────────────────
@@ -229,6 +254,26 @@ class BleScaleManager(
                 ?.getCharacteristic(BleUuids.BATTERY_LEVEL_CHAR)
                 ?.let { targetChars.add(it) }
 
+            // Debug: log all discovered services and characteristics
+            val dbg = buildString {
+                append("Servizi GATT (${gatt.services.size}):\n")
+                for (svc in gatt.services) {
+                    append("  SVC: ${svc.uuid}\n")
+                    for (ch in svc.characteristics) {
+                        val p = ch.properties
+                        val flags = buildString {
+                            if (p and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) append("N")
+                            if (p and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0) append("I")
+                            if (p and BluetoothGattCharacteristic.PROPERTY_READ != 0) append("R")
+                            if (p and BluetoothGattCharacteristic.PROPERTY_WRITE != 0) append("W")
+                        }
+                        append("    CHAR: ${ch.uuid} [$flags]\n")
+                    }
+                }
+                append("Iscritto a ${targetChars.size} caratteristiche")
+            }
+            mainHandler.post { listener.onDebugEvent(dbg) }
+
             pendingSubscriptions.clear()
             pendingSubscriptions.addAll(targetChars)
 
@@ -322,10 +367,18 @@ class BleScaleManager(
             return
         }
 
+        // Debug: log raw bytes received
+        val hex = data.joinToString(" ") { "%02X".format(it) }
+        mainHandler.post { listener.onDebugEvent("📡 ${char.uuid}\n   HEX [${data.size}B]: $hex") }
+
         // Weight / body composition
-        val reading = ScaleProtocol.parse(char, data) ?: return
-        if (reading.weightKg > 0f) {
+        val reading = ScaleProtocol.parse(char, data) { msg ->
+            mainHandler.post { listener.onDebugEvent(msg) }
+        }
+        if (reading != null && reading.weightKg > 0f) {
             mainHandler.post { listener.onWeightReceived(reading) }
+        } else {
+            mainHandler.post { listener.onDebugEvent("⚠️ Peso non decodificato") }
         }
     }
 }

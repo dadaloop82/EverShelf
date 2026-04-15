@@ -20,6 +20,9 @@ import androidx.recyclerview.widget.RecyclerView
 import it.dadaloop.evershelf.scalegate.databinding.ActivityMainBinding
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val WS_PORT = 8765
 
@@ -33,6 +36,9 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private lateinit var deviceAdapter: DeviceAdapter
 
     private var batteryLevel: Int? = null
+    private val debugLog = StringBuilder()
+    private var debugVisible = false
+    private val debugTimeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     // ─── Permission launcher ───────────────────────────────────────────────────
 
@@ -75,6 +81,11 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         binding.btnDisconnect.setOnClickListener {
             bleManager.disconnect()
             updateUiDisconnected()
+        }
+        binding.btnDebug.setOnClickListener {
+            debugVisible = !debugVisible
+            binding.svDebugLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
+            binding.btnDebug.text = if (debugVisible) "🐛 Nascondi Debug" else "🐛 Debug"
         }
 
         updateGatewayUrl()
@@ -122,6 +133,8 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         }
         devices.clear()
         deviceAdapter.notifyDataSetChanged()
+        debugLog.clear()
+        binding.tvDebugLog.text = ""
         binding.tvScanHint.visibility = View.VISIBLE
         binding.tvScanHint.text = "Ricerca bilance BLE in corso…"
         binding.btnScan.isEnabled = false
@@ -158,10 +171,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     // ─── BleScaleListener ─────────────────────────────────────────────────────
 
     override fun onDeviceFound(info: BleDeviceInfo) {
-        // Avoid duplicates
         if (devices.none { it.device.address == info.device.address }) {
-            devices.add(info)
-            deviceAdapter.notifyItemInserted(devices.size - 1)
+            // Insert keeping descending scaleScore order (scale-likely devices first)
+            val insertAt = devices.indexOfFirst { it.scaleScore < info.scaleScore }
+                .let { if (it < 0) devices.size else it }
+            devices.add(insertAt, info)
+            deviceAdapter.notifyItemInserted(insertAt)
         }
     }
 
@@ -222,6 +237,17 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             binding.tvScanHint.text = "Nessuna bilancia trovata. Assicurati che sia accesa e premi di nuovo Cerca."
         } else {
             binding.tvScanHint.text = "Tocca una bilancia per connettersi."
+        }
+    }
+
+    override fun onDebugEvent(message: String) {
+        runOnUiThread {
+            val ts = debugTimeFmt.format(Date())
+            debugLog.append("[$ts] $message\n")
+            binding.tvDebugLog.text = debugLog
+            if (debugVisible) {
+                binding.svDebugLog.post { binding.svDebugLog.fullScroll(View.FOCUS_DOWN) }
+            }
         }
     }
 
@@ -296,7 +322,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             val info = items[position]
             holder.tvName.text = info.name
             holder.tvAddr.text = info.device.address
-            holder.tvRssi.text = "${info.rssi} dBm"
+            holder.tvRssi.text = info.proximity
             holder.itemView.setOnClickListener { onClick(info) }
         }
 

@@ -50,11 +50,11 @@ object ScaleProtocol {
      * Attempt to parse weight data from a GATT characteristic change.
      * Tries known protocols in order of specificity.
      */
-    fun parse(char: BluetoothGattCharacteristic, data: ByteArray): WeightReading? {
+    fun parse(char: BluetoothGattCharacteristic, data: ByteArray, debugCallback: ((String) -> Unit)? = null): WeightReading? {
         return when (char.uuid) {
             BleUuids.WEIGHT_MEASUREMENT_CHAR  -> parseWeightMeasurement(data)
             BleUuids.BODY_COMPOSITION_CHAR    -> parseBodyComposition(data)
-            else                              -> parseGeneric(data)
+            else                              -> parseGeneric(data, debugCallback)
         }
     }
 
@@ -144,30 +144,44 @@ object ScaleProtocol {
 
     /**
      * Generic / fallback parser.
-     * Many cheap BLE scales send 2 bytes or a small packet with weight as a little-endian uint16
-     * in units of 0.1 kg, 0.01 kg, or 10 g. We try each interpretation and pick a plausible result.
+     * Tries every 2-byte window in the packet with three common resolutions
+     * (0.1 kg, 0.01 kg, 0.005 kg) in both little-endian and big-endian order.
+     * Reports the first result in the plausible range [1..300] kg.
+     * The debugCallback receives the winning candidate or a failure message.
      */
-    fun parseGeneric(data: ByteArray): WeightReading? {
+    fun parseGeneric(data: ByteArray, debugCallback: ((String) -> Unit)? = null): WeightReading? {
         if (data.size < 2) return null
 
-        // Try common byte positions
-        val candidates = listOf(
-            // (startByte, resolution in kg, stabilityBit, stabilityByte, stabilityValue)
-            Triple(data.size - 2, 0.01f, false),   // last 2 bytes, 0.01 kg resolution
-            Triple(data.size - 2, 0.005f, false),  // last 2 bytes, 0.005 kg resolution
-            Triple(1, 0.01f, false),                // bytes 1-2, 0.01 kg
-            Triple(0, 0.1f, false),                 // bytes 0-1, 0.1 kg
-        )
+        data class Candidate(val start: Int, val res: Float, val be: Boolean)
 
-        for ((start, resolution, _) in candidates) {
-            if (start < 0 || start + 1 >= data.size) continue
-            val raw = (data[start].toInt() and 0xFF) or ((data[start + 1].toInt() and 0xFF) shl 8)
-            val weight = raw * resolution
-            // Sanity check: a realistic weight is between 1 kg and 300 kg
+        // Scan priorities: common flag-then-weight positions first, then brute-force remainder
+        val preferred = listOf(1, 2, 3, data.size - 2, 0, 4, 5)
+        val all = (preferred + (0 until data.size - 1).toList()).distinct()
+            .filter { it in 0..data.size - 2 }
+
+        val candidates = buildList {
+            for (pos in all) {
+                for (res in listOf(0.1f, 0.01f, 0.005f)) {
+                    add(Candidate(pos, res, false))  // little-endian
+                    add(Candidate(pos, res, true))   // big-endian
+                }
+            }
+        }
+
+        for (c in candidates) {
+            val raw = if (c.be) {
+                ((data[c.start].toInt() and 0xFF) shl 8) or (data[c.start + 1].toInt() and 0xFF)
+            } else {
+                (data[c.start].toInt() and 0xFF) or ((data[c.start + 1].toInt() and 0xFF) shl 8)
+            }
+            val weight = raw * c.res
             if (weight in 1f..300f) {
+                val tag = if (c.be) "BE" else "LE"
+                debugCallback?.invoke("\u2705 parseGeneric[$tag] start=${c.start} res=${c.res} raw=$raw \u2192 ${"%.3f".format(weight)} kg")
                 return WeightReading(weightKg = weight, stable = true)
             }
         }
+        debugCallback?.invoke("\u274c parseGeneric: nessun candidato in [1..300]kg su ${data.size} bytes")
         return null
     }
 }

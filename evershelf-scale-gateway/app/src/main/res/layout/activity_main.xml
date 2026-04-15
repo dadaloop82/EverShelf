@@ -186,6 +186,35 @@
             android:layout_marginBottom="8dp"
             style="@style/Widget.MaterialComponents.Button" />
 
+        <Button
+            android:id="@+id/btn_debug"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🐛 Debug"
+            android:backgroundTint="#374151"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="8dp"
+            style="@style/Widget.MaterialComponents.Button" />
+
+        <ScrollView
+            android:id="@+id/sv_debug_log"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginBottom="12dp"
+            android:background="#111827"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_debug_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:textColor="#4ADE80"
+                android:padding="8dp" />
+        </ScrollView>
+
         <TextView
             android:id="@+id/tv_scan_hint"
             android:layout_width="match_parent"
