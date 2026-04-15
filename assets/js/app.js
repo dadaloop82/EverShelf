@@ -162,35 +162,58 @@ function _scaleDensityForProduct(product) {
 
 /**
  * Auto-fill the use-quantity input with a stable scale reading (no modal needed).
- * Only active when on the 'use' page with g/ml unit and user hasn't manually edited.
- * Skips pz, conf, and all other non-weight units.
+ * Works for normal mode (g/ml) and conf sub-unit mode (e.g. latte = conf × 1000ml).
+ * Skips pz, conf-unit mode, and all non-weight units.
  */
 function _scaleAutoFillUse(msg) {
     if (!msg) return;
-    const unit = _useNormalUnit;
-    if (unit !== 'g' && unit !== 'ml') return; // never touch pz/conf/etc
+
+    // Determine the effective target unit:
+    // - conf/sub mode → use the package sub-unit (e.g. ml for milk, g for pasta)
+    // - normal mode   → _useNormalUnit
+    let unit;
+    if (_useConfMode && _useConfMode._activeUnit === 'sub') {
+        unit = (_useConfMode.packageUnit || '').toLowerCase();
+    } else {
+        unit = _useNormalUnit;
+    }
+    if (unit !== 'g' && unit !== 'ml') return; // never touch pz/conf-unit/etc
 
     const rawVal = parseFloat(msg.value);
     if (!isFinite(rawVal) || rawVal <= 0) return;
     const srcUnit = (msg.unit || '').toLowerCase();
 
-    // Step 1 — normalise scale reading to grams
+    // Step 1 — normalise to grams (or handle ml-from-scale directly)
     let grams;
-    if      (srcUnit === 'g')                    grams = rawVal;
-    else if (srcUnit === 'kg')                   grams = rawVal * 1000;
+    let scaleAlreadyMl = false;
+    if      (srcUnit === 'g')                       grams = rawVal;
+    else if (srcUnit === 'kg')                      grams = rawVal * 1000;
     else if (srcUnit === 'lbs' || srcUnit === 'lb') grams = rawVal * 453.592;
-    else if (srcUnit === 'oz')                   grams = rawVal * 28.3495;
-    else                                         grams = rawVal; // unknown — use as-is
+    else if (srcUnit === 'oz')                      grams = rawVal * 28.3495;
+    else if (srcUnit === 'ml')  { grams = rawVal; scaleAlreadyMl = true; } // scale in liquid mode
+    else                                            grams = rawVal;
 
-    // Step 2 — convert grams to target unit
+    // Step 2 — convert to target unit
     let val;
     let hintExtra = '';
     if (unit === 'g') {
-        val = Math.round(grams);
+        // If scale reported ml, convert via density to get grams
+        if (scaleAlreadyMl) {
+            const density = _scaleDensityForProduct(currentProduct);
+            val = Math.round(grams * density);
+            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+        } else {
+            val = Math.round(grams);
+        }
     } else { // ml
-        const density = _scaleDensityForProduct(currentProduct);
-        val = Math.round(grams / density);
-        if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+        if (scaleAlreadyMl) {
+            // Scale already in ml — use directly without density conversion
+            val = Math.round(grams);
+        } else {
+            const density = _scaleDensityForProduct(currentProduct);
+            val = Math.round(grams / density);
+            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+        }
     }
 
     const inp = document.getElementById('use-quantity');
@@ -4580,6 +4603,8 @@ async function loadUseInventoryInfo() {
             
             // Default to sub-unit mode
             switchUseUnit('sub');
+            // Pre-fill with latest scale reading if available
+            if (_scaleLatestWeight && !_scaleAutoFillPaused) _scaleAutoFillUse(_scaleLatestWeight);
         } else {
             // --- NORMAL MODE ---
             _useConfMode = null;
