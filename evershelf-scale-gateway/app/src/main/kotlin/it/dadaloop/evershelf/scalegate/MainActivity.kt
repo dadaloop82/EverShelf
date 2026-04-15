@@ -243,6 +243,19 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     override fun onDisconnected() {
         wsServer?.publishStatus("disconnected", null, null)
         updateUiDisconnected()
+        // Auto-reconnect: if a saved device exists, restart scan after a short delay.
+        // This handles the scale turning off by itself (auto-off) — when it powers
+        // back on it will start advertising again and we will pick it up.
+        if (bleManager.getSavedDeviceAddress() != null && bleManager.hasRequiredPermissions()) {
+            binding.tvScanHint.visibility = View.VISIBLE
+            binding.tvScanHint.text = "🔄 Reconnecting to saved scale in 5 s…"
+            binding.root.postDelayed({
+                if (!bleManager.isConnected) {
+                    bleManager.enableAutoConnect()
+                    bleManager.startScan()
+                }
+            }, 5_000L)
+        }
     }
 
     override fun onWeightReceived(reading: WeightReading) {
