@@ -26,8 +26,8 @@ interface ServerEventListener {
  * Message protocol (JSON):
  *
  * Server -> Client:
- *   {"type":"status","state":"connected"|"disconnected","device":"CK10G","battery":80}
- *   {"type":"weight","value":350,"unit":"g","stable":true,"timestamp":1712345678000}
+ *   {"type":"status","state":"connected"|"disconnected","device":"QN-KS","battery":80}
+ *   {"type":"weight","value":17.0,"unit":"g","stable":true,"timestamp":1712345678000}
  *   {"type":"pong"}
  *
  * Client → Server:
@@ -110,8 +110,8 @@ class GatewayWebSocketServer(
      * Broadcast a weight reading to all clients.
      * If [stable] is true, also fulfil pending on-demand weight requests.
      */
-    fun publishWeight(grams: Int, stable: Boolean, battery: Int? = null) {
-        val json = buildWeightJson(grams, stable)
+    fun publishWeight(value: Float, unit: String, stable: Boolean, battery: Int? = null) {
+        val json = buildWeightJson(value, unit, stable)
         lastWeightJson = json
         broadcast(json)
 
@@ -135,11 +135,13 @@ class GatewayWebSocketServer(
         return obj.toString()
     }
 
-    private fun buildWeightJson(grams: Int, stable: Boolean): String {
+    private fun buildWeightJson(value: Float, unit: String, stable: Boolean): String {
         val obj = JSONObject()
         obj.put("type", "weight")
-        obj.put("value", grams)
-        obj.put("unit", "g")
+        // Round to 1 decimal to avoid floating point noise (e.g. 17.000001)
+        val rounded = Math.round(value * 10f) / 10.0
+        obj.put("value", rounded)
+        obj.put("unit", unit)
         obj.put("stable", stable)
         obj.put("timestamp", System.currentTimeMillis())
         return obj.toString()

@@ -31,7 +31,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Collega la tua bilancia smart a EverShelf via Bluetooth"
+                android:text="Connect your smart scale to EverShelf via Bluetooth"
                 android:textSize="13sp"
                 android:textColor="#64748B" />
 
@@ -65,7 +65,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🌐 URL Gateway (incolla in EverShelf)"
+                    android:text="🌐 Gateway URL (paste into EverShelf)"
                     android:textSize="12sp"
                     android:textColor="#64748B"
                     android:paddingBottom="4dp" />
@@ -85,7 +85,7 @@
                     android:id="@+id/tv_gateway_url_hint"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Impostazioni → Bilancia Smart"
+                    android:text="Settings → Smart Scale"
                     android:textSize="11sp"
                     android:textColor="#94A3B8"
                     android:paddingBottom="8dp" />
@@ -94,7 +94,7 @@
                     android:id="@+id/btn_copy_url"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📋 Copia URL"
+                    android:text="📋 Copy URL"
                     android:backgroundTint="#1D4ED8"
                     android:textColor="#FFFFFF"
                     style="@style/Widget.MaterialComponents.Button" />
@@ -107,7 +107,7 @@
             android:id="@+id/tv_gateway_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⏳ Avvio gateway…"
+            android:text="⏳ Starting gateway…"
             android:textSize="13sp"
             android:textColor="#64748B"
             android:paddingBottom="4dp" />
@@ -142,7 +142,7 @@
                     android:id="@+id/tv_scale_status"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="⚡ Pronto — cerca una bilancia"
+                    android:text="⚡ Ready — scan for a scale"
                     android:textSize="15sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
@@ -183,7 +183,7 @@
                     android:id="@+id/btn_disconnect"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🔌 Disconnetti bilancia"
+                    android:text="🔌 Disconnect scale"
                     android:backgroundTint="#EF4444"
                     android:textColor="#FFFFFF"
                     android:visibility="gone"
@@ -198,7 +198,7 @@
             android:id="@+id/btn_scan"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🔍 Cerca Bilance Bluetooth"
+            android:text="🔍 Scan for Bluetooth Scales"
             android:backgroundTint="#7C3AED"
             android:textColor="#FFFFFF"
             android:layout_marginBottom="8dp"
@@ -269,7 +269,7 @@
             android:id="@+id/tv_scan_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Premi per cercare bilance BLE nelle vicinanze.\nAssicurati che la bilancia sia accesa."
+            android:text="Press to scan for nearby BLE scales.\nMake sure the scale is turned on."
             android:textSize="12sp"
             android:textColor="#64748B"
             android:paddingBottom="12dp"

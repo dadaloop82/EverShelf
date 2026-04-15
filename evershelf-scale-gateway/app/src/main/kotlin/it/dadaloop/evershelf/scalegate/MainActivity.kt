@@ -54,8 +54,8 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         if (granted.values.all { it }) {
             startGatewayServer()
         } else {
-            showDialog("Permessi mancanti",
-                "L'app necessita dei permessi Bluetooth e Posizione per funzionare.")
+            showDialog("Missing permissions",
+                "The app requires Bluetooth and Location permissions to function.")
         }
     }
 
@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) checkPermissionsAndStart()
-        else showDialog("Bluetooth richiesto", "Attiva il Bluetooth per usare il gateway.")
+        else showDialog("Bluetooth required", "Please enable Bluetooth to use the gateway.")
     }
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -93,13 +93,13 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             binding.svDebugLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
             binding.btnCopyLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
             binding.btnShareLog.visibility = if (debugVisible) View.VISIBLE else View.GONE
-            binding.btnDebug.text = if (debugVisible) "\uD83D\uDC1B Nascondi Debug" else "\uD83D\uDC1B Debug"
+            binding.btnDebug.text = if (debugVisible) "\uD83D\uDC1B Hide Debug" else "\uD83D\uDC1B Debug"
         }
         binding.btnCopyLog.setOnClickListener {
             val log = debugLines.joinToString("\n")
             val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("EverShelf Scale Log", log))
-            Toast.makeText(this, "Log copiato negli appunti", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Log copied to clipboard", Toast.LENGTH_SHORT).show()
         }
         binding.btnShareLog.setOnClickListener {
             val log = debugLines.joinToString("\n")
@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                 putExtra(Intent.EXTRA_SUBJECT, "EverShelf Scale Gateway - Debug Log")
                 putExtra(Intent.EXTRA_TEXT, log)
             }
-            startActivity(Intent.createChooser(intent, "Condividi log"))
+            startActivity(Intent.createChooser(intent, "Share log"))
         }
 
         // Show app version
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         // Auto-connect: if we have a saved device, start scanning with auto-connect enabled
         if (bleManager.getSavedDeviceAddress() != null) {
             binding.tvScanHint.visibility = View.VISIBLE
-            binding.tvScanHint.text = "🔄 Ricerca bilancia salvata…"
+            binding.tvScanHint.text = "\uD83D\uDD04 Reconnecting to saved scale\u2026"
         }
     }
 
@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         debugLines.clear()
         binding.tvDebugLog.text = ""
         binding.tvScanHint.visibility = View.VISIBLE
-        binding.tvScanHint.text = "Ricerca bilance BLE in corso…"
+        binding.tvScanHint.text = "Scanning for BLE scales\u2026"
         binding.btnScan.isEnabled = false
         bleManager.enableAutoConnect()
         bleManager.startScan()
@@ -185,9 +185,9 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             wsServer = GatewayWebSocketServer(WS_PORT, this)
             wsServer!!.start()
             updateGatewayUrl()
-            binding.tvGatewayStatus.text = "✅ Gateway attivo sulla porta $WS_PORT"
+            binding.tvGatewayStatus.text = "\u2705 Gateway active on port $WS_PORT"
         } catch (e: Exception) {
-            binding.tvGatewayStatus.text = "❌ Impossibile avviare il gateway: ${e.message}"
+            binding.tvGatewayStatus.text = "\u274C Failed to start gateway: ${e.message}"
         }
 
         // Auto-scan if there's a saved device
@@ -201,12 +201,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         val ip = getLocalIpAddress() ?: "—"
         val url = "ws://$ip:$WS_PORT"
         binding.tvGatewayUrl.text = url
-        binding.tvGatewayUrlHint.text = "Incolla questo URL in EverShelf → Impostazioni → Bilancia Smart"
+        binding.tvGatewayUrlHint.text = "Paste this URL in EverShelf \u2192 Settings \u2192 Smart Scale"
         binding.btnCopyUrl.setOnClickListener {
             val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("EverShelf Gateway URL", url))
-            binding.btnCopyUrl.text = "✅ Copiato!"
-            binding.btnCopyUrl.postDelayed({ binding.btnCopyUrl.text = "📋 Copia URL" }, 2000)
+            binding.btnCopyUrl.text = "\u2705 Copied!"
+            binding.btnCopyUrl.postDelayed({ binding.btnCopyUrl.text = "\uD83D\uDCCB Copy URL" }, 2000)
         }
     }
 
@@ -224,14 +224,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
     override fun onConnecting(device: BluetoothDevice) {
         val name = try { device.name ?: device.address } catch (e: SecurityException) { device.address }
-        binding.tvScaleStatus.text = "⏳ Connessione a $name…"
+        binding.tvScaleStatus.text = "\u23f3 Connecting to $name\u2026"
         binding.tvWeight.text = "— — —"
         binding.cardConnection.setCardBackgroundColor(getColor(android.R.color.holo_orange_light))
     }
 
     override fun onConnected(deviceName: String) {
-        binding.tvScaleStatus.text = "✅ Connessa: $deviceName"
-        binding.tvWeight.text = "In attesa di un peso…"
+        binding.tvScaleStatus.text = "\u2705 Connected: $deviceName"
+        binding.tvWeight.text = "Waiting for weight\u2026"
         binding.cardConnection.setCardBackgroundColor(getColor(android.R.color.holo_green_light))
         binding.btnDisconnect.visibility = View.VISIBLE
         binding.rvDevices.visibility = View.GONE
@@ -246,14 +246,16 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     }
 
     override fun onWeightReceived(reading: WeightReading) {
-        binding.tvWeight.text = "${reading.grams} g"
+        val displayValue = if (reading.value % 1f == 0f) reading.value.toInt().toString()
+                           else "%.1f".format(reading.value)
+        binding.tvWeight.text = "$displayValue ${reading.unit}"
 
         if (reading.stable) {
-            binding.tvWeightHint.text = "\u2713 Lettura stabile"
+            binding.tvWeightHint.text = "\u2713 Stable reading"
         } else {
-            binding.tvWeightHint.text = "\u23f3 Misurazione in corso\u2026"
+            binding.tvWeightHint.text = "\u23f3 Measuring\u2026"
         }
-        wsServer?.publishWeight(reading.grams, reading.stable, batteryLevel)
+        wsServer?.publishWeight(reading.value, reading.unit, reading.stable, batteryLevel)
     }
 
     override fun onBatteryReceived(level: Int) {
@@ -261,7 +263,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         binding.tvBattery.text = "🔋 $level%"
         binding.tvBattery.visibility = View.VISIBLE
         wsServer?.publishStatus("connected", binding.tvScaleStatus.text.toString()
-            .removePrefix("✅ Connessa: "), level)
+            .removePrefix("\u2705 Connected: "), level)
     }
 
     override fun onError(message: String) {
@@ -272,9 +274,9 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     override fun onScanStopped() {
         binding.btnScan.isEnabled = true
         if (devices.isEmpty()) {
-            binding.tvScanHint.text = "Nessuna bilancia trovata. Assicurati che sia accesa e premi di nuovo Cerca."
+            binding.tvScanHint.text = "No scale found. Make sure it's on, then scan again."
         } else {
-            binding.tvScanHint.text = "Tocca una bilancia per connettersi."
+            binding.tvScanHint.text = "Tap a scale to connect."
         }
     }
 
@@ -300,7 +302,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
     override fun onClientConnected(address: String) {
         runOnUiThread {
-            binding.tvClientCount.text = "🌐 Client connesso: $address"
+            binding.tvClientCount.text = "\uD83C\uDF10 Client connected: $address"
             binding.tvClientCount.visibility = View.VISIBLE
         }
     }
@@ -316,7 +318,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     // ─── UI helpers ───────────────────────────────────────────────────────────
 
     private fun updateUiDisconnected() {
-        binding.tvScaleStatus.text = "⚡ Pronto — cerca una bilancia"
+        binding.tvScaleStatus.text = "\u26a1 Ready \u2014 scan for a scale"
         binding.tvWeight.text = "— — —"
         binding.tvWeightHint.text = ""
         binding.tvBattery.visibility = View.GONE

@@ -98,11 +98,11 @@ class BleScaleManager(
 
     fun startScan() {
         val adapter = bluetoothAdapter ?: run {
-            listener.onError("Bluetooth non disponibile su questo dispositivo.")
+            listener.onError("Bluetooth not available on this device.")
             return
         }
         if (!adapter.isEnabled) {
-            listener.onError("Bluetooth disattivato. Attivalo e riprova.")
+            listener.onError("Bluetooth is off. Enable it and try again.")
             return
         }
         if (isScanning) stopScan()
@@ -151,7 +151,7 @@ class BleScaleManager(
             if (autoConnectAddress != null && device.address == autoConnectAddress && !isConnected) {
                 autoConnectAddress = null  // prevent re-trigger
                 mainHandler.post {
-                    listener.onDebugEvent("\uD83D\uDD04 Auto-connessione a $name (${device.address})")
+                    listener.onDebugEvent("\uD83D\uDD04 Auto-connecting to $name (${device.address})")
                     connect(device)
                 }
             }
@@ -159,22 +159,22 @@ class BleScaleManager(
 
         override fun onScanFailed(errorCode: Int) {
             isScanning = false
-            mainHandler.post { listener.onError("Scansione BLE fallita (codice: $errorCode)") }
+            mainHandler.post { listener.onError("BLE scan failed (code: $errorCode)") }
         }
     }
 
     private fun getDeviceName(device: BluetoothDevice): String {
         return try {
-            device.name?.takeIf { it.isNotBlank() } ?: "Senza nome"
+            device.name?.takeIf { it.isNotBlank() } ?: "Unnamed"
         } catch (e: SecurityException) {
-            "Senza nome"
+            "Unnamed"
         }
     }
 
     private fun rssiToProximity(rssi: Int) = when {
-        rssi >= -60 -> "📶 Vicino"
-        rssi >= -80 -> "📶 Medio"
-        else        -> "📶 Lontano"
+        rssi >= -60 -> "📶 Near"
+        rssi >= -80 -> "📶 Medium"
+        else        -> "📶 Far"
     }
 
     private fun scoreLikelyScale(name: String, scanRecord: android.bluetooth.le.ScanRecord?): Int {
@@ -229,7 +229,7 @@ class BleScaleManager(
                 device.connectGatt(context, false, gattCallback)
             }
         } catch (e: SecurityException) {
-            mainHandler.post { listener.onError("Permesso mancante: ${e.message}") }
+            mainHandler.post { listener.onError("Missing permission: ${e.message}") }
         }
     }
 
@@ -308,7 +308,7 @@ class BleScaleManager(
             }
 
             if (targetChars.isEmpty()) {
-                mainHandler.post { listener.onError("Nessuna caratteristica di peso trovata. Verifica che sia una bilancia da cucina BLE.") }
+                mainHandler.post { listener.onError("No weight characteristic found. Make sure it's a BLE kitchen scale.") }
                 return
             }
 
@@ -319,7 +319,7 @@ class BleScaleManager(
 
             // Debug: log all discovered services and characteristics
             val dbg = buildString {
-                append("Servizi GATT (${gatt.services.size}):\n")
+                append("GATT services (${gatt.services.size}):\n")
                 for (svc in gatt.services) {
                     append("  SVC: ${svc.uuid}\n")
                     for (ch in svc.characteristics) {
@@ -333,7 +333,7 @@ class BleScaleManager(
                         append("    CHAR: ${ch.uuid} [$flags]\n")
                     }
                 }
-                append("Iscritto a ${targetChars.size} caratteristiche")
+                append("Subscribed to ${targetChars.size} characteristics")
             }
             mainHandler.post { listener.onDebugEvent(dbg) }
 
@@ -343,7 +343,7 @@ class BleScaleManager(
             pendingSubscriptions.clear()
             pendingSubscriptions.addAll(targetChars)
 
-            val deviceName = try { gatt.device?.name ?: "Bilancia" } catch (e: SecurityException) { "Bilancia" }
+            val deviceName = try { gatt.device?.name ?: "Scale" } catch (e: SecurityException) { "Scale" }
             connectedDeviceName = deviceName
             mainHandler.post { listener.onConnected(deviceName) }
 
@@ -441,7 +441,7 @@ class BleScaleManager(
         val reading = ScaleProtocol.parse(char, data) { msg ->
             mainHandler.post { listener.onDebugEvent(msg) }
         }
-        if (reading != null && reading.grams > 0) {
+        if (reading != null && reading.value > 0f) {
             mainHandler.post { listener.onWeightReceived(reading) }
         } else {
             val rawDump = data.mapIndexed { i, b ->
@@ -449,7 +449,7 @@ class BleScaleManager(
                 val h = "%02X".format(v)
                 "[$i]=$v(0x$h)"
             }.joinToString(" ")
-            mainHandler.post { listener.onDebugEvent("⚠️ Peso non decodificato\n   RAW: $rawDump") }
+            mainHandler.post { listener.onDebugEvent("\u26a0\ufe0f Weight not decoded\n   RAW: $rawDump") }
         }
     }
 }
