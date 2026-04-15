@@ -293,9 +293,11 @@
                         <p id="use-partial-hint">Oppure specifica la quantità usata:</p>
                         <div class="qty-control">
                             <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
-                            <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input">
+                            <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input"
+                                   oninput="_scaleAutoFillPaused=true; var h=document.getElementById('scale-autofill-hint'); if(h) h.style.display='none';">
                             <button type="button" class="qty-btn" id="use-qty-plus" onclick="adjustUseQty(1)">+</button>
                         </div>
+                        <small id="scale-autofill-hint" style="display:none; color: var(--color-accent, #7c3aed); margin-top:4px; display:none">⚖️ Lettura live dalla bilancia</small>
                         <button type="submit" class="btn btn-large btn-warning full-width mt-2">📤 Usa questa quantità</button>
                     </div>
                 </div>
@@ -1237,6 +1239,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260415c"></script>
+<script src="assets/js/app.js?v=20260415d"></script>
 </body>
 </html>

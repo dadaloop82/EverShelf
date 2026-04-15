@@ -68,6 +68,7 @@ let _scaleBattery = null;
 let _scaleReconnectTimer = null;
 let _scaleWeightCallback = null; // pending on-demand weight request callback
 let _scaleLatestWeight = null;   // last received weight message
+let _scaleAutoFillPaused = false; // true when user manually edited use-quantity (stops live auto-fill)
 
 function scaleInit() {
     const s = getSettings();
@@ -119,6 +120,33 @@ function _scaleOnMessage(msg) {
             _scaleWeightCallback = null;
             cb(msg);
         }
+        // Live auto-fill use-quantity when on use page
+        if (msg.stable && _currentPageId === 'use' && !_scaleAutoFillPaused) {
+            _scaleAutoFillUse(msg);
+        }
+    }
+}
+
+/**
+ * Auto-fill the use-quantity input with a stable scale reading (no modal needed).
+ * Only active when on the 'use' page with g/ml unit and user hasn't manually edited.
+ */
+function _scaleAutoFillUse(msg) {
+    if (!msg) return;
+    const unit = _useNormalUnit;
+    if (unit !== 'g' && unit !== 'ml') return;
+    let val = parseFloat(msg.value);
+    if (!isFinite(val) || val <= 0) return;
+    const srcUnit = (msg.unit || '').toLowerCase();
+    if (srcUnit === 'kg') val = Math.round(val * 1000);
+    else if (srcUnit === 'lbs' || srcUnit === 'lb') val = Math.round(val * 453.592);
+    else if (srcUnit === 'oz' && unit === 'ml') val = Math.round(val * 29.574);
+    const inp = document.getElementById('use-quantity');
+    if (inp) {
+        inp.value = val;
+        // Show live hint
+        const hint = document.getElementById('scale-autofill-hint');
+        if (hint) hint.style.display = '';
     }
 }
 
@@ -4347,6 +4375,7 @@ async function submitAdd(e) {
 function showUseForm() {
     renderUsePreview();
     _useConfMode = null; // reset
+    _scaleAutoFillPaused = false; // reset so scale can auto-fill again
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
     document.getElementById('use-unit-switch').style.display = 'none';
@@ -4502,6 +4531,8 @@ async function loadUseInventoryInfo() {
             _useConfMode = null;
             _useNormalUnit = unit;
             unitSwitch.style.display = 'none';
+            // Pre-fill with latest scale reading if available
+            if (_scaleLatestWeight && !_scaleAutoFillPaused) _scaleAutoFillUse(_scaleLatestWeight);
             
             infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
