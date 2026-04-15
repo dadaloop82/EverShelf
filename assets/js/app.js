@@ -86,7 +86,7 @@ function _scaleConnect(url) {
     if (_scaleReconnectTimer) { clearTimeout(_scaleReconnectTimer); _scaleReconnectTimer = null; }
     try {
         // Connect via the PHP SSE relay so the HTTPS page is not blocked by mixed-content
-        _scaleEs = new EventSource('/api/scale_relay.php?url=' + encodeURIComponent(url));
+        _scaleEs = new EventSource('api/scale_relay.php?url=' + encodeURIComponent(url));
         _scaleEs.onopen  = () => _scaleUpdateStatus('searching');
         _scaleEs.onmessage = (evt) => {
             try { _scaleOnMessage(JSON.parse(evt.data)); } catch(e) {}
@@ -226,7 +226,7 @@ function testScaleConnection() {
         statusEl.textContent = '❌ ' + t('scale.timeout');
         statusEl.className = 'settings-status error';
     }, 8000);
-    fetch('/api/scale_ping.php?url=' + encodeURIComponent(url), { signal: ac.signal })
+    fetch('api/scale_ping.php?url=' + encodeURIComponent(url), { signal: ac.signal })
         .then(r => r.json())
         .then(data => {
             clearTimeout(timeout);
@@ -258,7 +258,7 @@ async function discoverScaleGateway() {
     status.textContent = '🔍 Scanning local network for scale gateway…';
 
     try {
-        const res  = await fetch('/api/scale_discover.php', { signal: AbortSignal.timeout(8000) });
+        const res  = await fetch('api/scale_discover.php', { signal: AbortSignal.timeout(8000) });
         const data = await res.json();
 
         if (data.error) {
