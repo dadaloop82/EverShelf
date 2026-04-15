@@ -180,15 +180,36 @@ class BleScaleManager(
     private fun scoreLikelyScale(name: String, scanRecord: android.bluetooth.le.ScanRecord?): Int {
         var score = 0
         val lower = name.lowercase()
-        if (listOf("scale", "bilancia", "weight", "body", "balance",
-                   "lepulse", "qardio", "xiaomi", "mi body", "körper",
-                   "qn-scale", "fitindex", "renpho", "1byone", "eufy",
-                   "yunmai", "senssun", "yunchen", "hesley")
-                .any { lower.contains(it) }) score += 10
+        // Kitchen / food scale brand and model keywords
+        val foodKeywords = listOf(
+            "scale", "bilancia", "kitchen", "food", "cucina",
+            "coffee", "caffe", "balance", "weight", "waage",
+            "arboleaf", "ck10", "ck20", "ek-",
+            "acaia", "felicita", "decent", "skale",
+            "timemore", "brewista", "hario",
+            "greater goods", "ozeri", "etekcity", "nutri",
+            "nicewell", "koios", "renpho", "eatsmart",
+        )
+        if (foodKeywords.any { lower.contains(it) }) score += 10
+
+        // Negative: body/fitness scale keywords (demote but don't hide)
+        val bodyKeywords = listOf(
+            "body", "fat", "bmi", "composition", "fitness",
+            "mi body", "lepulse", "qardio", "garmin", "withings",
+        )
+        if (bodyKeywords.any { lower.contains(it) }) score -= 5
+
+        // Service UUID scoring
         scanRecord?.serviceUuids?.let { uuids ->
             val us = uuids.map { it.uuid.toString().lowercase() }
-            if (us.any { it.startsWith("0000181d") || it.startsWith("0000181b") }) score += 20
-            if (us.any { it.startsWith("0000ffe0") || it.startsWith("0000fff0") }) score += 15
+            // SIG Weight Scale service
+            if (us.any { it.startsWith("0000181d") }) score += 15
+            // Common vendor services on kitchen scales
+            if (us.any { it.startsWith("0000ffe0") || it.startsWith("0000fff0") }) score += 10
+            // Acaia coffee scale
+            if (us.any { it.startsWith("49535343") }) score += 20
+            // Body Composition service = body scale, demote
+            if (us.any { it.startsWith("0000181b") }) score -= 10
         }
         return score
     }
@@ -250,25 +271,25 @@ class BleScaleManager(
 
             val targetChars = mutableListOf<BluetoothGattCharacteristic>()
 
-            // Priority 1: Weight Scale Service
+            // Priority 1: BLE SIG Weight Scale Service
             gatt.getService(BleUuids.WEIGHT_SCALE_SERVICE)
                 ?.getCharacteristic(BleUuids.WEIGHT_MEASUREMENT_CHAR)
                 ?.let { targetChars.add(it) }
 
-            // Priority 2: Body Composition Service
-            gatt.getService(BleUuids.BODY_COMPOSITION_SERVICE)
-                ?.getCharacteristic(BleUuids.BODY_COMPOSITION_CHAR)
-                ?.let { if (!targetChars.contains(it)) targetChars.add(it) }
-
-            // Priority 3: QN/Yolanda Type 1 (FFE0)
-            gatt.getService(BleUuids.QN_SERVICE_FFE0)?.let { svc ->
-                svc.getCharacteristic(BleUuids.QN_NOTIFY_FFE1)?.let { targetChars.add(it) }
+            // Priority 2: Common vendor service FFE0 (arboleaf, generic kitchen scales)
+            gatt.getService(BleUuids.FFE0)?.let { svc ->
+                svc.getCharacteristic(BleUuids.FFE1)?.let { targetChars.add(it) }
             }
 
-            // Priority 4: Custom FFF0 service (QN Type 2, 1byone, Hesley)
-            gatt.getService(BleUuids.CUSTOM_FFF0)?.let { svc ->
-                svc.getCharacteristic(BleUuids.CUSTOM_FFF4)?.let { targetChars.add(it) }
-                    ?: svc.getCharacteristic(BleUuids.CUSTOM_FFF1)?.let { targetChars.add(it) }
+            // Priority 3: Common vendor service FFF0
+            gatt.getService(BleUuids.FFF0)?.let { svc ->
+                svc.getCharacteristic(BleUuids.FFF4)?.let { targetChars.add(it) }
+                    ?: svc.getCharacteristic(BleUuids.FFF1)?.let { targetChars.add(it) }
+            }
+
+            // Priority 4: Acaia coffee scale
+            gatt.getService(BleUuids.ACAIA_SERVICE)?.let { svc ->
+                svc.getCharacteristic(BleUuids.ACAIA_CHAR)?.let { targetChars.add(it) }
             }
 
             // Fallback: any notifiable characteristic from remaining services
@@ -287,7 +308,7 @@ class BleScaleManager(
             }
 
             if (targetChars.isEmpty()) {
-                mainHandler.post { listener.onError("Nessuna caratteristica peso trovata su questa bilancia.") }
+                mainHandler.post { listener.onError("Nessuna caratteristica di peso trovata. Verifica che sia una bilancia da cucina BLE.") }
                 return
             }
 
@@ -416,11 +437,11 @@ class BleScaleManager(
         val hex = data.joinToString(" ") { "%02X".format(it) }
         mainHandler.post { listener.onDebugEvent("📡 ${char.uuid}\n   HEX [${data.size}B]: $hex") }
 
-        // Weight / body composition
+        // Parse weight data
         val reading = ScaleProtocol.parse(char, data) { msg ->
             mainHandler.post { listener.onDebugEvent(msg) }
         }
-        if (reading != null && reading.weightKg > 0f) {
+        if (reading != null && reading.grams > 0) {
             mainHandler.post { listener.onWeightReceived(reading) }
         } else {
             val rawDump = data.mapIndexed { i, b ->

@@ -25,9 +25,9 @@ interface ServerEventListener {
  *
  * Message protocol (JSON):
  *
- * Server → Client:
- *   {"type":"status","state":"connected"|"disconnected","device":"Mi Scale 2","battery":80}
- *   {"type":"weight","value":72.5,"unit":"kg","stable":true,"timestamp":1712345678000}
+ * Server -> Client:
+ *   {"type":"status","state":"connected"|"disconnected","device":"CK10G","battery":80}
+ *   {"type":"weight","value":350,"unit":"g","stable":true,"timestamp":1712345678000}
  *   {"type":"pong"}
  *
  * Client → Server:
@@ -110,8 +110,8 @@ class GatewayWebSocketServer(
      * Broadcast a weight reading to all clients.
      * If [stable] is true, also fulfil pending on-demand weight requests.
      */
-    fun publishWeight(weightKg: Float, stable: Boolean, battery: Int? = null) {
-        val json = buildWeightJson(weightKg, stable)
+    fun publishWeight(grams: Int, stable: Boolean, battery: Int? = null) {
+        val json = buildWeightJson(grams, stable)
         lastWeightJson = json
         broadcast(json)
 
@@ -135,19 +135,11 @@ class GatewayWebSocketServer(
         return obj.toString()
     }
 
-    private fun buildWeightJson(weightKg: Float, stable: Boolean): String {
+    private fun buildWeightJson(grams: Int, stable: Boolean): String {
         val obj = JSONObject()
         obj.put("type", "weight")
-        // Food scale (<15kg): send grams for better precision
-        if (weightKg < 15f) {
-            val grams = Math.round(weightKg * 1000f)
-            obj.put("value", grams)
-            obj.put("unit", "g")
-        } else {
-            val rounded = (weightKg * 100).toLong() / 100.0
-            obj.put("value", rounded)
-            obj.put("unit", "kg")
-        }
+        obj.put("value", grams)
+        obj.put("unit", "g")
         obj.put("stable", stable)
         obj.put("timestamp", System.currentTimeMillis())
         return obj.toString()

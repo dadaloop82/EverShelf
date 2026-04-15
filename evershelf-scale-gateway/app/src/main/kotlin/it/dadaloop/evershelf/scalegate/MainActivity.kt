@@ -222,33 +222,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     }
 
     override fun onWeightReceived(reading: WeightReading) {
-        val isFood = reading.weightKg < 15f
-        if (isFood) {
-            val grams = (reading.weightKg * 1000).toInt()
-            binding.tvWeight.text = "$grams g"
-        } else {
-            val kg = "%.2f".format(reading.weightKg)
-            binding.tvWeight.text = "$kg kg"
-        }
+        binding.tvWeight.text = "${reading.grams} g"
 
-        val extras = buildString {
-            reading.fatPct?.let { append("Grasso: ${"%.1f".format(it)}%  ") }
-            reading.muscle?.let { append("Muscoli: ${"%.1f".format(it)}%  ") }
-            reading.water?.let { append("Acqua: ${"%.1f".format(it)}%  ") }
-            reading.bone?.let { append("Ossa: ${"%.1f".format(it)}kg  ") }
-            reading.bmi?.let { append("BMI: ${"%.1f".format(it)}  ") }
-            reading.kcal?.let { append("BMR: ${it}kcal  ") }
-            reading.impedance?.let { append("Z: ${"%.0f".format(it)}\u03A9  ") }
-        }.trim()
-
-        if (extras.isNotEmpty()) {
-            binding.tvWeightHint.text = extras
-        } else if (reading.stable) {
+        if (reading.stable) {
             binding.tvWeightHint.text = "\u2713 Lettura stabile"
         } else {
             binding.tvWeightHint.text = "\u23f3 Misurazione in corso\u2026"
         }
-        wsServer?.publishWeight(reading.weightKg, reading.stable, batteryLevel)
+        wsServer?.publishWeight(reading.grams, reading.stable, batteryLevel)
     }
 
     override fun onBatteryReceived(level: Int) {
