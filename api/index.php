@@ -2013,6 +2013,7 @@ PROMPT;
                         $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
                         $ing['package_unit'] = $bestMatch['package_unit'] ?? '';
                         $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+                        $ing['vacuum_sealed'] = !empty($bestMatch['vacuum_sealed']) ? 1 : 0;
                         if (!empty($bestMatch['brand'])) {
                             $ing['brand'] = $bestMatch['brand'];
                         }

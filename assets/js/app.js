@@ -4785,7 +4785,12 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
-    
+    const wasVacuum = !!product.vacuum_sealed;
+    const vacuumRow = wasVacuum ? `
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+            <input type="checkbox" id="move-vacuum-check" checked>
+            <span>🫙 Torna sotto vuoto</span>
+        </label>` : '';
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>📦 Spostare il resto?</h3>
@@ -4794,6 +4799,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
             <div class="location-selector">${locButtons}</div>
+            ${vacuumRow}
             <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
         </div>
     `;
@@ -4803,6 +4809,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
 
 async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
     clearMoveModalTimer();
+    const newVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
     closeModal();
     showLoading(true);
     try {
@@ -4815,6 +4822,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
                 location: toLoc,
                 expiry_date: addDays(days),
                 product_id: productId,
+                vacuum_sealed: newVacuum,
             });
             showToast(`📦 Confezione aperta spostata in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
         } else {
@@ -4824,12 +4832,13 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
             if (item) {
                 const product = { name: item.name || '', category: item.category || '' };
                 let days = estimateExpiryDays(product, toLoc);
-                if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
+                if (newVacuum) days = getVacuumExpiryDays(days);
                 await api('inventory_update', {}, 'POST', {
                     id: item.id,
                     location: toLoc,
                     expiry_date: addDays(days),
                     product_id: productId,
+                    vacuum_sealed: newVacuum,
                 });
                 showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
             }
@@ -7524,7 +7533,11 @@ async function submitRecipeUse(useAll) {
             
             // Check low stock → Bring! prompt, then offer move
             const moveCallback = result.remaining > 0
-                ? () => setTimeout(() => showRecipeMoveModal(productId, location, result.remaining, result.opened_id), 300)
+                ? () => setTimeout(() => {
+                    const ingData = _cachedRecipe?.recipe?.ingredients?.[_recipeUseContext?.idx];
+                    const wasVacuum = !!(ingData?.vacuum_sealed);
+                    showRecipeMoveModal(productId, location, result.remaining, result.opened_id, wasVacuum);
+                  }, 300)
                 : null;
             setTimeout(() => showLowStockBringPrompt(result, moveCallback), 300);
         } else {
@@ -7541,12 +7554,16 @@ async function submitRecipeUse(useAll) {
     _recipeUseContext = null;
 }
 
-function showRecipeMoveModal(productId, fromLoc, remaining, openedId) {
+function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum) {
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
-    
+    const vacuumRow = wasVacuum ? `
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+            <input type="checkbox" id="move-vacuum-check" checked>
+            <span>🫙 Torna sotto vuoto</span>
+        </label>` : '';
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>📦 Spostare il resto?</h3>
@@ -7555,6 +7572,7 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId) {
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} in un'altra posizione?</p>
             <div class="location-selector">${locButtons}</div>
+            ${vacuumRow}
             <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
         </div>
     `;
@@ -7564,27 +7582,31 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId) {
 
 async function confirmRecipeMove(productId, fromLoc, toLoc, openedId) {
     clearMoveModalTimer();
+    const newVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
     closeModal();
     try {
         if (openedId) {
             let days = estimateExpiryDays({ name: '', category: '' }, toLoc);
+            if (newVacuum) days = getVacuumExpiryDays(days);
             await api('inventory_update', {}, 'POST', {
                 id: openedId,
                 location: toLoc,
                 expiry_date: addDays(days),
                 product_id: productId,
+                vacuum_sealed: newVacuum,
             });
         } else {
             const data = await api('inventory_list');
             const item = (data.inventory || []).find(i => i.product_id == productId && i.location === fromLoc && parseFloat(i.quantity) > 0);
             if (item) {
                 let days = estimateExpiryDays({ name: item.name || '', category: item.category || '' }, toLoc);
-                if (item.vacuum_sealed) days = getVacuumExpiryDays(days);
+                if (newVacuum) days = getVacuumExpiryDays(days);
                 await api('inventory_update', {}, 'POST', {
                     id: item.id,
                     location: toLoc,
                     expiry_date: addDays(days),
                     product_id: productId,
+                    vacuum_sealed: newVacuum,
                 });
             }
         }
@@ -7731,15 +7753,12 @@ function renderCookingStep() {
         }).join('');
     }
 
-    // Find pantry ingredients that appear in this step's text and haven't been used yet
-    const stepLower = cleanStep.toLowerCase();
+    // Show ALL unused from_pantry ingredients (not filtered by step text).
+    // The AI often uses pronouns ("tagliarla", "aggiungile") instead of the ingredient
+    // name, so text-matching would miss them. Better to always show what's available.
     const ings = (_cookingRecipe.ingredients || [])
         .map((ing, idx) => ({ ...ing, _idx: idx }))
-        .filter(ing => ing.from_pantry && ing.product_id && ing.used !== true)
-        .filter(ing => {
-            const name = (ing.name || '').toLowerCase();
-            return name.split(' ').some(word => word.length > 2 && stepLower.includes(word));
-        });
+        .filter(ing => ing.from_pantry && ing.product_id && ing.used !== true);
 
     const ingsEl = document.getElementById('cooking-step-ings');
     if (ings.length > 0) {
