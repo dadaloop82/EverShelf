@@ -13,6 +13,8 @@ import androidx.core.content.ContextCompat
 
 private const val TAG = "BleScaleManager"
 private const val SCAN_PERIOD_MS = 15_000L
+private const val PREFS_NAME = "evershelf_gateway"
+private const val PREF_LAST_DEVICE = "last_device_address"
 
 /**
  * Represents a discovered BLE device during scan.
@@ -56,6 +58,7 @@ class BleScaleManager(
     private var gatt: BluetoothGatt? = null
     private var isScanning = false
     private var connectedDeviceName: String = ""
+    private var autoConnectAddress: String? = null
 
     // The characteristics we will subscribe to (multiple may exist).
     private val pendingSubscriptions = ArrayDeque<BluetoothGattCharacteristic>()
@@ -63,6 +66,22 @@ class BleScaleManager(
     // ─── Public state ──────────────────────────────────────────────────────────
 
     val isConnected: Boolean get() = gatt != null && connectedDeviceName.isNotEmpty()
+
+    // ─── Saved device (auto-reconnect) ─────────────────────────────────────────
+
+    fun getSavedDeviceAddress(): String? {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_LAST_DEVICE, null)
+    }
+
+    private fun saveDeviceAddress(address: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(PREF_LAST_DEVICE, address).apply()
+    }
+
+    fun enableAutoConnect() {
+        autoConnectAddress = getSavedDeviceAddress()
+    }
 
     // ─── Permissions helper ────────────────────────────────────────────────────
 
@@ -127,6 +146,15 @@ class BleScaleManager(
             val score = scoreLikelyScale(name, result.scanRecord)
             val info = BleDeviceInfo(device, name, result.rssi, proximity, score)
             mainHandler.post { listener.onDeviceFound(info) }
+
+            // Auto-connect to saved device
+            if (autoConnectAddress != null && device.address == autoConnectAddress && !isConnected) {
+                autoConnectAddress = null  // prevent re-trigger
+                mainHandler.post {
+                    listener.onDebugEvent("\uD83D\uDD04 Auto-connessione a $name (${device.address})")
+                    connect(device)
+                }
+            }
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -153,11 +181,14 @@ class BleScaleManager(
         var score = 0
         val lower = name.lowercase()
         if (listOf("scale", "bilancia", "weight", "body", "balance",
-                   "lepulse", "qardio", "xiaomi", "mi body", "körper")
+                   "lepulse", "qardio", "xiaomi", "mi body", "körper",
+                   "qn-scale", "fitindex", "renpho", "1byone", "eufy",
+                   "yunmai", "senssun", "yunchen", "hesley")
                 .any { lower.contains(it) }) score += 10
         scanRecord?.serviceUuids?.let { uuids ->
             val us = uuids.map { it.uuid.toString().lowercase() }
             if (us.any { it.startsWith("0000181d") || it.startsWith("0000181b") }) score += 20
+            if (us.any { it.startsWith("0000ffe0") || it.startsWith("0000fff0") }) score += 15
         }
         return score
     }
@@ -168,6 +199,7 @@ class BleScaleManager(
         stopScan()
         disconnect()
         connectedDeviceName = ""
+        ScaleProtocol.resetState()
         mainHandler.post { listener.onConnecting(device) }
         try {
             gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -228,17 +260,27 @@ class BleScaleManager(
                 ?.getCharacteristic(BleUuids.BODY_COMPOSITION_CHAR)
                 ?.let { if (!targetChars.contains(it)) targetChars.add(it) }
 
-            // Fallback: any notifiable characteristic from unknown services
+            // Priority 3: QN/Yolanda Type 1 (FFE0)
+            gatt.getService(BleUuids.QN_SERVICE_FFE0)?.let { svc ->
+                svc.getCharacteristic(BleUuids.QN_NOTIFY_FFE1)?.let { targetChars.add(it) }
+            }
+
+            // Priority 4: Custom FFF0 service (QN Type 2, 1byone, Hesley)
+            gatt.getService(BleUuids.CUSTOM_FFF0)?.let { svc ->
+                svc.getCharacteristic(BleUuids.CUSTOM_FFF4)?.let { targetChars.add(it) }
+                    ?: svc.getCharacteristic(BleUuids.CUSTOM_FFF1)?.let { targetChars.add(it) }
+            }
+
+            // Fallback: any notifiable characteristic from remaining services
             if (targetChars.isEmpty()) {
                 for (service in gatt.services) {
-                    // Skip standard generic services
                     if (service.uuid.toString().startsWith("00001800") ||
                         service.uuid.toString().startsWith("00001801")) continue
                     for (char in service.characteristics) {
                         val props = char.properties
                         if ((props and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0 ||
                             (props and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0) {
-                            targetChars.add(char)
+                            if (!targetChars.contains(char)) targetChars.add(char)
                         }
                     }
                 }
@@ -273,6 +315,9 @@ class BleScaleManager(
                 append("Iscritto a ${targetChars.size} caratteristiche")
             }
             mainHandler.post { listener.onDebugEvent(dbg) }
+
+            // Save device for auto-reconnect
+            try { gatt.device?.address?.let { saveDeviceAddress(it) } } catch (_: SecurityException) {}
 
             pendingSubscriptions.clear()
             pendingSubscriptions.addAll(targetChars)

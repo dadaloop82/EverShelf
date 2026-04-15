@@ -36,9 +36,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private lateinit var deviceAdapter: DeviceAdapter
 
     private var batteryLevel: Int? = null
-    private val debugLog = StringBuilder()
+    private val debugLines = mutableListOf<String>()
     private var debugVisible = false
-    private val debugTimeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    private var lastDebugUpdate = 0L
+    private val debugTimeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    private companion object {
+        const val MAX_DEBUG_LINES = 150
+        const val DEBUG_THROTTLE_MS = 200L
+    }
 
     // ─── Permission launcher ───────────────────────────────────────────────────
 
@@ -90,6 +95,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
         updateGatewayUrl()
         checkPermissionsAndStart()
+
+        // Auto-connect: if we have a saved device, start scanning with auto-connect enabled
+        if (bleManager.getSavedDeviceAddress() != null) {
+            binding.tvScanHint.visibility = View.VISIBLE
+            binding.tvScanHint.text = "🔄 Ricerca bilancia salvata…"
+        }
     }
 
     override fun onDestroy() {
@@ -133,11 +144,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         }
         devices.clear()
         deviceAdapter.notifyDataSetChanged()
-        debugLog.clear()
+        debugLines.clear()
         binding.tvDebugLog.text = ""
         binding.tvScanHint.visibility = View.VISIBLE
         binding.tvScanHint.text = "Ricerca bilance BLE in corso…"
         binding.btnScan.isEnabled = false
+        bleManager.enableAutoConnect()
         bleManager.startScan()
     }
 
@@ -152,6 +164,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             binding.tvGatewayStatus.text = "✅ Gateway attivo sulla porta $WS_PORT"
         } catch (e: Exception) {
             binding.tvGatewayStatus.text = "❌ Impossibile avviare il gateway: ${e.message}"
+        }
+
+        // Auto-scan if there's a saved device
+        if (bleManager.getSavedDeviceAddress() != null && bleManager.hasRequiredPermissions()) {
+            bleManager.enableAutoConnect()
+            bleManager.startScan()
         }
     }
 
@@ -205,15 +223,24 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
     override fun onWeightReceived(reading: WeightReading) {
         val kg = "%.2f".format(reading.weightKg)
+        binding.tvWeight.text = "$kg kg"
+
         val extras = buildString {
-            reading.fatPct?.let { append("  Grasso: ${"%.1f".format(it)}%") }
-            reading.bmi?.let { append("  BMI: ${"%.1f".format(it)}") }
-        }
-        binding.tvWeight.text = "$kg kg$extras"
-        if (reading.stable) {
-            binding.tvWeightHint.text = "✓ Lettura stabile"
+            reading.fatPct?.let { append("Grasso: ${"%.1f".format(it)}%  ") }
+            reading.muscle?.let { append("Muscoli: ${"%.1f".format(it)}%  ") }
+            reading.water?.let { append("Acqua: ${"%.1f".format(it)}%  ") }
+            reading.bone?.let { append("Ossa: ${"%.1f".format(it)}kg  ") }
+            reading.bmi?.let { append("BMI: ${"%.1f".format(it)}  ") }
+            reading.kcal?.let { append("BMR: ${it}kcal  ") }
+            reading.impedance?.let { append("Z: ${"%.0f".format(it)}\u03A9  ") }
+        }.trim()
+
+        if (extras.isNotEmpty()) {
+            binding.tvWeightHint.text = extras
+        } else if (reading.stable) {
+            binding.tvWeightHint.text = "\u2713 Lettura stabile"
         } else {
-            binding.tvWeightHint.text = "…"
+            binding.tvWeightHint.text = "\u23f3 Misurazione in corso\u2026"
         }
         wsServer?.publishWeight(reading.weightKg, reading.stable, batteryLevel)
     }
@@ -243,10 +270,17 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     override fun onDebugEvent(message: String) {
         runOnUiThread {
             val ts = debugTimeFmt.format(Date())
-            debugLog.append("[$ts] $message\n")
-            binding.tvDebugLog.text = debugLog
-            if (debugVisible) {
-                binding.svDebugLog.post { binding.svDebugLog.fullScroll(View.FOCUS_DOWN) }
+            debugLines.add("[$ts] $message")
+            // Keep only last MAX_DEBUG_LINES
+            while (debugLines.size > MAX_DEBUG_LINES) debugLines.removeAt(0)
+            // Throttle UI updates to avoid freezing
+            val now = System.currentTimeMillis()
+            if (now - lastDebugUpdate >= DEBUG_THROTTLE_MS) {
+                lastDebugUpdate = now
+                binding.tvDebugLog.text = debugLines.joinToString("\n")
+                if (debugVisible) {
+                    binding.svDebugLog.post { binding.svDebugLog.fullScroll(View.FOCUS_DOWN) }
+                }
             }
         }
     }
