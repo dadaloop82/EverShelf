@@ -999,7 +999,11 @@
                     <!-- Gateway URL -->
                     <div class="form-group">
                         <label data-i18n="settings.scale.url_label">🌐 URL Gateway WebSocket</label>
-                        <input type="url" id="setting-scale-url" class="form-input" placeholder="ws://192.168.1.x:8765" data-i18n-placeholder="settings.scale.url_placeholder">
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="url" id="setting-scale-url" class="form-input" style="flex:1" placeholder="ws://192.168.1.x:8765" data-i18n-placeholder="settings.scale.url_placeholder">
+                            <button class="btn btn-secondary" style="white-space:nowrap;flex-shrink:0" onclick="discoverScaleGateway()" id="btn-scale-discover" title="Scan local network">🔍 Auto</button>
+                        </div>
+                        <div id="scale-discover-status" style="display:none;margin-top:6px;font-size:0.82rem;color:var(--text-secondary)"></div>
                         <p class="settings-hint" data-i18n="settings.scale.url_hint">Copia l'URL mostrato dall'app Android (stessa rete Wi-Fi). Es: <code>ws://192.168.1.100:8765</code></p>
                     </div>
 
@@ -1233,6 +1237,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260413a"></script>
+<script src="assets/js/app.js?v=20260415b"></script>
 </body>
 </html>

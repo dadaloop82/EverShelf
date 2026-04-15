@@ -247,6 +247,44 @@ function testScaleConnection() {
         });
 }
 
+async function discoverScaleGateway() {
+    const btn    = document.getElementById('btn-scale-discover');
+    const status = document.getElementById('scale-discover-status');
+    if (!btn || !status) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    status.style.display = 'block';
+    status.textContent = '🔍 Scanning local network for scale gateway…';
+
+    try {
+        const res  = await fetch('/api/scale_discover.php', { signal: AbortSignal.timeout(8000) });
+        const data = await res.json();
+
+        if (data.error) {
+            status.textContent = '❌ ' + data.error;
+        } else if (data.found && data.found.length > 0) {
+            const url = data.found[0];
+            const urlEl = document.getElementById('setting-scale-url');
+            if (urlEl) urlEl.value = url;
+            status.textContent = '✅ Gateway found: ' + url + (data.found.length > 1 ? ' (+' + (data.found.length - 1) + ' more)' : '');
+            status.style.color = 'var(--color-success, #059669)';
+            // Auto-save
+            const s = getSettings();
+            s.scale_gateway_url = url;
+            saveSettingsToStorage(s);
+            scaleInit();
+        } else {
+            status.textContent = '❌ No gateway found on ' + (data.subnet || 'local network') + '. Make sure the Android app is running and on the same Wi-Fi.';
+        }
+    } catch(e) {
+        status.textContent = '❌ Discovery failed: ' + (e.message || 'timeout');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🔍 Auto';
+}
+
 // ===== i18n TRANSLATION SYSTEM =====
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
