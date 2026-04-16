@@ -1,6 +1,7 @@
 package it.dadaloop.evershelf.kiosk
 
 import android.annotation.SuppressLint
+import android.Manifest
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -33,6 +34,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import org.json.JSONObject
 import java.net.URL
@@ -69,8 +72,12 @@ class KioskActivity : AppCompatActivity() {
     // File chooser
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
+    // Pending WebView permission request (waiting for runtime grant)
+    private var pendingWebPermission: PermissionRequest? = null
+
     companion object {
         private const val FILE_CHOOSER_REQUEST = 1002
+        private const val PERMISSION_REQUEST_CODE = 1003
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
@@ -89,6 +96,7 @@ class KioskActivity : AppCompatActivity() {
         bindViews()
         enterImmersiveMode()
         enableKioskLock()
+        requestAllPermissions()
 
         // Show splash then proceed
         Handler(Looper.getMainLooper()).postDelayed({
@@ -168,6 +176,46 @@ class KioskActivity : AppCompatActivity() {
         val savedUrl = prefs.getString(KEY_URL, "") ?: ""
         if (savedUrl.isNotEmpty()) {
             wizardUrl.setText(savedUrl)
+        }
+    }
+
+    // ── Runtime Permissions ─────────────────────────────────────────────
+
+    private fun requestAllPermissions() {
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.CAMERA)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.RECORD_AUDIO)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+        } else if (Build.VERSION.SDK_INT <= 32) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // Grant pending WebView permission if camera/mic were just granted
+            pendingWebPermission?.let { req ->
+                val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+                if (allGranted) {
+                    req.grant(req.resources)
+                } else {
+                    req.deny()
+                }
+                pendingWebPermission = null
+            }
         }
     }
 
@@ -417,7 +465,30 @@ class KioskActivity : AppCompatActivity() {
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
-                runOnUiThread { request?.grant(request.resources) }
+                request ?: return
+                runOnUiThread {
+                    val needed = mutableListOf<String>()
+                    for (res in request.resources) {
+                        when (res) {
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE -> {
+                                if (ContextCompat.checkSelfPermission(this@KioskActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                                    needed.add(Manifest.permission.CAMERA)
+                                }
+                            }
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE -> {
+                                if (ContextCompat.checkSelfPermission(this@KioskActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                    needed.add(Manifest.permission.RECORD_AUDIO)
+                                }
+                            }
+                        }
+                    }
+                    if (needed.isEmpty()) {
+                        request.grant(request.resources)
+                    } else {
+                        pendingWebPermission = request
+                        ActivityCompat.requestPermissions(this@KioskActivity, needed.toTypedArray(), PERMISSION_REQUEST_CODE)
+                    }
+                }
             }
             override fun onConsoleMessage(msg: ConsoleMessage?): Boolean = true
             override fun onShowFileChooser(
