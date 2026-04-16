@@ -435,6 +435,18 @@ class KioskActivity : AppCompatActivity() {
             }
         }
 
+        // Add JS interface ONCE before loading
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun exit() {
+                runOnUiThread {
+                    disableKioskLock()
+                    Toast.makeText(this@KioskActivity, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
+                    finishAffinity()
+                }
+            }
+        }, "_kioskBridge")
+
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
         webView.loadUrl(url)
 
@@ -451,45 +463,38 @@ class KioskActivity : AppCompatActivity() {
         val js = """
         (function() {
             if (document.getElementById('_kiosk_exit_zone')) return;
+            var header = document.querySelector('.app-header, header, [class*="header"]');
+            var headerH = header ? header.offsetHeight : 56;
             var zone = document.createElement('div');
             zone.id = '_kiosk_exit_zone';
-            zone.style.cssText = 'position:fixed;top:0;left:0;right:0;height:6px;z-index:999999;background:linear-gradient(90deg,#059669,#10B981);cursor:pointer;';
+            zone.style.cssText = 'position:fixed;top:0;left:0;right:0;height:' + headerH + 'px;z-index:999999;cursor:pointer;-webkit-tap-highlight-color:transparent;';
             var count = 0, timer = null;
-            zone.addEventListener('click', function() {
+            zone.addEventListener('touchend', function(e) {
                 count++;
                 clearTimeout(timer);
-                timer = setTimeout(function(){ count=0; }, 800);
+                timer = setTimeout(function(){ count=0; }, 1000);
                 if (count === 2) {
                     var toast = document.createElement('div');
-                    toast.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                    toast.style.cssText = 'position:fixed;top:' + (headerH + 8) + 'px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
                     toast.textContent = 'Tap once more to exit kiosk';
                     document.body.appendChild(toast);
                     setTimeout(function(){ toast.remove(); }, 2000);
                 }
                 if (count >= 3) {
                     count = 0;
-                    window._kioskExit && window._kioskExit();
+                    if (typeof _kioskBridge !== 'undefined') _kioskBridge.exit();
                 }
+                e.preventDefault();
+                e.stopPropagation();
+            }, {passive: false});
+            zone.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
             });
             document.body.appendChild(zone);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
-
-        // Add JS interface for exit
-        webView.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
-            fun exit() {
-                runOnUiThread {
-                    disableKioskLock()
-                    Toast.makeText(this@KioskActivity, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
-                    finishAffinity()
-                }
-            }
-        }, "_kioskBridge")
-
-        // Connect the overlay to the bridge
-        webView.evaluateJavascript("window._kioskExit = function() { _kioskBridge.exit(); };", null)
     }
 
     // ── Update Check ──────────────────────────────────────────────────────
@@ -557,6 +562,7 @@ class KioskActivity : AppCompatActivity() {
             banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;padding:10px 16px;font-size:13px;z-index:999998;display:flex;align-items:center;justify-content:space-between;border-top:2px solid #fbbf24;';
             banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
             document.body.appendChild(banner);
+            setTimeout(function(){ var b = document.getElementById('_kiosk_update_banner'); if(b) b.remove(); }, 3000);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)

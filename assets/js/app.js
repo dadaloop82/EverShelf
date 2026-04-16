@@ -9987,13 +9987,15 @@ async function _finishSetup() {
     if (_setupData.bring_password) s.bring_password = _setupData.bring_password;
     saveSettingsToStorage(s);
 
-    // Save server-side settings (.env)
+    // Save server-side settings (.env) — only send non-empty values to avoid overwriting existing config
+    const envPayload = {};
+    if (_setupData.gemini_key) envPayload.gemini_key = _setupData.gemini_key;
+    if (_setupData.bring_email) envPayload.bring_email = _setupData.bring_email;
+    if (_setupData.bring_password) envPayload.bring_password = _setupData.bring_password;
     try {
-        await api('save_settings', {}, 'POST', {
-            gemini_key: _setupData.gemini_key,
-            bring_email: _setupData.bring_email,
-            bring_password: _setupData.bring_password
-        });
+        if (Object.keys(envPayload).length > 0) {
+            await api('save_settings', {}, 'POST', envPayload);
+        }
     } catch(e) { /* will work locally */ }
 
     localStorage.setItem('evershelf_setup_done', '1');
