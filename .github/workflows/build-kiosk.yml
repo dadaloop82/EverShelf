@@ -1,0 +1,62 @@
+name: Build & Release Kiosk APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'evershelf-kiosk/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Kiosk APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+        working-directory: evershelf-kiosk
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp evershelf-kiosk/app/build/outputs/apk/debug/app-debug.apk artifacts/evershelf-kiosk.apk
+
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' evershelf-kiosk/app/build.gradle.kts | grep -oP '"\K[^"]+')
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing kiosk release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete kiosk-latest --yes || true
+
+      - name: Create GitHub Release and upload APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create kiosk-latest \
+            --title "EverShelf Kiosk v${{ steps.version.outputs.name }}" \
+            --notes "Kiosk mode app with embedded BLE scale gateway. Install on your Android device (7.0+)." \
+            --prerelease \
+            artifacts/evershelf-kiosk.apk
