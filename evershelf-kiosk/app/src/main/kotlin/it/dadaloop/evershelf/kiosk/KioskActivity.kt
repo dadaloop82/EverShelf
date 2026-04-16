@@ -66,8 +66,8 @@ class KioskActivity : AppCompatActivity() {
             val localBinder = binder as ScaleGatewayService.LocalBinder
             scaleService = localBinder.getService()
             serviceBound = true
-            scaleService?.statusCallback = { status ->
-                runOnUiThread { updateScaleStatusUI(status) }
+            scaleService?.statusCallback = { status, device, battery ->
+                runOnUiThread { updateScaleStatusUI(status, device, battery) }
             }
         }
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -281,12 +281,16 @@ class KioskActivity : AppCompatActivity() {
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
-    private fun updateScaleStatusUI(status: String) {
+    private fun updateScaleStatusUI(status: String, device: String?, battery: Int?) {
         when {
             status.contains("Connected", ignoreCase = true) -> {
                 scaleStatusIcon.text = "✅"
                 scaleStatusText.text = "Scale connected!"
-                scaleStatusDetail.text = status
+                val detail = buildString {
+                    append(device ?: status)
+                    if (battery != null) append(" • Battery: $battery%")
+                }
+                scaleStatusDetail.text = detail
                 scaleStatusDetail.setTextColor(0xFF34d399.toInt())
             }
             status.contains("Scanning", ignoreCase = true) ||
