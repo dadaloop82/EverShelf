@@ -1,70 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Shelf icon: stylized pantry/shelf -->
-    <!-- Outer frame -->
+
+    <!-- House outline -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M30,28 L78,28 L78,80 L30,80 Z"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"/>
-    <!-- Shelf lines -->
+        android:pathData="M54,24 L26,46 L26,80 L82,80 L82,46 Z" />
     <path
-        android:fillColor="#10B981"
-        android:pathData="M34,28 L34,80 M74,28 L74,80"/>
+        android:fillColor="#059669"
+        android:pathData="M54,28 L30,48 L30,76 L78,76 L78,48 Z" />
+
+    <!-- Door -->
+    <path
+        android:fillColor="#065F46"
+        android:pathData="M48,76 L48,58 L60,58 L60,76 Z" />
+
+    <!-- Shelves inside -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M34,52 L46,52 L46,54 L34,54 Z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M62,52 L74,52 L74,54 L62,54 Z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M34,60 L46,60 L46,62 L34,62 Z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M62,60 L74,60 L74,62 L62,62 Z" />
+
+    <!-- Items on shelves (small boxes/jars) -->
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M36,48 L40,48 L40,52 L36,52 Z" />
+    <path
+        android:fillColor="#6EE7B7"
+        android:pathData="M42,49 L45,49 L45,52 L42,52 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M64,48 L68,48 L68,52 L64,52 Z" />
+    <path
+        android:fillColor="#6EE7B7"
+        android:pathData="M70,49 L73,49 L73,52 L70,52 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M36,56 L40,56 L40,60 L36,60 Z" />
+    <path
+        android:fillColor="#6EE7B7"
+        android:pathData="M42,57 L45,57 L45,60 L42,60 Z" />
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M64,56 L68,56 L68,60 L64,60 Z" />
+    <path
+        android:fillColor="#6EE7B7"
+        android:pathData="M70,57 L73,57 L73,60 L70,60 Z" />
+
+    <!-- Chimney -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M32,28 L76,28 L76,80 L32,80 Z"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
-        android:fillAlpha="0"/>
-    <!-- Top shelf -->
+        android:pathData="M68,30 L74,30 L74,42 L68,42 Z" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M32,45 L76,45"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"/>
-    <!-- Bottom shelf -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M32,62 L76,62"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="2"/>
-    <!-- Items on top shelf: jar -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M40,33 L48,33 L48,44 L40,44 Z"/>
-    <!-- Items on top shelf: bottle -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M55,30 L59,30 L59,33 L61,33 L61,44 L53,44 L53,33 L55,33 Z"/>
-    <!-- Items on middle shelf: box -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M38,50 L50,50 L50,61 L38,61 Z"/>
-    <!-- Items on middle shelf: can -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M58,52 Q58,49 62,49 Q66,49 66,52 L66,61 L58,61 Z"/>
-    <!-- Items on bottom shelf: bag -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M42,66 L54,66 L56,79 L40,79 Z"/>
-    <!-- Scale icon (small, bottom right) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.8"
-        android:pathData="M64,70 L72,70 L72,78 L64,78 Z"/>
-    <path
-        android:fillColor="#10B981"
-        android:pathData="M65,73 L71,73"
-        android:strokeColor="#10B981"
-        android:strokeWidth="1"/>
+        android:fillColor="#059669"
+        android:pathData="M69,31 L73,31 L73,42 L69,42 Z" />
 </vector>

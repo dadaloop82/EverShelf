@@ -4,7 +4,46 @@
     android:layout_height="match_parent"
     android:background="#0f172a">
 
-    <!-- Setup wizard container (shown on first launch) -->
+    <!-- Splash screen (shown briefly on launch) -->
+    <LinearLayout
+        android:id="@+id/splashContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <ImageView
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@drawable/ic_launcher_foreground"
+            android:layout_marginBottom="24dp"
+            android:contentDescription="EverShelf" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="EverShelf"
+            android:textColor="#f1f5f9"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Smart Pantry Manager"
+            android:textColor="#64748b"
+            android:textSize="16sp"
+            android:layout_marginBottom="48dp" />
+
+        <ProgressBar
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:indeterminateTint="#7c3aed" />
+    </LinearLayout>
+
+    <!-- Setup wizard container -->
     <ScrollView
         android:id="@+id/wizardContainer"
         android:layout_width="match_parent"
@@ -40,14 +79,15 @@
                 android:gravity="center_horizontal"
                 android:visibility="visible">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🏠"
-                    android:textSize="64sp"
-                    android:layout_marginBottom="16dp" />
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:src="@drawable/ic_launcher_foreground"
+                    android:layout_marginBottom="16dp"
+                    android:contentDescription="EverShelf" />
 
                 <TextView
+                    android:id="@+id/wizardTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Welcome to\nEverShelf Kiosk"
@@ -87,7 +127,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="⚖️  Built-in BLE scale gateway"
+                        android:text="⚖️  Bluetooth scale via Gateway app"
                         android:textColor="#cbd5e1"
                         android:textSize="15sp"
                         android:paddingTop="8dp"
@@ -150,7 +190,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Enter the URL of your EverShelf server. This is the address you use to access EverShelf from a browser."
+                    android:text="Enter the URL of your EverShelf server. This is the same address you use in your browser."
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"
@@ -170,7 +210,7 @@
                     android:id="@+id/wizardUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="https://192.168.1.100/dispensa"
+                    android:hint="https://192.168.1.100/dispensa/"
                     android:inputType="textUri"
                     android:textColor="#f1f5f9"
                     android:textColorHint="#475569"
@@ -204,7 +244,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="💡 Tip: You can find this URL in your browser's address bar when EverShelf is open."
+                    android:text="💡 Tip: Copy the exact URL from your browser address bar — including the path (e.g. /dispensa/)."
                     android:textColor="#64748b"
                     android:textSize="13sp"
                     android:lineSpacingExtra="2dp"
@@ -271,7 +311,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="This app includes a built-in BLE scale gateway. If you have a Bluetooth kitchen scale, it will be detected automatically."
+                    android:text="To use a Bluetooth kitchen scale, you need the EverShelf Scale Gateway app installed separately."
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"
@@ -301,7 +341,7 @@
                         android:id="@+id/scaleStatusText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Searching for scales..."
+                        android:text="Checking..."
                         android:textColor="#cbd5e1"
                         android:textSize="16sp"
                         android:gravity="center"
@@ -311,43 +351,18 @@
                         android:id="@+id/scaleStatusDetail"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Turn on your scale and place it nearby"
+                        android:text=""
                         android:textColor="#64748b"
                         android:textSize="13sp"
                         android:gravity="center" />
-                </LinearLayout>
-
-                <!-- Gateway info -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/tip_background"
-                    android:padding="14dp"
-                    android:layout_marginBottom="32dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="ℹ️  Gateway runs on ws://localhost:8765"
-                        android:textColor="#94a3b8"
-                        android:textSize="13sp"
-                        android:layout_marginBottom="4dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="EverShelf will auto-configure the scale connection when running in kiosk mode."
-                        android:textColor="#64748b"
-                        android:textSize="12sp"
-                        android:lineSpacingExtra="2dp" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center">
+                    android:gravity="center"
+                    android:layout_marginTop="16dp">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnStep3Back"

@@ -92,8 +92,7 @@ class SettingsActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val testUrl = if (url.endsWith("/")) "${url}api/" else "${url}/api/"
-                val conn = URL(testUrl).openConnection()
+                val conn = URL(url).openConnection()
 
                 if (conn is HttpsURLConnection) {
                     val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
@@ -114,7 +113,7 @@ class SettingsActivity : AppCompatActivity() {
                     val code = conn.responseCode
                     conn.disconnect()
                     runOnUiThread {
-                        if (code in 200..299) {
+                        if (code in 200..399) {
                             Toast.makeText(this, "✓ Connection successful!", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(this, "⚠ Server responded: $code", Toast.LENGTH_SHORT).show()

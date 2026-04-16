@@ -10,6 +10,8 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
@@ -28,6 +30,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import java.net.URL
@@ -42,6 +45,7 @@ class KioskActivity : AppCompatActivity() {
     private var currentStep = 1
 
     // Views
+    private lateinit var splashContainer: LinearLayout
     private lateinit var wizardContainer: ScrollView
     private lateinit var webView: WebView
     private lateinit var btnSettings: ImageButton
@@ -55,6 +59,11 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusText: TextView
     private lateinit var scaleStatusDetail: TextView
 
+    // Triple-tap to exit
+    private var tapCount = 0
+    private val tapHandler = Handler(Looper.getMainLooper())
+    private val tapResetRunnable = Runnable { tapCount = 0 }
+
     // File chooser
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
@@ -65,6 +74,7 @@ class KioskActivity : AppCompatActivity() {
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
         private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
+        private const val SPLASH_DURATION = 1500L
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,14 +85,19 @@ class KioskActivity : AppCompatActivity() {
         bindViews()
         enterImmersiveMode()
 
-        if (prefs.getBoolean(KEY_SETUP_COMPLETE, false)) {
-            launchWebView()
-        } else {
-            showWizard()
-        }
+        // Show splash then proceed
+        Handler(Looper.getMainLooper()).postDelayed({
+            splashContainer.visibility = View.GONE
+            if (prefs.getBoolean(KEY_SETUP_COMPLETE, false)) {
+                launchWebView()
+            } else {
+                showWizard()
+            }
+        }, SPLASH_DURATION)
     }
 
     private fun bindViews() {
+        splashContainer = findViewById(R.id.splashContainer)
         wizardContainer = findViewById(R.id.wizardContainer)
         webView = findViewById(R.id.webView)
         btnSettings = findViewById(R.id.btnSettings)
@@ -96,12 +111,17 @@ class KioskActivity : AppCompatActivity() {
         scaleStatusText = findViewById(R.id.scaleStatusText)
         scaleStatusDetail = findViewById(R.id.scaleStatusDetail)
 
-        // Step 1 buttons
+        // Triple-tap on wizard title to exit kiosk
+        findViewById<TextView>(R.id.wizardTitle).setOnClickListener {
+            handleTripleTap()
+        }
+
+        // Step 1
         findViewById<MaterialButton>(R.id.btnGetStarted).setOnClickListener {
             goToStep(2)
         }
 
-        // Step 2 buttons
+        // Step 2
         findViewById<MaterialButton>(R.id.btnTestUrl).setOnClickListener {
             testConnection()
         }
@@ -118,7 +138,7 @@ class KioskActivity : AppCompatActivity() {
             goToStep(3)
         }
 
-        // Step 3 buttons
+        // Step 3
         findViewById<MaterialButton>(R.id.btnStep3Back).setOnClickListener {
             goToStep(2)
         }
@@ -130,15 +150,35 @@ class KioskActivity : AppCompatActivity() {
             finishWizard()
         }
 
-        // Settings button
+        // Settings
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // Pre-fill URL if saved
+        // Triple-tap on settings gear to exit
+        btnSettings.setOnLongClickListener {
+            handleTripleTap()
+            true
+        }
+
+        // Pre-fill URL
         val savedUrl = prefs.getString(KEY_URL, "") ?: ""
         if (savedUrl.isNotEmpty()) {
             wizardUrl.setText(savedUrl)
+        }
+    }
+
+    // ── Triple-tap to exit ────────────────────────────────────────────────
+
+    private fun handleTripleTap() {
+        tapCount++
+        tapHandler.removeCallbacks(tapResetRunnable)
+        tapHandler.postDelayed(tapResetRunnable, 800)
+
+        if (tapCount >= 3) {
+            tapCount = 0
+            Toast.makeText(this, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
+            finishAffinity()
         }
     }
 
@@ -176,12 +216,10 @@ class KioskActivity : AppCompatActivity() {
 
             val bg = GradientDrawable()
             bg.shape = GradientDrawable.OVAL
-            if (i == currentStep) {
-                bg.setColor(0xFF7c3aed.toInt())
-            } else if (i < currentStep) {
-                bg.setColor(0xFF34d399.toInt())
-            } else {
-                bg.setColor(0xFF334155.toInt())
+            when {
+                i == currentStep -> bg.setColor(0xFF7c3aed.toInt())
+                i < currentStep -> bg.setColor(0xFF34d399.toInt())
+                else -> bg.setColor(0xFF334155.toInt())
             }
             dot.background = bg
             stepIndicator.addView(dot)
@@ -229,17 +267,15 @@ class KioskActivity : AppCompatActivity() {
             scaleStatusText.text = "Scale Gateway is installed"
             scaleStatusDetail.text = "It will be launched automatically when you finish setup"
             scaleStatusDetail.setTextColor(0xFF34d399.toInt())
-            // Hide skip, show finish prominently
             findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
+            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch EverShelf"
         } else {
             scaleStatusIcon.text = "📥"
             scaleStatusText.text = "Scale Gateway not installed"
             scaleStatusDetail.text = "You need the EverShelf Scale Gateway app to use a Bluetooth scale"
             scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
 
-            // Show download button in the card
-            val downloadBtn = findViewById<MaterialButton>(R.id.btnFinish)
-            downloadBtn.text = "🚀  Launch EverShelf (without scale)"
+            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch without scale"
 
             findViewById<MaterialButton>(R.id.btnSkipScale).apply {
                 text = "📥  Download Scale Gateway"
@@ -265,10 +301,9 @@ class KioskActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val testUrl = if (url.endsWith("/")) "${url}api/" else "${url}/api/"
-                val conn = URL(testUrl).openConnection()
+                // Test the base URL directly (not /api/)
+                val conn = URL(url).openConnection()
 
-                // Trust all certs for local/self-signed servers
                 if (conn is HttpsURLConnection) {
                     val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
                         override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
@@ -288,7 +323,7 @@ class KioskActivity : AppCompatActivity() {
                     val code = conn.responseCode
                     conn.disconnect()
                     runOnUiThread {
-                        if (code in 200..299) {
+                        if (code in 200..399) {
                             showUrlStatus("✓ Connected successfully!", true)
                         } else {
                             showUrlStatus("⚠ Server responded with code $code", false)
@@ -332,7 +367,6 @@ class KioskActivity : AppCompatActivity() {
             override fun onReceivedSslError(
                 view: WebView?, handler: SslErrorHandler?, error: SslError?
             ) {
-                // Accept self-signed certs for local network servers
                 handler?.proceed()
             }
 
@@ -369,7 +403,7 @@ class KioskActivity : AppCompatActivity() {
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
         webView.loadUrl(url)
 
-        // Launch gateway app if installed (handles scale in background)
+        // Launch gateway if installed
         launchGatewayIfInstalled()
 
         // Keep screen on
@@ -433,10 +467,11 @@ class KioskActivity : AppCompatActivity() {
                 webView.loadUrl(url)
             }
         }
-        if (!prefs.getBoolean(KEY_SETUP_COMPLETE, false) && wizardContainer.visibility != View.VISIBLE) {
+        if (!prefs.getBoolean(KEY_SETUP_COMPLETE, false) &&
+            wizardContainer.visibility != View.VISIBLE &&
+            splashContainer.visibility != View.VISIBLE) {
             showWizard()
         }
-        // Re-check gateway status if on step 3
         if (currentStep == 3 && wizardContainer.visibility == View.VISIBLE) {
             checkGatewayStatus()
         }
@@ -457,6 +492,5 @@ class KioskActivity : AppCompatActivity() {
         if (webView.visibility == View.VISIBLE && webView.canGoBack()) {
             webView.goBack()
         }
-        // Block back button in kiosk mode
     }
 }
