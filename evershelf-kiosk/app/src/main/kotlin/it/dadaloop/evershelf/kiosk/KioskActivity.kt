@@ -457,41 +457,25 @@ class KioskActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    // ── Inject kiosk overlay (triple-tap exit zone) ───────────────────────
+    // ── Inject kiosk exit button in header ──────────────────────────────
 
     private fun injectKioskOverlay() {
         val js = """
         (function() {
-            if (document.getElementById('_kiosk_exit_zone')) return;
-            var header = document.querySelector('.app-header, header, [class*="header"]');
-            var headerH = header ? header.offsetHeight : 56;
-            var zone = document.createElement('div');
-            zone.id = '_kiosk_exit_zone';
-            zone.style.cssText = 'position:fixed;top:0;left:0;right:0;height:' + headerH + 'px;z-index:999999;cursor:pointer;-webkit-tap-highlight-color:transparent;';
-            var count = 0, timer = null;
-            zone.addEventListener('touchend', function(e) {
-                count++;
-                clearTimeout(timer);
-                timer = setTimeout(function(){ count=0; }, 1000);
-                if (count === 2) {
-                    var toast = document.createElement('div');
-                    toast.style.cssText = 'position:fixed;top:' + (headerH + 8) + 'px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-                    toast.textContent = 'Tap once more to exit kiosk';
-                    document.body.appendChild(toast);
-                    setTimeout(function(){ toast.remove(); }, 2000);
-                }
-                if (count >= 3) {
-                    count = 0;
+            if (document.getElementById('_kiosk_exit_btn')) return;
+            var actions = document.querySelector('.header-actions');
+            if (!actions) return;
+            var btn = document.createElement('button');
+            btn.id = '_kiosk_exit_btn';
+            btn.textContent = '✕';
+            btn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;-webkit-tap-highlight-color:transparent;flex-shrink:0;';
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (confirm('Uscire dalla modalità kiosk?')) {
                     if (typeof _kioskBridge !== 'undefined') _kioskBridge.exit();
                 }
-                e.preventDefault();
-                e.stopPropagation();
-            }, {passive: false});
-            zone.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
             });
-            document.body.appendChild(zone);
+            actions.appendChild(btn);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
