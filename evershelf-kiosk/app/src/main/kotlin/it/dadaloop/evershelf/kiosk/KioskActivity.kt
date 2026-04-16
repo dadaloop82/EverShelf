@@ -1,24 +1,22 @@
 package it.dadaloop.evershelf.kiosk
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.PermissionRequest
+import android.webkit.SslErrorHandler
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -26,18 +24,17 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
-import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class KioskActivity : AppCompatActivity() {
 
@@ -58,34 +55,16 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusText: TextView
     private lateinit var scaleStatusDetail: TextView
 
-    // Scale service
-    private var scaleService: ScaleGatewayService? = null
-    private var serviceBound = false
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            val localBinder = binder as ScaleGatewayService.LocalBinder
-            scaleService = localBinder.getService()
-            serviceBound = true
-            scaleService?.statusCallback = { status, device, battery ->
-                runOnUiThread { updateScaleStatusUI(status, device, battery) }
-            }
-        }
-        override fun onServiceDisconnected(name: ComponentName?) {
-            scaleService = null
-            serviceBound = false
-        }
-    }
-
     // File chooser
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
     companion object {
-        private const val BLE_PERMISSION_REQUEST = 1001
         private const val FILE_CHOOSER_REQUEST = 1002
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
-        private const val KEY_LAST_DEVICE = "last_device_address"
+        private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
+        private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -136,7 +115,6 @@ class KioskActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             prefs.edit().putString(KEY_URL, url).apply()
-            requestBlePermissions()
             goToStep(3)
         }
 
@@ -145,6 +123,7 @@ class KioskActivity : AppCompatActivity() {
             goToStep(2)
         }
         findViewById<MaterialButton>(R.id.btnFinish).setOnClickListener {
+            launchGatewayIfInstalled()
             finishWizard()
         }
         findViewById<MaterialButton>(R.id.btnSkipScale).setOnClickListener {
@@ -180,7 +159,7 @@ class KioskActivity : AppCompatActivity() {
         updateStepIndicator()
 
         if (step == 3) {
-            startScaleGateway()
+            checkGatewayStatus()
         }
     }
 
@@ -223,6 +202,57 @@ class KioskActivity : AppCompatActivity() {
         goToStep(1)
     }
 
+    // ── Gateway Detection & Launch ────────────────────────────────────────
+
+    private fun isGatewayInstalled(): Boolean {
+        return try {
+            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    private fun launchGatewayIfInstalled() {
+        if (isGatewayInstalled()) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            }
+        }
+    }
+
+    private fun checkGatewayStatus() {
+        if (isGatewayInstalled()) {
+            scaleStatusIcon.text = "✅"
+            scaleStatusText.text = "Scale Gateway is installed"
+            scaleStatusDetail.text = "It will be launched automatically when you finish setup"
+            scaleStatusDetail.setTextColor(0xFF34d399.toInt())
+            // Hide skip, show finish prominently
+            findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
+        } else {
+            scaleStatusIcon.text = "📥"
+            scaleStatusText.text = "Scale Gateway not installed"
+            scaleStatusDetail.text = "You need the EverShelf Scale Gateway app to use a Bluetooth scale"
+            scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
+
+            // Show download button in the card
+            val downloadBtn = findViewById<MaterialButton>(R.id.btnFinish)
+            downloadBtn.text = "🚀  Launch EverShelf (without scale)"
+
+            findViewById<MaterialButton>(R.id.btnSkipScale).apply {
+                text = "📥  Download Scale Gateway"
+                setTextColor(0xFF7c3aed.toInt())
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GATEWAY_DOWNLOAD_URL))
+                    startActivity(intent)
+                }
+            }
+        }
+    }
+
     // ── Connection Test ───────────────────────────────────────────────────
 
     private fun testConnection() {
@@ -236,17 +266,33 @@ class KioskActivity : AppCompatActivity() {
         Thread {
             try {
                 val testUrl = if (url.endsWith("/")) "${url}api/" else "${url}/api/"
-                val conn = URL(testUrl).openConnection() as HttpURLConnection
+                val conn = URL(testUrl).openConnection()
+
+                // Trust all certs for local/self-signed servers
+                if (conn is HttpsURLConnection) {
+                    val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                        override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                    })
+                    val sc = SSLContext.getInstance("TLS")
+                    sc.init(null, trustAll, java.security.SecureRandom())
+                    conn.sslSocketFactory = sc.socketFactory
+                    conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+
                 conn.connectTimeout = 5000
                 conn.readTimeout = 5000
-                conn.requestMethod = "GET"
-                val code = conn.responseCode
-                conn.disconnect()
-                runOnUiThread {
-                    if (code in 200..299) {
-                        showUrlStatus("✓ Connected successfully!", true)
-                    } else {
-                        showUrlStatus("⚠ Server responded with code $code", false)
+                if (conn is java.net.HttpURLConnection) {
+                    conn.requestMethod = "GET"
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    runOnUiThread {
+                        if (code in 200..299) {
+                            showUrlStatus("✓ Connected successfully!", true)
+                        } else {
+                            showUrlStatus("⚠ Server responded with code $code", false)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -269,75 +315,6 @@ class KioskActivity : AppCompatActivity() {
         )
     }
 
-    // ── Scale Gateway ─────────────────────────────────────────────────────
-
-    private fun startScaleGateway() {
-        val intent = Intent(this, ScaleGatewayService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-    }
-
-    private fun updateScaleStatusUI(status: String, device: String?, battery: Int?) {
-        when {
-            status.contains("Connected", ignoreCase = true) -> {
-                scaleStatusIcon.text = "✅"
-                scaleStatusText.text = "Scale connected!"
-                val detail = buildString {
-                    append(device ?: status)
-                    if (battery != null) append(" • Battery: $battery%")
-                }
-                scaleStatusDetail.text = detail
-                scaleStatusDetail.setTextColor(0xFF34d399.toInt())
-            }
-            status.contains("Scanning", ignoreCase = true) ||
-            status.contains("search", ignoreCase = true) -> {
-                scaleStatusIcon.text = "🔍"
-                scaleStatusText.text = "Scanning for scales..."
-                scaleStatusDetail.text = "Turn on your scale and place it nearby"
-                scaleStatusDetail.setTextColor(0xFF64748b.toInt())
-            }
-            status.contains("Ready", ignoreCase = true) ||
-            status.contains("running", ignoreCase = true) -> {
-                scaleStatusIcon.text = "📡"
-                scaleStatusText.text = "Gateway is running"
-                scaleStatusDetail.text = status
-                scaleStatusDetail.setTextColor(0xFF94a3b8.toInt())
-            }
-            else -> {
-                scaleStatusIcon.text = "📡"
-                scaleStatusText.text = "Gateway active"
-                scaleStatusDetail.text = status
-                scaleStatusDetail.setTextColor(0xFF94a3b8.toInt())
-            }
-        }
-    }
-
-    // ── BLE Permissions ───────────────────────────────────────────────────
-
-    private fun requestBlePermissions() {
-        val perms = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.BLUETOOTH_SCAN)
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (perms.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, perms.toTypedArray(), BLE_PERMISSION_REQUEST)
-        }
-    }
-
     // ── WebView ───────────────────────────────────────────────────────────
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -352,6 +329,13 @@ class KioskActivity : AppCompatActivity() {
         settings.allowFileAccess = true
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedSslError(
+                view: WebView?, handler: SslErrorHandler?, error: SslError?
+            ) {
+                // Accept self-signed certs for local network servers
+                handler?.proceed()
+            }
+
             override fun onReceivedError(
                 view: WebView?, request: WebResourceRequest?,
                 error: WebResourceError?
@@ -385,8 +369,8 @@ class KioskActivity : AppCompatActivity() {
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
         webView.loadUrl(url)
 
-        // Start scale gateway
-        startScaleGateway()
+        // Launch gateway app if installed (handles scale in background)
+        launchGatewayIfInstalled()
 
         // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -443,16 +427,18 @@ class KioskActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         enterImmersiveMode()
-        // Reload WebView if setup is complete (in case URL changed in settings)
         if (prefs.getBoolean(KEY_SETUP_COMPLETE, false) && webView.visibility == View.VISIBLE) {
             val url = prefs.getString(KEY_URL, "") ?: ""
             if (url.isNotEmpty() && webView.url != url) {
                 webView.loadUrl(url)
             }
         }
-        // Check if wizard reset was requested
         if (!prefs.getBoolean(KEY_SETUP_COMPLETE, false) && wizardContainer.visibility != View.VISIBLE) {
             showWizard()
+        }
+        // Re-check gateway status if on step 3
+        if (currentStep == 3 && wizardContainer.visibility == View.VISIBLE) {
+            checkGatewayStatus()
         }
     }
 
@@ -464,14 +450,6 @@ class KioskActivity : AppCompatActivity() {
             } else null
             fileChooserCallback?.onReceiveValue(result)
             fileChooserCallback = null
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        if (serviceBound) {
-            unbindService(serviceConnection)
-            serviceBound = false
         }
     }
 

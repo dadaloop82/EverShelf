@@ -1,15 +1,21 @@
 package it.dadaloop.evershelf.kiosk
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
-import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -20,7 +26,7 @@ class SettingsActivity : AppCompatActivity() {
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
-        private const val KEY_LAST_DEVICE = "last_device_address"
+        private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,23 +36,32 @@ class SettingsActivity : AppCompatActivity() {
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         urlEdit = findViewById(R.id.urlEdit)
 
-        // Load saved URL
         urlEdit.setText(prefs.getString(KEY_URL, "") ?: "")
 
-        // Scale status
-        val scaleDevice = prefs.getString(KEY_LAST_DEVICE, null)
-        findViewById<TextView>(R.id.scaleDeviceInfo).text =
-            if (scaleDevice != null) "Last connected: $scaleDevice" else "No scale connected yet"
-
-        // Back button
-        findViewById<android.widget.ImageButton>(R.id.btnBack).setOnClickListener {
-            finish()
+        // Gateway status
+        val gatewayInstalled = try {
+            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
         }
+        val statusView = findViewById<TextView>(R.id.scaleGatewayStatus)
+        val deviceView = findViewById<TextView>(R.id.scaleDeviceInfo)
+        if (gatewayInstalled) {
+            statusView.text = "Installed"
+            statusView.setTextColor(0xFF34d399.toInt())
+            deviceView.text = "EverShelf Scale Gateway app is installed"
+        } else {
+            statusView.text = "Not installed"
+            statusView.setTextColor(0xFFfbbf24.toInt())
+            deviceView.text = "Install the Scale Gateway app to use a Bluetooth scale"
+        }
+
+        // Back
+        findViewById<android.widget.ImageButton>(R.id.btnBack).setOnClickListener { finish() }
 
         // Test connection
-        findViewById<MaterialButton>(R.id.btnTestConnection).setOnClickListener {
-            testConnection()
-        }
+        findViewById<MaterialButton>(R.id.btnTestConnection).setOnClickListener { testConnection() }
 
         // Run wizard again
         findViewById<MaterialButton>(R.id.btnRunWizard).setOnClickListener {
@@ -78,17 +93,32 @@ class SettingsActivity : AppCompatActivity() {
         Thread {
             try {
                 val testUrl = if (url.endsWith("/")) "${url}api/" else "${url}/api/"
-                val conn = URL(testUrl).openConnection() as HttpURLConnection
+                val conn = URL(testUrl).openConnection()
+
+                if (conn is HttpsURLConnection) {
+                    val trustAll = arrayOf<TrustManager>(object : X509TrustManager {
+                        override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                        override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                    })
+                    val sc = SSLContext.getInstance("TLS")
+                    sc.init(null, trustAll, java.security.SecureRandom())
+                    conn.sslSocketFactory = sc.socketFactory
+                    conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                }
+
                 conn.connectTimeout = 5000
                 conn.readTimeout = 5000
-                conn.requestMethod = "GET"
-                val code = conn.responseCode
-                conn.disconnect()
-                runOnUiThread {
-                    if (code in 200..299) {
-                        Toast.makeText(this, "✓ Connection successful!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "⚠ Server responded: $code", Toast.LENGTH_SHORT).show()
+                if (conn is java.net.HttpURLConnection) {
+                    conn.requestMethod = "GET"
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    runOnUiThread {
+                        if (code in 200..299) {
+                            Toast.makeText(this, "✓ Connection successful!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "⚠ Server responded: $code", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             } catch (e: Exception) {
