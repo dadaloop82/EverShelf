@@ -9,6 +9,9 @@
     <!-- Keep screen on -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Move task to front (bring kiosk back after gateway launch) -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+
     <!-- Query gateway app visibility (required Android 11+) -->
     <queries>
         <package android:name="it.dadaloop.evershelf.scalegate" />
@@ -26,6 +29,7 @@
         <activity
             android:name=".KioskActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

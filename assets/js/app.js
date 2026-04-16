@@ -9810,15 +9810,19 @@ function _getMissingSetupSteps(serverSettings) {
     const missing = [];
     const s = getSettings();
     const srv = serverSettings || {};
+    const setupDone = localStorage.getItem('evershelf_setup_done');
 
     // Step 0 — language: missing only if never set at all (fresh install)
-    if (!localStorage.getItem('evershelf_lang') && !localStorage.getItem('evershelf_setup_done')) {
+    if (!localStorage.getItem('evershelf_lang') && !setupDone) {
         missing.push(0);
     }
-    // Step 1 — Gemini API key (check both localStorage and server .env)
-    if (!s.gemini_key && !srv.gemini_key && !srv.gemini_key_set) missing.push(1);
-    // Step 2 — Bring! credentials (check both localStorage and server .env)
-    if ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set)) missing.push(2);
+    // Steps 1 & 2 only show on first run (before setup is completed/skipped)
+    if (!setupDone) {
+        // Step 1 — Gemini API key (check both localStorage and server .env)
+        if (!s.gemini_key && !srv.gemini_key && !srv.gemini_key_set) missing.push(1);
+        // Step 2 — Bring! credentials (check both localStorage and server .env)
+        if ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set)) missing.push(2);
+    }
     // Note: step 3 (done screen) gets appended automatically when there are missing steps
 
     return missing;

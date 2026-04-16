@@ -1,6 +1,7 @@
 package it.dadaloop.evershelf.kiosk
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -33,6 +34,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
+import org.json.JSONObject
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
@@ -74,7 +76,9 @@ class KioskActivity : AppCompatActivity() {
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
         private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
+        private const val KIOSK_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-kiosk.apk"
         private const val SPLASH_DURATION = 1500L
+        private const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/latest"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,6 +88,7 @@ class KioskActivity : AppCompatActivity() {
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         bindViews()
         enterImmersiveMode()
+        enableKioskLock()
 
         // Show splash then proceed
         Handler(Looper.getMainLooper()).postDelayed({
@@ -143,21 +148,19 @@ class KioskActivity : AppCompatActivity() {
             goToStep(2)
         }
         findViewById<MaterialButton>(R.id.btnFinish).setOnClickListener {
-            launchGatewayIfInstalled()
+            launchGatewayInBackground()
             finishWizard()
         }
         findViewById<MaterialButton>(R.id.btnSkipScale).setOnClickListener {
             finishWizard()
         }
 
-        // Settings
+        // Settings — triple-tap to exit
         btnSettings.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
-        }
-
-        // Triple-tap on settings gear to exit
-        btnSettings.setOnLongClickListener {
             handleTripleTap()
+        }
+        btnSettings.setOnLongClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
             true
         }
 
@@ -175,10 +178,32 @@ class KioskActivity : AppCompatActivity() {
         tapHandler.removeCallbacks(tapResetRunnable)
         tapHandler.postDelayed(tapResetRunnable, 800)
 
-        if (tapCount >= 3) {
-            tapCount = 0
-            Toast.makeText(this, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
-            finishAffinity()
+        when (tapCount) {
+            1 -> {} // silent
+            2 -> Toast.makeText(this, "Tap once more to exit kiosk", Toast.LENGTH_SHORT).show()
+            3 -> {
+                tapCount = 0
+                disableKioskLock()
+                Toast.makeText(this, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
+                finishAffinity()
+            }
+        }
+    }
+
+    // ── Kiosk Lock (pin app) ──────────────────────────────────────────────
+
+    private fun enableKioskLock() {
+        // Screen pinning (task lock) — prevents home/recent buttons
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            startLockTask()
+        }
+    }
+
+    private fun disableKioskLock() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                stopLockTask()
+            } catch (_: Exception) {}
         }
     }
 
@@ -251,28 +276,30 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
-    private fun launchGatewayIfInstalled() {
-        if (isGatewayInstalled()) {
-            val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
-            }
-        }
+    private fun launchGatewayInBackground() {
+        if (!isGatewayInstalled()) return
+        val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE) ?: return
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
+        startActivity(launchIntent)
+        // Bring kiosk back to foreground after gateway launches
+        Handler(Looper.getMainLooper()).postDelayed({
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME)
+        }, 1500)
     }
 
     private fun checkGatewayStatus() {
         if (isGatewayInstalled()) {
             scaleStatusIcon.text = "✅"
             scaleStatusText.text = "Scale Gateway is installed"
-            scaleStatusDetail.text = "It will be launched automatically when you finish setup"
+            scaleStatusDetail.text = "It will be launched in the background when you proceed"
             scaleStatusDetail.setTextColor(0xFF34d399.toInt())
             findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
             findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch EverShelf"
         } else {
             scaleStatusIcon.text = "📥"
             scaleStatusText.text = "Scale Gateway not installed"
-            scaleStatusDetail.text = "You need the EverShelf Scale Gateway app to use a Bluetooth scale"
+            scaleStatusDetail.text = "Install the Scale Gateway app to use a Bluetooth scale"
             scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
 
             findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch without scale"
@@ -301,7 +328,6 @@ class KioskActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // Test the base URL directly (not /api/)
                 val conn = URL(url).openConnection()
 
                 if (conn is HttpsURLConnection) {
@@ -362,6 +388,7 @@ class KioskActivity : AppCompatActivity() {
         settings.domStorageEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.allowFileAccess = true
+        settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedSslError(
@@ -377,6 +404,14 @@ class KioskActivity : AppCompatActivity() {
                 if (request?.isForMainFrame == true) {
                     view?.loadData(errorPageHtml(), "text/html", "UTF-8")
                 }
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Inject triple-tap exit on the header bar
+                injectKioskOverlay()
+                // Check for updates periodically
+                checkForUpdates()
             }
         }
 
@@ -403,12 +438,131 @@ class KioskActivity : AppCompatActivity() {
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
         webView.loadUrl(url)
 
-        // Launch gateway if installed
-        launchGatewayIfInstalled()
+        // Launch gateway in background
+        launchGatewayInBackground()
 
         // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
+
+    // ── Inject kiosk overlay (triple-tap exit zone) ───────────────────────
+
+    private fun injectKioskOverlay() {
+        val js = """
+        (function() {
+            if (document.getElementById('_kiosk_exit_zone')) return;
+            var zone = document.createElement('div');
+            zone.id = '_kiosk_exit_zone';
+            zone.style.cssText = 'position:fixed;top:0;left:0;right:0;height:6px;z-index:999999;background:linear-gradient(90deg,#059669,#10B981);cursor:pointer;';
+            var count = 0, timer = null;
+            zone.addEventListener('click', function() {
+                count++;
+                clearTimeout(timer);
+                timer = setTimeout(function(){ count=0; }, 800);
+                if (count === 2) {
+                    var toast = document.createElement('div');
+                    toast.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:8px 20px;border-radius:8px;font-size:13px;z-index:9999999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                    toast.textContent = 'Tap once more to exit kiosk';
+                    document.body.appendChild(toast);
+                    setTimeout(function(){ toast.remove(); }, 2000);
+                }
+                if (count >= 3) {
+                    count = 0;
+                    window._kioskExit && window._kioskExit();
+                }
+            });
+            document.body.appendChild(zone);
+        })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+
+        // Add JS interface for exit
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun exit() {
+                runOnUiThread {
+                    disableKioskLock()
+                    Toast.makeText(this@KioskActivity, "Exiting kiosk mode...", Toast.LENGTH_SHORT).show()
+                    finishAffinity()
+                }
+            }
+        }, "_kioskBridge")
+
+        // Connect the overlay to the bridge
+        webView.evaluateJavascript("window._kioskExit = function() { _kioskBridge.exit(); };", null)
+    }
+
+    // ── Update Check ──────────────────────────────────────────────────────
+
+    private fun checkForUpdates() {
+        val lastCheck = prefs.getLong("last_update_check", 0)
+        val now = System.currentTimeMillis()
+        // Check at most once every 6 hours
+        if (now - lastCheck < 6 * 60 * 60 * 1000) return
+        prefs.edit().putLong("last_update_check", now).apply()
+
+        Thread {
+            try {
+                val conn = URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val body = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                val json = JSONObject(body)
+                val latestTag = json.optString("tag_name", "")
+
+                // Check kiosk APK version
+                val currentKiosk = try {
+                    packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+                } catch (_: Exception) { "" }
+
+                // Check gateway APK version
+                val currentGateway = try {
+                    packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: ""
+                } catch (_: Exception) { null }
+
+                var updateMsg = ""
+                // If the release has kiosk or gateway assets with newer versions
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.contains("kiosk") && latestTag.isNotEmpty() &&
+                            latestTag != currentKiosk && latestTag != "v$currentKiosk") {
+                            updateMsg += "• Kiosk update available: $latestTag\n"
+                        }
+                        if (name.contains("gateway") && currentGateway != null &&
+                            latestTag.isNotEmpty() && latestTag != currentGateway &&
+                            latestTag != "v$currentGateway") {
+                            updateMsg += "• Gateway update available: $latestTag\n"
+                        }
+                    }
+                }
+
+                if (updateMsg.isNotEmpty()) {
+                    runOnUiThread { showUpdateBanner(updateMsg.trim()) }
+                }
+            } catch (_: Exception) { }
+        }.start()
+    }
+
+    private fun showUpdateBanner(message: String) {
+        val js = """
+        (function() {
+            if (document.getElementById('_kiosk_update_banner')) return;
+            var banner = document.createElement('div');
+            banner.id = '_kiosk_update_banner';
+            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;padding:10px 16px;font-size:13px;z-index:999998;display:flex;align-items:center;justify-content:space-between;border-top:2px solid #fbbf24;';
+            banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
+            document.body.appendChild(banner);
+        })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
+    }
+
+    // ── Error Page ────────────────────────────────────────────────────────
 
     private fun errorPageHtml(): String {
         val url = prefs.getString(KEY_URL, "") ?: ""
@@ -492,5 +646,6 @@ class KioskActivity : AppCompatActivity() {
         if (webView.visibility == View.VISIBLE && webView.canGoBack()) {
             webView.goBack()
         }
+        // Block back button in kiosk mode
     }
 }
