@@ -1,0 +1,70 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shelf icon: stylized pantry/shelf -->
+    <!-- Outer frame -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,28 L78,28 L78,80 L30,80 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"/>
+    <!-- Shelf lines -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M34,28 L34,80 M74,28 L74,80"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,28 L76,28 L76,80 L32,80 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:fillAlpha="0"/>
+    <!-- Top shelf -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,45 L76,45"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"/>
+    <!-- Bottom shelf -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,62 L76,62"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"/>
+    <!-- Items on top shelf: jar -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M40,33 L48,33 L48,44 L40,44 Z"/>
+    <!-- Items on top shelf: bottle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M55,30 L59,30 L59,33 L61,33 L61,44 L53,44 L53,33 L55,33 Z"/>
+    <!-- Items on middle shelf: box -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M38,50 L50,50 L50,61 L38,61 Z"/>
+    <!-- Items on middle shelf: can -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M58,52 Q58,49 62,49 Q66,49 66,52 L66,61 L58,61 Z"/>
+    <!-- Items on bottom shelf: bag -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M42,66 L54,66 L56,79 L40,79 Z"/>
+    <!-- Scale icon (small, bottom right) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.8"
+        android:pathData="M64,70 L72,70 L72,78 L64,78 Z"/>
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M65,73 L71,73"
+        android:strokeColor="#10B981"
+        android:strokeWidth="1"/>
+</vector>
