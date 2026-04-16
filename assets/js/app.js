@@ -2157,6 +2157,7 @@ function setReviewConfirmed(inventoryId) {
 // === ALERT BANNER SYSTEM (replaces old review table) ===
 let _bannerQueue = [];   // array of { type, data } — 'review' or 'prediction'
 let _bannerIndex = 0;
+let _bannerEditPending = false;  // true when editing from banner → dismiss after save
 
 /**
  * Load suspicious quantities + consumption predictions, merge into a single
@@ -2281,6 +2282,7 @@ function confirmBannerReview() {
 function editBannerReview() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'review') return;
+    _bannerEditPending = true;
     editReviewItem(entry.data.id, entry.data.product_id);
 }
 
@@ -2295,12 +2297,14 @@ function confirmBannerPrediction() {
 function editBannerPrediction() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'prediction') return;
+    _bannerEditPending = true;
     editReviewItem(entry.data.inventory_id, entry.data.product_id);
 }
 
 function weighBannerItem() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry) return;
+    _bannerEditPending = true;
     const item = entry.data;
     const targetId = entry.type === 'prediction' ? item.inventory_id : item.id;
     // Navigate to edit form and auto-start scale reading
@@ -2663,6 +2667,7 @@ function closeModal() {
     _scaleRecipeAutoFillPaused = false;
     _scaleUserDismissed = false;
     _scaleWeightCallback = null;
+    _bannerEditPending = false;
 }
 
 async function quickUse(productId, location) {
@@ -2839,6 +2844,10 @@ async function submitEditInventory(e, id, productId) {
     await api('inventory_update', {}, 'POST', payload);
     closeModal();
     showToast('Aggiornato!', 'success');
+    if (_bannerEditPending) {
+        _bannerEditPending = false;
+        dismissBannerItem();
+    }
     refreshCurrentPage();
 }
 
