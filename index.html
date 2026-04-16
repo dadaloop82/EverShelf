@@ -20,7 +20,7 @@
 <!-- Top Header -->
 <header class="app-header">
     <div class="header-content">
-        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.3.0</span></h1>
+        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.4.0</span></h1>
         <div class="header-actions">
             <span id="scale-status-indicator" class="scale-status-indicator scale-status-disconnected" style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia">⚖️</span>
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
@@ -62,6 +62,20 @@
             </div>
         </div>
 
+        <!-- Top notification banner (anomalous qty + consumption predictions) -->
+        <div id="alert-banner" class="alert-banner" style="display:none">
+            <div class="alert-banner-inner">
+                <div class="alert-banner-icon" id="alert-banner-icon">⚠️</div>
+                <div class="alert-banner-body">
+                    <div class="alert-banner-title" id="alert-banner-title"></div>
+                    <div class="alert-banner-detail" id="alert-banner-detail"></div>
+                </div>
+                <button class="alert-banner-close" id="alert-banner-close" onclick="dismissBannerItem()">✕</button>
+            </div>
+            <div class="alert-banner-actions" id="alert-banner-actions"></div>
+            <div class="alert-banner-counter" id="alert-banner-counter"></div>
+        </div>
+
         <!-- Quick recipe suggestion -->
         <div class="quick-recipe-bar" id="quick-recipe-bar" style="display:none">
             <button class="btn-quick-recipe" onclick="quickRecipeSuggestion()">
@@ -93,13 +107,6 @@
         <div class="alert-section alert-opened" id="alert-opened" style="display:none">
             <h3 data-i18n="dashboard.opened_title">📦 Prodotti Aperti</h3>
             <div id="opened-list"></div>
-        </div>
-
-        <!-- Review suspicious quantities -->
-        <div class="alert-section alert-review" id="alert-review" style="display:none">
-            <h3 data-i18n="dashboard.review_title">🔍 Da revisionare</h3>
-            <p class="review-hint" data-i18n="dashboard.review_hint">Quantità che sembrano anomale. Conferma se corrette o modifica.</p>
-            <div id="review-list"></div>
         </div>
 
     </section>
@@ -1247,6 +1254,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260415f"></script>
+<script src="assets/js/app.js?v=20260418a"></script>
 </body>
 </html>

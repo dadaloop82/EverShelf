@@ -189,6 +189,10 @@ try {
             getStats($db);
             break;
 
+        case 'consumption_predictions':
+            getConsumptionPredictions($db);
+            break;
+
         // ===== AI =====
         case 'gemini_expiry':
             geminiReadExpiry();
@@ -936,6 +940,8 @@ function useFromInventory(PDO $db): void {
     }
     
     $newQty = max(0, $existing['quantity'] - $quantity);
+    // Cap actual deducted quantity to what was available (prevent phantom over-deduction)
+    $actualDeducted = min($quantity, $existing['quantity']);
     
     if ($newQty <= 0) {
         $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
@@ -974,10 +980,10 @@ function useFromInventory(PDO $db): void {
         }
     }
     
-    // Log transaction
+    // Log transaction (actual amount removed, not requested)
     $type = ($notes === 'Buttato') ? 'waste' : 'out';
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$productId, $type, $quantity, $location, $notes]);
+    $stmt->execute([$productId, $type, $actualDeducted, $location, $notes]);
     
     $remaining = $newQty;
     
@@ -1269,10 +1275,115 @@ function getStats(PDO $db): void {
     ]);
 }
 
+// ===== CONSUMPTION PREDICTIONS =====
+
+/**
+ * Analyze transaction history to predict expected quantity of each product
+ * and flag items whose current quantity deviates significantly from the prediction.
+ */
+function getConsumptionPredictions(PDO $db): void {
+    // Get all current inventory items with their consumption history
+    $items = $db->query("
+        SELECT i.id AS inventory_id, i.product_id, i.quantity, i.location,
+               p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+               i.updated_at
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $predictions = [];
+
+    foreach ($items as $item) {
+        $pid = $item['product_id'];
+        $loc = $item['location'];
+
+        // Get last 90 days of 'out' transactions for this product+location
+        $txns = $db->prepare("
+            SELECT quantity, created_at
+            FROM transactions
+            WHERE product_id = ? AND location = ? AND type = 'out'
+              AND created_at >= datetime('now', '-90 days')
+            ORDER BY created_at ASC
+        ");
+        $txns->execute([$pid, $loc]);
+        $rows = $txns->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($rows) < 3) continue; // Need at least 3 data points
+
+        // Calculate average daily consumption
+        $totalUsed = 0;
+        foreach ($rows as $r) $totalUsed += abs(floatval($r['quantity']));
+
+        $firstDate = strtotime($rows[0]['created_at']);
+        $lastDate  = strtotime($rows[count($rows) - 1]['created_at']);
+        $daySpan   = max(1, ($lastDate - $firstDate) / 86400);
+        $dailyRate = $totalUsed / $daySpan;
+
+        if ($dailyRate < 0.01) continue; // negligible consumption
+
+        // Get the most recent restock (last 'in' transaction)
+        $lastIn = $db->prepare("
+            SELECT quantity, created_at
+            FROM transactions
+            WHERE product_id = ? AND location = ? AND type = 'in'
+            ORDER BY created_at DESC
+            LIMIT 1
+        ");
+        $lastIn->execute([$pid, $loc]);
+        $restock = $lastIn->fetch(PDO::FETCH_ASSOC);
+
+        if (!$restock) continue;
+
+        $restockDate = strtotime($restock['created_at']);
+        $restockQty  = floatval($restock['quantity']);
+        $daysSinceRestock = max(1, (time() - $restockDate) / 86400);
+
+        // Predicted remaining qty = restock qty - (daily rate * days since restock)
+        $expectedQty = max(0, $restockQty - ($dailyRate * $daysSinceRestock));
+        $actualQty   = floatval($item['quantity']);
+
+        // Flag if deviation > 30% and absolute diff > meaningful threshold
+        $deviation = abs($actualQty - $expectedQty);
+        $threshold = max($dailyRate * 3, 0.5); // at least 3 days worth or 0.5 units
+        $pctDev = $expectedQty > 0 ? ($deviation / $expectedQty) : ($actualQty > 0 ? 1 : 0);
+
+        if ($pctDev > 0.30 && $deviation > $threshold) {
+            $unit = $item['unit'];
+            // Format expected/actual in human units
+            if ($unit === 'conf' && $item['default_quantity'] > 0 && $item['package_unit']) {
+                $pu = $item['package_unit'];
+                $sz = floatval($item['default_quantity']);
+                $expDisplay = round($expectedQty * $sz);
+                $actDisplay = round($actualQty * $sz);
+                $displayUnit = $pu;
+            } else {
+                $expDisplay = round($expectedQty, 1);
+                $actDisplay = round($actualQty, 1);
+                $displayUnit = $unit;
+            }
+
+            $predictions[] = [
+                'inventory_id' => (int)$item['inventory_id'],
+                'product_id'   => (int)$item['product_id'],
+                'name'         => $item['name'],
+                'brand'        => $item['brand'],
+                'location'     => $item['location'],
+                'unit'         => $displayUnit,
+                'expected_qty' => $expDisplay,
+                'actual_qty'   => $actDisplay,
+                'daily_rate'   => round($dailyRate, 3),
+                'deviation_pct'=> round($pctDev * 100),
+            ];
+        }
+    }
+
+    echo json_encode(['success' => true, 'predictions' => $predictions]);
+}
+
 // ===== SETTINGS =====
 
 function getServerSettings(): void {
-    // Return values for client — passwords are never exposed
     $geminiKey = env('GEMINI_API_KEY');
     $bringEmail = env('BRING_EMAIL');
     
@@ -1288,6 +1399,22 @@ function getServerSettings(): void {
         'tts_content_type' => env('TTS_CONTENT_TYPE', 'application/json'),
         'tts_payload_key' => env('TTS_PAYLOAD_KEY', 'message'),
         'tts_enabled' => env('TTS_ENABLED', 'false') === 'true',
+        // User preferences (now server-side)
+        'default_persons' => intval(env('DEFAULT_PERSONS', '1')),
+        'pref_veloce' => env('PREF_VELOCE', 'false') === 'true',
+        'pref_pocafame' => env('PREF_POCAFAME', 'false') === 'true',
+        'pref_scadenze' => env('PREF_SCADENZE', 'false') === 'true',
+        'pref_healthy' => env('PREF_HEALTHY', 'false') === 'true',
+        'pref_opened' => env('PREF_OPENED', 'false') === 'true',
+        'pref_zerowaste' => env('PREF_ZEROWASTE', 'false') === 'true',
+        'dietary' => env('DIETARY', ''),
+        'appliances' => env('APPLIANCES', '') ? explode(',', env('APPLIANCES', '')) : [],
+        'camera_facing' => env('CAMERA_FACING', 'environment'),
+        'scale_enabled' => env('SCALE_ENABLED', 'false') === 'true',
+        'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
+        'spesa_provider' => env('SPESA_PROVIDER', 'bring'),
+        'spesa_ai_prompt' => env('SPESA_AI_PROMPT', ''),
+        'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
     ]);
 }
 
@@ -1296,15 +1423,58 @@ function saveSettings(): void {
     $envFile = __DIR__ . '/../.env';
     $envVars = loadEnv();
     
-    // Update values from input — only overwrite if new value is non-empty
-    if (!empty($input['gemini_key'])) {
-        $envVars['GEMINI_API_KEY'] = $input['gemini_key'];
+    // Map of input key → .env key — only update if present in input
+    $keyMap = [
+        'gemini_key'      => 'GEMINI_API_KEY',
+        'bring_email'     => 'BRING_EMAIL',
+        'bring_password'  => 'BRING_PASSWORD',
+        'tts_url'         => 'TTS_URL',
+        'tts_token'       => 'TTS_TOKEN',
+        'tts_method'      => 'TTS_METHOD',
+        'tts_auth_type'   => 'TTS_AUTH_TYPE',
+        'tts_content_type'=> 'TTS_CONTENT_TYPE',
+        'tts_payload_key' => 'TTS_PAYLOAD_KEY',
+        'camera_facing'   => 'CAMERA_FACING',
+        'dietary'         => 'DIETARY',
+        'scale_gateway_url' => 'SCALE_GATEWAY_URL',
+        'spesa_provider'  => 'SPESA_PROVIDER',
+        'spesa_ai_prompt' => 'SPESA_AI_PROMPT',
+    ];
+    // Boolean keys
+    $boolMap = [
+        'tts_enabled'     => 'TTS_ENABLED',
+        'pref_veloce'     => 'PREF_VELOCE',
+        'pref_pocafame'   => 'PREF_POCAFAME',
+        'pref_scadenze'   => 'PREF_SCADENZE',
+        'pref_healthy'    => 'PREF_HEALTHY',
+        'pref_opened'     => 'PREF_OPENED',
+        'pref_zerowaste'  => 'PREF_ZEROWASTE',
+        'scale_enabled'   => 'SCALE_ENABLED',
+        'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
+    ];
+    // Integer keys
+    $intMap = [
+        'default_persons' => 'DEFAULT_PERSONS',
+    ];
+
+    foreach ($keyMap as $inKey => $envKey) {
+        if (array_key_exists($inKey, $input)) {
+            $envVars[$envKey] = (string)$input[$inKey];
+        }
     }
-    if (!empty($input['bring_email'])) {
-        $envVars['BRING_EMAIL'] = $input['bring_email'];
+    foreach ($boolMap as $inKey => $envKey) {
+        if (array_key_exists($inKey, $input)) {
+            $envVars[$envKey] = $input[$inKey] ? 'true' : 'false';
+        }
     }
-    if (!empty($input['bring_password'])) {
-        $envVars['BRING_PASSWORD'] = $input['bring_password'];
+    foreach ($intMap as $inKey => $envKey) {
+        if (array_key_exists($inKey, $input)) {
+            $envVars[$envKey] = (string)intval($input[$inKey]);
+        }
+    }
+    // Arrays stored as comma-separated
+    if (array_key_exists('appliances', $input)) {
+        $envVars['APPLIANCES'] = is_array($input['appliances']) ? implode(',', $input['appliances']) : (string)$input['appliances'];
     }
     
     // Write .env file
@@ -1313,6 +1483,10 @@ function saveSettings(): void {
         $lines[] = "{$key}={$val}";
     }
     $result = file_put_contents($envFile, implode("\n", $lines) . "\n");
+    
+    // Clear cached env
+    static $cache = null;
+    $cache = null;
     
     if ($result !== false) {
         echo json_encode(['success' => true]);
@@ -1579,6 +1753,7 @@ function generateRecipe(PDO $db): void {
     $todayRecipes = $input['today_recipes'] ?? [];
     $mealPlanType = $input['meal_plan_type'] ?? ''; // e.g. 'pasta', 'pesce', 'legumi', ...
     $variation    = max(0, intval($input['variation'] ?? 0)); // 0=first attempt, 1+=re-generation
+    $rejectedIngredients = $input['rejected_ingredients'] ?? [];  // ingredient names from previous rejected recipes
 
     // Fetch all inventory items with expiry info
     $stmt = $db->query("
@@ -1689,14 +1864,16 @@ function generateRecipe(PDO $db): void {
             $label = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
 
             if ($wantsExpiryPriority) {
-                if ($g === 1 || ($g === 2 && $daysLeft <= 1)) {
+                // Expired or expiring within 3 days → mandatory
+                if ($g === 1 || $g === 2) {
                     $mandatoryItems[] = $label;
-                } elseif ($g === 2) {
+                // Expiring within 7 days → strongly recommended
+                } elseif ($g === 3) {
                     $recommendedItems[] = $label;
                 }
             }
-            if (($wantsOpenedPriority || $wantsExpiryPriority) && $isOpen && $daysLeft <= 5 && $daysLeft >= 0) {
-                // Opened items expiring within 5 days but not already in mandatory/recommended
+            if (($wantsOpenedPriority || $wantsExpiryPriority) && $isOpen && $daysLeft <= 7 && $daysLeft >= 0) {
+                // Opened items expiring within 7 days
                 if (!in_array($label, $mandatoryItems) && !in_array($label, $recommendedItems)) {
                     $recommendedItems[] = $label;
                 }
@@ -1870,6 +2047,13 @@ function generateRecipe(PDO $db): void {
             "Devi proporre qualcosa di COMPLETAMENTE DIVERSO: stile di cucina diverso, ingrediente principale diverso, " .
             "tecnica di cottura diversa, piatto di un'altra tradizione culinaria o di un'altra categoria. " .
             "Non basta cambiare il nome della stessa idea. Sorprendi! Sii creativo!";
+        if (!empty($rejectedIngredients)) {
+            $rejList = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
+            $regenText .= "\n\n🚫 INGREDIENTI PRINCIPALI GIÀ RIFIUTATI DALL'UTENTE: {$rejList}\n" .
+                "NON usare NESSUNO di questi come ingrediente PRINCIPALE della nuova ricetta. " .
+                "Puoi usarli come ingrediente secondario solo se indispensabile. " .
+                "Scegli ingredienti principali completamente diversi dalla lista della dispensa!";
+        }
     }
 
     $prompt = <<<PROMPT
@@ -1894,6 +2078,8 @@ REGOLE IMPORTANTI:
 6. La ricetta deve essere adatta al pasto: $mealLabel
 7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Le unità ammesse sono SOLO: g (grammi), ml (millilitri), pz (pezzi), conf (confezioni). NON usare mai kg o litri. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2000 g" e servono 300g, qty_number = 300. Per ingredienti non dalla dispensa, qty_number = 0.
 8. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
+9. NOMI INGREDIENTI: nel campo "name" di ogni ingrediente dalla dispensa, usa ESATTAMENTE lo stesso nome riportato nella lista sotto (copia-incolla). NON riformulare, NON abbreviare, NON tradurre. Il sistema usa il nome per collegare l'ingrediente all'inventario. Se il nome non corrisponde, l'ingrediente non viene scalato correttamente.
+10. COMPLETEZZA: la lista ingredienti DEVE includere TUTTI gli ingredienti necessari citati nei passi della ricetta. Se un passo dice "aggiungere il latte", il latte DEVE comparire nella lista ingredienti. Non dare per scontato nessun ingrediente tranne acqua, sale, pepe e olio.
 
 INGREDIENTI DISPONIBILI IN DISPENSA:
 $ingredientsText
@@ -1966,14 +2152,49 @@ PROMPT;
     if ($recipe && !empty($recipe['title'])) {
         // Enrich from_pantry ingredients with product_id and location for "use" feature
         if (!empty($recipe['ingredients'])) {
+            // Build a category map for better fuzzy matching
+            $itemsLookup = [];
+            foreach ($items as $item) {
+                $itemsLookup[] = [
+                    'item' => $item,
+                    'lower' => mb_strtolower(trim($item['name']), 'UTF-8'),
+                    'words' => preg_split('/[\s,.\-\/]+/', mb_strtolower(trim($item['name']), 'UTF-8')),
+                    'cat'   => mb_strtolower($item['category'] ?? '', 'UTF-8'),
+                ];
+            }
+
+            // Common Italian food name aliases for better matching
+            $aliases = [
+                'uovo' => ['uova','uovo','egg'],
+                'uova' => ['uovo','uova','egg'],
+                'latte' => ['latte','milk'],
+                'formaggio' => ['formaggio','cheese','philadelphia','mozzarella','parmigiano','grana','pecorino','ricotta','mascarpone','stracchino','gorgonzola'],
+                'pasta' => ['pasta','spaghetti','penne','fusilli','rigatoni','farfalle','tagliatelle','linguine','bucatini','orecchiette','paccheri','maccheroni'],
+                'pomodoro' => ['pomodoro','pomodori','tomato','passata','pelati','polpa'],
+                'cipolla' => ['cipolla','cipolle','onion'],
+                'aglio' => ['aglio','garlic'],
+                'burro' => ['burro','butter'],
+                'panna' => ['panna','cream','crema'],
+                'zucchero' => ['zucchero','sugar'],
+                'farina' => ['farina','flour'],
+                'olio' => ['olio','oil'],
+                'patata' => ['patata','patate','potato'],
+                'carota' => ['carota','carote','carrot'],
+                'sedano' => ['sedano','celery'],
+                'prezzemolo' => ['prezzemolo','parsley'],
+                'basilico' => ['basilico','basil'],
+            ];
+
             foreach ($recipe['ingredients'] as &$ing) {
                 if (!empty($ing['from_pantry'])) {
                     $ingNameLower = mb_strtolower(trim($ing['name']), 'UTF-8');
+                    $ingWords = preg_split('/[\s,.\-\/]+/', $ingNameLower);
                     $bestMatch = null;
                     $bestScore = 0;
                     
-                    foreach ($items as $item) {
-                        $itemNameLower = mb_strtolower(trim($item['name']), 'UTF-8');
+                    foreach ($itemsLookup as $entry) {
+                        $itemNameLower = $entry['lower'];
+                        $itemWords = $entry['words'];
                         $score = 0;
                         
                         // Exact match
@@ -1988,19 +2209,51 @@ PROMPT;
                         elseif (mb_strpos($ingNameLower, $itemNameLower) !== false) {
                             $score = 70;
                         }
-                        // Word-level matching: check if key words overlap
                         else {
-                            $ingWords = preg_split('/\s+/', $ingNameLower);
-                            $itemWords = preg_split('/\s+/', $itemNameLower);
-                            $common = array_intersect($ingWords, $itemWords);
-                            if (count($common) > 0) {
-                                $score = (count($common) / max(count($ingWords), 1)) * 60;
+                            // Word-level matching with alias expansion
+                            $expandedIngWords = $ingWords;
+                            foreach ($ingWords as $w) {
+                                foreach ($aliases as $key => $group) {
+                                    if (in_array($w, $group) || mb_strpos($w, $key) === 0 || mb_strpos($key, $w) === 0) {
+                                        $expandedIngWords = array_merge($expandedIngWords, $group);
+                                    }
+                                }
+                            }
+                            $expandedIngWords = array_unique($expandedIngWords);
+
+                            $common = 0;
+                            foreach ($expandedIngWords as $ew) {
+                                foreach ($itemWords as $iw) {
+                                    // Partial stem match (min 4 chars shared prefix)
+                                    $minLen = min(mb_strlen($ew), mb_strlen($iw));
+                                    if ($minLen >= 3) {
+                                        $prefixLen = 0;
+                                        for ($c = 0; $c < $minLen; $c++) {
+                                            if (mb_substr($ew, $c, 1) === mb_substr($iw, $c, 1)) $prefixLen++;
+                                            else break;
+                                        }
+                                        if ($prefixLen >= min(4, $minLen)) { $common++; break; }
+                                    }
+                                    if ($ew === $iw) { $common++; break; }
+                                }
+                            }
+                            if ($common > 0) {
+                                $score = ($common / max(count($ingWords), 1)) * 65;
+                                // Bonus: if the main/first ingredient word matches
+                                if (count($ingWords) > 0 && $common > 0) {
+                                    foreach ($itemWords as $iw) {
+                                        if (mb_strpos($iw, $ingWords[0]) === 0 || mb_strpos($ingWords[0], $iw) === 0) {
+                                            $score += 10;
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         }
                         
                         if ($score > $bestScore) {
                             $bestScore = $score;
-                            $bestMatch = $item;
+                            $bestMatch = $entry['item'];
                         }
                     }
                     

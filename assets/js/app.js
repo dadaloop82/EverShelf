@@ -70,7 +70,7 @@ let _scaleWeightCallback = null; // pending on-demand weight request callback
 let _scaleLatestWeight = null;   // last received weight message
 let _scaleAutoConfirmTimer = null; // countdown timer for auto-confirm after stable weight
 let _scaleAutoConfirmRAF   = null; // rAF handle for auto-confirm progress bar animation
-let _scaleStabilityTimer   = null; // setTimeout: wait 5 s stable before starting confirm bar
+let _scaleStabilityTimer   = null; // setTimeout: wait 10 s stable before starting confirm bar
 let _scaleStabilityRAF     = null; // rAF handle for stability progress bar in the live box
 let _scaleStabilityVal     = null; // value we are currently timing for stability
 let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger for same value
@@ -120,6 +120,9 @@ function _scaleOnMessage(msg) {
         // Update live reading modal overlay if visible (scale-read modal)
         const live = document.getElementById('scale-reading-live');
         if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        // Also update edit-form inline scale reading if visible
+        const editLive = document.getElementById('edit-scale-reading');
+        if (editLive) editLive.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
         // Always update the persistent live box on the use page (every message, stable or not)
         _scaleUpdateLiveBox(msg);
         // If weight is NOT stable: stop any running timer/bar but keep the sentinel value.
@@ -204,7 +207,7 @@ function _scaleUpdateLiveBox(msg) {
         // Weight too low — show red flashing warning
         box.classList.add('scale-low-weight');
         if (valEl) valEl.textContent = `${raw} ${msg.unit || 'kg'}`;
-        if (lblEl) lblEl.textContent = '< 10 g · inserisci manualmente';
+        if (lblEl) lblEl.textContent = t('scale.low_weight');
     } else {
         box.classList.remove('scale-low-weight');
         const stIcon = msg.stable ? ' ✓' : ' …';
@@ -436,12 +439,12 @@ function _cancelScaleStabilityWait() {
 }
 
 /**
- * Start a 5-second stability wait with an animated progress bar in the live box.
- * Calls onStable() when weight unchanged for 5 s.
+ * Start a 10-second stability wait with an animated progress bar in the live box.
+ * Calls onStable() when weight unchanged for 10 s.
  */
 function _startScaleStabilityWait(onStable) {
     _cancelScaleStabilityWait();
-    const duration = 5000;
+    const duration = 10000;
     const start = performance.now();
     const bar = document.getElementById('scale-live-progress-bar');
 
@@ -533,6 +536,50 @@ function readScaleWeight(targetInputId, getUnit) {
         showToast(`⚖️ ${val} ${unit}`, 'success');
     };
     // Weight data streams continuously via SSE; _scaleWeightCallback fires on the next stable reading
+}
+
+/**
+ * Inline scale reading for the edit-inventory modal.
+ * Shows a live weight display inside the form and fills edit-qty on stable reading.
+ */
+function readScaleForEdit() {
+    if (!_scaleConnected) { showToast('⚖️ ' + t('scale.not_connected'), 'error'); return; }
+    const section = document.getElementById('edit-scale-section');
+    const btn = document.getElementById('btn-scale-edit');
+    if (section) section.style.display = '';
+    if (btn) btn.style.display = 'none';
+
+    _scaleWeightCallback = (msg) => {
+        const editQty = document.getElementById('edit-qty');
+        const editUnit = document.getElementById('edit-unit');
+        if (!editQty || !editUnit) return;
+
+        let unit = editUnit.value;
+        const isConf = unit === 'conf';
+        let confSize = 0;
+        if (isConf) confSize = parseFloat(document.getElementById('edit-conf-size')?.value) || 0;
+
+        let raw = parseFloat(msg.value);
+        const srcUnit = (msg.unit || 'kg').toLowerCase();
+        let grams;
+        if      (srcUnit === 'kg')                      grams = raw * 1000;
+        else if (srcUnit === 'lbs' || srcUnit === 'lb') grams = raw * 453.592;
+        else if (srcUnit === 'oz')                      grams = raw * 28.3495;
+        else                                            grams = raw; // g or ml
+
+        let val;
+        if (isConf && confSize > 0) {
+            val = Math.round((grams / confSize) * 100) / 100;
+        } else {
+            val = Math.round(grams);
+        }
+
+        editQty.value = val;
+        editQty.dispatchEvent(new Event('input'));
+        if (section) section.style.display = 'none';
+        if (btn) btn.style.display = '';
+        showToast(`⚖️ ${val} ${unit}`, 'success');
+    };
 }
 
 function _scaleShowReadingModal(targetInputId, unit) {
@@ -1388,16 +1435,29 @@ function debounce(fn, ms) {
 
 async function syncSettingsFromDB() {
     try {
+        // Primary: load from server .env
+        const serverSettings = await api('get_settings');
+        const s = getSettings();
+        const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
+            'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
+            'camera_facing','scale_enabled','scale_gateway_url','spesa_provider',
+            'spesa_ai_prompt','meal_plan_enabled','tts_enabled','tts_url','tts_token',
+            'tts_method','tts_auth_type','tts_content_type','tts_payload_key'];
+        for (const key of serverKeys) {
+            if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
+                s[key] = serverSettings[key];
+            }
+        }
+        _settingsCache = s;
+        localStorage.setItem('evershelf_settings', JSON.stringify(s));
+        // Also load review_confirmed from DB
         const res = await api('app_settings_get');
         if (res.success && res.settings) {
+            // Spesa credentials still come from DB (not .env)
             if (res.settings.user_prefs) {
                 const db = res.settings.user_prefs;
-                const s = getSettings();
-                // Merge DB settings into local (DB wins for shared prefs)
-                for (const key of ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-                    'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
-                    'spesa_provider','spesa_ai_prompt','spesa_email','spesa_password',
-                    'spesa_logged_in','spesa_user','spesa_data','spesa_token']) {
+                for (const key of ['spesa_email','spesa_password','spesa_logged_in',
+                    'spesa_user','spesa_data','spesa_token']) {
                     if (db[key] !== undefined) s[key] = db[key];
                 }
                 _settingsCache = s;
@@ -1489,31 +1549,56 @@ async function loadSettingsUI() {
     const ttsExtraEl = document.getElementById('setting-tts-extra-fields');
     if (ttsExtraEl) ttsExtraEl.value = s.tts_extra_fields || '';
     
-    // Load server-side settings if not already set locally
+    // Load server-side settings as primary source
     try {
         const serverSettings = await api('get_settings');
-        if (!s.gemini_key && serverSettings.gemini_key) {
-            document.getElementById('setting-gemini-key').value = serverSettings.gemini_key;
+        // Merge all server settings into local cache (server wins)
+        const serverKeys = ['gemini_key','bring_email','bring_password',
+            'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
+            'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
+            'camera_facing','scale_enabled','scale_gateway_url','spesa_provider',
+            'spesa_ai_prompt','meal_plan_enabled',
+            'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
+            'tts_content_type','tts_payload_key'];
+        let changed = false;
+        for (const key of serverKeys) {
+            if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
+                s[key] = serverSettings[key];
+                changed = true;
+            }
         }
-        if (!s.bring_email && serverSettings.bring_email) {
-            document.getElementById('setting-bring-email').value = serverSettings.bring_email;
+        if (changed) {
+            _settingsCache = s;
+            localStorage.setItem('evershelf_settings', JSON.stringify(s));
+            // Re-populate UI with merged values
+            document.getElementById('setting-gemini-key').value = s.gemini_key || '';
+            document.getElementById('setting-bring-email').value = s.bring_email || '';
+            document.getElementById('setting-bring-password').value = s.bring_password || '';
+            document.getElementById('setting-default-persons').value = s.default_persons || 1;
+            document.getElementById('setting-pref-veloce').checked = !!s.pref_veloce;
+            document.getElementById('setting-pref-pocafame').checked = !!s.pref_pocafame;
+            document.getElementById('setting-pref-scadenze').checked = !!s.pref_scadenze;
+            document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
+            document.getElementById('setting-pref-opened').checked = !!s.pref_opened;
+            document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
+            document.getElementById('setting-dietary').value = s.dietary || '';
+            if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
+            renderAppliances(s.appliances || []);
+            if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
+            if (ttsUrlEl) ttsUrlEl.value = s.tts_url || '';
+            if (ttsTokenEl) ttsTokenEl.value = s.tts_token || '';
+            if (ttsMethEl) ttsMethEl.value = s.tts_method || 'POST';
+            if (ttsAuthTypeEl) ttsAuthTypeEl.value = s.tts_auth_type || 'bearer';
+            if (ttsCtEl) ttsCtEl.value = s.tts_content_type || 'application/json';
+            if (ttsPayloadKeyEl) ttsPayloadKeyEl.value = s.tts_payload_key || 'message';
+            if (scaleEnabledUiEl) scaleEnabledUiEl.checked = !!s.scale_enabled;
+            if (scaleUrlUiEl) scaleUrlUiEl.value = s.scale_gateway_url || '';
+            const mpEnabledUp = s.meal_plan_enabled !== false;
+            if (mpEnabledEl) mpEnabledEl.checked = mpEnabledUp;
+            if (mpConfigSection) mpConfigSection.style.display = mpEnabledUp ? '' : 'none';
+            if (mpLegendCard) mpLegendCard.style.display = mpEnabledUp ? '' : 'none';
         }
-        // Load TTS defaults from server .env if not set locally
-        if (!s.tts_url && serverSettings.tts_url) {
-            s.tts_url = serverSettings.tts_url;
-            s.tts_token = serverSettings.tts_token || '';
-            s.tts_method = serverSettings.tts_method || 'POST';
-            s.tts_auth_type = serverSettings.tts_auth_type || 'bearer';
-            s.tts_content_type = serverSettings.tts_content_type || 'application/json';
-            s.tts_payload_key = serverSettings.tts_payload_key || 'message';
-            s.tts_enabled = serverSettings.tts_enabled || false;
-            saveSettingsToStorage(s);
-            // Update UI fields with server values
-            if (ttsUrlEl) ttsUrlEl.value = s.tts_url;
-            if (ttsTokenEl) ttsTokenEl.value = s.tts_token;
-            if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled;
-        }
-    } catch(e) { /* ignore */ }
+    } catch(e) { /* offline, use local */ }
     // Scale settings
     const scaleEnabledUiEl = document.getElementById('setting-scale-enabled');
     if (scaleEnabledUiEl) scaleEnabledUiEl.checked = !!s.scale_enabled;
@@ -1647,12 +1732,34 @@ async function saveSettings() {
     if (scaleUrlEl) s.scale_gateway_url = scaleUrlEl.value.trim();
     saveSettingsToStorage(s);
     
-    // Also save to server .env
+    // Save ALL settings to server .env
     try {
         const result = await api('save_settings', {}, 'POST', {
             gemini_key: s.gemini_key,
             bring_email: s.bring_email,
-            bring_password: s.bring_password
+            bring_password: s.bring_password,
+            default_persons: s.default_persons,
+            pref_veloce: s.pref_veloce,
+            pref_pocafame: s.pref_pocafame,
+            pref_scadenze: s.pref_scadenze,
+            pref_healthy: s.pref_healthy,
+            pref_opened: s.pref_opened,
+            pref_zerowaste: s.pref_zerowaste,
+            dietary: s.dietary,
+            appliances: s.appliances,
+            camera_facing: s.camera_facing,
+            scale_enabled: s.scale_enabled,
+            scale_gateway_url: s.scale_gateway_url,
+            spesa_provider: s.spesa_provider,
+            spesa_ai_prompt: s.spesa_ai_prompt,
+            meal_plan_enabled: s.meal_plan_enabled,
+            tts_enabled: s.tts_enabled,
+            tts_url: s.tts_url,
+            tts_token: s.tts_token,
+            tts_method: s.tts_method,
+            tts_auth_type: s.tts_auth_type,
+            tts_content_type: s.tts_content_type,
+            tts_payload_key: s.tts_payload_key,
         });
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
@@ -1871,8 +1978,8 @@ async function loadDashboard() {
             expiredSection.style.display = 'none';
         }
         
-        // Review suspicious quantities
-        loadReviewItems();
+        // Banner alerts (suspicious quantities + consumption predictions)
+        loadBannerAlerts();
 
         // Waste vs consumption chart
         const wasteSection = document.getElementById('waste-chart-section');
@@ -2007,7 +2114,7 @@ function quickRecipeSuggestion() {
     }, 500);
 }
 
-// === SUSPICIOUS QUANTITY REVIEW ===
+// === SUSPICIOUS QUANTITY THRESHOLDS ===
 const QTY_THRESHOLDS = {
     'pz':   { min: 0.3,  max: 50 },
     'conf': { min: 0.3,  max: 50 },
@@ -2018,17 +2125,16 @@ const QTY_THRESHOLDS = {
 function isSuspiciousQty(qty, unit) {
     const n = parseFloat(qty);
     if (isNaN(n) || n <= 0) return false;
-    const t = QTY_THRESHOLDS[unit] || QTY_THRESHOLDS['pz'];
-    return n < t.min || n > t.max;
+    const th = QTY_THRESHOLDS[unit] || QTY_THRESHOLDS['pz'];
+    return n < th.min || n > th.max;
 }
 
 function isSuspiciousDefaultQty(defaultQty, unit, packageUnit) {
     const n = parseFloat(defaultQty);
     if (!n || n <= 0) return false;
-    // For conf products, default_quantity is in package_unit (g, ml, etc.)
     const checkUnit = (unit === 'conf' && packageUnit) ? packageUnit : unit;
-    const t = QTY_THRESHOLDS[checkUnit] || QTY_THRESHOLDS['pz'];
-    return n > t.max;
+    const th = QTY_THRESHOLDS[checkUnit] || QTY_THRESHOLDS['pz'];
+    return n > th.max;
 }
 
 function getReviewConfirmed() {
@@ -2040,87 +2146,170 @@ function setReviewConfirmed(inventoryId) {
     const c = getReviewConfirmed();
     c[inventoryId] = Date.now();
     _reviewConfirmedCache = c;
-    // Persist to shared DB
     api('app_settings_save', {}, 'POST', { settings: { review_confirmed: c } }).catch(() => {});
 }
 
-async function loadReviewItems() {
-    const section = document.getElementById('alert-review');
-    const list = document.getElementById('review-list');
+// === ALERT BANNER SYSTEM (replaces old review table) ===
+let _bannerQueue = [];   // array of { type, data } — 'review' or 'prediction'
+let _bannerIndex = 0;
+
+/**
+ * Load suspicious quantities + consumption predictions, merge into a single
+ * banner queue and show the first item.
+ */
+async function loadBannerAlerts() {
+    _bannerQueue = [];
+    _bannerIndex = 0;
+    const banner = document.getElementById('alert-banner');
+    if (!banner) { console.warn('[Banner] #alert-banner not found'); return; }
+
     try {
-        const data = await api('inventory_list');
-        const items = data.inventory || [];
+        const [invData, predData] = await Promise.all([
+            api('inventory_list'),
+            api('consumption_predictions').catch(err => { console.warn('[Banner] predictions fetch failed:', err); return { predictions: [] }; }),
+        ]);
+        const items = invData.inventory || [];
         const confirmed = getReviewConfirmed();
-        
-        const suspicious = items.filter(item => {
-            if (confirmed[item.id]) return false;
-            return isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
+
+        // 1. Suspicious quantities
+        items.forEach(item => {
+            if (confirmed[item.id]) return;
+            if (isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit)) {
+                const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
+                const suspQty = isSuspiciousQty(item.quantity, item.unit);
+                const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
+                let warning;
+                if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
+                else if (parseFloat(item.quantity) < t_.min) warning = '⬇️ Troppo poco';
+                else warning = '⬆️ Troppo';
+                _bannerQueue.push({ type: 'review', data: { ...item, warning } });
+            }
         });
-        
-        if (suspicious.length === 0) {
-            section.style.display = 'none';
-            return;
-        }
-        
-        section.style.display = 'block';
-        list.innerHTML = suspicious.map(item => {
-            const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
-            const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-            const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-            const t = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
-            const suspQty = isSuspiciousQty(item.quantity, item.unit);
-            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
-            let warning;
-            if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
-            else if (parseFloat(item.quantity) < t.min) warning = '⬇️ Troppo poco';
-            else warning = '⬆️ Troppo';
-            
-            return `
-            <div class="review-item" id="review-item-${item.id}">
-                <div class="review-item-info">
-                    <span class="review-item-icon">${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : catIcon}</span>
-                    <div class="review-item-text">
-                        <div class="review-item-name">${escapeHtml(item.name)}</div>
-                        <div class="review-item-meta">${locInfo.icon} ${locInfo.label} · <span class="review-warn">${warning}</span></div>
-                    </div>
-                </div>
-                <div class="review-item-qty">
-                    <span class="review-qty-value">${qtyDisplay}</span>
-                </div>
-                <div class="review-item-actions">
-                    <button class="btn-review btn-review-ok" onclick="confirmReviewItem(${item.id})" title="È corretto">✓</button>
-                    <button class="btn-review btn-review-edit" onclick="editReviewItem(${item.id}, ${item.product_id})" title="Modifica">✏️</button>
-                </div>
-            </div>`;
-        }).join('');
-    } catch(e) {
-        section.style.display = 'none';
+
+        // 2. Consumption predictions that don't match actual quantity
+        const predictions = predData.predictions || [];
+        predictions.forEach(pred => {
+            if (confirmed['pred_' + pred.inventory_id]) return;
+            _bannerQueue.push({ type: 'prediction', data: pred });
+        });
+
+        console.log(`[Banner] queue ready: ${_bannerQueue.length} items (${items.length} inv, ${predictions.length} pred, ${Object.keys(confirmed).length} confirmed)`);
+
+    } catch (e) {
+        console.error('[Banner] loadBannerAlerts error:', e);
+    }
+
+    if (_bannerQueue.length > 0) {
+        _bannerIndex = 0;
+        renderBannerItem();
+    } else {
+        banner.style.display = 'none';
     }
 }
 
-function confirmReviewItem(inventoryId) {
-    setReviewConfirmed(inventoryId);
-    const el = document.getElementById(`review-item-${inventoryId}`);
-    if (el) {
-        el.style.transition = 'opacity 0.3s, transform 0.3s';
-        el.style.opacity = '0';
-        el.style.transform = 'translateX(60px)';
-        setTimeout(() => {
-            el.remove();
-            // Hide section if empty
-            const list = document.getElementById('review-list');
-            if (!list.children.length) {
-                document.getElementById('alert-review').style.display = 'none';
-            }
-        }, 300);
+function renderBannerItem() {
+    const banner = document.getElementById('alert-banner');
+    if (!banner || _bannerQueue.length === 0) { if (banner) banner.style.display = 'none'; return; }
+    if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
+
+    const entry = _bannerQueue[_bannerIndex];
+    const iconEl    = document.getElementById('alert-banner-icon');
+    const titleEl   = document.getElementById('alert-banner-title');
+    const detailEl  = document.getElementById('alert-banner-detail');
+    const actionsEl = document.getElementById('alert-banner-actions');
+    const counterEl = document.getElementById('alert-banner-counter');
+    const s = getSettings();
+    const hasScale = s.scale_enabled && s.scale_gateway_url && _scaleConnected;
+
+    if (entry.type === 'review') {
+        const item = entry.data;
+        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        banner.className = 'alert-banner';
+        iconEl.textContent = '⚠️';
+        titleEl.textContent = `${t('dashboard.banner_review_title')}: ${item.name}`;
+        detailEl.textContent = `${item.warning} · ${qtyDisplay}`;
+        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
+        if (hasScale) {
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ ${t('dashboard.banner_review_action_weigh')}</button>`;
+        }
+        actionsEl.innerHTML = btns;
+
+    } else if (entry.type === 'prediction') {
+        const pred = entry.data;
+        banner.className = 'alert-banner banner-prediction';
+        iconEl.textContent = '📊';
+        titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}`;
+        const expTxt = t('prediction.expected_qty').replace('{expected}', pred.expected_qty).replace('{unit}', pred.unit);
+        const actTxt = t('prediction.actual_qty').replace('{actual}', pred.actual_qty).replace('{unit}', pred.unit);
+        detailEl.innerHTML = `${expTxt} · ${actTxt}<br><small>${t('prediction.check_suggestion')}</small>`;
+        let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">${t('dashboard.banner_prediction_action_confirm')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">${t('dashboard.banner_prediction_action_edit')}</button>`;
+        if (hasScale) {
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ ${t('dashboard.banner_prediction_action_weigh')}</button>`;
+        }
+        actionsEl.innerHTML = btns;
     }
+
+    counterEl.textContent = _bannerQueue.length > 1 ? `${_bannerIndex + 1} / ${_bannerQueue.length}` : '';
+    banner.style.display = '';
+}
+
+function dismissBannerItem() {
+    _bannerQueue.splice(_bannerIndex, 1);
+    if (_bannerQueue.length === 0) {
+        document.getElementById('alert-banner').style.display = 'none';
+        return;
+    }
+    if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
+    renderBannerItem();
+}
+
+function confirmBannerReview() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'review') return;
+    setReviewConfirmed(entry.data.id);
     showToast(t('toast.quantity_confirmed'), 'success');
+    dismissBannerItem();
+}
+
+function editBannerReview() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'review') return;
+    editReviewItem(entry.data.id, entry.data.product_id);
+}
+
+function confirmBannerPrediction() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'prediction') return;
+    setReviewConfirmed('pred_' + entry.data.inventory_id);
+    showToast(t('toast.quantity_confirmed'), 'success');
+    dismissBannerItem();
+}
+
+function editBannerPrediction() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'prediction') return;
+    editReviewItem(entry.data.inventory_id, entry.data.product_id);
+}
+
+function weighBannerItem() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry) return;
+    const item = entry.data;
+    const targetId = entry.type === 'prediction' ? item.inventory_id : item.id;
+    // Navigate to edit form and auto-start scale reading
+    api('inventory_list').then(data => {
+        currentInventory = data.inventory || [];
+        editInventoryItem(targetId);
+        setTimeout(() => readScaleForEdit(), 200);
+    });
 }
 
 function editReviewItem(inventoryId, productId) {
     api('inventory_list').then(data => {
         currentInventory = data.inventory || [];
-        showItemDetail(inventoryId, productId);
+        editInventoryItem(inventoryId);
     });
 }
 
@@ -2468,6 +2657,7 @@ function closeModal() {
     _cancelScaleAutoConfirm(false);
     _scaleRecipeAutoFillPaused = false;
     _scaleUserDismissed = false;
+    _scaleWeightCallback = null;
 }
 
 async function quickUse(productId, location) {
@@ -2540,6 +2730,12 @@ function editInventoryItem(id) {
     const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
     const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
     
+    // Determine if scale is available for this item's unit
+    const s = getSettings();
+    const effectiveUnit = isConf ? (item.package_unit || 'g') : (item.unit || 'pz');
+    const scaleEditReady = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
+        (effectiveUnit === 'g' || effectiveUnit === 'ml');
+    
     window._editingProduct = { name: item.name, category: item.category || '', _isOpened: !!item.opened_at };
     
     // Rebuild modal content for editing (don't close and reopen - just replace content)
@@ -2556,6 +2752,14 @@ function editInventoryItem(id) {
                     <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
                     <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
                 </div>
+                ${scaleEditReady ? `
+                <div id="edit-scale-section" style="display:none;text-align:center;padding:10px;background:linear-gradient(135deg,#f3e8ff,#ede9fe);border-radius:10px;margin-top:8px">
+                    <div style="font-size:1.8rem;font-weight:bold;color:#5b21b6" id="edit-scale-reading">— — —</div>
+                    <div style="font-size:0.78rem;color:#7c6cb0;margin-top:2px">${t('scale.place_on_scale')}</div>
+                </div>
+                <button type="button" id="btn-scale-edit" class="btn btn-secondary scale-read-btn" style="margin-top:8px;width:100%"
+                    onclick="readScaleForEdit()">⚖️ ${t('scale.read_btn')}</button>
+                ` : ''}
             </div>
             <div class="form-group">
                 <label>📏 Unità di misura</label>
@@ -4723,11 +4927,14 @@ async function submitAdd(e) {
 }
 
 // ===== USE FROM INVENTORY =====
+let _useSubmitting = false; // double-submit guard
 function showUseForm() {
     renderUsePreview();
     _useConfMode = null; // reset
+    _useSubmitting = false;
     _scaleUserDismissed = false;
     _scaleStabilityVal  = null;
+    _scaleLatestWeight  = null; // clear stale weight from previous product
     _cancelScaleAutoConfirm(false);
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
@@ -5294,6 +5501,9 @@ async function submitUseAll() {
 
 async function submitUse(e) {
     e.preventDefault();
+    if (_useSubmitting) return; // prevent double-submit from scale auto-confirm
+    _useSubmitting = true;
+    _cancelScaleAutoConfirm(false); // stop any running auto-confirm
     showLoading(true);
     try {
         let qty = parseFloat(document.getElementById('use-quantity').value) || 1;
@@ -5314,6 +5524,7 @@ async function submitUse(e) {
             location: document.getElementById('use-location').value,
         });
         showLoading(false);
+        _useSubmitting = false;
         if (result.success) {
             const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
             showToast(`📤 Usato ${usedText} di ${currentProduct.name}`, 'success');
@@ -5332,6 +5543,7 @@ async function submitUse(e) {
         }
     } catch (err) {
         showLoading(false);
+        _useSubmitting = false;
         showToast(t('error.connection'), 'error');
     }
 }
@@ -7660,6 +7872,7 @@ function viewArchivedRecipe(idx) {
 let _cachedRecipe = null;
 let _generatedTodayTitles = []; // client-side list, robust vs race conditions
 let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
+let _rejectedRecipeIngredients = []; // ingredient names from previously rejected recipes
 
 function openRecipeDialog() {
     const meal = getMealType();
@@ -8701,14 +8914,18 @@ function _renderMealPlanHint(mealSlot) {
 }
 
 function regenerateRecipe() {
+    // Collect main ingredients from the rejected recipe to exclude them
+    if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients) {
+        const mainIngs = _cachedRecipe.recipe.ingredients
+            .filter(i => i.from_pantry)
+            .map(i => i.name);
+        _rejectedRecipeIngredients = [...new Set([..._rejectedRecipeIngredients, ...mainIngs])];
+    }
     _cachedRecipe = null;
-    // Use the meal the user currently has selected (not the auto-detected one)
     const meal = getSelectedMealType();
-    // increment variation counter for this meal slot
     _recipeVariationCount[meal] = (_recipeVariationCount[meal] || 0) + 1;
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
-    // Keep all existing form settings (persons, chips, meal) — just show the form again
     document.getElementById('recipe-ask').style.display = '';
 }
 
@@ -8716,6 +8933,11 @@ async function generateRecipe() {
     const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
+
+    // Reset rejected ingredients on first generation (not regeneration)
+    if ((_recipeVariationCount[meal] || 0) === 0) {
+        _rejectedRecipeIngredients = [];
+    }
 
     // Determine meal plan type for today's selected slot,
     // but only if the user has NOT unchecked the meal-plan chip
@@ -8755,6 +8977,7 @@ async function generateRecipe() {
             today_recipes: [...new Set([...await getTodayRecipeTitles(), ..._generatedTodayTitles])],
             meal_plan_type: mealPlanType,
             variation: _recipeVariationCount[meal] || 0,
+            rejected_ingredients: _rejectedRecipeIngredients,
         });
 
         if (!result.success) {

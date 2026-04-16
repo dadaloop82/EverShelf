@@ -2,7 +2,7 @@
     "name": "EverShelf",
     "short_name": "EverShelf",
     "description": "Gestione completa della dispensa di casa con scansione barcode",
-    "version": "1.2.0",
+    "version": "1.4.0",
     "start_url": "/evershelf/",
     "display": "standalone",
     "background_color": "#f0f4e8",

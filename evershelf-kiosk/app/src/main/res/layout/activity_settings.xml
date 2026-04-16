@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#1a1a2e"
+    android:padding="32dp"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚙️ EverShelf Kiosk Settings"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="EverShelf Server URL"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/editUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="http://192.168.1.100"
+        android:inputType="textUri"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#666666"
+        android:background="#2a2a3e"
+        android:padding="14dp"
+        android:textSize="16sp"
+        android:singleLine="true"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="The app will display this URL in full-screen kiosk mode.\nThe Scale Gateway runs on port 8765 (WebSocket).\nSet the gateway URL in EverShelf settings to:\nws://localhost:8765"
+        android:textColor="#888888"
+        android:textSize="13sp"
+        android:lineSpacingExtra="4dp"
+        android:layout_marginBottom="32dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSave"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Save &amp; Return"
+        android:textSize="16sp"
+        android:backgroundTint="#7C3AED"
+        android:layout_marginBottom="12dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnBack"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Cancel"
+        android:textSize="14sp"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:strokeColor="#666666"
+        android:textColor="#AAAAAA" />
+
+</LinearLayout>
