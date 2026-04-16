@@ -279,7 +279,7 @@ class KioskActivity : AppCompatActivity() {
     private fun launchGatewayInBackground() {
         if (!isGatewayInstalled()) return
         val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(launchIntent)
         // Bring kiosk back to foreground after gateway launches
         Handler(Looper.getMainLooper()).postDelayed({
