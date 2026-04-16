@@ -374,6 +374,11 @@
             "download_hint": "Android app that bridges your BLE scale and EverShelf.",
             "download_sub": "Source: evershelf-scale-gateway/ in the project root"
         },
+        "kiosk": {
+            "hint": "Turn an Android tablet into an always-on EverShelf panel with built-in BLE scale gateway.",
+            "download_btn": "📥 Download EverShelf Kiosk (APK)",
+            "download_sub": "Full-screen kiosk mode + integrated scale gateway. Source: evershelf-kiosk/"
+        },
         "saved": "✅ Configuration saved!",
         "saved_local": "✅ Configuration saved locally",
         "saved_local_error": "⚠️ Saved locally, server error: {error}"

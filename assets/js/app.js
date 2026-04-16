@@ -1604,6 +1604,11 @@ async function loadSettingsUI() {
     if (scaleEnabledUiEl) scaleEnabledUiEl.checked = !!s.scale_enabled;
     const scaleUrlUiEl = document.getElementById('setting-scale-url');
     if (scaleUrlUiEl) scaleUrlUiEl.value = s.scale_gateway_url || '';
+    // Hide kiosk download banner if running inside Android WebView (kiosk mode)
+    const kioskBanner = document.getElementById('kiosk-download-banner');
+    if (kioskBanner && /; wv\)/.test(navigator.userAgent)) {
+        kioskBanner.style.display = 'none';
+    }
 }
 
 function renderAppliances(appliances) {

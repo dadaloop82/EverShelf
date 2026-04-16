@@ -374,6 +374,11 @@
             "download_hint": "App Android che fa da ponte tra la bilancia BLE e questo sito.",
             "download_sub": "Sorgente: evershelf-scale-gateway/ nella root del progetto"
         },
+        "kiosk": {
+            "hint": "Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.",
+            "download_btn": "📥 Scarica EverShelf Kiosk (APK)",
+            "download_sub": "Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: evershelf-kiosk/"
+        },
         "saved": "✅ Configurazione salvata!",
         "saved_local": "✅ Configurazione salvata localmente",
         "saved_local_error": "⚠️ Salvato localmente, errore server: {error}"

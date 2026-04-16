@@ -374,6 +374,11 @@
             "download_hint": "Android-App als Brücke zwischen BLE-Waage und EverShelf.",
             "download_sub": "Quellcode: evershelf-scale-gateway/ im Projektstamm"
         },
+        "kiosk": {
+            "hint": "Verwandeln Sie ein Android-Tablet in ein EverShelf-Panel mit integriertem BLE-Waagen-Gateway.",
+            "download_btn": "📥 EverShelf Kiosk herunterladen (APK)",
+            "download_sub": "Vollbild-Kioskmodus + integriertes Waagen-Gateway. Quellcode: evershelf-kiosk/"
+        },
         "saved": "✅ Konfiguration gespeichert!",
         "saved_local": "✅ Konfiguration lokal gespeichert",
         "saved_local_error": "⚠️ Lokal gespeichert, Serverfehler: {error}"

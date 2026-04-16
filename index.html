@@ -1054,6 +1054,20 @@
                 </div>
             </div>
         </div>
+
+        <!-- Kiosk app download banner (hidden inside kiosk WebView) -->
+        <div id="kiosk-download-banner" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.12));border:1.5px solid rgba(16,185,129,0.25);border-radius:12px;padding:16px;margin-top:16px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <span style="font-size:1.6rem">📺</span>
+                <div>
+                    <p style="margin:0;font-weight:700;font-size:0.95rem;color:#065f46">EverShelf Kiosk</p>
+                    <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.hint">Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.</p>
+                </div>
+            </div>
+            <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_btn">📥 Scarica EverShelf Kiosk (APK)</a>
+            <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: <code>evershelf-kiosk/</code></p>
+        </div>
+
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
         <div id="settings-status" class="settings-status" style="display:none"></div>
     </section>
