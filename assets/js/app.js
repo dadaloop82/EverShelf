@@ -2232,7 +2232,7 @@ function renderBannerItem() {
         const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
         banner.className = 'alert-banner';
         iconEl.textContent = '⚠️';
-        titleEl.textContent = `${t('dashboard.banner_review_title')}: ${item.name}`;
+        titleEl.textContent = `${t('dashboard.banner_review_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
         detailEl.textContent = `${item.warning} · ${qtyDisplay}`;
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
@@ -2245,7 +2245,7 @@ function renderBannerItem() {
         const pred = entry.data;
         banner.className = 'alert-banner banner-prediction';
         iconEl.textContent = '📊';
-        titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}`;
+        titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
         const expTxt = t('prediction.expected_qty').replace('{expected}', pred.expected_qty).replace('{unit}', pred.unit);
         const actTxt = t('prediction.actual_qty').replace('{actual}', pred.actual_qty).replace('{unit}', pred.unit);
         detailEl.innerHTML = `${expTxt} · ${actTxt}<br><small>${t('prediction.check_suggestion')}</small>`;
