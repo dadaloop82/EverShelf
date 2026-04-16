@@ -281,6 +281,15 @@
             <div class="form-group">
                 <label>Quanto hai usato?</label>
                 <button type="button" id="btn-scale-use" class="btn btn-secondary scale-read-btn" style="display:none" onclick="readScaleWeight('use-quantity', function(){ return _useNormalUnit || 'g'; })" data-i18n="scale.read_btn">⚖️ Leggi dalla bilancia</button>
+                <!-- Live scale weight box (visible when scale connected and unit is g/ml) -->
+                <div id="scale-live-box" class="scale-live-box" style="display:none">
+                    <span class="scale-live-icon">⚖️</span>
+                    <div class="scale-live-content">
+                        <div id="scale-live-val" class="scale-live-val">&#8212; &#8212;</div>
+                        <div class="scale-live-progress"><div id="scale-live-progress-bar" class="scale-live-progress-bar"></div></div>
+                        <div id="scale-live-label" class="scale-live-label"></div>
+                    </div>
+                </div>
                 <div class="use-unit-switch" id="use-unit-switch" style="display:none">
                     <button type="button" class="use-unit-btn active" id="use-unit-sub" onclick="switchUseUnit('sub')"></button>
                     <button type="button" class="use-unit-btn" id="use-unit-conf" onclick="switchUseUnit('conf')">Confezioni</button>
@@ -294,11 +303,10 @@
                         <div class="qty-control">
                             <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
                             <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input"
-                                   oninput="_scaleAutoFillPaused=true; var h=document.getElementById('scale-autofill-hint'); if(h) h.style.display='none';">
+                                   oninput="_scaleUserDismissed=true; _cancelScaleTimersOnly();">
                             <button type="button" class="qty-btn" id="use-qty-plus" onclick="adjustUseQty(1)">+</button>
                         </div>
-                        <small id="scale-autofill-hint" style="display:none; color: var(--color-accent, #7c3aed); margin-top:4px; display:none">⚖️ Lettura live dalla bilancia</small>
-                        <button type="submit" class="btn btn-large btn-warning full-width mt-2">📤 Usa questa quantità</button>
+                        <button type="submit" id="btn-use-submit" class="btn btn-large btn-warning full-width mt-2 move-countdown-btn">📤 Usa questa quantità</button>
                     </div>
                 </div>
             </div>

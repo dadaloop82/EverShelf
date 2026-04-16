@@ -833,6 +833,72 @@ body {
     transition: none;
 }
 
+/* ===== SCALE LIVE BOX ===== */
+.scale-live-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+.scale-live-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+.scale-live-content {
+    flex: 1;
+    min-width: 0;
+}
+.scale-live-val {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+}
+.scale-live-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.scale-live-progress {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+.scale-live-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent, #7c3aed);
+    border-radius: 2px;
+    transition: none;
+}
+.scale-live-box.scale-low-weight {
+    border-color: #dc2626;
+    background: #fef2f2;
+    animation: scaleLowWeightBlink 0.8s ease-in-out infinite alternate;
+}
+@media (prefers-color-scheme: dark) {
+    .scale-live-box.scale-low-weight {
+        background: #3b0000;
+    }
+}
+.scale-low-weight .scale-live-val {
+    color: #dc2626 !important;
+}
+.scale-low-weight .scale-live-label {
+    color: #dc2626 !important;
+    font-weight: 600;
+}
+@keyframes scaleLowWeightBlink {
+    from { border-color: #dc2626; box-shadow: none; }
+    to   { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.25); }
+}
+
 .btn-accent {
     background: var(--accent);
     color: white;

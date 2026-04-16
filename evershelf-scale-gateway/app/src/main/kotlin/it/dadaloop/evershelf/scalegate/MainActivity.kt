@@ -41,6 +41,8 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private var debugVisible = false
     private var lastDebugUpdate = 0L
     private val debugTimeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
+    /** True while the app is trying to re-establish a lost connection automatically. */
+    private var isAutoReconnecting = false
     private companion object {
         const val MAX_DEBUG_LINES = 150
         const val DEBUG_THROTTLE_MS = 200L
@@ -174,6 +176,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         binding.tvScanHint.text = "Scanning for BLE scales\u2026"
         binding.btnScan.isEnabled = false
         bleManager.enableAutoConnect()
+        isAutoReconnecting = false   // manual scan — stop any pending auto-reconnect cycle
         bleManager.startScan()
     }
 
@@ -230,6 +233,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     }
 
     override fun onConnected(deviceName: String) {
+        isAutoReconnecting = false
         binding.tvScaleStatus.text = "\u2705 Connected: $deviceName"
         binding.tvWeight.text = "Waiting for weight\u2026"
         binding.cardConnection.setCardBackgroundColor(getColor(android.R.color.holo_green_light))
@@ -247,10 +251,11 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         // This handles the scale turning off by itself (auto-off) — when it powers
         // back on it will start advertising again and we will pick it up.
         if (bleManager.getSavedDeviceAddress() != null && bleManager.hasRequiredPermissions()) {
+            isAutoReconnecting = true
             binding.tvScanHint.visibility = View.VISIBLE
-            binding.tvScanHint.text = "🔄 Reconnecting to saved scale in 5 s…"
+            binding.tvScanHint.text = "\uD83D\uDD04 Reconnecting to saved scale in 5 s\u2026"
             binding.root.postDelayed({
-                if (!bleManager.isConnected) {
+                if (!bleManager.isConnected && isAutoReconnecting) {
                     bleManager.enableAutoConnect()
                     bleManager.startScan()
                 }
@@ -286,7 +291,18 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
     override fun onScanStopped() {
         binding.btnScan.isEnabled = true
-        if (devices.isEmpty()) {
+        if (isAutoReconnecting && !bleManager.isConnected && bleManager.getSavedDeviceAddress() != null) {
+            // Scale not found yet — retry scan after 10 s indefinitely until reconnected
+            binding.tvScanHint.visibility = View.VISIBLE
+            binding.tvScanHint.text = "\uD83D\uDD04 Bilancia non trovata, riprovo tra 10 s\u2026"
+            binding.root.postDelayed({
+                if (!bleManager.isConnected && isAutoReconnecting) {
+                    binding.tvScanHint.text = "\uD83D\uDD04 Cerco la bilancia\u2026"
+                    bleManager.enableAutoConnect()
+                    bleManager.startScan()
+                }
+            }, 10_000L)
+        } else if (devices.isEmpty()) {
             binding.tvScanHint.text = "No scale found. Make sure it's on, then scan again."
         } else {
             binding.tvScanHint.text = "Tap a scale to connect."

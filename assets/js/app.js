@@ -68,7 +68,13 @@ let _scaleBattery = null;
 let _scaleReconnectTimer = null;
 let _scaleWeightCallback = null; // pending on-demand weight request callback
 let _scaleLatestWeight = null;   // last received weight message
-let _scaleAutoFillPaused = false; // true when user manually edited use-quantity (stops live auto-fill)
+let _scaleAutoConfirmTimer = null; // countdown timer for auto-confirm after stable weight
+let _scaleAutoConfirmRAF   = null; // rAF handle for auto-confirm progress bar animation
+let _scaleStabilityTimer   = null; // setTimeout: wait 5 s stable before starting confirm bar
+let _scaleStabilityRAF     = null; // rAF handle for stability progress bar in the live box
+let _scaleStabilityVal     = null; // value we are currently timing for stability
+let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger for same value
+let _scaleRecipeAutoFillPaused = false; // pause flag for recipe-use modal only
 
 function scaleInit() {
     const s = getSettings();
@@ -111,18 +117,29 @@ function _scaleOnMessage(msg) {
         _scaleUpdateStatus(_scaleConnected ? 'connected' : 'searching');
     } else if (msg.type === 'weight') {
         _scaleLatestWeight = msg;
-        // Update live reading overlay if visible
+        // Update live reading modal overlay if visible (scale-read modal)
         const live = document.getElementById('scale-reading-live');
         if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        // Always update the persistent live box on the use page (every message, stable or not)
+        _scaleUpdateLiveBox(msg);
+        // If weight is NOT stable: stop any running timer/bar but keep the sentinel value.
+        // The sentinel is reset only when a genuinely different stable value arrives.
+        if (!msg.stable) {
+            _cancelScaleTimersOnly();
+        }
         // Fulfil pending callback on stable reading
         if (msg.stable && _scaleWeightCallback) {
             const cb = _scaleWeightCallback;
             _scaleWeightCallback = null;
             cb(msg);
         }
-        // Live auto-fill use-quantity when on use page
-        if (msg.stable && _currentPageId === 'use' && !_scaleAutoFillPaused) {
+        // Drive stability logic on use page
+        if (msg.stable && _currentPageId === 'use') {
             _scaleAutoFillUse(msg);
+        }
+        // Same for recipe-use modal
+        if (msg.stable && document.getElementById('ruse-quantity') && !_scaleRecipeAutoFillPaused) {
+            _scaleAutoFillRecipeUse(msg);
         }
     }
 }
@@ -161,43 +178,84 @@ function _scaleDensityForProduct(product) {
 }
 
 /**
- * Auto-fill the use-quantity input with a stable scale reading (no modal needed).
- * Works for normal mode (g/ml) and conf sub-unit mode (e.g. latte = conf × 1000ml).
- * Skips pz, conf-unit mode, and all non-weight units.
+ * Update the persistent live-weight box on the use page (called on every weight message).
+ * Shows raw scale reading in real time regardless of stability or unit compatibility.
+ */
+function _scaleUpdateLiveBox(msg) {
+    const box    = document.getElementById('scale-live-box');
+    if (!box) return;
+    const s = getSettings();
+    const active = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
+                   _currentPageId === 'use';
+    box.style.display = active ? '' : 'none';
+    if (!active) return;
+
+    const raw     = parseFloat(msg.value);
+    const rawUnit = (msg.unit || 'kg').toLowerCase();
+    // Convert to grams for the < 10 g threshold check
+    let gForCheck = isFinite(raw) ? raw : 0;
+    if (rawUnit === 'kg')  gForCheck = raw * 1000;
+    if (rawUnit === 'lbs' || rawUnit === 'lb') gForCheck = raw * 453.592;
+
+    const valEl   = document.getElementById('scale-live-val');
+    const lblEl   = document.getElementById('scale-live-label');
+
+    if (isFinite(raw) && gForCheck < 10 && gForCheck > 0) {
+        // Weight too low — show red flashing warning
+        box.classList.add('scale-low-weight');
+        if (valEl) valEl.textContent = `${raw} ${msg.unit || 'kg'}`;
+        if (lblEl) lblEl.textContent = '< 10 g · inserisci manualmente';
+    } else {
+        box.classList.remove('scale-low-weight');
+        const stIcon = msg.stable ? ' ✓' : ' …';
+        if (valEl) valEl.textContent = `${isFinite(raw) ? raw : '—'} ${msg.unit || 'kg'}${stIcon}`;
+        if (lblEl) lblEl.textContent = '';
+    }
+}
+
+/**
+ * Auto-fill: called on every STABLE weight message while on the use page.
+ * - Updates the live box (conversion hint)
+ * - After 5 s of stable unchanged value: fills the input and starts the confirm progress bar
+ * - If value changes: resets the 5-s stability wait
+ * - If user dismissed (touch/edit): does nothing for the same value; resets on value change
  */
 function _scaleAutoFillUse(msg) {
     if (!msg) return;
 
-    // Determine the effective target unit:
-    // - conf/sub mode → use the package sub-unit (e.g. ml for milk, g for pasta)
-    // - normal mode   → _useNormalUnit
+    // Determine target unit
     let unit;
     if (_useConfMode && _useConfMode._activeUnit === 'sub') {
         unit = (_useConfMode.packageUnit || '').toLowerCase();
     } else {
         unit = _useNormalUnit;
     }
-    if (unit !== 'g' && unit !== 'ml') return; // never touch pz/conf-unit/etc
+    if (unit !== 'g' && unit !== 'ml') return; // pz / conf-unit: ignore
 
     const rawVal = parseFloat(msg.value);
     if (!isFinite(rawVal) || rawVal <= 0) return;
     const srcUnit = (msg.unit || '').toLowerCase();
 
-    // Step 1 — normalise to grams (or handle ml-from-scale directly)
+    // Normalise to grams
     let grams;
     let scaleAlreadyMl = false;
     if      (srcUnit === 'g')                       grams = rawVal;
     else if (srcUnit === 'kg')                      grams = rawVal * 1000;
     else if (srcUnit === 'lbs' || srcUnit === 'lb') grams = rawVal * 453.592;
     else if (srcUnit === 'oz')                      grams = rawVal * 28.3495;
-    else if (srcUnit === 'ml')  { grams = rawVal; scaleAlreadyMl = true; } // scale in liquid mode
+    else if (srcUnit === 'ml')  { grams = rawVal; scaleAlreadyMl = true; }
     else                                            grams = rawVal;
 
-    // Step 2 — convert to target unit
+    // Reject if raw grams < 10 (piatto vuoto / tara / rumore)
+    if (grams < 10) {
+        _cancelScaleStabilityWait(); // stop bar only; keep sentinel & userDismissed
+        return;
+    }
+
+    // Convert to target unit
     let val;
     let hintExtra = '';
     if (unit === 'g') {
-        // If scale reported ml, convert via density to get grams
         if (scaleAlreadyMl) {
             const density = _scaleDensityForProduct(currentProduct);
             val = Math.round(grams * density);
@@ -205,9 +263,8 @@ function _scaleAutoFillUse(msg) {
         } else {
             val = Math.round(grams);
         }
-    } else { // ml
+    } else {
         if (scaleAlreadyMl) {
-            // Scale already in ml — use directly without density conversion
             val = Math.round(grams);
         } else {
             const density = _scaleDensityForProduct(currentProduct);
@@ -216,17 +273,224 @@ function _scaleAutoFillUse(msg) {
         }
     }
 
-    const inp = document.getElementById('use-quantity');
-    if (inp) {
-        inp.value = val;
-        const hint = document.getElementById('scale-autofill-hint');
-        if (hint) {
-            hint.textContent = `⚖️ Lettura live dalla bilancia${hintExtra}`;
-            hint.style.display = '';
+    // Reject if converted value < 10 (density edge case)
+    if (val < 10) {
+        _cancelScaleStabilityWait();
+        return;
+    }
+
+    if (val !== _scaleStabilityVal) {
+        // New (different) weight → clear dismissal, restart stability wait
+        _scaleStabilityVal = val;
+        _scaleUserDismissed = false;
+        _cancelScaleTimersOnly();
+        _startScaleStabilityWait(() => {
+            // Fill the input after 5 s of stable weight
+            const inp = document.getElementById('use-quantity');
+            if (inp) inp.value = val;
+            // Start the 5-s confirm progress bar
+            _startScaleAutoConfirm(() => {
+                const form = document.querySelector('#page-use form');
+                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }, 'btn-use-submit');
+        });
+    } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
+        // Same value, not dismissed, no timer running (e.g. after brief !stable interruption)
+        // → restart stability wait so it eventually completes
+        _cancelScaleTimersOnly();
+        _startScaleStabilityWait(() => {
+            const inp = document.getElementById('use-quantity');
+            if (inp) inp.value = val;
+            _startScaleAutoConfirm(() => {
+                const form = document.querySelector('#page-use form');
+                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }, 'btn-use-submit');
+        });
+    }
+    // Same value + dismissed → do nothing (user explicitly dismissed this value)
+    // Same value + timer running → do nothing (already counting down)
+}
+
+/**
+ * Auto-fill ruse-quantity input from a stable scale reading (recipe-use modal).
+ */
+function _scaleAutoFillRecipeUse(msg) {
+    if (!msg) return;
+    let unit;
+    if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'sub') {
+        unit = (_recipeUseConfMode.packageUnit || '').toLowerCase();
+    } else {
+        unit = _recipeUseNormalUnit;
+    }
+    if (unit !== 'g' && unit !== 'ml') return;
+
+    const rawVal = parseFloat(msg.value);
+    if (!isFinite(rawVal) || rawVal <= 0) return;
+    const srcUnit = (msg.unit || '').toLowerCase();
+
+    let grams;
+    let scaleAlreadyMl = false;
+    if      (srcUnit === 'g')                       grams = rawVal;
+    else if (srcUnit === 'kg')                      grams = rawVal * 1000;
+    else if (srcUnit === 'lbs' || srcUnit === 'lb') grams = rawVal * 453.592;
+    else if (srcUnit === 'oz')                      grams = rawVal * 28.3495;
+    else if (srcUnit === 'ml')  { grams = rawVal; scaleAlreadyMl = true; }
+    else                                            grams = rawVal;
+
+    let val;
+    let hintExtra = '';
+    if (unit === 'g') {
+        if (scaleAlreadyMl) {
+            const density = _scaleDensityForProduct(currentProduct);
+            val = Math.round(grams * density);
+            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+        } else {
+            val = Math.round(grams);
         }
+    } else {
+        if (scaleAlreadyMl) {
+            val = Math.round(grams);
+        } else {
+            const density = _scaleDensityForProduct(currentProduct);
+            val = Math.round(grams / density);
+            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+        }
+    }
+
+    // Update live hint in modal with the raw scale reading always
+    const hint = document.getElementById('ruse-scale-hint');
+    if (hint) {
+        hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        hint.style.display = '';
+    }
+
+    if (val < 10) {
+        _cancelScaleStabilityWait(); // stop bar only; keep sentinel
+        return;
+    }
+
+    if (val !== _scaleStabilityVal) {
+        _scaleStabilityVal = val;
+        _scaleUserDismissed = false;
+        _cancelScaleTimersOnly();
+        _startScaleStabilityWait(() => {
+            const inp = document.getElementById('ruse-quantity');
+            if (inp) inp.value = val;
+            if (hint) {
+                hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
+                hint.style.display = '';
+            }
+            _startScaleAutoConfirm(() => { submitRecipeUse(false); }, 'btn-ruse-submit');
+        });
+    } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
+        _cancelScaleTimersOnly();
+        _startScaleStabilityWait(() => {
+            const inp = document.getElementById('ruse-quantity');
+            if (inp) inp.value = val;
+            _startScaleAutoConfirm(() => { submitRecipeUse(false); }, 'btn-ruse-submit');
+        });
     }
 }
 
+/** Cancel auto-confirm countdown on any screen press (touch = dismiss). */
+function _cancelScaleAutoConfirmOnTouch() {
+    _cancelScaleAutoConfirm(true);
+}
+
+/**
+ * Cancel timers, animations and button styles — does NOT touch _scaleStabilityVal
+ * or _scaleUserDismissed. Use this when weight goes unstable so the sentinel
+ * is preserved and the same value can resume counting when stability returns.
+ */
+function _cancelScaleTimersOnly() {
+    if (_scaleAutoConfirmTimer) { clearTimeout(_scaleAutoConfirmTimer); _scaleAutoConfirmTimer = null; }
+    if (_scaleAutoConfirmRAF)   { cancelAnimationFrame(_scaleAutoConfirmRAF); _scaleAutoConfirmRAF = null; }
+    _cancelScaleStabilityWait();
+    const useBtn  = document.getElementById('btn-use-submit');
+    const ruseBtn = document.getElementById('btn-ruse-submit');
+    if (useBtn)  useBtn.style.background = '';
+    if (ruseBtn) ruseBtn.style.background = '';
+    document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
+}
+
+/**
+ * Full cancel: stops timers AND updates state flags.
+ * @param {boolean} fromTouch  true = user tapped → set userDismissed
+ *                             false = programmatic (page nav, closeModal, oninput) → reset sentinel
+ */
+function _cancelScaleAutoConfirm(fromTouch) {
+    _cancelScaleTimersOnly();
+    if (fromTouch) {
+        _scaleUserDismissed = true;
+    } else {
+        _scaleStabilityVal = null;
+    }
+}
+
+/** Stop the stability wait and reset its progress bar. */
+function _cancelScaleStabilityWait() {
+    if (_scaleStabilityTimer) { clearTimeout(_scaleStabilityTimer); _scaleStabilityTimer = null; }
+    if (_scaleStabilityRAF)   { cancelAnimationFrame(_scaleStabilityRAF); _scaleStabilityRAF = null; }
+    const bar = document.getElementById('scale-live-progress-bar');
+    if (bar) bar.style.width = '0%';
+}
+
+/**
+ * Start a 5-second stability wait with an animated progress bar in the live box.
+ * Calls onStable() when weight unchanged for 5 s.
+ */
+function _startScaleStabilityWait(onStable) {
+    _cancelScaleStabilityWait();
+    const duration = 5000;
+    const start = performance.now();
+    const bar = document.getElementById('scale-live-progress-bar');
+
+    function tick() {
+        const pct = Math.min(100, ((performance.now() - start) / duration) * 100);
+        if (bar) bar.style.width = pct + '%';
+        if (pct < 100) { _scaleStabilityRAF = requestAnimationFrame(tick); }
+    }
+    _scaleStabilityRAF = requestAnimationFrame(tick);
+
+    _scaleStabilityTimer = setTimeout(() => {
+        _scaleStabilityTimer = null;
+        if (_scaleStabilityRAF) { cancelAnimationFrame(_scaleStabilityRAF); _scaleStabilityRAF = null; }
+        if (bar) bar.style.width = '0%';
+        onStable();
+    }, duration);
+}
+function _startScaleAutoConfirm(onConfirm, btnId) {
+    if (_scaleAutoConfirmTimer) { clearTimeout(_scaleAutoConfirmTimer); _scaleAutoConfirmTimer = null; }
+    if (_scaleAutoConfirmRAF)   { cancelAnimationFrame(_scaleAutoConfirmRAF); _scaleAutoConfirmRAF = null; }
+    const btn = btnId ? document.getElementById(btnId) : null;
+    const baseBg = btn ? getComputedStyle(btn).backgroundColor : '';
+    const duration = 5000;
+    const start = performance.now();
+
+    function tick() {
+        const elapsed = performance.now() - start;
+        const pct = Math.min(100, (elapsed / duration) * 100);
+        if (btn) {
+            btn.style.background =
+                `linear-gradient(to right, rgba(255,255,255,0.35) ${pct}%, rgba(255,255,255,0) ${pct}%), ${baseBg}`;
+        }
+        if (elapsed < duration) { _scaleAutoConfirmRAF = requestAnimationFrame(tick); }
+    }
+    _scaleAutoConfirmRAF = requestAnimationFrame(tick);
+
+    _scaleAutoConfirmTimer = setTimeout(() => {
+        _scaleAutoConfirmTimer = null;
+        if (btn) btn.style.background = '';
+        document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
+        onConfirm();
+    }, duration);
+
+    document.addEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
+}
+
+/**
+ * Update the scale status indicator icon/class.
+ */
 function _scaleUpdateStatus(state) {
     const el = document.getElementById('scale-status-indicator');
     if (!el) return;
@@ -302,6 +566,13 @@ function updateScaleReadButtons() {
     const btnUse = document.getElementById('btn-scale-use');
     if (btnUse) {
         btnUse.style.display = (ready && (_useNormalUnit === 'g' || _useNormalUnit === 'ml')) ? '' : 'none';
+    }
+    // Live box: visible when scale enabled + connected + on use page + compatible unit
+    const liveBox = document.getElementById('scale-live-box');
+    if (liveBox) {
+        const isWeightUnit = (_useNormalUnit === 'g' || _useNormalUnit === 'ml') ||
+                             (_useConfMode && (_useConfMode.packageUnit === 'g' || _useConfMode.packageUnit === 'ml'));
+        liveBox.style.display = (ready && _scaleConnected && _currentPageId === 'use' && isWeightUnit) ? '' : 'none';
     }
 }
 
@@ -2194,6 +2465,9 @@ function showItemDetail(inventoryId, productId) {
 
 function closeModal() {
     document.getElementById('modal-overlay').style.display = 'none';
+    _cancelScaleAutoConfirm(false);
+    _scaleRecipeAutoFillPaused = false;
+    _scaleUserDismissed = false;
 }
 
 async function quickUse(productId, location) {
@@ -4452,7 +4726,9 @@ async function submitAdd(e) {
 function showUseForm() {
     renderUsePreview();
     _useConfMode = null; // reset
-    _scaleAutoFillPaused = false; // reset so scale can auto-fill again
+    _scaleUserDismissed = false;
+    _scaleStabilityVal  = null;
+    _cancelScaleAutoConfirm(false);
     document.getElementById('use-quantity').value = 1;
     document.getElementById('use-location').value = 'dispensa';
     document.getElementById('use-unit-switch').style.display = 'none';
@@ -4603,15 +4879,15 @@ async function loadUseInventoryInfo() {
             
             // Default to sub-unit mode
             switchUseUnit('sub');
-            // Pre-fill with latest scale reading if available
-            if (_scaleLatestWeight && !_scaleAutoFillPaused) _scaleAutoFillUse(_scaleLatestWeight);
+            // Trigger a live-box refresh with the latest reading if on scale
+            if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
         } else {
             // --- NORMAL MODE ---
             _useConfMode = null;
             _useNormalUnit = unit;
             unitSwitch.style.display = 'none';
-            // Pre-fill with latest scale reading if available
-            if (_scaleLatestWeight && !_scaleAutoFillPaused) _scaleAutoFillUse(_scaleLatestWeight);
+            // Trigger a live-box refresh with the latest reading if on scale
+            if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
             
             infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
@@ -4683,6 +4959,8 @@ function getSubUnitStep(pkgUnit) {
 }
 
 function adjustUseQty(direction) {
+    _scaleUserDismissed = true;
+    _cancelScaleTimersOnly();
     const input = document.getElementById('use-quantity');
     let val = parseFloat(input.value) || 0;
     let step;
@@ -7517,7 +7795,8 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                 <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità in ${subLabel} (totale: ${Math.round(totalSub)}${subLabel})</p>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
-                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input">
+                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input"
+                           oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                 </div>`;
         } else {
@@ -7529,7 +7808,8 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                 <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità da usare (${unitLabel}):</p>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
-                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input">
+                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input"
+                           oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                 </div>`;
         }
@@ -7556,8 +7836,9 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                 <div class="form-group">
                     <label>Quanto?</label>
                     ${qtySection}
+                    <small id="ruse-scale-hint" style="display:none; color: var(--color-accent, #7c3aed); margin-top:4px"></small>
                 </div>
-                <button type="button" class="btn btn-large btn-danger full-width" onclick="submitRecipeUse(false)" style="margin-top:8px">
+                <button type="button" id="btn-ruse-submit" class="btn btn-large btn-danger full-width move-countdown-btn" onclick="submitRecipeUse(false)" style="margin-top:8px">
                     📤 Usa questa quantità
                 </button>
                 <button type="button" class="btn btn-large btn-secondary full-width" style="margin-top:8px" onclick="submitRecipeUse(true)">
