@@ -75,6 +75,7 @@ let _scaleStabilityRAF     = null; // rAF handle for stability progress bar in t
 let _scaleStabilityVal     = null; // value we are currently timing for stability
 let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger for same value
 let _scaleRecipeAutoFillPaused = false; // pause flag for recipe-use modal only
+let _scaleLastConfirmedGrams = null; // grams of last auto-confirmed weight (to detect product change)
 
 function scaleInit() {
     const s = getSettings();
@@ -212,7 +213,21 @@ function _scaleUpdateLiveBox(msg) {
         box.classList.remove('scale-low-weight');
         const stIcon = msg.stable ? ' ✓' : ' …';
         if (valEl) valEl.textContent = `${isFinite(raw) ? raw : '—'} ${msg.unit || 'kg'}${stIcon}`;
-        if (lblEl) lblEl.textContent = '';
+        // Show conversion hint when product unit is ml
+        let targetUnit = null;
+        if (_useConfMode && _useConfMode._activeUnit === 'sub') {
+            targetUnit = (_useConfMode.packageUnit || '').toLowerCase();
+        } else {
+            targetUnit = _useNormalUnit;
+        }
+        if (lblEl) {
+            if (targetUnit === 'ml' && rawUnit !== 'ml') {
+                lblEl.textContent = '⚖️ Peso in grammi → verrà convertito in ml';
+                lblEl.style.display = '';
+            } else {
+                lblEl.textContent = '';
+            }
+        }
     }
 }
 
@@ -255,6 +270,11 @@ function _scaleAutoFillUse(msg) {
         return;
     }
 
+    // Reject if weight hasn't changed enough from last confirmed reading (same product still on scale)
+    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 10) {
+        return;
+    }
+
     // Convert to target unit
     let val;
     let hintExtra = '';
@@ -293,6 +313,7 @@ function _scaleAutoFillUse(msg) {
             if (inp) inp.value = val;
             // Start the 5-s confirm progress bar
             _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
                 const form = document.querySelector('#page-use form');
                 if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
             }, 'btn-use-submit');
@@ -305,6 +326,7 @@ function _scaleAutoFillUse(msg) {
             const inp = document.getElementById('use-quantity');
             if (inp) inp.value = val;
             _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
                 const form = document.querySelector('#page-use form');
                 if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
             }, 'btn-use-submit');
@@ -364,11 +386,19 @@ function _scaleAutoFillRecipeUse(msg) {
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
         hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        if (unit === 'ml' && srcUnit !== 'ml') {
+            hint.textContent += ' (verrà convertito in ml)';
+        }
         hint.style.display = '';
     }
 
     if (val < 10) {
         _cancelScaleStabilityWait(); // stop bar only; keep sentinel
+        return;
+    }
+
+    // Reject if weight hasn't changed enough from last confirmed reading
+    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 10) {
         return;
     }
 
@@ -383,14 +413,14 @@ function _scaleAutoFillRecipeUse(msg) {
                 hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
                 hint.style.display = '';
             }
-            _startScaleAutoConfirm(() => { submitRecipeUse(false); }, 'btn-ruse-submit');
+            _startScaleAutoConfirm(() => { _scaleLastConfirmedGrams = grams; submitRecipeUse(false); }, 'btn-ruse-submit');
         });
     } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
         _cancelScaleTimersOnly();
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
-            _startScaleAutoConfirm(() => { submitRecipeUse(false); }, 'btn-ruse-submit');
+            _startScaleAutoConfirm(() => { _scaleLastConfirmedGrams = grams; submitRecipeUse(false); }, 'btn-ruse-submit');
         });
     }
 }
@@ -427,6 +457,7 @@ function _cancelScaleAutoConfirm(fromTouch) {
         _scaleUserDismissed = true;
     } else {
         _scaleStabilityVal = null;
+        _scaleLastConfirmedGrams = null;
     }
 }
 
@@ -5653,12 +5684,50 @@ async function analyzeWithAI() {
         const id = result.identified;
         const matches = result.off_matches || [];
 
+        // Search local DB for existing products that match the AI identification
+        let localMatches = [];
+        try {
+            const nameWords = (id.name || '').split(/\s+/).filter(w => w.length > 2);
+            const searches = [api('products_search', { q: id.name })];
+            if (id.brand) searches.push(api('products_search', { q: id.brand }));
+            const results = await Promise.all(searches);
+            const seen = new Set();
+            results.forEach(r => {
+                (r.products || []).forEach(p => {
+                    if (!seen.has(p.id)) {
+                        seen.add(p.id);
+                        localMatches.push(p);
+                    }
+                });
+            });
+        } catch(e) { /* ignore search errors */ }
+
         let html = `<h4>🤖 Prodotto identificato</h4>`;
         html += `<div class="ai-identified-card">`;
         html += `<strong>${escapeHtml(id.name)}</strong>`;
         if (id.brand) html += ` <span style="color:var(--text-muted)">- ${escapeHtml(id.brand)}</span>`;
         if (id.description) html += `<p style="font-size:0.85rem;color:var(--text-light);margin:4px 0 0">${escapeHtml(id.description)}</p>`;
         html += `</div>`;
+
+        // Show existing local products first
+        if (localMatches.length > 0) {
+            html += `<h4 style="margin-top:16px">📋 Già in dispensa</h4>`;
+            html += `<div class="ai-matches-list">`;
+            localMatches.forEach((p, idx) => {
+                html += `<div class="ai-match-item" onclick="selectLocalMatch(${p.id})">`;
+                if (p.image_url) {
+                    html += `<img src="${escapeHtml(p.image_url)}" alt="" class="ai-match-img" onerror="this.style.display='none'">`;
+                }
+                html += `<div class="ai-match-info">`;
+                html += `<strong>${escapeHtml(p.name)}</strong>`;
+                if (p.brand) html += `<br><small>${escapeHtml(p.brand)}</small>`;
+                if (p.default_quantity && p.unit) html += `<br><small style="color:var(--text-muted)">${p.default_quantity} ${p.unit}</small>`;
+                html += `</div>`;
+                if (p.barcode) html += `<span class="ai-match-barcode">${p.barcode}</span>`;
+                html += `</div>`;
+            });
+            html += `</div>`;
+        }
 
         if (matches.length > 0) {
             html += `<h4 style="margin-top:16px">📦 Prodotti corrispondenti</h4>`;
@@ -5681,7 +5750,7 @@ async function analyzeWithAI() {
 
         // Option to save as-is without barcode
         html += `<div style="margin-top:16px; border-top: 1px solid var(--bg-light); padding-top: 12px">`;
-        html += `<button class="btn btn-secondary full-width" onclick="saveAIProductDirect()">✏️ Salva senza barcode</button>`;
+        html += `<button class="btn btn-secondary full-width" onclick="saveAIProductDirect()">🆕 Non è nessuno di questi — salva come nuovo</button>`;
         html += `</div>`;
 
         resultDiv.innerHTML = html;
@@ -5694,6 +5763,24 @@ async function analyzeWithAI() {
         console.error('AI identify error:', err);
         resultDiv.innerHTML = `<p style="color:var(--danger)">❌ Errore di connessione</p>
             <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">🔄 Riprova</button>`;
+    }
+}
+
+async function selectLocalMatch(productId) {
+    showLoading(true);
+    try {
+        const result = await api('product_get', { id: productId });
+        if (result.product) {
+            currentProduct = result.product;
+            showLoading(false);
+            showProductAction();
+        } else {
+            showLoading(false);
+            showToast('Prodotto non trovato', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
     }
 }
 
