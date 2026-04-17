@@ -516,6 +516,13 @@ class KioskActivity : AppCompatActivity() {
                     finishAffinity()
                 }
             }
+            @android.webkit.JavascriptInterface
+            fun hardReload() {
+                runOnUiThread {
+                    webView.clearCache(true)
+                    webView.reload()
+                }
+            }
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
@@ -528,25 +535,48 @@ class KioskActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    // ── Inject kiosk exit button in header ──────────────────────────────
+    // ── Inject kiosk buttons in header (left of title) ──────────────────
 
     private fun injectKioskOverlay() {
         val js = """
         (function() {
             if (document.getElementById('_kiosk_exit_btn')) return;
-            var actions = document.querySelector('.header-actions');
-            if (!actions) return;
-            var btn = document.createElement('button');
-            btn.id = '_kiosk_exit_btn';
-            btn.textContent = '✕';
-            btn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;-webkit-tap-highlight-color:transparent;flex-shrink:0;';
-            btn.addEventListener('click', function(e) {
+            var content = document.querySelector('.header-content');
+            var title = document.querySelector('.header-title');
+            if (!content || !title) return;
+
+            var wrap = document.createElement('div');
+            wrap.id = '_kiosk_controls';
+            wrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-right:8px;flex-shrink:0;';
+
+            // Exit button
+            var exitBtn = document.createElement('button');
+            exitBtn.id = '_kiosk_exit_btn';
+            exitBtn.textContent = '\u2715';
+            exitBtn.title = 'Esci dal kiosk';
+            exitBtn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.4);color:#fff;width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;';
+            exitBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                if (confirm('Uscire dalla modalità kiosk?')) {
+                if (confirm('Uscire dalla modalit\u00e0 kiosk?')) {
                     if (typeof _kioskBridge !== 'undefined') _kioskBridge.exit();
                 }
             });
-            actions.appendChild(btn);
+
+            // Refresh button
+            var refBtn = document.createElement('button');
+            refBtn.id = '_kiosk_refresh_btn';
+            refBtn.textContent = '\u21bb';
+            refBtn.title = 'Aggiorna pagina';
+            refBtn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.4);color:#fff;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;';
+            refBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (typeof _kioskBridge !== 'undefined') _kioskBridge.hardReload();
+                else location.reload(true);
+            });
+
+            wrap.appendChild(exitBtn);
+            wrap.appendChild(refBtn);
+            content.insertBefore(wrap, title);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
