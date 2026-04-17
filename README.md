@@ -16,15 +16,17 @@
 
 ### 📦 Inventory Management
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS
-- **AI identification** — Take a photo and let Google Gemini identify the product
+- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory
 - **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
 - **Opened product tracking** — Reduced shelf-life calculation when packages are opened
 - **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items
+- **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction
 
 ### 🤖 AI-Powered (Google Gemini)
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
 - **Product identification** — Point your camera at any product for instant recognition
+- **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
 - **Recipe generation** — Get personalized recipes based on what's in your pantry
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions** — AI-powered purchase recommendations
@@ -46,6 +48,7 @@
 - **Expiry alerts** — Visual warnings for expired and soon-to-expire items
 - **Safety ratings** — Smart assessment of expired product safety (by category)
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
+- **Anomaly banner** — Scrollable banner with suspicious quantities and consumption prediction mismatches, with one-tap correction or inline edit
 
 ### 📱 Progressive Web App
 - **Mobile-first design** — Optimized for phones, works on tablets and desktop
@@ -54,10 +57,27 @@
 
 ### ⚖️ Smart Scale Integration (Add-on)
 - **Bluetooth gateway** — Connects a BLE smart scale to EverShelf via local WebSocket
-- **Auto weight reading** — When adding/using a product with unit g/ml, tap "⚖️ Read from scale"
+- **SSE relay** — Server-side relay avoids mixed-content (HTTPS→WS) issues
+- **Auto-discovery** — Server scans LAN to find the gateway automatically
+- **Auto weight reading** — When adding/using a product with unit g/ml, weight fills automatically
+- **10g threshold** — Ignores readings that haven't changed enough between products
+- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
+- **Stability + auto-confirm** — 10s stable wait + 5s countdown before confirming
 - **Real-time status** — Scale connection indicator always visible in the header
 - **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
 - **Android gateway app** — [`evershelf-scale-gateway/`](evershelf-scale-gateway/) — open-source, downloadable APK
+
+### 📺 Android Kiosk Mode (Add-on)
+- **Dedicated tablet app** — Full-screen WebView wrapper for wall-mounted kitchen tablets
+- **True kiosk lock** — Screen pinning blocks home/recent buttons
+- **Setup wizard** — 3-step guided configuration (URL, connection test, gateway)
+- **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
+- **Camera & mic permissions** — Full hardware access for barcode scanning and voice
+- **Exit button** — Visible ✕ button with confirmation dialog
+- **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
+- **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
+- **SSL support** — Accepts self-signed certificates
+- **Android kiosk app** — [`evershelf-kiosk/`](evershelf-kiosk/) — downloadable APK
 
 ---
 
@@ -221,6 +241,10 @@ evershelf/
 evershelf-scale-gateway/    # ⚖️ Android BLE gateway (add-on)
     ├── README.md           # Setup & protocol docs
     └── app/src/            # Kotlin Android source (WebSocket + BLE)
+
+evershelf-kiosk/            # 📺 Android kiosk app (add-on)
+    ├── README.md           # Setup & feature docs
+    └── app/src/            # Kotlin Android source (WebView wrapper)
 ```
 
 ### API Endpoints
@@ -282,6 +306,11 @@ The application uses no build tools — edit files directly and refresh.
 - [x] First-run setup wizard — 4-step guided configuration
 - [x] API rate limiting — file-based, 3 tiers (120/15/5 req/min)
 - [x] CI/CD pipeline — GitHub Actions (lint, Docker build, translation validation)
+- [x] Android kiosk mode — dedicated tablet app with screen pinning
+- [x] Anomaly detection banner — suspicious quantities + consumption predictions
+- [x] AI scan local matching — suggest existing pantry products before OFF lookup
+- [x] Scale auto-fill improvements — 10g threshold, ml conversion hints
+- [x] Update notification system — kiosk checks GitHub releases
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products

@@ -7,10 +7,12 @@
 ## How it works
 
 ```
-Smart Scale ──(BLE)──► Android Gateway App ──(WebSocket/LAN)──► EverShelf (browser)
+Smart Scale ──(BLE)──► Android Gateway App ──(WebSocket/LAN)──► EverShelf Server ──(SSE)──► Browser
 ```
 
-The app runs a local WebSocket server (port **8765**) on your Android device. EverShelf connects to it over your home Wi-Fi and receives weight readings in real time.
+The app runs a local WebSocket server (port **8765**) on your Android device. The EverShelf server connects to it via a server-side relay (`api/scale_relay.php` SSE + `api/scale_ping.php` WebSocket client), avoiding mixed-content (HTTPS→WS) issues. Weight readings are streamed to the browser in real time.
+
+> **Kiosk integration:** When using the [EverShelf Kiosk](../evershelf-kiosk/) app, the gateway is launched automatically in the background — no manual setup needed.
 
 ---
 
