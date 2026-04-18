@@ -853,8 +853,8 @@ body {
     min-width: 0;
 }
 .scale-live-val {
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-size: 1.6rem;
+    font-weight: 800;
     color: var(--text);
     line-height: 1.2;
 }
@@ -2895,6 +2895,37 @@ body {
     text-underline-offset: 2px;
 }
 
+/* ── Preferred use-location (collapsed row) ── */
+.pref-loc-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+.pref-loc-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.82rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.pref-loc-full-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* ===== PRODUCT DETAILS CARD (Action Page) ===== */
 .product-details-card {
     background: var(--bg-card);
@@ -3855,6 +3886,43 @@ body {
     background: rgba(52, 120, 246, 0.06);
 }
 
+.log-entry.log-undone {
+    opacity: 0.45;
+    filter: grayscale(60%);
+    text-decoration: line-through;
+}
+
+.log-undone-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--text-muted);
+    border-radius: 4px;
+    padding: 1px 5px;
+    text-decoration: none;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.btn-log-undo {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    line-height: 1.4;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-log-undo:hover {
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+}
+
+
 .log-icon {
     font-size: 1.2rem;
     flex-shrink: 0;
@@ -4184,6 +4252,23 @@ body {
 }
 .recipe-meal-chip input[type="radio"] {
     display: none;
+}
+
+/* Sub-type grid for dolce/succo */
+.recipe-subtype-grid {
+    margin-top: 8px;
+    grid-template-columns: 1fr 1fr;
+    animation: bannerSlideIn 0.25s ease-out;
+}
+.recipe-subtype-chip {
+    font-size: 0.75rem;
+    padding: 8px 6px;
+    background: #fef9ef;
+    border-color: #f0e4cc;
+}
+.recipe-subtype-chip:has(input:checked) {
+    background: #fff3d4;
+    border-color: #e6a817;
 }
 
 /* ===== LARGER PRODUCT PREVIEW (Action page) ===== */

@@ -124,10 +124,7 @@ class KioskActivity : AppCompatActivity() {
         scaleStatusText = findViewById(R.id.scaleStatusText)
         scaleStatusDetail = findViewById(R.id.scaleStatusDetail)
 
-        // Triple-tap on wizard title to exit kiosk
-        findViewById<TextView>(R.id.wizardTitle).setOnClickListener {
-            handleTripleTap()
-        }
+        // Triple-tap on wizard title is disabled — exit only via the X button in the overlay
 
         // Step 1
         findViewById<MaterialButton>(R.id.btnGetStarted).setOnClickListener {
@@ -163,9 +160,9 @@ class KioskActivity : AppCompatActivity() {
             finishWizard()
         }
 
-        // Settings — triple-tap to exit
+        // Settings gear — short press opens settings, no kiosk exit via tap
         btnSettings.setOnClickListener {
-            handleTripleTap()
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
         btnSettings.setOnLongClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -456,7 +453,8 @@ class KioskActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Kiosk overlay removed — exit is handled via the Android settings gear button
+                // Inject X (exit) and ↻ (refresh) buttons into the page header
+                injectKioskOverlay()
                 // Check for updates periodically
                 checkForUpdates()
             }
@@ -537,23 +535,21 @@ class KioskActivity : AppCompatActivity() {
     // ── Inject kiosk buttons in header (left of title) ──────────────────
 
     private fun injectKioskOverlay() {
+        // Use a position:fixed overlay so injection never depends on SPA DOM readiness.
         val js = """
         (function() {
-            if (document.getElementById('_kiosk_exit_btn')) return;
-            var content = document.querySelector('.header-content');
-            var title = document.querySelector('.header-title');
-            if (!content || !title) return;
+            if (document.getElementById('_kiosk_overlay')) return;
 
             var wrap = document.createElement('div');
-            wrap.id = '_kiosk_controls';
-            wrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-right:8px;flex-shrink:0;';
+            wrap.id = '_kiosk_overlay';
+            wrap.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
 
             // Exit button
             var exitBtn = document.createElement('button');
             exitBtn.id = '_kiosk_exit_btn';
             exitBtn.textContent = '\u2715';
             exitBtn.title = 'Esci dal kiosk';
-            exitBtn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.4);color:#fff;width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;';
+            exitBtn.style.cssText = 'background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
             exitBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (confirm('Uscire dalla modalit\u00e0 kiosk?')) {
@@ -566,7 +562,7 @@ class KioskActivity : AppCompatActivity() {
             refBtn.id = '_kiosk_refresh_btn';
             refBtn.textContent = '\u21bb';
             refBtn.title = 'Aggiorna pagina';
-            refBtn.style.cssText = 'background:rgba(0,0,0,0.25);border:1.5px solid rgba(255,255,255,0.4);color:#fff;width:30px;height:30px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;';
+            refBtn.style.cssText = 'background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
             refBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 if (typeof _kioskBridge !== 'undefined') _kioskBridge.hardReload();
@@ -575,7 +571,7 @@ class KioskActivity : AppCompatActivity() {
 
             wrap.appendChild(exitBtn);
             wrap.appendChild(refBtn);
-            content.insertBefore(wrap, title);
+            document.documentElement.appendChild(wrap);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -644,9 +640,9 @@ class KioskActivity : AppCompatActivity() {
             var banner = document.createElement('div');
             banner.id = '_kiosk_update_banner';
             banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;padding:10px 16px;font-size:13px;z-index:999998;display:flex;align-items:center;justify-content:space-between;border-top:2px solid #fbbf24;';
-            banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
+            banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")} — Per installare: disinstalla prima la versione attuale, poi installa la nuova.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
             document.body.appendChild(banner);
-            setTimeout(function(){ var b = document.getElementById('_kiosk_update_banner'); if(b) b.remove(); }, 3000);
+            setTimeout(function(){ var b = document.getElementById('_kiosk_update_banner'); if(b) b.remove(); }, 12000);
         })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
