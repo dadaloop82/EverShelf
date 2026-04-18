@@ -9,7 +9,7 @@
         "inventory": "Vorrat",
         "recipes": "Rezepte",
         "shopping": "Einkauf",
-        "log": "Log"
+        "log": "Verlauf"
     },
     "btn": {
         "back": "← Zurück",
@@ -236,7 +236,7 @@
         "fields_filled": "✅ Felder von KI ausgefüllt"
     },
     "log": {
-        "title": "📒 Operationslog"
+        "title": "� Verlauf"
     },
     "chat": {
         "title": "Gemini Chef",

@@ -116,6 +116,9 @@ function _scaleOnMessage(msg) {
         _scaleDevice = msg.device || null;
         _scaleBattery = msg.battery ?? null;
         _scaleUpdateStatus(_scaleConnected ? 'connected' : 'searching');
+        // Refresh all scale UI elements immediately so buttons/live-box appear
+        // without requiring a manual page refresh
+        updateScaleReadButtons();
     } else if (msg.type === 'weight') {
         // Ignore negative weight values (tare artifacts, sensor noise)
         if (parseFloat(msg.value) < 0) return;
@@ -214,21 +217,26 @@ function _scaleUpdateLiveBox(msg) {
     } else {
         box.classList.remove('scale-low-weight');
         const stIcon = msg.stable ? ' ✓' : ' …';
-        if (valEl) valEl.textContent = `${isFinite(raw) ? raw : '—'} ${msg.unit || 'kg'}${stIcon}`;
-        // Show conversion hint when product unit is ml
+        // Show converted ML if target unit is ml (instead of raw grams)
+        let displayVal = `${isFinite(raw) ? raw : '—'} ${msg.unit || 'kg'}`;
         let targetUnit = null;
         if (_useConfMode && _useConfMode._activeUnit === 'sub') {
             targetUnit = (_useConfMode.packageUnit || '').toLowerCase();
         } else {
             targetUnit = _useNormalUnit;
         }
+        if (targetUnit === 'ml' && rawUnit !== 'ml' && isFinite(raw) && raw > 0) {
+            let grams = raw;
+            if (rawUnit === 'kg') grams = raw * 1000;
+            else if (rawUnit === 'lbs' || rawUnit === 'lb') grams = raw * 453.592;
+            else if (rawUnit === 'oz') grams = raw * 28.3495;
+            const density = _scaleDensityForProduct(currentProduct);
+            const ml = Math.round(grams / density);
+            displayVal = `${ml} ml`;
+        }
+        if (valEl) valEl.textContent = displayVal + stIcon;
         if (lblEl) {
-            if (targetUnit === 'ml' && rawUnit !== 'ml') {
-                lblEl.textContent = '⚖️ Peso in grammi → verrà convertito in ml';
-                lblEl.style.display = '';
-            } else {
-                lblEl.textContent = '';
-            }
+            lblEl.textContent = '';
         }
     }
 }
@@ -384,6 +392,21 @@ function _scaleAutoFillRecipeUse(msg) {
         }
     }
 
+    // Update live box in modal — show the already-converted value in the target unit
+    const livVal   = document.getElementById('ruse-scale-live-val');
+    const livLabel = document.getElementById('ruse-scale-live-label');
+    const livStatus = document.getElementById('ruse-scale-live-status');
+    if (livVal) {
+        // val is already converted to target unit (g or ml); show it directly
+        if (val >= 10) {
+            livVal.textContent = `${val} ${unit}`;
+        } else {
+            // val not usable yet — show raw reading
+            livVal.textContent = `${msg.value} ${msg.unit || 'kg'}`;
+        }
+    }
+    if (livStatus) livStatus.textContent = msg.stable ? '✓ Stabile' : '…';
+
     // Update live hint in modal with the raw scale reading always
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
@@ -396,6 +419,7 @@ function _scaleAutoFillRecipeUse(msg) {
 
     if (val < 10) {
         _cancelScaleStabilityWait(); // stop bar only; keep sentinel
+        if (livLabel) livLabel.textContent = 'Peso troppo basso — attendi…';
         return;
     }
 
@@ -408,6 +432,10 @@ function _scaleAutoFillRecipeUse(msg) {
         _scaleStabilityVal = val;
         _scaleUserDismissed = false;
         _cancelScaleTimersOnly();
+        if (livLabel) livLabel.textContent = 'Peso rilevato — attendi 10s di stabilità…';
+        // Hide confirm bar when new value arrives
+        const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
+        if (confirmWrap) confirmWrap.style.display = 'none';
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
@@ -415,14 +443,35 @@ function _scaleAutoFillRecipeUse(msg) {
                 hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
                 hint.style.display = '';
             }
-            _startScaleAutoConfirm(() => { _scaleLastConfirmedGrams = grams; submitRecipeUse(false); }, 'btn-ruse-submit');
+            if (livLabel) livLabel.textContent = `✅ ${val} ${unit} — conferma automatica tra 5s (tocca per annullare)`;
+            if (livVal) livVal.style.color = '#22c55e';
+            const confirmWrap2 = document.getElementById('ruse-scale-confirm-wrap');
+            if (confirmWrap2) { confirmWrap2.style.display = ''; }
+            const confirmBar = document.getElementById('ruse-scale-confirm-bar');
+            if (confirmBar) confirmBar.style.width = '100%';
+            _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
+                if (livVal) livVal.style.color = '';
+                submitRecipeUse(false);
+            }, 'btn-ruse-submit');
         });
     } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
         _cancelScaleTimersOnly();
+        if (livLabel) livLabel.textContent = 'Peso rilevato — attendi 10s di stabilità…';
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
-            _startScaleAutoConfirm(() => { _scaleLastConfirmedGrams = grams; submitRecipeUse(false); }, 'btn-ruse-submit');
+            if (livLabel) livLabel.textContent = `✅ ${val} ${unit} — conferma automatica tra 5s (tocca per annullare)`;
+            if (livVal) livVal.style.color = '#22c55e';
+            const confirmWrap3 = document.getElementById('ruse-scale-confirm-wrap');
+            if (confirmWrap3) confirmWrap3.style.display = '';
+            const confirmBar2 = document.getElementById('ruse-scale-confirm-bar');
+            if (confirmBar2) confirmBar2.style.width = '100%';
+            _startScaleAutoConfirm(() => {
+                _scaleLastConfirmedGrams = grams;
+                if (livVal) livVal.style.color = '';
+                submitRecipeUse(false);
+            }, 'btn-ruse-submit');
         });
     }
 }
@@ -445,6 +494,17 @@ function _cancelScaleTimersOnly() {
     const ruseBtn = document.getElementById('btn-ruse-submit');
     if (useBtn)  useBtn.style.background = '';
     if (ruseBtn) ruseBtn.style.background = '';
+    // Reset modal confirm bar and live val colour
+    const confirmBar = document.getElementById('ruse-scale-confirm-bar');
+    const livVal     = document.getElementById('ruse-scale-live-val');
+    const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
+    if (confirmBar) { confirmBar.style.width = '100%'; }
+    if (confirmWrap) confirmWrap.style.display = 'none';
+    if (livVal) livVal.style.color = '';
+    const livLabel = document.getElementById('ruse-scale-live-label');
+    if (livLabel && livLabel.textContent.startsWith('✅')) {
+        livLabel.textContent = 'Annullato — rimetti l\'ingrediente sulla bilancia per riprendere';
+    }
     document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
 }
 
@@ -463,27 +523,32 @@ function _cancelScaleAutoConfirm(fromTouch) {
     }
 }
 
-/** Stop the stability wait and reset its progress bar. */
+/** Stop the stability wait and reset its progress bar(s). */
 function _cancelScaleStabilityWait() {
     if (_scaleStabilityTimer) { clearTimeout(_scaleStabilityTimer); _scaleStabilityTimer = null; }
     if (_scaleStabilityRAF)   { cancelAnimationFrame(_scaleStabilityRAF); _scaleStabilityRAF = null; }
-    const bar = document.getElementById('scale-live-progress-bar');
-    if (bar) bar.style.width = '0%';
+    const bar  = document.getElementById('scale-live-progress-bar');
+    const bar2 = document.getElementById('ruse-scale-progress-bar');
+    if (bar)  bar.style.width = '0%';
+    if (bar2) bar2.style.width = '0%';
 }
 
 /**
- * Start a 10-second stability wait with an animated progress bar in the live box.
+ * Start a 10-second stability wait with an animated progress bar.
+ * Updates both #scale-live-progress-bar (use page) and #ruse-scale-progress-bar (recipe modal).
  * Calls onStable() when weight unchanged for 10 s.
  */
 function _startScaleStabilityWait(onStable) {
     _cancelScaleStabilityWait();
     const duration = 10000;
     const start = performance.now();
-    const bar = document.getElementById('scale-live-progress-bar');
+    const bar  = document.getElementById('scale-live-progress-bar');
+    const bar2 = document.getElementById('ruse-scale-progress-bar');
 
     function tick() {
         const pct = Math.min(100, ((performance.now() - start) / duration) * 100);
-        if (bar) bar.style.width = pct + '%';
+        if (bar)  bar.style.width = pct + '%';
+        if (bar2) bar2.style.width = pct + '%';
         if (pct < 100) { _scaleStabilityRAF = requestAnimationFrame(tick); }
     }
     _scaleStabilityRAF = requestAnimationFrame(tick);
@@ -491,7 +556,8 @@ function _startScaleStabilityWait(onStable) {
     _scaleStabilityTimer = setTimeout(() => {
         _scaleStabilityTimer = null;
         if (_scaleStabilityRAF) { cancelAnimationFrame(_scaleStabilityRAF); _scaleStabilityRAF = null; }
-        if (bar) bar.style.width = '0%';
+        if (bar)  bar.style.width = '0%';
+        if (bar2) bar2.style.width = '0%';
         onStable();
     }, duration);
 }
@@ -500,16 +566,21 @@ function _startScaleAutoConfirm(onConfirm, btnId) {
     if (_scaleAutoConfirmRAF)   { cancelAnimationFrame(_scaleAutoConfirmRAF); _scaleAutoConfirmRAF = null; }
     const btn = btnId ? document.getElementById(btnId) : null;
     const baseBg = btn ? getComputedStyle(btn).backgroundColor : '';
+    // Also update the modal countdown bar if present
+    const ruseCountdownBar = document.getElementById('ruse-scale-confirm-bar');
     const duration = 5000;
     const start = performance.now();
 
     function tick() {
         const elapsed = performance.now() - start;
         const pct = Math.min(100, (elapsed / duration) * 100);
+        // Reverse (countdown): button fill shrinks from right to left
         if (btn) {
             btn.style.background =
-                `linear-gradient(to right, rgba(255,255,255,0.35) ${pct}%, rgba(255,255,255,0) ${pct}%), ${baseBg}`;
+                `linear-gradient(to left, rgba(255,255,255,0.35) ${100 - pct}%, rgba(255,255,255,0) ${100 - pct}%), ${baseBg}`;
         }
+        // Modal countdown progress bar shrinks
+        if (ruseCountdownBar) ruseCountdownBar.style.width = (100 - pct) + '%';
         if (elapsed < duration) { _scaleAutoConfirmRAF = requestAnimationFrame(tick); }
     }
     _scaleAutoConfirmRAF = requestAnimationFrame(tick);
@@ -517,6 +588,7 @@ function _startScaleAutoConfirm(onConfirm, btnId) {
     _scaleAutoConfirmTimer = setTimeout(() => {
         _scaleAutoConfirmTimer = null;
         if (btn) btn.style.background = '';
+        if (ruseCountdownBar) ruseCountdownBar.style.width = '0%';
         document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
         onConfirm();
     }, duration);
@@ -2823,11 +2895,14 @@ function filterLocation(loc) {
 }
 
 function filterInventory() {
-    const q = document.getElementById('inventory-search').value.toLowerCase();
+    const q = document.getElementById('inventory-search').value.toLowerCase().trim();
+    const qas = document.getElementById('quick-access-section');
     if (!q) {
+        if (qas) qas.style.display = '';
         renderInventory(currentInventory);
         return;
     }
+    if (qas) qas.style.display = 'none';
     const filtered = currentInventory.filter(i =>
         i.name.toLowerCase().includes(q) ||
         (i.brand && i.brand.toLowerCase().includes(q)) ||
@@ -5369,19 +5444,39 @@ async function loadUseInventoryInfo() {
             return false;
         });
         const firstLoc = openedItem ? openedItem.location : items[0].location;
-        document.getElementById('use-location').value = firstLoc;
         
         // Build location buttons only for locations where the product exists
         const productLocations = [...new Set(items.map(i => i.location))];
         const locSelector = document.getElementById('use-location-selector');
-        locSelector.innerHTML = productLocations.map(loc => {
+
+        // Prefer the remembered location (if confirmed), else use the opened-package heuristic
+        const prefLoc = _getPreferredUseLocation(currentProduct.id);
+        const activeLoc = (prefLoc && productLocations.includes(prefLoc)) ? prefLoc : firstLoc;
+        document.getElementById('use-location').value = activeLoc;
+
+        // Builder for the full set of location buttons
+        const buildLocButtons = (active) => productLocations.map(loc => {
             const locInfo = LOCATIONS[loc] || { icon: '📦', label: loc };
             const locItems = items.filter(i => i.location === loc);
             const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const u = locItems[0].unit || 'pz';
             const qtyLabel = formatQuantity(locQty, u, locItems[0].default_quantity, locItems[0].package_unit);
-            return `<button type="button" class="loc-btn ${loc === firstLoc ? 'active' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
+            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
         }).join('');
+
+        if (prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
+            // Confirmed preference → show collapsed row + hidden full picker
+            const locInfo = LOCATIONS[prefLoc] || { icon: '📦', label: prefLoc };
+            locSelector.innerHTML = `
+                <div class="pref-loc-info" id="pref-loc-info">
+                    <span class="pref-loc-name">${locInfo.icon} ${locInfo.label}</span>
+                    <button type="button" class="btn-link pref-loc-change" onclick="_expandUseLocationSelector()">cambia</button>
+                </div>
+                <div id="pref-loc-full" style="display:none">${buildLocButtons(activeLoc)}</div>
+            `;
+        } else {
+            locSelector.innerHTML = buildLocButtons(activeLoc);
+        }
 
 
         const unit = items[0].unit || 'pz';
@@ -5526,6 +5621,47 @@ function selectUseLocation(btn, loc) {
     document.getElementById('use-location').value = loc;
 }
 
+// ── PREFERRED USE LOCATION ───────────────────────────────────────────────
+// After 3+ consistent choices from the same location for a product,
+// auto-selects it and hides the location picker (user can still tap "cambia").
+const _PREF_LOC_KEY = '_prefUseLoc';
+const _PREF_LOC_NEEDED = 3; // choices needed to confirm a preference
+
+function _getPrefLocHistory(productId) {
+    try {
+        const all = JSON.parse(localStorage.getItem(_PREF_LOC_KEY) || '{}');
+        return all[String(productId)] || [];
+    } catch { return []; }
+}
+
+function _recordUseLocationChoice(productId, loc) {
+    try {
+        const all = JSON.parse(localStorage.getItem(_PREF_LOC_KEY) || '{}');
+        const key = String(productId);
+        const hist = all[key] || [];
+        hist.push(loc);
+        if (hist.length > 8) hist.splice(0, hist.length - 8); // keep last 8
+        all[key] = hist;
+        localStorage.setItem(_PREF_LOC_KEY, JSON.stringify(all));
+    } catch { }
+}
+
+function _getPreferredUseLocation(productId) {
+    const hist = _getPrefLocHistory(productId);
+    if (hist.length < _PREF_LOC_NEEDED) return null;
+    const recent = hist.slice(-5); // look at last 5
+    const counts = {};
+    for (const loc of recent) counts[loc] = (counts[loc] || 0) + 1;
+    const [topLoc, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return topCount >= _PREF_LOC_NEEDED ? topLoc : null;
+}
+
+function _expandUseLocationSelector() {
+    document.getElementById('pref-loc-info')?.style.setProperty('display', 'none');
+    document.getElementById('pref-loc-full')?.style.removeProperty('display');
+}
+// ────────────────────────────────────────────────────────────────────────
+
 function setPzFraction(frac) {
     document.getElementById('use-quantity').value = frac;
     document.querySelectorAll('#pz-fraction-btns .frac-btn').forEach(b => {
@@ -5537,7 +5673,7 @@ function setPzFraction(frac) {
 function isLowStock(totalRemaining, unit, defaultQty) {
     if (totalRemaining <= 0) return true; // fully depleted → definitely needs restocking
     if (unit === 'pz') return totalRemaining <= 1; // only 1 piece left
-    if (unit === 'conf') return totalRemaining <= 1;
+    if (unit === 'conf') return totalRemaining < 1; // only warn when less than 1 full pack remains (opened/partial)
     // Weight/volume: use percentage of default_qty or fixed threshold
     if (defaultQty > 0) return totalRemaining <= defaultQty * 0.25;
     // Fallback fixed thresholds
@@ -5860,6 +5996,7 @@ async function submitUse(e) {
             }
             // If there's remaining quantity, offer to move to another location
             const usedFrom = document.getElementById('use-location').value;
+            _recordUseLocationChoice(currentProduct.id, usedFrom); // track for preferred-location feature
             const moveCallback = result.remaining > 0
                 ? () => showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id)
                 : () => showPage('dashboard');
@@ -6568,9 +6705,19 @@ function _markBringPurchased(names) {
     localStorage.setItem('_bringPurchasedBlocklist', JSON.stringify(map));
 }
 
-function _isBringPurchased(name) {
+function _isBringPurchased(name, urgency) {
+    // Critical items: blocked only 30 min (enough to put groceries away).
+    // High: 90 min. Others: full 4 h.
+    const ttl = urgency === 'critical' ? 30 * 60 * 1000
+              : urgency === 'high'     ? 90 * 60 * 1000
+              : _BRING_PURCHASED_TTL;
     const map = _getBringPurchasedBlocklist();
-    return Object.keys(map).some(k => _nameTokens(name)[0] === _nameTokens(k)[0] || k === name.toLowerCase());
+    const now = Date.now();
+    return Object.keys(map).some(k => {
+        const matches = _nameTokens(name)[0] === _nameTokens(k)[0] || k === name.toLowerCase();
+        if (!matches) return false;
+        return (now - map[k]) < ttl;
+    });
 }
 
 async function autoAddCriticalItems() {
@@ -6578,9 +6725,13 @@ async function autoAddCriticalItems() {
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
     if (Date.now() - lastRun < 10 * 60 * 1000) return;
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
-    const critical = smartShoppingItems.filter(i => i.urgency === 'critical' && !i.on_bring && !_isBringPurchased(i.name));
-    if (critical.length === 0) return;
-    const itemsToAdd = critical.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
+    // Auto-add: critical urgency (always) + high urgency that are completely out of stock (qty=0)
+    const toAdd = smartShoppingItems.filter(i =>
+        !i.on_bring && !_isBringPurchased(i.name, i.urgency) &&
+        (i.urgency === 'critical' || (i.urgency === 'high' && i.current_qty === 0))
+    );
+    if (toAdd.length === 0) return;
+    const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
     try {
         const result = await api('bring_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
@@ -6589,6 +6740,25 @@ async function autoAddCriticalItems() {
             loadShoppingList();
         }
     } catch (e) { /* ignore */ }
+}
+
+/**
+ * Manually force a full Bring! sync: clears the purchased blocklist and all
+ * auto-add/cleanup timers, then re-adds all urgent items from scratch.
+ * Triggered by the user pressing "Forza sincronizzazione Bring!".
+ */
+async function forceSyncBring() {
+    const btn = document.getElementById('btn-force-sync');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizzazione…'; }
+    // Clear all guards so the next run is unconditional
+    localStorage.removeItem('_bringPurchasedBlocklist');
+    localStorage.removeItem('_autoAddedCriticalTs');
+    localStorage.removeItem('_bringCleanupTs');
+    logOperation('force_sync_bring', {});
+    // Reload everything from scratch
+    await loadShoppingList();
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Forza sincronizzazione Bring!'; }
+    showToast('🔄 Sincronizzazione completata', 'success');
 }
 
 /**
@@ -7934,21 +8104,30 @@ async function loadLog(more = false) {
                     colorClass = 'log-in';
                 } else {
                     icon = '➖';
-                    typeLabel = 'Usato';
+                    typeLabel = t.type === 'waste' ? 'Buttato' : 'Usato';
                     colorClass = 'log-out';
                 }
                 const brand = t.brand ? ` <em>(${t.brand})</em>` : '';
                 const loc = t.location || '';
                 const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
                 const locStr = t.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
-                const notes = t.notes ? ` · ${t.notes}` : '';
+                const isAnnotation = (t.notes || '').includes('[Annullato]');
+                const notes = t.notes && !isAnnotation ? ` · ${t.notes}` : '';
+                const undone = t.undone == 1 || isAnnotation;
 
-                html += `<div class="log-entry ${colorClass}">`;
+                // Can undo if within 24h, not already undone, not a bring entry, not a counter-transaction
+                const ageMs = Date.now() - new Date(t.created_at + 'Z').getTime();
+                const canUndo = !undone && t.type !== 'bring' && ageMs < 86400000;
+
+                html += `<div class="log-entry ${colorClass}${undone ? ' log-undone' : ''}" id="log-entry-${t.id}">`;
                 html += `<span class="log-icon">${icon}</span>`;
                 html += `<div class="log-info">`;
-                html += `<div class="log-product"><strong>${t.name}</strong>${brand}</div>`;
-                html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? t.quantity + ' ' + (t.unit || '') + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
+                html += `<div class="log-product"><strong>${escapeHtml(t.name)}</strong>${brand}${undone ? ' <span class="log-undone-badge">Annullato</span>' : ''}</div>`;
+                html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? (t.quantity + ' ' + (t.unit || '')) + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
                 html += `</div>`;
+                if (canUndo) {
+                    html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${t.id}, '${escapeHtml(t.type)}', '${escapeHtml(t.name || '')}')" title="Annulla questa operazione">↩</button>`;
+                }
                 html += `</div>`;
             });
         }
@@ -7965,6 +8144,36 @@ async function loadLog(more = false) {
     } catch (err) {
         console.error('Log load error:', err);
         if (!more) document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--danger)">Errore nel caricamento log</p>';
+    }
+}
+
+async function undoTransactionEntry(id, type, name) {
+    const action = type === 'in' ? 'rimozione di' : 'ripristino di';
+    if (!confirm(`Annullare questa operazione?\n→ ${action} ${name}`)) return;
+    try {
+        const res = await api('transaction_undo', {}, 'POST', { id });
+        if (res.success) {
+            showToast(`↩ Operazione annullata per ${res.name || name}`, 'success');
+            // Mark the entry visually without reloading all
+            const el = document.getElementById(`log-entry-${id}`);
+            if (el) {
+                el.classList.add('log-undone');
+                const undoBtn = el.querySelector('.btn-log-undo');
+                if (undoBtn) undoBtn.remove();
+                const nameEl = el.querySelector('.log-product strong');
+                if (nameEl && !el.querySelector('.log-undone-badge')) {
+                    nameEl.insertAdjacentHTML('afterend', ' <span class="log-undone-badge">Annullato</span>');
+                }
+            }
+        } else if (res.already_undone) {
+            showToast('Operazione già annullata', 'info');
+        } else if (res.too_old) {
+            showToast('Non è possibile annullare operazioni più vecchie di 24 ore', 'error');
+        } else {
+            showToast(res.error || 'Errore durante l\'annullamento', 'error');
+        }
+    } catch (e) {
+        showToast('Errore di connessione', 'error');
     }
 }
 
@@ -8132,6 +8341,23 @@ const MEAL_TYPES = [
     { id: 'dolce',      icon: '🍰', label: 'Dolce',            from: -1, to: -1 },
     { id: 'succo',      icon: '🧃', label: 'Succo di Frutta',  from: -1, to: -1 },
 ];
+
+const MEAL_SUB_TYPES = {
+    dolce: [
+        { id: 'torta',      icon: '🎂', label: 'Torta' },
+        { id: 'crema',      icon: '🍮', label: 'Crema / Budino' },
+        { id: 'crumble',    icon: '🥧', label: 'Crumble / Crostata' },
+        { id: 'biscotti',   icon: '🍪', label: 'Biscotti / Pasticcini' },
+        { id: 'frutta',     icon: '🍓', label: 'Dolce alla Frutta' },
+    ],
+    succo: [
+        { id: 'dolce',        icon: '🍑', label: 'Dolce / Fruttato' },
+        { id: 'energizzante', icon: '⚡', label: 'Energizzante' },
+        { id: 'detox',        icon: '🥬', label: 'Detox / Verde' },
+        { id: 'rinfrescante', icon: '🧊', label: 'Rinfrescante' },
+        { id: 'vitaminico',   icon: '🍊', label: 'Vitaminico / Agrumi' },
+    ]
+};
 
 function getMealType() {
     const hour = new Date().getHours();
@@ -8326,11 +8552,11 @@ let _recipeUseContext = null; // { idx, productId, btn, qtyNumber }
 let _recipeUseConfMode = null;
 let _recipeUseNormalUnit = 'pz';
 
-async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
+async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, recipeQty) {
     if (btn.disabled) return;
     if (!qtyNumber || qtyNumber <= 0) qtyNumber = 1;
     
-    _recipeUseContext = { idx, productId, btn, qtyNumber };
+    _recipeUseContext = { idx, productId, btn, qtyNumber, recipeQty };
     _recipeUseConfMode = null;
     
     // Fetch inventory to build the modal
@@ -8410,20 +8636,40 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn) {
                 </div>`;
         }
         
-        // Available info
+        // Scale live UI: show only when scale is connected and unit is g or ml
         const availInfo = items.map(i => {
             const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
             return `${loc.icon} ${formatQuantity(i.quantity, i.unit, i.default_quantity, i.package_unit)}`;
         }).join(' · ');
-        
+
+        const showScaleLive = _scaleConnected && (unit === 'g' || unit === 'ml' ||
+            (_recipeUseConfMode && ((_recipeUseConfMode.packageUnit || '').toLowerCase() === 'g' || (_recipeUseConfMode.packageUnit || '').toLowerCase() === 'ml')));
+        const scaleLiveSection = showScaleLive ? `
+            <div id="ruse-scale-live-box" class="scale-live-box" style="flex-direction:column;align-items:stretch;border-color:var(--color-accent,#7c3aed)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span class="scale-live-icon">⚖️</span>
+                    <span id="ruse-scale-live-val" class="scale-live-val" style="color:var(--color-accent,#7c3aed)">— —</span>
+                    <span id="ruse-scale-live-status" style="font-size:0.75rem;color:var(--text-muted);margin-left:auto"></span>
+                </div>
+                <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px">
+                    <div id="ruse-scale-progress-bar" style="height:100%;width:0%;background:var(--color-accent,#7c3aed);transition:none;border-radius:2px"></div>
+                </div>
+                <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:none" id="ruse-scale-confirm-wrap">
+                    <div id="ruse-scale-confirm-bar" style="height:100%;width:100%;background:#22c55e;transition:none;border-radius:2px"></div>
+                </div>
+                <div id="ruse-scale-live-label" class="scale-live-label" style="margin-top:3px">Attendi 10s di stabilità per la compilazione automatica…</div>
+            </div>` : '';
+
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
                 <h3>📤 Usa ingrediente</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div style="padding:0 16px 16px">
-                <p style="margin-bottom:8px;font-weight:600">${escapeHtml(items[0].name)}</p>
+                <p style="margin-bottom:4px;font-weight:600">${escapeHtml(items[0].name)}</p>
+                ${recipeQty ? `<p style="margin-bottom:8px;background:var(--bg-elevated,rgba(124,58,237,0.12));border-left:3px solid var(--color-accent,#7c3aed);border-radius:6px;padding:6px 10px;font-size:0.9rem">📋 Ricetta: <strong>${escapeHtml(recipeQty)}</strong></p>` : ''}
                 <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">📦 ${availInfo}</p>
+                ${scaleLiveSection}
                 <div class="form-group">
                     <label>📍 Da dove?</label>
                     <div class="location-selector">${locButtons}</div>
@@ -8676,7 +8922,7 @@ function renderRecipe(r) {
             if (alreadyUsed) {
                 html += `<button class="btn-use-ingredient btn-used" disabled>✔️ Scalato</button>`;
             } else {
-                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)" title="Scala dalla dispensa">📦 Usa</button>`;
+                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="Scala dalla dispensa">📦 Usa</button>`;
             }
             html += `</li>`;
         } else {
@@ -9245,6 +9491,27 @@ function updateRecipeMealTitle() {
     const meal = getSelectedMealType();
     document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
     _renderMealPlanHint(meal);
+    _renderMealSubTypes(meal);
+}
+
+function _renderMealSubTypes(mealId) {
+    const container = document.getElementById('recipe-subtype-group');
+    if (!container) return;
+    const subs = MEAL_SUB_TYPES[mealId];
+    if (!subs) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+    container.style.display = '';
+    container.innerHTML = subs.map((s, i) =>
+        `<label class="recipe-meal-chip recipe-subtype-chip"><input type="radio" name="recipe-subtype" value="${s.id}"${i === 0 ? ' checked' : ''}> ${s.icon} ${s.label}</label>`
+    ).join('');
+}
+
+function getSelectedSubType() {
+    const checked = document.querySelector('input[name="recipe-subtype"]:checked');
+    return checked ? checked.value : '';
 }
 
 /** Show/hide the meal-plan badge hint + top banner in the recipe dialog. */
@@ -9354,6 +9621,7 @@ async function generateRecipe() {
         const result = await api('generate_recipe', {}, 'POST', { 
             meal, 
             persons,
+            sub_type: MEAL_SUB_TYPES[meal] ? getSelectedSubType() : '',
             options,
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
@@ -10505,7 +10773,7 @@ async function _backgroundBringSync() {
 
             if (!bringMatch) {
                 // Not on Bring — add if critical AND not recently purchased
-                if (si.urgency === 'critical' && !_isBringPurchased(si.name)) {
+                if (si.urgency === 'critical' && !_isBringPurchased(si.name, 'critical')) {
                     toAdd.push({ name: si.name, specification: expectedSpec });
                 }
             } else {

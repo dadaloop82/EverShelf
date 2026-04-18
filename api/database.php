@@ -165,6 +165,13 @@ function migrateDB(PDO $db): void {
         recalcSealedFridgeExpiry($db);
         $db->exec("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('migration_fridge_expiry_v1', '1')");
     }
+
+    // Add undone column to transactions if missing
+    $txCols = $db->query("PRAGMA table_info(transactions)")->fetchAll();
+    $txColNames = array_column($txCols, 'name');
+    if (!in_array('undone', $txColNames)) {
+        $db->exec("ALTER TABLE transactions ADD COLUMN undone INTEGER DEFAULT 0");
+    }
 }
 
 /**

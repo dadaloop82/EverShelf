@@ -184,6 +184,10 @@ try {
             listTransactions($db);
             break;
 
+        case 'transaction_undo':
+            undoTransaction($db);
+            break;
+
         // ===== STATS =====
         case 'stats':
             getStats($db);
@@ -846,6 +850,8 @@ function addToInventory(PDO $db): void {
         'package_unit' => $prodInfo['package_unit'] ?? null,
         'removed_from_bring' => $removedFromBring,
     ]);
+    // Inventory changed — force smart-shopping recompute on next request
+    invalidateSmartShoppingCache();
 }
 
 function useFromInventory(PDO $db): void {
@@ -1083,6 +1089,8 @@ function useFromInventory(PDO $db): void {
     }
     if ($openedId) $response['opened_id'] = $openedId;
     echo json_encode($response);
+    // Inventory changed — force smart-shopping recompute on next request
+    invalidateSmartShoppingCache();
 }
 
 function updateInventory(PDO $db): void {
@@ -1159,6 +1167,92 @@ function listTransactions(PDO $db): void {
     $stmt->execute($params);
     echo json_encode(['transactions' => $stmt->fetchAll()]);
 }
+
+/**
+ * Undo a transaction (reverse its effect on inventory).
+ * Only available within 24 hours of the original transaction.
+ * - type='in'  (add)    → removes that quantity from inventory at the same location
+ * - type='out'/'waste'  → adds that quantity back to inventory at the same location
+ * Marks the original as undone=1 and logs a counter-transaction with notes='[Annullato]'.
+ */
+function undoTransaction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $txId = (int)($input['id'] ?? 0);
+    if (!$txId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Transaction ID required']);
+        return;
+    }
+
+    // Fetch original transaction
+    $stmt = $db->prepare("SELECT t.*, p.name FROM transactions t JOIN products p ON t.product_id = p.id WHERE t.id = ?");
+    $stmt->execute([$txId]);
+    $tx = $stmt->fetch();
+    if (!$tx) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Transaction not found']);
+        return;
+    }
+    if ($tx['undone']) {
+        echo json_encode(['error' => 'Transaction already undone', 'already_undone' => true]);
+        return;
+    }
+    // Only allow within 24 hours
+    $ageSeconds = time() - strtotime($tx['created_at'] . ' UTC');
+    if ($ageSeconds > 86400) {
+        echo json_encode(['error' => 'Can only undo transactions within 24 hours', 'too_old' => true]);
+        return;
+    }
+
+    $db->beginTransaction();
+    try {
+        $productId = (int)$tx['product_id'];
+        $quantity  = (float)$tx['quantity'];
+        $location  = $tx['location'] ?: 'dispensa';
+        $type      = $tx['type'];
+
+        if ($type === 'in') {
+            // Reverse an ADD: remove quantity from inventory
+            $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY quantity DESC LIMIT 1");
+            $stmt2->execute([$productId, $location]);
+            $row = $stmt2->fetch();
+            if ($row) {
+                $newQty = max(0, (float)$row['quantity'] - $quantity);
+                if ($newQty <= 0) {
+                    $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$row['id']]);
+                } else {
+                    $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$newQty, $row['id']]);
+                }
+            }
+            // Log counter-transaction
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, '[Annullato]')")->execute([$productId, $quantity, $location]);
+
+        } elseif ($type === 'out' || $type === 'waste') {
+            // Reverse a USE: add quantity back to inventory
+            $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? ORDER BY quantity DESC LIMIT 1");
+            $stmt2->execute([$productId, $location]);
+            $row = $stmt2->fetch();
+            if ($row) {
+                $db->prepare("UPDATE inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$quantity, $row['id']]);
+            } else {
+                // No row at this location — create one without expiry
+                $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")->execute([$productId, $location, $quantity]);
+            }
+            // Log counter-transaction
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'in', ?, ?, '[Annullato]')")->execute([$productId, $quantity, $location]);
+        }
+
+        // Mark original as undone
+        $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$txId]);
+        $db->commit();
+        echo json_encode(['success' => true, 'name' => $tx['name']]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        http_response_code(500);
+        echo json_encode(['error' => 'DB error: ' . $e->getMessage()]);
+    }
+}
+
 
 // ===== STATS =====
 
@@ -1812,6 +1906,7 @@ function generateRecipe(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $mealType = $input['meal'] ?? 'pranzo';
     $persons = max(1, intval($input['persons'] ?? 1));
+    $subType = $input['sub_type'] ?? '';
     $options = $input['options'] ?? [];
     $appliances = $input['appliances'] ?? [];
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
@@ -1962,6 +2057,30 @@ function generateRecipe(PDO $db): void {
         'succo' => 'succo di frutta/bevanda'
     ];
     $mealLabel = $mealLabels[$mealType] ?? $mealType;
+
+    // Sub-type specialization for dolce/succo
+    $subTypeLabels = [
+        'dolce' => [
+            'torta'    => 'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)',
+            'crema'    => 'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)',
+            'crumble'  => 'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)',
+            'biscotti' => 'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)',
+            'frutta'   => 'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)',
+        ],
+        'succo' => [
+            'dolce'        => 'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)',
+            'energizzante' => 'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)',
+            'detox'        => 'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)',
+            'rinfrescante' => 'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)',
+            'vitaminico'   => 'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)',
+        ]
+    ];
+    $subTypeText = '';
+    if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
+        $subHint = $subTypeLabels[$mealType][$subType];
+        $mealLabel .= " — tipo: $subHint";
+        $subTypeText = "\n\n🎨 SOTTO-TIPO RICHIESTO:\nL'utente ha scelto specificamente: {$subHint}\nLa ricetta DEVE essere di questo tipo preciso. Non proporre un tipo diverso di {$mealType}.";
+    }
 
     // Build extra rules from options
     $extraRules = [];
@@ -2123,7 +2242,7 @@ function generateRecipe(PDO $db): void {
 
     $prompt = <<<PROMPT
 Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE IMPORTANTI:
 {$mealPlanRule}1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
@@ -2682,31 +2801,29 @@ function bringToItalian(string $name): string {
 function italianToBring(string $italianName): string {
     $catalog = bringCatalog();
     $lower = mb_strtolower(trim($italianName));
-    
-    // Exact match
+
+    // Pass 1: exact match
     if (isset($catalog['it2de'][$lower])) {
         return $catalog['it2de'][$lower];
     }
-    
-    // Try partial match: "Spinaci freschi" → match "Spinaci"
+
+    // Pass 2: whole-word match — catalog key must be a whole word inside the input.
+    // Uses word-boundary logic (split on spaces) to avoid substring false positives like
+    // "gin" inside "original", "rum" inside "crumble", "aceto" inside "pancetta", etc.
+    // Only considers single-word catalog keys (multi-word keys need Pass 1 exact match).
+    $inputWords = array_filter(
+        preg_split('/\s+/', $lower),
+        fn($w) => mb_strlen($w) >= 4   // skip very short words — too ambiguous
+    );
     foreach ($catalog['it2de'] as $itLower => $deKey) {
-        if (str_contains($lower, $itLower) || str_contains($itLower, $lower)) {
+        if (str_contains($itLower, ' ')) continue; // multi-word key → exact-only
+        if (mb_strlen($itLower) < 4)    continue; // too short → skip (gin, rum, etc.)
+        if (in_array($itLower, $inputWords, true)) {
             return $deKey;
         }
     }
-    
-    // Try matching first word: "Petto di pollo" → "Pollo" = Poulet
-    $words = explode(' ', $lower);
-    foreach ($words as $word) {
-        if (mb_strlen($word) < 3) continue;
-        foreach ($catalog['it2de'] as $itLower => $deKey) {
-            if ($itLower === $word) {
-                return $deKey;
-            }
-        }
-    }
-    
-    // No match - return original (Bring! will show as custom item)
+
+    // No match — return the original Italian name so Bring! shows it as a custom item
     return $italianName;
 }
 
@@ -2917,6 +3034,17 @@ function bringCleanSpecs(): void {
  * Serve smart shopping from cache (written by cron), falling back to live computation.
  * Cache is valid for up to 10 minutes; if stale or missing, compute on the fly.
  */
+/**
+ * Invalidate the smart shopping cache so the next request recomputes live.
+ * Call after any inventory_add or inventory_use that changes stock meaningfully.
+ */
+function invalidateSmartShoppingCache(): void {
+    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    if (file_exists($cacheFile)) {
+        @unlink($cacheFile);
+    }
+}
+
 function smartShoppingCached(PDO $db): void {
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     $maxAge    = 10 * 60; // 10 minutes
@@ -3140,11 +3268,16 @@ function smartShopping(PDO $db): void {
 
         // Out of stock
         if ($qty <= 0) {
-            // If ANY significant token of this depleted product also appears in an in-stock product,
+            // If ANY *specific* token of this depleted product also appears in an in-stock product,
             // the user's need is already covered — skip flagging it.
-            // Examples: 'Passata di pomodoro' depleted, 'Polpa di pomodoro' in stock → share 'pomodoro' → skip
-            //           'Aglio rosso' depleted, 'Aglio' in stock → share 'aglio' → skip
-            $pToks = $nameTokens($p['name']);
+            // Generic preparation/type words (succo, polpa, crema, ecc.) are excluded from this check
+            // to avoid false coverage: 'limmi succo di limone' must NOT be suppressed by 'Succo e polpa di pera'.
+            // A token must appear in both names AND be specific (not in the generic list) to count.
+            $coverageGeneric = ['succo','polpa','crema','salsa','frutta','verdura','intero',
+                                'parzialmente','scremato','biologico','naturale','integrale',
+                                'cotto','fresco','secco','arrostito','bollito','sgusciato',
+                                'bianco','rosso','nero','giallo','verde','misto','dolce','light'];
+            $pToks = array_diff($nameTokens($p['name']), $coverageGeneric);
             $coveredByEquivalent = false;
             foreach ($pToks as $tok) {
                 if (($stockByAnyToken[$tok] ?? 0) > 0) { $coveredByEquivalent = true; break; }
@@ -3157,10 +3290,18 @@ function smartShopping(PDO $db): void {
                 $reasons[] = 'Esaurito';
                 $score += 100;
                 if ($useCount >= 5) { $score += 20; $reasons[] = "Uso frequente ({$useCount}x)"; }
+            } elseif ($isFrequent && $isRecent && $buyCount == 1 && $useCount >= 3) {
+                // Bought once but used ≥3 times → proven consumption pattern → high
+                $urgency = 'high';
+                $reasons[] = 'Esaurito';
+                $score += 75;
+                if ($useCount >= 5) { $score += 10; $reasons[] = "Uso frequente ({$useCount}x)"; }
             } elseif ($isFrequent && $isRecent && $buyCount == 1) {
-                // Frequent use but only bought once — not yet a proven staple → skip
-                continue;
-            } elseif ($isRegular && $isRecent && ($useCount >= 4 || $buyCount >= 3)) {
+                // Frequent use, bought once, <3 uses — not yet proven → medium
+                $urgency = 'medium';
+                $reasons[] = 'Esaurito';
+                $score += 45;
+            } elseif ($isRegular && $isRecent && ($useCount >= 3 || $buyCount >= 2)) {
                 // Regularly used, recently active → high
                 $urgency = 'high';
                 $reasons[] = 'Esaurito';

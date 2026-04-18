@@ -20,7 +20,7 @@
 <!-- Top Header -->
 <header class="app-header">
     <div class="header-content">
-        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.4.0</span></h1>
+        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.5.0</span></h1>
         <div class="header-actions">
             <span id="scale-status-indicator" class="scale-status-indicator scale-status-disconnected" style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia">⚖️</span>
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
@@ -603,6 +603,9 @@
                     <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
                         🤖 Suggerisci cosa comprare
                     </button>
+                    <button class="btn btn-secondary" onclick="forceSyncBring()" style="margin-top:4px">
+                        🔄 Forza sincronizzazione Bring!
+                    </button>
                 </div>
             </div>
 
@@ -635,6 +638,11 @@
                         <div class="smart-actions" id="smart-actions" style="display:none">
                             <button class="btn btn-success full-width" onclick="addSmartToBring()">
                                 🛒 Aggiungi selezionati a Bring!
+                            </button>
+                        </div>
+                        <div style="text-align:center;margin-top:8px">
+                            <button class="btn btn-secondary btn-sm" onclick="forceSyncBring()" id="btn-force-sync">
+                                🔄 Forza sincronizzazione Bring!
                             </button>
                         </div>
                     </div>
@@ -670,10 +678,10 @@
         </div>
     </section>
 
-    <!-- Log Page -->
+    <!-- Storico Page -->
     <section id="page-log" class="page">
         <div class="page-header">
-            <h2 data-i18n="log.title">📒 Log Operazioni</h2>
+            <h2 data-i18n="log.title">📋 Storico</h2>
         </div>
         <div id="log-list" class="log-list"></div>
         <button class="btn btn-secondary full-width mt-2" id="log-load-more" style="display:none" onclick="loadLog(true)" data-i18n="btn.load_more">
@@ -1136,8 +1144,8 @@
         <span class="nav-label" data-i18n="nav.shopping">Spesa</span>
     </button>
     <button class="nav-btn" onclick="showPage('log')" data-page="log">
-        <span class="nav-icon">📒</span>
-        <span class="nav-label" data-i18n="nav.log">Log</span>
+        <span class="nav-icon">�</span>
+        <span class="nav-label" data-i18n="nav.log">Storico</span>
     </button>
     <button class="nav-btn" onclick="showPage('settings')" data-page="settings">
         <span class="nav-icon">⚙️</span>
@@ -1155,6 +1163,7 @@
             <div class="form-group" style="text-align:left">
                 <label>🕐 Per quale pasto?</label>
                 <div class="recipe-meal-grid" id="recipe-meal-grid" onchange="updateRecipeMealTitle()"></div>
+                <div class="recipe-meal-grid recipe-subtype-grid" id="recipe-subtype-group" style="display:none"></div>
             </div>
             <div id="recipe-mealplan-hint" class="recipe-mealplan-hint" style="display:none"></div>
             <div class="form-group">
