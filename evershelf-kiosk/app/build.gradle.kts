@@ -16,13 +16,17 @@ android {
     }
 
     signingConfigs {
-        // Use the standard Android debug keystore so every machine produces
-        // APKs with the same debug signature — required for over-the-air updates.
+        // Use the standard Android debug keystore when building locally so the
+        // debug APK signature stays consistent across machines (needed for OTA updates).
+        // In CI the keystore doesn't exist — fall back to Gradle's auto-generated key.
         getByName("debug") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            val ks = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (ks.exists()) {
+                storeFile = ks
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 
