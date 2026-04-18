@@ -92,12 +92,24 @@
         "banner_prediction_hint": "Based on predictions, this quantity doesn't match expected consumption.",
         "banner_prediction_action_confirm": "Confirm quantity",
         "banner_prediction_action_weigh": "Weigh with scale",
-        "banner_prediction_action_edit": "Correct"
+        "banner_prediction_action_edit": "Correct",
+        "banner_expired_title": "Expired product",
+        "banner_expired_today": "Expired today",
+        "banner_expired_days": "Expired {days} days ago",
+        "banner_expired_action_use": "Use anyway",
+        "banner_expired_action_throw": "Throw away",
+        "banner_expiring_title": "Expiring soon",
+        "banner_expiring_today": "Expires today!",
+        "banner_expiring_tomorrow": "Expires tomorrow",
+        "banner_expiring_days": "Expires in {days} days",
+        "banner_expiring_action_use": "Use now"
     },
     "inventory": {
         "title": "Pantry",
         "filter_all": "All",
         "search_placeholder": "🔍 Search product...",
+        "recent_title": "🕐 Recently used",
+        "popular_title": "⭐ Most used",
         "empty": "No products here.\nScan a product to add it!",
         "no_items_found": "No inventory items found"
     },

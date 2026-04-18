@@ -92,12 +92,24 @@
         "banner_prediction_hint": "Secondo le previsioni, questa quantità non corrisponde al consumo previsto.",
         "banner_prediction_action_confirm": "Confermo quantità",
         "banner_prediction_action_weigh": "Pesa con bilancia",
-        "banner_prediction_action_edit": "Correggi"
+        "banner_prediction_action_edit": "Correggi",
+        "banner_expired_title": "Prodotto scaduto",
+        "banner_expired_today": "Scaduto oggi",
+        "banner_expired_days": "Scaduto da {days} giorni",
+        "banner_expired_action_use": "Usa comunque",
+        "banner_expired_action_throw": "Butta via",
+        "banner_expiring_title": "In scadenza",
+        "banner_expiring_today": "Scade oggi!",
+        "banner_expiring_tomorrow": "Scade domani",
+        "banner_expiring_days": "Scade tra {days} giorni",
+        "banner_expiring_action_use": "Usa ora"
     },
     "inventory": {
         "title": "Dispensa",
         "filter_all": "Tutti",
         "search_placeholder": "🔍 Cerca prodotto...",
+        "recent_title": "🕐 Ultimi usati",
+        "popular_title": "⭐ Più usati",
         "empty": "Nessun prodotto qui.\nScansiona un prodotto per aggiungerlo!",
         "no_items_found": "Nessuna voce di inventario trovata"
     },

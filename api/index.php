@@ -193,6 +193,10 @@ try {
             getConsumptionPredictions($db);
             break;
 
+        case 'recent_popular_products':
+            recentPopularProducts($db);
+            break;
+
         // ===== AI =====
         case 'gemini_expiry':
             geminiReadExpiry();
@@ -1275,6 +1279,43 @@ function getStats(PDO $db): void {
     ]);
 }
 
+// ===== RECENT & POPULAR PRODUCTS =====
+function recentPopularProducts(PDO $db): void {
+    // Last 4 distinct products used (type='out'), most recent first
+    $recentStmt = $db->query("
+        SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
+               MAX(t.created_at) as last_used
+        FROM transactions t
+        JOIN products p ON p.id = t.product_id
+        WHERE t.type = 'out'
+        GROUP BY t.product_id
+        ORDER BY last_used DESC
+        LIMIT 4
+    ");
+    $recent = $recentStmt->fetchAll(PDO::FETCH_ASSOC);
+    $recentIds = array_map(fn($r) => (int)$r['product_id'], $recent);
+
+    // Top 12 most frequently used products (to allow filtering out recent ones client-side)
+    $popularStmt = $db->query("
+        SELECT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
+               COUNT(*) as usage_count
+        FROM transactions t
+        JOIN products p ON p.id = t.product_id
+        WHERE t.type = 'out'
+          AND t.created_at >= datetime('now', '-90 days')
+        GROUP BY t.product_id
+        ORDER BY usage_count DESC
+        LIMIT 12
+    ");
+    $popular = $popularStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'recent' => $recent,
+        'popular' => $popular,
+        'recent_ids' => $recentIds,
+    ]);
+}
+
 // ===== CONSUMPTION PREDICTIONS =====
 
 /**
@@ -1337,6 +1378,30 @@ function getConsumptionPredictions(PDO $db): void {
 
         $restockDate = strtotime($restock['created_at']);
         $restockQty  = floatval($restock['quantity']);
+
+        // If inventory was manually edited (updated_at > last restock), use the
+        // manual update as baseline instead — otherwise the prediction is comparing
+        // against a stale restock quantity that no longer reflects reality.
+        $lastManualUpdate = strtotime($item['updated_at']);
+        if ($lastManualUpdate > $restockDate) {
+            // Inventory was manually corrected after last restock → use current qty
+            // as a fresh baseline from that point; only consider OUT transactions
+            // that happened AFTER the manual update.
+            $txnsSinceUpdate = $db->prepare("
+                SELECT SUM(quantity) as total
+                FROM transactions
+                WHERE product_id = ? AND location = ? AND type = 'out'
+                  AND created_at > ?
+            ");
+            $txnsSinceUpdate->execute([$pid, $loc, $item['updated_at']]);
+            $usedSinceUpdate = floatval($txnsSinceUpdate->fetchColumn() ?: 0);
+            $daysSinceBaseline = max(1, (time() - $lastManualUpdate) / 86400);
+            // The effective "restock" qty is what inventory had at manual edit time
+            // which is current qty + what was consumed since then
+            $restockQty = floatval($item['quantity']) + $usedSinceUpdate;
+            $restockDate = $lastManualUpdate;
+        }
+
         $daysSinceRestock = max(1, (time() - $restockDate) / 86400);
 
         // Predicted remaining qty = restock qty - (daily rate * days since restock)

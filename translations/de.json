@@ -92,12 +92,24 @@
         "banner_prediction_hint": "Laut Vorhersage stimmt diese Menge nicht mit dem erwarteten Verbrauch überein.",
         "banner_prediction_action_confirm": "Menge bestätigen",
         "banner_prediction_action_weigh": "Mit Waage wiegen",
-        "banner_prediction_action_edit": "Korrigieren"
+        "banner_prediction_action_edit": "Korrigieren",
+        "banner_expired_title": "Abgelaufenes Produkt",
+        "banner_expired_today": "Heute abgelaufen",
+        "banner_expired_days": "Seit {days} Tagen abgelaufen",
+        "banner_expired_action_use": "Trotzdem verwenden",
+        "banner_expired_action_throw": "Wegwerfen",
+        "banner_expiring_title": "Bald ablaufend",
+        "banner_expiring_today": "Läuft heute ab!",
+        "banner_expiring_tomorrow": "Läuft morgen ab",
+        "banner_expiring_days": "Läuft in {days} Tagen ab",
+        "banner_expiring_action_use": "Jetzt verwenden"
     },
     "inventory": {
         "title": "Vorrat",
         "filter_all": "Alle",
         "search_placeholder": "🔍 Produkt suchen...",
+        "recent_title": "🕐 Zuletzt verwendet",
+        "popular_title": "⭐ Meistverwendet",
         "empty": "Keine Produkte hier.\nScanne ein Produkt, um es hinzuzufügen!",
         "no_items_found": "Keine Bestandseinträge gefunden"
     },

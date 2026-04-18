@@ -49,6 +49,9 @@
 - **Safety ratings** — Smart assessment of expired product safety (by category)
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
 - **Anomaly banner** — Scrollable banner with suspicious quantities and consumption prediction mismatches, with one-tap correction or inline edit
+- **Expired/expiring alerts** — Priority-sorted banner notifications for expired and soon-to-expire products with use, throw, edit, and dismiss actions
+- **Swipe navigation** — Touch swipe or tap arrows/dots to browse banner notifications
+- **Quick-access buttons** — Recently used and most popular products shown on the inventory page for fast access
 
 ### 📱 Progressive Web App
 - **Mobile-first design** — Optimized for phones, works on tablets and desktop
@@ -73,7 +76,6 @@
 - **Setup wizard** — 3-step guided configuration (URL, connection test, gateway)
 - **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
 - **Camera & mic permissions** — Full hardware access for barcode scanning and voice
-- **Exit button** — Visible ✕ button with confirmation dialog
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
 - **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
 - **SSL support** — Accepts self-signed certificates
