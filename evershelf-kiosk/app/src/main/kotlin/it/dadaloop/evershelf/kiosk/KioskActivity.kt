@@ -456,8 +456,7 @@ class KioskActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Inject triple-tap exit on the header bar
-                injectKioskOverlay()
+                // Kiosk overlay removed — exit is handled via the Android settings gear button
                 // Check for updates periodically
                 checkForUpdates()
             }

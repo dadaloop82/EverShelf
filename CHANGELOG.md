@@ -5,6 +5,24 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-04-18
+
+### Added
+- **Expired product banner** — Dashboard notifications for expired products with use, throw away, edit, and dismiss actions
+- **Expiring soon banner** — Dashboard notifications for products expiring within 3 days with use, edit, and dismiss actions
+- **Priority-sorted notifications** — Banner alerts sorted by urgency: expired > expiring > suspicious quantities > consumption predictions
+- **Swipe navigation** — Touch swipe left/right to browse banner notifications, with dot indicators and arrow buttons
+- **Quick-access buttons** — Inventory page shows 4 recently used and up to 8 most popular products for quick selection
+- **Recent & popular products API** — New `recent_popular_products` endpoint
+- **Auto-refresh** — Banner notifications refresh every 5 minutes while on the dashboard
+- **Edit from expiry banner** — Correct expiry dates directly from expired/expiring notifications
+
+### Fixed
+- **Negative scale values** — BLE scale readings with negative weight are now ignored
+- **Banner re-appearing after edit** — Editing from a banner now persists the confirmation so it doesn't reappear on dashboard reload
+- **False consumption predictions** — Manual inventory edits (updated_at > last restock) now use the correct baseline for prediction calculations
+- **Kiosk overlay blocking header** — Removed injected exit/refresh buttons from the web app header in kiosk mode
+
 ## [1.2.0] - 2026-04-13
 
 ### Changed

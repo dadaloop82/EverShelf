@@ -127,6 +127,17 @@
         <div class="search-bar">
             <input type="text" id="inventory-search" placeholder="🔍 Cerca prodotto..." oninput="filterInventory()" data-i18n-placeholder="inventory.search_placeholder">
         </div>
+        <!-- Quick access: recent & popular products -->
+        <div id="quick-access-section" style="display:none">
+            <div class="quick-access-group" id="quick-recent-group" style="display:none">
+                <h4 class="quick-access-label" data-i18n="inventory.recent_title">🕐 Ultimi usati</h4>
+                <div class="quick-access-grid" id="quick-recent-grid"></div>
+            </div>
+            <div class="quick-access-group" id="quick-popular-group" style="display:none">
+                <h4 class="quick-access-label" data-i18n="inventory.popular_title">⭐ Più usati</h4>
+                <div class="quick-access-grid quick-access-grid-8" id="quick-popular-grid"></div>
+            </div>
+        </div>
         <div class="inventory-list" id="inventory-list"></div>
     </section>
 

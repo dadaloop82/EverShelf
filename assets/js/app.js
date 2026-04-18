@@ -117,6 +117,8 @@ function _scaleOnMessage(msg) {
         _scaleBattery = msg.battery ?? null;
         _scaleUpdateStatus(_scaleConnected ? 'connected' : 'searching');
     } else if (msg.type === 'weight') {
+        // Ignore negative weight values (tare artifacts, sensor noise)
+        if (parseFloat(msg.value) < 0) return;
         _scaleLatestWeight = msg;
         // Update live reading modal overlay if visible (scale-read modal)
         const live = document.getElementById('scale-reading-live');
@@ -1909,6 +1911,12 @@ function showPage(pageId, param = null) {
         case 'settings': loadSettingsUI(); break;
         case 'chat': initChat(); break;
     }
+
+    // Auto-refresh banner notifications while on dashboard (every 5 min)
+    if (_bannerRefreshTimer) { clearInterval(_bannerRefreshTimer); _bannerRefreshTimer = null; }
+    if (pageId === 'dashboard') {
+        _bannerRefreshTimer = setInterval(() => loadBannerAlerts(), 5 * 60 * 1000);
+    }
     
     // Stop scanner when leaving scan page
     if (pageId !== 'scan' && pageId !== 'ai') {
@@ -2189,10 +2197,11 @@ function setReviewConfirmed(inventoryId) {
 let _bannerQueue = [];   // array of { type, data } — 'review' or 'prediction'
 let _bannerIndex = 0;
 let _bannerEditPending = false;  // true when editing from banner → dismiss after save
+let _bannerRefreshTimer = null;  // periodic refresh while on dashboard
 
 /**
- * Load suspicious quantities + consumption predictions, merge into a single
- * banner queue and show the first item.
+ * Load suspicious quantities + consumption predictions + expired + expiring soon,
+ * merge into a single banner queue and show the first item.
  */
 async function loadBannerAlerts() {
     _bannerQueue = [];
@@ -2208,7 +2217,25 @@ async function loadBannerAlerts() {
         const items = invData.inventory || [];
         const confirmed = getReviewConfirmed();
 
-        // 1. Suspicious quantities
+        // 1. Expired products (highest priority) - derived from inventory
+        items.forEach(item => {
+            if (!item.expiry_date) return;
+            const days = daysUntilExpiry(item.expiry_date);
+            if (days >= 0) return; // not expired
+            if (confirmed['exp_' + item.id]) return;
+            _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: Math.abs(days) } });
+        });
+
+        // 2. Products expiring very soon (today, tomorrow, within 3 days)
+        items.forEach(item => {
+            if (!item.expiry_date) return;
+            const days = daysUntilExpiry(item.expiry_date);
+            if (days < 0 || days > 3) return;
+            if (confirmed['exps_' + item.id]) return;
+            _bannerQueue.push({ type: 'expiring', data: { ...item, days_left: days } });
+        });
+
+        // 3. Suspicious quantities
         items.forEach(item => {
             if (confirmed[item.id]) return;
             if (isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit)) {
@@ -2223,12 +2250,15 @@ async function loadBannerAlerts() {
             }
         });
 
-        // 2. Consumption predictions that don't match actual quantity
+        // 4. Consumption predictions that don't match actual quantity
         const predictions = predData.predictions || [];
         predictions.forEach(pred => {
             if (confirmed['pred_' + pred.inventory_id]) return;
             _bannerQueue.push({ type: 'prediction', data: pred });
         });
+
+        // Sort by priority (highest first)
+        _bannerQueue.sort((a, b) => _bannerPriority(b) - _bannerPriority(a));
 
         console.log(`[Banner] queue ready: ${_bannerQueue.length} items (${items.length} inv, ${predictions.length} pred, ${Object.keys(confirmed).length} confirmed)`);
 
@@ -2239,8 +2269,48 @@ async function loadBannerAlerts() {
     if (_bannerQueue.length > 0) {
         _bannerIndex = 0;
         renderBannerItem();
+        initBannerSwipe();
     } else {
         banner.style.display = 'none';
+    }
+}
+
+/**
+ * Compute a numeric priority score for a banner item.
+ * Higher = more important = shown first.
+ *
+ * Priority tiers:
+ *   1000+ : expired (longer ago = higher)
+ *   500-999: expiring today/tomorrow/soon (sooner = higher)
+ *   200-499: suspicious quantities (low stock > high stock > package)
+ *   100-199: consumption predictions (higher deviation% = higher)
+ */
+function _bannerPriority(entry) {
+    switch (entry.type) {
+        case 'expired': {
+            const d = entry.data.days_expired || 0;
+            // Expired longer = more urgent; base 1000 + days (capped)
+            return 1000 + Math.min(d, 500);
+        }
+        case 'expiring': {
+            const d = entry.data.days_left ?? 3;
+            // Today=999, tomorrow=998, 2d=997, 3d=996
+            return 999 - d;
+        }
+        case 'review': {
+            const w = entry.data.warning || '';
+            // Low stock is more urgent than too-much
+            if (w.includes('Troppo poco')) return 400;
+            if (w.includes('Troppo')) return 300;
+            return 200; // package suspicion
+        }
+        case 'prediction': {
+            const dev = entry.data.deviation_pct || 0;
+            // Higher deviation = more important, capped at 99
+            return 100 + Math.min(dev, 99);
+        }
+        default:
+            return 0;
     }
 }
 
@@ -2258,7 +2328,37 @@ function renderBannerItem() {
     const s = getSettings();
     const hasScale = s.scale_enabled && s.scale_gateway_url && _scaleConnected;
 
-    if (entry.type === 'review') {
+    if (entry.type === 'expired') {
+        const item = entry.data;
+        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        const daysText = item.days_expired === 0 ? t('dashboard.banner_expired_today') : t('dashboard.banner_expired_days', { days: item.days_expired });
+        banner.className = 'alert-banner banner-expired';
+        iconEl.textContent = '🚫';
+        titleEl.textContent = `${t('dashboard.banner_expired_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+        detailEl.textContent = `${daysText} · ${qtyDisplay}`;
+        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
+        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_review_action_edit')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
+        actionsEl.innerHTML = btns;
+
+    } else if (entry.type === 'expiring') {
+        const item = entry.data;
+        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        let urgencyText;
+        if (item.days_left === 0) urgencyText = t('dashboard.banner_expiring_today');
+        else if (item.days_left === 1) urgencyText = t('dashboard.banner_expiring_tomorrow');
+        else urgencyText = t('dashboard.banner_expiring_days', { days: item.days_left });
+        banner.className = 'alert-banner banner-expiring';
+        iconEl.textContent = '⏰';
+        titleEl.textContent = `${t('dashboard.banner_expiring_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+        detailEl.textContent = `${urgencyText} · ${qtyDisplay}`;
+        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expiring_action_use')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_review_action_edit')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpiring()">${t('dashboard.banner_review_dismiss')}</button>`;
+        actionsEl.innerHTML = btns;
+
+    } else if (entry.type === 'review') {
         const item = entry.data;
         const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
         banner.className = 'alert-banner';
@@ -2288,7 +2388,16 @@ function renderBannerItem() {
         actionsEl.innerHTML = btns;
     }
 
-    counterEl.textContent = _bannerQueue.length > 1 ? `${_bannerIndex + 1} / ${_bannerQueue.length}` : '';
+    if (_bannerQueue.length > 1) {
+        let dots = `<span class="banner-nav-arrow" onclick="bannerPrev()">‹</span>`;
+        dots += _bannerQueue.map((_, i) =>
+            `<span class="banner-dot${i === _bannerIndex ? ' active' : ''}" onclick="_bannerIndex=${i};renderBannerItem()"></span>`
+        ).join('');
+        dots += `<span class="banner-nav-arrow" onclick="bannerNext()">›</span>`;
+        counterEl.innerHTML = dots;
+    } else {
+        counterEl.innerHTML = '';
+    }
     banner.style.display = '';
 }
 
@@ -2351,6 +2460,106 @@ function editReviewItem(inventoryId, productId) {
         currentInventory = data.inventory || [];
         editInventoryItem(inventoryId);
     });
+}
+
+// --- Banner handlers for expired & expiring ---
+function bannerQuickUse() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry) return;
+    const item = entry.data;
+    quickUse(item.product_id, item.location);
+    dismissBannerItem();
+}
+
+function bannerThrowAway() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry) return;
+    const item = entry.data;
+    api('inventory_use', {}, 'POST', {
+        product_id: item.product_id,
+        quantity: item.quantity,
+        location: item.location,
+        use_all: true,
+        notes: 'Buttato'
+    }).then(res => {
+        if (res.success) {
+            showToast(t('toast.thrown_away', { name: item.name }), 'success');
+            loadDashboard();
+        }
+    }).catch(() => showToast(t('error.connection'), 'error'));
+    dismissBannerItem();
+}
+
+function editBannerExpiry() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || (entry.type !== 'expired' && entry.type !== 'expiring')) return;
+    _bannerEditPending = true;
+    editReviewItem(entry.data.id, entry.data.product_id);
+}
+
+function dismissBannerExpired() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'expired') return;
+    setReviewConfirmed('exp_' + entry.data.id);
+    dismissBannerItem();
+}
+
+function dismissBannerExpiring() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'expiring') return;
+    setReviewConfirmed('exps_' + entry.data.id);
+    dismissBannerItem();
+}
+
+// --- Banner swipe navigation ---
+let _bannerTouchStartX = 0;
+let _bannerTouchStartY = 0;
+let _bannerSwiping = false;
+
+function initBannerSwipe() {
+    const banner = document.getElementById('alert-banner');
+    if (!banner || banner._swipeInit) return;
+    banner._swipeInit = true;
+
+    banner.addEventListener('touchstart', e => {
+        if (_bannerQueue.length <= 1) return;
+        const touch = e.touches[0];
+        _bannerTouchStartX = touch.clientX;
+        _bannerTouchStartY = touch.clientY;
+        _bannerSwiping = true;
+    }, { passive: true });
+
+    banner.addEventListener('touchend', e => {
+        if (!_bannerSwiping || _bannerQueue.length <= 1) return;
+        _bannerSwiping = false;
+        const touch = e.changedTouches[0];
+        const dx = touch.clientX - _bannerTouchStartX;
+        const dy = touch.clientY - _bannerTouchStartY;
+        // Only horizontal swipes (at least 40px, and more horizontal than vertical)
+        if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
+        if (dx < 0) bannerNext();
+        else bannerPrev();
+    }, { passive: true });
+}
+
+function bannerNext() {
+    if (_bannerQueue.length <= 1) return;
+    const banner = document.getElementById('alert-banner');
+    banner.classList.remove('banner-slide-left', 'banner-slide-right');
+    void banner.offsetWidth; // force reflow
+    _bannerIndex = (_bannerIndex + 1) % _bannerQueue.length;
+    banner.classList.add('banner-slide-left');
+    renderBannerItem();
+}
+
+function bannerPrev() {
+    if (_bannerQueue.length <= 1) return;
+    const banner = document.getElementById('alert-banner');
+    banner.classList.remove('banner-slide-left', 'banner-slide-right');
+    void banner.offsetWidth;
+    _bannerIndex = (_bannerIndex - 1 + _bannerQueue.length) % _bannerQueue.length;
+    banner.classList.add('banner-slide-right');
+    renderBannerItem();
 }
 
 // Group items by local category and render with category headers
@@ -2545,6 +2754,7 @@ async function loadInventory() {
         const data = await api('inventory_list', currentLocation ? { location: currentLocation } : {});
         currentInventory = data.inventory || [];
         renderInventory(currentInventory);
+        loadQuickAccess();
     } catch (err) {
         console.error('Inventory load error:', err);
     }
@@ -2624,6 +2834,70 @@ function filterInventory() {
         (i.barcode && i.barcode.includes(q))
     );
     renderInventory(filtered);
+}
+
+// ===== QUICK ACCESS: RECENT & POPULAR =====
+async function loadQuickAccess() {
+    const section = document.getElementById('quick-access-section');
+    if (!section) return;
+    try {
+        const data = await api('recent_popular_products');
+        const recent = data.recent || [];
+        const popular = data.popular || [];
+        const recentIds = data.recent_ids || [];
+
+        const recentGroup = document.getElementById('quick-recent-group');
+        const popularGroup = document.getElementById('quick-popular-group');
+        const recentGrid = document.getElementById('quick-recent-grid');
+        const popularGrid = document.getElementById('quick-popular-grid');
+
+        // Render recent (max 4)
+        if (recent.length > 0) {
+            recentGrid.innerHTML = recent.slice(0, 4).map(p => renderQuickAccessBtn(p)).join('');
+            recentGroup.style.display = '';
+        } else {
+            recentGroup.style.display = 'none';
+        }
+
+        // Render popular (max 8), excluding products already in recent
+        const filteredPopular = popular.filter(p => !recentIds.includes(parseInt(p.product_id)));
+        if (filteredPopular.length > 0) {
+            popularGrid.innerHTML = filteredPopular.slice(0, 8).map(p => renderQuickAccessBtn(p)).join('');
+            popularGroup.style.display = '';
+        } else {
+            popularGroup.style.display = 'none';
+        }
+
+        section.style.display = (recent.length > 0 || filteredPopular.length > 0) ? '' : 'none';
+    } catch (e) {
+        console.warn('[QuickAccess] load failed:', e);
+        section.style.display = 'none';
+    }
+}
+
+function renderQuickAccessBtn(product) {
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(product.category, product.name)] || '📦';
+    const imgHtml = product.image_url
+        ? `<img src="${escapeHtml(product.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">`
+        : catIcon;
+    const brandHtml = product.brand ? `<span class="qa-brand">(${escapeHtml(product.brand)})</span>` : '';
+    return `
+    <button class="quick-access-btn" onclick="quickAccessSelect(${product.product_id})">
+        <div class="qa-img">${imgHtml}</div>
+        <div class="qa-name">${escapeHtml(product.name)}</div>
+        ${brandHtml}
+    </button>`;
+}
+
+function quickAccessSelect(productId) {
+    // Find the product in current inventory and show its detail
+    const item = currentInventory.find(i => i.product_id === productId);
+    if (item) {
+        showItemDetail(item.id, item.product_id);
+    } else {
+        // Product not in current view (maybe different location), navigate to it
+        quickUse(productId, currentLocation || 'dispensa');
+    }
 }
 
 // ===== ITEM DETAIL MODAL =====
@@ -2877,6 +3151,14 @@ async function submitEditInventory(e, id, productId) {
     showToast('Aggiornato!', 'success');
     if (_bannerEditPending) {
         _bannerEditPending = false;
+        // Mark the item as confirmed so it does NOT reappear in the banner
+        const entry = _bannerQueue[_bannerIndex];
+        if (entry) {
+            if (entry.type === 'review') setReviewConfirmed(entry.data.id);
+            else if (entry.type === 'prediction') setReviewConfirmed('pred_' + entry.data.inventory_id);
+            else if (entry.type === 'expired') setReviewConfirmed('exp_' + entry.data.id);
+            else if (entry.type === 'expiring') setReviewConfirmed('exps_' + entry.data.id);
+        }
         dismissBannerItem();
     }
     refreshCurrentPage();
