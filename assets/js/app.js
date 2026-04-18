@@ -8112,7 +8112,9 @@ async function loadLog(more = false) {
                 const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
                 const locStr = t.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
                 const isAnnotation = (t.notes || '').includes('[Annullato]');
-                const notes = t.notes && !isAnnotation ? ` · ${t.notes}` : '';
+                const isRecipeNote = !isAnnotation && (t.notes || '').startsWith('Ricetta:');
+                const notes = t.notes && !isAnnotation && !isRecipeNote ? ` · ${t.notes}` : '';
+                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(t.notes)}</div>` : '';
                 const undone = t.undone == 1 || isAnnotation;
 
                 // Can undo if within 24h, not already undone, not a bring entry, not a counter-transaction
@@ -8124,6 +8126,7 @@ async function loadLog(more = false) {
                 html += `<div class="log-info">`;
                 html += `<div class="log-product"><strong>${escapeHtml(t.name)}</strong>${brand}${undone ? ' <span class="log-undone-badge">Annullato</span>' : ''}</div>`;
                 html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? (t.quantity + ' ' + (t.unit || '')) + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
+                html += recipeNote;
                 html += `</div>`;
                 if (canUndo) {
                     html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${t.id}, '${escapeHtml(t.type)}', '${escapeHtml(t.name || '')}')" title="Annulla questa operazione">↩</button>`;
@@ -8769,11 +8772,13 @@ async function submitRecipeUse(useAll) {
     btn.textContent = '⏳...';
     
     try {
+        const recipeTitle = _cachedRecipe?.recipe?.title || '';
         const result = await api('inventory_use', {}, 'POST', {
             product_id: productId,
             quantity: qty,
             use_all: useAll,
-            location: location
+            location: location,
+            notes: recipeTitle ? `Ricetta: ${recipeTitle}` : '',
         });
         
         if (result.success) {
