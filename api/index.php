@@ -2811,16 +2811,30 @@ function italianToBring(string $italianName): string {
     // Uses word-boundary logic (split on spaces) to avoid substring false positives like
     // "gin" inside "original", "rum" inside "crumble", "aceto" inside "pancetta", etc.
     // Only considers single-word catalog keys (multi-word keys need Pass 1 exact match).
+    // To avoid ambiguous mappings (e.g. "pancetta dolce" => "mais"), skip generic qualifiers
+    // and pick the most specific (longest) matching token.
     $inputWords = array_filter(
         preg_split('/\s+/', $lower),
         fn($w) => mb_strlen($w) >= 4   // skip very short words — too ambiguous
     );
+
+    $genericQualifiers = [
+        'dolce','salato','light','bio','classico','original','naturale','fresco','fresca',
+        'intero','intera','magro','magra','piccolo','piccola','grande','rosso','bianco'
+    ];
+    $candidates = [];
     foreach ($catalog['it2de'] as $itLower => $deKey) {
         if (str_contains($itLower, ' ')) continue; // multi-word key → exact-only
         if (mb_strlen($itLower) < 4)    continue; // too short → skip (gin, rum, etc.)
+        if (in_array($itLower, $genericQualifiers, true)) continue;
         if (in_array($itLower, $inputWords, true)) {
-            return $deKey;
+            $candidates[] = ['it' => $itLower, 'de' => $deKey, 'len' => mb_strlen($itLower)];
         }
+    }
+
+    if (!empty($candidates)) {
+        usort($candidates, fn($a, $b) => $b['len'] <=> $a['len']);
+        return $candidates[0]['de'];
     }
 
     // No match — return the original Italian name so Bring! shows it as a custom item
