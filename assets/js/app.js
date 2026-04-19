@@ -6721,19 +6721,19 @@ function _isBringPurchased(name, urgency) {
 }
 
 async function autoAddCriticalItems() {
-    // Time-based guard: run at most once every 10 minutes (not session-based, so new critical items get added promptly)
+    // Time-based guard: run at most once every 5 minutes
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
-    if (Date.now() - lastRun < 10 * 60 * 1000) return;
+    if (Date.now() - lastRun < 5 * 60 * 1000) return;
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
     // Auto-add rules:
     // - critical: always
-    // - high: when qty=0 OR pct_left<20 (almost gone) OR days_left<=3 (imminent)
-    // - any urgency with days_left<=2 and uses_per_month>=5 (running out tomorrow for heavy user)
+    // - high: always (PHP already applies strict criteria for high urgency)
+    // - medium: when running out within 7 days (<1 week) for items used ≥3x/month
     const toAdd = smartShoppingItems.filter(i => {
         if (i.on_bring || _isBringPurchased(i.name, i.urgency)) return false;
         if (i.urgency === 'critical') return true;
-        if (i.urgency === 'high' && (i.current_qty === 0 || i.pct_left < 20 || i.days_left <= 3)) return true;
-        if (i.days_left <= 2 && (i.uses_per_month || 0) >= 5) return true;
+        if (i.urgency === 'high') return true;
+        if (i.urgency === 'medium' && (i.days_left ?? 999) <= 7 && (i.uses_per_month || 0) >= 3) return true;
         return false;
     });
     if (toAdd.length === 0) return;
