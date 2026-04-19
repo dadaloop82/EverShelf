@@ -3349,11 +3349,31 @@ function smartShopping(PDO $db): void {
             $score += 40;
         }
 
-        // Frequently used but stock getting low (predictive) — stricter thresholds
+        // Frequently used but stock getting low (predictive) — scale urgency by imminence
         if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isFrequent && $isRecent) {
-            $urgency = 'low';
-            $reasons[] = 'Previsto esaurimento tra ~' . round($daysLeft) . 'gg';
-            $score += 25;
+            $daysLeftDisplay = (int)round($daysLeft);
+            $reasons[] = 'Finisce tra ~' . $daysLeftDisplay . 'gg';
+            if ($daysLeftDisplay <= 3) {
+                // Running out within 3 days for a frequent product → high urgency
+                $urgency = 'high';
+                $score += 70;
+            } elseif ($daysLeftDisplay <= 7) {
+                // Running out within a week → medium
+                $urgency = 'medium';
+                $score += 45;
+            } else {
+                $urgency = 'low';
+                $score += 25;
+            }
+        }
+        // Also upgrade existing low urgency when imminent depletion is detected
+        if ($urgency === 'low' && $dailyRate > 0 && (int)round($daysLeft) <= 3 && $isFrequent) {
+            $urgency = 'high';
+            $daysLeftLbl = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
+            if (!in_array($daysLeftLbl, $reasons)) {
+                $reasons[] = $daysLeftLbl;
+            }
+            $score += 45;
         }
 
         // Opened item with fast consumption — only if actually used regularly

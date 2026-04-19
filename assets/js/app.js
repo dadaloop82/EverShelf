@@ -6725,11 +6725,17 @@ async function autoAddCriticalItems() {
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
     if (Date.now() - lastRun < 10 * 60 * 1000) return;
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
-    // Auto-add: critical urgency (always) + high urgency that are completely out of stock (qty=0)
-    const toAdd = smartShoppingItems.filter(i =>
-        !i.on_bring && !_isBringPurchased(i.name, i.urgency) &&
-        (i.urgency === 'critical' || (i.urgency === 'high' && i.current_qty === 0))
-    );
+    // Auto-add rules:
+    // - critical: always
+    // - high: when qty=0 OR pct_left<20 (almost gone) OR days_left<=3 (imminent)
+    // - any urgency with days_left<=2 and uses_per_month>=5 (running out tomorrow for heavy user)
+    const toAdd = smartShoppingItems.filter(i => {
+        if (i.on_bring || _isBringPurchased(i.name, i.urgency)) return false;
+        if (i.urgency === 'critical') return true;
+        if (i.urgency === 'high' && (i.current_qty === 0 || i.pct_left < 20 || i.days_left <= 3)) return true;
+        if (i.days_left <= 2 && (i.uses_per_month || 0) >= 5) return true;
+        return false;
+    });
     if (toAdd.length === 0) return;
     const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
     try {
