@@ -6730,7 +6730,11 @@ async function autoAddCriticalItems() {
     // - high: always (PHP already applies strict criteria for high urgency)
     // - medium: when running out within 7 days (<1 week) for items used ≥3x/month
     const toAdd = smartShoppingItems.filter(i => {
-        if (i.on_bring || _isBringPurchased(i.name, i.urgency)) return false;
+        const imminentWeek = (i.days_left ?? 999) <= 7 && (i.uses_per_month || 0) >= 3;
+        if (i.on_bring) return false;
+        // For imminent items, do not honor local "purchased" blocklist too aggressively.
+        // If they are predicted to finish within a week, keep Bring aligned automatically.
+        if (!imminentWeek && _isBringPurchased(i.name, i.urgency)) return false;
         if (i.urgency === 'critical') return true;
         if (i.urgency === 'high') return true;
         if (i.urgency === 'medium' && (i.days_left ?? 999) <= 7 && (i.uses_per_month || 0) >= 3) return true;
