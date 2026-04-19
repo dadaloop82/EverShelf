@@ -6725,11 +6725,17 @@ async function autoAddCriticalItems() {
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
     if (Date.now() - lastRun < 10 * 60 * 1000) return;
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
-    // Auto-add: critical urgency (always) + high urgency that are completely out of stock (qty=0)
-    const toAdd = smartShoppingItems.filter(i =>
-        !i.on_bring && !_isBringPurchased(i.name, i.urgency) &&
-        (i.urgency === 'critical' || (i.urgency === 'high' && i.current_qty === 0))
-    );
+    // Auto-add rules:
+    // - critical: always
+    // - high: when qty=0 OR pct_left<20 (almost gone) OR days_left<=3 (imminent)
+    // - any urgency with days_left<=2 and uses_per_month>=5 (running out tomorrow for heavy user)
+    const toAdd = smartShoppingItems.filter(i => {
+        if (i.on_bring || _isBringPurchased(i.name, i.urgency)) return false;
+        if (i.urgency === 'critical') return true;
+        if (i.urgency === 'high' && (i.current_qty === 0 || i.pct_left < 20 || i.days_left <= 3)) return true;
+        if (i.days_left <= 2 && (i.uses_per_month || 0) >= 5) return true;
+        return false;
+    });
     if (toAdd.length === 0) return;
     const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
     try {
@@ -8112,7 +8118,9 @@ async function loadLog(more = false) {
                 const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
                 const locStr = t.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
                 const isAnnotation = (t.notes || '').includes('[Annullato]');
-                const notes = t.notes && !isAnnotation ? ` · ${t.notes}` : '';
+                const isRecipeNote = !isAnnotation && (t.notes || '').startsWith('Ricetta:');
+                const notes = t.notes && !isAnnotation && !isRecipeNote ? ` · ${t.notes}` : '';
+                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(t.notes)}</div>` : '';
                 const undone = t.undone == 1 || isAnnotation;
 
                 // Can undo if within 24h, not already undone, not a bring entry, not a counter-transaction
@@ -8124,6 +8132,7 @@ async function loadLog(more = false) {
                 html += `<div class="log-info">`;
                 html += `<div class="log-product"><strong>${escapeHtml(t.name)}</strong>${brand}${undone ? ' <span class="log-undone-badge">Annullato</span>' : ''}</div>`;
                 html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? (t.quantity + ' ' + (t.unit || '')) + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
+                html += recipeNote;
                 html += `</div>`;
                 if (canUndo) {
                     html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${t.id}, '${escapeHtml(t.type)}', '${escapeHtml(t.name || '')}')" title="Annulla questa operazione">↩</button>`;
@@ -8769,11 +8778,13 @@ async function submitRecipeUse(useAll) {
     btn.textContent = '⏳...';
     
     try {
+        const recipeTitle = _cachedRecipe?.recipe?.title || '';
         const result = await api('inventory_use', {}, 'POST', {
             product_id: productId,
             quantity: qty,
             use_all: useAll,
-            location: location
+            location: location,
+            notes: recipeTitle ? `Ricetta: ${recipeTitle}` : '',
         });
         
         if (result.success) {
