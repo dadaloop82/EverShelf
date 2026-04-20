@@ -9,3 +9,10 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ api/index.php?action=$1&%{QUERY_STRING} [L,QSA]
 AddType application/x-x509-ca-cert .crt
+
+# Prevent caching of JS/CSS so kiosk always gets fresh files
+<FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>
