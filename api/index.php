@@ -1957,52 +1957,66 @@ function generateRecipe(PDO $db): void {
     });
 
     // Build ingredient list grouped by priority
-    $priorityHeaders = [
-        1 => '⚠️ PRODOTTI SCADUTI (PRIORITÀ MASSIMA - USA SUBITO SE ANCORA COMMESTIBILI)',
-        2 => '🔴 SCADENZA IMMINENTE (entro 3 giorni - USA PER PRIMI)',
-        3 => '🟠 SCADENZA RAVVICINATA (entro 7 giorni)',
-        4 => '🟡 ALTRI PRODOTTI CON SCADENZA',
-        5 => '📦 PRODOTTI APERTI (già aperti/tagliati — da consumare prima delle confezioni chiuse)',
-        6 => '🟢 ALTRI PRODOTTI',
-    ];
+    // ---- Build compact ingredient list for AI prompt ----
+    // Skip common staples that are always assumed available (rule says: acqua, sale, pepe, olio)
+    $staplePatterns = '/\b(sale|pepe|olio d.oliva|olio di semi|olio extra|acqua|aceto balsamico|aceto di|sel marin)\b/i';
+    
     $priorityGroups = [];
     foreach ($items as $item) {
-        $line = "- {$item['name']}";
-        if ($item['brand']) $line .= " ({$item['brand']})";
-        $line .= ": {$item['quantity']} {$item['unit']}";
-        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
-            $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna, totale: " . ($item['quantity'] * $item['default_quantity']) . " {$item['package_unit']})";
-        }
-        if ($item['expiry_date']) {
-            $daysLeft = intval($item['days_left']);
-            if ($daysLeft < 0) {
-                $line .= " [SCADUTO da " . abs($daysLeft) . " giorni]";
-            } else {
-                $line .= " [scade tra $daysLeft giorni]";
-            }
-        }
-        if (strtolower($item['location']) === 'frigo') {
-            $line .= " [FRIGO]";
-        }
+        $group = $getItemPriority($item);
+        // Skip always-available staples from category 6 (closed, no expiry concern)
+        if ($group >= 5 && preg_match($staplePatterns, $item['name'])) continue;
+        
         $qty = floatval($item['quantity']);
         $isOpen = !empty($item['opened_at']) ||
                   ($qty > 0 && $qty < 1 && $item['unit'] === 'conf');
-        if ($isOpen) {
-            $line .= ' [APERTO]';
+        $daysLeft = intval($item['days_left']);
+        
+        // Compact line: name + qty (with conf expansion) + flags only when relevant
+        $line = "- {$item['name']}: {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+            $line .= " ({$item['default_quantity']}{$item['package_unit']}/conf)";
         }
-        $line .= " (in {$item['location']})";
-
-        $group = $getItemPriority($item);
+        // Add expiry info only for priority groups 1-4
+        if ($group <= 4 && $item['expiry_date']) {
+            if ($daysLeft < 0) {
+                $line .= " ⚠️SCADUTO";
+            } elseif ($daysLeft <= 3) {
+                $line .= " 🔴{$daysLeft}gg";
+            } elseif ($daysLeft <= 7) {
+                $line .= " 🟠{$daysLeft}gg";
+            } else {
+                $line .= " {$daysLeft}gg";
+            }
+        }
+        if ($isOpen) $line .= ' [APERTO]';
+        
         $priorityGroups[$group][] = $line;
     }
 
+    // Build sections: detailed headers for urgent groups, brief for rest
     $ingredientSections = [];
+    $priorityHeaders = [
+        1 => 'SCADUTI — usa subito',
+        2 => 'SCADENZA ≤3gg — priorità alta',
+        3 => 'SCADENZA ≤7gg',
+        4 => 'ALTRI CON SCADENZA',
+        5 => 'APERTI',
+        6 => 'DISPENSA',
+    ];
+    // Limit groups to keep prompt compact:
+    //  1-3 (urgent): all items; 4 (has expiry): max 40; 5 (opened): all; 6 (pantry): max 20
     foreach ($priorityHeaders as $g => $header) {
-        if (!empty($priorityGroups[$g])) {
-            $ingredientSections[] = "=== {$header} ===\n" . implode("\n", $priorityGroups[$g]);
+        if (empty($priorityGroups[$g])) continue;
+        $groupItems = $priorityGroups[$g];
+        if ($g === 4 && count($groupItems) > 40) {
+            $groupItems = array_slice($groupItems, 0, 40);
+        } elseif ($g === 6 && count($groupItems) > 20) {
+            $groupItems = array_slice($groupItems, 0, 20);
         }
+        $ingredientSections[] = "[$header]\n" . implode("\n", $groupItems);
     }
-    $ingredientsText = implode("\n\n", $ingredientSections);
+    $ingredientsText = implode("\n", $ingredientSections);
 
     // Build mandatory/recommended lists ONLY when user explicitly selected
     // 'scadenze' (expiry priority) or 'zerowaste' (zero waste) options.
@@ -2043,10 +2057,10 @@ function generateRecipe(PDO $db): void {
 
     $mustUseText = '';
     if (!empty($mandatoryItems)) {
-        $mustUseText .= "\n\n⚠️⚠️⚠️ INGREDIENTI OBBLIGATORI (SCADUTI O IN SCADENZA OGGI/DOMANI) ⚠️⚠️⚠️\nLa ricetta DEVE usare ALMENO uno (meglio se tutti) di questi ingredienti come ingrediente PRINCIPALE. Non sono opzionali!\n" . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
+        $mustUseText .= "\n\n⚠️ OBBLIGATORI (scaduti/imminenti — DEVE usarne almeno 1):\n" . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
     }
     if (!empty($recommendedItems)) {
-        $mustUseText .= "\n\n🔶 INGREDIENTI FORTEMENTE CONSIGLIATI (aperti e/o in scadenza a breve)\nSono già aperti e/o scadono presto — includi più di questi possibile nella ricetta:\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
+        $mustUseText .= "\n\n🔶 CONSIGLIATI (aperti/in scadenza):\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
     }
 
     $mealLabels = [
@@ -2079,18 +2093,18 @@ function generateRecipe(PDO $db): void {
     if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
         $subHint = $subTypeLabels[$mealType][$subType];
         $mealLabel .= " — tipo: $subHint";
-        $subTypeText = "\n\n🎨 SOTTO-TIPO RICHIESTO:\nL'utente ha scelto specificamente: {$subHint}\nLa ricetta DEVE essere di questo tipo preciso. Non proporre un tipo diverso di {$mealType}.";
+        $subTypeText = "\n\n🎨 SOTTO-TIPO: {$subHint}. La ricetta DEVE essere di questo tipo.";
     }
 
     // Build extra rules from options
     $extraRules = [];
     $optionLabels = [
-        'veloce' => 'La ricetta deve essere VELOCE: massimo 15-20 minuti totali di preparazione e cottura.',
-        'pocafame' => 'L\'utente ha POCA FAME: proponi una porzione leggera, magari uno snack, un\'insalata o qualcosa di semplice e poco abbondante.',
-        'scadenze' => 'PRIORITÀ SCADENZE: usa ASSOLUTAMENTE per primi gli ingredienti più vicini alla scadenza o già scaduti (se ancora commestibili).',
-        'salutare' => 'Ricetta EXTRA SALUTARE: prediligi ingredienti integrali, tante verdure, pochi grassi, cotture leggere.',
-        'opened' => 'PRIORITÀ COSE APERTE: dai la MASSIMA PRIORITÀ ai prodotti con confezione aperta (contrassegnati [APERTO]) e a quelli in FRIGO (contrassegnati [FRIGO]). Questi prodotti si deteriorano più in fretta e DEVONO essere usati per primi. Costruisci la ricetta attorno a questi ingredienti.',
-        'zerowaste' => 'ZERO SPRECHI: cerca di usare quanti più ingredienti in scadenza possibile, combina anche ingredienti insoliti pur di non sprecare nulla.'
+        'veloce' => 'VELOCE: max 15-20 min totali.',
+        'pocafame' => 'POCA FAME: porzione leggera, snack o insalata.',
+        'scadenze' => 'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
+        'salutare' => 'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
+        'opened' => 'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
+        'zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.'
     ];
     foreach ($options as $opt) {
         if (isset($optionLabels[$opt])) {
@@ -2106,7 +2120,7 @@ function generateRecipe(PDO $db): void {
     // Appliances
     $appliancesText = '';
     if (!empty($appliances)) {
-        $appliancesText = "\n\nELETTRODOMESTICI DISPONIBILI:\nL'utente dispone di: " . implode(', ', $appliances) . ".\nPuoi usare SOLO questi elettrodomestici (più fornelli e forno che si presumono sempre disponibili). Non suggerire ricette che richiedano elettrodomestici non elencati.";
+        $appliancesText = "\n\nELETTRODOMESTICI: " . implode(', ', $appliances) . " (+ fornelli e forno). Usa SOLO questi.";
     }
     
     // Dietary restrictions
@@ -2184,8 +2198,8 @@ function generateRecipe(PDO $db): void {
             $matchingBlock = "Nessun ingrediente perfettamente corrispondente trovato — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
         }
 
-        $mealPlanText = "\n\n🎯 TIPOLOGIA PASTO PIANIFICATA — OBBLIGATORIA:\nOggi questo pasto DEVE essere: {$hint}\nQuesta è una regola del piano alimentare personale dell'utente, NON un suggerimento.\n{$matchingBlock}";
-        $mealPlanRule = "0. TIPOLOGIA PASTO OBBLIGATORIA: la ricetta DEVE rispettare il tipo pianificato ({$hint}). Usa gli ingredienti compatibili evidenziati sopra come base principale del piatto. Non ignorare questa regola.\n   ";
+        $mealPlanText = "\n\n🎯 TIPO OBBLIGATORIO: {$hint}\n{$matchingBlock}";
+        $mealPlanRule = "0. La ricetta DEVE essere: {$hint}. Usa gli ingredienti compatibili come base.\n   ";
     }
 
     // Today's previous recipes from DB - avoid repetition
@@ -2216,77 +2230,41 @@ function generateRecipe(PDO $db): void {
     $varietyText = '';
     if (!empty($todayTitles)) {
         $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayTitles));
-        $varietyText .= "\n\nRICETTE GIÀ PREPARATE OGGI:\n{$todayList}\nNON proporre una ricetta simile o con lo stesso concetto di quelle già fatte oggi. Varia il tipo di piatto, gli ingredienti principali e lo stile di cucina. Ad esempio se a pranzo c'era una piadina, a cena proponi pasta, riso, zuppa o altro — MAI un'altra piadina o wrap o piatto concettualmente simile.";
+        $varietyText .= "\n\nGIÀ FATTO OGGI: {$todayList} — proponi qualcosa di DIVERSO.";
     }
     // Weekly variety: list all recent recipes so AI avoids repetition
     $weekOnly = array_diff($weekTitles, $todayTitles);
     if (!empty($weekOnly)) {
         $weekList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, array_values($weekOnly)));
-        $varietyText .= "\n\nRICETTE DEGLI ULTIMI 7 GIORNI:\n{$weekList}\nCerca di variare rispetto a queste ricette recenti: evita piatti troppo simili o con gli stessi ingredienti principali. Alterna pasta, riso, zuppe, carne, pesce, verdure, piatti freddi, ecc.";
+        $varietyText .= "\n\nULTIMI 7GG: {$weekList} — varia.";
     }
     // If this is a re-generation, stress the need for a truly different recipe
     $regenText = '';
     if ($variation > 0) {
-        $regenText = "\n\n🔁 RIGENERAZIONE #{$variation}: L'utente ha già visto e scartato le ricette precedenti. " .
-            "Devi proporre qualcosa di COMPLETAMENTE DIVERSO: stile di cucina diverso, ingrediente principale diverso, " .
-            "tecnica di cottura diversa, piatto di un'altra tradizione culinaria o di un'altra categoria. " .
-            "Non basta cambiare il nome della stessa idea. Sorprendi! Sii creativo!";
+        $regenText = "\n\n🔁 RIGENERA #{$variation}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).";
         if (!empty($rejectedIngredients)) {
             $rejList = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
-            $regenText .= "\n\n🚫 INGREDIENTI PRINCIPALI GIÀ RIFIUTATI DALL'UTENTE: {$rejList}\n" .
-                "NON usare NESSUNO di questi come ingrediente PRINCIPALE della nuova ricetta. " .
-                "Puoi usarli come ingrediente secondario solo se indispensabile. " .
-                "Scegli ingredienti principali completamente diversi dalla lista della dispensa!";
+            $regenText .= " Evita come ingrediente principale: {$rejList}.";
         }
     }
 
     $prompt = <<<PROMPT
-Sei un nutrizionista e chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando PRINCIPALMENTE gli ingredienti disponibili nella dispensa dell'utente.
+Sei uno chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando gli ingredienti disponibili sotto.
 {$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
-REGOLE IMPORTANTI:
-{$mealPlanRule}1. ORDINE DI PRIORITÀ INGREDIENTI (dal più urgente al meno urgente) — gli ingredienti nella lista sono già ordinati per priorità:
-   a) PRODOTTI SCADUTI: se ancora commestibili, usali SUBITO — hanno la priorità massima assoluta
-   b) PRODOTTI IN SCADENZA IMMINENTE (≤3 giorni): usa questi per primi dopo gli scaduti
-   c) PRODOTTI IN SCADENZA RAVVICINATA (≤7 giorni): poi questi
-   d) PRODOTTI CON SCADENZA PIÙ LONTANA: poi questi
-   e) CONFEZIONI APERTE (contrassegnate [APERTO]): preferiscile rispetto a quelle chiuse
-   f) PRODOTTI CHIUSI SENZA SCADENZA: usa per ultimi
-   Costruisci la ricetta partendo dagli ingredienti delle categorie più urgenti! Usa il maggior numero possibile di ingredienti ad alta priorità.
-   *** OBBLIGO: se nella sezione "INGREDIENTI OBBLIGATORI" sopra ci sono prodotti, la ricetta DEVE contenere ALMENO UNO di quei prodotti come ingrediente principale. Se li ignori, la ricetta è SBAGLIATA. ***
-   *** CONSIGLIO: gli "INGREDIENTI FORTEMENTE CONSIGLIATI" vanno usati se si abbinano bene alla ricetta, ma puoi escluderli se non si adattano — spesso sono prodotti freschi come il latte che si usano comunque. ***
-2. Prediligi una ricetta SANA, EQUILIBRATA e NUTRIENTE
-3. Usa SOLO ingredienti dalla lista sotto, più al massimo acqua, sale, pepe e olio che si presumono sempre disponibili
-4. Adatta le quantità per $persons persona/e
-5. Se non ci sono abbastanza ingredienti per una ricetta completa, suggerisci la migliore combinazione possibile
-6. La ricetta deve essere adatta al pasto: $mealLabel
-7. IMPORTANTE - QUANTITÀ NUMERICHE: per ogni ingrediente dalla dispensa, il campo "qty_number" DEVE contenere il valore NUMERICO da scalare dall'inventario, espresso nella STESSA unità di misura della dispensa. Le unità ammesse sono SOLO: g (grammi), ml (millilitri), pz (pezzi), conf (confezioni). NON usare mai kg o litri. Esempio: se in dispensa c'è "Farina: 1000 g" e la ricetta richiede 200g, qty_number = 200. Se "Riso: 2000 g" e servono 300g, qty_number = 300. Per ingredienti non dalla dispensa, qty_number = 0.
-8. GESTIONE SMART QUANTITÀ: NON lasciare rimasugli poco usabili in dispensa. Se un ingrediente ha una quantità piccola (es. 50g di formaggio, 1 uovo, 100ml di latte), preferisci usarlo TUTTO piuttosto che lasciarne una quantità inutilizzabile. Se invece la quantità è abbondante, usa solo il necessario lasciando abbastanza per un altro pasto. Pensa sempre: "quello che resta sarà sufficiente per un altro utilizzo?"
-9. NOMI INGREDIENTI: nel campo "name" di ogni ingrediente dalla dispensa, usa ESATTAMENTE lo stesso nome riportato nella lista sotto (copia-incolla). NON riformulare, NON abbreviare, NON tradurre. Il sistema usa il nome per collegare l'ingrediente all'inventario. Se il nome non corrisponde, l'ingrediente non viene scalato correttamente.
-10. COMPLETEZZA: la lista ingredienti DEVE includere TUTTI gli ingredienti necessari citati nei passi della ricetta. Se un passo dice "aggiungere il latte", il latte DEVE comparire nella lista ingredienti. Non dare per scontato nessun ingrediente tranne acqua, sale, pepe e olio.
+REGOLE:
+{$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
+2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
+3. Quantità per $persons persona/e. Se un ingrediente ha poca quantità, usalo TUTTO.
+4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
+5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
+6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
 
-INGREDIENTI DISPONIBILI IN DISPENSA:
+DISPENSA:
 $ingredientsText
 
-Rispondi SOLO con un JSON valido in questo formato esatto (senza markdown, senza backtick):
-{
-  "title": "Nome della ricetta",
-  "meal": "$mealType",
-  "persons": $persons,
-  "prep_time": "tempo preparazione (es. 15 min)",
-  "cook_time": "tempo cottura (es. 20 min)",
-  "tags": ["sano", "veloce", "..."],
-  "expiry_note": "Nota sugli ingredienti in scadenza usati (o stringa vuota)",
-  "ingredients": [
-    {"name": "nome ingrediente", "qty": "quantità leggibile (es: 200 g)", "qty_number": 200, "from_pantry": true},
-    {"name": "sale", "qty": "q.b.", "qty_number": 0, "from_pantry": false}
-  ],
-  "steps": [
-    "Passo 1: descrizione dettagliata",
-    "Passo 2: descrizione dettagliata"
-  ],
-  "nutrition_note": "Breve nota nutrizionale sulla ricetta"
-}
+Rispondi SOLO JSON valido (no markdown):
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
 PROMPT;
 
     $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
@@ -2319,7 +2297,12 @@ PROMPT;
     curl_close($ch);
 
     if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+        $errDetail = '';
+        if ($response) {
+            $errData = json_decode($response, true);
+            $errDetail = $errData['error']['message'] ?? substr($response, 0, 300);
+        }
+        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
