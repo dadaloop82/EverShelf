@@ -70,7 +70,7 @@ let _scaleWeightCallback = null; // pending on-demand weight request callback
 let _scaleLatestWeight = null;   // last received weight message
 let _scaleAutoConfirmTimer = null; // countdown timer for auto-confirm after stable weight
 let _scaleAutoConfirmRAF   = null; // rAF handle for auto-confirm progress bar animation
-let _scaleStabilityTimer   = null; // setTimeout: wait 10 s stable before starting confirm bar
+let _scaleStabilityTimer   = null; // setTimeout: wait 5 s stable before starting confirm bar
 let _scaleStabilityRAF     = null; // rAF handle for stability progress bar in the live box
 let _scaleStabilityVal     = null; // value we are currently timing for stability
 let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger for same value
@@ -565,11 +565,11 @@ function _cancelScaleStabilityWait() {
 /**
  * Start a 10-second stability wait with an animated progress bar.
  * Updates both #scale-live-progress-bar (use page) and #ruse-scale-progress-bar (recipe modal).
- * Calls onStable() when weight unchanged for 10 s.
+ * Calls onStable() when weight unchanged for 5 s.
  */
 function _startScaleStabilityWait(onStable) {
     _cancelScaleStabilityWait();
-    const duration = 10000;
+    const duration = 5000;
     const start = performance.now();
     const bar  = document.getElementById('scale-live-progress-bar');
     const bar2 = document.getElementById('ruse-scale-progress-bar');
@@ -1743,6 +1743,46 @@ async function loadSettingsUI() {
     if (kioskBanner && /; wv\)/.test(navigator.userAgent)) {
         kioskBanner.style.display = 'none';
     }
+}
+
+// ── Kiosk overlay: X (close) + ↻ (refresh) buttons ───────────────────
+// Injected from the web app so they survive SPA navigations.
+// Only shown when _kioskBridge JS interface is available (Android WebView).
+function _injectKioskOverlay() {
+    if (typeof _kioskBridge === 'undefined') return;
+    if (document.getElementById('_kiosk_overlay')) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = '_kiosk_overlay';
+    wrap.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
+
+    const btnStyle = 'background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
+
+    // Exit button
+    const exitBtn = document.createElement('button');
+    exitBtn.id = '_kiosk_exit_btn';
+    exitBtn.textContent = '\u2715';
+    exitBtn.title = 'Esci dal kiosk';
+    exitBtn.style.cssText = btnStyle;
+    exitBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Uscire dalla modalità kiosk?')) _kioskBridge.exit();
+    });
+
+    // Refresh button
+    const refBtn = document.createElement('button');
+    refBtn.id = '_kiosk_refresh_btn';
+    refBtn.textContent = '\u21bb';
+    refBtn.title = 'Aggiorna pagina';
+    refBtn.style.cssText = btnStyle.replace('font-size:15px', 'font-size:18px');
+    refBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _kioskBridge.hardReload();
+    });
+
+    wrap.appendChild(exitBtn);
+    wrap.appendChild(refBtn);
+    document.documentElement.appendChild(wrap);
 }
 
 function renderAppliances(appliances) {
@@ -10736,6 +10776,7 @@ async function _initApp() {
     initScreensaverShortcuts();
     startBgShoppingRefresh();
     scaleInit(); // connect to smart scale gateway if configured
+    _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
 
     // ── Auto-refresh dati ─────────────────────────────────────────────────
     // 1) Ogni 5 minuti: ricarica la pagina corrente (scadenze, inventario, ecc.)
