@@ -76,6 +76,16 @@ let _scaleStabilityVal     = null; // value we are currently timing for stabilit
 let _scaleUserDismissed    = false; // user tapped or edited → don't retrigger for same value
 let _scaleRecipeAutoFillPaused = false; // pause flag for recipe-use modal only
 let _scaleLastConfirmedGrams = null; // grams of last auto-confirmed weight (to detect product change)
+let _scaleLastStableGrams = null; // last accepted stable reading in grams (for jitter filtering)
+
+function _scaleToGrams(value, unit) {
+    if (!isFinite(value)) return null;
+    const u = (unit || 'g').toLowerCase();
+    if (u === 'kg') return value * 1000;
+    if (u === 'lbs' || u === 'lb') return value * 453.592;
+    if (u === 'oz') return value * 28.3495;
+    return value; // g / ml treated as grams-equivalent for stability filtering
+}
 
 function scaleInit() {
     const s = getSettings();
@@ -121,34 +131,53 @@ function _scaleOnMessage(msg) {
         updateScaleReadButtons();
     } else if (msg.type === 'weight') {
         // Ignore negative weight values (tare artifacts, sensor noise)
-        if (parseFloat(msg.value) < 0) return;
-        _scaleLatestWeight = msg;
+        const rawValue = parseFloat(msg.value);
+        if (rawValue < 0) return;
+
+        // Ignore sub-gram jitter for stability decisions: only integer-gram changes matter.
+        let effectiveStable = !!msg.stable;
+        const grams = _scaleToGrams(rawValue, msg.unit);
+        if (grams !== null) {
+            if (effectiveStable) {
+                _scaleLastStableGrams = grams;
+            } else if (_scaleLastStableGrams !== null) {
+                if (Math.round(grams) === Math.round(_scaleLastStableGrams)) {
+                    effectiveStable = true;
+                }
+            }
+            if (effectiveStable) {
+                _scaleLastStableGrams = grams;
+            }
+        }
+
+        const liveMsg = effectiveStable === msg.stable ? msg : { ...msg, stable: effectiveStable };
+        _scaleLatestWeight = liveMsg;
         // Update live reading modal overlay if visible (scale-read modal)
         const live = document.getElementById('scale-reading-live');
-        if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        if (live) live.textContent = `${msg.value} ${msg.unit || 'kg'}${liveMsg.stable ? ' ✓' : ' …'}`;
         // Also update edit-form inline scale reading if visible
         const editLive = document.getElementById('edit-scale-reading');
-        if (editLive) editLive.textContent = `${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        if (editLive) editLive.textContent = `${msg.value} ${msg.unit || 'kg'}${liveMsg.stable ? ' ✓' : ' …'}`;
         // Always update the persistent live box on the use page (every message, stable or not)
-        _scaleUpdateLiveBox(msg);
+        _scaleUpdateLiveBox(liveMsg);
         // If weight is NOT stable: stop any running timer/bar but keep the sentinel value.
         // The sentinel is reset only when a genuinely different stable value arrives.
-        if (!msg.stable) {
+        if (!liveMsg.stable) {
             _cancelScaleTimersOnly();
         }
         // Fulfil pending callback on stable reading
-        if (msg.stable && _scaleWeightCallback) {
+        if (liveMsg.stable && _scaleWeightCallback) {
             const cb = _scaleWeightCallback;
             _scaleWeightCallback = null;
-            cb(msg);
+            cb(liveMsg);
         }
         // Drive stability logic on use page
-        if (msg.stable && _currentPageId === 'use') {
-            _scaleAutoFillUse(msg);
+        if (liveMsg.stable && _currentPageId === 'use') {
+            _scaleAutoFillUse(liveMsg);
         }
         // Same for recipe-use modal
-        if (msg.stable && document.getElementById('ruse-quantity') && !_scaleRecipeAutoFillPaused) {
-            _scaleAutoFillRecipeUse(msg);
+        if (liveMsg.stable && document.getElementById('ruse-quantity') && !_scaleRecipeAutoFillPaused) {
+            _scaleAutoFillRecipeUse(liveMsg);
         }
     }
 }
@@ -9652,7 +9681,8 @@ async function generateRecipe() {
             if (result.error === 'no_api_key') {
                 showToast('⚠️ Chiave API Gemini non configurata', 'warning');
             } else {
-                showToast(result.error || 'Errore nella generazione', 'error');
+                const detail = result.detail ? ` (${result.detail})` : '';
+                showToast((result.error || 'Errore nella generazione') + detail, 'error');
             }
             return;
         }
