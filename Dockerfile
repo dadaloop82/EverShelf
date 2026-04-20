@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo_sqlite curl mbstring \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Enable Apache mod_rewrite
-RUN a2enmod rewrite
+# Enable Apache mod_rewrite and mod_headers
+RUN a2enmod rewrite headers
 
 # Set working directory
 WORKDIR /var/www/html
