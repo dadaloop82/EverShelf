@@ -1746,17 +1746,20 @@ async function loadSettingsUI() {
 }
 
 // ── Kiosk overlay: X (close) + ↻ (refresh) buttons ───────────────────
-// Injected from the web app so they survive SPA navigations.
+// Injected inside the header-content div, BEFORE the title.
 // Only shown when _kioskBridge JS interface is available (Android WebView).
 function _injectKioskOverlay() {
     if (typeof _kioskBridge === 'undefined') return;
     if (document.getElementById('_kiosk_overlay')) return;
 
+    const headerContent = document.querySelector('.header-content');
+    if (!headerContent) return;
+
     const wrap = document.createElement('div');
     wrap.id = '_kiosk_overlay';
-    wrap.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
+    wrap.style.cssText = 'display:flex;gap:6px;align-items:center;margin-right:8px;flex-shrink:0;';
 
-    const btnStyle = 'background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
+    const btnStyle = 'background:rgba(255,255,255,0.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
 
     // Exit button
     const exitBtn = document.createElement('button');
@@ -1782,7 +1785,7 @@ function _injectKioskOverlay() {
 
     wrap.appendChild(exitBtn);
     wrap.appendChild(refBtn);
-    document.documentElement.appendChild(wrap);
+    headerContent.insertBefore(wrap, headerContent.firstChild);
 }
 
 function renderAppliances(appliances) {
