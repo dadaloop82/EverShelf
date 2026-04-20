@@ -1754,7 +1754,7 @@ function _injectKioskOverlay() {
 
     const wrap = document.createElement('div');
     wrap.id = '_kiosk_overlay';
-    wrap.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
+    wrap.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
 
     const btnStyle = 'background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
 

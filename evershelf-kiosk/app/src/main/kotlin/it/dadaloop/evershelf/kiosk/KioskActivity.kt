@@ -542,7 +542,7 @@ class KioskActivity : AppCompatActivity() {
 
             var wrap = document.createElement('div');
             wrap.id = '_kiosk_overlay';
-            wrap.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
+            wrap.style.cssText = 'position:fixed;top:8px;left:8px;z-index:2147483647;display:flex;gap:6px;align-items:center;pointer-events:auto;';
 
             // Exit button
             var exitBtn = document.createElement('button');
