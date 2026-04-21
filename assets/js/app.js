@@ -7366,7 +7366,11 @@ async function autoSyncUrgencySpecs() {
         const currentHasUrgencyMarker = currentSpec.includes('urgente') || currentSpec.includes('presto');
         const needsUpdate = expectedSpec && !currentHasUrgencyMarker;
         const needsClear = !expectedSpec && currentHasUrgencyMarker;
-        if (needsUpdate || needsClear) {
+        // Also update if urgency level changed (e.g. medium→high or high→critical)
+        const currentIsHigh = currentSpec.includes('urgente');
+        const newIsHigh = (expectedSpec || '').toLowerCase().includes('urgente');
+        const urgencyEscalated = expectedSpec && currentHasUrgencyMarker && (currentIsHigh !== newIsHigh);
+        if (needsUpdate || needsClear || urgencyEscalated) {
             toUpdate.push({ name: item.name, specification: expectedSpec, update_spec: true });
             // Optimistically update local item so re-render is immediate
             item.specification = expectedSpec;
@@ -10806,9 +10810,10 @@ async function _initApp() {
     });
     // ─────────────────────────────────────────────────────────────────────
 
-    // Silent background sync: update urgency specs on Bring and add missing critical items
-    // Runs once at startup (time-gated: max every 10 min) without affecting the UI
+    // Silent background sync: update urgency specs on Bring and add missing urgent items
+    // Runs at startup + every 5 min (time-gated internally)
     _backgroundBringSync();
+    setInterval(() => { if (!_screensaverActive) _backgroundBringSync(); }, 5 * 60 * 1000);
 }
 
 /**
@@ -10820,7 +10825,7 @@ async function _initApp() {
  */
 async function _backgroundBringSync() {
     const lastRun = parseInt(localStorage.getItem('_bgBringSyncTs') || '0');
-    if (Date.now() - lastRun < 10 * 60 * 1000) return;
+    if (Date.now() - lastRun < 5 * 60 * 1000) return;
     localStorage.setItem('_bgBringSyncTs', String(Date.now()));
 
     try {
@@ -10861,8 +10866,8 @@ async function _backgroundBringSync() {
             });
 
             if (!bringMatch) {
-                // Not on Bring — add if critical AND not recently purchased
-                if (si.urgency === 'critical' && !_isBringPurchased(si.name, 'critical')) {
+                // Not on Bring — add if high or critical AND not recently purchased
+                if ((si.urgency === 'critical' || si.urgency === 'high') && !_isBringPurchased(si.name, si.urgency)) {
                     toAdd.push({ name: si.name, specification: expectedSpec });
                 }
             } else {

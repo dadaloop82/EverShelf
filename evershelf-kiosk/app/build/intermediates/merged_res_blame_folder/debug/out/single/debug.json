@@ -1,0 +1,74 @@
+[
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-mdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/drawable_tip_background.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/drawable/tip_background.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/drawable_card_background.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/drawable/card_background.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/layout_activity_kiosk.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/layout/activity_kiosk.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/layout_activity_settings.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/drawable_input_background.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/drawable/input_background.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-merged_res-32:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    }
+]

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent_green">#059669</color>
+    <color name="accent_purple">#7c3aed</color>
+    <color name="bg_card">#1e293b</color>
+    <color name="bg_dark">#0f172a</color>
+    <color name="border">#334155</color>
+    <color name="error">#f87171</color>
+    <color name="ic_launcher_background">#10B981</color>
+    <color name="success">#34d399</color>
+    <color name="text_muted">#64748b</color>
+    <color name="text_primary">#f1f5f9</color>
+    <color name="text_secondary">#94a3b8</color>
+    <string name="app_name">EverShelf Kiosk</string>
+</resources>

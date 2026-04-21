@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-mergeDebugResources-31:/layout/activity_settings.xml",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "it.dadaloop.evershelf.kiosk.app-mergeDebugResources-31:/layout/activity_kiosk.xml",
+        "source": "it.dadaloop.evershelf.kiosk.app-main-34:/layout/activity_kiosk.xml"
+    }
+]

@@ -3044,7 +3044,7 @@ function invalidateSmartShoppingCache(): void {
 
 function smartShoppingCached(PDO $db): void {
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
-    $maxAge    = 10 * 60; // 10 minutes
+    $maxAge    = 3 * 60; // 3 minutes — keep urgency fresh
 
     if (file_exists($cacheFile)) {
         $mtime = filemtime($cacheFile);
