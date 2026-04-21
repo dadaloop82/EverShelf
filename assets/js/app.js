@@ -2354,9 +2354,10 @@ async function loadBannerAlerts() {
     if (!banner) { console.warn('[Banner] #alert-banner not found'); return; }
 
     try {
-        const [invData, predData] = await Promise.all([
+        const [invData, predData, anomalyData] = await Promise.all([
             api('inventory_list'),
             api('consumption_predictions').catch(err => { console.warn('[Banner] predictions fetch failed:', err); return { predictions: [] }; }),
+            api('inventory_anomalies').catch(err => { console.warn('[Banner] anomalies fetch failed:', err); return { anomalies: [] }; }),
         ]);
         const items = invData.inventory || [];
         const confirmed = getReviewConfirmed();
@@ -2399,6 +2400,13 @@ async function loadBannerAlerts() {
         predictions.forEach(pred => {
             if (confirmed['pred_' + pred.inventory_id]) return;
             _bannerQueue.push({ type: 'prediction', data: pred });
+        });
+
+        // 5. Inventory anomalies (qty doesn't match transaction history)
+        const anomalies = anomalyData.anomalies || [];
+        anomalies.forEach(an => {
+            if (confirmed['an_' + an.dismiss_key]) return;
+            _bannerQueue.push({ type: 'anomaly', data: an });
         });
 
         // Sort by priority (highest first)
@@ -2452,6 +2460,10 @@ function _bannerPriority(entry) {
             const dev = entry.data.deviation_pct || 0;
             // Higher deviation = more important, capped at 99
             return 100 + Math.min(dev, 99);
+        }
+        case 'anomaly': {
+            // Phantom (inflated qty) = 250, Missing = 260 (slightly higher, means data is clearly wrong)
+            return entry.data.direction === 'missing' ? 260 : 250;
         }
         default:
             return 0;
@@ -2530,6 +2542,23 @@ function renderBannerItem() {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ ${t('dashboard.banner_prediction_action_weigh')}</button>`;
         }
         actionsEl.innerHTML = btns;
+
+    } else if (entry.type === 'anomaly') {
+        const an = entry.data;
+        const diffAbs = Math.abs(an.diff);
+        const diffDisplay = `${diffAbs} ${an.unit}`;
+        const isPhantom = an.direction === 'phantom';
+        banner.className = 'alert-banner banner-anomaly';
+        iconEl.textContent = '🔍';
+        titleEl.textContent = `Anomalia inventario: ${an.name}${an.brand ? ' (' + an.brand + ')' : ''}`;
+        if (isPhantom) {
+            detailEl.innerHTML = `Inventario: <strong>${an.inv_qty}${an.unit}</strong> ma le transazioni ne giustificano solo <strong>${an.expected_qty}${an.unit}</strong> (+${diffDisplay} fantasma)`;
+        } else {
+            detailEl.innerHTML = `Le transazioni indicano <strong>${an.expected_qty}${an.unit}</strong> ma l'inventario ha solo <strong>${an.inv_qty}${an.unit}</strong> (mancano ${diffDisplay})`;
+        }
+        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">✏️ Correggi</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">✓ Ok, ignora</button>`;
+        actionsEl.innerHTML = btns;
     }
 
     if (_bannerQueue.length > 1) {
@@ -2583,6 +2612,23 @@ function editBannerPrediction() {
     if (!entry || entry.type !== 'prediction') return;
     _bannerEditPending = true;
     editReviewItem(entry.data.inventory_id, entry.data.product_id);
+}
+
+function editBannerAnomaly() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    _bannerEditPending = true;
+    editReviewItem(entry.data.inventory_id, entry.data.product_id);
+}
+
+function dismissBannerAnomaly() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    const key = entry.data.dismiss_key;
+    setReviewConfirmed('an_' + key);
+    api('dismiss_anomaly', {}, 'POST', { dismiss_key: key }).catch(() => {});
+    showToast('Anomalia ignorata', 'info');
+    dismissBannerItem();
 }
 
 function weighBannerItem() {

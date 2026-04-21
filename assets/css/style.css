@@ -4525,6 +4525,12 @@ body {
     background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
     border-color: #8b5cf6;
 }
+.alert-banner.banner-anomaly {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    border-color: #ea580c;
+}
+.banner-anomaly .alert-banner-title { color: #9a3412; }
+.banner-anomaly .alert-banner-counter .banner-dot.active { background: #ea580c; }
 .alert-banner-inner {
     display: flex;
     align-items: flex-start;

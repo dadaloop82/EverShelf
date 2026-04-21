@@ -202,6 +202,14 @@ try {
             getConsumptionPredictions($db);
             break;
 
+        case 'inventory_anomalies':
+            getInventoryAnomalies($db);
+            break;
+
+        case 'dismiss_anomaly':
+            dismissInventoryAnomaly();
+            break;
+
         case 'recent_popular_products':
             recentPopularProducts($db);
             break;
@@ -1260,6 +1268,100 @@ function undoTransaction(PDO $db): void {
 
 
 // ===== STATS =====
+
+/**
+ * Detect inventory items where the stored quantity is significantly inconsistent
+ * with the transaction history (sum of in - sum of out/waste).
+ *
+ * Two anomaly directions:
+ *  - PHANTOM (+diff): inventory > tx balance → quantity was manually inflated without an 'in' tx
+ *  - MISSING (-diff): inventory < tx balance → tx history says more should be here than stored
+ */
+function getInventoryAnomalies(PDO $db): void {
+    $rows = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.unit,
+               p.default_quantity, p.package_unit,
+               i.id AS inventory_id, i.quantity AS inv_qty, i.location,
+               COALESCE(tx_in.tot, 0)  AS total_in,
+               COALESCE(tx_out.tot, 0) AS total_out
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) AS tot
+            FROM transactions WHERE type = 'in' AND undone = 0 GROUP BY product_id
+        ) tx_in  ON tx_in.product_id  = p.id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) AS tot
+            FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
+        ) tx_out ON tx_out.product_id = p.id
+        WHERE i.quantity > 0
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Anomaly dismissed keys stored in a simple JSON file
+    $dismissFile = __DIR__ . '/../data/anomaly_dismissed.json';
+    $dismissed   = [];
+    if (file_exists($dismissFile)) {
+        $dismissed = json_decode(file_get_contents($dismissFile), true) ?: [];
+    }
+
+    $anomalies = [];
+    foreach ($rows as $r) {
+        $invQty   = floatval($r['inv_qty']);
+        $expected = floatval($r['total_in']) - floatval($r['total_out']);
+        $diff     = $invQty - $expected;
+
+        // Threshold: difference must be >20% of inventory AND >50 units (avoid noise)
+        $threshold = max(1.0, $invQty * 0.20);
+        if (abs($diff) <= $threshold || abs($diff) <= 50) continue;
+
+        // Dismiss key: product_id + rounded expected (so re-adding stock resets the alert)
+        $key = 'a_' . $r['product_id'] . '_' . round($expected);
+        if (!empty($dismissed[$key])) continue;
+
+        $direction = $diff > 0 ? 'phantom' : 'missing';
+        $anomalies[] = [
+            'inventory_id' => (int)$r['inventory_id'],
+            'product_id'   => (int)$r['product_id'],
+            'name'         => $r['name'],
+            'brand'        => $r['brand'] ?: '',
+            'unit'         => $r['unit'],
+            'default_quantity' => $r['default_quantity'],
+            'package_unit' => $r['package_unit'],
+            'inv_qty'      => round($invQty, 2),
+            'expected_qty' => round($expected, 2),
+            'diff'         => round($diff, 2),
+            'direction'    => $direction,
+            'dismiss_key'  => $key,
+        ];
+    }
+
+    // Sort: largest absolute diff first
+    usort($anomalies, fn($a, $b) => abs($b['diff']) <=> abs($a['diff']));
+
+    echo json_encode(['success' => true, 'anomalies' => $anomalies], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Dismiss a specific anomaly so it no longer appears in the banner.
+ */
+function dismissInventoryAnomaly(): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $key   = $input['dismiss_key'] ?? '';
+    if (empty($key) || !preg_match('/^a_\d+_-?\d+$/', $key)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid key']);
+        return;
+    }
+    $dismissFile = __DIR__ . '/../data/anomaly_dismissed.json';
+    $dismissed   = [];
+    if (file_exists($dismissFile)) {
+        $dismissed = json_decode(file_get_contents($dismissFile), true) ?: [];
+    }
+    $dismissed[$key] = time();
+    // Clean up entries older than 90 days
+    $dismissed = array_filter($dismissed, fn($ts) => $ts > time() - 90 * 86400);
+    file_put_contents($dismissFile, json_encode($dismissed), LOCK_EX);
+    echo json_encode(['success' => true]);
+}
 
 function getStats(PDO $db): void {
     $totalProducts = $db->query("SELECT COUNT(*) FROM products")->fetchColumn();
