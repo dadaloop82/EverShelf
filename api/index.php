@@ -66,11 +66,16 @@ function checkRateLimit(string $action): void {
     // Determine limit based on action
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
     $loginActions = ['dupliclick_login'];
+    $recipeActions = ['generate_recipe'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
         $window = 60;
         $bucket = 'ai';
+    } elseif (in_array($action, $recipeActions)) {
+        $limit = 5;
+        $window = 60;
+        $bucket = 'recipe';
     } elseif (in_array($action, $loginActions)) {
         $limit = 5;
         $window = 60;
@@ -2283,18 +2288,33 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-    ]);
+    // Call Gemini with retry on 429 (transient rate limit)
+    $maxAttempts = 3;
+    $response = false;
+    $httpCode = 0;
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+        if ($httpCode === 200) break;
+
+        // Retry on 429 (rate limited) or 503 (transient server error)
+        if (($httpCode === 429 || $httpCode === 503) && $attempt < $maxAttempts) {
+            // Exponential backoff: 2s, 4s
+            sleep($attempt * 2);
+            continue;
+        }
+        break;
+    }
 
     if ($response === false || $httpCode !== 200) {
         $errDetail = '';
