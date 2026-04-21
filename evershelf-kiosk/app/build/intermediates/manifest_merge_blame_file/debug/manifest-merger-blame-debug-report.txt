@@ -1,0 +1,208 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="it.dadaloop.evershelf.kiosk"
+4    android:versionCode="4"
+5    android:versionName="1.3.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- Network -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:5:5-67
+12-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:5:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:6:5-79
+13-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:6:22-76
+14    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+14-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:7:5-76
+14-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:7:22-73
+15
+16    <!-- Keep screen on -->
+17    <uses-permission android:name="android.permission.WAKE_LOCK" />
+17-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:10:5-68
+17-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:10:22-65
+18
+19    <!-- Camera & Microphone (for barcode scan, photo, voice) -->
+20    <uses-permission android:name="android.permission.CAMERA" />
+20-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:13:5-65
+20-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:13:22-62
+21    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+21-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:14:5-71
+21-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:14:22-68
+22
+23    <uses-feature
+23-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:15:5-85
+24        android:name="android.hardware.camera"
+24-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:15:19-57
+25        android:required="false" />
+25-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:15:58-82
+26    <uses-feature
+26-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:16:5-95
+27        android:name="android.hardware.camera.autofocus"
+27-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:16:19-67
+28        android:required="false" />
+28-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:16:68-92
+29
+30    <!-- Storage (file upload/download) -->
+31    <uses-permission
+31-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:19:5-107
+32        android:name="android.permission.READ_EXTERNAL_STORAGE"
+32-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:19:22-77
+33        android:maxSdkVersion="32" />
+33-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:19:78-104
+34    <uses-permission
+34-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:20:5-108
+35        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+35-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:20:22-78
+36        android:maxSdkVersion="29" />
+36-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:20:79-105
+37    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+37-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:21:5-76
+37-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:21:22-73
+38
+39    <!-- Move task to front (bring kiosk back after gateway launch) -->
+40    <uses-permission android:name="android.permission.REORDER_TASKS" />
+40-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:24:5-72
+40-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:24:22-69
+41
+42    <!-- Query gateway app visibility (required Android 11+) -->
+43    <queries>
+43-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:27:5-29:15
+44        <package android:name="it.dadaloop.evershelf.scalegate" />
+44-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:28:9-67
+44-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:28:18-64
+45    </queries>
+46
+47    <permission
+47-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+48        android:name="it.dadaloop.evershelf.kiosk.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+48-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+49        android:protectionLevel="signature" />
+49-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+50
+51    <uses-permission android:name="it.dadaloop.evershelf.kiosk.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+51-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+51-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+52
+53    <application
+53-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:31:5-57:19
+54        android:allowBackup="true"
+54-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:32:9-35
+55        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+55-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-3/01be542a8a7642ecba403b94caa2bdf6/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+56        android:debuggable="true"
+57        android:extractNativeLibs="false"
+58        android:icon="@mipmap/ic_launcher"
+58-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:33:9-43
+59        android:label="@string/app_name"
+59-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:34:9-41
+60        android:roundIcon="@mipmap/ic_launcher_round"
+60-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:35:9-54
+61        android:supportsRtl="true"
+61-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:36:9-35
+62        android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
+62-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:38:9-74
+63        android:usesCleartextTraffic="true" >
+63-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:37:9-44
+64        <activity
+64-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:40:9-50:20
+65            android:name="it.dadaloop.evershelf.kiosk.KioskActivity"
+65-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:41:13-42
+66            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
+66-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:44:13-83
+67            android:exported="true"
+67-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:42:13-36
+68            android:launchMode="singleTask"
+68-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:43:13-44
+69            android:windowSoftInputMode="adjustResize" >
+69-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:45:13-55
+70            <intent-filter>
+70-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:46:13-49:29
+71                <action android:name="android.intent.action.MAIN" />
+71-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:47:17-69
+71-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:47:25-66
+72
+73                <category android:name="android.intent.category.LAUNCHER" />
+73-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:48:17-77
+73-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:48:27-74
+74            </intent-filter>
+75        </activity>
+76        <activity
+76-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:52:9-55:81
+77            android:name="it.dadaloop.evershelf.kiosk.SettingsActivity"
+77-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:53:13-45
+78            android:exported="false"
+78-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:54:13-37
+79            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar" />
+79-->/var/www/html/dispensa/evershelf-kiosk/app/src/main/AndroidManifest.xml:55:13-78
+80
+81        <provider
+81-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+82            android:name="androidx.startup.InitializationProvider"
+82-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
+83            android:authorities="it.dadaloop.evershelf.kiosk.androidx-startup"
+83-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
+84            android:exported="false" >
+84-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
+85            <meta-data
+85-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+86                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+86-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
+87                android:value="androidx.startup" />
+87-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-3/3b1c9546348c78fb93ea44cdc358ca9a/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
+88            <meta-data
+88-->[androidx.lifecycle:lifecycle-process:2.6.1] /root/.gradle/caches/transforms-3/3604298f7ed8b9765ba613ece91af762/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:29:13-31:52
+89                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+89-->[androidx.lifecycle:lifecycle-process:2.6.1] /root/.gradle/caches/transforms-3/3604298f7ed8b9765ba613ece91af762/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:30:17-78
+90                android:value="androidx.startup" />
+90-->[androidx.lifecycle:lifecycle-process:2.6.1] /root/.gradle/caches/transforms-3/3604298f7ed8b9765ba613ece91af762/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:31:17-49
+91            <meta-data
+91-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+92                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+92-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+93                android:value="androidx.startup" />
+93-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+94        </provider>
+95
+96        <receiver
+96-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+97            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+97-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+98            android:directBootAware="false"
+98-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+99            android:enabled="true"
+99-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+100            android:exported="true"
+100-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+101            android:permission="android.permission.DUMP" >
+101-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+102            <intent-filter>
+102-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+103                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+103-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+104            </intent-filter>
+105            <intent-filter>
+105-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+106                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+107            </intent-filter>
+108            <intent-filter>
+108-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+109                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+109-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+109-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+110            </intent-filter>
+111            <intent-filter>
+111-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+112                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /root/.gradle/caches/transforms-3/573f6a26013a5e6faa74fd7a6508f3e2/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+113            </intent-filter>
+114        </receiver>
+115    </application>
+116
+117</manifest>
