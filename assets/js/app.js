@@ -10785,21 +10785,18 @@ async function _initApp() {
     scaleInit(); // connect to smart scale gateway if configured
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
 
-    // ── Auto-refresh dati ─────────────────────────────────────────────────
-    // 1) Ogni 5 minuti: ricarica la pagina corrente (scadenze, inventario, ecc.)
+    // ── Background intervals ───────────────────────────────────────────────
+    // 1) Ogni 5 min: ricarica la pagina corrente (scadenze, inventario, ecc.)
     setInterval(() => {
         if (!_screensaverActive) refreshCurrentPage();
     }, 5 * 60 * 1000);
 
-    // 2) Ogni 2 minuti: aggiorna lista spesa in background (anche se non sei
-    //    sulla pagina Shopping), così i prodotti aggiunti da un altro dispositivo
-    //    su Bring! appaiono subito quando torni sulla schermata.
+    // 2) Ogni 2 min: aggiorna contatore lista spesa nel badge dashboard
     setInterval(() => {
         if (_screensaverActive) return;
         if (_currentPageId === 'shopping') {
-            loadShoppingList(); // già visibile → aggiorna tutto
+            loadShoppingList();
         } else {
-            // Aggiorna solo il badge/contatore senza cambiare pagina
             loadShoppingCount();
         }
     }, 2 * 60 * 1000);
@@ -10808,20 +10805,19 @@ async function _initApp() {
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refreshCurrentPage();
     });
-    // ─────────────────────────────────────────────────────────────────────
 
-    // Silent background sync: update urgency specs on Bring and add missing urgent items
-    // Runs at startup + every 5 min (time-gated internally)
+    // 4) Background Bring sync ogni 5 min — completamente autonomo, non dipende
+    //    dalla pagina corrente. Aggiunge urgenti, aggiorna spec, rimuove risolti.
     _backgroundBringSync();
     setInterval(() => { if (!_screensaverActive) _backgroundBringSync(); }, 5 * 60 * 1000);
+    // ─────────────────────────────────────────────────────────────────────
 }
 
 /**
- * Background sync at startup:
- * 1. Fetches Bring list + smart shopping in parallel
- * 2. Adds any critical items missing from Bring
- * 3. Updates urgency specs for items already on Bring that need it
- * Fully silent — no toasts, no loading spinners.
+ * Background sync — runs every 5 min regardless of current page.
+ * Fully autonomous: fetches fresh data, syncs Bring urgency specs,
+ * adds missing urgent items, removes obsolete auto-added items.
+ * Never depends on page navigation or user interaction.
  */
 async function _backgroundBringSync() {
     const lastRun = parseInt(localStorage.getItem('_bgBringSyncTs') || '0');
@@ -10842,50 +10838,92 @@ async function _backgroundBringSync() {
 
         if (!listUUID || !smartItems.length) return;
 
-        // Update local smart cache so other functions can use it
-        if (!smartShoppingItems.length) {
-            smartShoppingItems = smartItems;
-            _smartShoppingLastFetch = Date.now();
-        }
-        if (!shoppingListUUID) shoppingListUUID = listUUID;
-        if (!shoppingItems.length) shoppingItems = bringItems;
+        // Always update local caches with fresh data
+        smartShoppingItems = smartItems;
+        _smartShoppingLastFetch = Date.now();
+        shoppingListUUID = listUUID;
+        shoppingItems = bringItems;
 
-        const toAdd = [];    // new items not yet on Bring
+        const toAdd    = []; // new items not yet on Bring
         const toUpdate = []; // items on Bring that need spec updated
+        const toRemove = []; // items on Bring that are no longer urgent (auto-added, now resolved)
+
+        // Build set of auto-added item names so we can safely remove them if resolved
+        const autoAdded = new Set(JSON.parse(localStorage.getItem('_bgAutoAdded') || '[]'));
 
         for (const si of smartItems) {
-            if (si.urgency === 'none' || si.urgency === 'low') continue;
             const expectedSpec = _urgencyToSpec(si.urgency, '');
             const bringMatch = bringItems.find(bi => {
-                const biL = bi.name.toLowerCase();
-                const siL = si.name.toLowerCase();
-                if (biL === siL) return true;
+                if (bi.name.toLowerCase() === si.name.toLowerCase()) return true;
                 const biFirst = _nameTokens(bi.name)[0];
                 const siFirst = _nameTokens(si.name)[0];
-                return biFirst && biFirst === siFirst;
+                return biFirst && siFirst && biFirst === siFirst;
             });
 
             if (!bringMatch) {
-                // Not on Bring — add if high or critical AND not recently purchased
+                // Not on Bring — add if high/critical and not blocklisted
                 if ((si.urgency === 'critical' || si.urgency === 'high') && !_isBringPurchased(si.name, si.urgency)) {
                     toAdd.push({ name: si.name, specification: expectedSpec });
+                    autoAdded.add(si.name.toLowerCase());
                 }
             } else {
-                // On Bring — update spec if urgency marker is missing/wrong
+                // Already on Bring — sync urgency spec unconditionally
                 const currentSpec = (bringMatch.specification || '').toLowerCase();
                 const hasUrgencyMarker = currentSpec.includes('urgente') || currentSpec.includes('presto');
-                if (!hasUrgencyMarker && expectedSpec) {
-                    toUpdate.push({ name: si.name, specification: expectedSpec, update_spec: true });
-                    bringMatch.specification = expectedSpec; // update local copy
+                const expectedLower = (expectedSpec || '').toLowerCase();
+                const specChanged = expectedSpec
+                    ? !currentSpec.includes(expectedLower.split(' ')[1] || expectedLower) // marker changed
+                    : hasUrgencyMarker; // need to clear
+
+                if (specChanged) {
+                    toUpdate.push({ name: bringMatch.name, specification: expectedSpec, update_spec: true });
+                    bringMatch.specification = expectedSpec;
                 }
             }
         }
 
-        const allChanges = [...toAdd, ...toUpdate];
-        if (allChanges.length === 0) return;
+        // Remove items auto-added by us that are no longer urgent (resolved)
+        for (const bi of bringItems) {
+            const nameLower = bi.name.toLowerCase();
+            if (!autoAdded.has(nameLower)) continue; // not auto-added by us, skip
+            const stillUrgent = smartItems.some(si => {
+                if (si.name.toLowerCase() === nameLower) return si.urgency === 'high' || si.urgency === 'critical';
+                const siFirst = _nameTokens(si.name)[0];
+                const biFirst = _nameTokens(bi.name)[0];
+                return siFirst && biFirst && siFirst === biFirst && (si.urgency === 'high' || si.urgency === 'critical');
+            });
+            if (!stillUrgent) {
+                toRemove.push(bi.name);
+                autoAdded.delete(nameLower);
+            }
+        }
 
-        await api('bring_add', {}, 'POST', { items: allChanges, listUUID });
-        logOperation('bg_bring_sync', { added: toAdd.map(i=>i.name), updated: toUpdate.map(i=>i.name) });
+        // Persist updated auto-added set
+        localStorage.setItem('_bgAutoAdded', JSON.stringify([...autoAdded]));
+
+        const allChanges = [...toAdd, ...toUpdate];
+        if (allChanges.length > 0) {
+            await api('bring_add', {}, 'POST', { items: allChanges, listUUID });
+            logOperation('bg_bring_sync', { added: toAdd.map(i=>i.name), updated: toUpdate.map(i=>i.name) });
+        }
+
+        if (toRemove.length > 0) {
+            await api('bring_remove', {}, 'POST', { items: toRemove.map(n => ({ name: n })), listUUID });
+            logOperation('bg_bring_remove', { removed: toRemove });
+        }
+
+        // Update urgency badge on dashboard without re-rendering anything visible
+        _updateSmartUrgencyBadge();
+
+        // If shopping page is open, re-render it with fresh data
+        if (_currentPageId === 'shopping') {
+            _syncOnBringFlags();
+            _syncTagsFromBringSpec();
+            renderSmartShopping();
+            renderShoppingItems();
+            updateShoppingTabCounts();
+        }
+
     } catch (e) { /* silent — best effort */ }
 }
 
