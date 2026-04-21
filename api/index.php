@@ -3480,221 +3480,80 @@ function smartShopping(PDO $db): void {
 }
 
 function bringSuggestItems(PDO $db): void {
-    $apiKey = env('GEMINI_API_KEY');
-    
-    if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'API Key Gemini non configurata']);
-        return;
+    // Offline: derive suggestions from smart shopping cache (no AI needed)
+
+    // 1. Load smart shopping data from cache or compute fresh
+    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    $smartItems = null;
+    if (file_exists($cacheFile)) {
+        $raw = file_get_contents($cacheFile);
+        if ($raw) {
+            $cached = json_decode($raw, true);
+            if ($cached && isset($cached['items'])) {
+                $smartItems = $cached['items'];
+            }
+        }
     }
-    
-    // Get current Bring! list
-    $auth = bringAuth();
-    $bringItems = [];
+    if ($smartItems === null) {
+        ob_start();
+        smartShopping($db);
+        $raw = ob_get_clean();
+        $data = json_decode($raw, true);
+        $smartItems = $data['items'] ?? [];
+    }
+
+    // 2. Get Bring! listUUID for response
     $listUUID = '';
+    $auth = bringAuth();
     if ($auth) {
-        $listUUID = $auth['bringListUUID'];
-        if (empty($listUUID)) {
-            $lists = bringRequest('GET', "https://api.getbring.com/rest/v2/bringusers/{$auth['uuid']}/lists");
-            if ($lists && isset($lists['lists'][0]['listUuid'])) {
-                $listUUID = $lists['lists'][0]['listUuid'];
-            }
-        }
-        if ($listUUID) {
-            $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
-            if ($data && isset($data['purchase'])) {
-                foreach ($data['purchase'] as $item) {
-                    $rawName = $item['name'] ?? '';
-                    $bringItems[] = bringToItalian($rawName);
-                }
-            }
-        }
+        $listUUID = $auth['bringListUUID'] ?? '';
     }
-    
-    // Get inventory
-    $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
-               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY p.category, p.name
-    ");
-    $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Build detailed context with expiry info
-    $invLines = [];
-    $expiringItems = [];
-    $expiredItems = [];
-    $categories = [];
-    foreach ($inventory as $item) {
-        $cat = $item['category'] ?: 'altro';
-        $categories[$cat] = ($categories[$cat] ?? 0) + 1;
-        $line = "- {$item['name']}";
-        if ($item['brand']) $line .= " ({$item['brand']})";
-        $line .= ": {$item['quantity']} {$item['unit']} in {$item['location']}";
-        if ($item['expiry_date']) {
-            $dl = intval($item['days_left']);
-            if ($dl < 0) {
-                $line .= " [⚠️ SCADUTO da " . abs($dl) . " giorni]";
-                $expiredItems[] = $item['name'];
-            } elseif ($dl <= 2) {
-                $line .= " [🔴 SCADE TRA {$dl} GIORNI - USARE SUBITO]";
-                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
-            } elseif ($dl <= 7) {
-                $line .= " [🟡 scade tra {$dl} giorni]";
-                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
-            } elseif ($dl <= 14) {
-                $line .= " [scade tra {$dl} giorni]";
-            }
-        }
-        $invLines[] = $line;
-    }
-    $inventoryText = empty($invLines) ? 'La dispensa è COMPLETAMENTE VUOTA.' : implode("\n", $invLines);
-    
-    $expiryContext = '';
-    if (!empty($expiredItems)) {
-        $expiryContext .= "\n\nPRODOTTI SCADUTI da sostituire: " . implode(', ', $expiredItems);
-    }
-    if (!empty($expiringItems)) {
-        $expiryContext .= "\n\nPRODOTTI IN SCADENZA (priorità per sostituzione): " . implode(', ', $expiringItems);
-    }
-    
-    $bringText = empty($bringItems) 
-        ? 'La lista della spesa Bring! è attualmente VUOTA.' 
-        : "PRODOTTI GIÀ NELLA LISTA DELLA SPESA BRING! (NON suggerire nessuno di questi, sono già stati aggiunti):\n- " . implode("\n- ", $bringItems);
-    
-    // Current month for seasonal suggestions
-    $mese = strftime('%B') ?: date('F');
-    $mesi_it = ['January'=>'Gennaio','February'=>'Febbraio','March'=>'Marzo','April'=>'Aprile','May'=>'Maggio','June'=>'Giugno','July'=>'Luglio','August'=>'Agosto','September'=>'Settembre','October'=>'Ottobre','November'=>'Novembre','December'=>'Dicembre'];
-    $meseIt = $mesi_it[date('F')] ?? date('F');
-    $anno = date('Y');
-    
-    // Get catalog Italian names for AI to use
-    $catalog = bringCatalog();
-    $catalogNames = array_values($catalog['de2it']);
-    // Filter only food-related items (exclude categories and non-food)
-    $catalogNames = array_filter($catalogNames, function($n) {
-        $skip = ['Fai da te', 'Giardino', 'Atrezzi', 'Annaffiatoio', 'Rasaerba', 'Sementi', 'Propangas', 'Vernice', 'Pennello', 'Viti', 'Chiodi', 'Barbecue', 'Ombrellone', 'Terriccio', 'Concime', 'Articoli propri', 'Usati di recente'];
-        foreach ($skip as $s) { if (str_contains($n, $s)) return false; }
-        return mb_strlen($n) > 1;
-    });
-    $catalogList = implode(', ', array_slice($catalogNames, 0, 200));
-    
-    $prompt = <<<PROMPT
-Sei un nutrizionista e consulente per la spesa domestica italiano. Il tuo obiettivo è aiutare l'utente a fare una spesa SANA, EQUILIBRATA e INTELLIGENTE.
 
-DATA ATTUALE: {$meseIt} {$anno}
-
-=== INVENTARIO ATTUALE (cosa ha già in casa) ===
-{$inventoryText}{$expiryContext}
-
-=== LISTA BRING! (già pianificato per la spesa) ===
-{$bringText}
-
-=== CATALOGO PRODOTTI RICONOSCIUTI ===
-Usa ESATTAMENTE questi nomi quando possibile (sono i nomi che il sistema riconosce con icone e categorie):
-{$catalogList}
-
-=== IL TUO COMPITO ===
-Analizza attentamente l'inventario dell'utente e suggerisci cosa MANCA per una settimana di alimentazione sana.
-
-REGOLA FONDAMENTALE SUI NOMI:
-- Il campo "name" DEVE essere uno dei nomi dal CATALOGO PRODOTTI sopra, scritto ESATTAMENTE come appare.
-- Esempio: usa "Spinaci" (non "Spinaci freschi"), "Pollo" (non "Petto di pollo"), "Mele" (non "Mele Golden").
-- Se vuoi specificare la variante, mettila nel campo "specification" (es: name="Pollo", specification="petto, 500g").
-- Se il prodotto non è nel catalogo, usa il nome più generico possibile in italiano.
-
-RAGIONA COSÌ:
-1. CONTROLLA cosa ha già: guarda OGNI prodotto nell'inventario prima di suggerire. Se ha già pollo, non suggerire pollo. Se ha già pasta, non suggerire altra pasta.
-2. CONTROLLA la lista Bring!: NON suggerire nulla che sia già nella lista. Neanche varianti simili (es. "Fagioli" se c'è "Fagioli in lattina").
-3. PRODOTTI SCADUTI/IN SCADENZA: se qualcosa sta per scadere o è scaduto, suggerisci un sostituto fresco.
-4. STAGIONALITÀ ({$meseIt}): prediligi FRUTTA e VERDURA di stagione. A {$meseIt} in Italia: carciofi, asparagi, spinaci, bietole, finocchi, radicchio, arance, kiwi, mele, pere.
-5. DIETA SANA: assicurati che l'utente abbia proteine, fibre, vitamine, carboidrati complessi. Evita eccessi di prodotti trasformati.
-6. BASI MANCANTI: controlla se mancano alimenti essenziali come uova, latte, pane, frutta fresca, verdura, proteine.
-7. VARIETÀ: non suggerire 5 tipi di frutta se manca la carne. Bilancia le categorie.
-
-LIMITI:
-- Massimo 12 suggerimenti
-- Ordina per PRIORITÀ REALE (prima le mancanze gravi, poi i nice-to-have)
-- Ogni motivo deve essere SPECIFICO ("non hai proteine fresche" non "è buono")
-- NON inserire quantità, marche o dettagli nel campo "specification" — lascialo sempre vuoto.
-- Usa nomi GENERICI dal catalogo Bring! (es: "Latte" non "Latte Granarolo 1L").
-
-Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
-{
-  "suggestions": [
-    {
-      "name": "nome prodotto generico in italiano",
-      "specification": "",
-      "reason": "motivo breve",
-      "category": "frutta|verdura|latticini|carne|pesce|pane|pasta|conserve|condimenti|bevande|snack|surgelati|cereali|igiene|pulizia|altro",
-      "priority": "alta|media|bassa"
-    }
-  ],
-  "seasonal_tip": "Un consiglio stagionale breve"
-}
-PROMPT;
-
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    
-    $payload = [
-        'contents' => [
-            ['parts' => [['text' => $prompt]]]
-        ],
-        'generationConfig' => [
-            'temperature' => 0.8,
-            'maxOutputTokens' => 2048,
-        ]
+    // 3. Convert smart shopping items → suggestions (alta/media priority only, skip on_bring)
+    $suggestions = [];
+    $seasonalTips = [
+        1  => 'Gennaio: arance, mandarini, kiwi, carciofi e verze sono di stagione.',
+        2  => 'Febbraio: radicchio, finocchi, pere e agrumi da non perdere.',
+        3  => 'Marzo: arrivano gli asparagi! Ottimo anche con piselli freschi e spinaci.',
+        4  => 'Aprile: stagione di asparagi, carciofi, fave e fragole.',
+        5  => 'Maggio: zucchine, fragole, ciliegie — ottimo mese per frutta e verdura fresca.',
+        6  => 'Giugno: albicocche, pesche, pomodori freschi, melanzane — estate in arrivo.',
+        7  => 'Luglio: cocomero, pesche, melanzane e pomodori sono al loro meglio.',
+        8  => 'Agosto: prugne, fichi, peperoni e basilico fresco di stagione.',
+        9  => 'Settembre: uva, fichi, funghi porcini, melograno e more.',
+        10 => 'Ottobre: melograni, castagne, funghi, mele e pere autunnali.',
+        11 => 'Novembre: cachi, melograni, cavoli, broccoli e radicchio tardivo.',
+        12 => 'Dicembre: arance, mandarini, cachi, verze e cavolfiori.',
     ];
-    
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' => "Content-Type: application/json\r\n",
-            'content' => json_encode($payload),
-            'timeout' => 30,
-        ]
-    ]);
-    
-    $response = @file_get_contents($url, false, $ctx);
-    if ($response === false) {
-        echo json_encode(['success' => false, 'error' => 'Errore di connessione a Gemini']);
-        return;
+    $seasonalTip = $seasonalTips[(int)date('n')] ?? '';
+
+    foreach ($smartItems as $item) {
+        if ($item['on_bring'] ?? false) continue; // already on shopping list
+
+        $urgency = $item['urgency'] ?? 'low';
+        if ($urgency === 'low') continue; // not urgent enough to suggest
+
+        $priority = ($urgency === 'critical' || $urgency === 'high') ? 'alta' : 'media';
+        $reasons = $item['reasons'] ?? [];
+        $reason = !empty($reasons) ? implode(', ', $reasons) : 'Scorte basse';
+
+        $suggestions[] = [
+            'name'          => $item['name'],
+            'specification' => '',
+            'reason'        => $reason,
+            'category'      => $item['category'] ?: 'altro',
+            'priority'      => $priority,
+        ];
+
+        if (count($suggestions) >= 12) break;
     }
-    
-    $data = json_decode($response, true);
-    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    
-    // Clean markdown artifacts
-    $text = preg_replace('/^```json\s*/i', '', $text);
-    $text = preg_replace('/```\s*$/', '', $text);
-    $text = trim($text);
-    
-    $suggestions = json_decode($text, true);
-    if (!$suggestions || !isset($suggestions['suggestions'])) {
-        echo json_encode(['success' => false, 'error' => 'Risposta AI non valida', 'raw' => $text]);
-        return;
-    }
-    
-    // Post-filter: remove any suggestions that match Bring! list items (safety net)
-    $bringLower = array_map('mb_strtolower', $bringItems);
-    $filtered = array_values(array_filter($suggestions['suggestions'], function($s) use ($bringLower) {
-        $sName = mb_strtolower($s['name'] ?? '');
-        foreach ($bringLower as $b) {
-            // Check exact match or if one contains the other
-            if ($sName === $b || str_contains($sName, $b) || str_contains($b, $sName)) {
-                return false;
-            }
-        }
-        return true;
-    }));
-    
+
     echo json_encode([
-        'success' => true,
-        'suggestions' => $filtered,
-        'seasonal_tip' => $suggestions['seasonal_tip'] ?? '',
-        'listUUID' => $listUUID,
-    ]);
+        'success'      => true,
+        'suggestions'  => $suggestions,
+        'seasonal_tip' => $seasonalTip,
+        'listUUID'     => $listUUID,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== DUPLICLICK (GRUPPO POLI) =====
@@ -3962,73 +3821,116 @@ function dupliclickExtractSpecKeywords(string $spec): string {
 }
 
 /**
- * Use Gemini AI to pick the best product from search results
+ * Pick the best product from search results using offline text-scoring (no AI needed).
+ * Returns null when nothing matches well enough (triggers refined search with spec keywords).
  */
 function aiSelectBestProduct(string $itemName, string $spec, array $products, string $customPrompt = ''): ?array {
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) return null;
+    if (empty($products)) return null;
+    if (count($products) === 1) return $products[0];
 
-    $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare (con eventuale descrizione tra parentesi) e una lista di prodotti trovati nel catalogo del supermercato.
+    $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per','su',
+             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli',
+             'allo','gr','kg','ml','lt','cl','pz','conf','pack'];
 
-Regole di selezione:
-- Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
-- La DESCRIZIONE tra parentesi è FONDAMENTALE: se l'utente cerca \"Pancetta (a cubetti)\", DEVI trovare pancetta A CUBETTI, non pancetta generica
-- Se la descrizione include un tipo specifico (\"a cubetti\", \"a fette\", \"biologico\", \"cotto\", \"a pasta dura\"), il prodotto DEVE contenere quella caratteristica nel nome
-- Preferisci prodotti freschi/sfusi rispetto a trasformati (es. \"Arance\" = arance frutta, NON aranciata bevanda)
-- Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
-- Preferisci formati standard per una famiglia
-- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, pasta ripiena vs formaggio, ecc.)
-- \"Finocchio\" = ortaggio fresco, NON semi di finocchio o tisana
-- \"Arance\" = frutta fresca, NON aranciata o succo
-- \"Formaggio\" = formaggio intero/pezzo, NON prodotti che contengono formaggio come ingrediente (ravioli, sfogliavelo, ecc.)
-- \"Detergente intimo\" = detergente per igiene intima, NON detersivo generico
-- Rispondi -1 se NESSUN prodotto corrisponde ragionevolmente alla richiesta
+    $tokenize = function(string $s) use ($stop): array {
+        $clean = mb_strtolower(preg_replace('/[^\p{L}0-9\s]/u', ' ', $s), 'UTF-8');
+        return array_values(array_filter(
+            preg_split('/\s+/', trim($clean)),
+            fn($t) => mb_strlen($t, 'UTF-8') > 2 && !in_array($t, $stop)
+        ));
+    };
 
-Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.";
+    $queryTokens = $tokenize($itemName);
+    $specTokens  = $tokenize($spec);
 
-    $prompt = !empty($customPrompt) ? $customPrompt : $defaultPrompt;
+    if (empty($queryTokens)) return $products[0];
 
-    // Build product list
-    $productList = '';
-    foreach ($products as $i => $p) {
-        $productList .= "[$i] \"{$p['name']}\" - {$p['brand']} - €" . number_format($p['price'], 2) . " - {$p['packageDescr']}\n";
-    }
+    // Variant conflict pairs: if spec says X, penalise products containing opposite
+    $variantConflicts = [
+        'cubetti'   => ['fette','affettata','intera','arrotolata'],
+        'fette'     => ['cubetti','dadini'],
+        'cotto'     => ['crudo','stagionato'],
+        'crudo'     => ['cotto'],
+        'intero'    => ['macinato','tritato','cubetti','fette'],
+        'macinato'  => ['intero'],
+        'biologico' => [],
+    ];
 
-    $fullPrompt = "{$prompt}\n\nProdotto cercato: \"{$itemName}\"" . ($spec ? " ({$spec})" : '') . "\n\nProdotti trovati:\n{$productList}\nRispondi SOLO con il numero (es. 0, 1, 2... oppure -1):";
+    // Category mismatch: if query implies a category, penalise products from the wrong one
+    $categoryGuards = [
+        ['query' => ['frutta','mele','pere','pesche','fragole','uva','arance','limoni','banane','kiwi'],
+         'exclude' => ['succo','succhi','nettare','sciroppo','aranciata','bevanda','bibita']],
+        ['query' => ['verdura','spinaci','zucchine','carote','finocchio','sedano','broccoli'],
+         'exclude' => ['surgelat','succo']],
+        ['query' => ['formaggio','mozzarella','parmigiano','ricotta','pecorino'],
+         'exclude' => ['ravioli','tortellini','cannelloni','lasagne','pizza']],
+        ['query' => ['pasta','spaghetti','penne','fusilli','rigatoni','tagliatelle'],
+         'exclude' => ['insalata','minestra','zuppa','brodo']],
+    ];
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    $payload = json_encode([
-        'contents' => [['parts' => [['text' => $fullPrompt]]]],
-        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
-    ]);
+    $scores = [];
+    foreach ($products as $idx => $product) {
+        $productName  = $product['name']  ?? '';
+        $productBrand = $product['brand'] ?? '';
+        $productTokens = $tokenize($productName . ' ' . $productBrand);
+        $nameLower = mb_strtolower($productName, 'UTF-8');
+        $score = 0;
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) return null;
-
-    $data = json_decode($response, true);
-    $text = trim($data['candidates'][0]['content']['parts'][0]['text'] ?? '');
-    if (preg_match('/-?\d+/', $text, $m)) {
-        $idx = (int)$m[0];
-        if ($idx >= 0 && $idx < count($products)) {
-            return $products[$idx];
-        } elseif ($idx === -1) {
-            return null; // AI says nothing matches
+        // --- Token overlap: query vs product ---
+        foreach ($queryTokens as $qt) {
+            foreach ($productTokens as $pt) {
+                if ($qt === $pt)                          { $score += 6; break; }
+                if (str_contains($pt, $qt) || str_contains($qt, $pt)) { $score += 2; break; }
+            }
         }
+
+        // --- Spec tokens get extra weight (user specified variant) ---
+        foreach ($specTokens as $st) {
+            foreach ($productTokens as $pt) {
+                if ($st === $pt)                          { $score += 8; break; }
+                if (str_contains($pt, $st) || str_contains($st, $pt)) { $score += 3; break; }
+            }
+        }
+
+        // --- First-token anchor bonus ---
+        if (!empty($queryTokens) && !empty($productTokens) && $queryTokens[0] === $productTokens[0]) {
+            $score += 10;
+        }
+
+        // --- Category mismatch penalty ---
+        foreach ($categoryGuards as $guard) {
+            if (!empty(array_intersect($queryTokens, $guard['query']))) {
+                foreach ($guard['exclude'] as $exc) {
+                    if (str_contains($nameLower, $exc)) { $score -= 50; break; }
+                }
+            }
+        }
+
+        // --- Variant conflict penalty ---
+        foreach ($specTokens as $st) {
+            if (isset($variantConflicts[$st])) {
+                foreach ($variantConflicts[$st] as $conflict) {
+                    if (str_contains($nameLower, $conflict)) { $score -= 20; }
+                }
+            }
+        }
+
+        $scores[$idx] = $score;
     }
 
-    return null; // Could not parse, caller will use first result
+    arsort($scores);
+    reset($scores);
+    $topIdx    = key($scores);
+    $topScore  = current($scores);
+    next($scores);
+    $secondScore = current($scores) ?: 0;
+
+    // Return null (triggers spec-refined search) only when spec is given and no product
+    // matches well, so the caller can retry with more specific keywords.
+    if (!empty($spec) && $topScore < 4) return null;
+
+    // Otherwise return the best scoring result (fallback to first if score is 0)
+    return $products[$topIdx];
 }
 
 function formatDupliclickProduct(array $p): array {
