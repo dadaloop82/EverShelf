@@ -1763,6 +1763,75 @@ function saveSettings(): void {
 
 // ===== GEMINI AI FUNCTIONS =====
 
+/**
+ * Calls the Gemini REST API with exponential backoff on 429 / 503.
+ * - Reads Google's Retry-After response header.
+ * - Reads Google's retryDelay field inside the error body (e.g. "10s").
+ * - Up to 4 attempts; default wait sequence: 2 s, 4 s, 8 s.
+ *
+ * @return array{http_code:int, body:string, data:array|null}
+ */
+function callGemini(string $url, array $payload, int $timeout = 60): array {
+    $maxAttempts = 4;
+    $lastCode    = 0;
+    $lastBody    = '';
+
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $retryAfterHeader = null;
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => json_encode($payload),
+            CURLOPT_HTTPHEADER      => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => $timeout,
+            // Capture response headers to read Retry-After
+            CURLOPT_HEADERFUNCTION  => function ($ch, $header) use (&$retryAfterHeader) {
+                if (stripos($header, 'retry-after:') === 0) {
+                    $val = intval(trim(substr($header, strlen('retry-after:'))));
+                    if ($val > 0) $retryAfterHeader = $val;
+                }
+                return strlen($header);
+            },
+        ]);
+
+        $body     = curl_exec($ch);
+        $lastCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($body !== false) $lastBody = $body;
+
+        // Success or non-retryable error → stop immediately
+        if ($lastCode === 200) break;
+        if ($lastCode !== 429 && $lastCode !== 503) break;
+        if ($attempt >= $maxAttempts) break;
+
+        // Determine how long to wait -----------------------------------------------
+        // Priority 1: Retry-After header (set by Google in some 429 responses)
+        $waitSec = $retryAfterHeader ?? ($attempt * 2);   // default: 2 s, 4 s, 6 s
+
+        // Priority 2: Google's retryDelay inside the error body (e.g. {"retryDelay":"10s"})
+        if ($body) {
+            $errData = json_decode($body, true);
+            foreach (($errData['error']['details'] ?? []) as $detail) {
+                if (!empty($detail['retryDelay'])) {
+                    $parsed = intval(preg_replace('/\D/', '', $detail['retryDelay']));
+                    if ($parsed > 0) { $waitSec = min($parsed, 60); break; }
+                }
+            }
+        }
+
+        sleep($waitSec);
+    }
+
+    return [
+        'http_code' => $lastCode,
+        'body'      => $lastBody,
+        'data'      => $lastBody ? json_decode($lastBody, true) : null,
+    ];
+}
+
 function geminiReadExpiry(): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
@@ -1803,27 +1872,16 @@ function geminiReadExpiry(): void {
         ]
     ];
     
-    $jsonPayload = json_encode($payload);
-    
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $jsonPayload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Gemini API error', 'http_code' => $httpCode]);
+    $result   = callGemini($url, $payload, 30);
+    $httpCode = $result['http_code'];
+
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Gemini API error';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
-    
-    $data = json_decode($response, true);
+
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     
     // Parse the JSON response from Gemini
@@ -1973,26 +2031,16 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-    ]);
+    $result   = callGemini($url, $payload, 60);
+    $httpCode = $result['http_code'];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Errore API Gemini';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
 
-    $data = json_decode($response, true);
-    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $reply = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     if (empty($reply)) {
         echo json_encode(['success' => false, 'error' => 'Risposta vuota da Gemini']);
@@ -2390,45 +2438,16 @@ PROMPT;
         ]
     ];
 
-    // Call Gemini with retry on 429 (transient rate limit)
-    $maxAttempts = 3;
-    $response = false;
-    $httpCode = 0;
-    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 60,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+    $result   = callGemini($url, $payload, 60);
+    $httpCode = $result['http_code'];
 
-        if ($httpCode === 200) break;
-
-        // Retry on 429 (rate limited) or 503 (transient server error)
-        if (($httpCode === 429 || $httpCode === 503) && $attempt < $maxAttempts) {
-            // Exponential backoff: 2s, 4s
-            sleep($attempt * 2);
-            continue;
-        }
-        break;
-    }
-
-    if ($response === false || $httpCode !== 200) {
-        $errDetail = '';
-        if ($response) {
-            $errData = json_decode($response, true);
-            $errDetail = $errData['error']['message'] ?? substr($response, 0, 300);
-        }
+    if ($httpCode !== 200) {
+        $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
         echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
-    $data = json_decode($response, true);
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     // Clean markdown wrapping
@@ -2688,25 +2707,16 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ]);
+    $result   = callGemini($url, $payload, 30);
+    $httpCode = $result['http_code'];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Errore API Gemini';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
 
-    $data = json_decode($response, true);
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     $text = preg_replace('/^```json\\s*/i', '', $text);
