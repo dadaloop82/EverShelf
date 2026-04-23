@@ -9734,7 +9734,7 @@ async function generateRecipe() {
     const mealPlanType = mealPlanChipActive && (meal === 'pranzo' || meal === 'cena')
         ? (getTodayMealPlanType(meal) || null)
         : null;
-    
+
     // Gather active options from checkboxes
     const options = [];
     const optMap = {
@@ -9753,10 +9753,11 @@ async function generateRecipe() {
     document.getElementById('recipe-ask').style.display = 'none';
     document.getElementById('recipe-loading').style.display = '';
     document.getElementById('recipe-result').style.display = 'none';
+    const loadingMsg = document.getElementById('recipe-loading-msg');
 
     try {
-        const result = await api('generate_recipe', {}, 'POST', { 
-            meal, 
+        const payload = {
+            meal,
             persons,
             sub_type: MEAL_SUB_TYPES[meal] ? getSelectedSubType() : '',
             options,
@@ -9766,34 +9767,74 @@ async function generateRecipe() {
             meal_plan_type: mealPlanType,
             variation: _recipeVariationCount[meal] || 0,
             rejected_ingredients: _rejectedRecipeIngredients,
+        };
+
+        const response = await fetch('api/index.php?action=generate_recipe_stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
-        if (!result.success) {
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-ask').style.display = '';
-            if (result.error === 'no_api_key') {
+            if (data.error === 'no_api_key') {
                 showToast('⚠️ Chiave API Gemini non configurata', 'warning');
             } else {
-                const detail = result.detail ? ` (${result.detail})` : '';
-                showToast((result.error || 'Errore nella generazione') + detail, 'error');
+                showToast(data.error || t('error.connection'), 'error');
             }
             return;
         }
 
-        const r = result.recipe;
-        renderRecipe(r);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let recipe = null;
+        let errorEvent = null;
 
-        // Track title client-side immediately (before DB save completes)
-        if (r.title) _generatedTodayTitles.push(r.title);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const event = JSON.parse(line.slice(6));
+                    if (event.type === 'status' && loadingMsg) {
+                        loadingMsg.textContent = event.message;
+                    } else if (event.type === 'recipe') {
+                        recipe = event.recipe;
+                    } else if (event.type === 'error') {
+                        errorEvent = event;
+                    }
+                } catch (_) { /* ignore malformed SSE lines */ }
+            }
+        }
 
-        // Save to archive
-        await saveRecipeToArchive(r);
-
-        // Cache the recipe for this meal type (in-memory only)
-        _cachedRecipe = { meal, recipe: r };
-
-        document.getElementById('recipe-loading').style.display = 'none';
-        document.getElementById('recipe-result').style.display = '';
+        if (recipe) {
+            renderRecipe(recipe);
+            if (recipe.title) _generatedTodayTitles.push(recipe.title);
+            await saveRecipeToArchive(recipe);
+            _cachedRecipe = { meal, recipe };
+            document.getElementById('recipe-loading').style.display = 'none';
+            document.getElementById('recipe-result').style.display = '';
+        } else {
+            document.getElementById('recipe-loading').style.display = 'none';
+            document.getElementById('recipe-ask').style.display = '';
+            if (errorEvent) {
+                if (errorEvent.error === 'no_api_key') {
+                    showToast('⚠️ Chiave API Gemini non configurata', 'warning');
+                } else {
+                    const detail = errorEvent.detail ? ` (${errorEvent.detail})` : '';
+                    showToast((errorEvent.error || 'Errore nella generazione') + detail, 'error');
+                }
+            } else {
+                showToast(t('error.connection'), 'error');
+            }
+        }
 
     } catch (err) {
         console.error('Recipe error:', err);

@@ -66,7 +66,7 @@ function checkRateLimit(string $action): void {
     // Determine limit based on action
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
     $loginActions = ['dupliclick_login'];
-    $recipeActions = ['generate_recipe'];
+    $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
@@ -221,6 +221,10 @@ try {
 
         case 'generate_recipe':
             generateRecipe($db);
+            break;
+
+        case 'generate_recipe_stream':
+            generateRecipeStream($db);
             break;
 
         case 'gemini_identify':
@@ -2652,6 +2656,518 @@ PROMPT;
     } else {
         echo json_encode(['success' => false, 'error' => 'Impossibile generare la ricetta', 'raw' => $text]);
     }
+}
+
+// ===== RECIPE GENERATION — STREAMING AGENT =====
+function generateRecipeStream(PDO $db): void {
+    // Override content-type for SSE before any output is sent
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('X-Accel-Buffering: no');
+    header('Content-Encoding: identity');
+    set_time_limit(600); // up to 10 min: worst-case 2 models x 2 retries x 90s wait + generation time
+    ignore_user_abort(true);
+    while (ob_get_level() > 0) ob_end_clean();
+
+    $send = function(string $type, array $data): void {
+        echo 'data: ' . json_encode(['type' => $type] + $data, JSON_UNESCAPED_UNICODE) . "\n\n";
+        flush();
+    };
+
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
+
+    $input               = json_decode(file_get_contents('php://input'), true) ?? [];
+    $mealType            = $input['meal'] ?? 'pranzo';
+    $persons             = max(1, intval($input['persons'] ?? 1));
+    $subType             = $input['sub_type'] ?? '';
+    $options             = $input['options'] ?? [];
+    $appliances          = $input['appliances'] ?? [];
+    $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
+    $todayRecipes        = $input['today_recipes'] ?? [];
+    $mealPlanType        = $input['meal_plan_type'] ?? '';
+    $variation           = max(0, intval($input['variation'] ?? 0));
+    $rejectedIngredients = $input['rejected_ingredients'] ?? [];
+
+    // ── AGENTE PASSO 1: Analisi dispensa ─────────────────────────────────────
+    $send('status', ['step' => 1, 'message' => '📦 Analizzo la dispensa...']);
+
+    $stmt = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($items)) { $send('error', ['error' => 'La dispensa è vuota!']); return; }
+
+    $getItemPriority = function($item): int {
+        $daysLeft = floatval($item['days_left']);
+        $isOpen   = !empty($item['opened_at']) ||
+                    (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
+        if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
+        if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
+        if (!empty($item['expiry_date'])) return 4;
+        if ($isOpen) return 5;
+        return 6;
+    };
+
+    usort($items, function($a, $b) use ($getItemPriority) {
+        $pa = $getItemPriority($a); $pb = $getItemPriority($b);
+        if ($pa !== $pb) return $pa - $pb;
+        return floatval($a['days_left']) - floatval($b['days_left']);
+    });
+
+    $staplePatterns = '/\b(sale|pepe|olio d.oliva|olio di semi|olio extra|acqua|aceto balsamico|aceto di|sel marin)\b/i';
+    $priorityGroups = [];
+    foreach ($items as $item) {
+        $group = $getItemPriority($item);
+        if ($group >= 5 && preg_match($staplePatterns, $item['name'])) continue;
+        $qty      = floatval($item['quantity']);
+        $isOpen   = !empty($item['opened_at']) || ($qty > 0 && $qty < 1 && $item['unit'] === 'conf');
+        $daysLeft = intval($item['days_left']);
+        $line     = "- {$item['name']}: {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0)
+            $line .= " ({$item['default_quantity']}{$item['package_unit']}/conf)";
+        // Annotazioni urgenza: solo gruppi 1-3 (riduce token per gruppi 4-6)
+        if ($group <= 3 && $item['expiry_date']) {
+            if ($daysLeft < 0)       $line .= ' ⚠️SCADUTO';
+            elseif ($daysLeft <= 3)  $line .= " 🔴{$daysLeft}gg";
+            else                     $line .= " 🟠{$daysLeft}gg";
+        }
+        if ($isOpen && $group <= 5) $line .= ' [APERTO]';
+        $priorityGroups[$group][] = $line;
+    }
+
+    // Limiti ingredienti per gruppo: con piano pasto attivo passa TUTTO (l'AI deve combinare liberamente)
+    // Senza piano pasto: limiti moderati per ridurre token (ora safe grazie a thinkingBudget:0)
+    $hasMealPlan = !empty($mealPlanType);
+    $ingredientSections = [];
+    $priorityHeaders    = [1=>'SCADUTI — usa subito',2=>'SCADENZA ≤3gg — priorità alta',3=>'SCADENZA ≤7gg',4=>'ALTRI CON SCADENZA',5=>'APERTI',6=>'DISPENSA'];
+    $totalIngredientsSent = 0;
+    foreach ($priorityHeaders as $g => $header) {
+        if (empty($priorityGroups[$g])) continue;
+        $gi = $priorityGroups[$g];
+        if (!$hasMealPlan) {
+            // Senza piano: limiti moderati
+            if ($g === 4 && count($gi) > 25) $gi = array_slice($gi, 0, 25);
+            if ($g === 6 && count($gi) > 15) $gi = array_slice($gi, 0, 15);
+        }
+        // Con piano pasto attivo: nessun limite — tutti gli ingredienti disponibili
+        $ingredientSections[] = "[$header]\n" . implode("\n", $gi);
+        $totalIngredientsSent += count($gi);
+    }
+    $ingredientsText = implode("\n", $ingredientSections);
+
+    // Inventory status event
+    $urgentCount = count($priorityGroups[1] ?? []) + count($priorityGroups[2] ?? []);
+    if ($urgentCount > 0) {
+        $urgentRaw   = array_merge($priorityGroups[1] ?? [], $priorityGroups[2] ?? []);
+        $urgentNames = array_slice(array_map(
+            fn($l) => trim(preg_replace('/\s[\[\x{26A0}\x{1F534}\x{1F7E0}].*/u', '', explode(':', ltrim($l, '- '))[0])),
+            $urgentRaw), 0, 3);
+        $send('status', ['step' => 1, 'message' => "⚠️ {$urgentCount} urgenti: " . implode(', ', $urgentNames)]);
+    } else {
+        $countMsg = count($items) . ' prodotti trovati';
+        if ($hasMealPlan && $totalIngredientsSent < count($items)) {
+            $countMsg .= " ({$totalIngredientsSent} passati all'AI)";
+        } elseif ($hasMealPlan) {
+            $countMsg .= ' — tutti passati all\'AI';
+        }
+        $send('status', ['step' => 1, 'message' => '✅ ' . $countMsg]);
+    }
+
+    // Mandatory/recommended items
+    $mandatoryItems  = [];
+    $recommendedItems = [];
+    $wantsExpiryPriority = in_array('scadenze', $options) || in_array('zerowaste', $options);
+    $wantsOpenedPriority = in_array('opened', $options);
+    if ($wantsExpiryPriority || $wantsOpenedPriority) {
+        foreach ($items as $item) {
+            $g        = $getItemPriority($item);
+            $daysLeft = floatval($item['days_left']);
+            $isOpen   = !empty($item['opened_at']) ||
+                        (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+            $expiryNote = !empty($item['expiry_date']) ? " — scade: {$item['expiry_date']}" : '';
+            $openNote   = $isOpen ? ' [APERTO]' : '';
+            $label      = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
+            if ($wantsExpiryPriority) {
+                if ($g === 1 || $g === 2) $mandatoryItems[]  = $label;
+                elseif ($g === 3)         $recommendedItems[] = $label;
+            }
+            if (($wantsOpenedPriority || $wantsExpiryPriority) && $isOpen && $daysLeft <= 7 && $daysLeft >= 0) {
+                if (!in_array($label, $mandatoryItems) && !in_array($label, $recommendedItems))
+                    $recommendedItems[] = $label;
+            }
+        }
+    }
+    $mustUseText = '';
+    if (!empty($mandatoryItems))   $mustUseText .= "\n\n⚠️ OBBLIGATORI (scaduti/imminenti — DEVE usarne almeno 1):\n"  . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
+    if (!empty($recommendedItems)) $mustUseText .= "\n\n🔶 CONSIGLIATI (aperti/in scadenza):\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
+
+    // Meal labels
+    $mealLabels = ['colazione'=>'colazione (mattina)','pranzo'=>'pranzo (mezzogiorno)','cena'=>'cena (sera)','dolce'=>'dolce/dessert','succo'=>'succo di frutta/bevanda'];
+    $mealLabel       = $mealLabels[$mealType] ?? $mealType;
+    $mealLabelSimple = ['colazione'=>'colazione','pranzo'=>'pranzo','cena'=>'cena','dolce'=>'dolce','succo'=>'succo'];
+
+    $subTypeLabels = [
+        'dolce' => ['torta'=>'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)','crema'=>'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)','crumble'=>'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)','biscotti'=>'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)','frutta'=>'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)'],
+        'succo' => ['dolce'=>'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)','energizzante'=>'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)','detox'=>'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)','rinfrescante'=>'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)','vitaminico'=>'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)'],
+    ];
+    $subTypeText = '';
+    if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
+        $subHint      = $subTypeLabels[$mealType][$subType];
+        $mealLabel   .= " — tipo: $subHint";
+        $subTypeText  = "\n\n🎨 SOTTO-TIPO: {$subHint}. La ricetta DEVE essere di questo tipo.";
+    }
+
+    $extraRules = [];
+    $optionLabels = ['veloce'=>'VELOCE: max 15-20 min totali.','pocafame'=>'POCA FAME: porzione leggera, snack o insalata.','scadenze'=>'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.','salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.','opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].','zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.'];
+    foreach ($options as $opt) { if (isset($optionLabels[$opt])) $extraRules[] = $optionLabels[$opt]; }
+    $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
+    $appliancesText = !empty($appliances)          ? "\n\nELETTRODOMESTICI: " . implode(', ', $appliances) . " (+ fornelli e forno). Usa SOLO questi." : '';
+    $dietaryText    = !empty($dietaryRestrictions) ? "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni." : '';
+
+    $mealPlanTypeLabels = ['pasta'=>'Pasta (primo piatto a base di pasta)','riso'=>'Riso (risotto, insalata di riso, riso saltato, ecc.)','carne'=>'Carne (secondo piatto a base di carne)','pesce'=>'Pesce (secondo piatto a base di pesce o frutti di mare)','legumi'=>'Legumi (zuppa, insalata, hummus, pasta e fagioli, ecc.)','uova'=>'Uova (frittata, uova strapazzate, quiche, ecc.)','formaggio'=>'Formaggio (fonduta, gnocchi al formaggio, torta salata, ecc.)','pizza'=>'Pizza o focaccia (impastata in casa o usi ingredienti simili)','affettati'=>'Affettati (tagliere misto, piadina, panino, ecc.)','verdure'=>'Verdure (piatto principale a base di verdure, contorno abbondante)','zuppa'=>'Zuppa o minestra (zuppe, vellutate, minestrone)','insalata'=>'Insalata (insalata mista, insalata di riso o pasta, poke)','pane'=>'Pane / Sandwich (toast, tramezzino, bruschette)','dolce'=>'Dolce o dessert','libero'=>''];
+    $typeKeywords = ['pesce'=>['tonno','salmone','merluzzo','branzino','orata','sardine','acciughe','alici','gamberi','cozze','vongole','polpo','calamari','seppia','sgombro','trota','baccalà','dentice','spigola','pesce'],'carne'=>['pollo','manzo','maiale','vitello','agnello','tacchino','salsiccia','hamburger','bistecca','cotoletta','pancetta','speck','carne','arrosto','filetto','lonza','braciola'],'pasta'=>['pasta','spaghetti','penne','rigatoni','fusilli','tagliatelle','lasagne','farfalle','orecchiette','bucatini','linguine','maccheroni','gnocchi','pennette','bavette'],'riso'=>['riso','basmati','arborio','carnaroli','parboiled','riso integrale'],'legumi'=>['fagioli','ceci','lenticchie','piselli','fave','lupini','soia','legumi','borlotti','cannellini','azuki'],'uova'=>['uova','uovo'],'formaggio'=>['formaggio','parmigiano','mozzarella','ricotta','pecorino','grana','gorgonzola','scamorza','fontina','emmental','asiago','provola','provolone','taleggio','stracchino'],'pizza'=>['farina','lievito','pizza','focaccia'],'affettati'=>['prosciutto','salame','bresaola','mortadella','speck','coppa','affettati','wurstel','würstel','piadina','pancetta cotta'],'verdure'=>['zucchine','zucchina','melanzane','peperoni','spinaci','cavolfiore','broccoli','carote','zucca','bietole','cavolo','carciofi','asparagi','lattuga','rucola','radicchio','cicoria','finocchio','cipolla','porri','verdure'],'zuppa'=>['brodo','zuppa','minestra','minestrone','vellutata','orzo','farro','fagioli','ceci','lenticchie'],'insalata'=>['insalata','lattuga','rucola','spinaci','radicchio','misticanza','valeriana','songino'],'pane'=>['pane','pancarrè','baguette','toast','tramezzino','crackers','grissini','ciabatta','rosetta'],'dolce'=>['cioccolato','cacao','zucchero','miele','marmellata','nutella','creme caramel','savoiardi','biscotti','pan di spagna','panna']];
+
+    $mealPlanText = '';
+    $mealPlanRule = '';
+    if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
+        $hint          = $mealPlanTypeLabels[$mealPlanType];
+        $matchingItems = [];
+        if (isset($typeKeywords[$mealPlanType])) {
+            foreach ($items as $item) {
+                $nameLower = mb_strtolower($item['name'] . ' ' . ($item['brand'] ?? ''));
+                foreach ($typeKeywords[$mealPlanType] as $kw) {
+                    if (mb_strpos($nameLower, $kw) !== false) {
+                        $entry = "→ {$item['name']}" . ($item['brand'] ? " ({$item['brand']})" : '') . ": {$item['quantity']} {$item['unit']}";
+                        if (!empty($item['expiry_date'])) { $dl = intval($item['days_left']); $entry .= $dl < 0 ? " [SCADUTO]" : " [scade tra $dl giorni]"; }
+                        $matchingItems[] = $entry;
+                        break;
+                    }
+                }
+            }
+            $matchingItems = array_unique($matchingItems);
+        }
+        $matchingBlock = !empty($matchingItems)
+            ? "Ingredienti disponibili compatibili (usa almeno uno come BASE):\n" . implode("\n", $matchingItems)
+            : "Nessun ingrediente perfettamente corrispondente — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
+        $mealPlanText = "\n\n🎯 TIPO OBBLIGATORIO: {$hint}\n{$matchingBlock}";
+        $mealPlanRule = "0. La ricetta DEVE essere: {$hint}. Usa gli ingredienti compatibili come base.\n   ";
+    }
+
+    $varietyText = '';
+    $today = date('Y-m-d'); $weekAgo = date('Y-m-d', strtotime('-7 days'));
+    $weekStmt = $db->prepare("SELECT date, meal, recipe_json FROM recipes WHERE date >= ? ORDER BY date DESC");
+    $weekStmt->execute([$weekAgo]);
+    $weekDbRecipes = $weekStmt->fetchAll();
+    $todayTitles = []; $weekTitles = [];
+    foreach ($weekDbRecipes as $tr) {
+        $rj = json_decode($tr['recipe_json'], true);
+        if (!empty($rj['title'])) { $weekTitles[] = $rj['title']; if ($tr['date'] === $today) $todayTitles[] = $rj['title']; }
+    }
+    if (!empty($todayRecipes)) $todayTitles = array_unique(array_merge($todayTitles, $todayRecipes));
+    if (!empty($todayTitles)) {
+        $todayList    = implode(', ', array_map(fn($t) => '"' . $t . '"', $todayTitles));
+        $varietyText .= "\n\nGIÀ FATTO OGGI: {$todayList} — proponi qualcosa di DIVERSO.";
+    }
+    $weekOnly = array_diff($weekTitles, $todayTitles);
+    if (!empty($weekOnly)) {
+        $weekList     = implode(', ', array_map(fn($t) => '"' . $t . '"', array_values($weekOnly)));
+        $varietyText .= "\n\nULTIMI 7GG: {$weekList} — varia.";
+    }
+
+    $regenText = '';
+    if ($variation > 0) {
+        $regenText = "\n\n🔁 RIGENERA #{$variation}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).";
+        if (!empty($rejectedIngredients)) {
+            $rejList    = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
+            $regenText .= " Evita come ingrediente principale: {$rejList}.";
+        }
+    }
+
+    // ── AGENTE PASSO 2: Selezione concetto (locale, nessuna chiamata AI) ────────
+    // Determina il concetto della ricetta in base agli ingredienti disponibili
+    // e ai parametri selezionati — senza consumare quote Gemini.
+    $send('status', ['step' => 2, 'message' => "🧠 Valuto gli ingredienti disponibili..."]);
+
+    // Raccoglie i nomi degli ingredienti di maggiore priorità
+    $conceptIngredients = [];
+    foreach ([1, 2, 3, 5, 6] as $g) {
+        foreach (array_slice($priorityGroups[$g] ?? [], 0, 4) as $line) {
+            $name = trim(explode(':', ltrim($line, '- '))[0]);
+            // Rimuove emoji e flag di urgenza
+            $name = trim(preg_replace('/\s*[\x{26A0}\x{1F534}\x{1F7E0}].*$/u', '', $name));
+            $name = trim(preg_replace('/\s*\[.*\]/', '', $name));
+            if ($name) $conceptIngredients[] = $name;
+        }
+        if (count($conceptIngredients) >= 6) break;
+    }
+
+    // Costruisce un messaggio di stato informativo basato su ciò che verrà cucinato
+    $conceptMsg = '👨‍🍳 Preparo la ricetta...';
+    if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
+        // Tipo di pasto dal piano settimanale — mostra la categoria
+        $shortLabel = explode(' (', $mealPlanTypeLabels[$mealPlanType])[0];
+        $conceptMsg = "🎯 Piatto a base di {$shortLabel}";
+        // Aggiungi l'ingrediente principale se disponibile
+        if (!empty($matchingItems)) {
+            $firstMatch = ltrim(reset($matchingItems), '→ ');
+            $fName = trim(explode(':', $firstMatch)[0]);
+            if ($fName) $conceptMsg .= " ({$fName})";
+        }
+    } elseif (!empty($conceptIngredients)) {
+        // Mostra i primi 2 ingredienti più urgenti
+        $shown = array_slice($conceptIngredients, 0, 2);
+        $conceptMsg = "🥘 Ricetta con " . implode(' e ', array_map('mb_strtolower', $shown));
+        if ($variation > 0) $conceptMsg .= " — variante #{$variation}";
+    } elseif (!empty($subType) && !empty($subTypeLabels[$mealType][$subType])) {
+        $conceptMsg = "🎨 " . explode(' (', $subTypeLabels[$mealType][$subType])[0];
+    }
+    $send('status', ['step' => 2, 'message' => $conceptMsg]);
+
+    // ── AGENTE PASSO 3: Generazione ricetta (A+C: retry SSE-aware + fallback modello) ──
+    $conceptHint = '';
+    $send('status', ['step' => 3, 'message' => '✍️ Creo la ricetta completa...']);
+
+    $prompt = <<<PROMPT
+Sei uno chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando gli ingredienti disponibili sotto.{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+
+REGOLE:
+{$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
+2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
+3. Quantità per $persons persona/e. Se un ingrediente ha poca quantità, usalo TUTTO.
+4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
+5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
+6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
+
+DISPENSA:
+$ingredientsText
+
+Rispondi SOLO JSON valido (no markdown):
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
+PROMPT;
+
+    $genConfig = [
+        'temperature'    => min(1.4, 0.7 + $variation * 0.25),
+        'maxOutputTokens' => 4096,
+        'thinkingConfig'  => ['thinkingBudget' => 0], // disabilita thinking: libera token per output
+    ];
+    $payload   = ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => $genConfig];
+
+    // A: retry SSE-aware con feedback live; C: fallback automatico su quota separata
+    // Ordine: 2.5-flash (quota separata e spesso più disponibile) → 2.0-flash
+    $models = [
+        'gemini-2.5-flash',  // primario: quota TPM separata da 2.0
+        'gemini-2.0-flash',  // fallback
+    ];
+
+    $result   = null;
+    $httpCode = 0;
+
+    foreach ($models as $modelIdx => $model) {
+        $url        = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $maxRetries = 3; // 1 chiamata + max 2 retry con attesa
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            $retryAfterHeader = null;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_HEADERFUNCTION => function ($ch, $header) use (&$retryAfterHeader) {
+                    if (stripos($header, 'retry-after:') === 0) {
+                        $val = intval(trim(substr($header, strlen('retry-after:'))));
+                        if ($val > 0) $retryAfterHeader = $val;
+                    }
+                    return strlen($header);
+                },
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($body === false) $body = '';
+
+            $result = [
+                'http_code' => $httpCode,
+                'body'      => $body,
+                'data'      => $body ? json_decode($body, true) : null,
+            ];
+
+            // Successo o errore non-retry → esci dal loop retry
+            if ($httpCode === 200) break 2;
+            if ($httpCode !== 429 && $httpCode !== 503) break;
+            if ($attempt >= $maxRetries) break;
+
+            // Calcola attesa: usa Retry-After se presente, altrimenti 30s (poi cambieremo modello)
+            $waitSec = $retryAfterHeader ?? 30;
+            if ($body) {
+                $errData = json_decode($body, true);
+                foreach (($errData['error']['details'] ?? []) as $detail) {
+                    if (!empty($detail['retryDelay'])) {
+                        $parsed = intval(preg_replace('/\D/', '', $detail['retryDelay']));
+                        if ($parsed > 0) { $waitSec = min($parsed + 2, 60); break; }
+                    }
+                }
+            }
+            $waitSec = min($waitSec, 60); // cap a 60s
+
+            // A: feedback live con countdown
+            $modelName = str_replace('gemini-', 'Gemini ', $model);
+            $send('status', ['step' => 3, 'message' => "⏳ Quota TPM esaurita ({$modelName}), attendo {$waitSec}s... (tentativo {$attempt}/{$maxRetries})"]);
+            sleep($waitSec);
+            $send('status', ['step' => 3, 'message' => '✍️ Riprovo la generazione...']);
+        }
+
+        // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
+        if ($httpCode === 429 && $modelIdx === 0) {
+            $fallbackName = str_replace('gemini-', 'Gemini ', $models[1]);
+            $send('status', ['step' => 3, 'message' => "🔄 Cambio modello → {$fallbackName}..."]);
+            continue;
+        }
+        break;
+    }
+
+    if ($httpCode !== 200) {
+        $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
+        $send('error', ['error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
+        return;
+    }
+
+    $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $text = preg_replace('/^```json\s*/i', '', $text);
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $text = trim($text);
+    $recipe = json_decode($text, true);
+
+    if (!$recipe || empty($recipe['title'])) {
+        $send('error', ['error' => 'Impossibile generare la ricetta', 'raw' => $text]);
+        return;
+    }
+
+    // ── Post-process: fuzzy-match ingredients → inventory (same as generateRecipe) ──
+    if (!empty($recipe['ingredients'])) {
+        $itemsLookup = [];
+        foreach ($items as $item) {
+            $itemsLookup[] = [
+                'item'  => $item,
+                'lower' => mb_strtolower(trim($item['name']), 'UTF-8'),
+                'words' => preg_split('/[\s,.\-\/]+/', mb_strtolower(trim($item['name']), 'UTF-8')),
+                'cat'   => mb_strtolower($item['category'] ?? '', 'UTF-8'),
+            ];
+        }
+        $aliases = ['uovo'=>['uova','uovo','egg'],'uova'=>['uovo','uova','egg'],'latte'=>['latte','milk'],'formaggio'=>['formaggio','cheese','philadelphia','mozzarella','parmigiano','grana','pecorino','ricotta','mascarpone','stracchino','gorgonzola'],'pasta'=>['pasta','spaghetti','penne','fusilli','rigatoni','farfalle','tagliatelle','linguine','bucatini','orecchiette','paccheri','maccheroni'],'pomodoro'=>['pomodoro','pomodori','tomato','passata','pelati','polpa'],'cipolla'=>['cipolla','cipolle','onion'],'aglio'=>['aglio','garlic'],'burro'=>['burro','butter'],'panna'=>['panna','cream','crema'],'zucchero'=>['zucchero','sugar'],'farina'=>['farina','flour'],'olio'=>['olio','oil'],'patata'=>['patata','patate','potato'],'carota'=>['carota','carote','carrot'],'sedano'=>['sedano','celery'],'prezzemolo'=>['prezzemolo','parsley'],'basilico'=>['basilico','basil']];
+
+        foreach ($recipe['ingredients'] as &$ing) {
+            if (empty($ing['from_pantry'])) continue;
+            $ingNameLower = mb_strtolower(trim($ing['name']), 'UTF-8');
+            $ingWords     = preg_split('/[\s,.\-\/]+/', $ingNameLower);
+            $bestMatch    = null;
+            $bestScore    = 0;
+            foreach ($itemsLookup as $entry) {
+                $itemNameLower = $entry['lower'];
+                $itemWords     = $entry['words'];
+                $score         = 0;
+                if ($ingNameLower === $itemNameLower) {
+                    $score = 100;
+                } elseif (mb_strpos($itemNameLower, $ingNameLower) !== false) {
+                    $score = 80;
+                } elseif (mb_strpos($ingNameLower, $itemNameLower) !== false) {
+                    $score = 70;
+                } else {
+                    $expandedIngWords = $ingWords;
+                    foreach ($ingWords as $w) {
+                        foreach ($aliases as $key => $group) {
+                            if (in_array($w, $group) || mb_strpos($w, $key) === 0 || mb_strpos($key, $w) === 0)
+                                $expandedIngWords = array_merge($expandedIngWords, $group);
+                        }
+                    }
+                    $expandedIngWords = array_unique($expandedIngWords);
+                    $common = 0;
+                    foreach ($expandedIngWords as $ew) {
+                        foreach ($itemWords as $iw) {
+                            $minLen = min(mb_strlen($ew), mb_strlen($iw));
+                            if ($minLen >= 3) {
+                                $prefixLen = 0;
+                                for ($c = 0; $c < $minLen; $c++) {
+                                    if (mb_substr($ew, $c, 1) === mb_substr($iw, $c, 1)) $prefixLen++; else break;
+                                }
+                                if ($prefixLen >= min(4, $minLen)) { $common++; break; }
+                            }
+                            if ($ew === $iw) { $common++; break; }
+                        }
+                    }
+                    if ($common > 0) {
+                        $score = ($common / max(count($ingWords), 1)) * 65;
+                        if (count($ingWords) > 0) {
+                            foreach ($itemWords as $iw) {
+                                if (mb_strpos($iw, $ingWords[0]) === 0 || mb_strpos($ingWords[0], $iw) === 0) { $score += 10; break; }
+                            }
+                        }
+                    }
+                }
+                if ($score > $bestScore) { $bestScore = $score; $bestMatch = $entry['item']; }
+            }
+            if ($bestMatch && $bestScore > 30) {
+                $ing['product_id']       = (int)$bestMatch['product_id'];
+                $ing['location']         = $bestMatch['location'];
+                $ing['inventory_unit']   = $bestMatch['unit'];
+                $ing['inventory_qty']    = (float)$bestMatch['quantity'];
+                $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
+                $ing['package_unit']     = $bestMatch['package_unit'] ?? '';
+                $ing['available_qty']    = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+                $ing['vacuum_sealed']    = !empty($bestMatch['vacuum_sealed']) ? 1 : 0;
+                if (!empty($bestMatch['brand']))       $ing['brand']       = $bestMatch['brand'];
+                if (!empty($bestMatch['expiry_date'])) $ing['expiry_date'] = $bestMatch['expiry_date'];
+                $qtyNum  = (float)($ing['qty_number'] ?? 0);
+                $invUnit = $bestMatch['unit'] ?? 'pz';
+                $invQty  = (float)$bestMatch['quantity'];
+                if ($qtyNum > 0) {
+                    $recipeQty  = $ing['qty'] ?? '';
+                    $recipeUnit = ''; $recipeVal = 0;
+                    if (preg_match('/(\d+[.,]?\d*)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i', $recipeQty, $qm)) {
+                        $recipeVal = (float)str_replace(',', '.', $qm[1]);
+                        $ru = strtolower($qm[2]);
+                        if (strpos($ru, 'g') === 0)                       $recipeUnit = 'g';
+                        elseif ($ru === 'kg')                              { $recipeUnit = 'g';  $recipeVal *= 1000; }
+                        elseif ($ru === 'ml')                              $recipeUnit = 'ml';
+                        elseif ($ru === 'cl')                              { $recipeUnit = 'ml'; $recipeVal *= 10; }
+                        elseif ($ru === 'l' || strpos($ru, 'litr') === 0) { $recipeUnit = 'ml'; $recipeVal *= 1000; }
+                        elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
+                        elseif (strpos($ru, 'conf') === 0)                $recipeUnit = 'conf';
+                    }
+                    if ($recipeUnit && $recipeUnit !== $invUnit) {
+                        if ($recipeUnit === 'g'  && $invUnit === 'kg')  $qtyNum = $recipeVal / 1000;
+                        elseif ($recipeUnit === 'g'  && $invUnit === 'g')   $qtyNum = $recipeVal;
+                        elseif ($recipeUnit === 'ml' && $invUnit === 'l')   $qtyNum = $recipeVal / 1000;
+                        elseif ($recipeUnit === 'ml' && $invUnit === 'ml')  $qtyNum = $recipeVal;
+                        elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                            $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                            if ($defQty > 0) { $qtyNum = $recipeVal / $defQty; $qtyNum = max(0.25, round($qtyNum * 4) / 4); }
+                            else $qtyNum = max(1, round($recipeVal / 100));
+                        }
+                    }
+                    if ($qtyNum > $invQty) $qtyNum = $invQty;
+                    if ($recipeVal > 0 && $recipeUnit === $invUnit && $qtyNum < $recipeVal * 0.01) $qtyNum = $recipeVal;
+                    $ing['qty_number'] = round($qtyNum, 3);
+                }
+            }
+        }
+        unset($ing);
+    }
+
+    $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
+    $send('recipe', ['recipe' => $recipe]);
 }
 
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====

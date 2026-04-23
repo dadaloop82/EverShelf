@@ -3115,6 +3115,8 @@ body {
     margin-top: 16px;
     color: var(--text-muted);
     font-weight: 600;
+    transition: opacity 0.25s ease;
+    min-height: 1.4em;
 }
 
 .recipe-result {
