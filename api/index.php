@@ -1634,16 +1634,19 @@ function getConsumptionPredictions(PDO $db): void {
             }
 
             $predictions[] = [
-                'inventory_id' => (int)$item['inventory_id'],
-                'product_id'   => (int)$item['product_id'],
-                'name'         => $item['name'],
-                'brand'        => $item['brand'],
-                'location'     => $item['location'],
-                'unit'         => $displayUnit,
-                'expected_qty' => $expDisplay,
-                'actual_qty'   => $actDisplay,
-                'daily_rate'   => round($dailyRate, 3),
-                'deviation_pct'=> round($pctDev * 100),
+                'inventory_id'       => (int)$item['inventory_id'],
+                'product_id'         => (int)$item['product_id'],
+                'name'               => $item['name'],
+                'brand'              => $item['brand'],
+                'location'           => $item['location'],
+                'unit'               => $displayUnit,
+                'expected_qty'       => $expDisplay,
+                'actual_qty'         => $actDisplay,
+                'daily_rate'         => round($dailyRate, 3),
+                'deviation_pct'      => round($pctDev * 100),
+                'days_since_restock' => (int)round($daysSinceRestock),
+                'direction'          => $actualQty > $expectedQty ? 'more' : 'less',
+                'tx_count'           => count($rows),
             ];
         }
     }

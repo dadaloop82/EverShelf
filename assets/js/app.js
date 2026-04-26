@@ -2371,16 +2371,7 @@ async function loadBannerAlerts() {
             _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: Math.abs(days) } });
         });
 
-        // 2. Products expiring very soon (today, tomorrow, within 3 days)
-        items.forEach(item => {
-            if (!item.expiry_date) return;
-            const days = daysUntilExpiry(item.expiry_date);
-            if (days < 0 || days > 3) return;
-            if (confirmed['exps_' + item.id]) return;
-            _bannerQueue.push({ type: 'expiring', data: { ...item, days_left: days } });
-        });
-
-        // 3. Suspicious quantities
+        // 2. Suspicious quantities ("expiring soon" shown only in dashboard sections, not in banner)
         items.forEach(item => {
             if (confirmed[item.id]) return;
             if (isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit)) {
@@ -2433,7 +2424,7 @@ async function loadBannerAlerts() {
  *
  * Priority tiers:
  *   1000+ : expired (longer ago = higher)
- *   500-999: expiring today/tomorrow/soon (sooner = higher)
+ *   500-799: anomalies (data discrepancies)
  *   200-499: suspicious quantities (low stock > high stock > package)
  *   100-199: consumption predictions (higher deviation% = higher)
  */
@@ -2443,11 +2434,6 @@ function _bannerPriority(entry) {
             const d = entry.data.days_expired || 0;
             // Expired longer = more urgent; base 1000 + days (capped)
             return 1000 + Math.min(d, 500);
-        }
-        case 'expiring': {
-            const d = entry.data.days_left ?? 3;
-            // Today=999, tomorrow=998, 2d=997, 3d=996
-            return 999 - d;
         }
         case 'review': {
             const w = entry.data.warning || '';
@@ -2487,77 +2473,89 @@ function renderBannerItem() {
     if (entry.type === 'expired') {
         const item = entry.data;
         const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-        const daysText = item.days_expired === 0 ? t('dashboard.banner_expired_today') : t('dashboard.banner_expired_days', { days: item.days_expired });
+        const daysText = item.days_expired === 0 ? 'Scaduto oggi'
+            : `Scaduto da ${item.days_expired} ${item.days_expired === 1 ? 'giorno' : 'giorni'}`;
         banner.className = 'alert-banner banner-expired';
         iconEl.textContent = '🚫';
-        titleEl.textContent = `${t('dashboard.banner_expired_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-        detailEl.textContent = `${daysText} · ${qtyDisplay}`;
-        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
-        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_review_action_edit')}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
-        actionsEl.innerHTML = btns;
-
-    } else if (entry.type === 'expiring') {
-        const item = entry.data;
-        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-        let urgencyText;
-        if (item.days_left === 0) urgencyText = t('dashboard.banner_expiring_today');
-        else if (item.days_left === 1) urgencyText = t('dashboard.banner_expiring_tomorrow');
-        else urgencyText = t('dashboard.banner_expiring_days', { days: item.days_left });
-        banner.className = 'alert-banner banner-expiring';
-        iconEl.textContent = '⏰';
-        titleEl.textContent = `${t('dashboard.banner_expiring_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-        detailEl.textContent = `${urgencyText} · ${qtyDisplay}`;
-        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expiring_action_use')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_review_action_edit')}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpiring()">${t('dashboard.banner_review_dismiss')}</button>`;
+        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} — Scaduto!`;
+        detailEl.innerHTML = `${daysText} · hai ancora <strong>${qtyDisplay}</strong>. Usalo subito o buttalo.`;
+        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">✅ Usa comunque</button>`;
+        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">🗑️ Butta via</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">✏️ Correggi data</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">Ignora</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'review') {
         const item = entry.data;
         const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
+        const suspQty = isSuspiciousQty(item.quantity, item.unit);
+        const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
         banner.className = 'alert-banner';
         iconEl.textContent = '⚠️';
-        titleEl.textContent = `${t('dashboard.banner_review_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-        detailEl.textContent = `${item.warning} · ${qtyDisplay}`;
-        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
+        let titleText, detailText;
+        if (suspDq && !suspQty) {
+            titleText = `Confezione insolita: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = `Hai impostato una confezione da ${item.default_quantity} ${item.package_unit} — la dimensione sembra molto alta. Controlla se è corretta o modifica.`;
+        } else if (parseFloat(item.quantity) < t_.min) {
+            titleText = `Quantità molto bassa: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = `Hai solo ${qtyDisplay} in inventario — sembra poco, potrebbe essere un errore di inserimento. Conferma se è corretto.`;
+        } else {
+            titleText = `Quantità insolitamente alta: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = `Hai ${qtyDisplay} in inventario — la cifra sembra molto alta. Conferma se è corretto o correggi.`;
+        }
+        titleEl.textContent = titleText;
+        detailEl.textContent = detailText;
+        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">✓ È corretto</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">✏️ Correggi</button>`;
         if (hasScale) {
-            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ ${t('dashboard.banner_review_action_weigh')}</button>`;
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ Pesa</button>`;
         }
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'prediction') {
         const pred = entry.data;
+        const dir = pred.direction || 'less';
+        const dailyRate = parseFloat(pred.daily_rate) || 0;
+        const daysSince = parseInt(pred.days_since_restock) || 0;
         banner.className = 'alert-banner banner-prediction';
         iconEl.textContent = '📊';
-        titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
-        const expTxt = t('prediction.expected_qty').replace('{expected}', pred.expected_qty).replace('{unit}', pred.unit);
-        const actTxt = t('prediction.actual_qty').replace('{actual}', pred.actual_qty).replace('{unit}', pred.unit);
-        detailEl.innerHTML = `${expTxt} · ${actTxt}<br><small>${t('prediction.check_suggestion')}</small>`;
-        let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">${t('dashboard.banner_prediction_action_confirm')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">${t('dashboard.banner_prediction_action_edit')}</button>`;
+        titleEl.textContent = `Consumo anomalo: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
+        let rateText = '';
+        if (dailyRate > 0) {
+            rateText = dailyRate >= 1
+                ? `Media ~${Math.round(dailyRate)} ${pred.unit}/giorno`
+                : `Media ~${Math.round(dailyRate * 7)} ${pred.unit}/settimana`;
+        }
+        const timeText = daysSince > 0 ? ` — ${daysSince} giorni fa hai rifornito` : '';
+        let diffText;
+        if (dir === 'more') {
+            diffText = `mi aspettavo <strong>${pred.expected_qty} ${pred.unit}</strong>${timeText}, ne hai invece <strong>${pred.actual_qty} ${pred.unit}</strong>. Hai aggiunto scorte senza registrarle?`;
+        } else {
+            diffText = `mi aspettavo <strong>${pred.expected_qty} ${pred.unit}</strong>${timeText}, ne hai solo <strong>${pred.actual_qty} ${pred.unit}</strong>. Hai consumato di più del solito?`;
+        }
+        detailEl.innerHTML = rateText ? `${rateText}: ${diffText}` : diffText.charAt(0).toUpperCase() + diffText.slice(1);
+        let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">✓ La quantità è giusta</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">✏️ Aggiorna quantità</button>`;
         if (hasScale) {
-            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ ${t('dashboard.banner_prediction_action_weigh')}</button>`;
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ Pesa ora</button>`;
         }
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
         const an = entry.data;
-        const diffAbs = Math.abs(an.diff);
-        const diffDisplay = `${diffAbs} ${an.unit}`;
         const isPhantom = an.direction === 'phantom';
         banner.className = 'alert-banner banner-anomaly';
         iconEl.textContent = '🔍';
-        titleEl.textContent = `Anomalia inventario: ${an.name}${an.brand ? ' (' + an.brand + ')' : ''}`;
         if (isPhantom) {
-            detailEl.innerHTML = `Inventario: <strong>${an.inv_qty}${an.unit}</strong> ma le transazioni ne giustificano solo <strong>${an.expected_qty}${an.unit}</strong> (+${diffDisplay} fantasma)`;
+            titleEl.textContent = `${an.name} — hai più scorte del previsto`;
+            detailEl.innerHTML = `L'inventario segna <strong>${an.inv_qty} ${an.unit}</strong>, ma in base alle entrate e uscite registrate ne dovresti avere solo <strong>${an.expected_qty} ${an.unit}</strong>. Hai aggiunto scorte o corretto la quantità manualmente senza registrarlo?`;
         } else {
-            detailEl.innerHTML = `Le transazioni indicano <strong>${an.expected_qty}${an.unit}</strong> ma l'inventario ha solo <strong>${an.inv_qty}${an.unit}</strong> (mancano ${diffDisplay})`;
+            titleEl.textContent = `${an.name} — hai meno scorte del previsto`;
+            detailEl.innerHTML = `In base alle operazioni registrate dovresti avere <strong>${an.expected_qty} ${an.unit}</strong> di ${an.name}, ma l'inventario mostra solo <strong>${an.inv_qty} ${an.unit}</strong>. Hai prelevato senza registrarlo?`;
         }
-        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">✏️ Correggi</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">✓ Ok, ignora</button>`;
+        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">✏️ Correggi inventario</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">✓ Va bene così</button>`;
         actionsEl.innerHTML = btns;
     }
 
@@ -2603,7 +2601,7 @@ function confirmBannerPrediction() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'prediction') return;
     setReviewConfirmed('pred_' + entry.data.inventory_id);
-    showToast(t('toast.quantity_confirmed'), 'success');
+    showToast('✅ Confermato — il sistema ricalcolerà le previsioni dalle prossime registrazioni', 'success');
     dismissBannerItem();
 }
 
