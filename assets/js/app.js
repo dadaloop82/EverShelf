@@ -9279,7 +9279,15 @@ function onTtsEngineChange(engine) {
 /** Populate voice selector from Web Speech API. Called on settings load and on voiceschanged. */
 function _initBrowserTtsVoices(selectedVoice) {
     const sel = document.getElementById('setting-tts-voice');
-    if (!sel || !window.speechSynthesis) return;
+    if (!sel) return;
+
+    if (!window.speechSynthesis) {
+        sel.innerHTML = '<option value="">— Voce non supportata dal browser —</option>';
+        return;
+    }
+
+    // Reset to loading state each time (settings page may be re-opened)
+    sel.innerHTML = '<option value="">— Caricamento voci… —</option>';
 
     const populate = () => {
         const voices = window.speechSynthesis.getVoices();
@@ -9291,7 +9299,7 @@ function _initBrowserTtsVoices(selectedVoice) {
         sel.innerHTML = sorted.map(v =>
             `<option value="${v.name}" ${v.name === selectedVoice ? 'selected' : ''}>${v.name} (${v.lang})${v.localService ? '' : ' ☁️'}</option>`
         ).join('');
-        // Auto-select Paola if no preference and it exists
+        // Auto-select first Italian voice if no preference set
         if (!selectedVoice) {
             const paola = sorted.find(v => v.name === 'Paola');
             const firstIt = sorted.find(v => v.lang.startsWith('it'));
@@ -9301,22 +9309,25 @@ function _initBrowserTtsVoices(selectedVoice) {
         return true;
     };
 
-    // Some browsers (Chrome) load voices async: onvoiceschanged fires once they're ready.
-    // But if voices are already loaded, onvoiceschanged never fires → try immediately too.
-    // Additionally, onvoiceschanged may have already fired before we assign the handler
-    // (race condition), so we also poll with short retries as fallback.
-    if (!populate()) {
-        // Register the event handler for browsers that fire it
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = () => { populate(); };
+    // Try immediately (voices already cached from previous call)
+    if (populate()) return;
+
+    // onvoiceschanged fires in Firefox / some Chrome versions
+    window.speechSynthesis.onvoiceschanged = () => { populate(); };
+
+    // Polling fallback: Chrome/WebView loads voices async (up to ~3s on desktop, longer on Android)
+    let tries = 0;
+    const interval = setInterval(() => {
+        tries++;
+        if (populate()) {
+            clearInterval(interval);
+        } else if (tries >= 50) { // 50 × 200ms = 10s
+            clearInterval(interval);
+            if (!window.speechSynthesis.getVoices().length) {
+                sel.innerHTML = '<option value="">— Nessuna voce disponibile su questo dispositivo —</option>';
+            }
         }
-        // Fallback retry loop: try every 200ms for up to 4 seconds
-        let tries = 0;
-        const interval = setInterval(() => {
-            tries++;
-            if (populate() || tries >= 20) clearInterval(interval);
-        }, 200);
-    }
+    }, 200);
 }
 
 /** Speak text using the browser Web Speech API (offline). */

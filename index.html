@@ -930,10 +930,13 @@
                     <div id="tts-browser-section">
                         <div class="form-group">
                             <label>🗣️ Voce</label>
-                            <select id="setting-tts-voice" class="form-input">
-                                <option value="">— Caricamento voci… —</option>
-                            </select>
-                            <p class="settings-hint">Le voci disponibili dipendono dal sistema operativo e dal browser. Su macOS/iOS è disponibile la voce <strong>Paola</strong> (italiano).</p>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <select id="setting-tts-voice" class="form-input" style="flex:1">
+                                    <option value="">— Caricamento voci… —</option>
+                                </select>
+                                <button type="button" class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap;flex-shrink:0" onclick="_initBrowserTtsVoices(document.getElementById('setting-tts-voice').value)">↺</button>
+                            </div>
+                            <p class="settings-hint">Le voci disponibili dipendono dal sistema operativo e dal browser. Su macOS/iOS è disponibile la voce <strong>Paola</strong> (italiano). Premi ↺ se la lista non si carica.</p>
                         </div>
                         <div class="form-group">
                             <label>⚡ Velocità: <span id="tts-rate-label">1.0</span>×</label>
