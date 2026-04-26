@@ -2479,10 +2479,10 @@ function renderBannerItem() {
         iconEl.textContent = '🚫';
         titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} — Scaduto!`;
         detailEl.innerHTML = `${daysText} · hai ancora <strong>${qtyDisplay}</strong>. Usalo subito o buttalo.`;
-        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">✅ Usa comunque</button>`;
-        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">🗑️ Butta via</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">✏️ Correggi data</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">Ignora</button>`;
+        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
+        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_expired_action_edit')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'review') {
@@ -2506,10 +2506,10 @@ function renderBannerItem() {
         }
         titleEl.textContent = titleText;
         detailEl.textContent = detailText;
-        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">✓ È corretto</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">✏️ Correggi</button>`;
+        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
         if (hasScale) {
-            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ Pesa</button>`;
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_review_action_weigh')}</button>`;
         }
         actionsEl.innerHTML = btns;
 
@@ -2535,10 +2535,10 @@ function renderBannerItem() {
             diffText = `mi aspettavo <strong>${pred.expected_qty} ${pred.unit}</strong>${timeText}, ne hai solo <strong>${pred.actual_qty} ${pred.unit}</strong>. Hai consumato di più del solito?`;
         }
         detailEl.innerHTML = rateText ? `${rateText}: ${diffText}` : diffText.charAt(0).toUpperCase() + diffText.slice(1);
-        let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">✓ La quantità è giusta</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">✏️ Aggiorna quantità</button>`;
+        let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">${t('dashboard.banner_prediction_action_confirm', { qty: pred.actual_qty, unit: pred.unit })}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerPrediction()">${t('dashboard.banner_prediction_action_edit')}</button>`;
         if (hasScale) {
-            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">⚖️ Pesa ora</button>`;
+            btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_prediction_action_weigh')}</button>`;
         }
         actionsEl.innerHTML = btns;
 
@@ -2554,8 +2554,8 @@ function renderBannerItem() {
             titleEl.textContent = `${an.name} — hai meno scorte del previsto`;
             detailEl.innerHTML = `In base alle operazioni registrate dovresti avere <strong>${an.expected_qty} ${an.unit}</strong> di ${an.name}, ma l'inventario mostra solo <strong>${an.inv_qty} ${an.unit}</strong>. Hai prelevato senza registrarlo?`;
         }
-        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">✏️ Correggi inventario</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">✓ Va bene così</button>`;
+        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
         actionsEl.innerHTML = btns;
     }
 
