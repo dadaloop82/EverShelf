@@ -9283,7 +9283,7 @@ function _initBrowserTtsVoices(selectedVoice) {
 
     const populate = () => {
         const voices = window.speechSynthesis.getVoices();
-        if (!voices.length) return;
+        if (!voices.length) return false;
         // Italian voices first, then others
         const it = voices.filter(v => v.lang.startsWith('it'));
         const others = voices.filter(v => !v.lang.startsWith('it'));
@@ -9298,11 +9298,24 @@ function _initBrowserTtsVoices(selectedVoice) {
             if (paola) sel.value = paola.name;
             else if (firstIt) sel.value = firstIt.name;
         }
+        return true;
     };
 
-    populate();
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = populate;
+    // Some browsers (Chrome) load voices async: onvoiceschanged fires once they're ready.
+    // But if voices are already loaded, onvoiceschanged never fires → try immediately too.
+    // Additionally, onvoiceschanged may have already fired before we assign the handler
+    // (race condition), so we also poll with short retries as fallback.
+    if (!populate()) {
+        // Register the event handler for browsers that fire it
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = () => { populate(); };
+        }
+        // Fallback retry loop: try every 200ms for up to 4 seconds
+        let tries = 0;
+        const interval = setInterval(() => {
+            tries++;
+            if (populate() || tries >= 20) clearInterval(interval);
+        }, 200);
     }
 }
 
