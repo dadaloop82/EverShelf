@@ -2557,7 +2557,8 @@ function renderBannerItem() {
         banner.className = 'alert-banner banner-finished';
         iconEl.textContent = '📦';
         titleEl.textContent = `${fin.name}${fin.brand ? ' (' + fin.brand + ')' : ''} — ${t('dashboard.banner_finished_title')}`;
-        detailEl.textContent = t('dashboard.banner_finished_detail', { name: fin.name });
+        const expectedText = fin.expected_qty ? ` Secondo le registrazioni dovresti averne ancora <strong>${fin.expected_qty} ${fin.unit}</strong>.` : '';
+        detailEl.innerHTML = `L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.${expectedText} Puoi controllare?`;
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_no')}</button>`;
         actionsEl.innerHTML = btns;

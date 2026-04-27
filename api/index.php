@@ -1157,23 +1157,61 @@ function deleteInventory(PDO $db): void {
 }
 
 /**
- * Returns products whose entire inventory is at quantity = 0
- * (auto-set when stock ran out, pending user confirmation to permanently remove).
+ * Returns products whose entire inventory is at quantity = 0 AND whose
+ * transaction balance (total_in - total_out) is still significantly positive —
+ * meaning the system suspects the product ran out prematurely (scale drift,
+ * missed registration, etc.).
+ *
+ * Products where the balance is at/near zero are legitimately finished by the
+ * user; those rows are silently deleted here (no banner needed).
  */
 function getFinishedItems(PDO $db): void {
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url,
                MIN(i.location) AS location,
-               MAX(i.updated_at) AS updated_at
+               MAX(i.updated_at) AS updated_at,
+               COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
+               COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out
         FROM products p
         JOIN inventory i ON i.product_id = p.id
+        LEFT JOIN transactions t ON t.product_id = p.id
         WHERE NOT EXISTS (
             SELECT 1 FROM inventory i2 WHERE i2.product_id = p.id AND i2.quantity > 0
         )
         GROUP BY p.id
         ORDER BY MAX(i.updated_at) DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    echo json_encode(['success' => true, 'finished' => $rows], JSON_UNESCAPED_UNICODE);
+
+    // Per-unit threshold: residue below this is considered normal rounding/finish
+    $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.5];
+
+    $suspicious = [];
+    foreach ($rows as $r) {
+        $expected = (float)$r['total_in'] - (float)$r['total_out'];
+        $threshold = $thresholds[$r['unit']] ?? 0.5;
+
+        if ($expected > $threshold) {
+            // Transaction balance says stock should remain — show banner
+            $suspicious[] = [
+                'product_id'       => (int)$r['product_id'],
+                'name'             => $r['name'],
+                'brand'            => $r['brand'],
+                'unit'             => $r['unit'],
+                'default_quantity' => $r['default_quantity'],
+                'package_unit'     => $r['package_unit'],
+                'image_url'        => $r['image_url'],
+                'location'         => $r['location'],
+                'updated_at'       => $r['updated_at'],
+                'expected_qty'     => round($expected, 3),
+            ];
+        } else {
+            // Legitimately finished — delete silently, no banner
+            $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")
+               ->execute([$r['product_id']]);
+        }
+    }
+
+    echo json_encode(['success' => true, 'finished' => $suspicious], JSON_UNESCAPED_UNICODE);
 }
 
 /**
