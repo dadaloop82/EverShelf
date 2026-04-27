@@ -5922,6 +5922,29 @@ function showLowStockBringPrompt(result, afterCallback) {
     const defaultQty = result.product_default_qty || parseFloat(currentProduct?.default_quantity) || 0;
     const totalRemaining = result.total_remaining;
     
+    // ── Fully depleted: no need to ask — backend already added to Bring! ──
+    // Skip the modal entirely and proceed to the next step (e.g. move modal).
+    if (totalRemaining <= 0) {
+        // Backend auto-adds to Bring! when fully depleted. If it failed (Bring not
+        // configured, or product already on list), silently attempt it from JS.
+        if (!result.added_to_bring && name) {
+            // Fire-and-forget — don't block the callback
+            (async () => {
+                try {
+                    const spec = name;
+                    const payload = { items: [{ name, specification: spec }] };
+                    if (shoppingListUUID) payload.listUUID = shoppingListUUID;
+                    const data = await api('bring_add', {}, 'POST', payload);
+                    if (data.success && data.added > 0) {
+                        showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info');
+                    }
+                } catch(_e) { /* silent */ }
+            })();
+        }
+        if (afterCallback) afterCallback();
+        return;
+    }
+    
     if (!isLowStock(totalRemaining, unit, defaultQty)) {
         if (afterCallback) afterCallback();
         return;

@@ -3665,6 +3665,70 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         fn($w) => mb_strlen($w) > 2 && !in_array($w, $stop)
     ));
 
+    // 0. Compound-phrase map — checked against the FULL lowercase name (stop words included)
+    //    so multi-word product types are classified BEFORE single-token lookup.
+    //    This prevents "Pane grattugiato" → "Pane", "Panna da cucina" → "Panna", etc.
+    $phraseMap = [
+        // Breadcrumbs (MUST come before generic "pane")
+        'pangrattato'           => 'Pangrattato',
+        'pan grattato'          => 'Pangrattato',
+        'pane grattato'         => 'Pangrattato',
+        'pane grattugiato'      => 'Pangrattato',
+        'pan grattugiato'       => 'Pangrattato',
+        // Cooking cream (MUST come before generic "panna")
+        'panna da cucina'       => 'Panna da cucina',
+        'panna cucina'          => 'Panna da cucina',
+        'panna chef'            => 'Panna da cucina',
+        'panna acida'           => 'Panna acida',
+        // Plant-based milks (MUST come before generic "latte")
+        'latte condensato'      => 'Latte condensato',
+        'latte evaporato'       => 'Latte condensato',
+        'latte di soia'         => 'Latte di soia',
+        'latte soia'            => 'Latte di soia',
+        'latte vegetale'        => 'Latte vegetale',
+        'latte di mandorla'     => 'Latte di mandorla',
+        'latte mandorla'        => 'Latte di mandorla',
+        'latte di avena'        => 'Latte di avena',
+        'latte avena'           => 'Latte di avena',
+        'latte di riso'         => 'Latte di riso',
+        'latte riso'            => 'Latte di riso',
+        'latte di cocco'        => 'Latte di cocco',
+        'latte cocco'           => 'Latte di cocco',
+        // Baked bakery — different from bread
+        'fette biscottate'      => 'Fette biscottate',
+        'pan di spagna'         => 'Pan di Spagna',
+        // Specific vinegars
+        'aceto balsamico'       => 'Aceto balsamico',
+        'glassa balsamico'      => 'Aceto balsamico',
+        'glassa balsamic'       => 'Aceto balsamico',
+        // Cold cuts — specific cuts
+        'prosciutto cotto'      => 'Prosciutto cotto',
+        // Flour subtypes
+        'farina di riso'        => 'Farina di riso',
+        'farina riso'           => 'Farina di riso',
+        'farina di mais'        => 'Farina di mais',
+        'farina mais'           => 'Farina di mais',
+        'farina integrale'      => 'Farina integrale',
+        // Fresh pasta
+        'pasta fresca'          => 'Pasta fresca',
+        // Broth / stock
+        'brodo vegetale'        => 'Brodo',
+        'brodo pollo'           => 'Brodo',
+        'brodo manzo'           => 'Brodo',
+        // Sugar subtypes
+        'zucchero di canna'     => 'Zucchero di canna',
+        'zucchero canna'        => 'Zucchero di canna',
+        // Water
+        'acqua frizzante'       => 'Acqua',
+        'acqua gassata'         => 'Acqua',
+        'acqua minerale'        => 'Acqua',
+    ];
+    foreach ($phraseMap as $phrase => $canonical) {
+        if (mb_strpos($lower, $phrase) !== false) {
+            return $canonical;
+        }
+    }
+
     // 1. Curated keyword → canonical group name.
     //    Extended list covers the most common Italian pantry items and avoids Gemini calls.
     $keywordMap = [
@@ -3702,6 +3766,11 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         'piadelle'      => 'Piadina',
         'biscotto'      => 'Biscotti',
         'biscotti'      => 'Biscotti',
+        // Breadcrumbs single-token safety net (phrase map has priority, but just in case)
+        'grattugiato'   => 'Pangrattato',
+        'grattato'      => 'Pangrattato',
+        'pangrattato'   => 'Pangrattato',
+        'biscottate'    => 'Fette biscottate',
         // Dairy
         'latte'         => 'Latte',
         'yogurt'        => 'Yogurt',
