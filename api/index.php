@@ -4051,17 +4051,30 @@ function bringGetList(): void {
         'purchase' => $purchase,
         'recently' => $recently,
     ], JSON_UNESCAPED_UNICODE);
+
+    // ── Background auto-migration ─────────────────────────────────────────
+    // After sending the response, silently migrate any item that still uses
+    // the specific product name instead of the generic shopping_name.
+    // This runs at most once every 10 minutes (flag file throttle) to avoid
+    // hammering the Bring! API on every page load.
+    $flagFile = __DIR__ . '/../data/bring_migrate_ts.json';
+    $doMigrate = true;
+    if (file_exists($flagFile)) {
+        $ts = (int)(json_decode(file_get_contents($flagFile), true)['ts'] ?? 0);
+        if ((time() - $ts) < 600) $doMigrate = false;
+    }
+    if ($doMigrate) {
+        file_put_contents($flagFile, json_encode(['ts' => time()]));
+        // Use a global PDO instance if available, otherwise open a new connection
+        global $db;
+        if ($db instanceof PDO) {
+            bringMigrateNamesInternal($db, $data['purchase'] ?? [], $listUUID);
+        }
+    }
 }
 
 function bringAddItems(): void {
     $auth = bringAuth();
-    if (!$auth) {
-        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
-        return;
-    }
-    
-    $input = json_decode(file_get_contents('php://input'), true);
-    $items = $input['items'] ?? [];
     $listUUID = $input['listUUID'] ?? $auth['bringListUUID'];
     
     if (empty($listUUID)) {
@@ -4200,11 +4213,57 @@ function bringCleanSpecs(): void {
 }
 
 /**
- * Migrate existing Bring! list items to use generic shopping names.
- * For each item on the list that matches a product in the DB, if the item name
- * is the specific product name (not the generic shopping_name), replace it with
- * the generic name and move the specific name to the specification field.
+ * Core migration logic: iterate $purchaseItems and replace specific product
+ * names with generic shopping_name in the Bring! list identified by $listUUID.
+ * Returns ['migrated'=>int, 'skipped'=>int, 'errors'=>int].
  */
+function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUUID): array {
+    // Build lookup: product name (lowercase) → [shopping_name, brand]
+    $products = $db->query("SELECT name, brand, shopping_name FROM products WHERE shopping_name IS NOT NULL AND shopping_name != ''")->fetchAll();
+    $lookup = [];
+    foreach ($products as $p) {
+        $lookup[mb_strtolower($p['name'])] = ['shopping_name' => $p['shopping_name'], 'brand' => $p['brand'] ?? ''];
+    }
+
+    $migrated = 0;
+    $skipped  = 0;
+    $errors   = 0;
+
+    foreach ($purchaseItems as $item) {
+        $rawName = $item['name'] ?? '';
+        $itName  = bringToItalian($rawName);
+        $key     = mb_strtolower($itName);
+        $spec    = $item['specification'] ?? '';
+
+        if (!isset($lookup[$key])) { $skipped++; continue; }
+
+        $shoppingName = $lookup[$key]['shopping_name'];
+        $brand        = $lookup[$key]['brand'];
+
+        // Already using the generic name → nothing to do
+        if (mb_strtolower($rawName) === mb_strtolower($shoppingName)) { $skipped++; continue; }
+        if (mb_strtolower($itName)  === mb_strtolower($shoppingName)) { $skipped++; continue; }
+
+        // Build spec: "Specific Name · Brand"
+        $newSpec = $itName . ($brand ? " · {$brand}" : '');
+        if ($spec !== '' && $spec !== $newSpec && stripos($spec, $itName) === false) {
+            $newSpec = $itName . ($brand ? " · {$brand}" : '') . ' — ' . $spec;
+        }
+
+        // Remove old item, add with generic name
+        bringRequest('DELETE', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}/{$rawName}");
+        $addBody = http_build_query([
+            'uuid'          => $listUUID,
+            'purchase'      => $shoppingName,
+            'specification' => $newSpec,
+        ]);
+        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
+        if ($result !== false) { $migrated++; } else { $errors++; }
+    }
+
+    return ['migrated' => $migrated, 'skipped' => $skipped, 'errors' => $errors];
+}
+
 function bringMigrateNames(PDO $db): void {
     $auth = bringAuth();
     if (!$auth) {
@@ -4216,68 +4275,18 @@ function bringMigrateNames(PDO $db): void {
         echo json_encode(['success' => false, 'error' => 'Lista non trovata']);
         return;
     }
-
     $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
     if (!$data || !isset($data['purchase'])) {
         echo json_encode(['success' => false, 'error' => 'Errore nel recupero della lista']);
         return;
     }
 
-    // Build a lookup: product name (lowercase) → [shopping_name, brand]
-    $products = $db->query("SELECT name, brand, shopping_name FROM products WHERE shopping_name IS NOT NULL AND shopping_name != ''")->fetchAll();
-    $lookup = [];
-    foreach ($products as $p) {
-        $lookup[mb_strtolower($p['name'])] = ['shopping_name' => $p['shopping_name'], 'brand' => $p['brand'] ?? ''];
-    }
+    $result = bringMigrateNamesInternal($db, $data['purchase'], $listUUID);
 
-    $migrated = 0;
-    $skipped  = 0;
-    $errors   = 0;
+    // Reset throttle so next bring_list load re-checks
+    @unlink(__DIR__ . '/../data/bring_migrate_ts.json');
 
-    foreach ($data['purchase'] as $item) {
-        $rawName = $item['name'] ?? '';
-        $itName  = bringToItalian($rawName); // translate from Bring internal name if needed
-        $key     = mb_strtolower($itName);
-        $spec    = $item['specification'] ?? '';
-
-        if (!isset($lookup[$key])) { $skipped++; continue; }
-
-        $shoppingName = $lookup[$key]['shopping_name'];
-        $brand        = $lookup[$key]['brand'];
-
-        // Already using the generic name → nothing to do
-        if (mb_strtolower($rawName) === mb_strtolower($shoppingName)) { $skipped++; continue; }
-        if (mb_strtolower(bringToItalian($rawName)) === mb_strtolower($shoppingName)) { $skipped++; continue; }
-
-        // Build new spec: "Specific Name · Brand" (keep existing spec if already set & different)
-        $newSpec = $itName . ($brand ? " · {$brand}" : '');
-        if ($spec !== '' && $spec !== $newSpec && stripos($spec, $itName) === false) {
-            // There's a custom spec the user wrote — prepend the product name
-            $newSpec = $itName . ($brand ? " · {$brand}" : '') . ' — ' . $spec;
-        }
-
-        // Step 1: remove old item
-        $removeBody = http_build_query([
-            'uuid'     => $listUUID,
-            'purchase' => $rawName,
-        ]);
-        bringRequest('DELETE', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}/{$rawName}");
-
-        // Step 2: add with generic name + spec
-        $addBody = http_build_query([
-            'uuid'          => $listUUID,
-            'purchase'      => $shoppingName,
-            'specification' => $newSpec,
-        ]);
-        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
-        if ($result !== false) {
-            $migrated++;
-        } else {
-            $errors++;
-        }
-    }
-
-    echo json_encode(['success' => true, 'migrated' => $migrated, 'skipped' => $skipped, 'errors' => $errors]);
+    echo json_encode(array_merge(['success' => true], $result));
 }
 
 function invalidateSmartShoppingCache(): void {
