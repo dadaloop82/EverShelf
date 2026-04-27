@@ -4240,7 +4240,11 @@ function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUU
         $shoppingName = $lookup[$key]['shopping_name'];
         $brand        = $lookup[$key]['brand'];
 
-        // Already using the generic name → nothing to do
+        // Resolve to the correct Bring! catalog key (German)
+        $bringKey = italianToBring($shoppingName);
+
+        // Already using the correct catalog key or the shopping name → nothing to do
+        if (mb_strtolower($rawName) === mb_strtolower($bringKey))     { $skipped++; continue; }
         if (mb_strtolower($rawName) === mb_strtolower($shoppingName)) { $skipped++; continue; }
         if (mb_strtolower($itName)  === mb_strtolower($shoppingName)) { $skipped++; continue; }
 
@@ -4250,15 +4254,31 @@ function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUU
             $newSpec = $itName . ($brand ? " · {$brand}" : '') . ' — ' . $spec;
         }
 
-        // Remove old item, add with generic name
-        bringRequest('DELETE', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}/{$rawName}");
-        $addBody = http_build_query([
-            'uuid'          => $listUUID,
-            'purchase'      => $shoppingName,
-            'specification' => $newSpec,
-        ]);
-        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
-        if ($result !== false) { $migrated++; } else { $errors++; }
+        // Check if the correct catalog key is already in the list
+        $alreadyAdded = false;
+        foreach ($purchaseItems as $existing) {
+            if (strcasecmp($existing['name'] ?? '', $bringKey) === 0) {
+                $alreadyAdded = true;
+                break;
+            }
+        }
+
+        // Remove old item using the correct API (PUT with remove param)
+        bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+            http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
+
+        // Add with the correct German catalog key (unless already present)
+        if (!$alreadyAdded) {
+            $addBody = http_build_query([
+                'uuid'          => $listUUID,
+                'purchase'      => $bringKey,
+                'specification' => $newSpec,
+            ]);
+            $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
+            if ($result !== false) { $migrated++; } else { $errors++; }
+        } else {
+            $migrated++; // old item removed, correct generic already present
+        }
     }
 
     return ['migrated' => $migrated, 'skipped' => $skipped, 'errors' => $errors];
