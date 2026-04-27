@@ -2556,8 +2556,10 @@ function renderBannerItem() {
         const fin = entry.data;
         banner.className = 'alert-banner banner-finished';
         iconEl.textContent = '📦';
-        const barcodeSuffix = fin.barcode && fin.barcode.length >= 3 ? ' …' + fin.barcode.slice(-3) : '';
-        titleEl.textContent = `${fin.name}${fin.brand ? ' (' + fin.brand + ')' : ''}${barcodeSuffix} — ${t('dashboard.banner_finished_title')}`;
+        const barcodeSuffix = fin.barcode && fin.barcode.length >= 3
+            ? ` <span style="font-family:monospace;font-size:0.7em;opacity:0.6">…${escapeHtml(fin.barcode.slice(-3))}</span>`
+            : '';
+        titleEl.innerHTML = `${escapeHtml(fin.name)}${fin.brand ? ' (' + escapeHtml(fin.brand) + ')' : ''}${barcodeSuffix} — ${escapeHtml(t('dashboard.banner_finished_title'))}`;
         const expectedText = fin.expected_qty ? ` Secondo le registrazioni dovresti averne ancora <strong>${fin.expected_qty} ${fin.unit}</strong>.` : '';
         detailEl.innerHTML = `L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.${expectedText} Puoi controllare?`;
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
