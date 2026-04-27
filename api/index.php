@@ -3589,6 +3589,72 @@ function italianToBring(string $italianName): string {
  * The returned string is always a valid Bring! catalog name where possible,
  * so that italianToBring(computeShoppingName($n)) resolves to a catalog key.
  */
+/**
+ * Ask Gemini to classify a product name into a short Italian shopping category word.
+ * Results are cached in a local JSON file to avoid repeated API calls.
+ * Returns null on failure so the caller can fall back gracefully.
+ */
+function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) return null;
+
+    // Load/save classification cache
+    $cacheFile = __DIR__ . '/../data/shopping_name_cache.json';
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $raw = @file_get_contents($cacheFile);
+        if ($raw) $cache = json_decode($raw, true) ?: [];
+    }
+    $cacheKey = md5(mb_strtolower($name . '|' . $brand));
+    if (isset($cache[$cacheKey])) return $cache[$cacheKey];
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+
+    // Build catalog list so Gemini picks an existing Bring! entry when possible
+    $catalog = bringCatalog();
+    $catalogList = implode(', ', array_slice(array_values($catalog['de2it']), 0, 200));
+
+    $prompt = <<<PROMPT
+Sei un assistente per la spesa italiana. Data la descrizione di un prodotto alimentare,
+rispondi con UNA SOLA parola (o al massimo due) in italiano che rappresenta la categoria
+generica più appropriata per la lista della spesa.
+
+Il nome deve essere:
+- Breve (1-2 parole al massimo)
+- In italiano
+- Riconoscibile da un supermercato italiano (es: "Pane", "Latte", "Formaggio", "Yogurt",
+  "Pasta", "Riso", "Olio", "Biscotti", "Succo", "Marmellata", "Salsa", "Farina", ...)
+- Se esiste nel catalogo Bring! scegli quella voce: {$catalogList}
+
+Prodotto: "{$name}"
+Marca: "{$brand}"
+Categoria OpenFoodFacts: "{$category}"
+
+Rispondi SOLO con la parola/coppia di parole, senza punteggiatura, senza spiegazioni.
+PROMPT;
+
+    $payload = [
+        'contents' => [['parts' => [['text' => $prompt]]]],
+        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
+    ];
+
+    $result = callGemini($url, $payload, 15);
+    if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) return null;
+
+    $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
+    // Sanitize: keep only letters and spaces, max 30 chars, capitalize first letter
+    $text = preg_replace('/[^\p{L}\s]/u', '', $text);
+    $text = trim(preg_replace('/\s+/', ' ', $text));
+    if (mb_strlen($text) < 2 || mb_strlen($text) > 30) return null;
+    $text = mb_strtoupper(mb_substr($text, 0, 1)) . mb_substr($text, 1);
+
+    // Persist to cache
+    $cache[$cacheKey] = $text;
+    @file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+    return $text;
+}
+
 function computeShoppingName(string $name, string $category = '', string $brand = ''): string {
     $lower = mb_strtolower(trim($name));
     $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
@@ -3600,10 +3666,9 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     ));
 
     // 1. Curated keyword → canonical group name.
-    //    These handle products that map to distinct Bring! entries but belong together
-    //    (all cured/cold-cut meats → "Affettato", which is in the Bring! catalog).
+    //    Extended list covers the most common Italian pantry items and avoids Gemini calls.
     $keywordMap = [
-        // Cold cuts / affettati — group them all under "Affettato" (catalog: Aufschnitt)
+        // Cold cuts / affettati
         'mortadella'    => 'Affettato',
         'nduja'         => 'Affettato',
         'salame'        => 'Affettato',
@@ -3614,11 +3679,165 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         'schinkenspeck' => 'Affettato',
         'schinken'      => 'Affettato',
         'prosciutto'    => 'Affettato',
-        // Items that have their own Bring! entry — keep specific
+        // Items with their own Bring! entry
         'bresaola'      => 'Bresaola',
         'pancetta'      => 'Pancetta',
         'salsiccia'     => 'Salsiccia',
         'wurstel'       => 'Wurstel',
+        // Bread & bakery
+        'pane'          => 'Pane',
+        'bauletto'      => 'Pane',
+        'pancarrè'      => 'Pane',
+        'pancare'       => 'Pane',
+        'toast'         => 'Pane',
+        'focaccia'      => 'Pane',
+        'ciabatta'      => 'Pane',
+        'baguette'      => 'Pane',
+        'grissini'      => 'Grissini',
+        'crackers'      => 'Cracker',
+        'cracker'       => 'Cracker',
+        'taralli'       => 'Taralli',
+        'tarallini'     => 'Taralli',
+        'piadina'       => 'Piadina',
+        'piadelle'      => 'Piadina',
+        'biscotto'      => 'Biscotti',
+        'biscotti'      => 'Biscotti',
+        // Dairy
+        'latte'         => 'Latte',
+        'yogurt'        => 'Yogurt',
+        'yaourt'        => 'Yogurt',
+        'yougurt'       => 'Yogurt',
+        'burro'         => 'Burro',
+        'panna'         => 'Panna',
+        'mozzarella'    => 'Mozzarella',
+        'formaggio'     => 'Formaggio',
+        'ricotta'       => 'Ricotta',
+        'ricottina'     => 'Ricotta',
+        'casatella'     => 'Formaggio',
+        'philadelphia'  => 'Formaggio cremoso',
+        // "Bel Paese" — known Italian cheese brand
+        'bel'           => 'Formaggio',
+        // Pasta
+        'pasta'         => 'Pasta',
+        'spaghetti'     => 'Pasta',
+        'penne'         => 'Pasta',
+        'rigatoni'      => 'Pasta',
+        'fusilli'       => 'Pasta',
+        'orecchiette'   => 'Pasta',
+        'tortiglioni'   => 'Pasta',
+        'linguine'      => 'Pasta',
+        'sedani'        => 'Pasta',
+        'lasagne'       => 'Pasta',
+        'tortellini'    => 'Pasta',
+        'gnocchi'       => 'Gnocchi',
+        // Rice
+        'riso'          => 'Riso',
+        // Eggs
+        'uova'          => 'Uova',
+        'uovo'          => 'Uova',
+        // Fruit & veg
+        'mela'          => 'Mele',
+        'mele'          => 'Mele',
+        'pera'          => 'Pere',
+        'arancia'       => 'Arance',
+        'arance'        => 'Arance',
+        'limone'        => 'Limone',
+        'banana'        => 'Banane',
+        'banane'        => 'Banane',
+        'kiwi'          => 'Kiwi',
+        'avocado'       => 'Avocado',
+        'pomodoro'      => 'Pomodori',
+        'pomodori'      => 'Pomodori',
+        'pomodorini'    => 'Pomodorini',
+        'carota'        => 'Carote',
+        'carote'        => 'Carote',
+        'cipolla'       => 'Cipolla',
+        'cipolle'       => 'Cipolla',
+        'aglio'         => 'Aglio',
+        'zucchina'      => 'Zucchine',
+        'zucchine'      => 'Zucchine',
+        'spinaci'       => 'Spinaci',
+        'lattuga'       => 'Insalata',
+        'melone'        => 'Melone',
+        'finocchio'     => 'Finocchio',
+        // Condiments & pantry
+        'olio'          => 'Olio',
+        'aceto'         => 'Aceto',
+        'sale'          => 'Sale',
+        'zucchero'      => 'Zucchero',
+        'farina'        => 'Farina',
+        'lievito'       => 'Lievito',
+        'miele'         => 'Miele',
+        'marmellata'    => 'Marmellata',
+        'confettura'    => 'Marmellata',
+        'maionese'      => 'Maionese',
+        'senape'        => 'Senape',
+        'ketchup'       => 'Ketchup',
+        // Canned / preserved
+        'passata'       => 'Passata',
+        'polpa'         => 'Polpa di pomodoro',
+        'pelati'        => 'Pelati',
+        'tonno'         => 'Tonno',
+        'sardine'       => 'Sardine',
+        'ceci'          => 'Ceci',
+        'lenticchie'    => 'Lenticchie',
+        'fagioli'       => 'Fagioli',
+        'piselli'       => 'Piselli',
+        'mais'          => 'Mais',
+        // Frozen
+        'surgelato'     => 'Surgelati',
+        'surgelati'     => 'Surgelati',
+        // Drinks
+        'vino'          => 'Vino',
+        'birra'         => 'Birra',
+        'succo'         => 'Succo',
+        // Cereals & snacks
+        'muesli'        => 'Muesli',
+        'cereali'       => 'Cereali',
+        // Frozen & desserts (before coffee/tea tokens to avoid "gelato caffè → Caffè")
+        'gelato'        => 'Gelato',
+        'semifreddo'    => 'Gelato',
+        // Beverages (coffee, tea, herbal)
+        'camomilla'     => 'Camomilla',
+        'camomille'     => 'Camomilla',
+        'tisana'        => 'Tè',
+        // Cat food / pet
+        'gatto'         => 'Cibo per gatti',
+        'cane'          => 'Cibo per cani',
+        // Known product/brand single tokens → category override
+        'risofrolle'    => 'Cracker',
+        'zuppalatte'    => 'Biscotti',
+        'kaffee'        => 'Caffè',
+        'ovomaltine'    => 'Bevande',
+        'ciobar'        => 'Cioccolata calda',
+        'apfelsaft'     => 'Succo',
+        'kartoffelpüree'=> 'Purè',
+        'purée'         => 'Purè',
+        'pure'          => 'Purè',
+        'inchusa'       => 'Birra',
+        'ichnusa'       => 'Birra',
+        'vesoletto'     => 'Vino',
+        'trebbiano'     => 'Vino',
+        'sangiovese'    => 'Vino',
+        'barbera'       => 'Vino',
+        'chianti'       => 'Vino',
+        'soave'         => 'Vino',
+        'prosecco'      => 'Vino',
+        'frizzante'     => 'Acqua',
+        'semolino'      => 'Semolino',
+        'bicarbonato'   => 'Bicarbonato',
+        'sambuca'       => 'Liquore',
+        'limoncello'    => 'Liquore',
+        'grappa'        => 'Liquore',
+        'dado'          => 'Brodo',
+        'zuccheri'      => 'Zucchero',
+        'zucchero'      => 'Zucchero',
+        // Foreign-language tokens
+        'jus'           => 'Succo',
+        'zumo'          => 'Succo',
+        'arome'         => 'Aroma',
+        'caffe'         => 'Caffè',
+        'caffè'         => 'Caffè',
     ];
 
     foreach ($tokens as $token) {
@@ -3627,8 +3846,7 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         }
     }
 
-    // 2. Bring! back-translation: run italianToBring() — if it found a catalog key,
-    //    back-translate to Italian to get the canonical catalog name (e.g. "Latte").
+    // 2. Bring! catalog back-translation: "Latte di Montagna" → "Milch" → "Latte"
     $bringKey = italianToBring($name);
     if ($bringKey !== $name) {
         $italian = bringToItalian($bringKey);
@@ -3637,9 +3855,28 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         }
     }
 
-    // 3. Fallback: capitalize the first meaningful token.
+    // 3. Gemini AI classification — called when:
+    //    - The name has 2+ tokens (e.g. "Gran bauletto rustico"),
+    //    - OR the single token doesn't look like a clean Italian product word
+    //      (contains non-Italian chars, uppercase mix, brand-style length, etc.),
+    //    - OR category/brand context is available to help Gemini disambiguate.
+    // Single-token ultra-common words (5+ lowercase Italian chars) that already look
+    // like valid category names are skipped (unlikely to need AI).
+    $firstToken = $tokens[0] ?? '';
+    $isCleanItalianToken = count($tokens) === 1
+        && mb_strlen($firstToken) >= 5
+        && mb_strtolower($firstToken) === $firstToken  // all lowercase → already in stop-word-free form
+        && preg_match('/^[a-z]+$/', $firstToken);     // only ASCII lowercase (no accents = usually Italian noun)
+    $hasCategoryHint = $category !== '' || $brand !== '';
+    $needsAI = !$isCleanItalianToken || ($hasCategoryHint && count($tokens) >= 2);
+    if ($needsAI) {
+        $aiResult = _geminiClassifyProduct($name, $brand, $category);
+        if ($aiResult !== null) return $aiResult;
+    }
+
+    // 4. Fallback: capitalize the first meaningful token.
     if (!empty($tokens)) {
-        return mb_strtoupper(mb_substr($tokens[0], 0, 1)) . mb_substr($tokens[0], 1);
+        return mb_strtoupper(mb_substr($firstToken, 0, 1)) . mb_substr($firstToken, 1);
     }
     return ucfirst($name);
 }
