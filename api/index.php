@@ -180,6 +180,12 @@ try {
         case 'inventory_delete':
             deleteInventory($db);
             break;
+        case 'inventory_finished_items':
+            getFinishedItems($db);
+            break;
+        case 'inventory_confirm_finished':
+            confirmFinished($db);
+            break;
         case 'inventory_summary':
             inventorySummary($db);
             break;
@@ -701,10 +707,11 @@ function listInventory(PDO $db): void {
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at
         FROM inventory i
         JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
     ";
     $params = [];
     if (!empty($location)) {
-        $query .= " WHERE i.location = ?";
+        $query .= " AND i.location = ?";
         $params[] = $location;
     }
     $query .= " ORDER BY p.name ASC";
@@ -893,7 +900,7 @@ function useFromInventory(PDO $db): void {
         $totalRemoved = 0;
         foreach ($allItems as $item) {
             $totalRemoved += $item['quantity'];
-            $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+            $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$item['id']]);
             $type = ($notes === 'Buttato') ? 'waste' : 'out';
             $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
@@ -971,7 +978,7 @@ function useFromInventory(PDO $db): void {
     $actualDeducted = min($quantity, $existing['quantity']);
     
     if ($newQty <= 0) {
-        $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+        $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$existing['id']]);
     } else {
         // Check if item is now opened (first use reduces quantity)
@@ -1146,6 +1153,41 @@ function deleteInventory(PDO $db): void {
     $id = $input['id'] ?? 0;
     $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
     $stmt->execute([$id]);
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * Returns products whose entire inventory is at quantity = 0
+ * (auto-set when stock ran out, pending user confirmation to permanently remove).
+ */
+function getFinishedItems(PDO $db): void {
+    $rows = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url,
+               MIN(i.location) AS location,
+               MAX(i.updated_at) AS updated_at
+        FROM products p
+        JOIN inventory i ON i.product_id = p.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM inventory i2 WHERE i2.product_id = p.id AND i2.quantity > 0
+        )
+        GROUP BY p.id
+        ORDER BY MAX(i.updated_at) DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['success' => true, 'finished' => $rows], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Permanently delete all qty=0 inventory rows for a product after user confirms it is finished.
+ */
+function confirmFinished(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $productId = (int)($input['product_id'] ?? 0);
+    if (!$productId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'product_id required']);
+        return;
+    }
+    $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")->execute([$productId]);
     echo json_encode(['success' => true]);
 }
 

@@ -105,7 +105,11 @@
         "banner_expiring_today": "Expires today!",
         "banner_expiring_tomorrow": "Expires tomorrow",
         "banner_expiring_days": "Expires in {days} days",
-        "banner_expiring_action_use": "Use now"
+        "banner_expiring_action_use": "Use now",
+        "banner_finished_title": "finished?",
+        "banner_finished_detail": "I recorded that {name} reached zero stock. Is it really gone, or do you still have some?",
+        "banner_finished_action_yes": "Yes, it's done",
+        "banner_finished_action_no": "No, I still have some"
     },
     "inventory": {
         "title": "Pantry",
@@ -426,6 +430,7 @@
         "finished_to_bring": "🛒 Product finished → added to Bring!",
         "thrown_away": "🗑️ {name} thrown away!",
         "thrown_away_partial": "🗑️ Thrown away {qty} {unit} of {name}",
+        "product_finished_confirmed": "✅ Removed — add it again when you restock",
         "appliance_added": "Appliance added",
         "item_added": "{name} added"
     },

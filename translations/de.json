@@ -105,7 +105,11 @@
         "banner_expiring_today": "Läuft heute ab!",
         "banner_expiring_tomorrow": "Läuft morgen ab",
         "banner_expiring_days": "Läuft in {days} Tagen ab",
-        "banner_expiring_action_use": "Jetzt verwenden"
+        "banner_expiring_action_use": "Jetzt verwenden",
+        "banner_finished_title": "aufgebraucht?",
+        "banner_finished_detail": "Ich habe vermerkt, dass {name} auf null gesunken ist. Ist es wirklich leer, oder hast du noch welches?",
+        "banner_finished_action_yes": "Ja, aufgebraucht",
+        "banner_finished_action_no": "Nein, ich habe noch welches"
     },
     "inventory": {
         "title": "Vorrat",
@@ -426,6 +430,7 @@
         "finished_to_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt",
         "thrown_away": "🗑️ {name} weggeworfen!",
         "thrown_away_partial": "🗑️ {qty} {unit} von {name} weggeworfen",
+        "product_finished_confirmed": "✅ Entfernt — wieder hinzufügen, wenn du nachkaufst",
         "appliance_added": "Gerät hinzugefügt",
         "item_added": "{name} hinzugefügt"
     },

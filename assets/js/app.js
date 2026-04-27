@@ -2354,10 +2354,11 @@ async function loadBannerAlerts() {
     if (!banner) { console.warn('[Banner] #alert-banner not found'); return; }
 
     try {
-        const [invData, predData, anomalyData] = await Promise.all([
+        const [invData, predData, anomalyData, finishedData] = await Promise.all([
             api('inventory_list'),
             api('consumption_predictions').catch(err => { console.warn('[Banner] predictions fetch failed:', err); return { predictions: [] }; }),
             api('inventory_anomalies').catch(err => { console.warn('[Banner] anomalies fetch failed:', err); return { anomalies: [] }; }),
+            api('inventory_finished_items').catch(err => { console.warn('[Banner] finished_items fetch failed:', err); return { finished: [] }; }),
         ]);
         const items = invData.inventory || [];
         const confirmed = getReviewConfirmed();
@@ -2398,6 +2399,13 @@ async function loadBannerAlerts() {
         anomalies.forEach(an => {
             if (confirmed['an_' + an.dismiss_key]) return;
             _bannerQueue.push({ type: 'anomaly', data: an });
+        });
+
+        // 6. Finished products: inventory hit 0, waiting for user confirmation
+        const finished = finishedData.finished || [];
+        finished.forEach(fin => {
+            if (confirmed['fin_' + fin.product_id]) return;
+            _bannerQueue.push({ type: 'finished', data: fin });
         });
 
         // Sort by priority (highest first)
@@ -2451,6 +2459,8 @@ function _bannerPriority(entry) {
             // Phantom (inflated qty) = 250, Missing = 260 (slightly higher, means data is clearly wrong)
             return entry.data.direction === 'missing' ? 260 : 250;
         }
+        case 'finished':
+            return 600; // product ran out — confirm before removing from DB
         default:
             return 0;
     }
@@ -2540,6 +2550,16 @@ function renderBannerItem() {
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_prediction_action_weigh')}</button>`;
         }
+        actionsEl.innerHTML = btns;
+
+    } else if (entry.type === 'finished') {
+        const fin = entry.data;
+        banner.className = 'alert-banner banner-finished';
+        iconEl.textContent = '📦';
+        titleEl.textContent = `${fin.name}${fin.brand ? ' (' + fin.brand + ')' : ''} — ${t('dashboard.banner_finished_title')}`;
+        detailEl.textContent = t('dashboard.banner_finished_detail', { name: fin.name });
+        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_no')}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
@@ -2697,6 +2717,40 @@ function dismissBannerExpiring() {
     if (!entry || entry.type !== 'expiring') return;
     setReviewConfirmed('exps_' + entry.data.id);
     dismissBannerItem();
+}
+
+async function confirmBannerFinished() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'finished') return;
+    const productId = entry.data.product_id;
+    try {
+        await api('inventory_confirm_finished', {}, 'POST', { product_id: productId });
+    } catch(e) {}
+    setReviewConfirmed('fin_' + productId);
+    showToast(t('toast.product_finished_confirmed'), 'success');
+    dismissBannerItem();
+}
+
+async function notFinishedBannerAction() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'finished') return;
+    const productId = entry.data.product_id;
+    // Remove from this session's queue (will re-appear next load if still at qty=0)
+    dismissBannerItem();
+    showLoading(true);
+    try {
+        const data = await api('product_get', { id: productId });
+        showLoading(false);
+        if (data.product) {
+            currentProduct = data.product;
+            showAddForm();
+        } else {
+            showToast(t('error.not_found'), 'error');
+        }
+    } catch(e) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 // --- Banner swipe navigation ---

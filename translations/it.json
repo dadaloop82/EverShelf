@@ -105,7 +105,11 @@
         "banner_expiring_today": "Scade oggi!",
         "banner_expiring_tomorrow": "Scade domani",
         "banner_expiring_days": "Scade tra {days} giorni",
-        "banner_expiring_action_use": "Usa ora"
+        "banner_expiring_action_use": "Usa ora",
+        "banner_finished_title": "è finito?",
+        "banner_finished_detail": "Ho registrato che {name} ha toccato quota zero. È davvero finito o hai ancora delle scorte?",
+        "banner_finished_action_yes": "Sì, è finito",
+        "banner_finished_action_no": "No, ne ho ancora"
     },
     "inventory": {
         "title": "Dispensa",
@@ -426,6 +430,7 @@
         "finished_to_bring": "🛒 Prodotto finito → aggiunto a Bring!",
         "thrown_away": "🗑️ {name} buttato!",
         "thrown_away_partial": "🗑️ Buttato {qty} {unit} di {name}",
+        "product_finished_confirmed": "✅ Rimosso — riaggiungi quando ne ricompri",
         "appliance_added": "Elettrodomestico aggiunto",
         "item_added": "{name} aggiunto"
     },
