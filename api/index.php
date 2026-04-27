@@ -909,6 +909,30 @@ function useFromInventory(PDO $db): void {
         echo json_encode(['error' => 'Product ID required']);
         return;
     }
+
+    // ── Server-side deduplication ─────────────────────────────────────────
+    // Reject if the same product already has an 'out' transaction in the last
+    // 12 seconds. This guards against scale double-triggers (the scale can fire
+    // a second stable reading ~10 s after the first auto-confirm, while the
+    // product is still on the plate), regardless of the client-side guard.
+    if (!$useAll) {
+        $dedup = $db->prepare(
+            "SELECT id FROM transactions
+             WHERE product_id = ? AND type IN ('out','waste') AND undone = 0
+               AND created_at >= datetime('now', '-12 seconds')
+             LIMIT 1"
+        );
+        $dedup->execute([$productId]);
+        if ($dedup->fetch()) {
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Operazione già registrata di recente — attendi qualche secondo.',
+                'duplicate' => true,
+            ]);
+            return;
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
     
     // Handle "throw all from all locations"
     if ($useAll && $location === '__all__') {

@@ -6176,7 +6176,12 @@ async function submitUse(e) {
     e.preventDefault();
     if (_useSubmitting) return; // prevent double-submit from scale auto-confirm
     _useSubmitting = true;
-    _cancelScaleAutoConfirm(false); // stop any running auto-confirm
+    // Stop timers but KEEP _scaleLastConfirmedGrams: this prevents the scale from
+    // re-triggering another auto-submit while the product is still on the plate.
+    // (Calling _cancelScaleAutoConfirm(false) would reset the sentinel to null,
+    //  allowing the same weight to start a new 10-second cycle immediately.)
+    _cancelScaleTimersOnly();
+    _scaleStabilityVal = null; // reset sentinel so a new DIFFERENT weight restarts correctly
     showLoading(true);
     try {
         let qty = parseFloat(document.getElementById('use-quantity').value) || 1;
@@ -6212,6 +6217,8 @@ async function submitUse(e) {
                 : () => showPage('dashboard');
             // Check low stock → Bring! prompt
             showLowStockBringPrompt(result, moveCallback);
+        } else if (result.duplicate) {
+            // Silently ignore: this was a scale double-trigger, not a real error
         } else {
             showToast(result.error || 'Errore', 'error');
         }
