@@ -33,15 +33,17 @@
 
 ### 🛒 Shopping List
 - **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
+- **Generic shopping names** — Products are grouped by type ("Latte", "Affettato", "Panna da cucina") rather than brand, keeping the Bring! list clean and consolidated
 - **Smart predictions** — Know what you'll need before you run out
+- **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
 - **Auto-remove on scan** — Products are removed from the shopping list when scanned in
 - **DupliClick integration** — Online grocery ordering (Gruppo Poli)
 
 ### 🍳 Cooking Mode
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
-- **Text-to-Speech** — Voice readout of recipe steps (configurable TTS endpoint)
+- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.)
 - **Built-in timer** — Automatic timer suggestions based on recipe instructions
-- **Ingredient tracking** — Mark ingredients as used during cooking
+- **Ingredient tracking** — Mark ingredients as used during cooking; leftover quantities prompt a "move to another location" flow
 
 ### 📊 Dashboard
 - **Waste tracking** — Monitor consumed vs. wasted products over 30 days
@@ -76,6 +78,7 @@
 - **Setup wizard** — 3-step guided configuration (URL, connection test, gateway)
 - **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
 - **Camera & mic permissions** — Full hardware access for barcode scanning and voice
+- **Native TTS bridge** — Cooking mode voice readout uses the Android TextToSpeech engine directly, bypassing Web Speech API voice limitations; no offline voice packs required
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
 - **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
 - **SSL support** — Accepts self-signed certificates
@@ -313,6 +316,9 @@ The application uses no build tools — edit files directly and refresh.
 - [x] AI scan local matching — suggest existing pantry products before OFF lookup
 - [x] Scale auto-fill improvements — 10g threshold, ml conversion hints
 - [x] Update notification system — kiosk checks GitHub releases
+- [x] Generic shopping name grouping — compound-phrase + keyword map (100+ entries) + Gemini AI fallback
+- [x] Auto-add to Bring! on product depletion — no confirmation step when stock reaches zero
+- [x] Native Android TTS in kiosk — bypasses Web Speech API voice detection issues
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products

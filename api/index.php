@@ -3703,25 +3703,37 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         'glassa balsamic'       => 'Aceto balsamico',
         // Cold cuts — specific cuts
         'prosciutto cotto'      => 'Prosciutto cotto',
-        // Flour subtypes
+        // Flour subtypes (MUST come before generic "farina")
         'farina di riso'        => 'Farina di riso',
         'farina riso'           => 'Farina di riso',
         'farina di mais'        => 'Farina di mais',
         'farina mais'           => 'Farina di mais',
         'farina integrale'      => 'Farina integrale',
+        'farina 00'             => 'Farina',
+        // Roux / sugar subtypes
+        'zucchero di canna'     => 'Zucchero di canna',
+        'zucchero canna'        => 'Zucchero di canna',
+        'zucchero velo'         => 'Zucchero a velo',
+        'zucchero a velo'       => 'Zucchero a velo',
         // Fresh pasta
         'pasta fresca'          => 'Pasta fresca',
         // Broth / stock
         'brodo vegetale'        => 'Brodo',
         'brodo pollo'           => 'Brodo',
         'brodo manzo'           => 'Brodo',
-        // Sugar subtypes
-        'zucchero di canna'     => 'Zucchero di canna',
-        'zucchero canna'        => 'Zucchero di canna',
+        // Mixed vegetable purée / passato (MUST come before generic carote/patate)
+        'passato di verdure'    => 'Verdure',
+        'passato di patate'     => 'Verdure',
         // Water
         'acqua frizzante'       => 'Acqua',
         'acqua gassata'         => 'Acqua',
         'acqua minerale'        => 'Acqua',
+        // Aroma / flavouring
+        'aroma vaniglia'        => 'Ingredienti Spezie',
+        'aroma mandorla'        => 'Ingredienti Spezie',
+        'aroma limone'          => 'Ingredienti Spezie',
+        'aroma rum'             => 'Ingredienti Spezie',
+        'aroma arancia'         => 'Ingredienti Spezie',
     ];
     foreach ($phraseMap as $phrase => $canonical) {
         if (mb_strpos($lower, $phrase) !== false) {
@@ -3771,6 +3783,10 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         'grattato'      => 'Pangrattato',
         'pangrattato'   => 'Pangrattato',
         'biscottate'    => 'Fette biscottate',
+        // Leavening agents
+        'lievito'       => 'Lievito',
+        // Flavourings / aromas (single-token fallback; phrases handled above)
+        'aroma'         => 'Ingredienti Spezie',
         // Dairy
         'latte'         => 'Latte',
         'yogurt'        => 'Yogurt',
