@@ -1963,6 +1963,14 @@ body {
     line-height: 1.3;
 }
 
+.smart-item-specific {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+    line-height: 1.3;
+    font-style: italic;
+}
+
 .smart-brand {
     font-weight: 400;
     color: var(--text-muted);

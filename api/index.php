@@ -633,32 +633,39 @@ function saveProduct(PDO $db): void {
         return;
     }
     
+    // Auto-compute shopping_name unless the caller explicitly provides one.
+    // A caller may pass shopping_name=null or omit it to always trigger auto-compute.
+    $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
+        ? $input['shopping_name']
+        : computeShoppingName($input['name'], $input['category'] ?? '', $input['brand'] ?? '');
+
     if (!empty($input['id'])) {
         // Update existing
         $stmt = $db->prepare("
-            UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?, 
-            default_quantity=?, notes=?, barcode=?, package_unit=?, updated_at=CURRENT_TIMESTAMP
-            WHERE id=?
+            UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
+            default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
+            updated_at=CURRENT_TIMESTAMP WHERE id=?
         ");
         $stmt->execute([
             $input['name'], $input['brand'] ?? '', $input['category'] ?? '',
             $input['image_url'] ?? '', $input['unit'] ?? 'pz',
             $input['default_quantity'] ?? 1, $input['notes'] ?? '',
-            $input['barcode'] ?? null, $input['package_unit'] ?? '', $input['id']
+            $input['barcode'] ?? null, $input['package_unit'] ?? '',
+            $shoppingName, $input['id']
         ]);
         echo json_encode(['success' => true, 'id' => $input['id']]);
     } else {
         // Insert new
         $stmt = $db->prepare("
-            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes, package_unit)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes, package_unit, shopping_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $barcode = !empty($input['barcode']) ? $input['barcode'] : null;
         $stmt->execute([
             $barcode, $input['name'], $input['brand'] ?? '',
             $input['category'] ?? '', $input['image_url'] ?? '',
             $input['unit'] ?? 'pz', $input['default_quantity'] ?? 1,
-            $input['notes'] ?? '', $input['package_unit'] ?? ''
+            $input['notes'] ?? '', $input['package_unit'] ?? '', $shoppingName
         ]);
         echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
     }
@@ -808,14 +815,18 @@ function addToInventory(PDO $db): void {
     // Auto-remove from Bring! if product is on the shopping list
     $removedFromBring = false;
     try {
-        $stmt = $db->prepare("SELECT name FROM products WHERE id = ?");
+        $stmt = $db->prepare("SELECT name, shopping_name FROM products WHERE id = ?");
         $stmt->execute([$productId]);
-        $prodName = $stmt->fetchColumn();
-        if ($prodName) {
+        $prod = $stmt->fetch();
+        if ($prod) {
+            $prodName    = $prod['name'];
+            // Use shopping_name for Bring! removal — Bring! was added with the generic name
+            $displayName = $prod['shopping_name'] ?: computeShoppingName($prodName);
             $auth = bringAuth();
             if ($auth) {
                 $listUUID = $auth['bringListUUID'];
-                $bringKey = italianToBring($prodName);
+                // Primary Bring! key: catalog key of the generic shopping name
+                $bringKey = italianToBring($displayName);
                 $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
                 if ($listData && isset($listData['purchase'])) {
                     // Token-based matching — same logic as _productOnBring() in smart_shopping
@@ -828,28 +839,35 @@ function addToInventory(PDO $db): void {
                             fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
                         ));
                     };
-                    $prodTokens = $tokenize($prodName);
-                    $keyTokens  = $tokenize($bringKey);
-                    $prodFirst  = $prodTokens[0] ?? '';
-                    $keyFirst   = $keyTokens[0] ?? '';
+                    // Tokens from both the generic name and the specific product name
+                    $displayTokens = $tokenize($displayName);
+                    $prodTokens    = $tokenize($prodName);
+                    $keyTokens     = $tokenize($bringKey);
+                    $displayFirst  = $displayTokens[0] ?? '';
+                    $prodFirst     = $prodTokens[0] ?? '';
+                    $keyFirst      = $keyTokens[0] ?? '';
                     foreach ($listData['purchase'] as $item) {
                         $rawName = $item['name'] ?? '';
-                        // 1. Exact match on translated catalog key or original Italian name
-                        if (strcasecmp($rawName, $bringKey) === 0 || strcasecmp($rawName, $prodName) === 0) {
+                        // 1. Exact match on catalog key, generic name, or specific product name
+                        if (strcasecmp($rawName, $bringKey) === 0
+                            || strcasecmp($rawName, $displayName) === 0
+                            || strcasecmp($rawName, $prodName) === 0) {
                             bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
                                 http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
                             $removedFromBring = true;
                             break;
                         }
-                        // 2. Token-based fuzzy: first significant word must match
-                        if ($prodFirst || $keyFirst) {
+                        // 2. Token-based fuzzy: first significant word must match any of our names
+                        if ($displayFirst || $prodFirst || $keyFirst) {
                             $rawTokens = $tokenize($rawName);
                             $rawFirst  = $rawTokens[0] ?? '';
                             if ($rawFirst && (
-                                $rawFirst === $prodFirst ||
-                                $rawFirst === $keyFirst  ||
-                                in_array($prodFirst, $rawTokens) ||
-                                in_array($keyFirst,  $rawTokens)
+                                $rawFirst === $displayFirst ||
+                                $rawFirst === $prodFirst    ||
+                                $rawFirst === $keyFirst     ||
+                                in_array($displayFirst, $rawTokens) ||
+                                in_array($prodFirst,    $rawTokens) ||
+                                in_array($keyFirst,     $rawTokens)
                             )) {
                                 bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
                                     http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
@@ -1040,8 +1058,8 @@ function useFromInventory(PDO $db): void {
         $totalLeft = (float)($stmt->fetchColumn() ?: 0);
         
         if ($totalLeft <= 0) {
-            // Get product name and brand for Bring!
-            $stmt = $db->prepare("SELECT name, brand FROM products WHERE id = ?");
+            // Get product name, brand and shopping_name for Bring!
+            $stmt = $db->prepare("SELECT name, brand, shopping_name FROM products WHERE id = ?");
             $stmt->execute([$productId]);
             $product = $stmt->fetch();
             
@@ -1050,7 +1068,9 @@ function useFromInventory(PDO $db): void {
                     $auth = bringAuth();
                     if ($auth) {
                         $listUUID = $auth['bringListUUID'];
-                        $bringName = italianToBring($product['name']);
+                        // Use the generic shopping name for Bring! (e.g. "Latte", "Affettato")
+                        $genericName = $product['shopping_name'] ?: computeShoppingName($product['name'], '', $product['brand']);
+                        $bringName   = italianToBring($genericName);
                         
                         // Check if already on the Bring! list
                         $alreadyOnList = false;
@@ -1068,8 +1088,10 @@ function useFromInventory(PDO $db): void {
                             // Already on the list, skip adding
                             $addedToBring = false;
                         } else {
-                        // Build specification from product name (variant info, not brand)
-                        $spec = $product['name'] ? $product['name'] : '';
+                        // Specification: specific product name (and brand) so the user knows which variant
+                        $spec = $genericName !== $product['name']
+                            ? $product['name'] . ($product['brand'] ? ' · ' . $product['brand'] : '')
+                            : ($product['brand'] ?: $product['name']);
                         $body = http_build_query([
                             'uuid' => $listUUID,
                             'purchase' => $bringName,
@@ -3556,6 +3578,72 @@ function italianToBring(string $italianName): string {
     return $italianName;
 }
 
+/**
+ * Auto-compute a generic shopping/Bring! name for a product.
+ *
+ * Priority:
+ *  1. Curated keyword map  — groups cured meats, etc. that the catalog doesn't unify
+ *  2. Bring! catalog back-translation — "Latte di Montagna" → "Milch" → "Latte"
+ *  3. First significant token capitalized
+ *
+ * The returned string is always a valid Bring! catalog name where possible,
+ * so that italianToBring(computeShoppingName($n)) resolves to a catalog key.
+ */
+function computeShoppingName(string $name, string $category = '', string $brand = ''): string {
+    $lower = mb_strtolower(trim($name));
+    $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
+             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo',
+             'parzialmente','scremato','uht','bio','light','freschi','fresca','fresco'];
+    $tokens = array_values(array_filter(
+        preg_split('/\s+/', preg_replace('/[^\p{L}\s]/u', ' ', $lower)),
+        fn($w) => mb_strlen($w) > 2 && !in_array($w, $stop)
+    ));
+
+    // 1. Curated keyword → canonical group name.
+    //    These handle products that map to distinct Bring! entries but belong together
+    //    (all cured/cold-cut meats → "Affettato", which is in the Bring! catalog).
+    $keywordMap = [
+        // Cold cuts / affettati — group them all under "Affettato" (catalog: Aufschnitt)
+        'mortadella'    => 'Affettato',
+        'nduja'         => 'Affettato',
+        'salame'        => 'Affettato',
+        'salami'        => 'Affettato',
+        'coppa'         => 'Affettato',
+        'capicola'      => 'Affettato',
+        'speck'         => 'Affettato',
+        'schinkenspeck' => 'Affettato',
+        'schinken'      => 'Affettato',
+        'prosciutto'    => 'Affettato',
+        // Items that have their own Bring! entry — keep specific
+        'bresaola'      => 'Bresaola',
+        'pancetta'      => 'Pancetta',
+        'salsiccia'     => 'Salsiccia',
+        'wurstel'       => 'Wurstel',
+    ];
+
+    foreach ($tokens as $token) {
+        if (isset($keywordMap[$token])) {
+            return $keywordMap[$token];
+        }
+    }
+
+    // 2. Bring! back-translation: run italianToBring() — if it found a catalog key,
+    //    back-translate to Italian to get the canonical catalog name (e.g. "Latte").
+    $bringKey = italianToBring($name);
+    if ($bringKey !== $name) {
+        $italian = bringToItalian($bringKey);
+        if ($italian && mb_strtolower($italian) !== $lower) {
+            return $italian;
+        }
+    }
+
+    // 3. Fallback: capitalize the first meaningful token.
+    if (!empty($tokens)) {
+        return mb_strtoupper(mb_substr($tokens[0], 0, 1)) . mb_substr($tokens[0], 1);
+    }
+    return ucfirst($name);
+}
+
 function bringGetList(): void {
     $auth = bringAuth();
     if (!$auth) {
@@ -3815,7 +3903,13 @@ function smartShoppingCached(PDO $db): void {
  * product "Muesli Frutta Secca" (which has "frutta" as a secondary token, not the first).
  * Mirrors JS _matchBringToSmart / _syncOnBringFlags logic.
  */
-function _productOnBring(string $productName, array $bringItems): bool {
+function _productOnBring(string $productName, array $bringItems, string $shoppingName = ''): bool {
+    // Check by shopping_name first (covers catalog-matched generic names like "Latte", "Affettato")
+    if ($shoppingName !== '') {
+        if (isset($bringItems[mb_strtolower($shoppingName)])) return true;
+        $snKey = italianToBring($shoppingName);
+        if (isset($bringItems[mb_strtolower($snKey)])) return true;
+    }
     // Exact key match (both German raw and Italian translated keys are stored)
     if (isset($bringItems[mb_strtolower($productName)])) return true;
     static $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per','su',
@@ -3853,7 +3947,8 @@ function smartShopping(PDO $db): void {
 
     // 1. Get all products with their inventory and transaction history
     $products = $db->query("
-        SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit
+        SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+               p.shopping_name
         FROM products p
         ORDER BY p.name
     ")->fetchAll();
@@ -4149,8 +4244,11 @@ function smartShopping(PDO $db): void {
         if ($useCount >= 8) $score += 15;
         elseif ($useCount >= 5) $score += 10;
 
-        // Is already on Bring? (fuzzy token match — mirrors JS _findSimilarItem logic)
-        $onBring = _productOnBring($p['name'], $bringItems);
+        // Compute generic shopping name for this product
+        $shoppingName = $p['shopping_name'] ?: computeShoppingName($p['name'], $p['category'], $p['brand']);
+
+        // Is already on Bring? check both product name and generic shopping name
+        $onBring = _productOnBring($p['name'], $bringItems, $shoppingName);
 
         // "Just restocked" suppression: if bought in the last 3 days AND stock is above 50%
         // of reference qty, skip non-expiry urgency flags. The product doesn't need rebuying yet.
@@ -4161,6 +4259,7 @@ function smartShopping(PDO $db): void {
         $items[] = [
             'product_id' => $pid,
             'name' => $p['name'],
+            'shopping_name' => $shoppingName,
             'brand' => $p['brand'] ?: '',
             'category' => $p['category'] ?: '',
             'unit' => $unit,
@@ -4182,8 +4281,42 @@ function smartShopping(PDO $db): void {
             'score' => $score,
             'on_bring' => $onBring,
             'locations' => $inv ? $inv['locations'] : '',
+            'variants' => [],
         ];
     }
+
+    // Group items by shopping_name: keep the most urgent representative per group,
+    // collect the rest as variants so the UI can show "Affettato (Mortadella, Speck, Nduja)".
+    $grouped = [];
+    foreach ($items as $item) {
+        $sn = $item['shopping_name'];
+        if (!isset($grouped[$sn])) {
+            $grouped[$sn] = $item;
+        } else {
+            // Merge: keep the higher-score item as the representative
+            if ($item['score'] > $grouped[$sn]['score']) {
+                $demoted = [
+                    'product_id' => $grouped[$sn]['product_id'],
+                    'name'       => $grouped[$sn]['name'],
+                    'brand'      => $grouped[$sn]['brand'],
+                    'urgency'    => $grouped[$sn]['urgency'],
+                ];
+                $variants = array_merge([$demoted], $grouped[$sn]['variants']);
+                $grouped[$sn] = $item;
+                $grouped[$sn]['variants'] = $variants;
+            } else {
+                $grouped[$sn]['variants'][] = [
+                    'product_id' => $item['product_id'],
+                    'name'       => $item['name'],
+                    'brand'      => $item['brand'],
+                    'urgency'    => $item['urgency'],
+                ];
+            }
+            // on_bring is true if ANY variant in the group is already on Bring!
+            if ($item['on_bring']) $grouped[$sn]['on_bring'] = true;
+        }
+    }
+    $items = array_values($grouped);
 
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);

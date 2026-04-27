@@ -7167,12 +7167,13 @@ function _syncOnBringFlags() {
     for (const si of smartShoppingItems) {
         const siLower = si.name.toLowerCase();
         const siFirst = _nameTokens(si.name)[0];
+        const siShoppingLower = (si.shopping_name || '').toLowerCase();
+        const siShoppingFirst = si.shopping_name ? _nameTokens(si.shopping_name)[0] : null;
         si.on_bring = !!(
             shoppingItems.find(bi => bi.name.toLowerCase() === siLower) ||
-            (siFirst && shoppingItems.find(bi => {
-                const biFirst = _nameTokens(bi.name)[0];
-                return biFirst === siFirst;
-            }))
+            (siShoppingLower && shoppingItems.find(bi => bi.name.toLowerCase() === siShoppingLower)) ||
+            (siFirst && shoppingItems.find(bi => _nameTokens(bi.name)[0] === siFirst)) ||
+            (siShoppingFirst && shoppingItems.find(bi => _nameTokens(bi.name)[0] === siShoppingFirst))
         );
     }
 }
@@ -7292,6 +7293,27 @@ function renderSmartItem(item) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const globalIdx = smartShoppingItems.indexOf(item);
 
+    // Generic vs specific name logic
+    const shoppingName = item.shopping_name || item.name;
+    const isGeneric = shoppingName !== item.name;
+    const variants = item.variants || [];
+
+    // Build title line: generic name (and brand only if not grouped)
+    let nameLine = `<div class="smart-item-name">${escapeHtml(shoppingName)}`;
+    if (!isGeneric && item.brand) nameLine += ` <small class="smart-brand">${escapeHtml(item.brand)}</small>`;
+    nameLine += `</div>`;
+
+    // Build subtitle: specific product + brand when grouped, plus any variants
+    let specificLine = '';
+    if (isGeneric || variants.length > 0) {
+        let specifics = [];
+        specifics.push(item.name + (item.brand ? ` (${item.brand})` : ''));
+        for (const v of variants) {
+            specifics.push(v.name + (v.brand ? ` (${v.brand})` : ''));
+        }
+        specificLine = `<div class="smart-item-specific">${escapeHtml(specifics.join(' · '))}</div>`;
+    }
+
         // Stock bar
         const pct = Math.min(100, Math.max(0, item.pct_left));
         const barColor = pct <= 15 ? '#ef4444' : pct <= 30 ? '#f97316' : pct <= 50 ? '#eab308' : '#22c55e';
@@ -7333,7 +7355,8 @@ function renderSmartItem(item) {
                 ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}">` : ''}
                 <span class="smart-item-icon">${catIcon}</span>
                 <div class="smart-item-info">
-                    <div class="smart-item-name">${escapeHtml(item.name)}${item.brand ? ` <small class="smart-brand">${escapeHtml(item.brand)}</small>` : ''}</div>
+                    ${nameLine}
+                    ${specificLine}
                     <div class="smart-item-reasons">${item.reasons.map(r => `<span>${escapeHtml(r)}</span>`).join(' · ')}</div>
                     <div class="smart-item-badges">
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
@@ -7362,9 +7385,15 @@ async function addSmartToBring() {
         const idx = parseInt(cb.dataset.idx);
         const item = smartShoppingItems[idx];
         if (item) {
+            const shoppingName = item.shopping_name || item.name;
+            const isGeneric = shoppingName !== item.name;
+            // When generic, use specific product name + brand as the specification
+            const spec = isGeneric
+                ? (item.name + (item.brand ? ` · ${item.brand}` : ''))
+                : _urgencyToSpec(item.urgency, item.brand);
             itemsToAdd.push({
-                name: item.name,
-                specification: _urgencyToSpec(item.urgency, item.brand),
+                name: shoppingName,
+                specification: spec,
             });
         }
     });
