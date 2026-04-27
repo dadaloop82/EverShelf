@@ -1120,7 +1120,7 @@ function useFromInventory(PDO $db): void {
     $totalRemaining = round((float)($stmt->fetchColumn() ?: 0), 6);
     
     // Get product info for low-stock prompt
-    $stmt = $db->prepare("SELECT name, brand, unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt = $db->prepare("SELECT name, brand, unit, default_quantity, package_unit, shopping_name FROM products WHERE id = ?");
     $stmt->execute([$productId]);
     $prodInfo = $stmt->fetch();
     
@@ -1132,6 +1132,9 @@ function useFromInventory(PDO $db): void {
         $response['product_unit'] = $prodInfo['unit'];
         $response['product_default_qty'] = (float)($prodInfo['default_quantity'] ?: 0);
         $response['product_package_unit'] = $prodInfo['package_unit'] ?: '';
+        // Generic shopping name for Bring! (e.g. "Affettato" for "Mortadella IGP")
+        $shopping = $prodInfo['shopping_name'] ?: computeShoppingName($prodInfo['name'], '', $prodInfo['brand']);
+        $response['product_shopping_name'] = $shopping;
     }
     if ($openedId) $response['opened_id'] = $openedId;
     echo json_encode($response);

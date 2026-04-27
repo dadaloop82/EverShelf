@@ -5918,6 +5918,10 @@ function _matchBringToSmart(bringName, smartItems) {
 
 function showLowStockBringPrompt(result, afterCallback) {
     const name = result.product_name || currentProduct?.name || '';
+    // Generic shopping name (e.g. "Affettato" for "Mortadella IGP"). Falls back to
+    // the specific name when shopping_name is not set (older API call), so behaviour
+    // is unchanged for legacy callers.
+    const shoppingName = result.product_shopping_name || name;
     const unit = result.product_unit || currentProduct?.unit || 'pz';
     const defaultQty = result.product_default_qty || parseFloat(currentProduct?.default_quantity) || 0;
     const totalRemaining = result.total_remaining;
@@ -5927,12 +5931,13 @@ function showLowStockBringPrompt(result, afterCallback) {
     if (totalRemaining <= 0) {
         // Backend auto-adds to Bring! when fully depleted. If it failed (Bring not
         // configured, or product already on list), silently attempt it from JS.
-        if (!result.added_to_bring && name) {
+        if (!result.added_to_bring && shoppingName) {
             // Fire-and-forget — don't block the callback
+            // Use generic shopping name; specific name goes into specification.
+            const spec = shoppingName !== name ? name + (result.product_brand ? ` · ${result.product_brand}` : '') : '';
             (async () => {
                 try {
-                    const spec = name;
-                    const payload = { items: [{ name, specification: spec }] };
+                    const payload = { items: [{ name: shoppingName, specification: spec }] };
                     if (shoppingListUUID) payload.listUUID = shoppingListUUID;
                     const data = await api('bring_add', {}, 'POST', payload);
                     if (data.success && data.added > 0) {
@@ -5962,7 +5967,7 @@ function showLowStockBringPrompt(result, afterCallback) {
 
     // --- Deduplication check ---
     // 1. Already on Bring! list (shoppingItems)?
-    const alreadyOnBring = _findSimilarItem(name, shoppingItems);
+    const alreadyOnBring = _findSimilarItem(shoppingName, shoppingItems) || _findSimilarItem(name, shoppingItems);
     if (alreadyOnBring) {
         // Already present (same or similar item). Just inform and continue.
         showToast(`🛒 "${escapeHtml(alreadyOnBring.name)}" già nella lista della spesa`, 'info');
@@ -5971,7 +5976,7 @@ function showLowStockBringPrompt(result, afterCallback) {
     }
 
     // 2. In smart shopping predictions?
-    const smartMatch = _findSimilarItem(name, smartShoppingItems);
+    const smartMatch = _findSimilarItem(shoppingName, smartShoppingItems) || _findSimilarItem(name, smartShoppingItems);
     const smartUrgencyLabel = {
         critical: '🔴 Urgente', high: '🟠 Presto', medium: '🟡 Pianifica', low: '🟢 Previsione'
     };
@@ -5983,9 +5988,13 @@ function showLowStockBringPrompt(result, afterCallback) {
         </div>`;
     }
 
-    // Build specification from product name for Bring
+    // _lowStockName = generic name that goes into Bring! (e.g. "Affettato")
+    // _lowStockSpec = specific product name used as specification (e.g. "Mortadella IGP")
     window._lowStockAfterCallback = afterCallback;
-    window._lowStockSpec = name;
+    window._lowStockName = shoppingName;
+    window._lowStockSpec = shoppingName !== name
+        ? name + (result.product_brand ? ` · ${result.product_brand}` : '')
+        : name;
     
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -5996,7 +6005,7 @@ function showLowStockBringPrompt(result, afterCallback) {
             <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong> sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
             ${smartNote}
             <p style="margin-bottom:16px">Vuoi aggiungerlo alla lista della spesa?</p>
-            <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring('${escapeHtml(name).replace(/'/g, "\\'")}')">
+            <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring()">
                 🛒 Sì, aggiungi a Bring!
             </button>
             <button type="button" class="btn btn-secondary full-width" style="margin-top:8px" onclick="closeLowStockPrompt()">
@@ -6007,12 +6016,16 @@ function showLowStockBringPrompt(result, afterCallback) {
     document.getElementById('modal-overlay').style.display = 'flex';
 }
 
-async function addLowStockToBring(productName) {
+async function addLowStockToBring() {
     closeModal();
     try {
+        // Use the generic shopping name (e.g. "Affettato") set by showLowStockBringPrompt.
+        // _lowStockSpec holds the specific product name (e.g. "Mortadella IGP · Marca").
+        const bringName = window._lowStockName || '';
         const spec = window._lowStockSpec || '';
+        window._lowStockName = null;
         window._lowStockSpec = null;
-        const payload = { items: [{ name: productName, specification: spec }] };
+        const payload = { items: [{ name: bringName, specification: spec }] };
         if (shoppingListUUID) payload.listUUID = shoppingListUUID;
         const data = await api('bring_add', {}, 'POST', payload);
         if (data.success && data.added > 0) {
