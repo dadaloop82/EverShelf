@@ -7416,6 +7416,30 @@ function renderSmartItem(item) {
         </div>`;
 }
 
+async function migrateBringNames(btn) {
+    const statusEl = document.getElementById('bring-migrate-status');
+    if (btn) btn.disabled = true;
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = '⏳ In corso…'; }
+    try {
+        const data = await api('bring_migrate_names', {}, 'POST', {});
+        if (data.success) {
+            const msg = `✅ ${data.migrated} aggiornati, ${data.skipped} già ok${data.errors ? `, ${data.errors} errori` : ''}`;
+            if (statusEl) statusEl.textContent = msg;
+            if (data.migrated > 0) {
+                showToast(`🔄 ${data.migrated} nomi generalizzati in Bring!`, 'success');
+                loadShoppingList(); // refresh the shopping list view
+            } else {
+                showToast('Tutti i nomi sono già aggiornati', 'info');
+            }
+        } else {
+            if (statusEl) statusEl.textContent = '❌ ' + (data.error || 'Errore');
+        }
+    } catch(e) {
+        if (statusEl) statusEl.textContent = '❌ Errore di connessione';
+    }
+    if (btn) btn.disabled = false;
+}
+
 async function addSmartToBring() {
     const checks = document.querySelectorAll('.smart-check:checked');
     if (checks.length === 0) {

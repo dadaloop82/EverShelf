@@ -254,6 +254,9 @@ try {
         case 'bring_clean_specs':
             bringCleanSpecs();
             break;
+        case 'bring_migrate_names':
+            bringMigrateNames($db);
+            break;
         case 'bring_suggest':
             bringSuggestItems($db);
             break;
@@ -4197,13 +4200,86 @@ function bringCleanSpecs(): void {
 }
 
 /**
- * Serve smart shopping from cache (written by cron), falling back to live computation.
- * Cache is valid for up to 10 minutes; if stale or missing, compute on the fly.
+ * Migrate existing Bring! list items to use generic shopping names.
+ * For each item on the list that matches a product in the DB, if the item name
+ * is the specific product name (not the generic shopping_name), replace it with
+ * the generic name and move the specific name to the specification field.
  */
-/**
- * Invalidate the smart shopping cache so the next request recomputes live.
- * Call after any inventory_add or inventory_use that changes stock meaningfully.
- */
+function bringMigrateNames(PDO $db): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+    $listUUID = $auth['bringListUUID'];
+    if (empty($listUUID)) {
+        echo json_encode(['success' => false, 'error' => 'Lista non trovata']);
+        return;
+    }
+
+    $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+    if (!$data || !isset($data['purchase'])) {
+        echo json_encode(['success' => false, 'error' => 'Errore nel recupero della lista']);
+        return;
+    }
+
+    // Build a lookup: product name (lowercase) → [shopping_name, brand]
+    $products = $db->query("SELECT name, brand, shopping_name FROM products WHERE shopping_name IS NOT NULL AND shopping_name != ''")->fetchAll();
+    $lookup = [];
+    foreach ($products as $p) {
+        $lookup[mb_strtolower($p['name'])] = ['shopping_name' => $p['shopping_name'], 'brand' => $p['brand'] ?? ''];
+    }
+
+    $migrated = 0;
+    $skipped  = 0;
+    $errors   = 0;
+
+    foreach ($data['purchase'] as $item) {
+        $rawName = $item['name'] ?? '';
+        $itName  = bringToItalian($rawName); // translate from Bring internal name if needed
+        $key     = mb_strtolower($itName);
+        $spec    = $item['specification'] ?? '';
+
+        if (!isset($lookup[$key])) { $skipped++; continue; }
+
+        $shoppingName = $lookup[$key]['shopping_name'];
+        $brand        = $lookup[$key]['brand'];
+
+        // Already using the generic name → nothing to do
+        if (mb_strtolower($rawName) === mb_strtolower($shoppingName)) { $skipped++; continue; }
+        if (mb_strtolower(bringToItalian($rawName)) === mb_strtolower($shoppingName)) { $skipped++; continue; }
+
+        // Build new spec: "Specific Name · Brand" (keep existing spec if already set & different)
+        $newSpec = $itName . ($brand ? " · {$brand}" : '');
+        if ($spec !== '' && $spec !== $newSpec && stripos($spec, $itName) === false) {
+            // There's a custom spec the user wrote — prepend the product name
+            $newSpec = $itName . ($brand ? " · {$brand}" : '') . ' — ' . $spec;
+        }
+
+        // Step 1: remove old item
+        $removeBody = http_build_query([
+            'uuid'     => $listUUID,
+            'purchase' => $rawName,
+        ]);
+        bringRequest('DELETE', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}/{$rawName}");
+
+        // Step 2: add with generic name + spec
+        $addBody = http_build_query([
+            'uuid'          => $listUUID,
+            'purchase'      => $shoppingName,
+            'specification' => $newSpec,
+        ]);
+        $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
+        if ($result !== false) {
+            $migrated++;
+        } else {
+            $errors++;
+        }
+    }
+
+    echo json_encode(['success' => true, 'migrated' => $migrated, 'skipped' => $skipped, 'errors' => $errors]);
+}
+
 function invalidateSmartShoppingCache(): void {
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     if (file_exists($cacheFile)) {

@@ -735,6 +735,12 @@
                         <input type="password" id="setting-bring-password" class="form-input" placeholder="Password">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-bring-password')">👁️ Mostra/Nascondi</button>
                     </div>
+                    <div class="form-group" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+                        <label>🔄 Aggiorna nomi nella lista</label>
+                        <p style="font-size:0.82rem;color:var(--text-muted);margin:4px 0 10px">Sostituisce i nomi specifici con quelli generici (es. "Mortadella IGP" → "Affettato") negli item già presenti in Bring!.</p>
+                        <button class="btn btn-secondary btn-small" onclick="migrateBringNames(this)">🔄 Generalizza nomi lista Bring!</button>
+                        <span id="bring-migrate-status" style="display:none;margin-left:8px;font-size:0.85rem"></span>
+                    </div>
                 </div>
             </div>
             <!-- Recipe Tab -->
