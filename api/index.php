@@ -1167,7 +1167,7 @@ function deleteInventory(PDO $db): void {
  */
 function getFinishedItems(PDO $db): void {
     $rows = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url,
+        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
                MIN(i.location) AS location,
                MAX(i.updated_at) AS updated_at,
                COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
@@ -1200,6 +1200,7 @@ function getFinishedItems(PDO $db): void {
                 'default_quantity' => $r['default_quantity'],
                 'package_unit'     => $r['package_unit'],
                 'image_url'        => $r['image_url'],
+                'barcode'          => $r['barcode'],
                 'location'         => $r['location'],
                 'updated_at'       => $r['updated_at'],
                 'expected_qty'     => round($expected, 3),
