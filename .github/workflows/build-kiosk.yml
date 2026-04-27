@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - 'evershelf-kiosk/**'
   workflow_dispatch:
