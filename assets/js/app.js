@@ -9368,6 +9368,13 @@ function _initBrowserTtsVoices(selectedVoice) {
     const sel = document.getElementById('setting-tts-voice');
     if (!sel) return;
 
+    // Inside the EverShelf Kiosk Android app the native TTS bridge handles
+    // speech — no Web Speech API voice list needed.
+    if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
+        sel.innerHTML = '<option value="">— Voce nativa Android (kiosk) —</option>';
+        return;
+    }
+
     if (!window.speechSynthesis) {
         sel.innerHTML = '<option value="">— Voce non supportata dal browser —</option>';
         return;
@@ -9417,19 +9424,31 @@ function _initBrowserTtsVoices(selectedVoice) {
     }, 200);
 }
 
-/** Speak text using the browser Web Speech API (offline). */
+/** Speak text using the browser Web Speech API (offline).
+ *  When running inside the EverShelf Kiosk Android app the native TTS bridge
+ *  is preferred — it bypasses Web Speech API voice limitations on Android. */
 function _speakBrowser(text) {
+    const s = getSettings();
+    const rate  = parseFloat(s.tts_rate)  || 1;
+    const pitch = parseFloat(s.tts_pitch) || 1;
+
+    // ── Native Android TTS bridge (kiosk WebView) ──────────────────────
+    if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
+        try { _kioskBridge.speak(text, rate, pitch); } catch(_e) { /* silent */ }
+        return;
+    }
+
+    // ── Web Speech API (desktop / mobile browser) ──────────────────────
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const s = getSettings();
     const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = parseFloat(s.tts_rate) || 1;
-    utt.pitch = parseFloat(s.tts_pitch) || 1;
+    utt.rate  = rate;
+    utt.pitch = pitch;
     const voices = window.speechSynthesis.getVoices();
     const preferred = voices.find(v => v.name === s.tts_voice);
     if (preferred) {
         utt.voice = preferred;
-        utt.lang = preferred.lang;
+        utt.lang  = preferred.lang;
     } else {
         utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
     }
@@ -9445,6 +9464,16 @@ async function testTTS() {
     }
     const engine = document.getElementById('setting-tts-engine')?.value || 'browser';
     if (engine === 'browser') {
+        // Kiosk native TTS bridge takes priority over Web Speech API
+        if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
+            const s = getSettings();
+            s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
+            s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
+            saveSettingsToStorage(s);
+            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Riproduzione in corso — controlla l\'audio del dispositivo.'; }
+            return;
+        }
         if (!window.speechSynthesis) {
             if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
             return;
