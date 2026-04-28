@@ -167,25 +167,25 @@
             <div class="barcode-manual-entry">
                 <div class="barcode-input-row">
                     <input type="text" id="manual-barcode-input" class="form-input" placeholder="Inserisci codice a barre..." inputmode="numeric" pattern="[0-9]*" onkeydown="if(event.key==='Enter')submitManualBarcode()" data-i18n-placeholder="scan.barcode_placeholder">
-                    <button class="btn btn-primary" onclick="submitManualBarcode()">🔍 Cerca</button>
+                    <button class="btn btn-primary" onclick="submitManualBarcode()" data-i18n="btn.search">🔍 Cerca</button>
                 </div>
             </div>
             <div class="quick-name-entry">
-                <div class="quick-name-divider"><span>oppure scrivi il nome</span></div>
+                <div class="quick-name-divider"><span data-i18n="scan.quick_name_divider">oppure scrivi il nome</span></div>
                 <div class="barcode-input-row">
-                    <input type="text" id="quick-product-name" class="form-input" placeholder="Es: Mele, Zucchine, Pane..." list="common-products" autocomplete="off" onkeydown="if(event.key==='Enter')submitQuickName()">
-                    <button class="btn btn-accent" onclick="submitQuickName()">✅ Vai</button>
+                    <input type="text" id="quick-product-name" class="form-input" placeholder="Es: Mele, Zucchine, Pane..." list="common-products" autocomplete="off" onkeydown="if(event.key==='Enter')submitQuickName()" data-i18n-placeholder="scan.quick_name_placeholder">
+                    <button class="btn btn-accent" onclick="submitQuickName()" data-i18n="btn.go">✅ Vai</button>
                 </div>
             </div>
             <div class="scan-actions">
-                <button class="btn btn-large btn-secondary" onclick="startManualEntry()">
+                <button class="btn btn-large btn-secondary" onclick="startManualEntry()" data-i18n="scan.manual_entry">
                     ✏️ Inserimento Manuale
                 </button>
-                <button class="btn btn-large btn-accent" onclick="captureForAI()">
+                <button class="btn btn-large btn-accent" onclick="captureForAI()" data-i18n="scan.ai_identify">
                     🤖 Identifica con AI
                 </button>
             </div>
-            <p class="scan-hint">Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo</p>
+            <p class="scan-hint" data-i18n="scan.hint">Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo</p>
             <div id="scan-debug-log" style="display:none;margin-top:12px;padding:10px;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:0.7rem;max-height:200px;overflow-y:auto;border-radius:8px;white-space:pre-wrap"></div>
             <button class="btn btn-small btn-secondary" style="margin-top:8px;opacity:0.5" onclick="toggleScanDebug()">🐛 Debug Log</button>
         </div>
@@ -194,8 +194,8 @@
     <!-- ===== PRODUCT ACTION (IN/OUT after scan) ===== -->
     <section class="page" id="page-action">
         <div class="page-header">
-            <button class="back-btn" id="action-back-btn" onclick="showPage('scan')">← Indietro</button>
-            <h2>Cosa vuoi fare?</h2>
+            <button class="back-btn" id="action-back-btn" onclick="showPage('scan')" data-i18n="btn.back">← Indietro</button>
+            <h2 data-i18n="action.title">Cosa vuoi fare?</h2>
         </div>
         <!-- Banner: shopping list scan context -->
         <div id="shopping-scan-target-banner" class="shopping-scan-target-banner" style="display:none"></div>
@@ -560,10 +560,10 @@
             <!-- Tab navigation -->
             <div class="shopping-tabs" id="shopping-tabs" style="display:none">
                 <button class="shopping-tab active" id="tab-acquisto" onclick="switchShoppingTab('acquisto')">
-                    🛍️ Da comprare <span class="shopping-tab-count" id="tab-count-acquisto">0</span>
+                    <span data-i18n="shopping.tab_to_buy">🛍️ Da comprare</span> <span class="shopping-tab-count" id="tab-count-acquisto">0</span>
                 </button>
                 <button class="shopping-tab" id="tab-previsione" onclick="switchShoppingTab('previsione')">
-                    🧠 In previsione <span class="shopping-tab-count" id="tab-count-previsione">0</span>
+                    <span data-i18n="shopping.tab_forecast">🧠 In previsione</span> <span class="shopping-tab-count" id="tab-count-previsione">0</span>
                 </button>
             </div>
 
@@ -579,31 +579,31 @@
                 </div>
                 <div class="shopping-current" id="shopping-current" style="display:none">
                     <div class="shopping-section-header">
-                        <h3>🛍️ Da comprare</h3>
+                        <h3 data-i18n="shopping.section_to_buy">🛍️ Da comprare</h3>
                         <span class="shopping-count" id="shopping-count">0</span>
                     </div>
                     <div class="shopping-items" id="shopping-items"></div>
                 </div>
                 <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
                     <div class="shopping-section-header">
-                        <h3>💡 Suggerimenti AI</h3>
+                        <h3 data-i18n="shopping.suggestions_title">💡 Suggerimenti AI</h3>
                     </div>
                     <div class="seasonal-tip" id="seasonal-tip" style="display:none"></div>
                     <div class="suggestion-items" id="suggestion-items"></div>
                     <div class="suggestion-actions" id="suggestion-actions" style="display:none">
-                        <button class="btn btn-success" onclick="addSelectedSuggestions()">
+                        <button class="btn btn-success" onclick="addSelectedSuggestions()" data-i18n="shopping.bring_add_selected">
                             ✅ Aggiungi selezionati a Bring!
                         </button>
                     </div>
                 </div>
                 <div class="shopping-actions">
-                    <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices">
+                    <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices" data-i18n="shopping.search_prices">
                         🔍 Cerca tutti i prezzi
                     </button>
-                    <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest">
+                    <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest" data-i18n="shopping.suggest_btn">
                         🤖 Suggerisci cosa comprare
                     </button>
-                    <button class="btn btn-secondary" onclick="forceSyncBring()" style="margin-top:4px">
+                    <button class="btn btn-secondary" onclick="forceSyncBring()" style="margin-top:4px" data-i18n="shopping.force_sync">
                         🔄 Forza sincronizzazione Bring!
                     </button>
                 </div>
@@ -616,32 +616,32 @@
                     <div class="smart-shopping-empty" id="smart-shopping-empty" style="display:none">
                         <div class="empty-state" style="padding:30px">
                             <div class="empty-state-icon">🧠</div>
-                            <p>Nessuna previsione disponibile.<br>Aggiungi prodotti alla dispensa per ricevere previsioni intelligenti.</p>
+                            <p data-i18n-html="shopping.smart_empty">Nessuna previsione disponibile.<br>Aggiungi prodotti alla dispensa per ricevere previsioni intelligenti.</p>
                         </div>
                     </div>
                     <div id="smart-shopping-content">
                         <div class="shopping-section-header" style="margin-bottom:4px">
-                            <h3>🧠 Previsioni intelligenti</h3>
+                            <h3 data-i18n="shopping.smart_title">🧠 Previsioni intelligenti</h3>
                             <span class="shopping-count" id="smart-count">0</span>
                         </div>
                         <div class="smart-last-update-row">
                             <span id="smart-last-update" class="smart-last-update"></span>
                         </div>
                         <div class="smart-filter-row" id="smart-filter-row">
-                            <button class="smart-filter active" data-filter="all" onclick="filterSmart('all')">Tutti</button>
-                            <button class="smart-filter" data-filter="critical" onclick="filterSmart('critical')">🔴 Urgenti</button>
-                            <button class="smart-filter" data-filter="high" onclick="filterSmart('high')">🟠 Presto</button>
-                            <button class="smart-filter" data-filter="medium" onclick="filterSmart('medium')">🟡 Pianifica</button>
-                            <button class="smart-filter" data-filter="low" onclick="filterSmart('low')">🟢 Previsione</button>
+                            <button class="smart-filter active" data-filter="all" onclick="filterSmart('all')" data-i18n="shopping.smart_filter_all">Tutti</button>
+                            <button class="smart-filter" data-filter="critical" onclick="filterSmart('critical')" data-i18n="shopping.smart_filter_critical">🔴 Urgenti</button>
+                            <button class="smart-filter" data-filter="high" onclick="filterSmart('high')" data-i18n="shopping.smart_filter_high">🟠 Presto</button>
+                            <button class="smart-filter" data-filter="medium" onclick="filterSmart('medium')" data-i18n="shopping.smart_filter_medium">🟡 Pianifica</button>
+                            <button class="smart-filter" data-filter="low" onclick="filterSmart('low')" data-i18n="shopping.smart_filter_low">🟢 Previsione</button>
                         </div>
                         <div class="smart-items" id="smart-items"></div>
                         <div class="smart-actions" id="smart-actions" style="display:none">
-                            <button class="btn btn-success full-width" onclick="addSmartToBring()">
+                            <button class="btn btn-success full-width" onclick="addSmartToBring()" data-i18n="shopping.smart_add">
                                 🛒 Aggiungi selezionati a Bring!
                             </button>
                         </div>
                         <div style="text-align:center;margin-top:8px">
-                            <button class="btn btn-secondary btn-sm" onclick="forceSyncBring()" id="btn-force-sync">
+                            <button class="btn btn-secondary btn-sm" onclick="forceSyncBring()" id="btn-force-sync" data-i18n="shopping.force_sync">
                                 🔄 Forza sincronizzazione Bring!
                             </button>
                         </div>
@@ -1161,16 +1161,16 @@
     <div class="modal-content recipe-dialog" onclick="event.stopPropagation()">
         <div id="recipe-mealplan-banner" class="recipe-mealplan-banner" style="display:none"></div>
         <div id="recipe-ask" class="recipe-ask">
-            <h3 id="recipe-meal-title">🍳 Ricetta</h3>
-            <p class="recipe-desc">Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.</p>
+            <h3 id="recipe-meal-title" data-i18n="recipes.dialog_title">🍳 Ricetta</h3>
+            <p class="recipe-desc" data-i18n="recipes.dialog_desc">Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.</p>
             <div class="form-group" style="text-align:left">
-                <label>🕐 Per quale pasto?</label>
+                <label data-i18n="recipes.meal_label">🕐 Per quale pasto?</label>
                 <div class="recipe-meal-grid" id="recipe-meal-grid" onchange="updateRecipeMealTitle()"></div>
                 <div class="recipe-meal-grid recipe-subtype-grid" id="recipe-subtype-group" style="display:none"></div>
             </div>
             <div id="recipe-mealplan-hint" class="recipe-mealplan-hint" style="display:none"></div>
             <div class="form-group">
-                <label>👥 Quante persone?</label>
+                <label data-i18n="recipes.persons_label">👥 Quante persone?</label>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipePersons(-1)">−</button>
                     <input type="number" id="recipe-persons" value="1" min="1" max="20" class="qty-input">
@@ -1178,37 +1178,37 @@
                 </div>
             </div>
             <div class="form-group" style="text-align:left">
-                <label>🎯 Tipo di pasto</label>
+                <label data-i18n="recipes.meal_type_label">🎯 Tipo di pasto</label>
                 <div class="recipe-options-grid">
                     <label class="recipe-option-chip recipe-opt-mealplan-chip" id="recipe-opt-mealplan-wrap" style="display:none"><input type="checkbox" id="recipe-opt-mealplan" checked onchange="onMealPlanChipChange(this)"> <span id="recipe-opt-mealplan-label"></span></label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-veloce"> ⚡ Pasto Veloce</label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> 🥗 Poca Fame</label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> ⏰ Priorità Scadenze</label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-healthy"> 💚 Extra Salutare</label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-opened"> 📦 Priorità Cose Aperte</label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> ♻️ Zero Sprechi</label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-veloce"> <span data-i18n="recipes.opt_fast">⚡ Pasto Veloce</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> <span data-i18n="recipes.opt_light">🥗 Poca Fame</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> <span data-i18n="recipes.opt_expiry">⏰ Priorità Scadenze</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-healthy"> <span data-i18n="recipes.opt_healthy">💚 Extra Salutare</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-opened"> <span data-i18n="recipes.opt_opened">📦 Priorità Cose Aperte</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> <span data-i18n="recipes.opt_zero_waste">♻️ Zero Sprechi</span></label>
                 </div>
             </div>
-            <button class="btn btn-large btn-success full-width" onclick="generateRecipe()">
+            <button class="btn btn-large btn-success full-width" onclick="generateRecipe()" data-i18n="recipes.generate_btn">
                 ✨ Genera Ricetta
             </button>
-            <button class="btn btn-large btn-secondary full-width mt-2" onclick="closeRecipeDialog()">
+            <button class="btn btn-large btn-secondary full-width mt-2" onclick="closeRecipeDialog()" data-i18n="btn.cancel">
                 Annulla
             </button>
         </div>
         <div id="recipe-loading" style="display:none" class="recipe-loading">
             <div class="loading-spinner"></div>
-            <p id="recipe-loading-msg">Sto preparando la ricetta...</p>
+            <p id="recipe-loading-msg" data-i18n="recipes.loading_msg">Sto preparando la ricetta...</p>
         </div>
         <div id="recipe-result" style="display:none" class="recipe-result">
             <div id="recipe-content"></div>
-            <button class="btn btn-large btn-cooking full-width mt-2" onclick="startCookingMode()">
+            <button class="btn btn-large btn-cooking full-width mt-2" onclick="startCookingMode()" data-i18n="recipes.start_cooking">
                 👨‍🍳 Modalità Cucina
             </button>
-            <button class="btn btn-large btn-secondary full-width mt-2" onclick="regenerateRecipe()">
+            <button class="btn btn-large btn-secondary full-width mt-2" onclick="regenerateRecipe()" data-i18n="recipes.regenerate">
                 🔄 Generane un'altra
             </button>
-            <button class="btn btn-large btn-primary full-width mt-2" onclick="closeRecipeDialog()">
+            <button class="btn btn-large btn-primary full-width mt-2" onclick="closeRecipeDialog()" data-i18n="recipes.close_btn">
                 ✅ Chiudi
             </button>
         </div>
