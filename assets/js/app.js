@@ -532,7 +532,7 @@ function _cancelScaleTimersOnly() {
     if (livVal) livVal.style.color = '';
     const livLabel = document.getElementById('ruse-scale-live-label');
     if (livLabel && livLabel.textContent.startsWith('✅')) {
-        livLabel.textContent = 'Annullato — rimetti l\'ingrediente sulla bilancia per riprendere';
+        livLabel.textContent = t('scale.cancelled_replace');
     }
     document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
 }
@@ -1111,12 +1111,12 @@ function getExpiredSafety(item, daysExpired) {
         const effectiveDays = daysExpired - bonusDays;
 
         if (effectiveDays <= 0) {
-            return { level: 'ok', icon: '✅', label: 'OK', tip: `In freezer: ancora sicuro (~${bonusDays - daysExpired}g di margine)` };
+            return { level: 'ok', icon: '✅', label: t('status.ok'), tip: t('status.tip_freezer_ok').replace('{n}', bonusDays - daysExpired) };
         }
         if (effectiveDays <= 30) {
-            return { level: 'warning', icon: '👀', label: 'Controlla', tip: `In freezer da molto, potrebbe aver perso qualità. Consumare presto` };
+            return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_freezer_check') };
         }
-        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'In freezer da troppo tempo, rischio di bruciatura da gelo e degrado' };
+        return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_freezer_danger') };
     }
 
     // === FRIGO e DISPENSA ===
@@ -1125,29 +1125,29 @@ function getExpiredSafety(item, daysExpired) {
 
     if (highRisk.includes(cat)) {
         if (inFrigo && daysExpired <= 2) {
-            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da poco, controlla odore e aspetto prima di consumare' };
+            return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_highRisk_check') };
         }
-        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Prodotto deperibile scaduto: da buttare per sicurezza' };
+        return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_highRisk_danger') };
     }
 
     if (medRisk.includes(cat)) {
         if (daysExpired <= 7) {
-            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Controlla aspetto e odore prima di consumare' };
+            return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_medRisk_check1') };
         }
         if (daysExpired <= 30) {
-            return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da un po\', verificare bene prima dell\'uso' };
+            return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_medRisk_check2') };
         }
-        return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Troppo tempo dalla scadenza, meglio buttare' };
+        return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_medRisk_danger') };
     }
 
     // LOW RISK - lunga conservazione (pasta, conserve, condimenti, cereali, snack)
     if (daysExpired <= 30) {
-        return { level: 'ok', icon: '✅', label: 'OK', tip: 'Prodotto a lunga conservazione, ancora sicuro da consumare' };
+        return { level: 'ok', icon: '✅', label: t('status.ok'), tip: t('status.tip_lowRisk_ok') };
     }
     if (daysExpired <= 180) {
-        return { level: 'warning', icon: '👀', label: 'Controlla', tip: 'Scaduto da oltre un mese, controllare integrità confezione' };
+        return { level: 'warning', icon: '👀', label: t('status.check'), tip: t('status.tip_lowRisk_check') };
     }
-    return { level: 'danger', icon: '🗑️', label: 'Buttare', tip: 'Scaduto da troppo tempo, meglio non rischiare' };
+    return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_lowRisk_danger') };
 }
 
 // Nice Italian labels for local categories
@@ -1286,10 +1286,10 @@ function estimateExpiryDays(product, location) {
 }
 
 function formatEstimatedExpiry(days) {
-    if (days <= 7) return `~${days} giorni`;
-    if (days <= 30) return `~${Math.round(days / 7)} settimane`;
-    if (days <= 365) return `~${Math.round(days / 30)} mesi`;
-    return `~${Math.round(days / 365)} anni`;
+    if (days <= 7) return t('expiry.days_approx').replace('{n}', days);
+    if (days <= 30) return t('expiry.weeks_approx').replace('{n}', Math.round(days / 7));
+    if (days <= 365) return t('expiry.months_approx').replace('{n}', Math.round(days / 30));
+    return t('expiry.years_approx').replace('{n}', Math.round(days / 365));
 }
 
 /**
@@ -2113,11 +2113,11 @@ async function loadDashboard() {
             expiringList.innerHTML = statsData.expiring_soon.map(item => {
                 const days = daysUntilExpiry(item.expiry_date);
                 let badgeText, badgeClass;
-                if (days === 0) { badgeText = 'OGGI'; badgeClass = 'today'; }
-                else if (days === 1) { badgeText = 'Domani'; badgeClass = 'expiring'; }
-                else if (days <= 7) { badgeText = `${days} giorni`; badgeClass = 'expiring'; }
-                else if (days <= 30) { badgeText = `${days}g`; badgeClass = 'expiring-soon'; }
-                else { const m = Math.round(days/30); badgeText = m <= 1 ? `${days}g` : `~${m} mesi`; badgeClass = 'expiring-later'; }
+                if (days === 0) { badgeText = t('expiry.today'); badgeClass = 'today'; }
+                else if (days === 1) { badgeText = t('expiry.tomorrow'); badgeClass = 'expiring'; }
+                else if (days <= 7) { badgeText = t('expiry.days').replace('{days}', days); badgeClass = 'expiring'; }
+                else if (days <= 30) { badgeText = t('expiry.days_compact').replace('{n}', days); badgeClass = 'expiring-soon'; }
+                else { const m = Math.round(days/30); badgeText = m <= 1 ? t('expiry.days_compact').replace('{n}', days) : t('expiry.months_approx').replace('{n}', m); badgeClass = 'expiring-later'; }
                 const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
@@ -2143,9 +2143,9 @@ async function loadDashboard() {
             expiredList.innerHTML = statsData.expired.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 let daysText;
-                if (days === 0) daysText = 'Oggi';
-                else if (days === 1) daysText = 'Da ieri';
-                else daysText = `Da ${days}g`;
+                if (days === 0) daysText = t('expiry.expired_today');
+                else if (days === 1) daysText = t('expiry.expired_yesterday');
+                else daysText = t('expiry.expired_days').replace('{days}', days);
                 const safety = getExpiredSafety(item, days);
                 const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
                 const qtyDisplayExp = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
@@ -2183,8 +2183,8 @@ async function loadDashboard() {
                 <div class="waste-bar-wasted" style="width:${wastedPct}%"></div>
             `;
             document.getElementById('waste-chart-legend').innerHTML = `
-                <span class="waste-legend-item"><span class="waste-legend-dot used"></span> Consumati: ${used30} (${usedPct}%)</span>
-                <span class="waste-legend-item"><span class="waste-legend-dot wasted"></span> Buttati: ${wasted30} (${wastedPct}%)</span>
+                <span class="waste-legend-item"><span class="waste-legend-dot used"></span> ${t('dashboard.consumed').replace('{n}', used30).replace('{pct}', usedPct)}</span>
+                <span class="waste-legend-item"><span class="waste-legend-dot wasted"></span> ${t('dashboard.wasted').replace('{n}', wasted30).replace('{pct}', wastedPct)}</span>
             `;
         } else {
             wasteSection.style.display = 'none';
@@ -2225,7 +2225,7 @@ async function loadDashboard() {
                     const wholePackages = Math.floor(qty / pkgSize + 0.001);
                     const remainder = Math.round((qty - wholePackages * pkgSize) * 100) / 100;
                     if (wholePackages > 0 && remainder > 0.01) {
-                        qtyText = `${wholePackages} × ${pkgSize}${unitLabel} + ${Math.round(remainder)}${unitLabel} rimasti`;
+                        qtyText = `${wholePackages} × ${pkgSize}${unitLabel} + ${Math.round(remainder)}${unitLabel} ${t('inventory.qty_remainder_suffix')}`;
                     } else if (remainder > 0.01) {
                         qtyText = `${Math.round(remainder)}${unitLabel} / ${pkgSize}${unitLabel}`;
                     } else {
@@ -2241,22 +2241,22 @@ async function loadDashboard() {
                     let expiryClass, expiryText;
                     if (!isEdible) {
                         expiryClass = 'opened-expiry-spoiled';
-                        expiryText = '⛔ Scaduto!';
+                        expiryText = t('expiry.badge_expired');
                     } else if (days > 365) {
                         expiryClass = 'opened-expiry-ok';
-                        expiryText = '✅ Stabile';
+                        expiryText = t('expiry.badge_stable');
                     } else if (days === 0) {
                         expiryClass = 'opened-expiry-today';
-                        expiryText = '⚠️ Scade oggi!';
+                        expiryText = t('expiry.badge_today');
                     } else if (days <= 2) {
                         expiryClass = 'opened-expiry-urgent';
-                        expiryText = `⏰ Scade fra ${days}gg`;
+                        expiryText = t('expiry.badge_expiring_short').replace('{n}', days);
                     } else if (days <= 5) {
                         expiryClass = 'opened-expiry-soon';
-                        expiryText = `⏰ Scade fra ${days}gg`;
+                        expiryText = t('expiry.badge_expiring_short').replace('{n}', days);
                     } else {
                         expiryClass = 'opened-expiry-ok';
-                        expiryText = `✅ Ancora ${days}gg`;
+                        expiryText = t('expiry.badge_ok_still').replace('{n}', days);
                     }
                     const vacuumNote = item.vacuum_sealed ? ' 🔒' : '';
                     expiryBadge = `<span class="alert-item-badge opened-expiry ${expiryClass}">${expiryText}${vacuumNote}</span>`;
@@ -2274,7 +2274,7 @@ async function loadDashboard() {
                         ${expiryBadge}
                     </div>
                 </div>`;
-            }).join('') + (extra > 0 ? `<div class="alert-more-note">e altri ${extra} prodotti aperti...</div>` : '');
+            }).join('') + (extra > 0 ? `<div class="alert-more-note">${t('dashboard.more_opened').replace('{n}', extra)}</div>` : '');
         } else {
             openedSection.style.display = 'none';
         }
@@ -2364,12 +2364,34 @@ async function loadBannerAlerts() {
         const confirmed = getReviewConfirmed();
 
         // 1. Expired products (highest priority) - derived from inventory
+        // Also considers opened_at: if item is opened and its opened-shelf-life has passed, it's expired too
         items.forEach(item => {
-            if (!item.expiry_date) return;
-            const days = daysUntilExpiry(item.expiry_date);
-            if (days >= 0) return; // not expired
+            if (!item.expiry_date && !item.opened_at) return;
             if (confirmed['exp_' + item.id]) return;
-            _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: Math.abs(days) } });
+
+            let daysExpired = null;
+
+            // Check raw expiry date
+            if (item.expiry_date) {
+                const rawDays = daysUntilExpiry(item.expiry_date);
+                if (rawDays < 0) daysExpired = Math.abs(rawDays);
+            }
+
+            // Check effective expiry based on opened_at
+            if (item.opened_at) {
+                const openDays = estimateOpenedExpiryDays(item, item.location);
+                const openedTs = new Date(item.opened_at).getTime();
+                const effectiveExpiry = new Date(openedTs + openDays * 86400000);
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                const openedDiff = Math.round((effectiveExpiry.getTime() - today.getTime()) / 86400000);
+                if (openedDiff < 0) {
+                    const openedExpiredDays = Math.abs(openedDiff);
+                    if (daysExpired === null || openedExpiredDays > daysExpired) daysExpired = openedExpiredDays;
+                }
+            }
+
+            if (daysExpired === null) return; // not expired by any measure
+            _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: daysExpired } });
         });
 
         // 2. Suspicious quantities ("expiring soon" shown only in dashboard sections, not in banner)
@@ -2483,15 +2505,26 @@ function renderBannerItem() {
     if (entry.type === 'expired') {
         const item = entry.data;
         const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-        const daysText = item.days_expired === 0 ? 'Scaduto oggi'
-            : `Scaduto da ${item.days_expired} ${item.days_expired === 1 ? 'giorno' : 'giorni'}`;
-        banner.className = 'alert-banner banner-expired';
+        const daysText = item.days_expired === 0
+            ? t('expiry.expired_today_long')
+            : t('expiry.expired_ago_long').replace('{n}', item.days_expired);
+        const safety = getExpiredSafety(item, item.days_expired);
+        banner.className = safety.level === 'danger'
+            ? 'alert-banner banner-expired banner-expired-danger'
+            : 'alert-banner banner-expired';
         iconEl.textContent = '🚫';
-        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} — Scaduto!`;
-        detailEl.innerHTML = `${daysText} · hai ancora <strong>${qtyDisplay}</strong>. Usalo subito o buttalo.`;
-        let btns = `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
-        btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
+        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${t('expiry.expired_suffix')}`;
+        const baseDetail = t('dashboard.banner_expired_detail').replace('{when}', daysText).replace('{qty}', qtyDisplay);
+        detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
+        let btns = '';
+        if (safety.level !== 'danger') {
+            btns += `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
+        }
+        btns += `<button class="btn-banner btn-banner-throw${safety.level === 'danger' ? ' btn-banner-throw-primary' : ''}" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_expired_action_edit')}</button>`;
+        if (safety.level === 'danger') {
+            btns += `<button class="btn-banner btn-banner-use btn-banner-use-danger" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
+        }
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
         actionsEl.innerHTML = btns;
 
@@ -2579,7 +2612,7 @@ function renderBannerItem() {
             detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty });
         }
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')} (${an.inv_qty} ${an.unit})</button>`;
         actionsEl.innerHTML = btns;
     }
 
@@ -2844,10 +2877,10 @@ function renderDashItem(item) {
     
     let expiryLabel = '';
     if (item.expiry_date) {
-        if (days < 0) expiryLabel = `⚠️ Scaduto da ${Math.abs(days)}g`;
-        else if (days === 0) expiryLabel = '⚠️ Scade oggi!';
-        else if (days === 1) expiryLabel = '⏰ Scade domani';
-        else if (days <= 7) expiryLabel = `⏰ ${days} giorni`;
+        if (days < 0) expiryLabel = t('expiry.badge_expired_ago').replace('{n}', Math.abs(days));
+        else if (days === 0) expiryLabel = t('expiry.badge_today');
+        else if (days === 1) expiryLabel = t('expiry.badge_tomorrow_long');
+        else if (days <= 7) expiryLabel = t('expiry.badge_days').replace('{n}', days);
         else expiryLabel = formatDate(item.expiry_date);
     }
     
@@ -3017,16 +3050,16 @@ function renderInventoryItem(item) {
     let expiryBadge = '';
     if (item.expiry_date) {
         let expiryText;
-        if (isExpired) expiryText = `⚠️ Scaduto da ${Math.abs(days)}g`;
-        else if (days === 0) expiryText = '⚠️ Scade oggi!';
-        else if (days === 1) expiryText = '⏰ Domani';
-        else if (days <= 7) expiryText = `⏰ ${days} giorni`;
+        if (isExpired) expiryText = t('expiry.badge_expired_ago').replace('{n}', Math.abs(days));
+        else if (days === 0) expiryText = t('expiry.badge_today');
+        else if (days === 1) expiryText = t('expiry.badge_tomorrow');
+        else if (days <= 7) expiryText = t('expiry.badge_days').replace('{n}', days);
         else expiryText = formatDate(item.expiry_date);
         expiryBadge = `<span class="inv-badge ${isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : ''}">${expiryText}</span>`;
     }
     
-    const vacuumBadge = item.vacuum_sealed ? '<span class="vacuum-badge">🫙 Sotto vuoto</span>' : '';
-    const openedBadge = item.opened_at ? '<span class="opened-badge">📭 Aperto</span>' : '';
+    const vacuumBadge = item.vacuum_sealed ? `<span class="vacuum-badge">${t('inventory.vacuum_badge')}</span>` : '';
+    const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
     
     return `
     <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
@@ -3054,7 +3087,7 @@ function renderInventoryItem(item) {
 function renderInventory(items) {
     const container = document.getElementById('inventory-list');
     if (items.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         return;
     }
     container.innerHTML = renderGroupedByCategory(items, false);
@@ -3174,27 +3207,27 @@ function showItemDetail(inventoryId, productId) {
         </div>
         <div class="modal-detail">
             <div class="modal-detail-row">
-                <span class="modal-detail-label">📍 Posizione</span>
+                <span class="modal-detail-label">${t('inventory.label_position')}</span>
                 <span class="modal-detail-value">${locInfo.icon} ${locInfo.label}</span>
             </div>
             <div class="modal-detail-row">
-                <span class="modal-detail-label">📦 Quantità</span>
+                <span class="modal-detail-label">${t('inventory.label_quantity')}</span>
                 <span class="modal-detail-value">${formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)}</span>
             </div>
             ${item.expiry_date ? `
             <div class="modal-detail-row">
-                <span class="modal-detail-label">📅 Scadenza</span>
+                <span class="modal-detail-label">${t('inventory.label_expiry')}</span>
                 <span class="modal-detail-value">${formatDate(item.expiry_date)}</span>
             </div>` : ''}
             ${item.vacuum_sealed ? `
             <div class="modal-detail-row">
-                <span class="modal-detail-label">🫙 Conservazione</span>
-                <span class="modal-detail-value">Sotto vuoto</span>
+                <span class="modal-detail-label">${t('inventory.label_storage')}</span>
+                <span class="modal-detail-value">${t('inventory.vacuum_badge')}</span>
             </div>` : ''}
             ${item.opened_at ? `
             <div class="modal-detail-row">
-                <span class="modal-detail-label">📭 Stato</span>
-                <span class="modal-detail-value">Aperto dal ${formatDateTime(item.opened_at)}</span>
+                <span class="modal-detail-label">${t('inventory.label_status')}</span>
+                <span class="modal-detail-value">${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span>
             </div>` : ''}
             ${item.barcode ? `
             <div class="modal-detail-row">
@@ -3202,7 +3235,7 @@ function showItemDetail(inventoryId, productId) {
                 <span class="modal-detail-value">${item.barcode}</span>
             </div>` : ''}
             <div class="modal-detail-row">
-                <span class="modal-detail-label">📅 Aggiunto</span>
+                <span class="modal-detail-label">${t('inventory.label_added')}</span>
                 <span class="modal-detail-value">${formatDateTime(item.added_at)}</span>
             </div>
         </div>
@@ -3259,7 +3292,7 @@ async function quickUse(productId, location) {
 }
 
 async function deleteInventoryItem(id) {
-    if (confirm('Vuoi davvero rimuovere questo prodotto dall\'inventario?')) {
+    if (confirm(t('confirm.remove_item'))) {
         await api('inventory_delete', {}, 'POST', { id });
         closeModal();
         showToast(t('toast.product_removed'), 'success');
@@ -3310,7 +3343,7 @@ function editInventoryItem(id) {
         </div>
         <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
             <div class="form-group">
-                <label>📦 Quantità</label>
+                <label>📦 ${t('inventory.label_quantity').replace('📦 ', '')}</label>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
                     <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
@@ -3341,7 +3374,7 @@ function editInventoryItem(id) {
                 </div>
             </div>
             <div class="form-group">
-                <label>📍 Posizione</label>
+                <label>${t('inventory.label_position')}</label>
                 <div class="location-selector">
                     ${Object.entries(LOCATIONS).map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
@@ -3351,19 +3384,19 @@ function editInventoryItem(id) {
                 <input type="hidden" id="edit-loc" value="${item.location}">
             </div>
             <div class="form-group">
-                <label>📅 Scadenza</label>
+                <label>${t('inventory.label_expiry')}</label>
                 <input type="date" id="edit-expiry" value="${item.expiry_date || ''}" class="form-input">
             </div>
             <div class="form-group">
                 <label class="toggle-row">
-                    <span>🫙 Sotto vuoto</span>
+                    ${t('add.vacuum_label')}
                     <span class="toggle-switch">
                         <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">
                         <span class="toggle-slider"></span>
                     </span>
                 </label>
             </div>
-            <button type="submit" class="btn btn-large btn-primary full-width">💾 Salva</button>
+            <button type="submit" class="btn btn-large btn-primary full-width">${t('btn.save')}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -3421,7 +3454,8 @@ let _scanLogTimer = null;
 function scanLog(msg) {
     const el = document.getElementById('scan-debug-log');
     if (el) {
-        const ts = new Date().toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:1});
+        const _scanLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        const ts = new Date().toLocaleTimeString(_scanLocale, {hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:1});
         el.textContent += `[${ts}] ${msg}\n`;
         el.scrollTop = el.scrollHeight;
     }
@@ -3489,11 +3523,8 @@ async function initScanner() {
         console.error('Camera error:', err);
         document.getElementById('scan-result').style.display = 'block';
         document.getElementById('scan-result').innerHTML = `
-            <p style="color: var(--danger)">⚠️ Impossibile accedere alla fotocamera.</p>
-            <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">
-                Assicurati di usare HTTPS e di aver concesso i permessi della fotocamera.<br>
-                Puoi inserire il barcode manualmente o usare l'identificazione AI.
-            </p>
+            <p style="color: var(--danger)">${t('error.camera')}</p>
+            <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${t('scanner.camera_error_hint')}</p>
         `;
     }
 }
@@ -3958,7 +3989,7 @@ function showQuickNameResults(searchName, products) {
             <span class="qnr-icon">${catIcon}</span>
             <div class="qnr-info">
                 <div class="qnr-name">${escapeHtml(p.name)}</div>
-                <div class="qnr-detail">${p.brand ? escapeHtml(p.brand) + ' · ' : ''}${p.barcode ? '📊 ' + p.barcode : 'Senza barcode'}</div>
+                <div class="qnr-detail">${p.brand ? escapeHtml(p.brand) + ' · ' : ''}${p.barcode ? '📊 ' + p.barcode : t('product.no_barcode')}</div>
             </div>
         `;
         item.onclick = () => selectQuickProduct(p);
@@ -4034,7 +4065,7 @@ async function createQuickProduct(name) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast(result.error || 'Errore nel salvataggio', 'error');
+            showToast(result.error || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -4230,20 +4261,20 @@ async function scanBarcodeForForm() {
 
     contentEl.innerHTML = `
         <div class="modal-header">
-            <h3>🔖 Scansiona Barcode</h3>
+            <h3>${t('scanner.title_barcode')}</h3>
             <button class="modal-close" onclick="document.getElementById('modal-overlay').style.display='none'">✕</button>
         </div>
         <div style="position:relative;width:100%;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3">
             <video id="pf-bc-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
             <div class="scanner-line scanning" style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:2px;background:rgba(59,130,246,0.8)"></div>
         </div>
-        <p style="text-align:center;margin-top:12px;color:var(--text-muted);font-size:0.88rem">Inquadra il codice a barre del prodotto</p>
+        <p style="text-align:center;margin-top:12px;color:var(--text-muted);font-size:0.88rem">${t('scanner.barcode_hint')}</p>
         <div style="margin-top:10px;text-align:center">
-            <input type="text" id="pf-bc-manual" class="form-input" placeholder="O inserisci manualmente..." inputmode="numeric" style="max-width:260px;display:inline-block">
+            <input type="text" id="pf-bc-manual" class="form-input" placeholder="${t('scanner.barcode_manual_placeholder')}" inputmode="numeric" style="max-width:260px;display:inline-block">
             <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="
                 const v = document.getElementById('pf-bc-manual').value.trim();
                 if(v){ document.getElementById('pf-barcode').value=v; _updateBarcodeHint(); document.getElementById('modal-overlay').style.display='none'; }
-            ">✅ Usa questo codice</button>
+            ">${t('scanner.barcode_use_btn')}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
@@ -4323,7 +4354,7 @@ async function submitProduct(e) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast(result.error || 'Errore nel salvataggio', 'error');
+            showToast(result.error || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -4354,7 +4385,7 @@ function showProductAction() {
     
     // NOVA group
     if (currentProduct.nova_group) {
-        const novaLabels = { '1': 'Non trasformato', '2': 'Ingrediente culinario', '3': 'Trasformato', '4': 'Ultra-trasformato' };
+        const novaLabels = { '1': t('nova.1'), '2': t('nova.2'), '3': t('nova.3'), '4': t('nova.4') };
         detailsHtml += `<div class="product-detail-tag">🏭 NOVA ${currentProduct.nova_group}${novaLabels[currentProduct.nova_group] ? ' - ' + novaLabels[currentProduct.nova_group] : ''}</div>`;
     }
     
@@ -4438,7 +4469,7 @@ function showProductAction() {
             ${isUnknown ? '<p class="edit-unknown-hint">Inserisci il nome e le informazioni del prodotto</p>' : ''}
             <div class="edit-unknown-form">
                 <div class="form-group">
-                    <label>🏷️ Nome prodotto</label>
+                    <label>${t('edit.label_name')}</label>
                     <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
                 </div>
                 <div class="form-group">
@@ -4452,7 +4483,7 @@ function showProductAction() {
                         ${categoryOptions}
                     </select>
                 </div>
-                <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">💾 Salva informazioni</button>
+                <button type="button" class="btn btn-primary full-width" onclick="saveEditedProductInfo()">${t('btn.save_info')}</button>
             </div>
         </div>
     `;
@@ -4507,9 +4538,9 @@ function showProductAction() {
                 let expiryStr = '';
                 if (inv.expiry_date) {
                     const d = daysUntilExpiry(inv.expiry_date);
-                    if (d < 0) expiryStr = ` · ⚠️ Scaduto da ${Math.abs(d)}g`;
-                    else if (d <= 3) expiryStr = ` · 🔴 Scade tra ${d}g`;
-                    else if (d <= 7) expiryStr = ` · 🟡 Scade tra ${d}g`;
+                if (d < 0) expiryStr = ` · ${t('expiry.badge_expired_ago').replace('{n}', Math.abs(d))}`;
+                    else if (d <= 3) expiryStr = ` · ${t('expiry.badge_expires_red').replace('{n}', d)}`;
+                    else if (d <= 7) expiryStr = ` · ${t('expiry.badge_expires_yellow').replace('{n}', d)}`;
                     else expiryStr = ` · 📅 ${formatDate(inv.expiry_date)}`;
                 }
                 const vacuumIcon = inv.vacuum_sealed ? ' 🫙' : '';
@@ -4683,7 +4714,7 @@ function openInventoryEdit() {
                 let expiryStr = '';
                 if (inv.expiry_date) {
                     const d = daysUntilExpiry(inv.expiry_date);
-                    expiryStr = ` · ${d < 0 ? '⚠️ Scaduto' : '📅 ' + formatDate(inv.expiry_date)}`;
+                    expiryStr = ` · ${d < 0 ? t('expiry.badge_expired_bare') : '📅 ' + formatDate(inv.expiry_date)}`;
                 }
                 const vacuumStr = inv.vacuum_sealed ? ' 🫙' : '';
                 return `<button class="btn btn-secondary full-width" style="justify-content:flex-start;gap:10px;text-align:left"
@@ -4738,7 +4769,7 @@ function editActionInventoryItem(inventoryId) {
                 </div>
             </div>
             <div class="form-group">
-                <label>📍 Posizione</label>
+                <label>${t('inventory.label_position')}</label>
                 <div class="location-selector">
                     ${Object.entries(LOCATIONS).map(([k, v]) => `
                         <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
@@ -4748,12 +4779,12 @@ function editActionInventoryItem(inventoryId) {
                 <input type="hidden" id="action-edit-loc" value="${item.location}">
             </div>
             <div class="form-group">
-                <label>📅 Scadenza</label>
+                <label>${t('inventory.label_expiry')}</label>
                 <input type="date" id="action-edit-expiry" value="${item.expiry_date || ''}" class="form-input">
             </div>
             <div class="form-group">
                 <label class="toggle-row">
-                    <span>🫙 Sotto vuoto</span>
+                    ${t('add.vacuum_label')}
                     <span class="toggle-switch">
                         <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">
                         <span class="toggle-slider"></span>
@@ -4761,7 +4792,7 @@ function editActionInventoryItem(inventoryId) {
                 </label>
             </div>
             <div class="modal-actions" style="margin-top:12px">
-                <button type="submit" class="btn btn-large btn-primary flex-1">💾 Salva</button>
+                <button type="submit" class="btn btn-large btn-primary flex-1">${t('btn.save')}</button>
                 <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
             </div>
         </form>
@@ -4800,7 +4831,7 @@ async function submitActionEditInventory(e, id, productId) {
 }
 
 async function deleteActionInventoryItem(id) {
-    if (confirm('Vuoi davvero rimuovere questo prodotto dall\'inventario?')) {
+    if (confirm(t('confirm.remove_item'))) {
         await api('inventory_delete', {}, 'POST', { id });
         closeModal();
         showToast(t('toast.product_removed'), 'success');
@@ -4975,7 +5006,7 @@ async function saveEditedProductInfo() {
             // Refresh the action page with updated data
             showProductAction();
         } else {
-            showToast(result.error || 'Errore nel salvataggio', 'error');
+            showToast(result.error || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -5085,14 +5116,14 @@ function showAddForm() {
         </div>
         <div id="expiry-detail" class="expiry-detail">
             <div class="expiry-estimate">
-                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}${expirySuffix}</strong></span>
+                <span class="expiry-estimate-label">${t('add.estimated_expiry')} <strong>${estimateLabel}${expirySuffix}</strong></span>
                 <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
             </div>
             <div class="expiry-input-row">
                 <input type="date" id="add-expiry" class="form-input" value="${estimatedDate}">
-                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="Scansiona data scadenza">📷</button>
+                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
             </div>
-            <p class="form-hint">📝 Puoi modificare la data o scansionarla con la fotocamera</p>
+            <p class="form-hint">${t('add.hint_modify')}</p>
         </div>
         <div id="multi-batch-section" style="display:${unit === 'conf' ? 'block' : 'none'}">
             <div id="multi-batch-container"></div>
@@ -5137,7 +5168,7 @@ function recalculateAddExpiry() {
     
     let suffix = '';
     if (window._historyExpiryDays) suffix = ' (da storico)';
-    else if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
+    else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
     else if (loc === 'freezer') suffix = ' (freezer)';
     else if (isVacuum) suffix = ' (sotto vuoto)';
     
@@ -5145,7 +5176,7 @@ function recalculateAddExpiry() {
     const estimateEl = document.querySelector('.expiry-estimate-label');
     const dateEl = document.querySelector('.expiry-estimate-date');
     if (expiryInput) expiryInput.value = newDate;
-    if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${suffix}</strong>`;
+    if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}${suffix}</strong>`;
     if (dateEl) dateEl.textContent = formatDate(newDate);
 }
 
@@ -5167,7 +5198,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             const estimateEl = document.querySelector('.expiry-estimate-label');
             const dateEl = document.querySelector('.expiry-estimate-date');
             if (expiryInput) expiryInput.value = newDate;
-            if (estimateEl) estimateEl.innerHTML = `Scadenza stimata: <strong>${newLabel}${suffix}</strong>`;
+            if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}${suffix}</strong>`;
             if (dateEl) dateEl.textContent = formatDate(newDate);
             window._addBaseExpiryDays = data.avg_days;
         }
@@ -5292,20 +5323,20 @@ function selectPurchaseType(btn, type) {
         const estimateLabel = formatEstimatedExpiry(days);
         let suffix = '';
         if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="Media da ${window._historyExpiryCount} inserimento/i precedente/i">📊 storico</span>`;
-        else if (loc === 'freezer' && isVacuum) suffix = ' (freezer + sotto vuoto)';
-        else if (loc === 'freezer') suffix = ' (freezer)';
-        else if (isVacuum) suffix = ' (sotto vuoto)';
+        else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
+        else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
+        else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
         
         detailDiv.innerHTML = `
             <div class="expiry-estimate">
-                <span class="expiry-estimate-label">Scadenza stimata: <strong>${estimateLabel}${suffix}</strong></span>
+                <span class="expiry-estimate-label">${t('add.estimated_expiry')} <strong>${estimateLabel}${suffix}</strong></span>
                 <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
             </div>
             <div class="expiry-input-row">
                 <input type="date" id="add-expiry" class="form-input" value="${estimatedDate}">
-                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="Scansiona data scadenza">📷</button>
+                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
             </div>
-            <p class="form-hint">📝 Puoi modificare la data o scansionarla con la fotocamera</p>
+            <p class="form-hint">${t('add.hint_modify')}</p>
         `;
         // Restore quantity - switching purchase type should NOT change it
         document.getElementById('add-quantity').value = currentQty;
@@ -5318,7 +5349,7 @@ function selectPurchaseType(btn, type) {
                 <label>📅 Quando scade?</label>
                 <div class="expiry-input-row">
                     <input type="date" id="add-expiry" class="form-input" value="">
-                    <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="Scansiona data scadenza">📷</button>
+                    <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
                 </div>
                 <p class="form-hint">Inserisci la data di scadenza o scansionala</p>
             </div>
@@ -5450,7 +5481,7 @@ async function submitAdd(e) {
                     qtyInfo = ` (totale: ${result.total_qty} ${uLabel})`;
                 }
             }
-            showToast(`✅ ${currentProduct.name} aggiunto!${qtyInfo}`, 'success');
+            showToast(t('add.product_added').replace('{name}', currentProduct.name).replace('{qty}', qtyInfo), 'success');
             if (result.removed_from_bring) {
                 setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
             } else if (shoppingItems.length > 0 && shoppingListUUID) {
@@ -5574,19 +5605,19 @@ function _renderUseExpiryHint(items) {
     const diffDays = Math.round((expDate - today) / 86400000);
 
     const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
-    const dateStr  = expDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    const dateStr  = expDate.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT', { day: '2-digit', month: '2-digit' });
 
     let whenStr;
-    if (diffDays < 0)       whenStr = `scaduta da ${-diffDays} giorn${-diffDays === 1 ? 'o' : 'i'}`;
-    else if (diffDays === 0) whenStr = 'scade <strong>oggi</strong>';
-    else if (diffDays === 1) whenStr = 'scade <strong>domani</strong>';
-    else                     whenStr = `scade tra <strong>${diffDays} giorni</strong>`;
+    if (diffDays < 0)       whenStr = t('use.when_expired').replace('{n}', -diffDays);
+    else if (diffDays === 0) whenStr = t('use.when_today');
+    else if (diffDays === 1) whenStr = t('use.when_tomorrow');
+    else                     whenStr = t('use.when_days').replace('{n}', diffDays);
 
     const locLabel = uniqueLocs.size > 1
         ? ` (${locInfo.icon} ${locInfo.label})`
         : '';
 
-    hintEl.innerHTML = `⚠️ Usa prima quella${locLabel} che scade il <strong>${dateStr}</strong> — ${whenStr}!`;
+    hintEl.innerHTML = t('use.expiry_warning').replace('{loc}', locLabel).replace('{date}', `<strong>${dateStr}</strong>`).replace('{when}', whenStr);
     hintEl.style.display = 'block';
 }
 
@@ -5978,13 +6009,15 @@ function showLowStockBringPrompt(result, afterCallback) {
     // 2. In smart shopping predictions?
     const smartMatch = _findSimilarItem(shoppingName, smartShoppingItems) || _findSimilarItem(name, smartShoppingItems);
     const smartUrgencyLabel = {
-        critical: '🔴 Urgente', high: '🟠 Presto', medium: '🟡 Pianifica', low: '🟢 Previsione'
+        critical: t('shopping.urgency_critical'), high: t('shopping.urgency_high'),
+        medium: t('shopping.urgency_medium'), low: t('shopping.urgency_low')
     };
     let smartNote = '';
     if (smartMatch) {
         const lbl = smartUrgencyLabel[smartMatch.urgency] || '';
+        const _smartMsg = t('shopping.smart_already_predicted').replace('{name}', escapeHtml(smartMatch.name)).replace('{urgency}', lbl ? ` (${lbl})` : '');
         smartNote = `<div style="margin-bottom:12px;padding:8px 10px;background:rgba(249,115,22,0.1);border-radius:8px;border-left:3px solid #f97316;font-size:0.85rem">
-            📊 La spesa intelligente prevede già <strong>${escapeHtml(smartMatch.name)}</strong>${lbl ? ` (${lbl})` : ''}.
+            ${_smartMsg}
         </div>`;
     }
 
@@ -6002,14 +6035,14 @@ function showLowStockBringPrompt(result, afterCallback) {
             <button class="modal-close" onclick="closeLowStockPrompt()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px"><strong>${escapeHtml(name)}</strong> sta per finire — rimangono solo <strong>${remainLabel}</strong>.</p>
+            <p style="margin-bottom:12px">${t('lowstock.message').replace('{name}', `<strong>${escapeHtml(name)}</strong>`).replace('{qty}', `<strong>${remainLabel}</strong>`)}</p>
             ${smartNote}
-            <p style="margin-bottom:16px">Vuoi aggiungerlo alla lista della spesa?</p>
+            <p style="margin-bottom:16px">${t('lowstock.question')}</p>
             <button type="button" class="btn btn-large btn-success full-width" onclick="addLowStockToBring()">
-                🛒 Sì, aggiungi a Bring!
+                ${t('lowstock.yes')}
             </button>
             <button type="button" class="btn btn-secondary full-width" style="margin-top:8px" onclick="closeLowStockPrompt()">
-                No, per ora va bene
+                ${t('lowstock.no')}
             </button>
         </div>
     `;
@@ -6086,18 +6119,18 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId) {
     const vacuumRow = wasVacuum ? `
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
             <input type="checkbox" id="move-vacuum-check" checked>
-            <span>🫙 Torna sotto vuoto</span>
+            <span>${t('move.vacuum_restore')}</span>
         </label>` : '';
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>📦 Spostare il resto?</h3>
+            <h3>${t('move.title')}</h3>
             <button class="modal-close" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} di <strong>${escapeHtml(product.name)}</strong> in un'altra posizione?</p>
+            <p style="margin-bottom:12px">${t('move.question').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')).replace('{name}', `<strong>${escapeHtml(product.name)}</strong>`)}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -6121,7 +6154,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
                 product_id: productId,
                 vacuum_sealed: newVacuum,
             });
-            showToast(`📦 Confezione aperta spostata in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+            showToast(t('move.moved_toast').replace('{location}', LOCATIONS[toLoc]?.label || toLoc), 'success');
         } else {
             // Legacy: move whatever is at fromLoc
             const data = await api('inventory_list');
@@ -6159,7 +6192,7 @@ async function submitUseAll() {
         if (result.success) {
             showToast(`📤 ${currentProduct.name} terminato!`, 'success');
             if (result.added_to_bring) {
-                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
             }
             // Check low stock (product may exist at other locations)
             showLowStockBringPrompt(result, () => showPage('dashboard'));
@@ -6205,7 +6238,7 @@ async function submitUse(e) {
         _useSubmitting = false;
         if (result.success) {
             const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
-            showToast(`📤 Usato ${usedText} di ${currentProduct.name}`, 'success');
+            showToast(t('use.toast_used').replace('{qty}', usedText).replace('{name}', currentProduct.name), 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
             }
@@ -6299,7 +6332,7 @@ function retakePhotoAI() {
 async function analyzeWithAI() {
     const resultDiv = document.getElementById('ai-result');
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<div style="text-align:center;padding:20px"><div class="loading-spinner" style="margin:0 auto 12px"></div><p>🤖 Identifico il prodotto...</p></div>';
+    resultDiv.innerHTML = `<div style="text-align:center;padding:20px"><div class="loading-spinner" style="margin:0 auto 12px"></div><p>${t('scanner.ai_identifying')}</p></div>`;
 
     const canvas = document.getElementById('ai-canvas');
     const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
@@ -6310,9 +6343,12 @@ async function analyzeWithAI() {
         if (!result.success) {
             if (result.error === 'no_api_key') {
                 resultDiv.innerHTML = `<p style="color:var(--warning)">⚠️ Chiave API Gemini non configurata.<br><small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small></p>`;
+            } else if (/resource.?exhaust|quota|rate.?limit/i.test(result.error || '')) {
+                resultDiv.innerHTML = `<p style="color:var(--warning)">⏳ ${t('error.ai_quota')}</p>
+                    <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">${t('btn.retry')}</button>`;
             } else {
-                resultDiv.innerHTML = `<p style="color:var(--danger)">❌ ${escapeHtml(result.error || 'Errore nell\'identificazione')}</p>
-                    <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">🔄 Riprova</button>`;
+                resultDiv.innerHTML = `<p style="color:var(--danger)">❌ ${escapeHtml(result.error || t('error.identification'))}</p>
+                    <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">${t('btn.retry')}</button>`;
             }
             return;
         }
@@ -6347,7 +6383,7 @@ async function analyzeWithAI() {
 
         // Show existing local products first
         if (localMatches.length > 0) {
-            html += `<h4 style="margin-top:16px">📋 Già in dispensa</h4>`;
+            html += `<h4 style="margin-top:16px">${t('product.already_in_pantry')}</h4>`;
             html += `<div class="ai-matches-list">`;
             localMatches.forEach((p, idx) => {
                 html += `<div class="ai-match-item" onclick="selectLocalMatch(${p.id})">`;
@@ -6397,8 +6433,8 @@ async function analyzeWithAI() {
 
     } catch (err) {
         console.error('AI identify error:', err);
-        resultDiv.innerHTML = `<p style="color:var(--danger)">❌ Errore di connessione</p>
-            <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">🔄 Riprova</button>`;
+        resultDiv.innerHTML = `<p style="color:var(--danger)">❌ ${t('error.connection')}</p>
+            <button class="btn btn-secondary full-width mt-2" onclick="retakePhotoAI()">${t('btn.retry')}</button>`;
     }
 }
 
@@ -6525,7 +6561,7 @@ async function saveAIProductDirect() {
             showProductAction();
         } else {
             showLoading(false);
-            showToast(result.error || 'Errore nel salvataggio', 'error');
+            showToast(result.error || t('error.save'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -6553,13 +6589,13 @@ async function captureForAIFormFill() {
             </div>
             <div id="pfai-status" style="display:none;text-align:center;padding:12px">
                 <div class="loading-spinner" style="margin:0 auto 8px"></div>
-                <p>🤖 Identifico il prodotto...</p>
+                <p>${t('scanner.ai_identifying')}</p>
             </div>
             <div id="pfai-result" style="display:none"></div>
-            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem" id="pfai-hint">Inquadra l'etichetta del prodotto</p>
+            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem" id="pfai-hint">${t('scanner.product_label_hint')}</p>
             <div style="display:flex;gap:8px;margin-top:8px">
-                <button class="btn btn-large btn-accent" style="flex:1" id="pfai-capture-btn" onclick="pfAiCapture()">📸 Scatta</button>
-                <button class="btn btn-large btn-secondary" style="flex:1;display:none" id="pfai-retake-btn" onclick="pfAiRetake()">🔄 Riscatta</button>
+                <button class="btn btn-large btn-accent" style="flex:1" id="pfai-capture-btn" onclick="pfAiCapture()">${t('scanner.capture_btn')}</button>
+                <button class="btn btn-large btn-secondary" style="flex:1;display:none" id="pfai-retake-btn" onclick="pfAiRetake()">${t('scanner.retake_btn')}</button>
             </div>
         </div>
     `;
@@ -6572,7 +6608,7 @@ async function captureForAIFormFill() {
         await video.play();
     } catch (err) {
         document.getElementById('pfai-cam-container').innerHTML =
-            `<p style="color:var(--danger);text-align:center;padding:20px">⚠️ Impossibile accedere alla fotocamera</p>`;
+            `<p style="color:var(--danger);text-align:center;padding:20px">${t('error.camera')}</p>`;
     }
 }
 
@@ -6632,8 +6668,13 @@ async function _pfAiAnalyze(base64) {
         resultEl.style.display = 'block';
 
         if (!result.success) {
-            resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ ${escapeHtml(result.error || 'Errore identificazione')}</p>
-                <button class="btn btn-secondary full-width" onclick="pfAiRetake()">🔄 Riprova</button>`;
+            if (/resource.?exhaust|quota|rate.?limit/i.test(result.error || '')) {
+                resultEl.innerHTML = `<p style="color:var(--warning);text-align:center">⏳ ${t('error.ai_quota')}</p>
+                    <button class="btn btn-secondary full-width" onclick="pfAiRetake()">${t('btn.retry')}</button>`;
+            } else {
+                resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ ${escapeHtml(result.error || t('error.identification'))}</p>
+                    <button class="btn btn-secondary full-width" onclick="pfAiRetake()">${t('btn.retry')}</button>`;
+            }
             return;
         }
 
@@ -6660,7 +6701,7 @@ async function _pfAiAnalyze(base64) {
             html += `</div>`;
         }
 
-        html += `<button class="btn btn-primary full-width" onclick="_pfAiFillFromAI()">✅ Usa dati AI${matches.length > 0 ? ' (senza barcode)' : ''}</button>`;
+        html += `<button class="btn btn-primary full-width" onclick="_pfAiFillFromAI()">${matches.length > 0 ? t('ai.use_data_no_barcode') : t('ai.use_data')}</button>`;
         resultEl.innerHTML = html;
 
         window._pfAiIdentified = id;
@@ -6670,7 +6711,7 @@ async function _pfAiAnalyze(base64) {
         statusEl.style.display = 'none';
         resultEl.style.display = 'block';
         resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ Errore di connessione</p>
-            <button class="btn btn-secondary full-width" onclick="pfAiRetake()">🔄 Riprova</button>`;
+            <button class="btn btn-secondary full-width" onclick="pfAiRetake()">${t('btn.retry')}</button>`;
     }
 }
 
@@ -6750,7 +6791,7 @@ async function searchAllProducts() {
 function renderProductsList(products) {
     const container = document.getElementById('products-list');
     if (products.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📦</div><p>Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!</p></div>';
+        container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📦</div><p>${t('inventory.empty_db')}</p></div>`;
         return;
     }
     container.innerHTML = products.map(p => {
@@ -6845,7 +6886,7 @@ function toggleShoppingTag(itemIdx, tag) {
         // Sync urgente/presto tag to Bring specification so it's visible in the Bring app
         if (tag === 'urgente' && shoppingListUUID) {
             const isNowUrgent = existing.includes('urgente');
-            const newSpec = isNowUrgent ? '⚡ Urgente' : '';
+            const newSpec = isNowUrgent ? t('shopping.urgency_spec_critical') : '';
             api('bring_add', {}, 'POST', {
                 items: [{ name: item.name, specification: newSpec, update_spec: true }],
                 listUUID: shoppingListUUID,
@@ -6864,7 +6905,7 @@ function openScanForItem(idx) {
     if (!item) return;
     _spesaScanTarget = { name: item.name, rawName: item.rawName || '', idx };
     showPage('scan');
-    showToast(`📷 Scansiona: ${item.name}`, 'info');
+    showToast(t('shopping.scan_toast').replace('{name}', item.name), 'info');
 }
 
 async function confirmShoppingItemFound() {
@@ -6877,7 +6918,7 @@ async function confirmShoppingItemFound() {
         if (r.success) {
             const idx = shoppingItems.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
             if (idx >= 0) shoppingItems.splice(idx, 1);
-            showToast(`✅ ${name} rimosso dalla lista!`, 'success');
+            showToast(t('shopping.item_removed').replace('{name}', name), 'success');
             logOperation('bring_found', { name });
             loadShoppingCount();
         }
@@ -6889,7 +6930,7 @@ async function confirmShoppingItemFound() {
 
 /** Build a Bring specification string that encodes urgency + optional brand. */
 function _urgencyToSpec(urgency, brand) {
-    const urgencyLabels = { critical: '⚡ Urgente', high: '🟠 Presto', medium: '', low: '' };
+    const urgencyLabels = { critical: t('shopping.urgency_spec_critical'), high: t('shopping.urgency_spec_high'), medium: '', low: '' };
     const urgLabel = urgencyLabels[urgency] || '';
     if (urgLabel && brand) return `${urgLabel} · ${brand}`;
     if (urgLabel) return urgLabel;
@@ -7289,16 +7330,16 @@ function renderSmartShopping() {
     countEl.textContent = items.length;
 
     if (items.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="padding:16px"><p>Nessun prodotto in questa categoria</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:16px"><p>${t('shopping.empty_category')}</p></div>`;
         actionsEl.style.display = 'none';
         return;
     }
 
     const urgencyConfig = {
-        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: 'Urgente' },
-        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: 'Presto' },
-        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: 'Pianifica' },
-        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: 'Previsione' },
+        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: t('shopping.urgency_critical') },
+        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: t('shopping.urgency_high') },
+        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: t('shopping.urgency_medium') },
+        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: t('shopping.urgency_low') },
     };
 
     // Group by section
@@ -7327,10 +7368,10 @@ function renderSmartShopping() {
 
 function renderSmartItem(item) {
     const urgencyConfig = {
-        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: 'Urgente' },
-        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: 'Presto' },
-        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: 'Pianifica' },
-        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: 'Previsione' },
+        critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: '🔴', label: t('shopping.urgency_critical') },
+        high:     { color: '#f97316', bg: 'rgba(249,115,22,0.08)', icon: '🟠', label: t('shopping.urgency_high') },
+        medium:   { color: '#eab308', bg: 'rgba(234,179,8,0.08)',  icon: '🟡', label: t('shopping.urgency_medium') },
+        low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: t('shopping.urgency_low') },
     };
     const u = urgencyConfig[item.urgency] || urgencyConfig.low;
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
@@ -7367,29 +7408,29 @@ function renderSmartItem(item) {
             qtyText = `${item.current_qty} ${item.unit}`;
             if (item.pct_left < 100) qtyText += ` (${pct}%)`;
         } else {
-            qtyText = 'Esaurito';
+            qtyText = t('shopping.out_of_stock');
         }
 
         // Usage frequency badge
         let freqBadge = '';
-        if (item.use_count >= 8) freqBadge = '<span class="smart-freq-badge freq-high">📈 Uso frequente</span>';
-        else if (item.use_count >= 4) freqBadge = '<span class="smart-freq-badge freq-med">📊 Uso regolare</span>';
-        else if (item.use_count >= 2) freqBadge = '<span class="smart-freq-badge freq-low">📉 Uso occasionale</span>';
+        if (item.use_count >= 8) freqBadge = `<span class="smart-freq-badge freq-high">${t('shopping.freq_high')}</span>`;
+        else if (item.use_count >= 4) freqBadge = `<span class="smart-freq-badge freq-med">${t('shopping.freq_regular')}</span>`;
+        else if (item.use_count >= 2) freqBadge = `<span class="smart-freq-badge freq-low">${t('shopping.freq_occasional')}</span>`;
 
         // Days left prediction
         let predBadge = '';
         if (item.days_left <= 3 && item.days_left > 0 && item.current_qty > 0) {
-            predBadge = `<span class="smart-pred-badge pred-urgent">⏳ ~${item.days_left}gg rimasti</span>`;
+            predBadge = `<span class="smart-pred-badge pred-urgent">${t('expiry.badge_days_left').replace('{n}', item.days_left)}</span>`;
         } else if (item.days_left <= 7 && item.days_left > 0 && item.current_qty > 0) {
-            predBadge = `<span class="smart-pred-badge pred-soon">⏳ ~${item.days_left}gg rimasti</span>`;
+            predBadge = `<span class="smart-pred-badge pred-soon">${t('expiry.badge_days_left').replace('{n}', item.days_left)}</span>`;
         }
 
         // Expiry badge
         let expiryBadge = '';
         if (item.days_to_expiry < 0 && item.current_qty > 0) {
-            expiryBadge = `<span class="smart-pred-badge pred-urgent">⚠️ Scaduto</span>`;
+            expiryBadge = `<span class="smart-pred-badge pred-urgent">${t('expiry.badge_expired_bare')}</span>`;
         } else if (item.days_to_expiry <= 3 && item.days_to_expiry >= 0 && item.current_qty > 0) {
-            expiryBadge = `<span class="smart-pred-badge pred-urgent">⚠️ Scade tra ${item.days_to_expiry}gg</span>`;
+            expiryBadge = `<span class="smart-pred-badge pred-urgent">${t('expiry.badge_expires_warn').replace('{n}', item.days_to_expiry)}</span>`;
         }
 
         return `
@@ -7404,7 +7445,7 @@ function renderSmartItem(item) {
                     <div class="smart-item-badges">
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
                         ${freqBadge}${predBadge}${expiryBadge}
-                        ${item.is_opened ? '<span class="smart-freq-badge freq-low">📭 Aperto</span>' : ''}
+                        ${item.is_opened ? `<span class="smart-freq-badge freq-low">${t('inventory.opened_badge')}</span>` : ''}
                         ${item.on_bring ? `<span class="smart-bring-badge">${t('shopping.bring_badge')}</span>` : ''}
                     </div>
                 </div>
@@ -7643,7 +7684,7 @@ async function loadShoppingList() {
     } catch (err) {
         console.error('Bring! error:', err);
         statusEl.style.display = 'block';
-        statusEl.innerHTML = '<div class="bring-error">⚠️ Errore di connessione a Bring!</div>';
+        statusEl.innerHTML = `<div class="bring-error">${t('error.bring_connection')}</div>`;
     }
 }
 
@@ -7698,12 +7739,12 @@ async function renderShoppingItems() {
     }
 
     // Build section groups, sorted by urgency weight within each section
-    const TAG_LABELS = { urgente: '🔴 Urgente', prio: '⭐ Priorità', check: '✅ Verificare' };
+    const TAG_LABELS = { urgente: t('shopping.tag_urgent'), prio: t('shopping.tag_priority'), check: t('shopping.tag_check') };
     const urgencyMap = {
-        critical: { icon: '🔴', label: 'Urgente', cls: 'badge-critical' },
-        high:     { icon: '🟠', label: 'Presto',  cls: 'badge-high' },
-        medium:   { icon: '🟡', label: 'Medio',   cls: 'badge-medium' },
-        low:      { icon: '🟢', label: 'Ok',       cls: 'badge-low' },
+        critical: { icon: '🔴', label: t('shopping.urgency_critical'), cls: 'badge-critical' },
+        high:     { icon: '🟠', label: t('shopping.urgency_high'),     cls: 'badge-high' },
+        medium:   { icon: '🟡', label: t('shopping.urgency_medium_short'), cls: 'badge-medium' },
+        low:      { icon: '🟢', label: t('shopping.urgency_low_short'), cls: 'badge-low' },
     };
 
     // Map each item to its section + urgency (strict first-token matching to avoid false positives)
@@ -7804,7 +7845,7 @@ async function renderShoppingItems() {
                 } else if (priceData && priceData.searched && !priceData.product) {
                     detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
                     spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Riprova">🔄 Riprova</button>
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="${t('btn.retry').replace('🔄 ', '')}">${t('btn.retry')}</button>
                     </div>`;
                 } else {
                     spesaBar = `<div class="spesa-bar">
@@ -8169,7 +8210,7 @@ async function scanExpiryWithAI() {
     // Create modal for camera capture
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>📷 Scansiona Data Scadenza</h3>
+            <h3>${t('add.scan_expiry_title')}</h3>
             <button class="modal-close" onclick="closeExpiryScanner()">✕</button>
         </div>
         <div class="expiry-scanner">
@@ -8181,14 +8222,14 @@ async function scanExpiryWithAI() {
             <div id="expiry-preview-container" style="display:none;height:180px;overflow:hidden;border-radius:10px">
                 <img id="expiry-preview-img" src="" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:10px">
             </div>
-            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem">Inquadra la data di scadenza stampata sul prodotto</p>
+            <p class="form-hint" style="text-align:center;margin:6px 0;font-size:0.8rem">${t('scanner.expiry_label_hint')}</p>
             <div id="expiry-scan-status" style="display:none;text-align:center;padding:8px">
                 <div class="loading-spinner" style="margin:0 auto 6px"></div>
-                <p>🤖 Analisi AI in corso...</p>
+                <p>${t('scanner.ai_analyzing')}</p>
             </div>
             <div class="expiry-scanner-actions">
-                <button class="btn btn-large btn-accent full-width" id="expiry-capture-btn" onclick="captureExpiry()">📸 Scatta Foto</button>
-                <button class="btn btn-large btn-secondary full-width" id="expiry-retake-btn" onclick="retakeExpiry()" style="display:none">🔄 Riscatta</button>
+                <button class="btn btn-large btn-accent full-width" id="expiry-capture-btn" onclick="captureExpiry()">${t('scanner.capture_photo_btn')}</button>
+                <button class="btn btn-large btn-secondary full-width" id="expiry-retake-btn" onclick="retakeExpiry()" style="display:none">${t('scanner.retake_btn')}</button>
             </div>
         </div>
     `;
@@ -8269,7 +8310,7 @@ function retakeExpiry() {
 async function analyzeExpiryImage(dataUrl) {
     const statusDiv = document.getElementById('expiry-scan-status');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="loading-spinner" style="margin:0 auto 8px"></div><p>🤖 Analisi AI in corso...</p>';
+    statusDiv.innerHTML = `<div class="loading-spinner" style="margin:0 auto 8px"></div><p>${t('scanner.ai_analyzing')}</p>`;
     
     try {
         // Remove data:image/jpeg;base64, prefix
@@ -8291,12 +8332,12 @@ async function analyzeExpiryImage(dataUrl) {
             statusDiv.innerHTML = `<p style="color:var(--warning)">⚠️ Chiave API Gemini non configurata.<br><small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small></p>`;
         } else {
             statusDiv.innerHTML = `<p style="color:var(--danger)">❌ Non riesco a leggere la data. ${result.raw_text ? '<br><small>Letto: ' + escapeHtml(result.raw_text) + '</small>' : ''}</p>
-                <button class="btn btn-secondary" onclick="retakeExpiry()" style="margin-top:8px">🔄 Riprova</button>`;
+                <button class="btn btn-secondary" onclick="retakeExpiry()" style="margin-top:8px">${t('btn.retry')}</button>`;
         }
     } catch (err) {
         console.error('Expiry AI error:', err);
-        statusDiv.innerHTML = `<p style="color:var(--danger)">❌ Errore di connessione. Riprova.</p>
-            <button class="btn btn-secondary" onclick="retakeExpiry()" style="margin-top:8px">🔄 Riprova</button>`;
+        statusDiv.innerHTML = `<p style="color:var(--danger)">❌ ${t('error.network_retry')}</p>
+            <button class="btn btn-secondary" onclick="retakeExpiry()" style="margin-top:8px">${t('btn.retry')}</button>`;
     }
 }
 
@@ -8310,14 +8351,16 @@ function escapeHtml(str) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+    const _loc1 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    return d.toLocaleDateString(_loc1, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatDateTime(dtStr) {
     if (!dtStr) return '';
     const d = new Date(dtStr.replace(' ', 'T'));
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + ' ' + 
-           d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    const _loc2 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    return d.toLocaleDateString(_loc2, { day: '2-digit', month: 'short' }) + ' ' + 
+           d.toLocaleTimeString(_loc2, { hour: '2-digit', minute: '2-digit' });
 }
 
 function daysUntilExpiry(dateStr) {
@@ -8364,13 +8407,14 @@ async function loadLog(more = false) {
 
         let html = '';
         if (!more && txns.length === 0) {
-            html = '<p style="text-align:center;color:var(--text-muted)">Nessuna operazione registrata.</p>';
+            html = `<p style="text-align:center;color:var(--text-muted)">${t('log.empty')}</p>`;
         } else {
             let lastDate = more ? '' : null;
-            txns.forEach(t => {
-                const dt = new Date(t.created_at + 'Z');
-                const dateStr = dt.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                const timeStr = dt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+            const _logLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+            txns.forEach(tx => {
+                const dt = new Date(tx.created_at + 'Z');
+                const dateStr = dt.toLocaleDateString(_logLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                const timeStr = dt.toLocaleTimeString(_logLocale, { hour: '2-digit', minute: '2-digit' });
 
                 if (dateStr !== lastDate) {
                     html += `<div class="log-date-header">${dateStr}</div>`;
@@ -8378,42 +8422,42 @@ async function loadLog(more = false) {
                 }
 
                 let icon, typeLabel, colorClass;
-                if (t.type === 'bring') {
+                if (tx.type === 'bring') {
                     icon = '🛒';
-                    typeLabel = 'Aggiunto a Bring!';
+                    typeLabel = t('log.type_bring');
                     colorClass = 'log-bring';
-                } else if (t.type === 'in') {
+                } else if (tx.type === 'in') {
                     icon = '➕';
-                    typeLabel = 'Aggiunto';
+                    typeLabel = t('log.type_added');
                     colorClass = 'log-in';
                 } else {
                     icon = '➖';
-                    typeLabel = t.type === 'waste' ? 'Buttato' : 'Usato';
+                    typeLabel = tx.type === 'waste' ? t('log.type_waste') : t('log.type_used');
                     colorClass = 'log-out';
                 }
-                const brand = t.brand ? ` <em>(${t.brand})</em>` : '';
-                const loc = t.location || '';
-                const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '❄️ Freezer', 'dispensa': '🗄️ Dispensa' };
-                const locStr = t.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
-                const isAnnotation = (t.notes || '').includes('[Annullato]');
-                const isRecipeNote = !isAnnotation && (t.notes || '').startsWith('Ricetta:');
-                const notes = t.notes && !isAnnotation && !isRecipeNote ? ` · ${t.notes}` : '';
-                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(t.notes)}</div>` : '';
-                const undone = t.undone == 1 || isAnnotation;
+                const brand = tx.brand ? ` <em>(${tx.brand})</em>` : '';
+                const loc = tx.location || '';
+                const locLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
+                const locStr = tx.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
+                const isAnnotation = (tx.notes || '').includes('[Annullato]');
+                const isRecipeNote = !isAnnotation && (tx.notes || '').startsWith('Ricetta:');
+                const notes = tx.notes && !isAnnotation && !isRecipeNote ? ` · ${tx.notes}` : '';
+                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(tx.notes)}</div>` : '';
+                const undone = tx.undone == 1 || isAnnotation;
 
                 // Can undo if within 24h, not already undone, not a bring entry, not a counter-transaction
-                const ageMs = Date.now() - new Date(t.created_at + 'Z').getTime();
-                const canUndo = !undone && t.type !== 'bring' && ageMs < 86400000;
+                const ageMs = Date.now() - new Date(tx.created_at + 'Z').getTime();
+                const canUndo = !undone && tx.type !== 'bring' && ageMs < 86400000;
 
-                html += `<div class="log-entry ${colorClass}${undone ? ' log-undone' : ''}" id="log-entry-${t.id}">`;
+                html += `<div class="log-entry ${colorClass}${undone ? ' log-undone' : ''}" id="log-entry-${tx.id}">`;
                 html += `<span class="log-icon">${icon}</span>`;
                 html += `<div class="log-info">`;
-                html += `<div class="log-product"><strong>${escapeHtml(t.name)}</strong>${brand}${undone ? ' <span class="log-undone-badge">Annullato</span>' : ''}</div>`;
-                html += `<div class="log-detail">${typeLabel} ${t.type !== 'bring' ? (t.quantity + ' ' + (t.unit || '')) + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
+                html += `<div class="log-product"><strong>${escapeHtml(tx.name)}</strong>${brand}${undone ? ` <span class="log-undone-badge">${t('log.undone_badge')}</span>` : ''}</div>`;
+                html += `<div class="log-detail">${typeLabel} ${tx.type !== 'bring' ? (tx.quantity + ' ' + (tx.unit || '')) + ' · ' : ''}${locStr}${notes} · ${timeStr}</div>`;
                 html += recipeNote;
                 html += `</div>`;
                 if (canUndo) {
-                    html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${t.id}, '${escapeHtml(t.type)}', '${escapeHtml(t.name || '')}')" title="Annulla questa operazione">↩</button>`;
+                    html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${tx.id}, '${escapeHtml(tx.type)}', '${escapeHtml(tx.name || '')}')" title="${t('log.undo_title')}">↩</button>`;
                 }
                 html += `</div>`;
             });
@@ -8430,17 +8474,17 @@ async function loadLog(more = false) {
 
     } catch (err) {
         console.error('Log load error:', err);
-        if (!more) document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--danger)">Errore nel caricamento log</p>';
+        if (!more) document.getElementById('log-list').innerHTML = `<p style="text-align:center;color:var(--danger)">${t('log.load_error')}</p>`;
     }
 }
 
 async function undoTransactionEntry(id, type, name) {
-    const action = type === 'in' ? 'rimozione di' : 'ripristino di';
-    if (!confirm(`Annullare questa operazione?\n→ ${action} ${name}`)) return;
+    const action = type === 'in' ? t('log.undo_action_remove') : t('log.undo_action_restore');
+    if (!confirm(t('log.undo_confirm').replace('{action}', action).replace('{name}', name))) return;
     try {
         const res = await api('transaction_undo', {}, 'POST', { id });
         if (res.success) {
-            showToast(`↩ Operazione annullata per ${res.name || name}`, 'success');
+            showToast(t('log.undo_success').replace('{name}', res.name || name), 'success');
             // Mark the entry visually without reloading all
             const el = document.getElementById(`log-entry-${id}`);
             if (el) {
@@ -8449,18 +8493,18 @@ async function undoTransactionEntry(id, type, name) {
                 if (undoBtn) undoBtn.remove();
                 const nameEl = el.querySelector('.log-product strong');
                 if (nameEl && !el.querySelector('.log-undone-badge')) {
-                    nameEl.insertAdjacentHTML('afterend', ' <span class="log-undone-badge">Annullato</span>');
+                    nameEl.insertAdjacentHTML('afterend', ` <span class="log-undone-badge">${t('log.undone_badge')}</span>`);
                 }
             }
         } else if (res.already_undone) {
-            showToast('Operazione già annullata', 'info');
+            showToast(t('log.already_undone'), 'info');
         } else if (res.too_old) {
-            showToast('Non è possibile annullare operazioni più vecchie di 24 ore', 'error');
+            showToast(t('log.too_old'), 'error');
         } else {
-            showToast(res.error || 'Errore durante l\'annullamento', 'error');
+            showToast(res.error || t('log.undo_error'), 'error');
         }
     } catch (e) {
-        showToast('Errore di connessione', 'error');
+        showToast(t('error.network'), 'error');
     }
 }
 
@@ -8722,9 +8766,10 @@ async function loadRecipeArchive() {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     
     for (const [date, entries] of Object.entries(byDate)) {
-        let dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-        if (date === today) dateLabel = '📅 Oggi';
-        else if (date === yesterday) dateLabel = '📅 Ieri';
+        const _mealLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        let dateLabel = new Date(date + 'T12:00:00').toLocaleDateString(_mealLocale, { weekday: 'long', day: 'numeric', month: 'long' });
+        if (date === today) dateLabel = t('date.today');
+        else if (date === yesterday) dateLabel = t('date.yesterday');
         
         html += `<div class="recipe-archive-day">`;
         html += `<div class="recipe-archive-date">${escapeHtml(dateLabel)}</div>`;
@@ -9068,7 +9113,7 @@ async function submitRecipeUse(useAll) {
         if (result.success) {
             const li = document.getElementById(`recipe-ing-${idx}`);
             if (li) li.classList.add('recipe-ing-used');
-            btn.textContent = '✔️ Scalato';
+            btn.textContent = t('cooking.ingredient_used');
             btn.classList.add('btn-used');
             
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
@@ -9093,13 +9138,13 @@ async function submitRecipeUse(useAll) {
             setTimeout(() => showLowStockBringPrompt(result, moveCallback), 300);
         } else {
             btn.disabled = false;
-            btn.textContent = '📦 Usa';
-            showToast(result.error || 'Errore nello scalare', 'error');
+            btn.textContent = t('cooking.ingredient_use_btn');
+            showToast(result.error || t('error.generic'), 'error');
         }
     } catch (err) {
         console.error('Recipe use error:', err);
         btn.disabled = false;
-        btn.textContent = '📦 Usa';
+        btn.textContent = t('cooking.ingredient_use_btn');
         showToast(t('error.connection'), 'error');
     }
     _recipeUseContext = null;
@@ -9113,15 +9158,15 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
     const vacuumRow = wasVacuum ? `
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
             <input type="checkbox" id="move-vacuum-check" checked>
-            <span>🫙 Torna sotto vuoto</span>
+            <span>${t('move.vacuum_restore')}</span>
         </label>` : '';
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>📦 Spostare il resto?</h3>
+            <h3>${t('move.title')}</h3>
             <button class="modal-close" onclick="clearMoveModalTimer();closeModal()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px">Vuoi spostare ${openedId ? 'la confezione aperta' : 'il resto'} in un'altra posizione?</p>
+            <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
             <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
@@ -9201,17 +9246,17 @@ function renderRecipe(r) {
                 const exp = new Date(ing.expiry_date);
                 const now = new Date(); now.setHours(0,0,0,0);
                 const diffDays = Math.round((exp - now) / 86400000);
-                if (diffDays < 0) details.push(`⛔ Scaduto da ${Math.abs(diffDays)}g`);
-                else if (diffDays <= 3) details.push(`🔴 Scade tra ${diffDays}g`);
-                else if (diffDays <= 7) details.push(`🟡 Scade tra ${diffDays}g`);
-                else details.push(`📅 ${exp.toLocaleDateString('it-IT')}`);
+                if (diffDays < 0) details.push(t('expiry.badge_expired_ago').replace('{n}', Math.abs(diffDays)));
+                else if (diffDays <= 3) details.push(t('expiry.badge_expires_red').replace('{n}', diffDays));
+                else if (diffDays <= 7) details.push(t('expiry.badge_expires_yellow').replace('{n}', diffDays));
+                else details.push('📅 ' + exp.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT'));
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
             html += `</span>`;
             if (alreadyUsed) {
-                html += `<button class="btn-use-ingredient btn-used" disabled>✔️ Scalato</button>`;
+                html += `<button class="btn-use-ingredient btn-used" disabled>${t('cooking.ingredient_used')}</button>`;
             } else {
-                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="Scala dalla dispensa">📦 Usa</button>`;
+                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="${t('cooking.ingredient_deduct_title')}">${t('cooking.ingredient_use_btn')}</button>`;
             }
             html += `</li>`;
         } else {
@@ -9264,6 +9309,10 @@ function startCookingMode() {
     document.body.classList.add('cooking-mode-active');
     try { screen.orientation?.lock('portrait'); } catch (_) { /* ignore */ }
     renderCookingStep();
+    if (_cookingTTS) {
+        const text = ((_cookingRecipe.steps || [])[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        speakCookingStep(text);
+    }
 }
 function closeCookingMode() {
     document.getElementById('cooking-overlay').style.display = 'none';
@@ -9350,8 +9399,8 @@ function renderCookingStep() {
     // Timer: detect duration in step text and show suggestion
     setupCookingTimerSuggestion(cleanStep);
 
-    // TTS: only speak when explicitly requested via "Rileggi" button
-    // (auto-speak removed — use replayCookingTTS() to trigger manually)
+    // TTS: auto-speak is handled by navigateCookingStep() and startCookingMode() callers.
+    // Use replayCookingTTS() to re-read the current step manually ("Rileggi" button).
 }
 
 function _buildTtsRequest(text, s) {
@@ -9398,13 +9447,14 @@ async function _ttsViaProxy(req) {
 async function speakCookingStep(text) {
     if (!text) return;
     const s = getSettings();
-    if (!s.tts_enabled) return;
+    // Use custom TTS endpoint only when explicitly configured; otherwise always use browser TTS.
+    // Do NOT gate on s.tts_enabled — the _cookingTTS toggle in cooking mode is the only gate.
     try {
-        if ((s.tts_engine || 'browser') === 'browser') {
-            _speakBrowser(text);
-        } else {
+        if (s.tts_engine === 'custom' && s.tts_url) {
             const req = _buildTtsRequest(text, s);
             await _ttsViaProxy(req);
+        } else {
+            _speakBrowser(text);
         }
     } catch(e) { /* silent — TTS is non-critical */ }
 }
@@ -9693,6 +9743,9 @@ function toggleCookingTimerById(id) {
         t.running = true;
         t.interval = setInterval(() => {
             t.seconds--;
+            if (t.seconds === 10 && _cookingTTS) {
+                speakCookingStep(t('cooking.timer_warning_tts').replace('{label}', t.label));
+            }
             if (t.seconds === 0) _cookingTimerDoneById(id);
             _updateTimerCard(id);
         }, 1000);
@@ -9712,8 +9765,8 @@ function resetCookingTimerById(id) {
 
 function _cookingTimerDoneById(id) {
     if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
-    const t = _cookingTimers.find(t => t.id === id);
-    if (_cookingTTS && t) speakCookingStep(`Timer ${t.label} scaduto!`);
+    const timer = _cookingTimers.find(ti => ti.id === id);
+    if (_cookingTTS && timer) speakCookingStep(t('cooking.timer_expired_tts').replace('{label}', timer.label));
 }
 
 function _updateTimerCard(id) {
@@ -9809,13 +9862,21 @@ function navigateCookingStep(delta) {
     const next = _cookingStep + delta;
     if (next < 0) return;
     if (next >= total) {
-        // All steps done: mark all visited, close overlay
+        // All steps done: mark all visited, announce completion, then close overlay
         for (let i = 0; i < total; i++) _cookingVisited.add(i);
+        if (_cookingTTS) {
+            const doneText = t('cooking.recipe_done_tts').replace('{title}', _cookingRecipe.title || '');
+            speakCookingStep(doneText);
+        }
         closeCookingMode();
         return;
     }
     _cookingStep = next;
     renderCookingStep();
+    if (_cookingTTS) {
+        const text = ((_cookingRecipe.steps || [])[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        speakCookingStep(text);
+    }
 }
 
 function cookingUseIngredient(idx, productId, location, qtyNumber, btn) {
@@ -10131,7 +10192,7 @@ async function sendChatMessage() {
         }
     } catch(err) {
         typingEl.remove();
-        appendChatBubble('gemini', '⚠️ Errore di connessione');
+        appendChatBubble('gemini', '⚠️ ' + t('error.connection'));
     }
     
     btn.disabled = false;
@@ -10204,17 +10265,17 @@ function clearChat() {
     container.innerHTML = `
         <div class="chat-welcome">
             <svg class="gemini-icon-lg" viewBox="0 0 24 24" width="48" height="48" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
-            <h3>Ciao! Sono il tuo assistente cucina</h3>
-            <p>Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!</p>
+            <h3>${t('chat.welcome')}</h3>
+            <p>${t('chat.welcome_desc')}</p>
             <div class="chat-suggestions">
-                <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa posso preparare per uno spuntino veloce?')">🍿 Spuntino veloce</button>
-                <button class="chat-suggestion" onclick="sendChatSuggestion('Fammi un succo o frullato con quello che ho')">🥤 Succo/Frullato</button>
-                <button class="chat-suggestion" onclick="sendChatSuggestion('Ho fame ma voglio qualcosa di leggero')">🥗 Qualcosa di leggero</button>
-                <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa sta per scadere e come posso usarlo?')">⏰ Usa le scadenze</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_snack_text'))">${t('chat.suggestion_snack')}</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_juice_text'))">${t('chat.suggestion_juice')}</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_light_text'))">${t('chat.suggestion_light')}</button>
+                <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_expiry_text'))">${t('chat.suggestion_expiry')}</button>
             </div>
         </div>
     `;
-    showToast('Chat cancellata', 'success');
+    showToast(t('chat.cleared'), 'success');
 }
 
 function saveChatHistory() {
@@ -10266,8 +10327,9 @@ function activateScreensaver() {
 
 function updateScreensaverClock() {
     const now = new Date();
-    const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    const date = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const _ssLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    const time = now.toLocaleTimeString(_ssLocale, { hour: '2-digit', minute: '2-digit' });
+    const date = now.toLocaleDateString(_ssLocale, { weekday: 'long', day: 'numeric', month: 'long' });
     const el = document.getElementById('screensaver-clock');
     if (el) el.innerHTML = `${time}<div class="screensaver-date">${date}</div>`;
     updateScreensaverMealPlan();
@@ -10744,7 +10806,7 @@ function spesaModeAfterAdd() {
 
 function _spesaBannerStat() {
     const n = _spesaSession.length;
-    if (n === 0) return '🛒 Nessun prodotto ancora';
+    if (n === 0) return t('shopping.session_empty');
     const cats = {};
     _spesaSession.forEach(p => { const c = p.category || 'altro'; cats[c] = (cats[c]||0)+1; });
     const topCat = Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];

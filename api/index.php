@@ -1972,6 +1972,23 @@ function callGemini(string $url, array $payload, int $timeout = 60): array {
     ];
 }
 
+/**
+ * Like callGemini() but tries gemini-2.5-flash first, falls back to gemini-2.0-flash
+ * on quota/rate-limit errors (429/503). Builds the URL from model name + API key.
+ */
+function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30): array {
+    $models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    $last = ['http_code' => 0, 'body' => '', 'data' => null];
+    foreach ($models as $model) {
+        $url  = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $last = callGemini($url, $payload, $timeout);
+        if ($last['http_code'] === 200) return $last;
+        if ($last['http_code'] !== 429 && $last['http_code'] !== 503) return $last; // non-retryable
+        // 429/503 on this model → try next model
+    }
+    return $last;
+}
+
 function geminiReadExpiry(): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
@@ -1988,8 +2005,6 @@ function geminiReadExpiry(): void {
     }
     
     // Call Gemini API
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    
     $payload = [
         'contents' => [
             [
@@ -2012,7 +2027,7 @@ function geminiReadExpiry(): void {
         ]
     ];
     
-    $result   = callGemini($url, $payload, 30);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30);
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -2161,8 +2176,6 @@ PROMPT;
         'parts' => [['text' => $message]]
     ];
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => $contents,
         'generationConfig' => [
@@ -2171,7 +2184,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGemini($url, $payload, 60);
+    $result   = callGeminiWithFallback($apiKey, $payload, 60);
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -2562,8 +2575,6 @@ Rispondi SOLO JSON valido (no markdown):
 {"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
 PROMPT;
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => [
             [
@@ -2578,7 +2589,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGemini($url, $payload, 60);
+    $result   = callGeminiWithFallback($apiKey, $payload, 60);
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -3337,8 +3348,6 @@ Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 }
 PROMPT;
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => [
             [
@@ -3359,7 +3368,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGemini($url, $payload, 30);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30);
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -3638,8 +3647,6 @@ function _geminiClassifyProduct(string $name, string $brand, string $category): 
     $cacheKey = md5(mb_strtolower($name . '|' . $brand));
     if (isset($cache[$cacheKey])) return $cache[$cacheKey];
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     // Build catalog list so Gemini picks an existing Bring! entry when possible
     $catalog = bringCatalog();
     $catalogList = implode(', ', array_slice(array_values($catalog['de2it']), 0, 200));
@@ -3668,7 +3675,7 @@ PROMPT;
         'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
     ];
 
-    $result = callGemini($url, $payload, 15);
+    $result = callGeminiWithFallback($apiKey, $payload, 15);
     if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) return null;
 
     $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');

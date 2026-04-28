@@ -16,12 +16,12 @@
 
 ### 📦 Inventory Management
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS
-- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory
+- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
 - **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
-- **Opened product tracking** — Reduced shelf-life calculation when packages are opened
+- **Opened product tracking** — Reduced shelf-life calculation when packages are opened; opened-product expiry is now also checked when building banner alerts (not just the dashboard section)
 - **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items
-- **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction
+- **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction; dismiss button now shows the current inventory quantity so the action is unambiguous ("La quantità è giusta (2 pz)")
 
 ### 🤖 AI-Powered (Google Gemini)
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
@@ -30,6 +30,7 @@
 - **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions** — AI-powered purchase recommendations
+- **Model fallback** — All AI endpoints try `gemini-2.5-flash` first (separate quota) and fall back to `gemini-2.0-flash` automatically, matching the resilience already used for recipe generation
 
 ### 🛒 Shopping List
 - **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
@@ -41,14 +42,18 @@
 
 ### 🍳 Cooking Mode
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
-- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.); retries voice loading for up to 10 seconds with a fallback refresh button
+- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.); retries voice loading for up to 10 seconds with a fallback refresh button; TTS activates automatically without requiring the global TTS setting to be enabled
+- **Auto-read on navigate** — Each step is read aloud automatically when you tap Next or Previous; the first step is read when entering cooking mode
+- **Timer voice alerts** — 10-second countdown warning spoken aloud before each timer expires; expiry announced vocally when time is up
+- **Recipe completion** — "Buon appetito!" spoken when the last step is confirmed
 - **Built-in timer** — Automatic timer suggestions based on recipe instructions
 - **Ingredient tracking** — Mark ingredients as used during cooking; leftover quantities prompt a "move to another location" flow
 
 ### 📊 Dashboard
 - **Waste tracking** — Monitor consumed vs. wasted products over 30 days
 - **Expiry alerts** — Visual warnings for expired and soon-to-expire items
-- **Safety ratings** — Smart assessment of expired product safety (by category)
+- **Safety ratings** — Smart assessment of expired product safety (by category and location); expired unsafe items shown with a red danger banner and "L'ho buttato" as the primary action
+- **Expired product banner** — Products that have passed their effective shelf-life (including opened-product reduced expiry) appear in the top notification banner with safety tip, danger styling for high-risk items, and a prominent discard action
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
 - **Anomaly banner** — Scrollable banner with suspicious quantities and consumption prediction mismatches, with one-tap correction or inline edit
 - **Expired/expiring alerts** — Priority-sorted banner notifications for expired and soon-to-expire products with use, throw, edit, and dismiss actions

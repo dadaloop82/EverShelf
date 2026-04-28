@@ -5679,3 +5679,36 @@ body {
     background: #fee2e2;
     color: #dc2626;
 }
+.alert-banner.banner-expired-danger {
+    background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+    border-color: #b91c1c;
+    border-width: 2px;
+}
+.banner-expired-danger .alert-banner-title {
+    color: #7f1d1d;
+}
+.banner-safety-tip {
+    display: inline-block;
+    font-size: 0.82em;
+    margin-top: 1px;
+}
+.banner-safety-danger {
+    color: #b91c1c;
+    font-weight: 600;
+}
+.banner-safety-warning {
+    color: #92400e;
+}
+.banner-safety-ok {
+    color: #166534;
+}
+.btn-banner-throw-primary {
+    background: #dc2626;
+    color: #fff;
+    font-weight: 600;
+}
+.btn-banner-use-danger {
+    background: #f3f4f6;
+    color: #9ca3af;
+    font-size: 0.8em;
+}
