@@ -27,7 +27,7 @@
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
 - **Product identification** — Point your camera at any product for instant recognition
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
-- **Recipe generation** — Get personalized recipes based on what's in your pantry
+- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions** — AI-powered purchase recommendations
 
@@ -36,12 +36,12 @@
 - **Generic shopping names** — Products are grouped by type ("Latte", "Affettato", "Panna da cucina") rather than brand, keeping the Bring! list clean and consolidated
 - **Smart predictions** — Know what you'll need before you run out
 - **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
-- **Auto-remove on scan** — Products are removed from the shopping list when scanned in
-- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
+- **Auto-remove on scan** — Products are removed from the shopping list when scanned in  - **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
+  - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
 
 ### 🍳 Cooking Mode
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
-- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.)
+- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.); retries voice loading for up to 10 seconds with a fallback refresh button
 - **Built-in timer** — Automatic timer suggestions based on recipe instructions
 - **Ingredient tracking** — Mark ingredients as used during cooking; leftover quantities prompt a "move to another location" flow
 
@@ -65,8 +65,7 @@
 - **SSE relay** — Server-side relay avoids mixed-content (HTTPS→WS) issues
 - **Auto-discovery** — Server scans LAN to find the gateway automatically
 - **Auto weight reading** — When adding/using a product with unit g/ml, weight fills automatically
-- **10g threshold** — Ignores readings that haven't changed enough between products
-- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
+- **10g threshold** — Ignores readings that haven't changed enough between products  - **Duplicate-reading prevention** — Server-side 12-second dedup window rejects a second scale-triggered deduction of the same product, guarding against BLE multi-fire- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
 - **Stability + auto-confirm** — 10s stable wait + 5s countdown before confirming
 - **Real-time status** — Scale connection indicator always visible in the header
 - **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
