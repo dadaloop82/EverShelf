@@ -959,10 +959,10 @@ function changeLanguage(lang) {
 }
 
 const LOCATIONS = {
-    'dispensa': { icon: '🗄️', label: 'Dispensa' },
-    'frigo': { icon: '🧊', label: 'Frigo' },
-    'freezer': { icon: '❄️', label: 'Freezer' },
-    'altro': { icon: '📦', label: 'Altro' },
+    'dispensa': { icon: '🗄️', label: t('locations.dispensa') },
+    'frigo': { icon: '🧊', label: t('locations.frigo') },
+    'freezer': { icon: '❄️', label: t('locations.freezer') },
+    'altro': { icon: '📦', label: t('locations.altro') },
 };
 const CATEGORY_ICONS = {
     'latticini': '🥛', 'carne': '🥩', 'pesce': '🐟', 'frutta': '🍎',
@@ -982,16 +982,16 @@ const CATEGORY_LOCATION = {
 
 // Shopping section (reparto) map — groups categories into grocery departments
 const SHOPPING_SECTIONS = [
-    { key: 'frutta_verdura', icon: '🥬', label: 'Frutta & Verdura', cats: new Set(['frutta','verdura']) },
-    { key: 'carne_pesce',    icon: '🥩', label: 'Carne & Pesce',    cats: new Set(['carne','pesce']) },
-    { key: 'latticini',      icon: '🥛', label: 'Latticini & Fresco', cats: new Set(['latticini']) },
-    { key: 'pane_dolci',     icon: '🍞', label: 'Pane & Dolci',     cats: new Set(['pane','snack','cereali']) },
-    { key: 'pasta',          icon: '🍝', label: 'Pasta & Cereali',  cats: new Set(['pasta']) },
-    { key: 'conserve',       icon: '🥫', label: 'Conserve & Salse', cats: new Set(['conserve','condimenti']) },
-    { key: 'surgelati',      icon: '❄️',  label: 'Surgelati',        cats: new Set(['surgelati']) },
-    { key: 'bevande',        icon: '🥤', label: 'Bevande',          cats: new Set(['bevande']) },
-    { key: 'pulizia_igiene', icon: '🧴', label: 'Pulizia & Igiene', cats: new Set(['igiene','pulizia']) },
-    { key: 'altro',          icon: '📦', label: 'Altro',            cats: new Set(['altro']) },
+    { key: 'frutta_verdura', icon: '🥬', label: t('shopping_sections.frutta_verdura'), cats: new Set(['frutta','verdura']) },
+    { key: 'carne_pesce',    icon: '🥩', label: t('shopping_sections.carne_pesce'),    cats: new Set(['carne','pesce']) },
+    { key: 'latticini',      icon: '🥛', label: t('shopping_sections.latticini'),      cats: new Set(['latticini']) },
+    { key: 'pane_dolci',     icon: '🍞', label: t('shopping_sections.pane_dolci'),     cats: new Set(['pane','snack','cereali']) },
+    { key: 'pasta',          icon: '🍝', label: t('shopping_sections.pasta'),          cats: new Set(['pasta']) },
+    { key: 'conserve',       icon: '🥫', label: t('shopping_sections.conserve'),       cats: new Set(['conserve','condimenti']) },
+    { key: 'surgelati',      icon: '❄️',  label: t('shopping_sections.surgelati'),      cats: new Set(['surgelati']) },
+    { key: 'bevande',        icon: '🥤', label: t('shopping_sections.bevande'),        cats: new Set(['bevande']) },
+    { key: 'pulizia_igiene', icon: '🧴', label: t('shopping_sections.pulizia_igiene'), cats: new Set(['igiene','pulizia']) },
+    { key: 'altro',          icon: '📦', label: t('shopping_sections.altro'),          cats: new Set(['altro']) },
 ];
 
 function getItemSection(name) {
@@ -1150,14 +1150,14 @@ function getExpiredSafety(item, daysExpired) {
     return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_lowRisk_danger') };
 }
 
-// Nice Italian labels for local categories
+// Localized labels for local categories
 const CATEGORY_LABELS = {
-    'latticini': '🥛 Latticini', 'carne': '🥩 Carne', 'pesce': '🐟 Pesce',
-    'frutta': '🍎 Frutta', 'verdura': '🥬 Verdura', 'pasta': '🍝 Pasta & Riso',
-    'pane': '🍞 Pane & Forno', 'surgelati': '🧊 Surgelati', 'bevande': '🥤 Bevande',
-    'condimenti': '🧂 Condimenti', 'snack': '🍪 Snack & Dolci', 'conserve': '🥫 Conserve',
-    'cereali': '🌾 Cereali & Legumi', 'igiene': '🧴 Igiene', 'pulizia': '🧹 Pulizia',
-    'altro': '📦 Altro'
+    'latticini': `🥛 ${t('categories.latticini')}`, 'carne': `🥩 ${t('categories.carne')}`, 'pesce': `🐟 ${t('categories.pesce')}`,
+    'frutta': `🍎 ${t('categories.frutta')}`, 'verdura': `🥬 ${t('categories.verdura')}`, 'pasta': `🍝 ${t('categories.pasta')}`,
+    'pane': `🍞 ${t('categories.pane')}`, 'surgelati': `🧊 ${t('categories.surgelati')}`, 'bevande': `🥤 ${t('categories.bevande')}`,
+    'condimenti': `🧂 ${t('categories.condimenti')}`, 'snack': `🍪 ${t('categories.snack')}`, 'conserve': `🥫 ${t('categories.conserve')}`,
+    'cereali': `🌾 ${t('categories.cereali')}`, 'igiene': `🧴 ${t('categories.igiene')}`, 'pulizia': `🧹 ${t('categories.pulizia')}`,
+    'altro': `📦 ${t('categories.altro')}`
 };
 
 // Detect best unit/quantity from Open Food Facts quantity_info string
@@ -1946,17 +1946,17 @@ async function saveSettings() {
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
             statusEl.className = 'settings-status success';
-            statusEl.textContent = '✅ Configurazione salvata!';
+            statusEl.textContent = `✅ ${t('settings.saved')}`;
         } else {
             statusEl.className = 'settings-status error';
-            statusEl.textContent = '⚠️ Salvato localmente, errore server: ' + (result.error || '');
+            statusEl.textContent = `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
         }
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     } catch(e) {
         const statusEl = document.getElementById('settings-status');
         statusEl.className = 'settings-status success';
-        statusEl.textContent = '✅ Configurazione salvata localmente';
+        statusEl.textContent = `✅ ${t('settings.saved_local')}`;
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
@@ -4653,7 +4653,7 @@ function editProductFromAction() {
     document.getElementById('pf-notes').value = currentProduct.notes || '';
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
-    document.getElementById('product-form-title').textContent = 'Modifica Prodotto';
+    document.getElementById('product-form-title').textContent = t('product.title_edit');
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'none';
     // Keep barcode hint hidden in edit mode
@@ -7484,7 +7484,7 @@ async function migrateBringNames(btn) {
 async function addSmartToBring() {
     const checks = document.querySelectorAll('.smart-check:checked');
     if (checks.length === 0) {
-        showToast('Seleziona almeno un prodotto', 'info');
+        showToast(t('error.select_items'), 'info');
         return;
     }
 
@@ -8156,21 +8156,23 @@ function updateSuggestionActionBtn() {
     const selected = suggestionItems.filter(s => s.selected);
     const btn = document.querySelector('#suggestion-actions .btn-success');
     if (btn) {
-        btn.textContent = `✅ Aggiungi ${selected.length} prodott${selected.length === 1 ? 'o' : 'i'} a Bring!`;
-        btn.disabled = selected.length === 0;
+        const nItems = selected.length;
+        const prodStr = nItems === 1 ? 'prodotto' : 'prodotti';
+        btn.textContent = `✅ ${t('shopping.bring_add_n').replace('{n}', nItems + ' ' + prodStr)}!`;
+        btn.disabled = nItems === 0;
     }
 }
 
 async function addSelectedSuggestions() {
     const selected = suggestionItems.filter(s => s.selected);
     if (selected.length === 0) {
-        showToast('Seleziona almeno un prodotto', 'error');
+        showToast(t('error.select_items'), 'error');
         return;
     }
     
     const btn = document.querySelector('#suggestion-actions .btn-success');
     btn.disabled = true;
-    btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Aggiunta in corso...';
+    btn.innerHTML = `<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> ${t('shopping.bring_adding')}`;
     
     try {
         const items = selected.map(s => {
@@ -8180,8 +8182,8 @@ async function addSelectedSuggestions() {
         const data = await api('bring_add', {}, 'POST', { items, listUUID: shoppingListUUID });
         
         if (data.success) {
-            let msg = `${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`;
-            if (data.skipped > 0) msg += ` (${data.skipped} già in lista)`;
+            let msg = data.added === 1 ? t('shopping.bring_added_one') : t('shopping.bring_added_many').replace('{n}', data.added);
+            if (data.skipped > 0) msg += ` ${t('shopping.bring_skipped').replace('{n}', data.skipped)}`;
             showToast(msg, 'success');
             // Refresh list
             await loadShoppingList();
@@ -8198,7 +8200,7 @@ async function addSelectedSuggestions() {
     }
     
     btn.disabled = false;
-    btn.innerHTML = '✅ Aggiungi selezionati a Bring!';
+    btn.innerHTML = `✅ ${t('shopping.bring_add_selected')}`;
 }
 
 // ===== UTILITY FUNCTIONS =====
@@ -8515,28 +8517,28 @@ async function undoTransactionEntry(id, type, name) {
  * id must be URL-safe; icon + label shown in UI.
  */
 const MEAL_PLAN_TYPES = [
-    { id: 'pasta',      icon: '🍝', label: 'Pasta' },
-    { id: 'riso',       icon: '🍚', label: 'Riso' },
-    { id: 'carne',      icon: '🥩', label: 'Carne' },
-    { id: 'pesce',      icon: '🐟', label: 'Pesce' },
-    { id: 'legumi',     icon: '🫘', label: 'Legumi' },
-    { id: 'uova',       icon: '🥚', label: 'Uova' },
-    { id: 'formaggio',  icon: '🧀', label: 'Formaggio' },
-    { id: 'pizza',      icon: '🍕', label: 'Pizza' },
-    { id: 'affettati',  icon: '🥓', label: 'Affettati' },
-    { id: 'verdure',    icon: '🥦', label: 'Verdure' },
-    { id: 'zuppa',      icon: '🍲', label: 'Zuppa' },
-    { id: 'insalata',   icon: '🥗', label: 'Insalata' },
-    { id: 'pane',       icon: '🥪', label: 'Pane/Sandwich' },
-    { id: 'dolce',      icon: '🍰', label: 'Dolce' },
-    { id: 'libero',     icon: '🎲', label: 'Libero' },
+    { id: 'pasta',      icon: '🍝', label: t('meal_plan_types.pasta') },
+    { id: 'riso',       icon: '🍚', label: t('meal_plan_types.riso') },
+    { id: 'carne',      icon: '🥩', label: t('meal_plan_types.carne') },
+    { id: 'pesce',      icon: '🐟', label: t('meal_plan_types.pesce') },
+    { id: 'legumi',     icon: '🫘', label: t('meal_plan_types.legumi') },
+    { id: 'uova',       icon: '🥚', label: t('meal_plan_types.uova') },
+    { id: 'formaggio',  icon: '🧀', label: t('meal_plan_types.formaggio') },
+    { id: 'pizza',      icon: '🍕', label: t('meal_plan_types.pizza') },
+    { id: 'affettati',  icon: '🥓', label: t('meal_plan_types.affettati') },
+    { id: 'verdure',    icon: '🥦', label: t('meal_plan_types.verdure') },
+    { id: 'zuppa',      icon: '🍲', label: t('meal_plan_types.zuppa') },
+    { id: 'insalata',   icon: '🥗', label: t('meal_plan_types.insalata') },
+    { id: 'pane',       icon: '🥪', label: t('meal_plan_types.pane') },
+    { id: 'dolce',      icon: '🍰', label: t('meal_plan_types.dolce') },
+    { id: 'libero',     icon: '🎲', label: t('meal_plan_types.libero') },
 ];
 
 const MEAL_PLAN_TYPE_MAP = {};
-MEAL_PLAN_TYPES.forEach(t => { MEAL_PLAN_TYPE_MAP[t.id] = t; });
+MEAL_PLAN_TYPES.forEach(mpt => { MEAL_PLAN_TYPE_MAP[mpt.id] = mpt; });
 
 const WEEK_DAYS = [t('days.mon'),t('days.tue'),t('days.wed'),t('days.thu'),t('days.fri'),t('days.sat'),t('days.sun')];
-const WEEK_DAYS_SHORT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+const WEEK_DAYS_SHORT = [t('days.mon_short'),t('days.tue_short'),t('days.wed_short'),t('days.thu_short'),t('days.fri_short'),t('days.sat_short'),t('days.sun_short')];
 
 /** Default weekly plan as requested. */
 const DEFAULT_MEAL_PLAN = {
@@ -8590,8 +8592,8 @@ function renderMealPlanEditor() {
     const today = new Date().getDay();
 
     const header = `<div class="mplan-header">
-        <span class="mplan-col-header">🌤️ Pranzo</span>
-        <span class="mplan-col-header">🌙 Cena</span>
+        <span class="mplan-col-header">🌤️ ${t('meal_types.pranzo')}</span>
+        <span class="mplan-col-header">🌙 ${t('meal_types.cena')}</span>
     </div>`;
 
     const rows = dayOrder.map((dow, i) => {
@@ -8660,33 +8662,33 @@ function resetMealPlan() {
     s.meal_plan = JSON.parse(JSON.stringify(DEFAULT_MEAL_PLAN));
     saveSettingsToStorage(s);
     renderMealPlanEditor();
-    showToast('Piano settimanale ripristinato', 'success');
+    showToast(t('meal_plan.reset_success'), 'success');
 }
 
 // ===== RECIPE GENERATION =====
 const MEAL_TYPES = [
-    { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 11 },
-    { id: 'pranzo',     icon: '🍽️', label: 'Pranzo',           from: 11, to: 14 },
-    { id: 'merenda',    icon: '🍪', label: 'Merenda',          from: 14, to: 17 },
-    { id: 'cena',       icon: '🌙', label: 'Cena',             from: 17, to: 6  },
-    { id: 'dolce',      icon: '🍰', label: 'Dolce',            from: -1, to: -1 },
-    { id: 'succo',      icon: '🧃', label: 'Succo di Frutta',  from: -1, to: -1 },
+    { id: 'colazione',  icon: '☀️', label: t('meal_types.colazione'),  from: 6,  to: 11 },
+    { id: 'pranzo',     icon: '🍽️', label: t('meal_types.pranzo'),     from: 11, to: 14 },
+    { id: 'merenda',    icon: '🍪', label: t('meal_types.merenda'),    from: 14, to: 17 },
+    { id: 'cena',       icon: '🌙', label: t('meal_types.cena'),       from: 17, to: 6  },
+    { id: 'dolce',      icon: '🍰', label: t('meal_types.dolce'),      from: -1, to: -1 },
+    { id: 'succo',      icon: '🧃', label: t('meal_types.succo'),      from: -1, to: -1 },
 ];
 
 const MEAL_SUB_TYPES = {
     dolce: [
-        { id: 'torta',      icon: '🎂', label: 'Torta' },
-        { id: 'crema',      icon: '🍮', label: 'Crema / Budino' },
-        { id: 'crumble',    icon: '🥧', label: 'Crumble / Crostata' },
-        { id: 'biscotti',   icon: '🍪', label: 'Biscotti / Pasticcini' },
-        { id: 'frutta',     icon: '🍓', label: 'Dolce alla Frutta' },
+        { id: 'torta',      icon: '🎂', label: t('meal_sub.dolce_torta') },
+        { id: 'crema',      icon: '🍮', label: t('meal_sub.dolce_crema') },
+        { id: 'crumble',    icon: '🥧', label: t('meal_sub.dolce_crumble') },
+        { id: 'biscotti',   icon: '🍪', label: t('meal_sub.dolce_biscotti') },
+        { id: 'frutta',     icon: '🍓', label: t('meal_sub.dolce_frutta') },
     ],
     succo: [
-        { id: 'dolce',        icon: '🍑', label: 'Dolce / Fruttato' },
-        { id: 'energizzante', icon: '⚡', label: 'Energizzante' },
-        { id: 'detox',        icon: '🥬', label: 'Detox / Verde' },
-        { id: 'rinfrescante', icon: '🧊', label: 'Rinfrescante' },
-        { id: 'vitaminico',   icon: '🍊', label: 'Vitaminico / Agrumi' },
+        { id: 'dolce',        icon: '🍑', label: t('meal_sub.succo_dolce') },
+        { id: 'energizzante', icon: '⚡', label: t('meal_sub.succo_energizzante') },
+        { id: 'detox',        icon: '🥬', label: t('meal_sub.succo_detox') },
+        { id: 'rinfrescante', icon: '🧊', label: t('meal_sub.succo_rinfrescante') },
+        { id: 'vitaminico',   icon: '🍊', label: t('meal_sub.succo_vitaminico') },
     ]
 };
 
@@ -8749,7 +8751,7 @@ async function loadRecipeArchive() {
     _recipeArchiveEntries = archive;
     
     if (archive.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>Nessuna ricetta salvata.<br>Genera la tua prima ricetta!</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>${t('recipes.archive_empty')}</p></div>`;
         return;
     }
     
@@ -9240,8 +9242,8 @@ function renderRecipe(r) {
             html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
             // Detail line: location + expiry
             let details = [];
-            const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '🧊 Freezer', 'dispensa': '🗄️ Dispensa' };
-            details.push(locLabels[ing.location] || ('📍 ' + ing.location));
+            const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
+            details.push(ingredientLocLabels[ing.location] || ('📍 ' + ing.location));
             if (ing.expiry_date) {
                 const exp = new Date(ing.expiry_date);
                 const now = new Date(); now.setHours(0,0,0,0);
@@ -9362,19 +9364,19 @@ function renderCookingStep() {
 
     const ingsEl = document.getElementById('cooking-step-ings');
     if (ings.length > 0) {
-        const LOC_LABELS = { dispensa: '🏠 Dispensa', frigo: '❄️ Frigo', freezer: '🧊 Freezer' };
+        const cookingLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
         ingsEl.innerHTML = ings.map(ing => {
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const qtyNum = ing.qty_number || 0;
             // Build info chips: brand, location, expiry
             const chips = [];
             if (ing.brand) chips.push(`<span class="cooking-ing-chip">${escapeHtml(ing.brand)}</span>`);
-            const locLabel = LOC_LABELS[ing.location] || (ing.location ? `📍 ${ing.location}` : '🏠 Dispensa');
+            const locLabel = cookingLocLabels[ing.location] || (ing.location ? `📍 ${ing.location}` : `${LOCATIONS.dispensa.icon} ${LOCATIONS.dispensa.label}`);
             chips.push(`<span class="cooking-ing-chip">${locLabel}</span>`);
             if (ing.expiry_date) {
                 const daysLeft = Math.round((new Date(ing.expiry_date) - new Date()) / 86400000);
                 const expClass = daysLeft <= 3 ? 'exp-soon' : daysLeft <= 7 ? 'exp-close' : '';
-                chips.push(`<span class="cooking-ing-chip ${expClass}">📅 scade ${formatDate(ing.expiry_date)}</span>`);
+                chips.push(`<span class="cooking-ing-chip ${expClass}">📅 ${t('cooking.expires_chip').replace('{date}', formatDate(ing.expiry_date))}</span>`);
             }
             return `<div class="cooking-ing-row">
                 <div style="flex:1;min-width:0">
@@ -9942,26 +9944,26 @@ function _renderMealPlanHint(mealSlot) {
         if (chipWrap) chipWrap.style.display = 'none';
         return;
     }
-    const t = MEAL_PLAN_TYPE_MAP[typeId];
-    if (!t) {
+    const mpt = MEAL_PLAN_TYPE_MAP[typeId];
+    if (!mpt) {
         if (el) el.style.display = 'none';
         if (banner) banner.style.display = 'none';
         if (chipWrap) chipWrap.style.display = 'none';
         return;
     }
     if (el) {
-        el.innerHTML = `<span class="mplan-hint-badge">${t.icon} ${t.label}</span> <span class="mplan-hint-label">suggerito dal piano settimanale</span>`;
+        el.innerHTML = `<span class="mplan-hint-badge">${mpt.icon} ${mpt.label}</span> <span class="mplan-hint-label">${t('meal_plan.suggested_by')}</span>`;
         el.style.display = 'flex';
     }
     if (banner) {
-        const slotLabel = mealSlot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
-        banner.innerHTML = `<span style="opacity:0.75;font-weight:500">${slotLabel}</span><span style="opacity:0.45">·</span><span>${t.icon} ${t.label}</span>`;
+        const slotLabel = mealSlot === 'pranzo' ? '🌤️ ' + t('meal_types.pranzo') : '🌙 ' + t('meal_types.cena');
+        banner.innerHTML = `<span style="opacity:0.75;font-weight:500">${slotLabel}</span><span style="opacity:0.45">·</span><span>${mpt.icon} ${mpt.label}</span>`;
         banner.style.display = 'flex';
     }
     // Show the meal-plan chip (active by default, user can uncheck to ignore the plan)
     if (chipWrap) {
         chipWrap.style.display = '';
-        if (chipLabel) chipLabel.textContent = `${t.icon} ${t.label}`;
+        if (chipLabel) chipLabel.textContent = `${mpt.icon} ${mpt.label}`;
         if (chipCb) chipCb.checked = true;
     }
 }
@@ -10346,10 +10348,10 @@ function updateScreensaverMealPlan() {
     const slot = hour < 15 ? 'pranzo' : 'cena';
     const typeId = getTodayMealPlanType(slot);
     if (!typeId || typeId === 'libero') { el.style.display = 'none'; return; }
-    const t = MEAL_PLAN_TYPE_MAP[typeId];
-    if (!t) { el.style.display = 'none'; return; }
-    const slotLabel = slot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
-    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${t.icon} ${t.label}</span>`;
+    const mpt = MEAL_PLAN_TYPE_MAP[typeId];
+    if (!mpt) { el.style.display = 'none'; return; }
+    const slotLabel = slot === 'pranzo' ? '🌤️ ' + t('meal_types.pranzo') : '🌙 ' + t('meal_types.cena');
+    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${mpt.icon} ${mpt.label}</span>`;
     el.style.display = 'block';
 }
 
@@ -10814,15 +10816,15 @@ function _spesaBannerStat() {
     const unique = [...new Set(names)];
     const dupes = names.length - unique.length;
     const phrases = [
-        n === 1 ? `Primo prodotto: ${_spesaSession[0].name}!` : null,
-        n >= 2 && n < 5 ? `${n} prodotti — stai scaldando i motori 🚀` : null,
-        n >= 5 && n < 10 ? `${n} prodotti — ottimo ritmo! 💪` : null,
-        n >= 10 && n < 20 ? `${n} prodotti — quasi un recordman 🏆` : null,
-        n >= 20 ? `${n} prodotti — spesa epica! 🛒🔥` : null,
-        dupes > 0 ? `${dupes} bis ${dupes===1?'(stessa cosa due volte)':'(roba presa più volte)'}` : null,
-        topCat && topCat[1] > 1 ? `Categoria top: ${topCat[0]} (${topCat[1]}×)` : null,
+        n === 1 ? t('kiosk_session.first_item').replace('{name}', _spesaSession[0].name) : null,
+        n >= 2 && n < 5 ? t('kiosk_session.items_two_four').replace('{n}', n) : null,
+        n >= 5 && n < 10 ? t('kiosk_session.items_five_nine').replace('{n}', n) : null,
+        n >= 10 && n < 20 ? t('kiosk_session.items_ten_twenty').replace('{n}', n) : null,
+        n >= 20 ? t('kiosk_session.items_twenty_plus').replace('{n}', n) : null,
+        dupes > 0 ? (dupes === 1 ? t('kiosk_session.duplicates_one') : t('kiosk_session.duplicates_many').replace('{n}', dupes)) : null,
+        topCat && topCat[1] > 1 ? t('kiosk_session.top_category').replace('{cat}', topCat[0]).replace('{count}', topCat[1]) : null,
     ].filter(Boolean);
-    return phrases[n % phrases.length] || `${n} prodott${n===1?'o':'i'} aggiunti`;
+    return phrases[n % phrases.length] || t('kiosk_session.items_fallback').replace('{n}', n).replace('{plural}', n===1?'o':'i');
 }
 
 function _initScreensaverShortcutBtn(btnId, targetPage, longPressFn) {

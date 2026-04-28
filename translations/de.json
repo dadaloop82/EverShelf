@@ -272,7 +272,8 @@
     },
     "recipes": {
         "title": "🍳 Rezepte",
-        "generate": "✨ Neues Rezept generieren"
+        "generate": "✨ Neues Rezept generieren",
+        "archive_empty": "Keine Rezepte gespeichert. Erstelle dein erstes Rezept!"
     },
     "shopping": {
         "title": "🛒 Einkaufsliste",
@@ -326,7 +327,13 @@
         "smart_already_predicted": "📊 Einkauf wird bereits vorhergesagt: <strong>{name}</strong>{urgency}.",
         "item_removed": "✅ {name} von der Liste entfernt!",
         "urgency_spec_critical": "⚡ Dringend",
-        "urgency_spec_high": "🟠 Bald"
+        "urgency_spec_high": "🟠 Bald",
+        "bring_add_n": "{n} zu Bring! hinzufügen",
+        "bring_add_selected": "Ausgewählte zu Bring! hinzufügen",
+        "bring_adding": "Wird hinzugefügt...",
+        "bring_added_one": "1 Produkt zu Bring! hinzugefügt",
+        "bring_added_many": "{n} Produkte zu Bring! hinzugefügt",
+        "bring_skipped": "({n} bereits in Liste)"
     },
     "ai": {
         "title": "🤖 KI-Identifikation",
@@ -386,7 +393,8 @@
         "ingredient_deduct_title": "Von Vorrat abziehen",
         "timer_expired_tts": "Timer {label} abgelaufen!",
         "timer_warning_tts": "Achtung! {label}: noch 10 Sekunden!",
-        "recipe_done_tts": "Rezept abgeschlossen! Guten Appetit!"
+        "recipe_done_tts": "Rezept abgeschlossen! Guten Appetit!",
+        "expires_chip": "läuft ab {date}"
     },
     "settings": {
         "title": "⚙️ Einstellungen",
@@ -610,7 +618,8 @@
         "not_in_inventory": "Produkt nicht im Bestand",
         "appliance_exists": "Gerät bereits vorhanden",
         "already_exists": "Bereits vorhanden",
-        "network_retry": "Verbindungsfehler. Erneut versuchen."
+        "network_retry": "Verbindungsfehler. Erneut versuchen.",
+        "select_items": "Wähle mindestens ein Produkt aus"
     },
     "confirm": {
         "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",
@@ -632,11 +641,22 @@
         "thu": "Donnerstag",
         "fri": "Freitag",
         "sat": "Samstag",
-        "sun": "Sonntag"
+        "sun": "Sonntag",
+        "mon_short": "Mo",
+        "tue_short": "Di",
+        "wed_short": "Mi",
+        "thu_short": "Do",
+        "fri_short": "Fr",
+        "sat_short": "Sa",
+        "sun_short": "So"
     },
     "meal_types": {
         "lunch": "Mittagessen",
-        "dinner": "Abendessen"
+        "dinner": "Abendessen",
+        "colazione": "Frühstück",
+        "merenda": "Nachmittagssnack",
+        "dolce": "Dessert",
+        "succo": "Fruchtsaft"
     },
     "scale": {
         "status_connected": "Waage verbunden",
@@ -709,5 +729,49 @@
         "2": "Kulinarische Zutat",
         "3": "Verarbeitet",
         "4": "Hochverarbeitet"
+    },
+    "meal_plan_types": {
+        "pasta": "Pasta",
+        "riso": "Reis",
+        "carne": "Fleisch",
+        "pesce": "Fisch",
+        "legumi": "Hülsenfrüchte",
+        "uova": "Eier",
+        "formaggio": "Käse",
+        "pizza": "Pizza",
+        "affettati": "Aufschnitt",
+        "verdure": "Gemüse",
+        "zuppa": "Suppe",
+        "insalata": "Salat",
+        "pane": "Brot/Sandwich",
+        "dolce": "Dessert",
+        "libero": "Frei"
+    },
+    "meal_sub": {
+        "dolce_torta": "Kuchen",
+        "dolce_crema": "Creme / Pudding",
+        "dolce_crumble": "Crumble / Tarte",
+        "dolce_biscotti": "Kekse / Gebäck",
+        "dolce_frutta": "Fruchtdessert",
+        "succo_dolce": "Süß / Fruchtig",
+        "succo_energizzante": "Energetisierend",
+        "succo_detox": "Detox / Grün",
+        "succo_rinfrescante": "Erfrischend",
+        "succo_vitaminico": "Vitamin / Zitrus"
+    },
+    "meal_plan": {
+        "reset_success": "Wochenplan zurückgesetzt",
+        "suggested_by": "vom Wochenplan vorgeschlagen"
+    },
+    "kiosk_session": {
+        "first_item": "Erstes Produkt: {name}!",
+        "items_two_four": "{n} Artikel — Trägheit überwinden 🚀",
+        "items_five_nine": "{n} Artikel — super Tempo! 💪",
+        "items_ten_twenty": "{n} Artikel — fast Rekord 🏆",
+        "items_twenty_plus": "{n} Artikel — epischer Einkauf! 🛒🔥",
+        "duplicates_one": "1 Duplikat (gleiches Produkt zweimal)",
+        "duplicates_many": "{n} Duplikate (mehrfach genommen)",
+        "top_category": "Top-Kategorie: {cat} ({count}×)",
+        "items_fallback": "{n} Artikel hinzugefügt"
     }
 }

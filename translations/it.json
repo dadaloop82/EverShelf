@@ -272,7 +272,8 @@
     },
     "recipes": {
         "title": "🍳 Ricette",
-        "generate": "✨ Genera nuova ricetta"
+        "generate": "✨ Genera nuova ricetta",
+        "archive_empty": "Nessuna ricetta salvata. Genera la tua prima ricetta!"
     },
     "shopping": {
         "title": "🛒 Lista della Spesa",
@@ -326,7 +327,13 @@
         "smart_already_predicted": "📊 La spesa intelligente prevede già <strong>{name}</strong>{urgency}.",
         "item_removed": "✅ {name} rimosso dalla lista!",
         "urgency_spec_critical": "⚡ Urgente",
-        "urgency_spec_high": "🟠 Presto"
+        "urgency_spec_high": "🟠 Presto",
+        "bring_add_n": "Aggiungi {n} a Bring!",
+        "bring_add_selected": "Aggiungi selezionati a Bring!",
+        "bring_adding": "Aggiunta in corso...",
+        "bring_added_one": "1 prodotto aggiunto a Bring!",
+        "bring_added_many": "{n} prodotti aggiunti a Bring!",
+        "bring_skipped": "({n} già in lista)"
     },
     "ai": {
         "title": "🤖 Identificazione AI",
@@ -386,7 +393,8 @@
         "ingredient_deduct_title": "Scala dalla dispensa",
         "timer_expired_tts": "Timer {label} scaduto!",
         "timer_warning_tts": "Attenzione! {label}: mancano 10 secondi!",
-        "recipe_done_tts": "Ricetta completata! Buon appetito!"
+        "recipe_done_tts": "Ricetta completata! Buon appetito!",
+        "expires_chip": "scade {date}"
     },
     "settings": {
         "title": "⚙️ Configurazione",
@@ -610,7 +618,8 @@
         "not_in_inventory": "Prodotto non nell'inventario",
         "appliance_exists": "Elettrodomestico già presente",
         "already_exists": "Già presente",
-        "network_retry": "Errore di connessione. Riprova."
+        "network_retry": "Errore di connessione. Riprova.",
+        "select_items": "Seleziona almeno un prodotto"
     },
     "confirm": {
         "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
@@ -632,11 +641,22 @@
         "thu": "Giovedì",
         "fri": "Venerdì",
         "sat": "Sabato",
-        "sun": "Domenica"
+        "sun": "Domenica",
+        "mon_short": "Lun",
+        "tue_short": "Mar",
+        "wed_short": "Mer",
+        "thu_short": "Gio",
+        "fri_short": "Ven",
+        "sat_short": "Sab",
+        "sun_short": "Dom"
     },
     "meal_types": {
         "lunch": "Pranzo",
-        "dinner": "Cena"
+        "dinner": "Cena",
+        "colazione": "Colazione",
+        "merenda": "Merenda",
+        "dolce": "Dolce",
+        "succo": "Succo di Frutta"
     },
     "scale": {
         "status_connected": "Bilancia connessa",
@@ -709,5 +729,49 @@
         "2": "Ingrediente culinario",
         "3": "Trasformato",
         "4": "Ultra-trasformato"
+    },
+    "meal_plan_types": {
+        "pasta": "Pasta",
+        "riso": "Riso",
+        "carne": "Carne",
+        "pesce": "Pesce",
+        "legumi": "Legumi",
+        "uova": "Uova",
+        "formaggio": "Formaggio",
+        "pizza": "Pizza",
+        "affettati": "Affettati",
+        "verdure": "Verdure",
+        "zuppa": "Zuppa",
+        "insalata": "Insalata",
+        "pane": "Pane/Sandwich",
+        "dolce": "Dolce",
+        "libero": "Libero"
+    },
+    "meal_sub": {
+        "dolce_torta": "Torta",
+        "dolce_crema": "Crema / Budino",
+        "dolce_crumble": "Crumble / Crostata",
+        "dolce_biscotti": "Biscotti / Pasticcini",
+        "dolce_frutta": "Dolce alla Frutta",
+        "succo_dolce": "Dolce / Fruttato",
+        "succo_energizzante": "Energizzante",
+        "succo_detox": "Detox / Verde",
+        "succo_rinfrescante": "Rinfrescante",
+        "succo_vitaminico": "Vitaminico / Agrumi"
+    },
+    "meal_plan": {
+        "reset_success": "Piano settimanale ripristinato",
+        "suggested_by": "suggerito dal piano settimanale"
+    },
+    "kiosk_session": {
+        "first_item": "Primo prodotto: {name}!",
+        "items_two_four": "{n} prodotti — stai scaldando i motori 🚀",
+        "items_five_nine": "{n} prodotti — ottimo ritmo! 💪",
+        "items_ten_twenty": "{n} prodotti — quasi un recordman 🏆",
+        "items_twenty_plus": "{n} prodotti — spesa epica! 🛒🔥",
+        "duplicates_one": "1 bis (stessa cosa due volte)",
+        "duplicates_many": "{n} bis (roba presa più volte)",
+        "top_category": "Categoria top: {cat} ({count}×)",
+        "items_fallback": "{n} prodott{n} aggiunti"
     }
 }

@@ -272,7 +272,8 @@
     },
     "recipes": {
         "title": "🍳 Recipes",
-        "generate": "✨ Generate new recipe"
+        "generate": "✨ Generate new recipe",
+        "archive_empty": "No recipes saved. Generate your first recipe!"
     },
     "shopping": {
         "title": "🛒 Shopping List",
@@ -326,7 +327,13 @@
         "smart_already_predicted": "📊 Smart shopping already predicts <strong>{name}</strong>{urgency}.",
         "item_removed": "✅ {name} removed from list!",
         "urgency_spec_critical": "⚡ Urgent",
-        "urgency_spec_high": "🟠 Soon"
+        "urgency_spec_high": "🟠 Soon",
+        "bring_add_n": "Add {n} to Bring!",
+        "bring_add_selected": "Add selected to Bring!",
+        "bring_adding": "Adding...",
+        "bring_added_one": "1 product added to Bring!",
+        "bring_added_many": "{n} products added to Bring!",
+        "bring_skipped": "({n} already in list)"
     },
     "ai": {
         "title": "🤖 AI Identification",
@@ -386,7 +393,8 @@
         "ingredient_deduct_title": "Deduct from pantry",
         "timer_expired_tts": "Timer {label} expired!",
         "timer_warning_tts": "Heads up! {label}: 10 seconds left!",
-        "recipe_done_tts": "Recipe complete! Enjoy your meal!"
+        "recipe_done_tts": "Recipe complete! Enjoy your meal!",
+        "expires_chip": "exp. {date}"
     },
     "settings": {
         "title": "⚙️ Settings",
@@ -610,7 +618,8 @@
         "not_in_inventory": "Product not in inventory",
         "appliance_exists": "Appliance already exists",
         "already_exists": "Already exists",
-        "network_retry": "Connection error. Try again."
+        "network_retry": "Connection error. Try again.",
+        "select_items": "Select at least one product"
     },
     "confirm": {
         "remove_item": "Do you really want to remove this product from inventory?",
@@ -632,11 +641,22 @@
         "thu": "Thursday",
         "fri": "Friday",
         "sat": "Saturday",
-        "sun": "Sunday"
+        "sun": "Sunday",
+        "mon_short": "Mon",
+        "tue_short": "Tue",
+        "wed_short": "Wed",
+        "thu_short": "Thu",
+        "fri_short": "Fri",
+        "sat_short": "Sat",
+        "sun_short": "Sun"
     },
     "meal_types": {
         "lunch": "Lunch",
-        "dinner": "Dinner"
+        "dinner": "Dinner",
+        "colazione": "Breakfast",
+        "merenda": "Snack",
+        "dolce": "Dessert",
+        "succo": "Fruit Juice"
     },
     "scale": {
         "status_connected": "Scale connected",
@@ -709,5 +729,49 @@
         "2": "Culinary ingredient",
         "3": "Processed",
         "4": "Ultra-processed"
+    },
+    "meal_plan_types": {
+        "pasta": "Pasta",
+        "riso": "Rice",
+        "carne": "Meat",
+        "pesce": "Fish",
+        "legumi": "Legumes",
+        "uova": "Eggs",
+        "formaggio": "Cheese",
+        "pizza": "Pizza",
+        "affettati": "Cold Cuts",
+        "verdure": "Veggies",
+        "zuppa": "Soup",
+        "insalata": "Salad",
+        "pane": "Bread/Sandwich",
+        "dolce": "Dessert",
+        "libero": "Free"
+    },
+    "meal_sub": {
+        "dolce_torta": "Cake",
+        "dolce_crema": "Cream / Pudding",
+        "dolce_crumble": "Crumble / Tart",
+        "dolce_biscotti": "Cookies / Pastries",
+        "dolce_frutta": "Fruit Dessert",
+        "succo_dolce": "Sweet / Fruity",
+        "succo_energizzante": "Energizing",
+        "succo_detox": "Detox / Green",
+        "succo_rinfrescante": "Refreshing",
+        "succo_vitaminico": "Vitamin / Citrus"
+    },
+    "meal_plan": {
+        "reset_success": "Weekly plan reset",
+        "suggested_by": "suggested by weekly plan"
+    },
+    "kiosk_session": {
+        "first_item": "First item: {name}!",
+        "items_two_four": "{n} items — warming up 🚀",
+        "items_five_nine": "{n} items — great pace! 💪",
+        "items_ten_twenty": "{n} items — almost a record 🏆",
+        "items_twenty_plus": "{n} items — epic shopping! 🛒🔥",
+        "duplicates_one": "1 duplicate (same thing twice)",
+        "duplicates_many": "{n} duplicates (picked multiple times)",
+        "top_category": "Top category: {cat} ({count}×)",
+        "items_fallback": "{n} item{plural} added"
     }
 }
