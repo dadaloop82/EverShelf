@@ -16,37 +16,44 @@
 
 ### 📦 Inventory Management
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS
-- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory
+- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
 - **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
-- **Opened product tracking** — Reduced shelf-life calculation when packages are opened
+- **Opened product tracking** — Reduced shelf-life calculation when packages are opened; opened-product expiry is now also checked when building banner alerts (not just the dashboard section)
 - **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items
-- **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction
+- **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction; dismiss button now shows the current inventory quantity so the action is unambiguous ("La quantità è giusta (2 pz)")
 
 ### 🤖 AI-Powered (Google Gemini)
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
 - **Product identification** — Point your camera at any product for instant recognition
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
-- **Recipe generation** — Get personalized recipes based on what's in your pantry
+- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions** — AI-powered purchase recommendations
+- **Model fallback** — All AI endpoints try `gemini-2.5-flash` first (separate quota) and fall back to `gemini-2.0-flash` automatically, matching the resilience already used for recipe generation
 
 ### 🛒 Shopping List
 - **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
+- **Generic shopping names** — Products are grouped by type ("Latte", "Affettato", "Panna da cucina") rather than brand, keeping the Bring! list clean and consolidated
 - **Smart predictions** — Know what you'll need before you run out
-- **Auto-remove on scan** — Products are removed from the shopping list when scanned in
-- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
+- **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
+- **Auto-remove on scan** — Products are removed from the shopping list when scanned in  - **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
+  - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
 
 ### 🍳 Cooking Mode
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
-- **Text-to-Speech** — Voice readout of recipe steps (configurable TTS endpoint)
+- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.); retries voice loading for up to 10 seconds with a fallback refresh button; TTS activates automatically without requiring the global TTS setting to be enabled
+- **Auto-read on navigate** — Each step is read aloud automatically when you tap Next or Previous; the first step is read when entering cooking mode
+- **Timer voice alerts** — 10-second countdown warning spoken aloud before each timer expires; expiry announced vocally when time is up
+- **Recipe completion** — "Buon appetito!" spoken when the last step is confirmed
 - **Built-in timer** — Automatic timer suggestions based on recipe instructions
-- **Ingredient tracking** — Mark ingredients as used during cooking
+- **Ingredient tracking** — Mark ingredients as used during cooking; leftover quantities prompt a "move to another location" flow
 
 ### 📊 Dashboard
 - **Waste tracking** — Monitor consumed vs. wasted products over 30 days
 - **Expiry alerts** — Visual warnings for expired and soon-to-expire items
-- **Safety ratings** — Smart assessment of expired product safety (by category)
+- **Safety ratings** — Smart assessment of expired product safety (by category and location); expired unsafe items shown with a red danger banner and "L'ho buttato" as the primary action
+- **Expired product banner** — Products that have passed their effective shelf-life (including opened-product reduced expiry) appear in the top notification banner with safety tip, danger styling for high-risk items, and a prominent discard action
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
 - **Anomaly banner** — Scrollable banner with suspicious quantities and consumption prediction mismatches, with one-tap correction or inline edit
 - **Expired/expiring alerts** — Priority-sorted banner notifications for expired and soon-to-expire products with use, throw, edit, and dismiss actions
@@ -63,8 +70,7 @@
 - **SSE relay** — Server-side relay avoids mixed-content (HTTPS→WS) issues
 - **Auto-discovery** — Server scans LAN to find the gateway automatically
 - **Auto weight reading** — When adding/using a product with unit g/ml, weight fills automatically
-- **10g threshold** — Ignores readings that haven't changed enough between products
-- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
+- **10g threshold** — Ignores readings that haven't changed enough between products  - **Duplicate-reading prevention** — Server-side 12-second dedup window rejects a second scale-triggered deduction of the same product, guarding against BLE multi-fire- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
 - **Stability + auto-confirm** — 10s stable wait + 5s countdown before confirming
 - **Real-time status** — Scale connection indicator always visible in the header
 - **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
@@ -76,6 +82,7 @@
 - **Setup wizard** — 3-step guided configuration (URL, connection test, gateway)
 - **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
 - **Camera & mic permissions** — Full hardware access for barcode scanning and voice
+- **Native TTS bridge** — Cooking mode voice readout uses the Android TextToSpeech engine directly, bypassing Web Speech API voice limitations; no offline voice packs required
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
 - **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
 - **SSL support** — Accepts self-signed certificates
@@ -313,6 +320,9 @@ The application uses no build tools — edit files directly and refresh.
 - [x] AI scan local matching — suggest existing pantry products before OFF lookup
 - [x] Scale auto-fill improvements — 10g threshold, ml conversion hints
 - [x] Update notification system — kiosk checks GitHub releases
+- [x] Generic shopping name grouping — compound-phrase + keyword map (100+ entries) + Gemini AI fallback
+- [x] Auto-add to Bring! on product depletion — no confirmation step when stock reaches zero
+- [x] Native Android TTS in kiosk — bypasses Web Speech API voice detection issues
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products

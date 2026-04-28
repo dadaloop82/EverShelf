@@ -66,11 +66,16 @@ function checkRateLimit(string $action): void {
     // Determine limit based on action
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
     $loginActions = ['dupliclick_login'];
+    $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
         $window = 60;
         $bucket = 'ai';
+    } elseif (in_array($action, $recipeActions)) {
+        $limit = 5;
+        $window = 60;
+        $bucket = 'recipe';
     } elseif (in_array($action, $loginActions)) {
         $limit = 5;
         $window = 60;
@@ -175,6 +180,12 @@ try {
         case 'inventory_delete':
             deleteInventory($db);
             break;
+        case 'inventory_finished_items':
+            getFinishedItems($db);
+            break;
+        case 'inventory_confirm_finished':
+            confirmFinished($db);
+            break;
         case 'inventory_summary':
             inventorySummary($db);
             break;
@@ -197,6 +208,14 @@ try {
             getConsumptionPredictions($db);
             break;
 
+        case 'inventory_anomalies':
+            getInventoryAnomalies($db);
+            break;
+
+        case 'dismiss_anomaly':
+            dismissInventoryAnomaly();
+            break;
+
         case 'recent_popular_products':
             recentPopularProducts($db);
             break;
@@ -208,6 +227,10 @@ try {
 
         case 'generate_recipe':
             generateRecipe($db);
+            break;
+
+        case 'generate_recipe_stream':
+            generateRecipeStream($db);
             break;
 
         case 'gemini_identify':
@@ -230,6 +253,9 @@ try {
             break;
         case 'bring_clean_specs':
             bringCleanSpecs();
+            break;
+        case 'bring_migrate_names':
+            bringMigrateNames($db);
             break;
         case 'bring_suggest':
             bringSuggestItems($db);
@@ -610,32 +636,39 @@ function saveProduct(PDO $db): void {
         return;
     }
     
+    // Auto-compute shopping_name unless the caller explicitly provides one.
+    // A caller may pass shopping_name=null or omit it to always trigger auto-compute.
+    $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
+        ? $input['shopping_name']
+        : computeShoppingName($input['name'], $input['category'] ?? '', $input['brand'] ?? '');
+
     if (!empty($input['id'])) {
         // Update existing
         $stmt = $db->prepare("
-            UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?, 
-            default_quantity=?, notes=?, barcode=?, package_unit=?, updated_at=CURRENT_TIMESTAMP
-            WHERE id=?
+            UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
+            default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
+            updated_at=CURRENT_TIMESTAMP WHERE id=?
         ");
         $stmt->execute([
             $input['name'], $input['brand'] ?? '', $input['category'] ?? '',
             $input['image_url'] ?? '', $input['unit'] ?? 'pz',
             $input['default_quantity'] ?? 1, $input['notes'] ?? '',
-            $input['barcode'] ?? null, $input['package_unit'] ?? '', $input['id']
+            $input['barcode'] ?? null, $input['package_unit'] ?? '',
+            $shoppingName, $input['id']
         ]);
         echo json_encode(['success' => true, 'id' => $input['id']]);
     } else {
         // Insert new
         $stmt = $db->prepare("
-            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes, package_unit)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (barcode, name, brand, category, image_url, unit, default_quantity, notes, package_unit, shopping_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $barcode = !empty($input['barcode']) ? $input['barcode'] : null;
         $stmt->execute([
             $barcode, $input['name'], $input['brand'] ?? '',
             $input['category'] ?? '', $input['image_url'] ?? '',
             $input['unit'] ?? 'pz', $input['default_quantity'] ?? 1,
-            $input['notes'] ?? '', $input['package_unit'] ?? ''
+            $input['notes'] ?? '', $input['package_unit'] ?? '', $shoppingName
         ]);
         echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
     }
@@ -684,10 +717,11 @@ function listInventory(PDO $db): void {
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at
         FROM inventory i
         JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
     ";
     $params = [];
     if (!empty($location)) {
-        $query .= " WHERE i.location = ?";
+        $query .= " AND i.location = ?";
         $params[] = $location;
     }
     $query .= " ORDER BY p.name ASC";
@@ -784,14 +818,18 @@ function addToInventory(PDO $db): void {
     // Auto-remove from Bring! if product is on the shopping list
     $removedFromBring = false;
     try {
-        $stmt = $db->prepare("SELECT name FROM products WHERE id = ?");
+        $stmt = $db->prepare("SELECT name, shopping_name FROM products WHERE id = ?");
         $stmt->execute([$productId]);
-        $prodName = $stmt->fetchColumn();
-        if ($prodName) {
+        $prod = $stmt->fetch();
+        if ($prod) {
+            $prodName    = $prod['name'];
+            // Use shopping_name for Bring! removal — Bring! was added with the generic name
+            $displayName = $prod['shopping_name'] ?: computeShoppingName($prodName);
             $auth = bringAuth();
             if ($auth) {
                 $listUUID = $auth['bringListUUID'];
-                $bringKey = italianToBring($prodName);
+                // Primary Bring! key: catalog key of the generic shopping name
+                $bringKey = italianToBring($displayName);
                 $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
                 if ($listData && isset($listData['purchase'])) {
                     // Token-based matching — same logic as _productOnBring() in smart_shopping
@@ -804,28 +842,35 @@ function addToInventory(PDO $db): void {
                             fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
                         ));
                     };
-                    $prodTokens = $tokenize($prodName);
-                    $keyTokens  = $tokenize($bringKey);
-                    $prodFirst  = $prodTokens[0] ?? '';
-                    $keyFirst   = $keyTokens[0] ?? '';
+                    // Tokens from both the generic name and the specific product name
+                    $displayTokens = $tokenize($displayName);
+                    $prodTokens    = $tokenize($prodName);
+                    $keyTokens     = $tokenize($bringKey);
+                    $displayFirst  = $displayTokens[0] ?? '';
+                    $prodFirst     = $prodTokens[0] ?? '';
+                    $keyFirst      = $keyTokens[0] ?? '';
                     foreach ($listData['purchase'] as $item) {
                         $rawName = $item['name'] ?? '';
-                        // 1. Exact match on translated catalog key or original Italian name
-                        if (strcasecmp($rawName, $bringKey) === 0 || strcasecmp($rawName, $prodName) === 0) {
+                        // 1. Exact match on catalog key, generic name, or specific product name
+                        if (strcasecmp($rawName, $bringKey) === 0
+                            || strcasecmp($rawName, $displayName) === 0
+                            || strcasecmp($rawName, $prodName) === 0) {
                             bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
                                 http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
                             $removedFromBring = true;
                             break;
                         }
-                        // 2. Token-based fuzzy: first significant word must match
-                        if ($prodFirst || $keyFirst) {
+                        // 2. Token-based fuzzy: first significant word must match any of our names
+                        if ($displayFirst || $prodFirst || $keyFirst) {
                             $rawTokens = $tokenize($rawName);
                             $rawFirst  = $rawTokens[0] ?? '';
                             if ($rawFirst && (
-                                $rawFirst === $prodFirst ||
-                                $rawFirst === $keyFirst  ||
-                                in_array($prodFirst, $rawTokens) ||
-                                in_array($keyFirst,  $rawTokens)
+                                $rawFirst === $displayFirst ||
+                                $rawFirst === $prodFirst    ||
+                                $rawFirst === $keyFirst     ||
+                                in_array($displayFirst, $rawTokens) ||
+                                in_array($prodFirst,    $rawTokens) ||
+                                in_array($keyFirst,     $rawTokens)
                             )) {
                                 bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
                                     http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
@@ -867,6 +912,30 @@ function useFromInventory(PDO $db): void {
         echo json_encode(['error' => 'Product ID required']);
         return;
     }
+
+    // ── Server-side deduplication ─────────────────────────────────────────
+    // Reject if the same product already has an 'out' transaction in the last
+    // 12 seconds. This guards against scale double-triggers (the scale can fire
+    // a second stable reading ~10 s after the first auto-confirm, while the
+    // product is still on the plate), regardless of the client-side guard.
+    if (!$useAll) {
+        $dedup = $db->prepare(
+            "SELECT id FROM transactions
+             WHERE product_id = ? AND type IN ('out','waste') AND undone = 0
+               AND created_at >= datetime('now', '-12 seconds')
+             LIMIT 1"
+        );
+        $dedup->execute([$productId]);
+        if ($dedup->fetch()) {
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Operazione già registrata di recente — attendi qualche secondo.',
+                'duplicate' => true,
+            ]);
+            return;
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
     
     // Handle "throw all from all locations"
     if ($useAll && $location === '__all__') {
@@ -876,7 +945,7 @@ function useFromInventory(PDO $db): void {
         $totalRemoved = 0;
         foreach ($allItems as $item) {
             $totalRemoved += $item['quantity'];
-            $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+            $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$item['id']]);
             $type = ($notes === 'Buttato') ? 'waste' : 'out';
             $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
@@ -954,7 +1023,7 @@ function useFromInventory(PDO $db): void {
     $actualDeducted = min($quantity, $existing['quantity']);
     
     if ($newQty <= 0) {
-        $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+        $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$existing['id']]);
     } else {
         // Check if item is now opened (first use reduces quantity)
@@ -1016,8 +1085,8 @@ function useFromInventory(PDO $db): void {
         $totalLeft = (float)($stmt->fetchColumn() ?: 0);
         
         if ($totalLeft <= 0) {
-            // Get product name and brand for Bring!
-            $stmt = $db->prepare("SELECT name, brand FROM products WHERE id = ?");
+            // Get product name, brand and shopping_name for Bring!
+            $stmt = $db->prepare("SELECT name, brand, shopping_name FROM products WHERE id = ?");
             $stmt->execute([$productId]);
             $product = $stmt->fetch();
             
@@ -1026,7 +1095,9 @@ function useFromInventory(PDO $db): void {
                     $auth = bringAuth();
                     if ($auth) {
                         $listUUID = $auth['bringListUUID'];
-                        $bringName = italianToBring($product['name']);
+                        // Use the generic shopping name for Bring! (e.g. "Latte", "Affettato")
+                        $genericName = $product['shopping_name'] ?: computeShoppingName($product['name'], '', $product['brand']);
+                        $bringName   = italianToBring($genericName);
                         
                         // Check if already on the Bring! list
                         $alreadyOnList = false;
@@ -1044,8 +1115,10 @@ function useFromInventory(PDO $db): void {
                             // Already on the list, skip adding
                             $addedToBring = false;
                         } else {
-                        // Build specification from product name (variant info, not brand)
-                        $spec = $product['name'] ? $product['name'] : '';
+                        // Specification: specific product name (and brand) so the user knows which variant
+                        $spec = $genericName !== $product['name']
+                            ? $product['name'] . ($product['brand'] ? ' · ' . $product['brand'] : '')
+                            : ($product['brand'] ?: $product['name']);
                         $body = http_build_query([
                             'uuid' => $listUUID,
                             'purchase' => $bringName,
@@ -1074,7 +1147,7 @@ function useFromInventory(PDO $db): void {
     $totalRemaining = round((float)($stmt->fetchColumn() ?: 0), 6);
     
     // Get product info for low-stock prompt
-    $stmt = $db->prepare("SELECT name, brand, unit, default_quantity, package_unit FROM products WHERE id = ?");
+    $stmt = $db->prepare("SELECT name, brand, unit, default_quantity, package_unit, shopping_name FROM products WHERE id = ?");
     $stmt->execute([$productId]);
     $prodInfo = $stmt->fetch();
     
@@ -1086,6 +1159,9 @@ function useFromInventory(PDO $db): void {
         $response['product_unit'] = $prodInfo['unit'];
         $response['product_default_qty'] = (float)($prodInfo['default_quantity'] ?: 0);
         $response['product_package_unit'] = $prodInfo['package_unit'] ?: '';
+        // Generic shopping name for Bring! (e.g. "Affettato" for "Mortadella IGP")
+        $shopping = $prodInfo['shopping_name'] ?: computeShoppingName($prodInfo['name'], '', $prodInfo['brand']);
+        $response['product_shopping_name'] = $shopping;
     }
     if ($openedId) $response['opened_id'] = $openedId;
     echo json_encode($response);
@@ -1129,6 +1205,80 @@ function deleteInventory(PDO $db): void {
     $id = $input['id'] ?? 0;
     $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
     $stmt->execute([$id]);
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * Returns products whose entire inventory is at quantity = 0 AND whose
+ * transaction balance (total_in - total_out) is still significantly positive —
+ * meaning the system suspects the product ran out prematurely (scale drift,
+ * missed registration, etc.).
+ *
+ * Products where the balance is at/near zero are legitimately finished by the
+ * user; those rows are silently deleted here (no banner needed).
+ */
+function getFinishedItems(PDO $db): void {
+    $rows = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
+               MIN(i.location) AS location,
+               MAX(i.updated_at) AS updated_at,
+               COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
+               COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out
+        FROM products p
+        JOIN inventory i ON i.product_id = p.id
+        LEFT JOIN transactions t ON t.product_id = p.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM inventory i2 WHERE i2.product_id = p.id AND i2.quantity > 0
+        )
+        GROUP BY p.id
+        ORDER BY MAX(i.updated_at) DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Per-unit threshold: residue below this is considered normal rounding/finish
+    $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.5];
+
+    $suspicious = [];
+    foreach ($rows as $r) {
+        $expected = (float)$r['total_in'] - (float)$r['total_out'];
+        $threshold = $thresholds[$r['unit']] ?? 0.5;
+
+        if ($expected > $threshold) {
+            // Transaction balance says stock should remain — show banner
+            $suspicious[] = [
+                'product_id'       => (int)$r['product_id'],
+                'name'             => $r['name'],
+                'brand'            => $r['brand'],
+                'unit'             => $r['unit'],
+                'default_quantity' => $r['default_quantity'],
+                'package_unit'     => $r['package_unit'],
+                'image_url'        => $r['image_url'],
+                'barcode'          => $r['barcode'],
+                'location'         => $r['location'],
+                'updated_at'       => $r['updated_at'],
+                'expected_qty'     => round($expected, 3),
+            ];
+        } else {
+            // Legitimately finished — delete silently, no banner
+            $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")
+               ->execute([$r['product_id']]);
+        }
+    }
+
+    echo json_encode(['success' => true, 'finished' => $suspicious], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Permanently delete all qty=0 inventory rows for a product after user confirms it is finished.
+ */
+function confirmFinished(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $productId = (int)($input['product_id'] ?? 0);
+    if (!$productId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'product_id required']);
+        return;
+    }
+    $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")->execute([$productId]);
     echo json_encode(['success' => true]);
 }
 
@@ -1255,6 +1405,100 @@ function undoTransaction(PDO $db): void {
 
 
 // ===== STATS =====
+
+/**
+ * Detect inventory items where the stored quantity is significantly inconsistent
+ * with the transaction history (sum of in - sum of out/waste).
+ *
+ * Two anomaly directions:
+ *  - PHANTOM (+diff): inventory > tx balance → quantity was manually inflated without an 'in' tx
+ *  - MISSING (-diff): inventory < tx balance → tx history says more should be here than stored
+ */
+function getInventoryAnomalies(PDO $db): void {
+    $rows = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.unit,
+               p.default_quantity, p.package_unit,
+               i.id AS inventory_id, i.quantity AS inv_qty, i.location,
+               COALESCE(tx_in.tot, 0)  AS total_in,
+               COALESCE(tx_out.tot, 0) AS total_out
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) AS tot
+            FROM transactions WHERE type = 'in' AND undone = 0 GROUP BY product_id
+        ) tx_in  ON tx_in.product_id  = p.id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) AS tot
+            FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
+        ) tx_out ON tx_out.product_id = p.id
+        WHERE i.quantity > 0
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Anomaly dismissed keys stored in a simple JSON file
+    $dismissFile = __DIR__ . '/../data/anomaly_dismissed.json';
+    $dismissed   = [];
+    if (file_exists($dismissFile)) {
+        $dismissed = json_decode(file_get_contents($dismissFile), true) ?: [];
+    }
+
+    $anomalies = [];
+    foreach ($rows as $r) {
+        $invQty   = floatval($r['inv_qty']);
+        $expected = floatval($r['total_in']) - floatval($r['total_out']);
+        $diff     = $invQty - $expected;
+
+        // Threshold: difference must be >20% of inventory AND >50 units (avoid noise)
+        $threshold = max(1.0, $invQty * 0.20);
+        if (abs($diff) <= $threshold || abs($diff) <= 50) continue;
+
+        // Dismiss key: product_id + rounded expected (so re-adding stock resets the alert)
+        $key = 'a_' . $r['product_id'] . '_' . round($expected);
+        if (!empty($dismissed[$key])) continue;
+
+        $direction = $diff > 0 ? 'phantom' : 'missing';
+        $anomalies[] = [
+            'inventory_id' => (int)$r['inventory_id'],
+            'product_id'   => (int)$r['product_id'],
+            'name'         => $r['name'],
+            'brand'        => $r['brand'] ?: '',
+            'unit'         => $r['unit'],
+            'default_quantity' => $r['default_quantity'],
+            'package_unit' => $r['package_unit'],
+            'inv_qty'      => round($invQty, 2),
+            'expected_qty' => round($expected, 2),
+            'diff'         => round($diff, 2),
+            'direction'    => $direction,
+            'dismiss_key'  => $key,
+        ];
+    }
+
+    // Sort: largest absolute diff first
+    usort($anomalies, fn($a, $b) => abs($b['diff']) <=> abs($a['diff']));
+
+    echo json_encode(['success' => true, 'anomalies' => $anomalies], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * Dismiss a specific anomaly so it no longer appears in the banner.
+ */
+function dismissInventoryAnomaly(): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $key   = $input['dismiss_key'] ?? '';
+    if (empty($key) || !preg_match('/^a_\d+_-?\d+$/', $key)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid key']);
+        return;
+    }
+    $dismissFile = __DIR__ . '/../data/anomaly_dismissed.json';
+    $dismissed   = [];
+    if (file_exists($dismissFile)) {
+        $dismissed = json_decode(file_get_contents($dismissFile), true) ?: [];
+    }
+    $dismissed[$key] = time();
+    // Clean up entries older than 90 days
+    $dismissed = array_filter($dismissed, fn($ts) => $ts > time() - 90 * 86400);
+    file_put_contents($dismissFile, json_encode($dismissed), LOCK_EX);
+    echo json_encode(['success' => true]);
+}
 
 function getStats(PDO $db): void {
     $totalProducts = $db->query("SELECT COUNT(*) FROM products")->fetchColumn();
@@ -1523,16 +1767,19 @@ function getConsumptionPredictions(PDO $db): void {
             }
 
             $predictions[] = [
-                'inventory_id' => (int)$item['inventory_id'],
-                'product_id'   => (int)$item['product_id'],
-                'name'         => $item['name'],
-                'brand'        => $item['brand'],
-                'location'     => $item['location'],
-                'unit'         => $displayUnit,
-                'expected_qty' => $expDisplay,
-                'actual_qty'   => $actDisplay,
-                'daily_rate'   => round($dailyRate, 3),
-                'deviation_pct'=> round($pctDev * 100),
+                'inventory_id'       => (int)$item['inventory_id'],
+                'product_id'         => (int)$item['product_id'],
+                'name'               => $item['name'],
+                'brand'              => $item['brand'],
+                'location'           => $item['location'],
+                'unit'               => $displayUnit,
+                'expected_qty'       => $expDisplay,
+                'actual_qty'         => $actDisplay,
+                'daily_rate'         => round($dailyRate, 3),
+                'deviation_pct'      => round($pctDev * 100),
+                'days_since_restock' => (int)round($daysSinceRestock),
+                'direction'          => $actualQty > $expectedQty ? 'more' : 'less',
+                'tx_count'           => count($rows),
             ];
         }
     }
@@ -1656,6 +1903,92 @@ function saveSettings(): void {
 
 // ===== GEMINI AI FUNCTIONS =====
 
+/**
+ * Calls the Gemini REST API with exponential backoff on 429 / 503.
+ * - Reads Google's Retry-After response header.
+ * - Reads Google's retryDelay field inside the error body (e.g. "10s").
+ * - Up to 4 attempts; default wait sequence: 2 s, 4 s, 8 s.
+ *
+ * @return array{http_code:int, body:string, data:array|null}
+ */
+function callGemini(string $url, array $payload, int $timeout = 60): array {
+    $maxAttempts = 4;
+    $lastCode    = 0;
+    $lastBody    = '';
+
+    for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+        $retryAfterHeader = null;
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST            => true,
+            CURLOPT_POSTFIELDS      => json_encode($payload),
+            CURLOPT_HTTPHEADER      => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER  => true,
+            CURLOPT_TIMEOUT         => $timeout,
+            // Capture response headers to read Retry-After
+            CURLOPT_HEADERFUNCTION  => function ($ch, $header) use (&$retryAfterHeader) {
+                if (stripos($header, 'retry-after:') === 0) {
+                    $val = intval(trim(substr($header, strlen('retry-after:'))));
+                    if ($val > 0) $retryAfterHeader = $val;
+                }
+                return strlen($header);
+            },
+        ]);
+
+        $body     = curl_exec($ch);
+        $lastCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($body !== false) $lastBody = $body;
+
+        // Success or non-retryable error → stop immediately
+        if ($lastCode === 200) break;
+        if ($lastCode !== 429 && $lastCode !== 503) break;
+        if ($attempt >= $maxAttempts) break;
+
+        // Determine how long to wait -----------------------------------------------
+        // Priority 1: Retry-After header (set by Google in some 429 responses)
+        $waitSec = $retryAfterHeader ?? ($attempt * 2);   // default: 2 s, 4 s, 6 s
+
+        // Priority 2: Google's retryDelay inside the error body (e.g. {"retryDelay":"10s"})
+        if ($body) {
+            $errData = json_decode($body, true);
+            foreach (($errData['error']['details'] ?? []) as $detail) {
+                if (!empty($detail['retryDelay'])) {
+                    $parsed = intval(preg_replace('/\D/', '', $detail['retryDelay']));
+                    if ($parsed > 0) { $waitSec = min($parsed, 60); break; }
+                }
+            }
+        }
+
+        sleep($waitSec);
+    }
+
+    return [
+        'http_code' => $lastCode,
+        'body'      => $lastBody,
+        'data'      => $lastBody ? json_decode($lastBody, true) : null,
+    ];
+}
+
+/**
+ * Like callGemini() but tries gemini-2.5-flash first, falls back to gemini-2.0-flash
+ * on quota/rate-limit errors (429/503). Builds the URL from model name + API key.
+ */
+function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30): array {
+    $models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    $last = ['http_code' => 0, 'body' => '', 'data' => null];
+    foreach ($models as $model) {
+        $url  = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $last = callGemini($url, $payload, $timeout);
+        if ($last['http_code'] === 200) return $last;
+        if ($last['http_code'] !== 429 && $last['http_code'] !== 503) return $last; // non-retryable
+        // 429/503 on this model → try next model
+    }
+    return $last;
+}
+
 function geminiReadExpiry(): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
@@ -1672,8 +2005,6 @@ function geminiReadExpiry(): void {
     }
     
     // Call Gemini API
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    
     $payload = [
         'contents' => [
             [
@@ -1696,27 +2027,16 @@ function geminiReadExpiry(): void {
         ]
     ];
     
-    $jsonPayload = json_encode($payload);
-    
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $jsonPayload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Gemini API error', 'http_code' => $httpCode]);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30);
+    $httpCode = $result['http_code'];
+
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Gemini API error';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
-    
-    $data = json_decode($response, true);
+
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     
     // Parse the JSON response from Gemini
@@ -1856,8 +2176,6 @@ PROMPT;
         'parts' => [['text' => $message]]
     ];
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => $contents,
         'generationConfig' => [
@@ -1866,26 +2184,16 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-    ]);
+    $result   = callGeminiWithFallback($apiKey, $payload, 60);
+    $httpCode = $result['http_code'];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Errore API Gemini';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
 
-    $data = json_decode($response, true);
-    $reply = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $reply = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     if (empty($reply)) {
         echo json_encode(['success' => false, 'error' => 'Risposta vuota da Gemini']);
@@ -2267,8 +2575,6 @@ Rispondi SOLO JSON valido (no markdown):
 {"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
 PROMPT;
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => [
             [
@@ -2283,30 +2589,16 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-    ]);
+    $result   = callGeminiWithFallback($apiKey, $payload, 60);
+    $httpCode = $result['http_code'];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        $errDetail = '';
-        if ($response) {
-            $errData = json_decode($response, true);
-            $errDetail = $errData['error']['message'] ?? substr($response, 0, 300);
-        }
+    if ($httpCode !== 200) {
+        $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
         echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
-    $data = json_decode($response, true);
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     // Clean markdown wrapping
@@ -2513,6 +2805,518 @@ PROMPT;
     }
 }
 
+// ===== RECIPE GENERATION — STREAMING AGENT =====
+function generateRecipeStream(PDO $db): void {
+    // Override content-type for SSE before any output is sent
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('X-Accel-Buffering: no');
+    header('Content-Encoding: identity');
+    set_time_limit(600); // up to 10 min: worst-case 2 models x 2 retries x 90s wait + generation time
+    ignore_user_abort(true);
+    while (ob_get_level() > 0) ob_end_clean();
+
+    $send = function(string $type, array $data): void {
+        echo 'data: ' . json_encode(['type' => $type] + $data, JSON_UNESCAPED_UNICODE) . "\n\n";
+        flush();
+    };
+
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
+
+    $input               = json_decode(file_get_contents('php://input'), true) ?? [];
+    $mealType            = $input['meal'] ?? 'pranzo';
+    $persons             = max(1, intval($input['persons'] ?? 1));
+    $subType             = $input['sub_type'] ?? '';
+    $options             = $input['options'] ?? [];
+    $appliances          = $input['appliances'] ?? [];
+    $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
+    $todayRecipes        = $input['today_recipes'] ?? [];
+    $mealPlanType        = $input['meal_plan_type'] ?? '';
+    $variation           = max(0, intval($input['variation'] ?? 0));
+    $rejectedIngredients = $input['rejected_ingredients'] ?? [];
+
+    // ── AGENTE PASSO 1: Analisi dispensa ─────────────────────────────────────
+    $send('status', ['step' => 1, 'message' => '📦 Analizzo la dispensa...']);
+
+    $stmt = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($items)) { $send('error', ['error' => 'La dispensa è vuota!']); return; }
+
+    $getItemPriority = function($item): int {
+        $daysLeft = floatval($item['days_left']);
+        $isOpen   = !empty($item['opened_at']) ||
+                    (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+        if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
+        if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
+        if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
+        if (!empty($item['expiry_date'])) return 4;
+        if ($isOpen) return 5;
+        return 6;
+    };
+
+    usort($items, function($a, $b) use ($getItemPriority) {
+        $pa = $getItemPriority($a); $pb = $getItemPriority($b);
+        if ($pa !== $pb) return $pa - $pb;
+        return floatval($a['days_left']) - floatval($b['days_left']);
+    });
+
+    $staplePatterns = '/\b(sale|pepe|olio d.oliva|olio di semi|olio extra|acqua|aceto balsamico|aceto di|sel marin)\b/i';
+    $priorityGroups = [];
+    foreach ($items as $item) {
+        $group = $getItemPriority($item);
+        if ($group >= 5 && preg_match($staplePatterns, $item['name'])) continue;
+        $qty      = floatval($item['quantity']);
+        $isOpen   = !empty($item['opened_at']) || ($qty > 0 && $qty < 1 && $item['unit'] === 'conf');
+        $daysLeft = intval($item['days_left']);
+        $line     = "- {$item['name']}: {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0)
+            $line .= " ({$item['default_quantity']}{$item['package_unit']}/conf)";
+        // Annotazioni urgenza: solo gruppi 1-3 (riduce token per gruppi 4-6)
+        if ($group <= 3 && $item['expiry_date']) {
+            if ($daysLeft < 0)       $line .= ' ⚠️SCADUTO';
+            elseif ($daysLeft <= 3)  $line .= " 🔴{$daysLeft}gg";
+            else                     $line .= " 🟠{$daysLeft}gg";
+        }
+        if ($isOpen && $group <= 5) $line .= ' [APERTO]';
+        $priorityGroups[$group][] = $line;
+    }
+
+    // Limiti ingredienti per gruppo: con piano pasto attivo passa TUTTO (l'AI deve combinare liberamente)
+    // Senza piano pasto: limiti moderati per ridurre token (ora safe grazie a thinkingBudget:0)
+    $hasMealPlan = !empty($mealPlanType);
+    $ingredientSections = [];
+    $priorityHeaders    = [1=>'SCADUTI — usa subito',2=>'SCADENZA ≤3gg — priorità alta',3=>'SCADENZA ≤7gg',4=>'ALTRI CON SCADENZA',5=>'APERTI',6=>'DISPENSA'];
+    $totalIngredientsSent = 0;
+    foreach ($priorityHeaders as $g => $header) {
+        if (empty($priorityGroups[$g])) continue;
+        $gi = $priorityGroups[$g];
+        if (!$hasMealPlan) {
+            // Senza piano: limiti moderati
+            if ($g === 4 && count($gi) > 25) $gi = array_slice($gi, 0, 25);
+            if ($g === 6 && count($gi) > 15) $gi = array_slice($gi, 0, 15);
+        }
+        // Con piano pasto attivo: nessun limite — tutti gli ingredienti disponibili
+        $ingredientSections[] = "[$header]\n" . implode("\n", $gi);
+        $totalIngredientsSent += count($gi);
+    }
+    $ingredientsText = implode("\n", $ingredientSections);
+
+    // Inventory status event
+    $urgentCount = count($priorityGroups[1] ?? []) + count($priorityGroups[2] ?? []);
+    if ($urgentCount > 0) {
+        $urgentRaw   = array_merge($priorityGroups[1] ?? [], $priorityGroups[2] ?? []);
+        $urgentNames = array_slice(array_map(
+            fn($l) => trim(preg_replace('/\s[\[\x{26A0}\x{1F534}\x{1F7E0}].*/u', '', explode(':', ltrim($l, '- '))[0])),
+            $urgentRaw), 0, 3);
+        $send('status', ['step' => 1, 'message' => "⚠️ {$urgentCount} urgenti: " . implode(', ', $urgentNames)]);
+    } else {
+        $countMsg = count($items) . ' prodotti trovati';
+        if ($hasMealPlan && $totalIngredientsSent < count($items)) {
+            $countMsg .= " ({$totalIngredientsSent} passati all'AI)";
+        } elseif ($hasMealPlan) {
+            $countMsg .= ' — tutti passati all\'AI';
+        }
+        $send('status', ['step' => 1, 'message' => '✅ ' . $countMsg]);
+    }
+
+    // Mandatory/recommended items
+    $mandatoryItems  = [];
+    $recommendedItems = [];
+    $wantsExpiryPriority = in_array('scadenze', $options) || in_array('zerowaste', $options);
+    $wantsOpenedPriority = in_array('opened', $options);
+    if ($wantsExpiryPriority || $wantsOpenedPriority) {
+        foreach ($items as $item) {
+            $g        = $getItemPriority($item);
+            $daysLeft = floatval($item['days_left']);
+            $isOpen   = !empty($item['opened_at']) ||
+                        (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+            $expiryNote = !empty($item['expiry_date']) ? " — scade: {$item['expiry_date']}" : '';
+            $openNote   = $isOpen ? ' [APERTO]' : '';
+            $label      = $item['name'] . ($item['brand'] ? " ({$item['brand']})" : '') . $openNote . $expiryNote;
+            if ($wantsExpiryPriority) {
+                if ($g === 1 || $g === 2) $mandatoryItems[]  = $label;
+                elseif ($g === 3)         $recommendedItems[] = $label;
+            }
+            if (($wantsOpenedPriority || $wantsExpiryPriority) && $isOpen && $daysLeft <= 7 && $daysLeft >= 0) {
+                if (!in_array($label, $mandatoryItems) && !in_array($label, $recommendedItems))
+                    $recommendedItems[] = $label;
+            }
+        }
+    }
+    $mustUseText = '';
+    if (!empty($mandatoryItems))   $mustUseText .= "\n\n⚠️ OBBLIGATORI (scaduti/imminenti — DEVE usarne almeno 1):\n"  . implode("\n", array_map(fn($n) => "→ $n", $mandatoryItems));
+    if (!empty($recommendedItems)) $mustUseText .= "\n\n🔶 CONSIGLIATI (aperti/in scadenza):\n" . implode("\n", array_map(fn($n) => "· $n", $recommendedItems));
+
+    // Meal labels
+    $mealLabels = ['colazione'=>'colazione (mattina)','pranzo'=>'pranzo (mezzogiorno)','cena'=>'cena (sera)','dolce'=>'dolce/dessert','succo'=>'succo di frutta/bevanda'];
+    $mealLabel       = $mealLabels[$mealType] ?? $mealType;
+    $mealLabelSimple = ['colazione'=>'colazione','pranzo'=>'pranzo','cena'=>'cena','dolce'=>'dolce','succo'=>'succo'];
+
+    $subTypeLabels = [
+        'dolce' => ['torta'=>'Torta (soffice, da forno: torta di mele, ciambellone, plumcake, angel cake, ecc.)','crema'=>'Crema o Budino (crema pasticcera, panna cotta, mousse, tiramisù, budino, semifreddo)','crumble'=>'Crumble o Crostata (base croccante: crumble di frutta, crostata, sbriciolata)','biscotti'=>'Biscotti o Pasticcini (biscotti, cookies, muffin, cupcake, pasticcini)','frutta'=>'Dolce alla Frutta (macedonia creativa, frutta caramellata, sorbetto, frullato dolce)'],
+        'succo' => ['dolce'=>'Succo Dolce e Fruttato (mix di frutta dolce: pesca, mela, pera, fragola, banana)','energizzante'=>'Succo Energizzante (con zenzero, curcuma, barbabietola, carota, mela verde)','detox'=>'Succo Detox / Verde (cetriolo, sedano, spinaci, mela verde, limone)','rinfrescante'=>'Succo Rinfrescante (anguria, menta, lime, cetriolo, acqua di cocco)','vitaminico'=>'Succo Vitaminico / Agrumi (arancia, pompelmo, limone, kiwi, mandarino)'],
+    ];
+    $subTypeText = '';
+    if (!empty($subType) && isset($subTypeLabels[$mealType][$subType])) {
+        $subHint      = $subTypeLabels[$mealType][$subType];
+        $mealLabel   .= " — tipo: $subHint";
+        $subTypeText  = "\n\n🎨 SOTTO-TIPO: {$subHint}. La ricetta DEVE essere di questo tipo.";
+    }
+
+    $extraRules = [];
+    $optionLabels = ['veloce'=>'VELOCE: max 15-20 min totali.','pocafame'=>'POCA FAME: porzione leggera, snack o insalata.','scadenze'=>'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.','salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.','opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].','zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.'];
+    foreach ($options as $opt) { if (isset($optionLabels[$opt])) $extraRules[] = $optionLabels[$opt]; }
+    $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
+    $appliancesText = !empty($appliances)          ? "\n\nELETTRODOMESTICI: " . implode(', ', $appliances) . " (+ fornelli e forno). Usa SOLO questi." : '';
+    $dietaryText    = !empty($dietaryRestrictions) ? "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni." : '';
+
+    $mealPlanTypeLabels = ['pasta'=>'Pasta (primo piatto a base di pasta)','riso'=>'Riso (risotto, insalata di riso, riso saltato, ecc.)','carne'=>'Carne (secondo piatto a base di carne)','pesce'=>'Pesce (secondo piatto a base di pesce o frutti di mare)','legumi'=>'Legumi (zuppa, insalata, hummus, pasta e fagioli, ecc.)','uova'=>'Uova (frittata, uova strapazzate, quiche, ecc.)','formaggio'=>'Formaggio (fonduta, gnocchi al formaggio, torta salata, ecc.)','pizza'=>'Pizza o focaccia (impastata in casa o usi ingredienti simili)','affettati'=>'Affettati (tagliere misto, piadina, panino, ecc.)','verdure'=>'Verdure (piatto principale a base di verdure, contorno abbondante)','zuppa'=>'Zuppa o minestra (zuppe, vellutate, minestrone)','insalata'=>'Insalata (insalata mista, insalata di riso o pasta, poke)','pane'=>'Pane / Sandwich (toast, tramezzino, bruschette)','dolce'=>'Dolce o dessert','libero'=>''];
+    $typeKeywords = ['pesce'=>['tonno','salmone','merluzzo','branzino','orata','sardine','acciughe','alici','gamberi','cozze','vongole','polpo','calamari','seppia','sgombro','trota','baccalà','dentice','spigola','pesce'],'carne'=>['pollo','manzo','maiale','vitello','agnello','tacchino','salsiccia','hamburger','bistecca','cotoletta','pancetta','speck','carne','arrosto','filetto','lonza','braciola'],'pasta'=>['pasta','spaghetti','penne','rigatoni','fusilli','tagliatelle','lasagne','farfalle','orecchiette','bucatini','linguine','maccheroni','gnocchi','pennette','bavette'],'riso'=>['riso','basmati','arborio','carnaroli','parboiled','riso integrale'],'legumi'=>['fagioli','ceci','lenticchie','piselli','fave','lupini','soia','legumi','borlotti','cannellini','azuki'],'uova'=>['uova','uovo'],'formaggio'=>['formaggio','parmigiano','mozzarella','ricotta','pecorino','grana','gorgonzola','scamorza','fontina','emmental','asiago','provola','provolone','taleggio','stracchino'],'pizza'=>['farina','lievito','pizza','focaccia'],'affettati'=>['prosciutto','salame','bresaola','mortadella','speck','coppa','affettati','wurstel','würstel','piadina','pancetta cotta'],'verdure'=>['zucchine','zucchina','melanzane','peperoni','spinaci','cavolfiore','broccoli','carote','zucca','bietole','cavolo','carciofi','asparagi','lattuga','rucola','radicchio','cicoria','finocchio','cipolla','porri','verdure'],'zuppa'=>['brodo','zuppa','minestra','minestrone','vellutata','orzo','farro','fagioli','ceci','lenticchie'],'insalata'=>['insalata','lattuga','rucola','spinaci','radicchio','misticanza','valeriana','songino'],'pane'=>['pane','pancarrè','baguette','toast','tramezzino','crackers','grissini','ciabatta','rosetta'],'dolce'=>['cioccolato','cacao','zucchero','miele','marmellata','nutella','creme caramel','savoiardi','biscotti','pan di spagna','panna']];
+
+    $mealPlanText = '';
+    $mealPlanRule = '';
+    if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
+        $hint          = $mealPlanTypeLabels[$mealPlanType];
+        $matchingItems = [];
+        if (isset($typeKeywords[$mealPlanType])) {
+            foreach ($items as $item) {
+                $nameLower = mb_strtolower($item['name'] . ' ' . ($item['brand'] ?? ''));
+                foreach ($typeKeywords[$mealPlanType] as $kw) {
+                    if (mb_strpos($nameLower, $kw) !== false) {
+                        $entry = "→ {$item['name']}" . ($item['brand'] ? " ({$item['brand']})" : '') . ": {$item['quantity']} {$item['unit']}";
+                        if (!empty($item['expiry_date'])) { $dl = intval($item['days_left']); $entry .= $dl < 0 ? " [SCADUTO]" : " [scade tra $dl giorni]"; }
+                        $matchingItems[] = $entry;
+                        break;
+                    }
+                }
+            }
+            $matchingItems = array_unique($matchingItems);
+        }
+        $matchingBlock = !empty($matchingItems)
+            ? "Ingredienti disponibili compatibili (usa almeno uno come BASE):\n" . implode("\n", $matchingItems)
+            : "Nessun ingrediente perfettamente corrispondente — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
+        $mealPlanText = "\n\n🎯 TIPO OBBLIGATORIO: {$hint}\n{$matchingBlock}";
+        $mealPlanRule = "0. La ricetta DEVE essere: {$hint}. Usa gli ingredienti compatibili come base.\n   ";
+    }
+
+    $varietyText = '';
+    $today = date('Y-m-d'); $weekAgo = date('Y-m-d', strtotime('-7 days'));
+    $weekStmt = $db->prepare("SELECT date, meal, recipe_json FROM recipes WHERE date >= ? ORDER BY date DESC");
+    $weekStmt->execute([$weekAgo]);
+    $weekDbRecipes = $weekStmt->fetchAll();
+    $todayTitles = []; $weekTitles = [];
+    foreach ($weekDbRecipes as $tr) {
+        $rj = json_decode($tr['recipe_json'], true);
+        if (!empty($rj['title'])) { $weekTitles[] = $rj['title']; if ($tr['date'] === $today) $todayTitles[] = $rj['title']; }
+    }
+    if (!empty($todayRecipes)) $todayTitles = array_unique(array_merge($todayTitles, $todayRecipes));
+    if (!empty($todayTitles)) {
+        $todayList    = implode(', ', array_map(fn($t) => '"' . $t . '"', $todayTitles));
+        $varietyText .= "\n\nGIÀ FATTO OGGI: {$todayList} — proponi qualcosa di DIVERSO.";
+    }
+    $weekOnly = array_diff($weekTitles, $todayTitles);
+    if (!empty($weekOnly)) {
+        $weekList     = implode(', ', array_map(fn($t) => '"' . $t . '"', array_values($weekOnly)));
+        $varietyText .= "\n\nULTIMI 7GG: {$weekList} — varia.";
+    }
+
+    $regenText = '';
+    if ($variation > 0) {
+        $regenText = "\n\n🔁 RIGENERA #{$variation}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).";
+        if (!empty($rejectedIngredients)) {
+            $rejList    = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
+            $regenText .= " Evita come ingrediente principale: {$rejList}.";
+        }
+    }
+
+    // ── AGENTE PASSO 2: Selezione concetto (locale, nessuna chiamata AI) ────────
+    // Determina il concetto della ricetta in base agli ingredienti disponibili
+    // e ai parametri selezionati — senza consumare quote Gemini.
+    $send('status', ['step' => 2, 'message' => "🧠 Valuto gli ingredienti disponibili..."]);
+
+    // Raccoglie i nomi degli ingredienti di maggiore priorità
+    $conceptIngredients = [];
+    foreach ([1, 2, 3, 5, 6] as $g) {
+        foreach (array_slice($priorityGroups[$g] ?? [], 0, 4) as $line) {
+            $name = trim(explode(':', ltrim($line, '- '))[0]);
+            // Rimuove emoji e flag di urgenza
+            $name = trim(preg_replace('/\s*[\x{26A0}\x{1F534}\x{1F7E0}].*$/u', '', $name));
+            $name = trim(preg_replace('/\s*\[.*\]/', '', $name));
+            if ($name) $conceptIngredients[] = $name;
+        }
+        if (count($conceptIngredients) >= 6) break;
+    }
+
+    // Costruisce un messaggio di stato informativo basato su ciò che verrà cucinato
+    $conceptMsg = '👨‍🍳 Preparo la ricetta...';
+    if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
+        // Tipo di pasto dal piano settimanale — mostra la categoria
+        $shortLabel = explode(' (', $mealPlanTypeLabels[$mealPlanType])[0];
+        $conceptMsg = "🎯 Piatto a base di {$shortLabel}";
+        // Aggiungi l'ingrediente principale se disponibile
+        if (!empty($matchingItems)) {
+            $firstMatch = ltrim(reset($matchingItems), '→ ');
+            $fName = trim(explode(':', $firstMatch)[0]);
+            if ($fName) $conceptMsg .= " ({$fName})";
+        }
+    } elseif (!empty($conceptIngredients)) {
+        // Mostra i primi 2 ingredienti più urgenti
+        $shown = array_slice($conceptIngredients, 0, 2);
+        $conceptMsg = "🥘 Ricetta con " . implode(' e ', array_map('mb_strtolower', $shown));
+        if ($variation > 0) $conceptMsg .= " — variante #{$variation}";
+    } elseif (!empty($subType) && !empty($subTypeLabels[$mealType][$subType])) {
+        $conceptMsg = "🎨 " . explode(' (', $subTypeLabels[$mealType][$subType])[0];
+    }
+    $send('status', ['step' => 2, 'message' => $conceptMsg]);
+
+    // ── AGENTE PASSO 3: Generazione ricetta (A+C: retry SSE-aware + fallback modello) ──
+    $conceptHint = '';
+    $send('status', ['step' => 3, 'message' => '✍️ Creo la ricetta completa...']);
+
+    $prompt = <<<PROMPT
+Sei uno chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando gli ingredienti disponibili sotto.{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+
+REGOLE:
+{$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
+2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
+3. Quantità per $persons persona/e. Se un ingrediente ha poca quantità, usalo TUTTO.
+4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
+5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
+6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
+
+DISPENSA:
+$ingredientsText
+
+Rispondi SOLO JSON valido (no markdown):
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
+PROMPT;
+
+    $genConfig = [
+        'temperature'    => min(1.4, 0.7 + $variation * 0.25),
+        'maxOutputTokens' => 4096,
+        'thinkingConfig'  => ['thinkingBudget' => 0], // disabilita thinking: libera token per output
+    ];
+    $payload   = ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => $genConfig];
+
+    // A: retry SSE-aware con feedback live; C: fallback automatico su quota separata
+    // Ordine: 2.5-flash (quota separata e spesso più disponibile) → 2.0-flash
+    $models = [
+        'gemini-2.5-flash',  // primario: quota TPM separata da 2.0
+        'gemini-2.0-flash',  // fallback
+    ];
+
+    $result   = null;
+    $httpCode = 0;
+
+    foreach ($models as $modelIdx => $model) {
+        $url        = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $maxRetries = 3; // 1 chiamata + max 2 retry con attesa
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            $retryAfterHeader = null;
+
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_HEADERFUNCTION => function ($ch, $header) use (&$retryAfterHeader) {
+                    if (stripos($header, 'retry-after:') === 0) {
+                        $val = intval(trim(substr($header, strlen('retry-after:'))));
+                        if ($val > 0) $retryAfterHeader = $val;
+                    }
+                    return strlen($header);
+                },
+            ]);
+
+            $body     = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($body === false) $body = '';
+
+            $result = [
+                'http_code' => $httpCode,
+                'body'      => $body,
+                'data'      => $body ? json_decode($body, true) : null,
+            ];
+
+            // Successo o errore non-retry → esci dal loop retry
+            if ($httpCode === 200) break 2;
+            if ($httpCode !== 429 && $httpCode !== 503) break;
+            if ($attempt >= $maxRetries) break;
+
+            // Calcola attesa: usa Retry-After se presente, altrimenti 30s (poi cambieremo modello)
+            $waitSec = $retryAfterHeader ?? 30;
+            if ($body) {
+                $errData = json_decode($body, true);
+                foreach (($errData['error']['details'] ?? []) as $detail) {
+                    if (!empty($detail['retryDelay'])) {
+                        $parsed = intval(preg_replace('/\D/', '', $detail['retryDelay']));
+                        if ($parsed > 0) { $waitSec = min($parsed + 2, 60); break; }
+                    }
+                }
+            }
+            $waitSec = min($waitSec, 60); // cap a 60s
+
+            // A: feedback live con countdown
+            $modelName = str_replace('gemini-', 'Gemini ', $model);
+            $send('status', ['step' => 3, 'message' => "⏳ Quota TPM esaurita ({$modelName}), attendo {$waitSec}s... (tentativo {$attempt}/{$maxRetries})"]);
+            sleep($waitSec);
+            $send('status', ['step' => 3, 'message' => '✍️ Riprovo la generazione...']);
+        }
+
+        // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
+        if ($httpCode === 429 && $modelIdx === 0) {
+            $fallbackName = str_replace('gemini-', 'Gemini ', $models[1]);
+            $send('status', ['step' => 3, 'message' => "🔄 Cambio modello → {$fallbackName}..."]);
+            continue;
+        }
+        break;
+    }
+
+    if ($httpCode !== 200) {
+        $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
+        $send('error', ['error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
+        return;
+    }
+
+    $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $text = preg_replace('/^```json\s*/i', '', $text);
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $text = trim($text);
+    $recipe = json_decode($text, true);
+
+    if (!$recipe || empty($recipe['title'])) {
+        $send('error', ['error' => 'Impossibile generare la ricetta', 'raw' => $text]);
+        return;
+    }
+
+    // ── Post-process: fuzzy-match ingredients → inventory (same as generateRecipe) ──
+    if (!empty($recipe['ingredients'])) {
+        $itemsLookup = [];
+        foreach ($items as $item) {
+            $itemsLookup[] = [
+                'item'  => $item,
+                'lower' => mb_strtolower(trim($item['name']), 'UTF-8'),
+                'words' => preg_split('/[\s,.\-\/]+/', mb_strtolower(trim($item['name']), 'UTF-8')),
+                'cat'   => mb_strtolower($item['category'] ?? '', 'UTF-8'),
+            ];
+        }
+        $aliases = ['uovo'=>['uova','uovo','egg'],'uova'=>['uovo','uova','egg'],'latte'=>['latte','milk'],'formaggio'=>['formaggio','cheese','philadelphia','mozzarella','parmigiano','grana','pecorino','ricotta','mascarpone','stracchino','gorgonzola'],'pasta'=>['pasta','spaghetti','penne','fusilli','rigatoni','farfalle','tagliatelle','linguine','bucatini','orecchiette','paccheri','maccheroni'],'pomodoro'=>['pomodoro','pomodori','tomato','passata','pelati','polpa'],'cipolla'=>['cipolla','cipolle','onion'],'aglio'=>['aglio','garlic'],'burro'=>['burro','butter'],'panna'=>['panna','cream','crema'],'zucchero'=>['zucchero','sugar'],'farina'=>['farina','flour'],'olio'=>['olio','oil'],'patata'=>['patata','patate','potato'],'carota'=>['carota','carote','carrot'],'sedano'=>['sedano','celery'],'prezzemolo'=>['prezzemolo','parsley'],'basilico'=>['basilico','basil']];
+
+        foreach ($recipe['ingredients'] as &$ing) {
+            if (empty($ing['from_pantry'])) continue;
+            $ingNameLower = mb_strtolower(trim($ing['name']), 'UTF-8');
+            $ingWords     = preg_split('/[\s,.\-\/]+/', $ingNameLower);
+            $bestMatch    = null;
+            $bestScore    = 0;
+            foreach ($itemsLookup as $entry) {
+                $itemNameLower = $entry['lower'];
+                $itemWords     = $entry['words'];
+                $score         = 0;
+                if ($ingNameLower === $itemNameLower) {
+                    $score = 100;
+                } elseif (mb_strpos($itemNameLower, $ingNameLower) !== false) {
+                    $score = 80;
+                } elseif (mb_strpos($ingNameLower, $itemNameLower) !== false) {
+                    $score = 70;
+                } else {
+                    $expandedIngWords = $ingWords;
+                    foreach ($ingWords as $w) {
+                        foreach ($aliases as $key => $group) {
+                            if (in_array($w, $group) || mb_strpos($w, $key) === 0 || mb_strpos($key, $w) === 0)
+                                $expandedIngWords = array_merge($expandedIngWords, $group);
+                        }
+                    }
+                    $expandedIngWords = array_unique($expandedIngWords);
+                    $common = 0;
+                    foreach ($expandedIngWords as $ew) {
+                        foreach ($itemWords as $iw) {
+                            $minLen = min(mb_strlen($ew), mb_strlen($iw));
+                            if ($minLen >= 3) {
+                                $prefixLen = 0;
+                                for ($c = 0; $c < $minLen; $c++) {
+                                    if (mb_substr($ew, $c, 1) === mb_substr($iw, $c, 1)) $prefixLen++; else break;
+                                }
+                                if ($prefixLen >= min(4, $minLen)) { $common++; break; }
+                            }
+                            if ($ew === $iw) { $common++; break; }
+                        }
+                    }
+                    if ($common > 0) {
+                        $score = ($common / max(count($ingWords), 1)) * 65;
+                        if (count($ingWords) > 0) {
+                            foreach ($itemWords as $iw) {
+                                if (mb_strpos($iw, $ingWords[0]) === 0 || mb_strpos($ingWords[0], $iw) === 0) { $score += 10; break; }
+                            }
+                        }
+                    }
+                }
+                if ($score > $bestScore) { $bestScore = $score; $bestMatch = $entry['item']; }
+            }
+            if ($bestMatch && $bestScore > 30) {
+                $ing['product_id']       = (int)$bestMatch['product_id'];
+                $ing['location']         = $bestMatch['location'];
+                $ing['inventory_unit']   = $bestMatch['unit'];
+                $ing['inventory_qty']    = (float)$bestMatch['quantity'];
+                $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
+                $ing['package_unit']     = $bestMatch['package_unit'] ?? '';
+                $ing['available_qty']    = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+                $ing['vacuum_sealed']    = !empty($bestMatch['vacuum_sealed']) ? 1 : 0;
+                if (!empty($bestMatch['brand']))       $ing['brand']       = $bestMatch['brand'];
+                if (!empty($bestMatch['expiry_date'])) $ing['expiry_date'] = $bestMatch['expiry_date'];
+                $qtyNum  = (float)($ing['qty_number'] ?? 0);
+                $invUnit = $bestMatch['unit'] ?? 'pz';
+                $invQty  = (float)$bestMatch['quantity'];
+                if ($qtyNum > 0) {
+                    $recipeQty  = $ing['qty'] ?? '';
+                    $recipeUnit = ''; $recipeVal = 0;
+                    if (preg_match('/(\d+[.,]?\d*)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i', $recipeQty, $qm)) {
+                        $recipeVal = (float)str_replace(',', '.', $qm[1]);
+                        $ru = strtolower($qm[2]);
+                        if (strpos($ru, 'g') === 0)                       $recipeUnit = 'g';
+                        elseif ($ru === 'kg')                              { $recipeUnit = 'g';  $recipeVal *= 1000; }
+                        elseif ($ru === 'ml')                              $recipeUnit = 'ml';
+                        elseif ($ru === 'cl')                              { $recipeUnit = 'ml'; $recipeVal *= 10; }
+                        elseif ($ru === 'l' || strpos($ru, 'litr') === 0) { $recipeUnit = 'ml'; $recipeVal *= 1000; }
+                        elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
+                        elseif (strpos($ru, 'conf') === 0)                $recipeUnit = 'conf';
+                    }
+                    if ($recipeUnit && $recipeUnit !== $invUnit) {
+                        if ($recipeUnit === 'g'  && $invUnit === 'kg')  $qtyNum = $recipeVal / 1000;
+                        elseif ($recipeUnit === 'g'  && $invUnit === 'g')   $qtyNum = $recipeVal;
+                        elseif ($recipeUnit === 'ml' && $invUnit === 'l')   $qtyNum = $recipeVal / 1000;
+                        elseif ($recipeUnit === 'ml' && $invUnit === 'ml')  $qtyNum = $recipeVal;
+                        elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                            $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                            if ($defQty > 0) { $qtyNum = $recipeVal / $defQty; $qtyNum = max(0.25, round($qtyNum * 4) / 4); }
+                            else $qtyNum = max(1, round($recipeVal / 100));
+                        }
+                    }
+                    if ($qtyNum > $invQty) $qtyNum = $invQty;
+                    if ($recipeVal > 0 && $recipeUnit === $invUnit && $qtyNum < $recipeVal * 0.01) $qtyNum = $recipeVal;
+                    $ing['qty_number'] = round($qtyNum, 3);
+                }
+            }
+        }
+        unset($ing);
+    }
+
+    $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
+    $send('recipe', ['recipe' => $recipe]);
+}
+
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====
 function geminiIdentifyProduct(): void {
     $apiKey = env('GEMINI_API_KEY');
@@ -2544,8 +3348,6 @@ Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
 }
 PROMPT;
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-
     $payload = [
         'contents' => [
             [
@@ -2566,25 +3368,16 @@ PROMPT;
         ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ]);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30);
+    $httpCode = $result['http_code'];
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode]);
+    if ($httpCode !== 200) {
+        $errMsg = $result['data']['error']['message'] ?? 'Errore API Gemini';
+        echo json_encode(['success' => false, 'error' => $errMsg, 'http_code' => $httpCode]);
         return;
     }
 
-    $data = json_decode($response, true);
+    $data = $result['data'];
     $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
     $text = preg_replace('/^```json\\s*/i', '', $text);
@@ -2824,6 +3617,392 @@ function italianToBring(string $italianName): string {
     return $italianName;
 }
 
+/**
+ * Auto-compute a generic shopping/Bring! name for a product.
+ *
+ * Priority:
+ *  1. Curated keyword map  — groups cured meats, etc. that the catalog doesn't unify
+ *  2. Bring! catalog back-translation — "Latte di Montagna" → "Milch" → "Latte"
+ *  3. First significant token capitalized
+ *
+ * The returned string is always a valid Bring! catalog name where possible,
+ * so that italianToBring(computeShoppingName($n)) resolves to a catalog key.
+ */
+/**
+ * Ask Gemini to classify a product name into a short Italian shopping category word.
+ * Results are cached in a local JSON file to avoid repeated API calls.
+ * Returns null on failure so the caller can fall back gracefully.
+ */
+function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) return null;
+
+    // Load/save classification cache
+    $cacheFile = __DIR__ . '/../data/shopping_name_cache.json';
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $raw = @file_get_contents($cacheFile);
+        if ($raw) $cache = json_decode($raw, true) ?: [];
+    }
+    $cacheKey = md5(mb_strtolower($name . '|' . $brand));
+    if (isset($cache[$cacheKey])) return $cache[$cacheKey];
+
+    // Build catalog list so Gemini picks an existing Bring! entry when possible
+    $catalog = bringCatalog();
+    $catalogList = implode(', ', array_slice(array_values($catalog['de2it']), 0, 200));
+
+    $prompt = <<<PROMPT
+Sei un assistente per la spesa italiana. Data la descrizione di un prodotto alimentare,
+rispondi con UNA SOLA parola (o al massimo due) in italiano che rappresenta la categoria
+generica più appropriata per la lista della spesa.
+
+Il nome deve essere:
+- Breve (1-2 parole al massimo)
+- In italiano
+- Riconoscibile da un supermercato italiano (es: "Pane", "Latte", "Formaggio", "Yogurt",
+  "Pasta", "Riso", "Olio", "Biscotti", "Succo", "Marmellata", "Salsa", "Farina", ...)
+- Se esiste nel catalogo Bring! scegli quella voce: {$catalogList}
+
+Prodotto: "{$name}"
+Marca: "{$brand}"
+Categoria OpenFoodFacts: "{$category}"
+
+Rispondi SOLO con la parola/coppia di parole, senza punteggiatura, senza spiegazioni.
+PROMPT;
+
+    $payload = [
+        'contents' => [['parts' => [['text' => $prompt]]]],
+        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 15);
+    if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) return null;
+
+    $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
+    // Sanitize: keep only letters and spaces, max 30 chars, capitalize first letter
+    $text = preg_replace('/[^\p{L}\s]/u', '', $text);
+    $text = trim(preg_replace('/\s+/', ' ', $text));
+    if (mb_strlen($text) < 2 || mb_strlen($text) > 30) return null;
+    $text = mb_strtoupper(mb_substr($text, 0, 1)) . mb_substr($text, 1);
+
+    // Persist to cache
+    $cache[$cacheKey] = $text;
+    @file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+    return $text;
+}
+
+function computeShoppingName(string $name, string $category = '', string $brand = ''): string {
+    $lower = mb_strtolower(trim($name));
+    $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
+             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo',
+             'parzialmente','scremato','uht','bio','light','freschi','fresca','fresco'];
+    $tokens = array_values(array_filter(
+        preg_split('/\s+/', preg_replace('/[^\p{L}\s]/u', ' ', $lower)),
+        fn($w) => mb_strlen($w) > 2 && !in_array($w, $stop)
+    ));
+
+    // 0. Compound-phrase map — checked against the FULL lowercase name (stop words included)
+    //    so multi-word product types are classified BEFORE single-token lookup.
+    //    This prevents "Pane grattugiato" → "Pane", "Panna da cucina" → "Panna", etc.
+    $phraseMap = [
+        // Breadcrumbs (MUST come before generic "pane")
+        'pangrattato'           => 'Pangrattato',
+        'pan grattato'          => 'Pangrattato',
+        'pane grattato'         => 'Pangrattato',
+        'pane grattugiato'      => 'Pangrattato',
+        'pan grattugiato'       => 'Pangrattato',
+        // Cooking cream (MUST come before generic "panna")
+        'panna da cucina'       => 'Panna da cucina',
+        'panna cucina'          => 'Panna da cucina',
+        'panna chef'            => 'Panna da cucina',
+        'panna acida'           => 'Panna acida',
+        // Plant-based milks (MUST come before generic "latte")
+        'latte condensato'      => 'Latte condensato',
+        'latte evaporato'       => 'Latte condensato',
+        'latte di soia'         => 'Latte di soia',
+        'latte soia'            => 'Latte di soia',
+        'latte vegetale'        => 'Latte vegetale',
+        'latte di mandorla'     => 'Latte di mandorla',
+        'latte mandorla'        => 'Latte di mandorla',
+        'latte di avena'        => 'Latte di avena',
+        'latte avena'           => 'Latte di avena',
+        'latte di riso'         => 'Latte di riso',
+        'latte riso'            => 'Latte di riso',
+        'latte di cocco'        => 'Latte di cocco',
+        'latte cocco'           => 'Latte di cocco',
+        // Baked bakery — different from bread
+        'fette biscottate'      => 'Fette biscottate',
+        'pan di spagna'         => 'Pan di Spagna',
+        // Specific vinegars
+        'aceto balsamico'       => 'Aceto balsamico',
+        'glassa balsamico'      => 'Aceto balsamico',
+        'glassa balsamic'       => 'Aceto balsamico',
+        // Cold cuts — specific cuts
+        'prosciutto cotto'      => 'Prosciutto cotto',
+        // Flour subtypes (MUST come before generic "farina")
+        'farina di riso'        => 'Farina di riso',
+        'farina riso'           => 'Farina di riso',
+        'farina di mais'        => 'Farina di mais',
+        'farina mais'           => 'Farina di mais',
+        'farina integrale'      => 'Farina integrale',
+        'farina 00'             => 'Farina',
+        // Roux / sugar subtypes
+        'zucchero di canna'     => 'Zucchero di canna',
+        'zucchero canna'        => 'Zucchero di canna',
+        'zucchero velo'         => 'Zucchero a velo',
+        'zucchero a velo'       => 'Zucchero a velo',
+        // Fresh pasta
+        'pasta fresca'          => 'Pasta fresca',
+        // Broth / stock
+        'brodo vegetale'        => 'Brodo',
+        'brodo pollo'           => 'Brodo',
+        'brodo manzo'           => 'Brodo',
+        // Mixed vegetable purée / passato (MUST come before generic carote/patate)
+        'passato di verdure'    => 'Verdure',
+        'passato di patate'     => 'Verdure',
+        // Water
+        'acqua frizzante'       => 'Acqua',
+        'acqua gassata'         => 'Acqua',
+        'acqua minerale'        => 'Acqua',
+        // Aroma / flavouring
+        'aroma vaniglia'        => 'Ingredienti Spezie',
+        'aroma mandorla'        => 'Ingredienti Spezie',
+        'aroma limone'          => 'Ingredienti Spezie',
+        'aroma rum'             => 'Ingredienti Spezie',
+        'aroma arancia'         => 'Ingredienti Spezie',
+    ];
+    foreach ($phraseMap as $phrase => $canonical) {
+        if (mb_strpos($lower, $phrase) !== false) {
+            return $canonical;
+        }
+    }
+
+    // 1. Curated keyword → canonical group name.
+    //    Extended list covers the most common Italian pantry items and avoids Gemini calls.
+    $keywordMap = [
+        // Cold cuts / affettati
+        'mortadella'    => 'Affettato',
+        'nduja'         => 'Affettato',
+        'salame'        => 'Affettato',
+        'salami'        => 'Affettato',
+        'coppa'         => 'Affettato',
+        'capicola'      => 'Affettato',
+        'speck'         => 'Affettato',
+        'schinkenspeck' => 'Affettato',
+        'schinken'      => 'Affettato',
+        'prosciutto'    => 'Affettato',
+        // Items with their own Bring! entry
+        'bresaola'      => 'Bresaola',
+        'pancetta'      => 'Pancetta',
+        'salsiccia'     => 'Salsiccia',
+        'wurstel'       => 'Wurstel',
+        // Bread & bakery
+        'pane'          => 'Pane',
+        'bauletto'      => 'Pane',
+        'pancarrè'      => 'Pane',
+        'pancare'       => 'Pane',
+        'toast'         => 'Pane',
+        'focaccia'      => 'Pane',
+        'ciabatta'      => 'Pane',
+        'baguette'      => 'Pane',
+        'grissini'      => 'Grissini',
+        'crackers'      => 'Cracker',
+        'cracker'       => 'Cracker',
+        'taralli'       => 'Taralli',
+        'tarallini'     => 'Taralli',
+        'piadina'       => 'Piadina',
+        'piadelle'      => 'Piadina',
+        'biscotto'      => 'Biscotti',
+        'biscotti'      => 'Biscotti',
+        // Breadcrumbs single-token safety net (phrase map has priority, but just in case)
+        'grattugiato'   => 'Pangrattato',
+        'grattato'      => 'Pangrattato',
+        'pangrattato'   => 'Pangrattato',
+        'biscottate'    => 'Fette biscottate',
+        // Leavening agents
+        'lievito'       => 'Lievito',
+        // Flavourings / aromas (single-token fallback; phrases handled above)
+        'aroma'         => 'Ingredienti Spezie',
+        // Dairy
+        'latte'         => 'Latte',
+        'yogurt'        => 'Yogurt',
+        'yaourt'        => 'Yogurt',
+        'yougurt'       => 'Yogurt',
+        'burro'         => 'Burro',
+        'panna'         => 'Panna',
+        'mozzarella'    => 'Mozzarella',
+        'formaggio'     => 'Formaggio',
+        'ricotta'       => 'Ricotta',
+        'ricottina'     => 'Ricotta',
+        'casatella'     => 'Formaggio',
+        'philadelphia'  => 'Formaggio cremoso',
+        // "Bel Paese" — known Italian cheese brand
+        'bel'           => 'Formaggio',
+        // Pasta
+        'pasta'         => 'Pasta',
+        'spaghetti'     => 'Pasta',
+        'penne'         => 'Pasta',
+        'rigatoni'      => 'Pasta',
+        'fusilli'       => 'Pasta',
+        'orecchiette'   => 'Pasta',
+        'tortiglioni'   => 'Pasta',
+        'linguine'      => 'Pasta',
+        'sedani'        => 'Pasta',
+        'lasagne'       => 'Pasta',
+        'tortellini'    => 'Pasta',
+        'gnocchi'       => 'Gnocchi',
+        // Rice
+        'riso'          => 'Riso',
+        // Eggs
+        'uova'          => 'Uova',
+        'uovo'          => 'Uova',
+        // Fruit & veg
+        'mela'          => 'Mele',
+        'mele'          => 'Mele',
+        'pera'          => 'Pere',
+        'arancia'       => 'Arance',
+        'arance'        => 'Arance',
+        'limone'        => 'Limone',
+        'banana'        => 'Banane',
+        'banane'        => 'Banane',
+        'kiwi'          => 'Kiwi',
+        'avocado'       => 'Avocado',
+        'pomodoro'      => 'Pomodori',
+        'pomodori'      => 'Pomodori',
+        'pomodorini'    => 'Pomodorini',
+        'carota'        => 'Carote',
+        'carote'        => 'Carote',
+        'cipolla'       => 'Cipolla',
+        'cipolle'       => 'Cipolla',
+        'aglio'         => 'Aglio',
+        'zucchina'      => 'Zucchine',
+        'zucchine'      => 'Zucchine',
+        'spinaci'       => 'Spinaci',
+        'lattuga'       => 'Insalata',
+        'melone'        => 'Melone',
+        'finocchio'     => 'Finocchio',
+        // Condiments & pantry
+        'olio'          => 'Olio',
+        'aceto'         => 'Aceto',
+        'sale'          => 'Sale',
+        'zucchero'      => 'Zucchero',
+        'farina'        => 'Farina',
+        'lievito'       => 'Lievito',
+        'miele'         => 'Miele',
+        'marmellata'    => 'Marmellata',
+        'confettura'    => 'Marmellata',
+        'maionese'      => 'Maionese',
+        'senape'        => 'Senape',
+        'ketchup'       => 'Ketchup',
+        // Canned / preserved
+        'passata'       => 'Passata',
+        'polpa'         => 'Polpa di pomodoro',
+        'pelati'        => 'Pelati',
+        'tonno'         => 'Tonno',
+        'sardine'       => 'Sardine',
+        'ceci'          => 'Ceci',
+        'lenticchie'    => 'Lenticchie',
+        'fagioli'       => 'Fagioli',
+        'piselli'       => 'Piselli',
+        'mais'          => 'Mais',
+        // Frozen
+        'surgelato'     => 'Surgelati',
+        'surgelati'     => 'Surgelati',
+        // Drinks
+        'vino'          => 'Vino',
+        'birra'         => 'Birra',
+        'succo'         => 'Succo',
+        // Cereals & snacks
+        'muesli'        => 'Muesli',
+        'cereali'       => 'Cereali',
+        // Frozen & desserts (before coffee/tea tokens to avoid "gelato caffè → Caffè")
+        'gelato'        => 'Gelato',
+        'semifreddo'    => 'Gelato',
+        // Beverages (coffee, tea, herbal)
+        'camomilla'     => 'Camomilla',
+        'camomille'     => 'Camomilla',
+        'tisana'        => 'Tè',
+        // Cat food / pet
+        'gatto'         => 'Cibo per gatti',
+        'cane'          => 'Cibo per cani',
+        // Known product/brand single tokens → category override
+        'risofrolle'    => 'Cracker',
+        'zuppalatte'    => 'Biscotti',
+        'kaffee'        => 'Caffè',
+        'ovomaltine'    => 'Bevande',
+        'ciobar'        => 'Cioccolata calda',
+        'apfelsaft'     => 'Succo',
+        'kartoffelpüree'=> 'Purè',
+        'purée'         => 'Purè',
+        'pure'          => 'Purè',
+        'inchusa'       => 'Birra',
+        'ichnusa'       => 'Birra',
+        'vesoletto'     => 'Vino',
+        'trebbiano'     => 'Vino',
+        'sangiovese'    => 'Vino',
+        'barbera'       => 'Vino',
+        'chianti'       => 'Vino',
+        'soave'         => 'Vino',
+        'prosecco'      => 'Vino',
+        'frizzante'     => 'Acqua',
+        'semolino'      => 'Semolino',
+        'bicarbonato'   => 'Bicarbonato',
+        'sambuca'       => 'Liquore',
+        'limoncello'    => 'Liquore',
+        'grappa'        => 'Liquore',
+        'dado'          => 'Brodo',
+        'zuccheri'      => 'Zucchero',
+        'zucchero'      => 'Zucchero',
+        // Foreign-language tokens
+        'jus'           => 'Succo',
+        'zumo'          => 'Succo',
+        'arome'         => 'Aroma',
+        'caffe'         => 'Caffè',
+        'caffè'         => 'Caffè',
+    ];
+
+    foreach ($tokens as $token) {
+        if (isset($keywordMap[$token])) {
+            return $keywordMap[$token];
+        }
+    }
+
+    // 2. Bring! catalog back-translation: "Latte di Montagna" → "Milch" → "Latte"
+    $bringKey = italianToBring($name);
+    if ($bringKey !== $name) {
+        $italian = bringToItalian($bringKey);
+        if ($italian && mb_strtolower($italian) !== $lower) {
+            return $italian;
+        }
+    }
+
+    // 3. Gemini AI classification — called when:
+    //    - The name has 2+ tokens (e.g. "Gran bauletto rustico"),
+    //    - OR the single token doesn't look like a clean Italian product word
+    //      (contains non-Italian chars, uppercase mix, brand-style length, etc.),
+    //    - OR category/brand context is available to help Gemini disambiguate.
+    // Single-token ultra-common words (5+ lowercase Italian chars) that already look
+    // like valid category names are skipped (unlikely to need AI).
+    $firstToken = $tokens[0] ?? '';
+    $isCleanItalianToken = count($tokens) === 1
+        && mb_strlen($firstToken) >= 5
+        && mb_strtolower($firstToken) === $firstToken  // all lowercase → already in stop-word-free form
+        && preg_match('/^[a-z]+$/', $firstToken);     // only ASCII lowercase (no accents = usually Italian noun)
+    $hasCategoryHint = $category !== '' || $brand !== '';
+    $needsAI = !$isCleanItalianToken || ($hasCategoryHint && count($tokens) >= 2);
+    if ($needsAI) {
+        $aiResult = _geminiClassifyProduct($name, $brand, $category);
+        if ($aiResult !== null) return $aiResult;
+    }
+
+    // 4. Fallback: capitalize the first meaningful token.
+    if (!empty($tokens)) {
+        return mb_strtoupper(mb_substr($firstToken, 0, 1)) . mb_substr($firstToken, 1);
+    }
+    return ucfirst($name);
+}
+
 function bringGetList(): void {
     $auth = bringAuth();
     if (!$auth) {
@@ -2879,17 +4058,30 @@ function bringGetList(): void {
         'purchase' => $purchase,
         'recently' => $recently,
     ], JSON_UNESCAPED_UNICODE);
+
+    // ── Background auto-migration ─────────────────────────────────────────
+    // After sending the response, silently migrate any item that still uses
+    // the specific product name instead of the generic shopping_name.
+    // This runs at most once every 10 minutes (flag file throttle) to avoid
+    // hammering the Bring! API on every page load.
+    $flagFile = __DIR__ . '/../data/bring_migrate_ts.json';
+    $doMigrate = true;
+    if (file_exists($flagFile)) {
+        $ts = (int)(json_decode(file_get_contents($flagFile), true)['ts'] ?? 0);
+        if ((time() - $ts) < 600) $doMigrate = false;
+    }
+    if ($doMigrate) {
+        file_put_contents($flagFile, json_encode(['ts' => time()]));
+        // Use a global PDO instance if available, otherwise open a new connection
+        global $db;
+        if ($db instanceof PDO) {
+            bringMigrateNamesInternal($db, $data['purchase'] ?? [], $listUUID);
+        }
+    }
 }
 
 function bringAddItems(): void {
     $auth = bringAuth();
-    if (!$auth) {
-        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
-        return;
-    }
-    
-    $input = json_decode(file_get_contents('php://input'), true);
-    $items = $input['items'] ?? [];
     $listUUID = $input['listUUID'] ?? $auth['bringListUUID'];
     
     if (empty($listUUID)) {
@@ -3028,13 +4220,102 @@ function bringCleanSpecs(): void {
 }
 
 /**
- * Serve smart shopping from cache (written by cron), falling back to live computation.
- * Cache is valid for up to 10 minutes; if stale or missing, compute on the fly.
+ * Core migration logic: iterate $purchaseItems and replace specific product
+ * names with generic shopping_name in the Bring! list identified by $listUUID.
+ * Returns ['migrated'=>int, 'skipped'=>int, 'errors'=>int].
  */
-/**
- * Invalidate the smart shopping cache so the next request recomputes live.
- * Call after any inventory_add or inventory_use that changes stock meaningfully.
- */
+function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUUID): array {
+    // Build lookup: product name (lowercase) → [shopping_name, brand]
+    $products = $db->query("SELECT name, brand, shopping_name FROM products WHERE shopping_name IS NOT NULL AND shopping_name != ''")->fetchAll();
+    $lookup = [];
+    foreach ($products as $p) {
+        $lookup[mb_strtolower($p['name'])] = ['shopping_name' => $p['shopping_name'], 'brand' => $p['brand'] ?? ''];
+    }
+
+    $migrated = 0;
+    $skipped  = 0;
+    $errors   = 0;
+
+    foreach ($purchaseItems as $item) {
+        $rawName = $item['name'] ?? '';
+        $itName  = bringToItalian($rawName);
+        $key     = mb_strtolower($itName);
+        $spec    = $item['specification'] ?? '';
+
+        if (!isset($lookup[$key])) { $skipped++; continue; }
+
+        $shoppingName = $lookup[$key]['shopping_name'];
+        $brand        = $lookup[$key]['brand'];
+
+        // Resolve to the correct Bring! catalog key (German)
+        $bringKey = italianToBring($shoppingName);
+
+        // Already using the correct catalog key or the shopping name → nothing to do
+        if (mb_strtolower($rawName) === mb_strtolower($bringKey))     { $skipped++; continue; }
+        if (mb_strtolower($rawName) === mb_strtolower($shoppingName)) { $skipped++; continue; }
+        if (mb_strtolower($itName)  === mb_strtolower($shoppingName)) { $skipped++; continue; }
+
+        // Build spec: "Specific Name · Brand"
+        $newSpec = $itName . ($brand ? " · {$brand}" : '');
+        if ($spec !== '' && $spec !== $newSpec && stripos($spec, $itName) === false) {
+            $newSpec = $itName . ($brand ? " · {$brand}" : '') . ' — ' . $spec;
+        }
+
+        // Check if the correct catalog key is already in the list
+        $alreadyAdded = false;
+        foreach ($purchaseItems as $existing) {
+            if (strcasecmp($existing['name'] ?? '', $bringKey) === 0) {
+                $alreadyAdded = true;
+                break;
+            }
+        }
+
+        // Remove old item using the correct API (PUT with remove param)
+        bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+            http_build_query(['uuid' => $listUUID, 'remove' => $rawName]));
+
+        // Add with the correct German catalog key (unless already present)
+        if (!$alreadyAdded) {
+            $addBody = http_build_query([
+                'uuid'          => $listUUID,
+                'purchase'      => $bringKey,
+                'specification' => $newSpec,
+            ]);
+            $result = bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}", $addBody);
+            if ($result !== false) { $migrated++; } else { $errors++; }
+        } else {
+            $migrated++; // old item removed, correct generic already present
+        }
+    }
+
+    return ['migrated' => $migrated, 'skipped' => $skipped, 'errors' => $errors];
+}
+
+function bringMigrateNames(PDO $db): void {
+    $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+    $listUUID = $auth['bringListUUID'];
+    if (empty($listUUID)) {
+        echo json_encode(['success' => false, 'error' => 'Lista non trovata']);
+        return;
+    }
+    $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+    if (!$data || !isset($data['purchase'])) {
+        echo json_encode(['success' => false, 'error' => 'Errore nel recupero della lista']);
+        return;
+    }
+
+    $result = bringMigrateNamesInternal($db, $data['purchase'], $listUUID);
+
+    // Reset throttle so next bring_list load re-checks
+    @unlink(__DIR__ . '/../data/bring_migrate_ts.json');
+
+    echo json_encode(array_merge(['success' => true], $result));
+}
+
 function invalidateSmartShoppingCache(): void {
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     if (file_exists($cacheFile)) {
@@ -3083,7 +4364,13 @@ function smartShoppingCached(PDO $db): void {
  * product "Muesli Frutta Secca" (which has "frutta" as a secondary token, not the first).
  * Mirrors JS _matchBringToSmart / _syncOnBringFlags logic.
  */
-function _productOnBring(string $productName, array $bringItems): bool {
+function _productOnBring(string $productName, array $bringItems, string $shoppingName = ''): bool {
+    // Check by shopping_name first (covers catalog-matched generic names like "Latte", "Affettato")
+    if ($shoppingName !== '') {
+        if (isset($bringItems[mb_strtolower($shoppingName)])) return true;
+        $snKey = italianToBring($shoppingName);
+        if (isset($bringItems[mb_strtolower($snKey)])) return true;
+    }
     // Exact key match (both German raw and Italian translated keys are stored)
     if (isset($bringItems[mb_strtolower($productName)])) return true;
     static $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per','su',
@@ -3121,7 +4408,8 @@ function smartShopping(PDO $db): void {
 
     // 1. Get all products with their inventory and transaction history
     $products = $db->query("
-        SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit
+        SELECT p.id, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+               p.shopping_name
         FROM products p
         ORDER BY p.name
     ")->fetchAll();
@@ -3417,8 +4705,11 @@ function smartShopping(PDO $db): void {
         if ($useCount >= 8) $score += 15;
         elseif ($useCount >= 5) $score += 10;
 
-        // Is already on Bring? (fuzzy token match — mirrors JS _findSimilarItem logic)
-        $onBring = _productOnBring($p['name'], $bringItems);
+        // Compute generic shopping name for this product
+        $shoppingName = $p['shopping_name'] ?: computeShoppingName($p['name'], $p['category'], $p['brand']);
+
+        // Is already on Bring? check both product name and generic shopping name
+        $onBring = _productOnBring($p['name'], $bringItems, $shoppingName);
 
         // "Just restocked" suppression: if bought in the last 3 days AND stock is above 50%
         // of reference qty, skip non-expiry urgency flags. The product doesn't need rebuying yet.
@@ -3429,6 +4720,7 @@ function smartShopping(PDO $db): void {
         $items[] = [
             'product_id' => $pid,
             'name' => $p['name'],
+            'shopping_name' => $shoppingName,
             'brand' => $p['brand'] ?: '',
             'category' => $p['category'] ?: '',
             'unit' => $unit,
@@ -3450,8 +4742,42 @@ function smartShopping(PDO $db): void {
             'score' => $score,
             'on_bring' => $onBring,
             'locations' => $inv ? $inv['locations'] : '',
+            'variants' => [],
         ];
     }
+
+    // Group items by shopping_name: keep the most urgent representative per group,
+    // collect the rest as variants so the UI can show "Affettato (Mortadella, Speck, Nduja)".
+    $grouped = [];
+    foreach ($items as $item) {
+        $sn = $item['shopping_name'];
+        if (!isset($grouped[$sn])) {
+            $grouped[$sn] = $item;
+        } else {
+            // Merge: keep the higher-score item as the representative
+            if ($item['score'] > $grouped[$sn]['score']) {
+                $demoted = [
+                    'product_id' => $grouped[$sn]['product_id'],
+                    'name'       => $grouped[$sn]['name'],
+                    'brand'      => $grouped[$sn]['brand'],
+                    'urgency'    => $grouped[$sn]['urgency'],
+                ];
+                $variants = array_merge([$demoted], $grouped[$sn]['variants']);
+                $grouped[$sn] = $item;
+                $grouped[$sn]['variants'] = $variants;
+            } else {
+                $grouped[$sn]['variants'][] = [
+                    'product_id' => $item['product_id'],
+                    'name'       => $item['name'],
+                    'brand'      => $item['brand'],
+                    'urgency'    => $item['urgency'],
+                ];
+            }
+            // on_bring is true if ANY variant in the group is already on Bring!
+            if ($item['on_bring']) $grouped[$sn]['on_bring'] = true;
+        }
+    }
+    $items = array_values($grouped);
 
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);
@@ -3460,221 +4786,80 @@ function smartShopping(PDO $db): void {
 }
 
 function bringSuggestItems(PDO $db): void {
-    $apiKey = env('GEMINI_API_KEY');
-    
-    if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'API Key Gemini non configurata']);
-        return;
+    // Offline: derive suggestions from smart shopping cache (no AI needed)
+
+    // 1. Load smart shopping data from cache or compute fresh
+    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    $smartItems = null;
+    if (file_exists($cacheFile)) {
+        $raw = file_get_contents($cacheFile);
+        if ($raw) {
+            $cached = json_decode($raw, true);
+            if ($cached && isset($cached['items'])) {
+                $smartItems = $cached['items'];
+            }
+        }
     }
-    
-    // Get current Bring! list
-    $auth = bringAuth();
-    $bringItems = [];
+    if ($smartItems === null) {
+        ob_start();
+        smartShopping($db);
+        $raw = ob_get_clean();
+        $data = json_decode($raw, true);
+        $smartItems = $data['items'] ?? [];
+    }
+
+    // 2. Get Bring! listUUID for response
     $listUUID = '';
+    $auth = bringAuth();
     if ($auth) {
-        $listUUID = $auth['bringListUUID'];
-        if (empty($listUUID)) {
-            $lists = bringRequest('GET', "https://api.getbring.com/rest/v2/bringusers/{$auth['uuid']}/lists");
-            if ($lists && isset($lists['lists'][0]['listUuid'])) {
-                $listUUID = $lists['lists'][0]['listUuid'];
-            }
-        }
-        if ($listUUID) {
-            $data = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
-            if ($data && isset($data['purchase'])) {
-                foreach ($data['purchase'] as $item) {
-                    $rawName = $item['name'] ?? '';
-                    $bringItems[] = bringToItalian($rawName);
-                }
-            }
-        }
+        $listUUID = $auth['bringListUUID'] ?? '';
     }
-    
-    // Get inventory
-    $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location, i.expiry_date,
-               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY p.category, p.name
-    ");
-    $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Build detailed context with expiry info
-    $invLines = [];
-    $expiringItems = [];
-    $expiredItems = [];
-    $categories = [];
-    foreach ($inventory as $item) {
-        $cat = $item['category'] ?: 'altro';
-        $categories[$cat] = ($categories[$cat] ?? 0) + 1;
-        $line = "- {$item['name']}";
-        if ($item['brand']) $line .= " ({$item['brand']})";
-        $line .= ": {$item['quantity']} {$item['unit']} in {$item['location']}";
-        if ($item['expiry_date']) {
-            $dl = intval($item['days_left']);
-            if ($dl < 0) {
-                $line .= " [⚠️ SCADUTO da " . abs($dl) . " giorni]";
-                $expiredItems[] = $item['name'];
-            } elseif ($dl <= 2) {
-                $line .= " [🔴 SCADE TRA {$dl} GIORNI - USARE SUBITO]";
-                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
-            } elseif ($dl <= 7) {
-                $line .= " [🟡 scade tra {$dl} giorni]";
-                $expiringItems[] = $item['name'] . " (tra {$dl}g)";
-            } elseif ($dl <= 14) {
-                $line .= " [scade tra {$dl} giorni]";
-            }
-        }
-        $invLines[] = $line;
-    }
-    $inventoryText = empty($invLines) ? 'La dispensa è COMPLETAMENTE VUOTA.' : implode("\n", $invLines);
-    
-    $expiryContext = '';
-    if (!empty($expiredItems)) {
-        $expiryContext .= "\n\nPRODOTTI SCADUTI da sostituire: " . implode(', ', $expiredItems);
-    }
-    if (!empty($expiringItems)) {
-        $expiryContext .= "\n\nPRODOTTI IN SCADENZA (priorità per sostituzione): " . implode(', ', $expiringItems);
-    }
-    
-    $bringText = empty($bringItems) 
-        ? 'La lista della spesa Bring! è attualmente VUOTA.' 
-        : "PRODOTTI GIÀ NELLA LISTA DELLA SPESA BRING! (NON suggerire nessuno di questi, sono già stati aggiunti):\n- " . implode("\n- ", $bringItems);
-    
-    // Current month for seasonal suggestions
-    $mese = strftime('%B') ?: date('F');
-    $mesi_it = ['January'=>'Gennaio','February'=>'Febbraio','March'=>'Marzo','April'=>'Aprile','May'=>'Maggio','June'=>'Giugno','July'=>'Luglio','August'=>'Agosto','September'=>'Settembre','October'=>'Ottobre','November'=>'Novembre','December'=>'Dicembre'];
-    $meseIt = $mesi_it[date('F')] ?? date('F');
-    $anno = date('Y');
-    
-    // Get catalog Italian names for AI to use
-    $catalog = bringCatalog();
-    $catalogNames = array_values($catalog['de2it']);
-    // Filter only food-related items (exclude categories and non-food)
-    $catalogNames = array_filter($catalogNames, function($n) {
-        $skip = ['Fai da te', 'Giardino', 'Atrezzi', 'Annaffiatoio', 'Rasaerba', 'Sementi', 'Propangas', 'Vernice', 'Pennello', 'Viti', 'Chiodi', 'Barbecue', 'Ombrellone', 'Terriccio', 'Concime', 'Articoli propri', 'Usati di recente'];
-        foreach ($skip as $s) { if (str_contains($n, $s)) return false; }
-        return mb_strlen($n) > 1;
-    });
-    $catalogList = implode(', ', array_slice($catalogNames, 0, 200));
-    
-    $prompt = <<<PROMPT
-Sei un nutrizionista e consulente per la spesa domestica italiano. Il tuo obiettivo è aiutare l'utente a fare una spesa SANA, EQUILIBRATA e INTELLIGENTE.
 
-DATA ATTUALE: {$meseIt} {$anno}
-
-=== INVENTARIO ATTUALE (cosa ha già in casa) ===
-{$inventoryText}{$expiryContext}
-
-=== LISTA BRING! (già pianificato per la spesa) ===
-{$bringText}
-
-=== CATALOGO PRODOTTI RICONOSCIUTI ===
-Usa ESATTAMENTE questi nomi quando possibile (sono i nomi che il sistema riconosce con icone e categorie):
-{$catalogList}
-
-=== IL TUO COMPITO ===
-Analizza attentamente l'inventario dell'utente e suggerisci cosa MANCA per una settimana di alimentazione sana.
-
-REGOLA FONDAMENTALE SUI NOMI:
-- Il campo "name" DEVE essere uno dei nomi dal CATALOGO PRODOTTI sopra, scritto ESATTAMENTE come appare.
-- Esempio: usa "Spinaci" (non "Spinaci freschi"), "Pollo" (non "Petto di pollo"), "Mele" (non "Mele Golden").
-- Se vuoi specificare la variante, mettila nel campo "specification" (es: name="Pollo", specification="petto, 500g").
-- Se il prodotto non è nel catalogo, usa il nome più generico possibile in italiano.
-
-RAGIONA COSÌ:
-1. CONTROLLA cosa ha già: guarda OGNI prodotto nell'inventario prima di suggerire. Se ha già pollo, non suggerire pollo. Se ha già pasta, non suggerire altra pasta.
-2. CONTROLLA la lista Bring!: NON suggerire nulla che sia già nella lista. Neanche varianti simili (es. "Fagioli" se c'è "Fagioli in lattina").
-3. PRODOTTI SCADUTI/IN SCADENZA: se qualcosa sta per scadere o è scaduto, suggerisci un sostituto fresco.
-4. STAGIONALITÀ ({$meseIt}): prediligi FRUTTA e VERDURA di stagione. A {$meseIt} in Italia: carciofi, asparagi, spinaci, bietole, finocchi, radicchio, arance, kiwi, mele, pere.
-5. DIETA SANA: assicurati che l'utente abbia proteine, fibre, vitamine, carboidrati complessi. Evita eccessi di prodotti trasformati.
-6. BASI MANCANTI: controlla se mancano alimenti essenziali come uova, latte, pane, frutta fresca, verdura, proteine.
-7. VARIETÀ: non suggerire 5 tipi di frutta se manca la carne. Bilancia le categorie.
-
-LIMITI:
-- Massimo 12 suggerimenti
-- Ordina per PRIORITÀ REALE (prima le mancanze gravi, poi i nice-to-have)
-- Ogni motivo deve essere SPECIFICO ("non hai proteine fresche" non "è buono")
-- NON inserire quantità, marche o dettagli nel campo "specification" — lascialo sempre vuoto.
-- Usa nomi GENERICI dal catalogo Bring! (es: "Latte" non "Latte Granarolo 1L").
-
-Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
-{
-  "suggestions": [
-    {
-      "name": "nome prodotto generico in italiano",
-      "specification": "",
-      "reason": "motivo breve",
-      "category": "frutta|verdura|latticini|carne|pesce|pane|pasta|conserve|condimenti|bevande|snack|surgelati|cereali|igiene|pulizia|altro",
-      "priority": "alta|media|bassa"
-    }
-  ],
-  "seasonal_tip": "Un consiglio stagionale breve"
-}
-PROMPT;
-
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    
-    $payload = [
-        'contents' => [
-            ['parts' => [['text' => $prompt]]]
-        ],
-        'generationConfig' => [
-            'temperature' => 0.8,
-            'maxOutputTokens' => 2048,
-        ]
+    // 3. Convert smart shopping items → suggestions (alta/media priority only, skip on_bring)
+    $suggestions = [];
+    $seasonalTips = [
+        1  => 'Gennaio: arance, mandarini, kiwi, carciofi e verze sono di stagione.',
+        2  => 'Febbraio: radicchio, finocchi, pere e agrumi da non perdere.',
+        3  => 'Marzo: arrivano gli asparagi! Ottimo anche con piselli freschi e spinaci.',
+        4  => 'Aprile: stagione di asparagi, carciofi, fave e fragole.',
+        5  => 'Maggio: zucchine, fragole, ciliegie — ottimo mese per frutta e verdura fresca.',
+        6  => 'Giugno: albicocche, pesche, pomodori freschi, melanzane — estate in arrivo.',
+        7  => 'Luglio: cocomero, pesche, melanzane e pomodori sono al loro meglio.',
+        8  => 'Agosto: prugne, fichi, peperoni e basilico fresco di stagione.',
+        9  => 'Settembre: uva, fichi, funghi porcini, melograno e more.',
+        10 => 'Ottobre: melograni, castagne, funghi, mele e pere autunnali.',
+        11 => 'Novembre: cachi, melograni, cavoli, broccoli e radicchio tardivo.',
+        12 => 'Dicembre: arance, mandarini, cachi, verze e cavolfiori.',
     ];
-    
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' => "Content-Type: application/json\r\n",
-            'content' => json_encode($payload),
-            'timeout' => 30,
-        ]
-    ]);
-    
-    $response = @file_get_contents($url, false, $ctx);
-    if ($response === false) {
-        echo json_encode(['success' => false, 'error' => 'Errore di connessione a Gemini']);
-        return;
+    $seasonalTip = $seasonalTips[(int)date('n')] ?? '';
+
+    foreach ($smartItems as $item) {
+        if ($item['on_bring'] ?? false) continue; // already on shopping list
+
+        $urgency = $item['urgency'] ?? 'low';
+        if ($urgency === 'low') continue; // not urgent enough to suggest
+
+        $priority = ($urgency === 'critical' || $urgency === 'high') ? 'alta' : 'media';
+        $reasons = $item['reasons'] ?? [];
+        $reason = !empty($reasons) ? implode(', ', $reasons) : 'Scorte basse';
+
+        $suggestions[] = [
+            'name'          => $item['name'],
+            'specification' => '',
+            'reason'        => $reason,
+            'category'      => $item['category'] ?: 'altro',
+            'priority'      => $priority,
+        ];
+
+        if (count($suggestions) >= 12) break;
     }
-    
-    $data = json_decode($response, true);
-    $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    
-    // Clean markdown artifacts
-    $text = preg_replace('/^```json\s*/i', '', $text);
-    $text = preg_replace('/```\s*$/', '', $text);
-    $text = trim($text);
-    
-    $suggestions = json_decode($text, true);
-    if (!$suggestions || !isset($suggestions['suggestions'])) {
-        echo json_encode(['success' => false, 'error' => 'Risposta AI non valida', 'raw' => $text]);
-        return;
-    }
-    
-    // Post-filter: remove any suggestions that match Bring! list items (safety net)
-    $bringLower = array_map('mb_strtolower', $bringItems);
-    $filtered = array_values(array_filter($suggestions['suggestions'], function($s) use ($bringLower) {
-        $sName = mb_strtolower($s['name'] ?? '');
-        foreach ($bringLower as $b) {
-            // Check exact match or if one contains the other
-            if ($sName === $b || str_contains($sName, $b) || str_contains($b, $sName)) {
-                return false;
-            }
-        }
-        return true;
-    }));
-    
+
     echo json_encode([
-        'success' => true,
-        'suggestions' => $filtered,
-        'seasonal_tip' => $suggestions['seasonal_tip'] ?? '',
-        'listUUID' => $listUUID,
-    ]);
+        'success'      => true,
+        'suggestions'  => $suggestions,
+        'seasonal_tip' => $seasonalTip,
+        'listUUID'     => $listUUID,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== DUPLICLICK (GRUPPO POLI) =====
@@ -3942,73 +5127,116 @@ function dupliclickExtractSpecKeywords(string $spec): string {
 }
 
 /**
- * Use Gemini AI to pick the best product from search results
+ * Pick the best product from search results using offline text-scoring (no AI needed).
+ * Returns null when nothing matches well enough (triggers refined search with spec keywords).
  */
 function aiSelectBestProduct(string $itemName, string $spec, array $products, string $customPrompt = ''): ?array {
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) return null;
+    if (empty($products)) return null;
+    if (count($products) === 1) return $products[0];
 
-    $defaultPrompt = "Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare (con eventuale descrizione tra parentesi) e una lista di prodotti trovati nel catalogo del supermercato.
+    $stop = ['di','del','della','dei','degli','dalle','delle','da','in','con','per','su',
+             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli',
+             'allo','gr','kg','ml','lt','cl','pz','conf','pack'];
 
-Regole di selezione:
-- Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
-- La DESCRIZIONE tra parentesi è FONDAMENTALE: se l'utente cerca \"Pancetta (a cubetti)\", DEVI trovare pancetta A CUBETTI, non pancetta generica
-- Se la descrizione include un tipo specifico (\"a cubetti\", \"a fette\", \"biologico\", \"cotto\", \"a pasta dura\"), il prodotto DEVE contenere quella caratteristica nel nome
-- Preferisci prodotti freschi/sfusi rispetto a trasformati (es. \"Arance\" = arance frutta, NON aranciata bevanda)
-- Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
-- Preferisci formati standard per una famiglia
-- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, pasta ripiena vs formaggio, ecc.)
-- \"Finocchio\" = ortaggio fresco, NON semi di finocchio o tisana
-- \"Arance\" = frutta fresca, NON aranciata o succo
-- \"Formaggio\" = formaggio intero/pezzo, NON prodotti che contengono formaggio come ingrediente (ravioli, sfogliavelo, ecc.)
-- \"Detergente intimo\" = detergente per igiene intima, NON detersivo generico
-- Rispondi -1 se NESSUN prodotto corrisponde ragionevolmente alla richiesta
+    $tokenize = function(string $s) use ($stop): array {
+        $clean = mb_strtolower(preg_replace('/[^\p{L}0-9\s]/u', ' ', $s), 'UTF-8');
+        return array_values(array_filter(
+            preg_split('/\s+/', trim($clean)),
+            fn($t) => mb_strlen($t, 'UTF-8') > 2 && !in_array($t, $stop)
+        ));
+    };
 
-Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.";
+    $queryTokens = $tokenize($itemName);
+    $specTokens  = $tokenize($spec);
 
-    $prompt = !empty($customPrompt) ? $customPrompt : $defaultPrompt;
+    if (empty($queryTokens)) return $products[0];
 
-    // Build product list
-    $productList = '';
-    foreach ($products as $i => $p) {
-        $productList .= "[$i] \"{$p['name']}\" - {$p['brand']} - €" . number_format($p['price'], 2) . " - {$p['packageDescr']}\n";
-    }
+    // Variant conflict pairs: if spec says X, penalise products containing opposite
+    $variantConflicts = [
+        'cubetti'   => ['fette','affettata','intera','arrotolata'],
+        'fette'     => ['cubetti','dadini'],
+        'cotto'     => ['crudo','stagionato'],
+        'crudo'     => ['cotto'],
+        'intero'    => ['macinato','tritato','cubetti','fette'],
+        'macinato'  => ['intero'],
+        'biologico' => [],
+    ];
 
-    $fullPrompt = "{$prompt}\n\nProdotto cercato: \"{$itemName}\"" . ($spec ? " ({$spec})" : '') . "\n\nProdotti trovati:\n{$productList}\nRispondi SOLO con il numero (es. 0, 1, 2... oppure -1):";
+    // Category mismatch: if query implies a category, penalise products from the wrong one
+    $categoryGuards = [
+        ['query' => ['frutta','mele','pere','pesche','fragole','uva','arance','limoni','banane','kiwi'],
+         'exclude' => ['succo','succhi','nettare','sciroppo','aranciata','bevanda','bibita']],
+        ['query' => ['verdura','spinaci','zucchine','carote','finocchio','sedano','broccoli'],
+         'exclude' => ['surgelat','succo']],
+        ['query' => ['formaggio','mozzarella','parmigiano','ricotta','pecorino'],
+         'exclude' => ['ravioli','tortellini','cannelloni','lasagne','pizza']],
+        ['query' => ['pasta','spaghetti','penne','fusilli','rigatoni','tagliatelle'],
+         'exclude' => ['insalata','minestra','zuppa','brodo']],
+    ];
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
-    $payload = json_encode([
-        'contents' => [['parts' => [['text' => $fullPrompt]]]],
-        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
-    ]);
+    $scores = [];
+    foreach ($products as $idx => $product) {
+        $productName  = $product['name']  ?? '';
+        $productBrand = $product['brand'] ?? '';
+        $productTokens = $tokenize($productName . ' ' . $productBrand);
+        $nameLower = mb_strtolower($productName, 'UTF-8');
+        $score = 0;
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($response === false || $httpCode !== 200) return null;
-
-    $data = json_decode($response, true);
-    $text = trim($data['candidates'][0]['content']['parts'][0]['text'] ?? '');
-    if (preg_match('/-?\d+/', $text, $m)) {
-        $idx = (int)$m[0];
-        if ($idx >= 0 && $idx < count($products)) {
-            return $products[$idx];
-        } elseif ($idx === -1) {
-            return null; // AI says nothing matches
+        // --- Token overlap: query vs product ---
+        foreach ($queryTokens as $qt) {
+            foreach ($productTokens as $pt) {
+                if ($qt === $pt)                          { $score += 6; break; }
+                if (str_contains($pt, $qt) || str_contains($qt, $pt)) { $score += 2; break; }
+            }
         }
+
+        // --- Spec tokens get extra weight (user specified variant) ---
+        foreach ($specTokens as $st) {
+            foreach ($productTokens as $pt) {
+                if ($st === $pt)                          { $score += 8; break; }
+                if (str_contains($pt, $st) || str_contains($st, $pt)) { $score += 3; break; }
+            }
+        }
+
+        // --- First-token anchor bonus ---
+        if (!empty($queryTokens) && !empty($productTokens) && $queryTokens[0] === $productTokens[0]) {
+            $score += 10;
+        }
+
+        // --- Category mismatch penalty ---
+        foreach ($categoryGuards as $guard) {
+            if (!empty(array_intersect($queryTokens, $guard['query']))) {
+                foreach ($guard['exclude'] as $exc) {
+                    if (str_contains($nameLower, $exc)) { $score -= 50; break; }
+                }
+            }
+        }
+
+        // --- Variant conflict penalty ---
+        foreach ($specTokens as $st) {
+            if (isset($variantConflicts[$st])) {
+                foreach ($variantConflicts[$st] as $conflict) {
+                    if (str_contains($nameLower, $conflict)) { $score -= 20; }
+                }
+            }
+        }
+
+        $scores[$idx] = $score;
     }
 
-    return null; // Could not parse, caller will use first result
+    arsort($scores);
+    reset($scores);
+    $topIdx    = key($scores);
+    $topScore  = current($scores);
+    next($scores);
+    $secondScore = current($scores) ?: 0;
+
+    // Return null (triggers spec-refined search) only when spec is given and no product
+    // matches well, so the caller can retry with more specific keywords.
+    if (!empty($spec) && $topScore < 4) return null;
+
+    // Otherwise return the best scoring result (fallback to first if score is 0)
+    return $products[$topIdx];
 }
 
 function formatDupliclickProduct(array $p): array {

@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260420a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260421a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
 </head>
@@ -930,10 +930,13 @@
                     <div id="tts-browser-section">
                         <div class="form-group">
                             <label>🗣️ Voce</label>
-                            <select id="setting-tts-voice" class="form-input">
-                                <option value="">— Caricamento voci… —</option>
-                            </select>
-                            <p class="settings-hint">Le voci disponibili dipendono dal sistema operativo e dal browser. Su macOS/iOS è disponibile la voce <strong>Paola</strong> (italiano).</p>
+                            <div style="display:flex;gap:8px;align-items:center">
+                                <select id="setting-tts-voice" class="form-input" style="flex:1">
+                                    <option value="">— Caricamento voci… —</option>
+                                </select>
+                                <button type="button" class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap;flex-shrink:0" onclick="_initBrowserTtsVoices(document.getElementById('setting-tts-voice').value)">↺</button>
+                            </div>
+                            <p class="settings-hint">Le voci disponibili dipendono dal sistema operativo e dal browser. Su macOS/iOS è disponibile la voce <strong>Paola</strong> (italiano). Premi ↺ se la lista non si carica.</p>
                         </div>
                         <div class="form-group">
                             <label>⚡ Velocità: <span id="tts-rate-label">1.0</span>×</label>
@@ -1195,7 +1198,7 @@
         </div>
         <div id="recipe-loading" style="display:none" class="recipe-loading">
             <div class="loading-spinner"></div>
-            <p>Sto preparando la ricetta...</p>
+            <p id="recipe-loading-msg">Sto preparando la ricetta...</p>
         </div>
         <div id="recipe-result" style="display:none" class="recipe-result">
             <div id="recipe-content"></div>
@@ -1288,6 +1291,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260420a"></script>
+<script src="assets/js/app.js?v=20260421a"></script>
 </body>
 </html>

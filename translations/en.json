@@ -26,7 +26,9 @@
         "save_config": "💾 Save Configuration",
         "save_product": "💾 Save Product",
         "restart": "↺ Restart",
-        "reset_default": "↺ Reset to default"
+        "reset_default": "↺ Reset to default",
+        "save_info": "💾 Save information",
+        "retry": "🔄 Retry"
     },
     "locations": {
         "dispensa": "Pantry",
@@ -85,24 +87,53 @@
         "quick_recipe": "🍳 Quick recipe with expiring products",
         "banner_review_title": "Anomalous quantity",
         "banner_review_action_ok": "It's correct",
-        "banner_review_action_edit": "Edit",
+        "banner_review_action_edit": "Correct",
         "banner_review_action_weigh": "Weigh",
         "banner_review_dismiss": "Dismiss",
         "banner_prediction_title": "Anomalous consumption",
         "banner_prediction_hint": "Based on predictions, this quantity doesn't match expected consumption.",
-        "banner_prediction_action_confirm": "Confirm quantity",
-        "banner_prediction_action_weigh": "Weigh with scale",
-        "banner_prediction_action_edit": "Correct",
+        "banner_prediction_action_confirm": "Confirm {qty} {unit} is correct",
+        "banner_prediction_action_weigh": "Weigh now",
+        "banner_prediction_action_edit": "Update quantity",
         "banner_expired_title": "Expired product",
         "banner_expired_today": "Expired today",
         "banner_expired_days": "Expired {days} days ago",
         "banner_expired_action_use": "Use anyway",
-        "banner_expired_action_throw": "Throw away",
+        "banner_expired_action_throw": "I threw it away",
+        "banner_expired_action_edit": "Fix date",
+        "banner_anomaly_action_edit": "Fix inventory",
+        "banner_anomaly_action_dismiss": "Quantity is correct",
         "banner_expiring_title": "Expiring soon",
         "banner_expiring_today": "Expires today!",
         "banner_expiring_tomorrow": "Expires tomorrow",
         "banner_expiring_days": "Expires in {days} days",
-        "banner_expiring_action_use": "Use now"
+        "banner_expiring_action_use": "Use now",
+        "banner_finished_title": "finished?",
+        "banner_finished_detail": "I recorded that {name} reached zero stock. Is it really gone, or do you still have some?",
+        "banner_finished_action_yes": "Yes, it's done",
+        "banner_finished_action_no": "No, I still have some",
+        "banner_review_unusual_pkg_title": "Unusual package size",
+        "banner_review_unusual_pkg_detail": "You set a package of {qty} {unit} — the size seems very large. Check if correct or edit.",
+        "banner_review_low_qty_title": "Very low quantity",
+        "banner_review_low_qty_detail": "You only have {qty} in stock — seems very little, could be a typo. Confirm if correct.",
+        "banner_review_high_qty_title": "Unusually high quantity",
+        "banner_review_high_qty_detail": "You have {qty} in stock — the figure seems very high. Confirm if correct or edit.",
+        "banner_prediction_rate_day": "Average ~{n} {unit}/day",
+        "banner_prediction_rate_week": "Average ~{n} {unit}/week",
+        "banner_prediction_days_ago": "{n} days ago you restocked",
+        "banner_prediction_more": "I expected {expected} {unit}{time}, but you have {actual} {unit}. Did you add stock without recording it?",
+        "banner_prediction_less": "I expected {expected} {unit}{time}, but you only have {actual} {unit}. Did you use more than usual?",
+        "banner_finished_zero": "Inventory shows zero, but recorded movements suggest it shouldn't be empty.",
+        "banner_finished_expected": "According to records you should still have {qty} {unit}.",
+        "banner_finished_check": "Can you check?",
+        "banner_anomaly_phantom_title": "you have more stock than expected",
+        "banner_anomaly_phantom_detail": "Inventory shows {inv_qty} {unit}, but based on records you should only have {expected_qty} {unit}. Did you add stock without recording it?",
+        "banner_anomaly_ghost_title": "you have less stock than expected",
+        "banner_anomaly_ghost_detail": "Based on recorded operations you should have {expected_qty} {unit} of {name}, but inventory shows only {inv_qty} {unit}. Did you take stock without recording it?",
+        "consumed": "Consumed: {n} ({pct}%)",
+        "wasted": "Wasted: {n} ({pct}%)",
+        "more_opened": "and {n} more opened...",
+        "banner_expired_detail": "{when} · you still have <strong>{qty}</strong>."
     },
     "inventory": {
         "title": "Pantry",
@@ -111,7 +142,19 @@
         "recent_title": "🕐 Recently used",
         "popular_title": "⭐ Most used",
         "empty": "No products here.\nScan a product to add it!",
-        "no_items_found": "No inventory items found"
+        "no_items_found": "No inventory items found",
+        "qty_remainder_suffix": "left",
+        "vacuum_badge": "🫙 Vacuum sealed",
+        "opened_badge": "📭 Opened",
+        "label_expiry": "📅 Expiry",
+        "label_storage": "🫙 Storage",
+        "label_status": "📭 Status",
+        "opened_since": "Opened since {date}",
+        "label_position": "📍 Location",
+        "label_quantity": "📦 Quantity",
+        "label_added": "📅 Added",
+        "empty_text": "No products here.<br>Scan a product to add it!",
+        "empty_db": "No products in the database.<br>Scan a product to get started!"
     },
     "scan": {
         "title": "Scan Product",
@@ -133,7 +176,13 @@
         "add_btn": "📥 ADD",
         "add_sub": "to pantry/fridge",
         "use_btn": "📤 USE / CONSUME",
-        "use_sub": "from pantry/fridge"
+        "use_sub": "from pantry/fridge",
+        "have_title": "📦 Already in stock!",
+        "add_more_sub": "add more",
+        "use_qty_sub": "how much you used",
+        "throw_btn": "🗑️ DISCARD",
+        "throw_sub": "throw away",
+        "edit_sub": "expiry, location…"
     },
     "add": {
         "title": "Add to Pantry",
@@ -143,7 +192,21 @@
         "conf_size_placeholder": "e.g. 300",
         "vacuum_label": "🫙 Vacuum sealed",
         "vacuum_hint": "Expiry date will be extended automatically",
-        "submit": "✅ Add"
+        "submit": "✅ Add",
+        "purchase_type_label": "🛒 This product is...",
+        "new_btn": "🆕 Just bought",
+        "existing_btn": "📦 I already had it",
+        "remaining_label": "📦 Remaining quantity",
+        "remaining_hint": "Approximately how much is left?",
+        "remaining_full": "🟢 Full",
+        "remaining_half": "🟠 Half",
+        "estimated_expiry": "Estimated expiry:",
+        "suffix_freezer": "(freezer)",
+        "suffix_vacuum": "(vacuum sealed)",
+        "hint_modify": "📝 You can change the date or scan it with the camera",
+        "scan_expiry_title": "📷 Scan Expiry Date",
+        "product_added": "✅ {name} added!{qty}",
+        "suffix_freezer_vacuum": "(freezer + vacuum sealed)"
     },
     "use": {
         "title": "Use / Consume",
@@ -154,7 +217,18 @@
         "submit": "📤 Use this quantity",
         "available": "📦 Available:",
         "not_in_inventory": "⚠️ Product not in inventory.",
-        "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!"
+        "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!",
+        "throw_title": "🗑️ Discard Product",
+        "throw_all": "🗑️ Discard ALL ({qty})",
+        "throw_qty_label": "How much to discard?",
+        "throw_qty_hint": "or enter a quantity:",
+        "throw_partial_btn": "🗑️ Discard this quantity",
+        "when_expired": "expired {n} days ago",
+        "when_today": "expires <strong>today</strong>",
+        "when_tomorrow": "expires <strong>tomorrow</strong>",
+        "when_days": "expires in <strong>{n} days</strong>",
+        "toast_used": "📤 Used {qty} of {name}",
+        "toast_bring": "🛒 Product finished → added to Bring!"
     },
     "product": {
         "title_new": "New Product",
@@ -186,7 +260,9 @@
         "edit_catalog": "⚙️ Edit product info (name, brand, category…)",
         "not_recognized": "⚠️ Product not recognized",
         "edit_info": "✏️ Edit information",
-        "modify_details": "EDIT\nexpiry, location…"
+        "modify_details": "EDIT\nexpiry, location…",
+        "already_in_pantry": "📋 Already in pantry",
+        "no_barcode": "No barcode"
     },
     "products": {
         "title": "📦 All Products",
@@ -224,7 +300,33 @@
         "smart_already": "📊 Smart shopping already predicts {name}",
         "all_searched": "All products have already been searched. Use 🔄 to search individual ones.",
         "search_complete": "Search complete: {count} products",
-        "removed_sufficient": "🧹 {removed} product(s) with sufficient stock removed from the list"
+        "removed_sufficient": "🧹 {removed} product(s) with sufficient stock removed from the list",
+        "bring_badge": "🛒 Already on Bring!",
+        "add_urgent_toast": "🔴 {n} urgent product(s) automatically added to Bring!",
+        "migration_done": "✅ {migrated} updated, {skipped} already ok",
+        "added_to_bring": "🛒 {n} products added to Bring!",
+        "added_to_bring_skip": "{n} already present",
+        "all_on_bring": "All products were already on Bring!",
+        "freq_high": "📈 Frequent",
+        "freq_regular": "📊 Regular",
+        "freq_occasional": "📉 Occasional",
+        "out_of_stock": "Out of stock",
+        "scan_toast": "📷 Scan: {name}",
+        "empty_category": "No products in this category",
+        "session_empty": "🛒 No products yet",
+        "urgency_critical": "Urgent",
+        "urgency_high": "Soon",
+        "urgency_medium": "Plan",
+        "urgency_low": "Forecast",
+        "urgency_medium_short": "Medium",
+        "urgency_low_short": "Ok",
+        "tag_urgent": "🔴 Urgent",
+        "tag_priority": "⭐ Priority",
+        "tag_check": "✅ Check",
+        "smart_already_predicted": "📊 Smart shopping already predicts <strong>{name}</strong>{urgency}.",
+        "item_removed": "✅ {name} removed from list!",
+        "urgency_spec_critical": "⚡ Urgent",
+        "urgency_spec_high": "🟠 Soon"
     },
     "ai": {
         "title": "🤖 AI Identification",
@@ -233,10 +335,27 @@
         "hint": "Take a photo of the product and AI will try to identify it",
         "identifying": "🤖 Identifying product...",
         "no_api_key": "⚠️ Gemini API key not configured.\n<small>Add GEMINI_API_KEY to the .env file on the server.</small>",
-        "fields_filled": "✅ Fields filled by AI"
+        "fields_filled": "✅ Fields filled by AI",
+        "use_data": "✅ Use AI data",
+        "use_data_no_barcode": "✅ Use AI data (no barcode)"
     },
     "log": {
-        "title": "📒 Operations Log"
+        "title": "📒 Operations Log",
+        "type_added": "Added",
+        "type_waste": "Discarded",
+        "type_used": "Used",
+        "type_bring": "Added to Bring!",
+        "undone_badge": "Undone",
+        "undo_title": "Undo this operation",
+        "load_error": "Error loading log",
+        "empty": "No operations recorded.",
+        "undo_action_remove": "removal of",
+        "undo_action_restore": "restock of",
+        "undo_confirm": "Undo this operation?\n→ {action} {name}",
+        "undo_success": "↩ Operation undone for {name}",
+        "already_undone": "Operation already undone",
+        "too_old": "Cannot undo operations older than 24 hours",
+        "undo_error": "Error during undo"
     },
     "chat": {
         "title": "Gemini Chef",
@@ -247,7 +366,12 @@
         "suggestion_light": "🥗 Something light",
         "suggestion_expiry": "⏰ Use expiring items",
         "clear": "New conversation",
-        "placeholder": "Ask something..."
+        "placeholder": "Ask something...",
+        "cleared": "Chat cleared",
+        "suggestion_snack_text": "What can I make for a quick snack?",
+        "suggestion_juice_text": "Make me a juice or smoothie with what I have",
+        "suggestion_light_text": "I'm hungry but want something light",
+        "suggestion_expiry_text": "What's about to expire and how can I use it?"
     },
     "cooking": {
         "close": "Close",
@@ -256,7 +380,13 @@
         "replay": "🔊 Replay",
         "timer": "⏱️ {time} · Timer",
         "prev": "◀ Previous",
-        "next": "Next ▶"
+        "next": "Next ▶",
+        "ingredient_used": "✔️ Deducted",
+        "ingredient_use_btn": "📦 Use",
+        "ingredient_deduct_title": "Deduct from pantry",
+        "timer_expired_tts": "Timer {label} expired!",
+        "timer_warning_tts": "Heads up! {label}: 10 seconds left!",
+        "recipe_done_tts": "Recipe complete! Enjoy your meal!"
     },
     "settings": {
         "title": "⚙️ Settings",
@@ -401,12 +531,45 @@
         "days": "{days} days",
         "expired_days": "{days}d ago",
         "expired_yesterday": "Yesterday",
-        "expired_today": "Today"
+        "expired_today": "Today",
+        "badge_today": "⚠️ Expires today!",
+        "badge_tomorrow": "⏰ Tomorrow",
+        "badge_tomorrow_long": "⏰ Expires tomorrow",
+        "badge_days": "⏰ {n} days",
+        "badge_expired_ago": "⚠️ Expired {n}d ago",
+        "badge_expired": "⛔ Expired!",
+        "badge_stable": "✅ Stable",
+        "badge_expiring_short": "⏰ Exp. in {n}d",
+        "badge_ok_still": "✅ Still {n}d",
+        "badge_expires_red": "🔴 Exp. in {n}d",
+        "badge_expires_yellow": "🟡 Exp. in {n}d",
+        "badge_expired_bare": "⚠️ Expired",
+        "badge_expires_warn": "⚠️ Exp. in {n}d",
+        "badge_days_left": "⏳ ~{n}d left",
+        "days_approx": "~{n} days",
+        "weeks_approx": "~{n} weeks",
+        "months_approx": "~{n} months",
+        "years_approx": "~{n} years",
+        "expired_today_long": "Expired today",
+        "expired_ago_long": "Expired {n} days ago",
+        "expired_suffix": "— Expired!",
+        "days_compact": "{n}d"
     },
     "status": {
         "ok": "OK",
         "check": "Check",
-        "discard": "Discard"
+        "discard": "Discard",
+        "tip_freezer_ok": "In freezer: still safe (~{n}d margin)",
+        "tip_freezer_check": "In freezer for a long time, may have lost quality. Consume soon",
+        "tip_freezer_danger": "In freezer too long, risk of freezer burn and degradation",
+        "tip_highRisk_check": "Expired recently, check smell and appearance before consuming",
+        "tip_highRisk_danger": "Perishable product expired: discard for safety",
+        "tip_medRisk_check1": "Check appearance and smell before consuming",
+        "tip_medRisk_check2": "Expired a while ago, check carefully before use",
+        "tip_medRisk_danger": "Too long since expiry, better to discard",
+        "tip_lowRisk_ok": "Long-lasting product, still safe to consume",
+        "tip_lowRisk_check": "Expired over a month ago, check package integrity",
+        "tip_lowRisk_danger": "Expired too long ago, better not to risk it"
     },
     "toast": {
         "product_saved": "Product saved!",
@@ -423,6 +586,7 @@
         "finished_to_bring": "🛒 Product finished → added to Bring!",
         "thrown_away": "🗑️ {name} thrown away!",
         "thrown_away_partial": "🗑️ Thrown away {qty} {unit} of {name}",
+        "product_finished_confirmed": "✅ Removed — add it again when you restock",
         "appliance_added": "Appliance added",
         "item_added": "{name} added"
     },
@@ -439,18 +603,23 @@
         "bring_add": "Error adding to Bring!",
         "bring_connection": "Bring! connection error",
         "identification": "Identification error",
+        "ai_quota": "AI quota exhausted. Please try again in a few minutes.",
         "barcode_empty": "Enter a barcode",
         "barcode_format": "Barcode must contain only numbers (4-14 digits)",
         "min_chars": "Type at least 2 characters",
         "not_in_inventory": "Product not in inventory",
         "appliance_exists": "Appliance already exists",
-        "already_exists": "Already exists"
+        "already_exists": "Already exists",
+        "network_retry": "Connection error. Try again."
     },
     "confirm": {
-        "remove_item": "Do you really want to remove this product from inventory?"
+        "remove_item": "Do you really want to remove this product from inventory?",
+        "kiosk_exit": "Exit kiosk mode?"
     },
     "edit": {
-        "title": "Edit {name}"
+        "title": "Edit {name}",
+        "unknown_hint": "Enter the product name and information",
+        "label_name": "🏷️ Product name"
     },
     "screensaver": {
         "recipe_btn": "Recipes",
@@ -485,11 +654,60 @@
         "timeout": "Timeout: no response from gateway",
         "error_connect": "Cannot connect to gateway",
         "tab": "Smart Scale",
-        "low_weight": "Weight < 10 g · enter manually\n(auto-reading requires at least 10 g)"
+        "low_weight": "Weight < 10 g · enter manually\n(auto-reading requires at least 10 g)",
+        "density_hint": "(density {density} g/ml)",
+        "ml_hint": "(will be converted to ml)",
+        "weight_detected": "Weight detected — wait 10s for stability…",
+        "weight_too_low": "Weight too low — waiting…",
+        "stable": "✓ Stable",
+        "auto_confirm": "✅ {val} {unit} — auto-confirm in 5s (tap to cancel)",
+        "cancelled_replace": "Cancelled — replace the ingredient on the scale to resume"
     },
     "prediction": {
         "expected_qty": "Expected: {expected} {unit}",
         "actual_qty": "Current: {actual} {unit}",
         "check_suggestion": "Check or weigh the remaining quantity"
+    },
+    "date": {
+        "today": "📅 Today",
+        "yesterday": "📅 Yesterday"
+    },
+    "scanner": {
+        "title_barcode": "🔖 Scan Barcode",
+        "barcode_hint": "Frame the product barcode",
+        "barcode_manual_placeholder": "Or enter manually...",
+        "barcode_use_btn": "✅ Use this code",
+        "ai_identifying": "🤖 Identifying product...",
+        "ai_analyzing": "🤖 AI analysis in progress...",
+        "product_label_hint": "Frame the product label",
+        "expiry_label_hint": "Frame the expiry date printed on the product",
+        "capture_btn": "📸 Capture",
+        "capture_photo_btn": "📸 Take Photo",
+        "retake_btn": "🔄 Retake",
+        "camera_error_hint": "Ensure you use HTTPS and have granted camera permissions.<br>You can enter the barcode manually or use AI identification.",
+        "no_barcode": "No barcode"
+    },
+    "lowstock": {
+        "title": "⚠️ Running low!",
+        "message": "{name} is running low — only {qty} remaining.",
+        "question": "Do you want to add it to the shopping list?",
+        "yes": "🛒 Yes, add to Bring!",
+        "no": "No, I'm fine for now"
+    },
+    "move": {
+        "title": "📦 Move the rest?",
+        "question": "Do you want to move the {thing} of {name} to another location?",
+        "question_short": "Do you want to move the {thing} to another location?",
+        "thing_opened": "opened package",
+        "thing_rest": "rest",
+        "stay_btn": "No, stay in {location}",
+        "moved_toast": "📦 Opened package moved to {location}",
+        "vacuum_restore": "🫙 Restore vacuum sealed"
+    },
+    "nova": {
+        "1": "Unprocessed",
+        "2": "Culinary ingredient",
+        "3": "Processed",
+        "4": "Ultra-processed"
     }
 }

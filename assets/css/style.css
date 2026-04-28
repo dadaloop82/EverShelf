@@ -1963,6 +1963,14 @@ body {
     line-height: 1.3;
 }
 
+.smart-item-specific {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+    line-height: 1.3;
+    font-style: italic;
+}
+
 .smart-brand {
     font-weight: 400;
     color: var(--text-muted);
@@ -3115,6 +3123,8 @@ body {
     margin-top: 16px;
     color: var(--text-muted);
     font-weight: 600;
+    transition: opacity 0.25s ease;
+    min-height: 1.4em;
 }
 
 .recipe-result {
@@ -4525,6 +4535,12 @@ body {
     background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
     border-color: #8b5cf6;
 }
+.alert-banner.banner-anomaly {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    border-color: #ea580c;
+}
+.banner-anomaly .alert-banner-title { color: #9a3412; }
+.banner-anomaly .alert-banner-counter .banner-dot.active { background: #ea580c; }
 .alert-banner-inner {
     display: flex;
     align-items: flex-start;
@@ -5662,4 +5678,37 @@ body {
 .btn-banner-throw {
     background: #fee2e2;
     color: #dc2626;
+}
+.alert-banner.banner-expired-danger {
+    background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+    border-color: #b91c1c;
+    border-width: 2px;
+}
+.banner-expired-danger .alert-banner-title {
+    color: #7f1d1d;
+}
+.banner-safety-tip {
+    display: inline-block;
+    font-size: 0.82em;
+    margin-top: 1px;
+}
+.banner-safety-danger {
+    color: #b91c1c;
+    font-weight: 600;
+}
+.banner-safety-warning {
+    color: #92400e;
+}
+.banner-safety-ok {
+    color: #166534;
+}
+.btn-banner-throw-primary {
+    background: #dc2626;
+    color: #fff;
+    font-weight: 600;
+}
+.btn-banner-use-danger {
+    background: #f3f4f6;
+    color: #9ca3af;
+    font-size: 0.8em;
 }

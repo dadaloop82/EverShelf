@@ -26,7 +26,9 @@
         "save_config": "💾 Salva Configurazione",
         "save_product": "💾 Salva Prodotto",
         "restart": "↺ Ricomincia",
-        "reset_default": "↺ Ripristina default"
+        "reset_default": "↺ Ripristina default",
+        "save_info": "💾 Salva informazioni",
+        "retry": "🔄 Riprova"
     },
     "locations": {
         "dispensa": "Dispensa",
@@ -85,24 +87,53 @@
         "quick_recipe": "🍳 Ricetta veloce con prodotti in scadenza",
         "banner_review_title": "Quantità anomala",
         "banner_review_action_ok": "È corretto",
-        "banner_review_action_edit": "Modifica",
+        "banner_review_action_edit": "Correggi",
         "banner_review_action_weigh": "Pesa",
         "banner_review_dismiss": "Ignora",
         "banner_prediction_title": "Consumo anomalo",
         "banner_prediction_hint": "Secondo le previsioni, questa quantità non corrisponde al consumo previsto.",
-        "banner_prediction_action_confirm": "Confermo quantità",
-        "banner_prediction_action_weigh": "Pesa con bilancia",
-        "banner_prediction_action_edit": "Correggi",
+        "banner_prediction_action_confirm": "Confermo la quantità di {qty} {unit}",
+        "banner_prediction_action_weigh": "Pesa ora",
+        "banner_prediction_action_edit": "Aggiorna quantità",
         "banner_expired_title": "Prodotto scaduto",
         "banner_expired_today": "Scaduto oggi",
         "banner_expired_days": "Scaduto da {days} giorni",
         "banner_expired_action_use": "Usa comunque",
-        "banner_expired_action_throw": "Butta via",
+        "banner_expired_action_throw": "L'ho buttato",
+        "banner_expired_action_edit": "Correggi data",
+        "banner_anomaly_action_edit": "Correggi inventario",
+        "banner_anomaly_action_dismiss": "La quantità è giusta",
         "banner_expiring_title": "In scadenza",
         "banner_expiring_today": "Scade oggi!",
         "banner_expiring_tomorrow": "Scade domani",
         "banner_expiring_days": "Scade tra {days} giorni",
-        "banner_expiring_action_use": "Usa ora"
+        "banner_expiring_action_use": "Usa ora",
+        "banner_finished_title": "è finito?",
+        "banner_finished_detail": "Ho registrato che {name} ha toccato quota zero. È davvero finito o hai ancora delle scorte?",
+        "banner_finished_action_yes": "Sì, è finito",
+        "banner_finished_action_no": "No, ne ho ancora",
+        "banner_review_unusual_pkg_title": "Confezione insolita",
+        "banner_review_unusual_pkg_detail": "Hai impostato una confezione da {qty} {unit} — la dimensione sembra molto alta. Controlla se è corretta o modifica.",
+        "banner_review_low_qty_title": "Quantità molto bassa",
+        "banner_review_low_qty_detail": "Hai solo {qty} in inventario — sembra poco, potrebbe essere un errore. Conferma se è corretto.",
+        "banner_review_high_qty_title": "Quantità insolitamente alta",
+        "banner_review_high_qty_detail": "Hai {qty} in inventario — la cifra sembra molto alta. Conferma se è corretto o correggi.",
+        "banner_prediction_rate_day": "Media ~{n} {unit}/giorno",
+        "banner_prediction_rate_week": "Media ~{n} {unit}/settimana",
+        "banner_prediction_days_ago": "{n} giorni fa hai rifornito",
+        "banner_prediction_more": "mi aspettavo {expected} {unit}{time}, ne hai invece {actual} {unit}. Hai aggiunto scorte senza registrarle?",
+        "banner_prediction_less": "mi aspettavo {expected} {unit}{time}, ne hai solo {actual} {unit}. Hai consumato di più del solito?",
+        "banner_finished_zero": "L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.",
+        "banner_finished_expected": "Secondo le registrazioni dovresti averne ancora {qty} {unit}.",
+        "banner_finished_check": "Puoi controllare?",
+        "banner_anomaly_phantom_title": "hai più scorte del previsto",
+        "banner_anomaly_phantom_detail": "L'inventario segna {inv_qty} {unit}, ma in base alle registrazioni ne dovresti avere solo {expected_qty} {unit}. Hai aggiunto scorte senza registrarle?",
+        "banner_anomaly_ghost_title": "hai meno scorte del previsto",
+        "banner_anomaly_ghost_detail": "In base alle operazioni registrate dovresti avere {expected_qty} {unit} di {name}, ma l'inventario mostra solo {inv_qty} {unit}. Hai prelevato senza registrarlo?",
+        "consumed": "Consumati: {n} ({pct}%)",
+        "wasted": "Buttati: {n} ({pct}%)",
+        "more_opened": "e altri {n} prodotti aperti...",
+        "banner_expired_detail": "{when} · hai ancora <strong>{qty}</strong>."
     },
     "inventory": {
         "title": "Dispensa",
@@ -111,7 +142,19 @@
         "recent_title": "🕐 Ultimi usati",
         "popular_title": "⭐ Più usati",
         "empty": "Nessun prodotto qui.\nScansiona un prodotto per aggiungerlo!",
-        "no_items_found": "Nessuna voce di inventario trovata"
+        "no_items_found": "Nessuna voce di inventario trovata",
+        "qty_remainder_suffix": "rimasti",
+        "vacuum_badge": "🫙 Sotto vuoto",
+        "opened_badge": "📭 Aperto",
+        "label_expiry": "📅 Scadenza",
+        "label_storage": "🫙 Conservazione",
+        "label_status": "📭 Stato",
+        "opened_since": "Aperto dal {date}",
+        "label_position": "📍 Posizione",
+        "label_quantity": "📦 Quantità",
+        "label_added": "📅 Aggiunto",
+        "empty_text": "Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!",
+        "empty_db": "Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!"
     },
     "scan": {
         "title": "Scansiona Prodotto",
@@ -133,7 +176,13 @@
         "add_btn": "📥 AGGIUNGI",
         "add_sub": "in dispensa/frigo",
         "use_btn": "📤 USA / CONSUMA",
-        "use_sub": "dalla dispensa/frigo"
+        "use_sub": "dalla dispensa/frigo",
+        "have_title": "📦 Ce l'hai già!",
+        "add_more_sub": "altra quantità",
+        "use_qty_sub": "quanto ne hai usato",
+        "throw_btn": "🗑️ BUTTA",
+        "throw_sub": "butta il prodotto",
+        "edit_sub": "scadenza, luogo…"
     },
     "add": {
         "title": "Aggiungi alla Dispensa",
@@ -143,7 +192,21 @@
         "conf_size_placeholder": "es. 300",
         "vacuum_label": "🫙 Sotto vuoto",
         "vacuum_hint": "La scadenza verrà estesa automaticamente",
-        "submit": "✅ Aggiungi"
+        "submit": "✅ Aggiungi",
+        "purchase_type_label": "🛒 Questo prodotto è...",
+        "new_btn": "🆕 Appena comprato",
+        "existing_btn": "📦 Ce l'avevo già",
+        "remaining_label": "📦 Quantità rimasta",
+        "remaining_hint": "Quanto è rimasto approssimativamente?",
+        "remaining_full": "🟢 Pieno",
+        "remaining_half": "🟠 Metà",
+        "estimated_expiry": "Scadenza stimata:",
+        "suffix_freezer": "(freezer)",
+        "suffix_vacuum": "(sotto vuoto)",
+        "hint_modify": "📝 Puoi modificare la data o scansionarla con la fotocamera",
+        "scan_expiry_title": "📷 Scansiona Data Scadenza",
+        "product_added": "✅ {name} aggiunto!{qty}",
+        "suffix_freezer_vacuum": "(freezer + sotto vuoto)"
     },
     "use": {
         "title": "Usa / Consuma",
@@ -154,7 +217,18 @@
         "submit": "📤 Usa questa quantità",
         "available": "📦 Disponibile:",
         "not_in_inventory": "⚠️ Prodotto non presente nell'inventario.",
-        "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!"
+        "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!",
+        "throw_title": "🗑️ Butta Prodotto",
+        "throw_all": "🗑️ Butta TUTTO ({qty})",
+        "throw_qty_label": "Quanto butti?",
+        "throw_qty_hint": "oppure specifica la quantità:",
+        "throw_partial_btn": "🗑️ Butta questa quantità",
+        "when_expired": "scaduta da {n} giorni",
+        "when_today": "scade <strong>oggi</strong>",
+        "when_tomorrow": "scade <strong>domani</strong>",
+        "when_days": "scade tra <strong>{n} giorni</strong>",
+        "toast_used": "📤 Usato {qty} di {name}",
+        "toast_bring": "🛒 Prodotto finito → aggiunto a Bring!"
     },
     "product": {
         "title_new": "Nuovo Prodotto",
@@ -186,7 +260,9 @@
         "edit_catalog": "⚙️ Modifica scheda prodotto (nome, marca, categoria…)",
         "not_recognized": "⚠️ Prodotto non riconosciuto",
         "edit_info": "✏️ Modifica informazioni",
-        "modify_details": "MODIFICA\nscadenza, luogo…"
+        "modify_details": "MODIFICA\nscadenza, luogo…",
+        "already_in_pantry": "📋 Già in dispensa",
+        "no_barcode": "Senza barcode"
     },
     "products": {
         "title": "📦 Tutti i Prodotti",
@@ -224,7 +300,33 @@
         "smart_already": "📊 La spesa intelligente prevede già {name}",
         "all_searched": "Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.",
         "search_complete": "Ricerca completata: {count} prodotti",
-        "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista"
+        "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista",
+        "bring_badge": "🛒 Già su Bring!",
+        "add_urgent_toast": "🔴 {n} prodotto/i urgente/i aggiunto/i automaticamente a Bring!",
+        "migration_done": "✅ {migrated} aggiornati, {skipped} già ok",
+        "added_to_bring": "🛒 {n} prodotti aggiunti a Bring!",
+        "added_to_bring_skip": "{n} già presenti",
+        "all_on_bring": "Tutti i prodotti erano già su Bring!",
+        "freq_high": "📈 Uso frequente",
+        "freq_regular": "📊 Uso regolare",
+        "freq_occasional": "📉 Uso occasionale",
+        "out_of_stock": "Esaurito",
+        "scan_toast": "📷 Scansiona: {name}",
+        "empty_category": "Nessun prodotto in questa categoria",
+        "session_empty": "🛒 Nessun prodotto ancora",
+        "urgency_critical": "Urgente",
+        "urgency_high": "Presto",
+        "urgency_medium": "Pianifica",
+        "urgency_low": "Previsione",
+        "urgency_medium_short": "Medio",
+        "urgency_low_short": "Ok",
+        "tag_urgent": "🔴 Urgente",
+        "tag_priority": "⭐ Priorità",
+        "tag_check": "✅ Verificare",
+        "smart_already_predicted": "📊 La spesa intelligente prevede già <strong>{name}</strong>{urgency}.",
+        "item_removed": "✅ {name} rimosso dalla lista!",
+        "urgency_spec_critical": "⚡ Urgente",
+        "urgency_spec_high": "🟠 Presto"
     },
     "ai": {
         "title": "🤖 Identificazione AI",
@@ -233,10 +335,27 @@
         "hint": "Scatta una foto del prodotto e l'AI cercherà di identificarlo",
         "identifying": "🤖 Identifico il prodotto...",
         "no_api_key": "⚠️ Chiave API Gemini non configurata.\n<small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small>",
-        "fields_filled": "✅ Campi compilati dall'AI"
+        "fields_filled": "✅ Campi compilati dall'AI",
+        "use_data": "✅ Usa dati AI",
+        "use_data_no_barcode": "✅ Usa dati AI (senza barcode)"
     },
     "log": {
-        "title": "� Storico"
+        "title": "� Storico",
+        "type_added": "Aggiunto",
+        "type_waste": "Buttato",
+        "type_used": "Usato",
+        "type_bring": "Aggiunto a Bring!",
+        "undone_badge": "Annullato",
+        "undo_title": "Annulla questa operazione",
+        "load_error": "Errore nel caricamento log",
+        "empty": "Nessuna operazione registrata.",
+        "undo_action_remove": "rimozione di",
+        "undo_action_restore": "ripristino di",
+        "undo_confirm": "Annullare questa operazione?\n→ {action} {name}",
+        "undo_success": "↩ Operazione annullata per {name}",
+        "already_undone": "Operazione già annullata",
+        "too_old": "Non è possibile annullare operazioni più vecchie di 24 ore",
+        "undo_error": "Errore durante l'annullamento"
     },
     "chat": {
         "title": "Gemini Chef",
@@ -247,7 +366,12 @@
         "suggestion_light": "🥗 Qualcosa di leggero",
         "suggestion_expiry": "⏰ Usa le scadenze",
         "clear": "Nuova conversazione",
-        "placeholder": "Chiedi qualcosa..."
+        "placeholder": "Chiedi qualcosa...",
+        "cleared": "Chat cancellata",
+        "suggestion_snack_text": "Cosa posso preparare per uno spuntino veloce?",
+        "suggestion_juice_text": "Fammi un succo o frullato con quello che ho",
+        "suggestion_light_text": "Ho fame ma voglio qualcosa di leggero",
+        "suggestion_expiry_text": "Cosa sta per scadere e come posso usarlo?"
     },
     "cooking": {
         "close": "Chiudi",
@@ -256,7 +380,13 @@
         "replay": "🔊 Rileggi",
         "timer": "⏱️ {time} · Timer",
         "prev": "◀ Precedente",
-        "next": "Successivo ▶"
+        "next": "Successivo ▶",
+        "ingredient_used": "✔️ Scalato",
+        "ingredient_use_btn": "📦 Usa",
+        "ingredient_deduct_title": "Scala dalla dispensa",
+        "timer_expired_tts": "Timer {label} scaduto!",
+        "timer_warning_tts": "Attenzione! {label}: mancano 10 secondi!",
+        "recipe_done_tts": "Ricetta completata! Buon appetito!"
     },
     "settings": {
         "title": "⚙️ Configurazione",
@@ -401,12 +531,45 @@
         "days": "{days} giorni",
         "expired_days": "Da {days}g",
         "expired_yesterday": "Da ieri",
-        "expired_today": "Oggi"
+        "expired_today": "Oggi",
+        "badge_today": "⚠️ Scade oggi!",
+        "badge_tomorrow": "⏰ Domani",
+        "badge_tomorrow_long": "⏰ Scade domani",
+        "badge_days": "⏰ {n} giorni",
+        "badge_expired_ago": "⚠️ Scaduto da {n}g",
+        "badge_expired": "⛔ Scaduto!",
+        "badge_stable": "✅ Stabile",
+        "badge_expiring_short": "⏰ Scade fra {n}gg",
+        "badge_ok_still": "✅ Ancora {n}gg",
+        "badge_expires_red": "🔴 Scade tra {n}g",
+        "badge_expires_yellow": "🟡 Scade tra {n}g",
+        "badge_expired_bare": "⚠️ Scaduto",
+        "badge_expires_warn": "⚠️ Scade tra {n}gg",
+        "badge_days_left": "⏳ ~{n}gg rimasti",
+        "days_approx": "~{n} giorni",
+        "weeks_approx": "~{n} settimane",
+        "months_approx": "~{n} mesi",
+        "years_approx": "~{n} anni",
+        "expired_today_long": "Scaduto oggi",
+        "expired_ago_long": "Scaduto da {n} giorni",
+        "expired_suffix": "— Scaduto!",
+        "days_compact": "{n}gg"
     },
     "status": {
         "ok": "OK",
         "check": "Controlla",
-        "discard": "Buttare"
+        "discard": "Buttare",
+        "tip_freezer_ok": "In freezer: ancora sicuro (~{n}g di margine)",
+        "tip_freezer_check": "In freezer da molto, potrebbe aver perso qualità. Consumare presto",
+        "tip_freezer_danger": "In freezer da troppo tempo, rischio di bruciatura da gelo e degrado",
+        "tip_highRisk_check": "Scaduto da poco, controlla odore e aspetto prima di consumare",
+        "tip_highRisk_danger": "Prodotto deperibile scaduto: da buttare per sicurezza",
+        "tip_medRisk_check1": "Controlla aspetto e odore prima di consumare",
+        "tip_medRisk_check2": "Scaduto da un po', verificare bene prima dell'uso",
+        "tip_medRisk_danger": "Troppo tempo dalla scadenza, meglio buttare",
+        "tip_lowRisk_ok": "Prodotto a lunga conservazione, ancora sicuro da consumare",
+        "tip_lowRisk_check": "Scaduto da oltre un mese, controllare integrità confezione",
+        "tip_lowRisk_danger": "Scaduto da troppo tempo, meglio non rischiare"
     },
     "toast": {
         "product_saved": "Prodotto salvato!",
@@ -423,6 +586,7 @@
         "finished_to_bring": "🛒 Prodotto finito → aggiunto a Bring!",
         "thrown_away": "🗑️ {name} buttato!",
         "thrown_away_partial": "🗑️ Buttato {qty} {unit} di {name}",
+        "product_finished_confirmed": "✅ Rimosso — riaggiungi quando ne ricompri",
         "appliance_added": "Elettrodomestico aggiunto",
         "item_added": "{name} aggiunto"
     },
@@ -439,18 +603,23 @@
         "bring_add": "Errore nell'aggiunta a Bring!",
         "bring_connection": "Errore connessione Bring!",
         "identification": "Errore nell'identificazione",
+        "ai_quota": "Quota AI esaurita. Riprova tra qualche minuto.",
         "barcode_empty": "Inserisci un codice a barre",
         "barcode_format": "Il codice a barre deve contenere solo numeri (4-14 cifre)",
         "min_chars": "Scrivi almeno 2 caratteri",
         "not_in_inventory": "Prodotto non nell'inventario",
         "appliance_exists": "Elettrodomestico già presente",
-        "already_exists": "Già presente"
+        "already_exists": "Già presente",
+        "network_retry": "Errore di connessione. Riprova."
     },
     "confirm": {
-        "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?"
+        "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
+        "kiosk_exit": "Uscire dalla modalità kiosk?"
     },
     "edit": {
-        "title": "Modifica {name}"
+        "title": "Modifica {name}",
+        "unknown_hint": "Inserisci il nome e le informazioni del prodotto",
+        "label_name": "🏷️ Nome prodotto"
     },
     "screensaver": {
         "recipe_btn": "Ricette",
@@ -485,11 +654,60 @@
         "timeout": "Timeout: nessuna risposta dal gateway",
         "error_connect": "Impossibile connettersi al gateway",
         "tab": "Bilancia Smart",
-        "low_weight": "Peso < 10 g · inserisci manualmente\n(la lettura automatica richiede almeno 10 g)"
+        "low_weight": "Peso < 10 g · inserisci manualmente\n(la lettura automatica richiede almeno 10 g)",
+        "density_hint": "(densità {density} g/ml)",
+        "ml_hint": "(verrà convertito in ml)",
+        "weight_detected": "Peso rilevato — attendi 10s di stabilità…",
+        "weight_too_low": "Peso troppo basso — attendi…",
+        "stable": "✓ Stabile",
+        "auto_confirm": "✅ {val} {unit} — conferma automatica tra 5s (tocca per annullare)",
+        "cancelled_replace": "Annullato — rimetti l'ingrediente sulla bilancia per riprendere"
     },
     "prediction": {
         "expected_qty": "Previsto: {expected} {unit}",
         "actual_qty": "Attuale: {actual} {unit}",
         "check_suggestion": "Verifica o pesa la quantità residua"
+    },
+    "date": {
+        "today": "📅 Oggi",
+        "yesterday": "📅 Ieri"
+    },
+    "scanner": {
+        "title_barcode": "🔖 Scansiona Barcode",
+        "barcode_hint": "Inquadra il codice a barre del prodotto",
+        "barcode_manual_placeholder": "O inserisci manualmente...",
+        "barcode_use_btn": "✅ Usa questo codice",
+        "ai_identifying": "🤖 Identifico il prodotto...",
+        "ai_analyzing": "🤖 Analisi AI in corso...",
+        "product_label_hint": "Inquadra l'etichetta del prodotto",
+        "expiry_label_hint": "Inquadra la data di scadenza stampata sul prodotto",
+        "capture_btn": "📸 Scatta",
+        "capture_photo_btn": "📸 Scatta Foto",
+        "retake_btn": "🔄 Riscatta",
+        "camera_error_hint": "Assicurati di usare HTTPS e di aver concesso i permessi della fotocamera.<br>Puoi inserire il barcode manualmente o usare l'identificazione AI.",
+        "no_barcode": "Senza barcode"
+    },
+    "lowstock": {
+        "title": "⚠️ Sta per finire!",
+        "message": "{name} sta per finire — rimangono solo {qty}.",
+        "question": "Vuoi aggiungerlo alla lista della spesa?",
+        "yes": "🛒 Sì, aggiungi a Bring!",
+        "no": "No, per ora va bene"
+    },
+    "move": {
+        "title": "📦 Spostare il resto?",
+        "question": "Vuoi spostare {thing} di {name} in un'altra posizione?",
+        "question_short": "Vuoi spostare {thing} in un'altra posizione?",
+        "thing_opened": "la confezione aperta",
+        "thing_rest": "il resto",
+        "stay_btn": "No, resta in {location}",
+        "moved_toast": "📦 Confezione aperta spostata in {location}",
+        "vacuum_restore": "🫙 Torna sotto vuoto"
+    },
+    "nova": {
+        "1": "Non trasformato",
+        "2": "Ingrediente culinario",
+        "3": "Trasformato",
+        "4": "Ultra-trasformato"
     }
 }

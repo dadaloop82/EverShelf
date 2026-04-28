@@ -14,11 +14,13 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.SslErrorHandler
 import android.webkit.ValueCallback
@@ -39,6 +41,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import org.json.JSONObject
 import java.net.URL
+import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -48,6 +51,11 @@ class KioskActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
     private var currentStep = 1
+
+    // Native TTS engine (Android) — used by the JS bridge so the WebView
+    // doesn't depend on Web Speech API voices being installed.
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
 
     // Views
     private lateinit var splashContainer: LinearLayout
@@ -97,6 +105,19 @@ class KioskActivity : AppCompatActivity() {
         enterImmersiveMode()
         enableKioskLock()
         requestAllPermissions()
+
+        // Initialise native TTS engine so the JS bridge works even when
+        // Web Speech API voices are unavailable in the Android WebView.
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val it = tts?.setLanguage(Locale.ITALIAN)
+                if (it == TextToSpeech.LANG_MISSING_DATA || it == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    // Italian data missing — fall back to device default
+                    tts?.language = Locale.getDefault()
+                }
+                ttsReady = true
+            }
+        }
 
         // Show splash then proceed
         Handler(Looper.getMainLooper()).postDelayed({
@@ -506,7 +527,7 @@ class KioskActivity : AppCompatActivity() {
 
         // Add JS interface ONCE before loading
         webView.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
+            @JavascriptInterface
             fun exit() {
                 runOnUiThread {
                     disableKioskLock()
@@ -514,13 +535,35 @@ class KioskActivity : AppCompatActivity() {
                     finishAffinity()
                 }
             }
-            @android.webkit.JavascriptInterface
+            @JavascriptInterface
             fun hardReload() {
                 runOnUiThread {
                     webView.clearCache(true)
                     webView.reload()
                 }
             }
+            /**
+             * Speak [text] via Android native TTS.
+             * Called by app.js when running inside the kiosk WebView so that
+             * speech synthesis works even without Web Speech API offline voices.
+             * [rate] and [pitch] are floats (default 1.0).
+             */
+            @JavascriptInterface
+            fun speak(text: String, rate: Float, pitch: Float) {
+                val engine = tts ?: return
+                if (!ttsReady) return
+                engine.setSpeechRate(rate.coerceIn(0.1f, 4f))
+                engine.setPitch(pitch.coerceIn(0.1f, 4f))
+                engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "kiosk_tts")
+            }
+            /** Cancel any ongoing speech. */
+            @JavascriptInterface
+            fun stopSpeech() {
+                tts?.stop()
+            }
+            /** Returns "true" when the TTS engine is ready. */
+            @JavascriptInterface
+            fun isTtsReady(): String = if (ttsReady) "true" else "false"
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
@@ -727,6 +770,13 @@ class KioskActivity : AppCompatActivity() {
             fileChooserCallback?.onReceiveValue(result)
             fileChooserCallback = null
         }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
     }
 
     override fun onBackPressed() {
