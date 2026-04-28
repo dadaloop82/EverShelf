@@ -109,7 +109,25 @@
         "banner_finished_title": "aufgebraucht?",
         "banner_finished_detail": "Ich habe vermerkt, dass {name} auf null gesunken ist. Ist es wirklich leer, oder hast du noch welches?",
         "banner_finished_action_yes": "Ja, aufgebraucht",
-        "banner_finished_action_no": "Nein, ich habe noch welches"
+        "banner_finished_action_no": "Nein, ich habe noch welches",
+        "banner_review_unusual_pkg_title": "Ungewöhnliche Packungsgröße",
+        "banner_review_unusual_pkg_detail": "Du hast eine Packung von {qty} {unit} eingestellt — die Größe scheint sehr groß. Überprüfe ob es korrekt ist.",
+        "banner_review_low_qty_title": "Sehr geringe Menge",
+        "banner_review_low_qty_detail": "Du hast nur {qty} im Bestand — das scheint sehr wenig, möglicherweise ein Eingabefehler. Bestätige wenn korrekt.",
+        "banner_review_high_qty_title": "Ungewöhnlich hohe Menge",
+        "banner_review_high_qty_detail": "Du hast {qty} im Bestand — die Zahl scheint sehr hoch. Bestätige wenn korrekt oder korrigiere.",
+        "banner_prediction_rate_day": "Durchschnitt ~{n} {unit}/Tag",
+        "banner_prediction_rate_week": "Durchschnitt ~{n} {unit}/Woche",
+        "banner_prediction_days_ago": "Vor {n} Tagen aufgefüllt",
+        "banner_prediction_more": "Ich erwartete {expected} {unit}{time}, du hast aber {actual} {unit}. Hast du Bestand ohne Buchung hinzugefügt?",
+        "banner_prediction_less": "Ich erwartete {expected} {unit}{time}, du hast aber nur {actual} {unit}. Hast du mehr als üblich verbraucht?",
+        "banner_finished_zero": "Bestand zeigt null, aber gespeicherte Buchungen deuten an, dass es nicht leer sein sollte.",
+        "banner_finished_expected": "Laut Aufzeichnungen solltest du noch {qty} {unit} haben.",
+        "banner_finished_check": "Kannst du nachschauen?",
+        "banner_anomaly_phantom_title": "mehr Bestand als erwartet",
+        "banner_anomaly_phantom_detail": "Bestand zeigt {inv_qty} {unit}, aber laut Buchungen solltest du nur {expected_qty} {unit} haben. Hast du Bestand ohne Buchung hinzugefügt?",
+        "banner_anomaly_ghost_title": "weniger Bestand als erwartet",
+        "banner_anomaly_ghost_detail": "Laut Buchungen solltest du {expected_qty} {unit} von {name} haben, aber der Bestand zeigt nur {inv_qty} {unit}. Hast du etwas ohne Buchung entnommen?"
     },
     "inventory": {
         "title": "Vorrat",
@@ -140,7 +158,13 @@
         "add_btn": "📥 HINZUFÜGEN",
         "add_sub": "in Vorrat/Kühlschrank",
         "use_btn": "📤 VERWENDEN / VERBRAUCHEN",
-        "use_sub": "aus Vorrat/Kühlschrank"
+        "use_sub": "aus Vorrat/Kühlschrank",
+        "have_title": "📦 Schon auf Lager!",
+        "add_more_sub": "weitere Menge",
+        "use_qty_sub": "wie viel verwendet",
+        "throw_btn": "🗑️ ENTSORGEN",
+        "throw_sub": "wegwerfen",
+        "edit_sub": "Ablauf, Ort…"
     },
     "add": {
         "title": "Zum Vorrat hinzufügen",
@@ -150,7 +174,14 @@
         "conf_size_placeholder": "z.B. 300",
         "vacuum_label": "🫙 Vakuumiert",
         "vacuum_hint": "Ablaufdatum wird automatisch verlängert",
-        "submit": "✅ Hinzufügen"
+        "submit": "✅ Hinzufügen",
+        "purchase_type_label": "🛒 Dieses Produkt ist...",
+        "new_btn": "🆕 Gerade gekauft",
+        "existing_btn": "📦 Hatte ich schon",
+        "remaining_label": "📦 Verbleibende Menge",
+        "remaining_hint": "Ungefähr wie viel ist noch übrig?",
+        "remaining_full": "🟢 Voll",
+        "remaining_half": "🟠 Halb"
     },
     "use": {
         "title": "Verwenden / Verbrauchen",
@@ -161,7 +192,12 @@
         "submit": "📤 Diese Menge verwenden",
         "available": "📦 Verfügbar:",
         "not_in_inventory": "⚠️ Produkt nicht im Bestand.",
-        "expiry_warning": "⚠️ Verwende zuerst die{loc}, die am {date} abläuft — {when}!"
+        "expiry_warning": "⚠️ Verwende zuerst die{loc}, die am {date} abläuft — {when}!",
+        "throw_title": "🗑️ Produkt entsorgen",
+        "throw_all": "🗑️ ALLES entsorgen ({qty})",
+        "throw_qty_label": "Wie viel wegwerfen?",
+        "throw_qty_hint": "oder Menge angeben:",
+        "throw_partial_btn": "🗑️ Diese Menge entsorgen"
     },
     "product": {
         "title_new": "Neues Produkt",
@@ -231,7 +267,13 @@
         "smart_already": "📊 Intelligenter Einkauf sagt bereits {name} voraus",
         "all_searched": "Alle Produkte wurden bereits gesucht. Nutze 🔄 für einzelne Suchen.",
         "search_complete": "Suche abgeschlossen: {count} Produkte",
-        "removed_sufficient": "🧹 {removed} Produkt(e) mit ausreichendem Bestand von der Liste entfernt"
+        "removed_sufficient": "🧹 {removed} Produkt(e) mit ausreichendem Bestand von der Liste entfernt",
+        "bring_badge": "🛒 Schon auf Bring!",
+        "add_urgent_toast": "🔴 {n} dringende(s) Produkt(e) automatisch zu Bring! hinzugefügt",
+        "migration_done": "✅ {migrated} aktualisiert, {skipped} bereits ok",
+        "added_to_bring": "🛒 {n} Produkte zu Bring! hinzugefügt",
+        "added_to_bring_skip": "{n} bereits vorhanden",
+        "all_on_bring": "Alle Produkte waren bereits auf Bring!"
     },
     "ai": {
         "title": "🤖 KI-Identifikation",
@@ -455,7 +497,8 @@
         "already_exists": "Bereits vorhanden"
     },
     "confirm": {
-        "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?"
+        "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",
+        "kiosk_exit": "Kioskmodus verlassen?"
     },
     "edit": {
         "title": "{name} bearbeiten"
@@ -493,7 +536,13 @@
         "timeout": "Timeout: keine Antwort vom Gateway",
         "error_connect": "Verbindung zum Gateway nicht möglich",
         "tab": "Smart-Waage",
-        "low_weight": "Gewicht < 10 g · manuell eingeben\n(Auto-Erkennung erfordert mind. 10 g)"
+        "low_weight": "Gewicht < 10 g · manuell eingeben\n(Auto-Erkennung erfordert mind. 10 g)",
+        "density_hint": "(Dichte {density} g/ml)",
+        "ml_hint": "(wird in ml umgerechnet)",
+        "weight_detected": "Gewicht erkannt — 10s Stabilität abwarten…",
+        "weight_too_low": "Gewicht zu niedrig — warten…",
+        "stable": "✓ Stabil",
+        "auto_confirm": "✅ {val} {unit} — Auto-Bestätigung in 5s (tippen zum Abbrechen)"
     },
     "prediction": {
         "expected_qty": "Erwartet: {expected} {unit}",

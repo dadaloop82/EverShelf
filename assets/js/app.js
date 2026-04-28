@@ -321,7 +321,7 @@ function _scaleAutoFillUse(msg) {
         if (scaleAlreadyMl) {
             const density = _scaleDensityForProduct(currentProduct);
             val = Math.round(grams * density);
-            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+            if (density !== 1.00) hintExtra = ' ' + t('scale.density_hint', { density });
         } else {
             val = Math.round(grams);
         }
@@ -331,7 +331,7 @@ function _scaleAutoFillUse(msg) {
         } else {
             const density = _scaleDensityForProduct(currentProduct);
             val = Math.round(grams / density);
-            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+            if (density !== 1.00) hintExtra = ' ' + t('scale.density_hint', { density });
         }
     }
 
@@ -407,7 +407,7 @@ function _scaleAutoFillRecipeUse(msg) {
         if (scaleAlreadyMl) {
             const density = _scaleDensityForProduct(currentProduct);
             val = Math.round(grams * density);
-            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+            if (density !== 1.00) hintExtra = ' ' + t('scale.density_hint', { density });
         } else {
             val = Math.round(grams);
         }
@@ -417,7 +417,7 @@ function _scaleAutoFillRecipeUse(msg) {
         } else {
             const density = _scaleDensityForProduct(currentProduct);
             val = Math.round(grams / density);
-            if (density !== 1.00) hintExtra = ` (densità ${density} g/ml)`;
+            if (density !== 1.00) hintExtra = ' ' + t('scale.density_hint', { density });
         }
     }
 
@@ -434,21 +434,21 @@ function _scaleAutoFillRecipeUse(msg) {
             livVal.textContent = `${msg.value} ${msg.unit || 'kg'}`;
         }
     }
-    if (livStatus) livStatus.textContent = msg.stable ? '✓ Stabile' : '…';
+    if (livStatus) livStatus.textContent = msg.stable ? t('scale.stable') : '…';
 
     // Update live hint in modal with the raw scale reading always
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
         hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
         if (unit === 'ml' && srcUnit !== 'ml') {
-            hint.textContent += ' (verrà convertito in ml)';
+            hint.textContent += ' ' + t('scale.ml_hint');
         }
         hint.style.display = '';
     }
 
     if (val < 10) {
         _cancelScaleStabilityWait(); // stop bar only; keep sentinel
-        if (livLabel) livLabel.textContent = 'Peso troppo basso — attendi…';
+        if (livLabel) livLabel.textContent = t('scale.weight_too_low');
         return;
     }
 
@@ -461,7 +461,7 @@ function _scaleAutoFillRecipeUse(msg) {
         _scaleStabilityVal = val;
         _scaleUserDismissed = false;
         _cancelScaleTimersOnly();
-        if (livLabel) livLabel.textContent = 'Peso rilevato — attendi 10s di stabilità…';
+        if (livLabel) livLabel.textContent = t('scale.weight_detected');
         // Hide confirm bar when new value arrives
         const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
         if (confirmWrap) confirmWrap.style.display = 'none';
@@ -472,7 +472,7 @@ function _scaleAutoFillRecipeUse(msg) {
                 hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
                 hint.style.display = '';
             }
-            if (livLabel) livLabel.textContent = `✅ ${val} ${unit} — conferma automatica tra 5s (tocca per annullare)`;
+            if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
             if (livVal) livVal.style.color = '#22c55e';
             const confirmWrap2 = document.getElementById('ruse-scale-confirm-wrap');
             if (confirmWrap2) { confirmWrap2.style.display = ''; }
@@ -486,11 +486,11 @@ function _scaleAutoFillRecipeUse(msg) {
         });
     } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
         _cancelScaleTimersOnly();
-        if (livLabel) livLabel.textContent = 'Peso rilevato — attendi 10s di stabilità…';
+        if (livLabel) livLabel.textContent = t('scale.weight_detected');
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
-            if (livLabel) livLabel.textContent = `✅ ${val} ${unit} — conferma automatica tra 5s (tocca per annullare)`;
+            if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
             if (livVal) livVal.style.color = '#22c55e';
             const confirmWrap3 = document.getElementById('ruse-scale-confirm-wrap');
             if (confirmWrap3) confirmWrap3.style.display = '';
@@ -1769,7 +1769,7 @@ function _injectKioskOverlay() {
     exitBtn.style.cssText = btnStyle;
     exitBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (confirm('Uscire dalla modalità kiosk?')) _kioskBridge.exit();
+        if (confirm(t('confirm.kiosk_exit'))) _kioskBridge.exit();
     });
 
     // Refresh button
@@ -2505,14 +2505,14 @@ function renderBannerItem() {
         iconEl.textContent = '⚠️';
         let titleText, detailText;
         if (suspDq && !suspQty) {
-            titleText = `Confezione insolita: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-            detailText = `Hai impostato una confezione da ${item.default_quantity} ${item.package_unit} — la dimensione sembra molto alta. Controlla se è corretta o modifica.`;
+            titleText = `${t('dashboard.banner_review_unusual_pkg_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = t('dashboard.banner_review_unusual_pkg_detail', { qty: item.default_quantity, unit: item.package_unit });
         } else if (parseFloat(item.quantity) < t_.min) {
-            titleText = `Quantità molto bassa: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-            detailText = `Hai solo ${qtyDisplay} in inventario — sembra poco, potrebbe essere un errore di inserimento. Conferma se è corretto.`;
+            titleText = `${t('dashboard.banner_review_low_qty_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = t('dashboard.banner_review_low_qty_detail', { qty: qtyDisplay });
         } else {
-            titleText = `Quantità insolitamente alta: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
-            detailText = `Hai ${qtyDisplay} in inventario — la cifra sembra molto alta. Conferma se è corretto o correggi.`;
+            titleText = `${t('dashboard.banner_review_high_qty_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
+            detailText = t('dashboard.banner_review_high_qty_detail', { qty: qtyDisplay });
         }
         titleEl.textContent = titleText;
         detailEl.textContent = detailText;
@@ -2530,19 +2530,19 @@ function renderBannerItem() {
         const daysSince = parseInt(pred.days_since_restock) || 0;
         banner.className = 'alert-banner banner-prediction';
         iconEl.textContent = '📊';
-        titleEl.textContent = `Consumo anomalo: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
+        titleEl.textContent = `${t('dashboard.banner_prediction_title')}: ${pred.name}${pred.brand ? ' (' + pred.brand + ')' : ''}`;
         let rateText = '';
         if (dailyRate > 0) {
             rateText = dailyRate >= 1
-                ? `Media ~${Math.round(dailyRate)} ${pred.unit}/giorno`
-                : `Media ~${Math.round(dailyRate * 7)} ${pred.unit}/settimana`;
+                ? t('dashboard.banner_prediction_rate_day', { n: Math.round(dailyRate), unit: pred.unit })
+                : t('dashboard.banner_prediction_rate_week', { n: Math.round(dailyRate * 7), unit: pred.unit });
         }
-        const timeText = daysSince > 0 ? ` — ${daysSince} giorni fa hai rifornito` : '';
+        const timeText = daysSince > 0 ? ` — ${t('dashboard.banner_prediction_days_ago', { n: daysSince })}` : '';
         let diffText;
         if (dir === 'more') {
-            diffText = `mi aspettavo <strong>${pred.expected_qty} ${pred.unit}</strong>${timeText}, ne hai invece <strong>${pred.actual_qty} ${pred.unit}</strong>. Hai aggiunto scorte senza registrarle?`;
+            diffText = t('dashboard.banner_prediction_more', { expected: pred.expected_qty, unit: pred.unit, time: timeText, actual: pred.actual_qty });
         } else {
-            diffText = `mi aspettavo <strong>${pred.expected_qty} ${pred.unit}</strong>${timeText}, ne hai solo <strong>${pred.actual_qty} ${pred.unit}</strong>. Hai consumato di più del solito?`;
+            diffText = t('dashboard.banner_prediction_less', { expected: pred.expected_qty, unit: pred.unit, time: timeText, actual: pred.actual_qty });
         }
         detailEl.innerHTML = rateText ? `${rateText}: ${diffText}` : diffText.charAt(0).toUpperCase() + diffText.slice(1);
         let btns = `<button class="btn-banner btn-banner-confirm" onclick="confirmBannerPrediction()">${t('dashboard.banner_prediction_action_confirm', { qty: pred.actual_qty, unit: pred.unit })}</button>`;
@@ -2560,8 +2560,8 @@ function renderBannerItem() {
             ? ` <span style="font-family:monospace;font-size:0.7em;opacity:0.6">…${escapeHtml(fin.barcode.slice(-3))}</span>`
             : '';
         titleEl.innerHTML = `${escapeHtml(fin.name)}${fin.brand ? ' (' + escapeHtml(fin.brand) + ')' : ''}${barcodeSuffix} — ${escapeHtml(t('dashboard.banner_finished_title'))}`;
-        const expectedText = fin.expected_qty ? ` Secondo le registrazioni dovresti averne ancora <strong>${fin.expected_qty} ${fin.unit}</strong>.` : '';
-        detailEl.innerHTML = `L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.${expectedText} Puoi controllare?`;
+        const expectedText = fin.expected_qty ? ' ' + t('dashboard.banner_finished_expected', { qty: fin.expected_qty, unit: fin.unit }) : '';
+        detailEl.innerHTML = t('dashboard.banner_finished_zero') + expectedText + ' ' + t('dashboard.banner_finished_check');
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
         btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_no')}</button>`;
         actionsEl.innerHTML = btns;
@@ -2572,11 +2572,11 @@ function renderBannerItem() {
         banner.className = 'alert-banner banner-anomaly';
         iconEl.textContent = '🔍';
         if (isPhantom) {
-            titleEl.textContent = `${an.name} — hai più scorte del previsto`;
-            detailEl.innerHTML = `L'inventario segna <strong>${an.inv_qty} ${an.unit}</strong>, ma in base alle entrate e uscite registrate ne dovresti avere solo <strong>${an.expected_qty} ${an.unit}</strong>. Hai aggiunto scorte o corretto la quantità manualmente senza registrarlo?`;
+            titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_phantom_title')}`;
+            detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty });
         } else {
-            titleEl.textContent = `${an.name} — hai meno scorte del previsto`;
-            detailEl.innerHTML = `In base alle operazioni registrate dovresti avere <strong>${an.expected_qty} ${an.unit}</strong> di ${an.name}, ma l'inventario mostra solo <strong>${an.inv_qty} ${an.unit}</strong>. Hai prelevato senza registrarlo?`;
+            titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_ghost_title')}`;
+            detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty });
         }
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
@@ -4521,7 +4521,7 @@ function showProductAction() {
             
             statusBar.innerHTML = `
                 <div class="inv-status-header">
-                    <span class="inv-status-title">📦 Ce l'hai già!</span>
+                    <span class="inv-status-title">${t('action.have_title')}</span>
                     <div class="inv-status-total-col">
                         <span class="inv-status-total">${totalStr}</span>
                         ${totalFrac ? `<span class="inv-status-total-frac">${totalFrac}</span>` : ''}
@@ -4534,19 +4534,19 @@ function showProductAction() {
             btnsContainer.innerHTML = `
                 <button class="btn btn-huge btn-success" onclick="showAddForm()">
                     <span class="btn-icon">📥</span>
-                    <span class="btn-text">AGGIUNGI<br><small>altra quantità</small></span>
+                    <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_more_sub')}</small></span>
                 </button>
                 <button class="btn btn-huge btn-danger" onclick="showUseForm()">
                     <span class="btn-icon">📤</span>
-                    <span class="btn-text">USA<br><small>quanto ne hai usato</small></span>
+                    <span class="btn-text">${t('action.use_btn')}<br><small>${t('action.use_qty_sub')}</small></span>
                 </button>
                 <button class="btn btn-huge btn-throw" onclick="showThrowForm()">
                     <span class="btn-icon">🗑️</span>
-                    <span class="btn-text">BUTTA<br><small>butta il prodotto</small></span>
+                    <span class="btn-text">${t('action.throw_btn')}<br><small>${t('action.throw_sub')}</small></span>
                 </button>
                 <button class="btn btn-huge btn-edit" onclick="openInventoryEdit()">
                     <span class="btn-icon">✏️</span>
-                    <span class="btn-text">MODIFICA<br><small>scadenza, luogo…</small></span>
+                    <span class="btn-text">${t('product.modify_details')}<br><small>${t('action.edit_sub')}</small></span>
                 </button>
             `;
             // Secondary: catalog edit link below the buttons (one instance only)
@@ -4565,7 +4565,7 @@ function showProductAction() {
             btnsContainer.innerHTML = `
                 <button class="btn btn-huge btn-success" onclick="showAddForm()" style="flex:1">
                     <span class="btn-icon">📥</span>
-                    <span class="btn-text">AGGIUNGI<br><small>in dispensa/frigo</small></span>
+                    <span class="btn-text">${t('action.add_btn')}<br><small>${t('action.add_sub')}</small></span>
                 </button>
             `;
             // Remove catalog-edit link if left over from a previous product
@@ -4715,7 +4715,7 @@ function editActionInventoryItem(inventoryId) {
         </div>
         <form class="form" onsubmit="submitActionEditInventory(event, ${inventoryId}, ${item.product_id})">
             <div class="form-group">
-                <label>📦 Quantità</label>
+                <label>${t('add.quantity_label')}</label>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', -1)">−</button>
                     <input type="number" id="action-edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
@@ -4723,7 +4723,7 @@ function editActionInventoryItem(inventoryId) {
                 </div>
             </div>
             <div class="form-group">
-                <label>📏 Unità di misura</label>
+                <label>${t('product.unit_label')}</label>
                 <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
                     ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? 'pz (pezzi)' : u === 'g' ? 'g (grammi)' : u === 'ml' ? 'ml (millilitri)' : u === 'conf' ? 'conf (confezioni)' : u}</option>`).join('')}
                 </select>
@@ -4831,7 +4831,7 @@ function showThrowForm() {
         
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
-                <h3>🗑️ Butta Prodotto</h3>
+                <h3>${t('use.throw_title')}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div class="product-preview-small" style="margin-bottom:12px">
@@ -4849,9 +4849,9 @@ function showThrowForm() {
             </div>
             <div style="display:flex;flex-direction:column;gap:10px">
                 <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
-                    🗑️ Butta TUTTO (${qtyDisplay})
+                    ${t('use.throw_all', { qty: qtyDisplay })}
                 </button>
-                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">oppure specifica la quantità:</div>
+                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${t('use.throw_qty_hint')}</div>
                 <div class="form-group">
                     <label>📍 Da dove?</label>
                     <div class="location-selector" id="throw-location-selector">
@@ -4863,7 +4863,7 @@ function showThrowForm() {
                     <input type="hidden" id="throw-location" value="${items[0].location}">
                 </div>
                 <div class="form-group">
-                    <label>Quanto butti?</label>
+                    <label>${t('use.throw_qty_label')}</label>
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
                         <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
@@ -4871,7 +4871,7 @@ function showThrowForm() {
                     </div>
                 </div>
                 <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
-                    🗑️ Butta questa quantità
+                    ${t('use.throw_partial_btn')}
                 </button>
             </div>
         `;
@@ -4897,7 +4897,7 @@ async function throwAll() {
         });
         showLoading(false);
         if (result.success) {
-            showToast(`🗑️ ${currentProduct.name} buttato!`, 'success');
+            showToast(t('toast.thrown_away', { name: currentProduct.name }), 'success');
             showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -4922,7 +4922,7 @@ async function throwPartial() {
         });
         showLoading(false);
         if (result.success) {
-            showToast(`🗑️ Buttato ${qty} ${currentProduct.unit || 'pz'} di ${currentProduct.name}`, 'success');
+            showToast(t('toast.thrown_away_partial', { qty, unit: currentProduct.unit || 'pz', name: currentProduct.name }), 'success');
             showPage('dashboard');
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -4971,7 +4971,7 @@ async function saveEditedProductInfo() {
             currentProduct.name = name;
             currentProduct.brand = brand;
             if (category) currentProduct.category = category;
-            showToast('✅ Prodotto aggiornato!', 'success');
+            showToast(t('toast.product_updated'), 'success');
             // Refresh the action page with updated data
             showProductAction();
         } else {
@@ -5074,13 +5074,13 @@ function showAddForm() {
     window._addBaseExpiryDays = estimatedDays;
     
     expirySection.innerHTML = `
-        <label>🛒 Questo prodotto è...</label>
+        <label>${t('add.purchase_type_label')}</label>
         <div class="purchase-type-selector">
             <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
-                🆕 Appena comprato
+                ${t('add.new_btn')}
             </button>
             <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing')">
-                📦 Ce l'avevo già
+                ${t('add.existing_btn')}
             </button>
         </div>
         <div id="expiry-detail" class="expiry-detail">
@@ -5323,12 +5323,12 @@ function selectPurchaseType(btn, type) {
                 <p class="form-hint">Inserisci la data di scadenza o scansionala</p>
             </div>
             <div class="form-group">
-                <label>📦 Quantità rimasta</label>
-                <p class="form-hint" style="margin-bottom:6px">Quanto è rimasto approssimativamente?</p>
+                <label>${t('add.remaining_label')}</label>
+                <p class="form-hint" style="margin-bottom:6px">${t('add.remaining_hint')}</p>
                 <div class="remaining-options">
-                    <button type="button" class="remaining-btn" onclick="setRemainingPct(1)">🟢 Pieno</button>
+                    <button type="button" class="remaining-btn" onclick="setRemainingPct(1)">${t('add.remaining_full')}</button>
                     <button type="button" class="remaining-btn" onclick="setRemainingPct(0.75)">🟡 ¾</button>
-                    <button type="button" class="remaining-btn" onclick="setRemainingPct(0.5)">🟠 Metà</button>
+                    <button type="button" class="remaining-btn" onclick="setRemainingPct(0.5)">${t('add.remaining_half')}</button>
                     <button type="button" class="remaining-btn" onclick="setRemainingPct(0.25)">🔴 ¼</button>
                 </div>
             </div>
@@ -5702,7 +5702,7 @@ async function loadUseInventoryInfo() {
             qtyInput.value = 1;
             qtyInput.step = 'any';
             qtyInput.min = '0.01';
-            document.getElementById('use-partial-hint').textContent = 'Oppure specifica la quantità usata:';
+            document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
 
             // Fraction buttons for pz unit
             const existingFrac = document.getElementById('pz-fraction-btns');
@@ -5970,7 +5970,7 @@ function showLowStockBringPrompt(result, afterCallback) {
     const alreadyOnBring = _findSimilarItem(shoppingName, shoppingItems) || _findSimilarItem(name, shoppingItems);
     if (alreadyOnBring) {
         // Already present (same or similar item). Just inform and continue.
-        showToast(`🛒 "${escapeHtml(alreadyOnBring.name)}" già nella lista della spesa`, 'info');
+        showToast(t('shopping.already_in_list', { name: escapeHtml(alreadyOnBring.name) }), 'info');
         if (afterCallback) afterCallback();
         return;
     }
@@ -6962,7 +6962,7 @@ async function autoAddCriticalItems() {
     try {
         const result = await api('bring_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
-            showToast(`🔴 ${result.added} prodott${result.added === 1 ? 'o urgente aggiunto' : 'i urgenti aggiunti'} automaticamente a Bring!`, 'success');
+            showToast(t('shopping.add_urgent_toast', { n: result.added }), 'success');
             logOperation('bring_auto_add', { added: itemsToAdd.map(i => i.name) });
             loadShoppingList();
         }
@@ -7066,7 +7066,7 @@ async function cleanupObsoleteBringItems() {
     }
 
     if (removed > 0) {
-        showToast(`🧹 ${removed} prodott${removed === 1 ? 'o con scorte sufficienti rimosso' : 'i con scorte sufficienti rimossi'} dalla lista`, 'info');
+        showToast(t('shopping.removed_sufficient', { removed }), 'info');
         logOperation('bring_cleanup', { removed: removedNames });
         loadShoppingList();
     }
@@ -7405,7 +7405,7 @@ function renderSmartItem(item) {
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
                         ${freqBadge}${predBadge}${expiryBadge}
                         ${item.is_opened ? '<span class="smart-freq-badge freq-low">📭 Aperto</span>' : ''}
-                        ${item.on_bring ? '<span class="smart-bring-badge">🛒 Già su Bring!</span>' : ''}
+                        ${item.on_bring ? `<span class="smart-bring-badge">${t('shopping.bring_badge')}</span>` : ''}
                     </div>
                 </div>
                 <div class="smart-item-stock">
@@ -7423,7 +7423,7 @@ async function migrateBringNames(btn) {
     try {
         const data = await api('bring_migrate_names', {}, 'POST', {});
         if (data.success) {
-            const msg = `✅ ${data.migrated} aggiornati, ${data.skipped} già ok${data.errors ? `, ${data.errors} errori` : ''}`;
+            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} errori` : '');
             if (statusEl) statusEl.textContent = msg;
             if (data.migrated > 0) {
                 showToast(`🔄 ${data.migrated} nomi generalizzati in Bring!`, 'success');
@@ -7474,8 +7474,8 @@ async function addSmartToBring() {
         showLoading(false);
         if (result.success) {
             const msg = result.added > 0
-                ? `🛒 ${result.added} prodotti aggiunti a Bring!${result.skipped > 0 ? ` (${result.skipped} già presenti)` : ''}`
-                : `Tutti i prodotti erano già su Bring!`;
+                ? t('shopping.added_to_bring', { n: result.added }) + (result.skipped > 0 ? ` (${t('shopping.added_to_bring_skip', { n: result.skipped })})` : '')
+                : t('shopping.all_on_bring');
             showToast(msg, result.added > 0 ? 'success' : 'info');
             // Reload to refresh badges
             loadShoppingList();
@@ -8491,7 +8491,7 @@ const MEAL_PLAN_TYPES = [
 const MEAL_PLAN_TYPE_MAP = {};
 MEAL_PLAN_TYPES.forEach(t => { MEAL_PLAN_TYPE_MAP[t.id] = t; });
 
-const WEEK_DAYS = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+const WEEK_DAYS = [t('days.mon'),t('days.tue'),t('days.wed'),t('days.thu'),t('days.fri'),t('days.sat'),t('days.sun')];
 const WEEK_DAYS_SHORT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
 
 /** Default weekly plan as requested. */

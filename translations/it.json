@@ -109,7 +109,25 @@
         "banner_finished_title": "è finito?",
         "banner_finished_detail": "Ho registrato che {name} ha toccato quota zero. È davvero finito o hai ancora delle scorte?",
         "banner_finished_action_yes": "Sì, è finito",
-        "banner_finished_action_no": "No, ne ho ancora"
+        "banner_finished_action_no": "No, ne ho ancora",
+        "banner_review_unusual_pkg_title": "Confezione insolita",
+        "banner_review_unusual_pkg_detail": "Hai impostato una confezione da {qty} {unit} — la dimensione sembra molto alta. Controlla se è corretta o modifica.",
+        "banner_review_low_qty_title": "Quantità molto bassa",
+        "banner_review_low_qty_detail": "Hai solo {qty} in inventario — sembra poco, potrebbe essere un errore. Conferma se è corretto.",
+        "banner_review_high_qty_title": "Quantità insolitamente alta",
+        "banner_review_high_qty_detail": "Hai {qty} in inventario — la cifra sembra molto alta. Conferma se è corretto o correggi.",
+        "banner_prediction_rate_day": "Media ~{n} {unit}/giorno",
+        "banner_prediction_rate_week": "Media ~{n} {unit}/settimana",
+        "banner_prediction_days_ago": "{n} giorni fa hai rifornito",
+        "banner_prediction_more": "mi aspettavo {expected} {unit}{time}, ne hai invece {actual} {unit}. Hai aggiunto scorte senza registrarle?",
+        "banner_prediction_less": "mi aspettavo {expected} {unit}{time}, ne hai solo {actual} {unit}. Hai consumato di più del solito?",
+        "banner_finished_zero": "L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.",
+        "banner_finished_expected": "Secondo le registrazioni dovresti averne ancora {qty} {unit}.",
+        "banner_finished_check": "Puoi controllare?",
+        "banner_anomaly_phantom_title": "hai più scorte del previsto",
+        "banner_anomaly_phantom_detail": "L'inventario segna {inv_qty} {unit}, ma in base alle registrazioni ne dovresti avere solo {expected_qty} {unit}. Hai aggiunto scorte senza registrarle?",
+        "banner_anomaly_ghost_title": "hai meno scorte del previsto",
+        "banner_anomaly_ghost_detail": "In base alle operazioni registrate dovresti avere {expected_qty} {unit} di {name}, ma l'inventario mostra solo {inv_qty} {unit}. Hai prelevato senza registrarlo?"
     },
     "inventory": {
         "title": "Dispensa",
@@ -140,7 +158,13 @@
         "add_btn": "📥 AGGIUNGI",
         "add_sub": "in dispensa/frigo",
         "use_btn": "📤 USA / CONSUMA",
-        "use_sub": "dalla dispensa/frigo"
+        "use_sub": "dalla dispensa/frigo",
+        "have_title": "📦 Ce l'hai già!",
+        "add_more_sub": "altra quantità",
+        "use_qty_sub": "quanto ne hai usato",
+        "throw_btn": "🗑️ BUTTA",
+        "throw_sub": "butta il prodotto",
+        "edit_sub": "scadenza, luogo…"
     },
     "add": {
         "title": "Aggiungi alla Dispensa",
@@ -150,7 +174,14 @@
         "conf_size_placeholder": "es. 300",
         "vacuum_label": "🫙 Sotto vuoto",
         "vacuum_hint": "La scadenza verrà estesa automaticamente",
-        "submit": "✅ Aggiungi"
+        "submit": "✅ Aggiungi",
+        "purchase_type_label": "🛒 Questo prodotto è...",
+        "new_btn": "🆕 Appena comprato",
+        "existing_btn": "📦 Ce l'avevo già",
+        "remaining_label": "📦 Quantità rimasta",
+        "remaining_hint": "Quanto è rimasto approssimativamente?",
+        "remaining_full": "🟢 Pieno",
+        "remaining_half": "🟠 Metà"
     },
     "use": {
         "title": "Usa / Consuma",
@@ -161,7 +192,12 @@
         "submit": "📤 Usa questa quantità",
         "available": "📦 Disponibile:",
         "not_in_inventory": "⚠️ Prodotto non presente nell'inventario.",
-        "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!"
+        "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!",
+        "throw_title": "🗑️ Butta Prodotto",
+        "throw_all": "🗑️ Butta TUTTO ({qty})",
+        "throw_qty_label": "Quanto butti?",
+        "throw_qty_hint": "oppure specifica la quantità:",
+        "throw_partial_btn": "🗑️ Butta questa quantità"
     },
     "product": {
         "title_new": "Nuovo Prodotto",
@@ -231,7 +267,13 @@
         "smart_already": "📊 La spesa intelligente prevede già {name}",
         "all_searched": "Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.",
         "search_complete": "Ricerca completata: {count} prodotti",
-        "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista"
+        "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista",
+        "bring_badge": "🛒 Già su Bring!",
+        "add_urgent_toast": "🔴 {n} prodotto/i urgente/i aggiunto/i automaticamente a Bring!",
+        "migration_done": "✅ {migrated} aggiornati, {skipped} già ok",
+        "added_to_bring": "🛒 {n} prodotti aggiunti a Bring!",
+        "added_to_bring_skip": "{n} già presenti",
+        "all_on_bring": "Tutti i prodotti erano già su Bring!"
     },
     "ai": {
         "title": "🤖 Identificazione AI",
@@ -455,7 +497,8 @@
         "already_exists": "Già presente"
     },
     "confirm": {
-        "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?"
+        "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
+        "kiosk_exit": "Uscire dalla modalità kiosk?"
     },
     "edit": {
         "title": "Modifica {name}"
@@ -493,7 +536,13 @@
         "timeout": "Timeout: nessuna risposta dal gateway",
         "error_connect": "Impossibile connettersi al gateway",
         "tab": "Bilancia Smart",
-        "low_weight": "Peso < 10 g · inserisci manualmente\n(la lettura automatica richiede almeno 10 g)"
+        "low_weight": "Peso < 10 g · inserisci manualmente\n(la lettura automatica richiede almeno 10 g)",
+        "density_hint": "(densità {density} g/ml)",
+        "ml_hint": "(verrà convertito in ml)",
+        "weight_detected": "Peso rilevato — attendi 10s di stabilità…",
+        "weight_too_low": "Peso troppo basso — attendi…",
+        "stable": "✓ Stabile",
+        "auto_confirm": "✅ {val} {unit} — conferma automatica tra 5s (tocca per annullare)"
     },
     "prediction": {
         "expected_qty": "Previsto: {expected} {unit}",

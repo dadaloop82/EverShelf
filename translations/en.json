@@ -109,7 +109,25 @@
         "banner_finished_title": "finished?",
         "banner_finished_detail": "I recorded that {name} reached zero stock. Is it really gone, or do you still have some?",
         "banner_finished_action_yes": "Yes, it's done",
-        "banner_finished_action_no": "No, I still have some"
+        "banner_finished_action_no": "No, I still have some",
+        "banner_review_unusual_pkg_title": "Unusual package size",
+        "banner_review_unusual_pkg_detail": "You set a package of {qty} {unit} — the size seems very large. Check if correct or edit.",
+        "banner_review_low_qty_title": "Very low quantity",
+        "banner_review_low_qty_detail": "You only have {qty} in stock — seems very little, could be a typo. Confirm if correct.",
+        "banner_review_high_qty_title": "Unusually high quantity",
+        "banner_review_high_qty_detail": "You have {qty} in stock — the figure seems very high. Confirm if correct or edit.",
+        "banner_prediction_rate_day": "Average ~{n} {unit}/day",
+        "banner_prediction_rate_week": "Average ~{n} {unit}/week",
+        "banner_prediction_days_ago": "{n} days ago you restocked",
+        "banner_prediction_more": "I expected {expected} {unit}{time}, but you have {actual} {unit}. Did you add stock without recording it?",
+        "banner_prediction_less": "I expected {expected} {unit}{time}, but you only have {actual} {unit}. Did you use more than usual?",
+        "banner_finished_zero": "Inventory shows zero, but recorded movements suggest it shouldn't be empty.",
+        "banner_finished_expected": "According to records you should still have {qty} {unit}.",
+        "banner_finished_check": "Can you check?",
+        "banner_anomaly_phantom_title": "you have more stock than expected",
+        "banner_anomaly_phantom_detail": "Inventory shows {inv_qty} {unit}, but based on records you should only have {expected_qty} {unit}. Did you add stock without recording it?",
+        "banner_anomaly_ghost_title": "you have less stock than expected",
+        "banner_anomaly_ghost_detail": "Based on recorded operations you should have {expected_qty} {unit} of {name}, but inventory shows only {inv_qty} {unit}. Did you take stock without recording it?"
     },
     "inventory": {
         "title": "Pantry",
@@ -140,7 +158,13 @@
         "add_btn": "📥 ADD",
         "add_sub": "to pantry/fridge",
         "use_btn": "📤 USE / CONSUME",
-        "use_sub": "from pantry/fridge"
+        "use_sub": "from pantry/fridge",
+        "have_title": "📦 Already in stock!",
+        "add_more_sub": "add more",
+        "use_qty_sub": "how much you used",
+        "throw_btn": "🗑️ DISCARD",
+        "throw_sub": "throw away",
+        "edit_sub": "expiry, location…"
     },
     "add": {
         "title": "Add to Pantry",
@@ -150,7 +174,14 @@
         "conf_size_placeholder": "e.g. 300",
         "vacuum_label": "🫙 Vacuum sealed",
         "vacuum_hint": "Expiry date will be extended automatically",
-        "submit": "✅ Add"
+        "submit": "✅ Add",
+        "purchase_type_label": "🛒 This product is...",
+        "new_btn": "🆕 Just bought",
+        "existing_btn": "📦 I already had it",
+        "remaining_label": "📦 Remaining quantity",
+        "remaining_hint": "Approximately how much is left?",
+        "remaining_full": "🟢 Full",
+        "remaining_half": "🟠 Half"
     },
     "use": {
         "title": "Use / Consume",
@@ -161,7 +192,12 @@
         "submit": "📤 Use this quantity",
         "available": "📦 Available:",
         "not_in_inventory": "⚠️ Product not in inventory.",
-        "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!"
+        "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!",
+        "throw_title": "🗑️ Discard Product",
+        "throw_all": "🗑️ Discard ALL ({qty})",
+        "throw_qty_label": "How much to discard?",
+        "throw_qty_hint": "or enter a quantity:",
+        "throw_partial_btn": "🗑️ Discard this quantity"
     },
     "product": {
         "title_new": "New Product",
@@ -231,7 +267,13 @@
         "smart_already": "📊 Smart shopping already predicts {name}",
         "all_searched": "All products have already been searched. Use 🔄 to search individual ones.",
         "search_complete": "Search complete: {count} products",
-        "removed_sufficient": "🧹 {removed} product(s) with sufficient stock removed from the list"
+        "removed_sufficient": "🧹 {removed} product(s) with sufficient stock removed from the list",
+        "bring_badge": "🛒 Already on Bring!",
+        "add_urgent_toast": "🔴 {n} urgent product(s) automatically added to Bring!",
+        "migration_done": "✅ {migrated} updated, {skipped} already ok",
+        "added_to_bring": "🛒 {n} products added to Bring!",
+        "added_to_bring_skip": "{n} already present",
+        "all_on_bring": "All products were already on Bring!"
     },
     "ai": {
         "title": "🤖 AI Identification",
@@ -455,7 +497,8 @@
         "already_exists": "Already exists"
     },
     "confirm": {
-        "remove_item": "Do you really want to remove this product from inventory?"
+        "remove_item": "Do you really want to remove this product from inventory?",
+        "kiosk_exit": "Exit kiosk mode?"
     },
     "edit": {
         "title": "Edit {name}"
@@ -493,7 +536,13 @@
         "timeout": "Timeout: no response from gateway",
         "error_connect": "Cannot connect to gateway",
         "tab": "Smart Scale",
-        "low_weight": "Weight < 10 g · enter manually\n(auto-reading requires at least 10 g)"
+        "low_weight": "Weight < 10 g · enter manually\n(auto-reading requires at least 10 g)",
+        "density_hint": "(density {density} g/ml)",
+        "ml_hint": "(will be converted to ml)",
+        "weight_detected": "Weight detected — wait 10s for stability…",
+        "weight_too_low": "Weight too low — waiting…",
+        "stable": "✓ Stable",
+        "auto_confirm": "✅ {val} {unit} — auto-confirm in 5s (tap to cancel)"
     },
     "prediction": {
         "expected_qty": "Expected: {expected} {unit}",
