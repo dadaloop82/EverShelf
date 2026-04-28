@@ -169,7 +169,9 @@
         "hint": "Barcode scannen, Produktname eingeben oder KI zur Identifikation nutzen",
         "debug_toggle": "🐛 Debug Log",
         "barcode_acquired": "🔖 Barcode gescannt: {code}",
-        "scan_barcode": "🔖 Barcode scannen"
+        "scan_barcode": "🔖 Barcode scannen",
+        "create_named": "{name} erstellen",
+        "new_without_barcode": "Neues Produkt ohne Barcode"
     },
     "action": {
         "title": "Was möchtest du tun?",
@@ -212,7 +214,11 @@
         "title": "Verwenden / Verbrauchen",
         "location_label": "📍 Woher?",
         "quantity_label": "Wie viel hast du benutzt?",
+        "change": "ändern",
         "partial_hint": "Oder genaue Menge angeben:",
+        "partial_piece_hint": "Hast du nur einen Teil verwendet?",
+        "piece": "Stück",
+        "one_whole": "1 ganzes",
         "use_all": "🗑️ ALLES verwendet / Aufgebraucht",
         "submit": "📤 Diese Menge verwenden",
         "available": "📦 Verfügbar:",
@@ -272,7 +278,42 @@
     },
     "recipes": {
         "title": "🍳 Rezepte",
-        "generate": "✨ Neues Rezept generieren"
+        "generate": "✨ Neues Rezept generieren",
+        "archive_empty": "Keine Rezepte gespeichert. Erstelle dein erstes Rezept!",
+        "dialog_title": "🍳 Rezept",
+        "dialog_desc": "Ich erstelle ein gesundes Rezept mit Zutaten aus dem Vorrat und priorisiere Produkte mit nahendem Ablaufdatum.",
+        "meal_label": "🕐 Für welche Mahlzeit?",
+        "persons_label": "👥 Für wie viele Personen?",
+        "meal_type_label": "🎯 Art der Mahlzeit",
+        "opt_fast": "⚡ Schnelle Mahlzeit",
+        "opt_light": "🥗 Kleiner Hunger",
+        "opt_expiry": "⏰ Ablaufdaten priorisieren",
+        "opt_healthy": "💚 Extra gesund",
+        "opt_opened": "📦 Geöffnete Produkte priorisieren",
+        "opt_zero_waste": "♻️ Zero Waste",
+        "generate_btn": "✨ Rezept generieren",
+        "loading_msg": "Rezept wird vorbereitet...",
+        "start_cooking": "👨‍🍳 Kochmodus",
+        "regenerate": "🔄 Noch eins generieren",
+        "close_btn": "✅ Schließen",
+        "ingredients_title": "🧾 Zutaten",
+        "steps_title": "👨‍🍳 Zubereitung",
+        "no_steps": "Keine Zubereitungsschritte verfügbar",
+        "generate_error": "Fehler bei der Generierung",
+        "persons_short": "Pers.",
+        "use_ingredient_title": "Zutat verwenden",
+        "recipe_qty_label": "Rezept",
+        "from_where_label": "Von wo?",
+        "amount_label": "Wie viel",
+        "use_amount_btn": "Diese Menge verwenden",
+        "use_all_btn": "ALLES verwenden / Aufgebraucht",
+        "packs_label": "Packungen",
+        "quantity_in_total": "Menge in {unit} (gesamt: {total})",
+        "packs_of_have": "Packungen à {size} (du hast {count} Pack.)",
+        "scale_wait_stable": "10s stabiles Gewicht für Auto-Ausfüllen abwarten…",
+        "ingredient_scaled_toast": "📦 Zutat vom Vorrat abgezogen!",
+        "finished_added_bring_toast": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt!",
+        "load_error": "Fehler beim Laden"
     },
     "shopping": {
         "title": "🛒 Einkaufsliste",
@@ -326,7 +367,37 @@
         "smart_already_predicted": "📊 Einkauf wird bereits vorhergesagt: <strong>{name}</strong>{urgency}.",
         "item_removed": "✅ {name} von der Liste entfernt!",
         "urgency_spec_critical": "⚡ Dringend",
-        "urgency_spec_high": "🟠 Bald"
+        "urgency_spec_high": "🟠 Bald",
+        "bring_add_n": "{n} zu Bring! hinzufügen",
+        "bring_add_selected": "Ausgewählte zu Bring! hinzufügen",
+        "bring_adding": "Wird hinzugefügt...",
+        "bring_added_one": "1 Produkt zu Bring! hinzugefügt",
+        "bring_added_many": "{n} Produkte zu Bring! hinzugefügt",
+        "bring_skipped": "({n} bereits in Liste)",
+        "force_sync": "Bring!-Synchronisierung erzwingen",
+        "scan_target_label": "Du suchst",
+        "scan_target_found": "Gefunden! Aus Liste entfernen",
+        "bring_add_one": "1 Produkt zu Bring! hinzufügen",
+        "bring_add_many": "{n} Produkte zu Bring! hinzufügen",
+        "syncing": "Synchronisiere…",
+        "sync_done": "Synchronisierung abgeschlossen",
+        "price_searching": "Suche...",
+        "search_action": "Suchen",
+        "open_action": "Öffnen",
+        "not_found": "Nicht gefunden",
+        "search_price": "Preis suchen",
+        "tap_to_scan": "Zum Scannen tippen",
+        "tag_title": "Tag",
+        "remove_title": "Entfernen",
+        "found_count": "{found}/{total} Produkte gefunden",
+        "savings_offers": "· 🏷️ Du sparst €{amount} mit Angeboten",
+        "searching_progress": "Suche {current}/{total}...",
+        "remove_error": "Fehler beim Entfernen",
+        "suggest_loading": "Analyse läuft...",
+        "suggest_error": "Fehler bei der Vorschlagserstellung",
+        "priority_high": "Hoch",
+        "priority_medium": "Mittel",
+        "priority_low": "Niedrig"
     },
     "ai": {
         "title": "🤖 KI-Identifikation",
@@ -386,7 +457,9 @@
         "ingredient_deduct_title": "Von Vorrat abziehen",
         "timer_expired_tts": "Timer {label} abgelaufen!",
         "timer_warning_tts": "Achtung! {label}: noch 10 Sekunden!",
-        "recipe_done_tts": "Rezept abgeschlossen! Guten Appetit!"
+        "recipe_done_tts": "Rezept abgeschlossen! Guten Appetit!",
+        "expires_chip": "läuft ab {date}",
+        "finish": "✅ Fertig"
     },
     "settings": {
         "title": "⚙️ Einstellungen",
@@ -460,7 +533,18 @@
             "ai_prompt_label": "🤖 KI-Produktauswahl Prompt",
             "ai_prompt_placeholder": "Anweisungen für die KI bei der Auswahl zwischen mehreren Produkten...",
             "ai_prompt_hint": "Die KI verwendet diesen Prompt zur Auswahl des passendsten Produkts. Leer lassen für Standardverhalten.",
-            "configure_first": "Konfiguriere zuerst den Online-Einkauf in den Einstellungen"
+            "configure_first": "Konfiguriere zuerst den Online-Einkauf in den Einstellungen",
+            "missing_credentials": "E-Mail und Passwort eingeben",
+            "login_in_progress": "Anmeldung läuft...",
+            "login_error_prefix": "Fehler:",
+            "login_network_error_prefix": "Netzwerkfehler:",
+            "login_success_default": "Anmeldung erfolgreich!",
+            "result_name_label": "Name",
+            "result_card_label": "Karte",
+            "result_pickup_label": "Abholpunkt",
+            "result_points_label": "Treuepunkte",
+            "connected_relogin": "✅ Verbunden — Erneut anmelden",
+            "connected_as": "Verbunden als {name}"
         },
         "camera": {
             "title": "📷 Kamera",
@@ -592,6 +676,8 @@
     },
     "error": {
         "generic": "Fehler",
+        "network": "Netzwerkfehler",
+        "no_api_key": "API-Schluessel in den Einstellungen konfigurieren",
         "loading": "Fehler beim Laden des Produkts",
         "not_found": "Produkt nicht gefunden",
         "not_found_manual": "Produkt nicht gefunden. Manuell eingeben.",
@@ -610,7 +696,8 @@
         "not_in_inventory": "Produkt nicht im Bestand",
         "appliance_exists": "Gerät bereits vorhanden",
         "already_exists": "Bereits vorhanden",
-        "network_retry": "Verbindungsfehler. Erneut versuchen."
+        "network_retry": "Verbindungsfehler. Erneut versuchen.",
+        "select_items": "Wähle mindestens ein Produkt aus"
     },
     "confirm": {
         "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",
@@ -632,11 +719,24 @@
         "thu": "Donnerstag",
         "fri": "Freitag",
         "sat": "Samstag",
-        "sun": "Sonntag"
+        "sun": "Sonntag",
+        "mon_short": "Mo",
+        "tue_short": "Di",
+        "wed_short": "Mi",
+        "thu_short": "Do",
+        "fri_short": "Fr",
+        "sat_short": "Sa",
+        "sun_short": "So"
     },
     "meal_types": {
         "lunch": "Mittagessen",
-        "dinner": "Abendessen"
+        "dinner": "Abendessen",
+        "colazione": "Frühstück",
+        "merenda": "Nachmittagssnack",
+        "dolce": "Dessert",
+        "succo": "Fruchtsaft",
+        "pranzo": "Mittagessen",
+        "cena": "Abendessen"
     },
     "scale": {
         "status_connected": "Waage verbunden",
@@ -709,5 +809,49 @@
         "2": "Kulinarische Zutat",
         "3": "Verarbeitet",
         "4": "Hochverarbeitet"
+    },
+    "meal_plan_types": {
+        "pasta": "Pasta",
+        "riso": "Reis",
+        "carne": "Fleisch",
+        "pesce": "Fisch",
+        "legumi": "Hülsenfrüchte",
+        "uova": "Eier",
+        "formaggio": "Käse",
+        "pizza": "Pizza",
+        "affettati": "Aufschnitt",
+        "verdure": "Gemüse",
+        "zuppa": "Suppe",
+        "insalata": "Salat",
+        "pane": "Brot/Sandwich",
+        "dolce": "Dessert",
+        "libero": "Frei"
+    },
+    "meal_sub": {
+        "dolce_torta": "Kuchen",
+        "dolce_crema": "Creme / Pudding",
+        "dolce_crumble": "Crumble / Tarte",
+        "dolce_biscotti": "Kekse / Gebäck",
+        "dolce_frutta": "Fruchtdessert",
+        "succo_dolce": "Süß / Fruchtig",
+        "succo_energizzante": "Energetisierend",
+        "succo_detox": "Detox / Grün",
+        "succo_rinfrescante": "Erfrischend",
+        "succo_vitaminico": "Vitamin / Zitrus"
+    },
+    "meal_plan": {
+        "reset_success": "Wochenplan zurückgesetzt",
+        "suggested_by": "vom Wochenplan vorgeschlagen"
+    },
+    "kiosk_session": {
+        "first_item": "Erstes Produkt: {name}!",
+        "items_two_four": "{n} Artikel — Trägheit überwinden 🚀",
+        "items_five_nine": "{n} Artikel — super Tempo! 💪",
+        "items_ten_twenty": "{n} Artikel — fast Rekord 🏆",
+        "items_twenty_plus": "{n} Artikel — epischer Einkauf! 🛒🔥",
+        "duplicates_one": "1 Duplikat (gleiches Produkt zweimal)",
+        "duplicates_many": "{n} Duplikate (mehrfach genommen)",
+        "top_category": "Top-Kategorie: {cat} ({count}×)",
+        "items_fallback": "{n} Artikel hinzugefügt"
     }
 }

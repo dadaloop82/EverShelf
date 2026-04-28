@@ -959,10 +959,10 @@ function changeLanguage(lang) {
 }
 
 const LOCATIONS = {
-    'dispensa': { icon: '🗄️', label: 'Dispensa' },
-    'frigo': { icon: '🧊', label: 'Frigo' },
-    'freezer': { icon: '❄️', label: 'Freezer' },
-    'altro': { icon: '📦', label: 'Altro' },
+    'dispensa': { icon: '🗄️', label: t('locations.dispensa') },
+    'frigo': { icon: '🧊', label: t('locations.frigo') },
+    'freezer': { icon: '❄️', label: t('locations.freezer') },
+    'altro': { icon: '📦', label: t('locations.altro') },
 };
 const CATEGORY_ICONS = {
     'latticini': '🥛', 'carne': '🥩', 'pesce': '🐟', 'frutta': '🍎',
@@ -982,16 +982,16 @@ const CATEGORY_LOCATION = {
 
 // Shopping section (reparto) map — groups categories into grocery departments
 const SHOPPING_SECTIONS = [
-    { key: 'frutta_verdura', icon: '🥬', label: 'Frutta & Verdura', cats: new Set(['frutta','verdura']) },
-    { key: 'carne_pesce',    icon: '🥩', label: 'Carne & Pesce',    cats: new Set(['carne','pesce']) },
-    { key: 'latticini',      icon: '🥛', label: 'Latticini & Fresco', cats: new Set(['latticini']) },
-    { key: 'pane_dolci',     icon: '🍞', label: 'Pane & Dolci',     cats: new Set(['pane','snack','cereali']) },
-    { key: 'pasta',          icon: '🍝', label: 'Pasta & Cereali',  cats: new Set(['pasta']) },
-    { key: 'conserve',       icon: '🥫', label: 'Conserve & Salse', cats: new Set(['conserve','condimenti']) },
-    { key: 'surgelati',      icon: '❄️',  label: 'Surgelati',        cats: new Set(['surgelati']) },
-    { key: 'bevande',        icon: '🥤', label: 'Bevande',          cats: new Set(['bevande']) },
-    { key: 'pulizia_igiene', icon: '🧴', label: 'Pulizia & Igiene', cats: new Set(['igiene','pulizia']) },
-    { key: 'altro',          icon: '📦', label: 'Altro',            cats: new Set(['altro']) },
+    { key: 'frutta_verdura', icon: '🥬', label: t('shopping_sections.frutta_verdura'), cats: new Set(['frutta','verdura']) },
+    { key: 'carne_pesce',    icon: '🥩', label: t('shopping_sections.carne_pesce'),    cats: new Set(['carne','pesce']) },
+    { key: 'latticini',      icon: '🥛', label: t('shopping_sections.latticini'),      cats: new Set(['latticini']) },
+    { key: 'pane_dolci',     icon: '🍞', label: t('shopping_sections.pane_dolci'),     cats: new Set(['pane','snack','cereali']) },
+    { key: 'pasta',          icon: '🍝', label: t('shopping_sections.pasta'),          cats: new Set(['pasta']) },
+    { key: 'conserve',       icon: '🥫', label: t('shopping_sections.conserve'),       cats: new Set(['conserve','condimenti']) },
+    { key: 'surgelati',      icon: '❄️',  label: t('shopping_sections.surgelati'),      cats: new Set(['surgelati']) },
+    { key: 'bevande',        icon: '🥤', label: t('shopping_sections.bevande'),        cats: new Set(['bevande']) },
+    { key: 'pulizia_igiene', icon: '🧴', label: t('shopping_sections.pulizia_igiene'), cats: new Set(['igiene','pulizia']) },
+    { key: 'altro',          icon: '📦', label: t('shopping_sections.altro'),          cats: new Set(['altro']) },
 ];
 
 function getItemSection(name) {
@@ -1150,14 +1150,14 @@ function getExpiredSafety(item, daysExpired) {
     return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_lowRisk_danger') };
 }
 
-// Nice Italian labels for local categories
+// Localized labels for local categories
 const CATEGORY_LABELS = {
-    'latticini': '🥛 Latticini', 'carne': '🥩 Carne', 'pesce': '🐟 Pesce',
-    'frutta': '🍎 Frutta', 'verdura': '🥬 Verdura', 'pasta': '🍝 Pasta & Riso',
-    'pane': '🍞 Pane & Forno', 'surgelati': '🧊 Surgelati', 'bevande': '🥤 Bevande',
-    'condimenti': '🧂 Condimenti', 'snack': '🍪 Snack & Dolci', 'conserve': '🥫 Conserve',
-    'cereali': '🌾 Cereali & Legumi', 'igiene': '🧴 Igiene', 'pulizia': '🧹 Pulizia',
-    'altro': '📦 Altro'
+    'latticini': `🥛 ${t('categories.latticini')}`, 'carne': `🥩 ${t('categories.carne')}`, 'pesce': `🐟 ${t('categories.pesce')}`,
+    'frutta': `🍎 ${t('categories.frutta')}`, 'verdura': `🥬 ${t('categories.verdura')}`, 'pasta': `🍝 ${t('categories.pasta')}`,
+    'pane': `🍞 ${t('categories.pane')}`, 'surgelati': `🧊 ${t('categories.surgelati')}`, 'bevande': `🥤 ${t('categories.bevande')}`,
+    'condimenti': `🧂 ${t('categories.condimenti')}`, 'snack': `🍪 ${t('categories.snack')}`, 'conserve': `🥫 ${t('categories.conserve')}`,
+    'cereali': `🌾 ${t('categories.cereali')}`, 'igiene': `🧴 ${t('categories.igiene')}`, 'pulizia': `🧹 ${t('categories.pulizia')}`,
+    'altro': `📦 ${t('categories.altro')}`
 };
 
 // Detect best unit/quantity from Open Food Facts quantity_info string
@@ -1634,8 +1634,8 @@ async function loadSettingsUI() {
     // Render legend
     const legend = document.querySelector('.mplan-legend');
     if (legend) {
-        legend.innerHTML = MEAL_PLAN_TYPES.map(t =>
-            `<span class="mplan-badge" style="opacity:0.85">${t.icon} ${t.label}</span>`
+        legend.innerHTML = getMealPlanTypes().map(mpt =>
+            `<span class="mplan-badge" style="opacity:0.85">${mpt.icon} ${mpt.label}</span>`
         ).join('');
     }
     // TTS settings — init defaults on first load
@@ -1946,17 +1946,17 @@ async function saveSettings() {
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
             statusEl.className = 'settings-status success';
-            statusEl.textContent = '✅ Configurazione salvata!';
+            statusEl.textContent = `✅ ${t('settings.saved')}`;
         } else {
             statusEl.className = 'settings-status error';
-            statusEl.textContent = '⚠️ Salvato localmente, errore server: ' + (result.error || '');
+            statusEl.textContent = `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
         }
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     } catch(e) {
         const statusEl = document.getElementById('settings-status');
         statusEl.className = 'settings-status success';
-        statusEl.textContent = '✅ Configurazione salvata localmente';
+        statusEl.textContent = `✅ ${t('settings.saved_local')}`;
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
@@ -3866,7 +3866,7 @@ async function onBarcodeDetected(barcode) {
             // Save to local DB
             const saveResult = await api('product_save', {}, 'POST', {
                 barcode: barcode,
-                name: p.name || 'Prodotto sconosciuto',
+                name: p.name || t('product.not_recognized'),
                 brand: p.brand || '',
                 category: p.category || '',
                 image_url: p.image_url || '',
@@ -3880,7 +3880,7 @@ async function onBarcodeDetected(barcode) {
                 currentProduct = {
                     id: saveResult.id,
                     barcode: barcode,
-                    name: p.name || 'Prodotto sconosciuto',
+                    name: p.name || t('product.not_recognized'),
                     brand: p.brand || '',
                     category: p.category || '',
                     image_url: p.image_url || '',
@@ -3909,13 +3909,13 @@ async function onBarcodeDetected(barcode) {
         // Not found - ask user to add manually
         showLoading(false);
         stopScanner();
-        showToast('Prodotto non trovato. Inseriscilo manualmente.', 'error');
+        showToast(t('error.not_found_manual'), 'error');
         startManualEntry(barcode);
         
     } catch (err) {
         showLoading(false);
         console.error('Barcode lookup error:', err);
-        showToast('Errore nella ricerca. Riprova.', 'error');
+        showToast(t('error.search'), 'error');
     }
 }
 
@@ -3928,7 +3928,7 @@ function submitManualBarcode() {
         return;
     }
     if (!/^\d{4,14}$/.test(barcode)) {
-        showToast('Il codice a barre deve contenere solo numeri (4-14 cifre)', 'error');
+        showToast(t('error.barcode_format'), 'error');
         input.focus();
         return;
     }
@@ -4002,8 +4002,8 @@ function showQuickNameResults(searchName, products) {
     newItem.innerHTML = `
         <span class="qnr-icon">➕</span>
         <div class="qnr-info">
-            <div class="qnr-name">Crea "${escapeHtml(searchName)}"</div>
-            <div class="qnr-detail">Nuovo prodotto senza barcode</div>
+            <div class="qnr-name">${t('scan.create_named').replace('{name}', '"' + escapeHtml(searchName) + '"')}</div>
+            <div class="qnr-detail">${t('scan.new_without_barcode')}</div>
         </div>
     `;
     newItem.onclick = () => createQuickProduct(searchName);
@@ -4616,12 +4616,12 @@ function showProductAction() {
         banner.style.display = 'block';
         banner.innerHTML = `
             <div class="shopping-scan-target-info">
-                <span class="stb-label">🛒 Stai cercando</span>
+                <span class="stb-label">🛒 ${t('shopping.scan_target_label')}</span>
                 <span class="stb-name">${escapeHtml(targetName)}</span>
             </div>
             <div class="shopping-scan-target-actions">
-                <button class="btn btn-success stb-btn" onclick="confirmShoppingItemFound()">✅ Trovato! Rimuovi dalla lista</button>
-                <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>showPage('scan')">✕ Annulla</button>
+                <button class="btn btn-success stb-btn" onclick="confirmShoppingItemFound()">✅ ${t('shopping.scan_target_found')}</button>
+                <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>showPage('scan')">✕ ${t('btn.cancel')}</button>
             </div>
         `;
     } else if (banner) {
@@ -4653,7 +4653,7 @@ function editProductFromAction() {
     document.getElementById('pf-notes').value = currentProduct.notes || '';
     document.getElementById('pf-unit').value = currentProduct.unit || 'pz';
     document.getElementById('pf-defqty').value = currentProduct.default_quantity || 1;
-    document.getElementById('product-form-title').textContent = 'Modifica Prodotto';
+    document.getElementById('product-form-title').textContent = t('product.title_edit');
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'none';
     // Keep barcode hint hidden in edit mode
@@ -5629,7 +5629,7 @@ async function loadUseInventoryInfo() {
         const unitSwitch = document.getElementById('use-unit-switch');
         
         if (items.length === 0) {
-            infoEl.innerHTML = '⚠️ Prodotto non presente nell\'inventario.';
+            infoEl.innerHTML = t('use.not_in_inventory');
             unitSwitch.style.display = 'none';
             _useConfMode = null;
             document.getElementById('use-expiry-hint').style.display = 'none';
@@ -5675,7 +5675,7 @@ async function loadUseInventoryInfo() {
             locSelector.innerHTML = `
                 <div class="pref-loc-info" id="pref-loc-info">
                     <span class="pref-loc-name">${locInfo.icon} ${locInfo.label}</span>
-                    <button type="button" class="btn-link pref-loc-change" onclick="_expandUseLocationSelector()">cambia</button>
+                    <button type="button" class="btn-link pref-loc-change" onclick="_expandUseLocationSelector()">${t('use.change')}</button>
                 </div>
                 <div id="pref-loc-full" style="display:none">${buildLocButtons(activeLoc)}</div>
             `;
@@ -5699,7 +5699,7 @@ async function loadUseInventoryInfo() {
             _useConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel };
 
             // Show inventory info with sub-unit total
-            infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
+            infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 const confQty = parseFloat(i.quantity);
                 const subQty = Math.round(confQty * pkgSize);
@@ -5723,7 +5723,7 @@ async function loadUseInventoryInfo() {
             // Trigger a live-box refresh with the latest reading if on scale
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
             
-            infoEl.innerHTML = '<strong>📦 Disponibile:</strong> ' + items.map(i => {
+            infoEl.innerHTML = `<strong>${t('use.available')}</strong> ` + items.map(i => {
                 const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
                 const qLabel = formatQuantity(parseFloat(i.quantity), i.unit, i.default_quantity, i.package_unit);
                 return `${loc.icon} ${loc.label}: ${qLabel}`;
@@ -5743,12 +5743,12 @@ async function loadUseInventoryInfo() {
                 fracDiv.id = 'pz-fraction-btns';
                 fracDiv.className = 'pz-fraction-btns';
                 fracDiv.innerHTML = `
-                    <p class="form-hint">Hai usato solo una parte?</p>
+                    <p class="form-hint">${t('use.partial_piece_hint')}</p>
                     <div class="fraction-btn-row">
-                        <button type="button" class="frac-btn" data-frac="0.25" onclick="setPzFraction(0.25)">¼ pezzo</button>
-                        <button type="button" class="frac-btn" data-frac="0.5" onclick="setPzFraction(0.5)">½ pezzo</button>
-                        <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ pezzo</button>
-                        <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">1 intero</button>
+                        <button type="button" class="frac-btn" data-frac="0.25" onclick="setPzFraction(0.25)">¼ ${t('use.piece')}</button>
+                        <button type="button" class="frac-btn" data-frac="0.5" onclick="setPzFraction(0.5)">½ ${t('use.piece')}</button>
+                        <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ ${t('use.piece')}</button>
+                        <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">${t('use.one_whole')}</button>
                     </div>`;
                 document.querySelector('#page-use .use-partial').appendChild(fracDiv);
             }
@@ -5772,7 +5772,7 @@ function switchUseUnit(mode) {
         qtyInput.value = step;
         qtyInput.step = step;
         qtyInput.min = step;
-        hint.textContent = `Quantità in ${_useConfMode.subLabel} (totale: ${Math.round(_useConfMode.totalSub)}${_useConfMode.subLabel})`;
+        hint.textContent = t('recipes.quantity_in_total', { unit: _useConfMode.subLabel, total: `${Math.round(_useConfMode.totalSub)}${_useConfMode.subLabel}` });
     } else {
         confBtn.classList.add('active');
         subBtn.classList.remove('active');
@@ -5780,7 +5780,7 @@ function switchUseUnit(mode) {
         qtyInput.value = 1;
         qtyInput.step = 0.5;
         qtyInput.min = 0.5;
-        hint.textContent = `Confezioni da ${_useConfMode.packageSize}${_useConfMode.subLabel} (hai ${_useConfMode.totalConf.toFixed(1)} conf)`;
+        hint.textContent = t('recipes.packs_of_have', { size: `${_useConfMode.packageSize}${_useConfMode.subLabel}`, count: _useConfMode.totalConf.toFixed(1) });
     }
 }
 
@@ -6062,12 +6062,12 @@ async function addLowStockToBring() {
         if (shoppingListUUID) payload.listUUID = shoppingListUUID;
         const data = await api('bring_add', {}, 'POST', payload);
         if (data.success && data.added > 0) {
-            showToast('🛒 Aggiunto alla lista della spesa!', 'success');
+            showToast(t('shopping.added_to_bring').replace('{n}', data.added), 'success');
         } else if (data.success && data.skipped > 0) {
             showToast(t('shopping.already_in_list_short'), 'info');
         }
     } catch (e) {
-        showToast('Errore nell\'aggiunta a Bring!', 'error');
+        showToast(t('error.bring_add'), 'error');
     }
     const cb = window._lowStockAfterCallback;
     window._lowStockAfterCallback = null;
@@ -6448,7 +6448,7 @@ async function selectLocalMatch(productId) {
             showProductAction();
         } else {
             showLoading(false);
-            showToast('Prodotto non trovato', 'error');
+            showToast(t('error.not_found'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -6575,7 +6575,7 @@ let _pfAiStream = null;
 async function captureForAIFormFill() {
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
-            <h3>📷 Identifica con AI</h3>
+            <h3>📷 ${t('scan.ai_identify')}</h3>
             <button class="modal-close" onclick="closePfAiScanner()">✕</button>
         </div>
         <div class="expiry-scanner">
@@ -6710,7 +6710,7 @@ async function _pfAiAnalyze(base64) {
     } catch (err) {
         statusEl.style.display = 'none';
         resultEl.style.display = 'block';
-        resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ Errore di connessione</p>
+        resultEl.innerHTML = `<p style="color:var(--danger);text-align:center">❌ ${t('error.connection')}</p>
             <button class="btn btn-secondary full-width" onclick="pfAiRetake()">${t('btn.retry')}</button>`;
     }
 }
@@ -7017,7 +7017,7 @@ async function autoAddCriticalItems() {
  */
 async function forceSyncBring() {
     const btn = document.getElementById('btn-force-sync');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sincronizzazione…'; }
+    if (btn) { btn.disabled = true; btn.textContent = `⏳ ${t('shopping.syncing')}`; }
     // Clear all guards so the next run is unconditional
     localStorage.removeItem('_bringPurchasedBlocklist');
     localStorage.removeItem('_autoAddedCriticalTs');
@@ -7025,8 +7025,8 @@ async function forceSyncBring() {
     logOperation('force_sync_bring', {});
     // Reload everything from scratch
     await loadShoppingList();
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Forza sincronizzazione Bring!'; }
-    showToast('🔄 Sincronizzazione completata', 'success');
+    if (btn) { btn.disabled = false; btn.textContent = `🔄 ${t('shopping.force_sync')}`; }
+    showToast(`🔄 ${t('shopping.sync_done')}`, 'success');
 }
 
 /**
@@ -7484,7 +7484,7 @@ async function migrateBringNames(btn) {
 async function addSmartToBring() {
     const checks = document.querySelectorAll('.smart-check:checked');
     if (checks.length === 0) {
-        showToast('Seleziona almeno un prodotto', 'info');
+        showToast(t('error.select_items'), 'info');
         return;
     }
 
@@ -7627,7 +7627,7 @@ async function loadShoppingList() {
     const suggestionsEl = document.getElementById('shopping-suggestions');
     
     statusEl.style.display = 'block';
-    statusEl.innerHTML = '<div class="bring-loading"><div class="loading-spinner"></div> Connessione a Bring!...</div>';
+    statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t('shopping.bring_loading')}</div>`;
     currentEl.style.display = 'none';
     suggestionsEl.style.display = 'none';
     
@@ -7637,7 +7637,7 @@ async function loadShoppingList() {
         
         if (!data.success) {
             statusEl.style.display = 'block';
-            statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || 'Errore connessione Bring!')}</div>`;
+            statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || t('error.bring_connection'))}</div>`;
             return;
         }
         
@@ -7716,7 +7716,7 @@ async function renderShoppingItems() {
     if (tabCount) tabCount.textContent = shoppingItems.length;
     
     if (shoppingItems.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>Lista della spesa vuota!<br>Usa il pulsante sotto per generare suggerimenti.</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>${t('shopping.empty')}</p></div>`;
         updateSpesaTotal();
         return;
     }
@@ -7823,7 +7823,7 @@ async function renderShoppingItems() {
             let spesaBar = '';
             if (hasSpesa) {
                 if (priceData && priceData.loading) {
-                    detailHtml = `<div class="spesa-loading">🔍 Cerco...</div>`;
+                    detailHtml = `<div class="spesa-loading">🔍 ${t('shopping.price_searching')}</div>`;
                 } else if (priceData && priceData.product) {
                     const p = priceData.product;
                     const promoHtml = p.promo
@@ -7839,23 +7839,23 @@ async function renderShoppingItems() {
                         ${promoHtml}
                     </div>`;
                     spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="Ricerca">🔄 Ricerca</button>
-                        <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)}" onclick="event.stopPropagation()">🔗 Apri</a>
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="${t('shopping.search_action')}">🔄 ${t('shopping.search_action')}</button>
+                        <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)}" onclick="event.stopPropagation()">🔗 ${t('shopping.open_action')}</a>
                     </div>`;
                 } else if (priceData && priceData.searched && !priceData.product) {
-                    detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">Non trovato</span></div>`;
+                    detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">${t('shopping.not_found')}</span></div>`;
                     spesaBar = `<div class="spesa-bar">
                         <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="${t('btn.retry').replace('🔄 ', '')}">${t('btn.retry')}</button>
                     </div>`;
                 } else {
                     spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="Cerca prezzo">🔍 Cerca prezzo</button>
+                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="${t('shopping.search_price')}">🔍 ${t('shopping.search_price')}</button>
                     </div>`;
                 }
             }
 
             html += `
-            <div class="shopping-item ${priceData?.product?.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="Tocca per scansionare"${bgStyle}>
+            <div class="shopping-item ${priceData?.product?.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="${t('shopping.tap_to_scan')}"${bgStyle}>
                 <span class="shopping-item-icon">${catIcon}</span>
                 <div class="shopping-item-body">
                     <div class="shopping-item-top">
@@ -7870,8 +7870,8 @@ async function renderShoppingItems() {
                         </div>
                         <div class="shopping-item-right" onclick="event.stopPropagation()">
                             ${priceTag}
-                            <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="Tag">🏷️</button>
-                            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="Rimuovi">✕</button>
+                            <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="${t('shopping.tag_title')}">🏷️</button>
+                            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="${t('shopping.remove_title')}">✕</button>
                         </div>
                     </div>
                     ${spesaBar}
@@ -7923,9 +7923,9 @@ function updateSpesaTotal() {
     banner.style.display = 'block';
     valueEl.textContent = `€ ${total.toFixed(2)}`;
     
-    let detail = `${found}/${shoppingItems.length} prodotti trovati`;
+    let detail = t('shopping.found_count').replace('{found}', found).replace('{total}', shoppingItems.length);
     if (promoSaved > 0) {
-        detail += ` · 🏷️ Risparmi €${promoSaved.toFixed(2)} con le offerte`;
+        detail += ` ${t('shopping.savings_offers').replace('{amount}', promoSaved.toFixed(2))}`;
     }
     detailEl.textContent = detail;
 }
@@ -7982,14 +7982,14 @@ async function searchAllPrices() {
         try {
             const status = await api('dupliclick_status');
             if (!status.logged_in) {
-                showToast('Configura prima la Spesa Online nelle impostazioni', 'error');
+                showToast(t('settings.spesa.configure_first'), 'error');
                 return;
             }
             s.spesa_logged_in = true;
             s.spesa_token = 'server';
             saveSettings(s);
         } catch (e) {
-            showToast('Configura prima la Spesa Online nelle impostazioni', 'error');
+            showToast(t('settings.spesa.configure_first'), 'error');
             return;
         }
     }
@@ -8001,7 +8001,7 @@ async function searchAllPrices() {
     });
     
     if (toSearch.length === 0) {
-        showToast('Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.', 'info');
+        showToast(t('shopping.all_searched'), 'info');
         return;
     }
     
@@ -8010,7 +8010,7 @@ async function searchAllPrices() {
     
     for (let i = 0; i < toSearch.length; i++) {
         const item = toSearch[i];
-        btn.innerHTML = `⏳ Cerco ${i + 1}/${totalToSearch}...`;
+        btn.innerHTML = `⏳ ${t('shopping.searching_progress').replace('{current}', i + 1).replace('{total}', totalToSearch)}`;
         
         const priceKey = item.name.toLowerCase();
         const provider = s.spesa_provider || 'dupliclick';
@@ -8041,8 +8041,8 @@ async function searchAllPrices() {
     }
     
     btn.disabled = false;
-    btn.innerHTML = '🔍 Cerca tutti i prezzi';
-    showToast(`Ricerca completata: ${totalToSearch} prodotti`, 'success');
+    btn.innerHTML = `🔍 ${t('shopping.search_prices')}`;
+    showToast(t('shopping.search_complete').replace('{count}', totalToSearch), 'success');
 }
 
 async function removeBringItem(idx) {
@@ -8063,7 +8063,7 @@ async function removeBringItem(idx) {
             loadShoppingCount();
         }
     } catch (err) {
-        showToast('Errore nella rimozione', 'error');
+        showToast(t('shopping.remove_error'), 'error');
     }
 }
 
@@ -8072,17 +8072,17 @@ async function generateSuggestions() {
     const suggestionsEl = document.getElementById('shopping-suggestions');
     
     btn.disabled = true;
-    btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Analisi in corso...';
+    btn.innerHTML = `<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> ${t('shopping.suggest_loading')}`;
     suggestionsEl.style.display = 'none';
     
     try {
         const data = await api('bring_suggest', {}, 'POST', {});
         
         btn.disabled = false;
-        btn.innerHTML = '🤖 Suggerisci cosa comprare';
+        btn.innerHTML = `🤖 ${t('shopping.suggest_btn').replace('🤖 ', '')}`;
         
         if (!data.success) {
-            showToast(data.error || 'Errore nella generazione', 'error');
+            showToast(data.error || t('shopping.suggest_error'), 'error');
             return;
         }
         
@@ -8106,7 +8106,7 @@ async function generateSuggestions() {
         
     } catch (err) {
         btn.disabled = false;
-        btn.innerHTML = '🤖 Suggerisci cosa comprare';
+        btn.innerHTML = `🤖 ${t('shopping.suggest_btn').replace('🤖 ', '')}`;
         console.error('Suggestion error:', err);
         showToast(t('error.connection'), 'error');
     }
@@ -8121,9 +8121,9 @@ function renderSuggestions() {
     container.innerHTML = sorted.map((item, idx) => {
         const catIcon = CATEGORY_ICONS[item.category] || '🛒';
         const priorityBadge = {
-            'alta': '<span class="priority-badge priority-high">Alta</span>',
-            'media': '<span class="priority-badge priority-med">Media</span>',
-            'bassa': '<span class="priority-badge priority-low">Bassa</span>',
+            'alta': `<span class="priority-badge priority-high">${t('shopping.priority_high')}</span>`,
+            'media': `<span class="priority-badge priority-med">${t('shopping.priority_medium')}</span>`,
+            'bassa': `<span class="priority-badge priority-low">${t('shopping.priority_low')}</span>`,
         }[item.priority] || '';
         
         return `
@@ -8156,21 +8156,22 @@ function updateSuggestionActionBtn() {
     const selected = suggestionItems.filter(s => s.selected);
     const btn = document.querySelector('#suggestion-actions .btn-success');
     if (btn) {
-        btn.textContent = `✅ Aggiungi ${selected.length} prodott${selected.length === 1 ? 'o' : 'i'} a Bring!`;
-        btn.disabled = selected.length === 0;
+        const nItems = selected.length;
+        btn.textContent = `✅ ${nItems === 1 ? t('shopping.bring_add_one') : t('shopping.bring_add_many').replace('{n}', nItems)}`;
+        btn.disabled = nItems === 0;
     }
 }
 
 async function addSelectedSuggestions() {
     const selected = suggestionItems.filter(s => s.selected);
     if (selected.length === 0) {
-        showToast('Seleziona almeno un prodotto', 'error');
+        showToast(t('error.select_items'), 'error');
         return;
     }
     
     const btn = document.querySelector('#suggestion-actions .btn-success');
     btn.disabled = true;
-    btn.innerHTML = '<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> Aggiunta in corso...';
+    btn.innerHTML = `<div class="loading-spinner" style="display:inline-block;width:18px;height:18px;margin-right:8px;vertical-align:middle"></div> ${t('shopping.bring_adding')}`;
     
     try {
         const items = selected.map(s => {
@@ -8180,8 +8181,8 @@ async function addSelectedSuggestions() {
         const data = await api('bring_add', {}, 'POST', { items, listUUID: shoppingListUUID });
         
         if (data.success) {
-            let msg = `${data.added} prodott${data.added === 1 ? 'o aggiunto' : 'i aggiunti'} a Bring!`;
-            if (data.skipped > 0) msg += ` (${data.skipped} già in lista)`;
+            let msg = data.added === 1 ? t('shopping.bring_added_one') : t('shopping.bring_added_many').replace('{n}', data.added);
+            if (data.skipped > 0) msg += ` ${t('shopping.bring_skipped').replace('{n}', data.skipped)}`;
             showToast(msg, 'success');
             // Refresh list
             await loadShoppingList();
@@ -8191,14 +8192,14 @@ async function addSelectedSuggestions() {
             document.getElementById('shopping-suggestions').style.display = 'none';
             suggestionItems = [];
         } else {
-            showToast(data.error || 'Errore', 'error');
+            showToast(data.error || t('error.generic'), 'error');
         }
     } catch (err) {
         showToast(t('error.connection'), 'error');
     }
     
     btn.disabled = false;
-    btn.innerHTML = '✅ Aggiungi selezionati a Bring!';
+    btn.innerHTML = `✅ ${t('shopping.bring_add_selected')}`;
 }
 
 // ===== UTILITY FUNCTIONS =====
@@ -8514,29 +8515,45 @@ async function undoTransactionEntry(id, type, name) {
  * All selectable meal categories per slot.
  * id must be URL-safe; icon + label shown in UI.
  */
-const MEAL_PLAN_TYPES = [
-    { id: 'pasta',      icon: '🍝', label: 'Pasta' },
-    { id: 'riso',       icon: '🍚', label: 'Riso' },
-    { id: 'carne',      icon: '🥩', label: 'Carne' },
-    { id: 'pesce',      icon: '🐟', label: 'Pesce' },
-    { id: 'legumi',     icon: '🫘', label: 'Legumi' },
-    { id: 'uova',       icon: '🥚', label: 'Uova' },
-    { id: 'formaggio',  icon: '🧀', label: 'Formaggio' },
-    { id: 'pizza',      icon: '🍕', label: 'Pizza' },
-    { id: 'affettati',  icon: '🥓', label: 'Affettati' },
-    { id: 'verdure',    icon: '🥦', label: 'Verdure' },
-    { id: 'zuppa',      icon: '🍲', label: 'Zuppa' },
-    { id: 'insalata',   icon: '🥗', label: 'Insalata' },
-    { id: 'pane',       icon: '🥪', label: 'Pane/Sandwich' },
-    { id: 'dolce',      icon: '🍰', label: 'Dolce' },
-    { id: 'libero',     icon: '🎲', label: 'Libero' },
+const MEAL_PLAN_TYPE_DEFS = [
+    { id: 'pasta',      icon: '🍝', i18nKey: 'meal_plan_types.pasta' },
+    { id: 'riso',       icon: '🍚', i18nKey: 'meal_plan_types.riso' },
+    { id: 'carne',      icon: '🥩', i18nKey: 'meal_plan_types.carne' },
+    { id: 'pesce',      icon: '🐟', i18nKey: 'meal_plan_types.pesce' },
+    { id: 'legumi',     icon: '🫘', i18nKey: 'meal_plan_types.legumi' },
+    { id: 'uova',       icon: '🥚', i18nKey: 'meal_plan_types.uova' },
+    { id: 'formaggio',  icon: '🧀', i18nKey: 'meal_plan_types.formaggio' },
+    { id: 'pizza',      icon: '🍕', i18nKey: 'meal_plan_types.pizza' },
+    { id: 'affettati',  icon: '🥓', i18nKey: 'meal_plan_types.affettati' },
+    { id: 'verdure',    icon: '🥦', i18nKey: 'meal_plan_types.verdure' },
+    { id: 'zuppa',      icon: '🍲', i18nKey: 'meal_plan_types.zuppa' },
+    { id: 'insalata',   icon: '🥗', i18nKey: 'meal_plan_types.insalata' },
+    { id: 'pane',       icon: '🥪', i18nKey: 'meal_plan_types.pane' },
+    { id: 'dolce',      icon: '🍰', i18nKey: 'meal_plan_types.dolce' },
+    { id: 'libero',     icon: '🎲', i18nKey: 'meal_plan_types.libero' },
 ];
 
-const MEAL_PLAN_TYPE_MAP = {};
-MEAL_PLAN_TYPES.forEach(t => { MEAL_PLAN_TYPE_MAP[t.id] = t; });
+function getMealPlanTypes() {
+    return MEAL_PLAN_TYPE_DEFS.map(mpt => ({ ...mpt, label: t(mpt.i18nKey) }));
+}
 
-const WEEK_DAYS = [t('days.mon'),t('days.tue'),t('days.wed'),t('days.thu'),t('days.fri'),t('days.sat'),t('days.sun')];
-const WEEK_DAYS_SHORT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+function getMealPlanTypeMap() {
+    const map = {};
+    getMealPlanTypes().forEach(mpt => { map[mpt.id] = mpt; });
+    return map;
+}
+
+function getWeekDaysShortLabels() {
+    return [
+        t('days.mon_short'),
+        t('days.tue_short'),
+        t('days.wed_short'),
+        t('days.thu_short'),
+        t('days.fri_short'),
+        t('days.sat_short'),
+        t('days.sun_short'),
+    ];
+}
 
 /** Default weekly plan as requested. */
 const DEFAULT_MEAL_PLAN = {
@@ -8588,20 +8605,22 @@ function renderMealPlanEditor() {
     // JS getDay: 0=Sun … but we display Mon-Sun (1..6,0)
     const dayOrder = [1,2,3,4,5,6,0];
     const today = new Date().getDay();
+    const mealPlanTypeMap = getMealPlanTypeMap();
+    const weekDaysShort = getWeekDaysShortLabels();
 
     const header = `<div class="mplan-header">
-        <span class="mplan-col-header">🌤️ Pranzo</span>
-        <span class="mplan-col-header">🌙 Cena</span>
+        <span class="mplan-col-header">🌤️ ${t('meal_types.pranzo')}</span>
+        <span class="mplan-col-header">🌙 ${t('meal_types.cena')}</span>
     </div>`;
 
     const rows = dayOrder.map((dow, i) => {
         const pranzo = plan[dow]?.pranzo || 'libero';
         const cena   = plan[dow]?.cena   || 'libero';
-        const pt = MEAL_PLAN_TYPE_MAP[pranzo] || MEAL_PLAN_TYPE_MAP.libero;
-        const ct = MEAL_PLAN_TYPE_MAP[cena]   || MEAL_PLAN_TYPE_MAP.libero;
+        const pt = mealPlanTypeMap[pranzo] || mealPlanTypeMap.libero;
+        const ct = mealPlanTypeMap[cena]   || mealPlanTypeMap.libero;
         const todayClass = dow === today ? ' mplan-row-today' : '';
         return `<div class="mplan-row${todayClass}">
-            <div class="mplan-day-name">${WEEK_DAYS_SHORT[i]}</div>
+            <div class="mplan-day-name">${weekDaysShort[i]}</div>
             <span class="mplan-badge mplan-badge-pranzo" onclick="openMealPlanPicker(${dow},'pranzo',this)">${pt.icon} ${pt.label}</span>
             <span class="mplan-badge mplan-badge-cena" onclick="openMealPlanPicker(${dow},'cena',this)">${ct.icon} ${ct.label}</span>
         </div>`;
@@ -8619,8 +8638,8 @@ function openMealPlanPicker(dow, slot, badgeEl) {
     if (!picker) return;
     const plan = getMealPlan();
     const current = plan[dow]?.[slot] || 'libero';
-    picker.innerHTML = MEAL_PLAN_TYPES.map(t =>
-        `<button class="mplan-pick-btn${t.id === current ? ' active' : ''}" onclick="selectMealPlanType(${dow},'${slot}','${t.id}')">${t.icon} ${t.label}</button>`
+    picker.innerHTML = getMealPlanTypes().map(mpt =>
+        `<button class="mplan-pick-btn${mpt.id === current ? ' active' : ''}" onclick="selectMealPlanType(${dow},'${slot}','${mpt.id}')">${mpt.icon} ${mpt.label}</button>`
     ).join('');
     // Position vertically near the badge, centered horizontally (CSS handles centering)
     const rect = badgeEl.getBoundingClientRect();
@@ -8660,47 +8679,74 @@ function resetMealPlan() {
     s.meal_plan = JSON.parse(JSON.stringify(DEFAULT_MEAL_PLAN));
     saveSettingsToStorage(s);
     renderMealPlanEditor();
-    showToast('Piano settimanale ripristinato', 'success');
+    showToast(t('meal_plan.reset_success'), 'success');
 }
 
 // ===== RECIPE GENERATION =====
-const MEAL_TYPES = [
-    { id: 'colazione',  icon: '☀️', label: 'Colazione',       from: 6,  to: 11 },
-    { id: 'pranzo',     icon: '🍽️', label: 'Pranzo',           from: 11, to: 14 },
-    { id: 'merenda',    icon: '🍪', label: 'Merenda',          from: 14, to: 17 },
-    { id: 'cena',       icon: '🌙', label: 'Cena',             from: 17, to: 6  },
-    { id: 'dolce',      icon: '🍰', label: 'Dolce',            from: -1, to: -1 },
-    { id: 'succo',      icon: '🧃', label: 'Succo di Frutta',  from: -1, to: -1 },
+const MEAL_TYPE_DEFS = [
+    { id: 'colazione',  icon: '☀️', i18nKey: 'meal_types.colazione',  from: 6,  to: 11 },
+    { id: 'pranzo',     icon: '🍽️', i18nKey: 'meal_types.pranzo',     from: 11, to: 14 },
+    { id: 'merenda',    icon: '🍪', i18nKey: 'meal_types.merenda',    from: 14, to: 17 },
+    { id: 'cena',       icon: '🌙', i18nKey: 'meal_types.cena',       from: 17, to: 6  },
+    { id: 'dolce',      icon: '🍰', i18nKey: 'meal_types.dolce',      from: -1, to: -1 },
+    { id: 'succo',      icon: '🧃', i18nKey: 'meal_types.succo',      from: -1, to: -1 },
 ];
 
-const MEAL_SUB_TYPES = {
-    dolce: [
-        { id: 'torta',      icon: '🎂', label: 'Torta' },
-        { id: 'crema',      icon: '🍮', label: 'Crema / Budino' },
-        { id: 'crumble',    icon: '🥧', label: 'Crumble / Crostata' },
-        { id: 'biscotti',   icon: '🍪', label: 'Biscotti / Pasticcini' },
-        { id: 'frutta',     icon: '🍓', label: 'Dolce alla Frutta' },
-    ],
-    succo: [
-        { id: 'dolce',        icon: '🍑', label: 'Dolce / Fruttato' },
-        { id: 'energizzante', icon: '⚡', label: 'Energizzante' },
-        { id: 'detox',        icon: '🥬', label: 'Detox / Verde' },
-        { id: 'rinfrescante', icon: '🧊', label: 'Rinfrescante' },
-        { id: 'vitaminico',   icon: '🍊', label: 'Vitaminico / Agrumi' },
-    ]
-};
+function getMealTypes() {
+    return MEAL_TYPE_DEFS.map(m => ({ ...m, label: t(m.i18nKey) }));
+}
+
+function getMealSubTypes() {
+    return {
+        dolce: [
+            { id: 'torta',      icon: '🎂', label: t('meal_sub.dolce_torta') },
+            { id: 'crema',      icon: '🍮', label: t('meal_sub.dolce_crema') },
+            { id: 'crumble',    icon: '🥧', label: t('meal_sub.dolce_crumble') },
+            { id: 'biscotti',   icon: '🍪', label: t('meal_sub.dolce_biscotti') },
+            { id: 'frutta',     icon: '🍓', label: t('meal_sub.dolce_frutta') },
+        ],
+        succo: [
+            { id: 'dolce',        icon: '🍑', label: t('meal_sub.succo_dolce') },
+            { id: 'energizzante', icon: '⚡', label: t('meal_sub.succo_energizzante') },
+            { id: 'detox',        icon: '🥬', label: t('meal_sub.succo_detox') },
+            { id: 'rinfrescante', icon: '🧊', label: t('meal_sub.succo_rinfrescante') },
+            { id: 'vitaminico',   icon: '🍊', label: t('meal_sub.succo_vitaminico') },
+        ]
+    };
+}
+
+function getMealLabels() {
+    const labels = {};
+    getMealTypes().forEach(m => { labels[m.id] = `${m.icon} ${m.label}`; });
+    return labels;
+}
 
 function getMealType() {
     const hour = new Date().getHours();
-    for (const m of MEAL_TYPES) {
+    for (const m of MEAL_TYPE_DEFS) {
         if (m.from < m.to) { if (hour >= m.from && hour < m.to) return m.id; }
         else { if (hour >= m.from || hour < m.to) return m.id; }
     }
     return 'cena';
 }
 
-const MEAL_LABELS = {};
-MEAL_TYPES.forEach(m => { MEAL_LABELS[m.id] = `${m.icon} ${m.label}`; });
+function _normalizeMealId(rawMeal) {
+    if (!rawMeal) return '';
+    let meal = String(rawMeal).trim().toLowerCase();
+    meal = meal.replace(/^meal_types?\./, '');
+    if (meal === 'lunch') return 'pranzo';
+    if (meal === 'dinner') return 'cena';
+    return meal;
+}
+
+function _mealLabel(rawMeal) {
+    const mealId = _normalizeMealId(rawMeal);
+    const labels = getMealLabels();
+    if (labels[mealId]) return labels[mealId];
+    const translated = mealId ? t(`meal_types.${mealId}`) : '';
+    if (translated && translated !== `meal_types.${mealId}`) return translated;
+    return mealId || String(rawMeal || '');
+}
 
 function getSelectedMealType() {
     const checked = document.querySelector('input[name="recipe-meal"]:checked');
@@ -8749,7 +8795,7 @@ async function loadRecipeArchive() {
     _recipeArchiveEntries = archive;
     
     if (archive.length === 0) {
-        container.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>Nessuna ricetta salvata.<br>Genera la tua prima ricetta!</p></div>';
+        container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>${t('recipes.archive_empty')}</p></div>`;
         return;
     }
     
@@ -8776,7 +8822,7 @@ async function loadRecipeArchive() {
         
         for (const entry of entries) {
             const r = entry.recipe;
-            const mealIcon = MEAL_LABELS[r.meal] || r.meal;
+            const mealIcon = _mealLabel(r.meal || entry.meal);
             const tags = (r.tags || []).slice(0, 3).join(', ');
             // Find this entry's index in the flat archive array
             const archiveIdx = archive.indexOf(entry);
@@ -8802,7 +8848,7 @@ async function loadRecipeArchive() {
 function viewArchivedRecipe(idx) {
     const entry = _recipeArchiveEntries[idx];
     if (!entry) return;
-    _cachedRecipe = { meal: entry.meal, recipe: entry.recipe };
+    _cachedRecipe = { meal: _normalizeMealId(entry.meal), recipe: entry.recipe };
     renderRecipe(entry.recipe);
     document.getElementById('recipe-overlay').style.display = 'flex';
     document.getElementById('recipe-ask').style.display = 'none';
@@ -8823,7 +8869,7 @@ function openRecipeDialog() {
     // Build meal selector radios
     const mealGrid = document.getElementById('recipe-meal-grid');
     if (mealGrid) {
-        mealGrid.innerHTML = MEAL_TYPES.map(m => {
+        mealGrid.innerHTML = getMealTypes().map(m => {
             const checked = m.id === meal ? ' checked' : '';
             return `<label class="recipe-meal-chip"><input type="radio" name="recipe-meal" value="${m.id}"${checked}> ${m.icon} ${m.label}</label>`;
         }).join('');
@@ -8897,7 +8943,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         const items = (data.inventory || []).filter(i => i.product_id == productId);
         
         if (items.length === 0) {
-            showToast('⚠️ Prodotto non trovato in inventario', 'error');
+            showToast(t('error.not_in_inventory'), 'error');
             return;
         }
         
@@ -8944,9 +8990,9 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             qtySection = `
                 <div class="use-unit-switch" style="display:flex;margin-bottom:8px">
                     <button type="button" class="use-unit-btn active" id="ruse-unit-sub" onclick="switchRecipeUseUnit('sub')">${subLabel}</button>
-                    <button type="button" class="use-unit-btn" id="ruse-unit-conf" onclick="switchRecipeUseUnit('conf')">Confezioni</button>
+                    <button type="button" class="use-unit-btn" id="ruse-unit-conf" onclick="switchRecipeUseUnit('conf')">${t('recipes.packs_label')}</button>
                 </div>
-                <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità in ${subLabel} (totale: ${Math.round(totalSub)}${subLabel})</p>
+                <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.quantity_in_total').replace('{unit}', subLabel).replace('{total}', Math.round(totalSub) + subLabel)}</p>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
                     <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input"
@@ -8959,7 +9005,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             const unitLabel = unitLabels[unit] || unit;
             const inputMin = '0.1';
             qtySection = `
-                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">Quantità da usare (${unitLabel}):</p>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.amount_label')} (${unitLabel}):</p>
                 <div class="qty-control">
                     <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
                     <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input"
@@ -8989,34 +9035,34 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                 <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:none" id="ruse-scale-confirm-wrap">
                     <div id="ruse-scale-confirm-bar" style="height:100%;width:100%;background:#22c55e;transition:none;border-radius:2px"></div>
                 </div>
-                <div id="ruse-scale-live-label" class="scale-live-label" style="margin-top:3px">Attendi 10s di stabilità per la compilazione automatica…</div>
+                <div id="ruse-scale-live-label" class="scale-live-label" style="margin-top:3px">${t('recipes.scale_wait_stable')}</div>
             </div>` : '';
 
         document.getElementById('modal-content').innerHTML = `
             <div class="modal-header">
-                <h3>📤 Usa ingrediente</h3>
+                <h3>📤 ${t('recipes.use_ingredient_title')}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div style="padding:0 16px 16px">
                 <p style="margin-bottom:4px;font-weight:600">${escapeHtml(items[0].name)}</p>
-                ${recipeQty ? `<p style="margin-bottom:8px;background:var(--bg-elevated,rgba(124,58,237,0.12));border-left:3px solid var(--color-accent,#7c3aed);border-radius:6px;padding:6px 10px;font-size:0.9rem">📋 Ricetta: <strong>${escapeHtml(recipeQty)}</strong></p>` : ''}
+                ${recipeQty ? `<p style="margin-bottom:8px;background:var(--bg-elevated,rgba(124,58,237,0.12));border-left:3px solid var(--color-accent,#7c3aed);border-radius:6px;padding:6px 10px;font-size:0.9rem">📋 ${t('recipes.recipe_qty_label')}: <strong>${escapeHtml(recipeQty)}</strong></p>` : ''}
                 <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">📦 ${availInfo}</p>
                 ${scaleLiveSection}
                 <div class="form-group">
-                    <label>📍 Da dove?</label>
+                    <label>📍 ${t('recipes.from_where_label')}</label>
                     <div class="location-selector">${locButtons}</div>
                     <input type="hidden" id="ruse-location" value="${defaultLoc}">
                 </div>
                 <div class="form-group">
-                    <label>Quanto?</label>
+                    <label>${t('recipes.amount_label')}?</label>
                     ${qtySection}
                     <small id="ruse-scale-hint" style="display:none; color: var(--color-accent, #7c3aed); margin-top:4px"></small>
                 </div>
                 <button type="button" id="btn-ruse-submit" class="btn btn-large btn-danger full-width move-countdown-btn" onclick="submitRecipeUse(false)" style="margin-top:8px">
-                    📤 Usa questa quantità
+                    📤 ${t('recipes.use_amount_btn')}
                 </button>
                 <button type="button" class="btn btn-large btn-secondary full-width" style="margin-top:8px" onclick="submitRecipeUse(true)">
-                    🗑️ Usa TUTTO / Finito
+                    🗑️ ${t('recipes.use_all_btn')}
                 </button>
             </div>
         `;
@@ -9024,7 +9070,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         
     } catch (err) {
         console.error('useRecipeIngredient error:', err);
-        showToast('Errore nel caricamento', 'error');
+        showToast(t('recipes.load_error'), 'error');
     }
 }
 
@@ -9049,7 +9095,7 @@ function switchRecipeUseUnit(mode) {
         qtyInput.value = _recipeUseContext.qtyNumber || step;
         qtyInput.step = step;
         qtyInput.min = step;
-        hint.textContent = `Quantità in ${_recipeUseConfMode.subLabel} (totale: ${Math.round(_recipeUseConfMode.totalSub)}${_recipeUseConfMode.subLabel})`;
+        hint.textContent = t('recipes.quantity_in_total').replace('{unit}', _recipeUseConfMode.subLabel).replace('{total}', Math.round(_recipeUseConfMode.totalSub) + _recipeUseConfMode.subLabel);
     } else {
         confBtn.classList.add('active');
         subBtn.classList.remove('active');
@@ -9057,7 +9103,7 @@ function switchRecipeUseUnit(mode) {
         qtyInput.value = 1;
         qtyInput.step = 0.5;
         qtyInput.min = 0.5;
-        hint.textContent = `Confezioni da ${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel} (hai ${_recipeUseConfMode.totalConf.toFixed(1)} conf)`;
+        hint.textContent = t('recipes.packs_of_have').replace('{size}', `${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel}`).replace('{count}', _recipeUseConfMode.totalConf.toFixed(1));
     }
 }
 
@@ -9122,9 +9168,9 @@ async function submitRecipeUse(useAll) {
                 saveRecipeToArchive(_cachedRecipe.recipe);
             }
             
-            showToast('📦 Ingrediente scalato dalla dispensa!', 'success');
+            showToast(t('recipes.ingredient_scaled_toast'), 'success');
             if (result.added_to_bring) {
-                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+                setTimeout(() => showToast(t('recipes.finished_added_bring_toast'), 'info'), 1500);
             }
             
             // Check low stock → Bring! prompt, then offer move
@@ -9217,8 +9263,8 @@ function renderRecipe(r) {
 
     // Meta tags
     html += '<div class="recipe-meta">';
-    html += `<span class="recipe-tag">${MEAL_LABELS[r.meal] || r.meal}</span>`;
-    html += `<span class="recipe-tag">👥 ${r.persons} pers.</span>`;
+    html += `<span class="recipe-tag">${_mealLabel(r.meal)}</span>`;
+    html += `<span class="recipe-tag">👥 ${r.persons} ${t('recipes.persons_short')}</span>`;
     if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
     if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
     if (r.tags) r.tags.forEach(t => { html += `<span class="recipe-tag">${t}</span>`; });
@@ -9230,7 +9276,7 @@ function renderRecipe(r) {
     }
 
     // Ingredients
-    html += '<h3>🧾 Ingredienti</h3><ul class="recipe-ingredients">';
+    html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
         if (ing.from_pantry && ing.product_id) {
             const qtyNum = ing.qty_number || 0;
@@ -9240,8 +9286,8 @@ function renderRecipe(r) {
             html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
             // Detail line: location + expiry
             let details = [];
-            const locLabels = { 'frigo': '🧊 Frigo', 'freezer': '🧊 Freezer', 'dispensa': '🗄️ Dispensa' };
-            details.push(locLabels[ing.location] || ('📍 ' + ing.location));
+            const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
+            details.push(ingredientLocLabels[ing.location] || ('📍 ' + ing.location));
             if (ing.expiry_date) {
                 const exp = new Date(ing.expiry_date);
                 const now = new Date(); now.setHours(0,0,0,0);
@@ -9267,7 +9313,7 @@ function renderRecipe(r) {
     html += '</ul>';
 
     // Steps
-    html += '<h3>👨‍🍳 Procedimento</h3><ol>';
+    html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
     (r.steps || []).forEach(step => {
         const cleanStep = step.replace(/^Passo\s*\d+\s*:\s*/i, '');
         html += `<li>${cleanStep}</li>`;
@@ -9291,7 +9337,7 @@ let _cookingVisited = new Set(); // indices of steps already seen
 function startCookingMode() {
     const recipe = _cachedRecipe && _cachedRecipe.recipe ? _cachedRecipe.recipe : null;
     if (!recipe || !(recipe.steps || []).length) {
-        showToast('Nessun procedimento disponibile', 'info');
+        showToast(t('recipes.no_steps'), 'info');
         return;
     }
     // Resume if same recipe; otherwise start fresh
@@ -9362,26 +9408,26 @@ function renderCookingStep() {
 
     const ingsEl = document.getElementById('cooking-step-ings');
     if (ings.length > 0) {
-        const LOC_LABELS = { dispensa: '🏠 Dispensa', frigo: '❄️ Frigo', freezer: '🧊 Freezer' };
+        const cookingLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
         ingsEl.innerHTML = ings.map(ing => {
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const qtyNum = ing.qty_number || 0;
             // Build info chips: brand, location, expiry
             const chips = [];
             if (ing.brand) chips.push(`<span class="cooking-ing-chip">${escapeHtml(ing.brand)}</span>`);
-            const locLabel = LOC_LABELS[ing.location] || (ing.location ? `📍 ${ing.location}` : '🏠 Dispensa');
+            const locLabel = cookingLocLabels[ing.location] || (ing.location ? `📍 ${ing.location}` : `${LOCATIONS.dispensa.icon} ${LOCATIONS.dispensa.label}`);
             chips.push(`<span class="cooking-ing-chip">${locLabel}</span>`);
             if (ing.expiry_date) {
                 const daysLeft = Math.round((new Date(ing.expiry_date) - new Date()) / 86400000);
                 const expClass = daysLeft <= 3 ? 'exp-soon' : daysLeft <= 7 ? 'exp-close' : '';
-                chips.push(`<span class="cooking-ing-chip ${expClass}">📅 scade ${formatDate(ing.expiry_date)}</span>`);
+                chips.push(`<span class="cooking-ing-chip ${expClass}">📅 ${t('cooking.expires_chip').replace('{date}', formatDate(ing.expiry_date))}</span>`);
             }
             return `<div class="cooking-ing-row">
                 <div style="flex:1;min-width:0">
                     <span class="cooking-ing-name">📦 <strong>${escapeHtml(ing.name)}</strong>: ${escapeHtml(ing.qty)}</span>
                     <div class="cooking-ing-meta">${chips.join('')}</div>
                 </div>
-                <button class="cooking-use-btn" onclick="cookingUseIngredient(${ing._idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)">📤 Usa</button>
+                <button class="cooking-use-btn" onclick="cookingUseIngredient(${ing._idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this)">${t('cooking.ingredient_use_btn')}</button>
             </div>`;
         }).join('');
         ingsEl.style.display = 'flex';
@@ -9394,7 +9440,7 @@ function renderCookingStep() {
     const prevBtn = document.getElementById('cooking-prev');
     const nextBtn = document.getElementById('cooking-next');
     prevBtn.disabled = _cookingStep === 0;
-    nextBtn.textContent = _cookingStep === total - 1 ? '✅ Fine' : 'Successivo ▶';
+    nextBtn.textContent = _cookingStep === total - 1 ? t('cooking.finish') : t('cooking.next');
 
     // Timer: detect duration in step text and show suggestion
     setupCookingTimerSuggestion(cleanStep);
@@ -9892,7 +9938,8 @@ function cookingUseIngredient(idx, productId, location, qtyNumber, btn) {
 
 function updateRecipeMealTitle() {
     const meal = getSelectedMealType();
-    document.getElementById('recipe-meal-title').textContent = MEAL_LABELS[meal] || '🍳 Ricetta';
+    const mealLabels = getMealLabels();
+    document.getElementById('recipe-meal-title').textContent = mealLabels[meal] || t('recipes.dialog_title');
     _renderMealPlanHint(meal);
     _renderMealSubTypes(meal);
 }
@@ -9900,7 +9947,7 @@ function updateRecipeMealTitle() {
 function _renderMealSubTypes(mealId) {
     const container = document.getElementById('recipe-subtype-group');
     if (!container) return;
-    const subs = MEAL_SUB_TYPES[mealId];
+    const subs = getMealSubTypes()[mealId];
     if (!subs) {
         container.style.display = 'none';
         container.innerHTML = '';
@@ -9942,26 +9989,26 @@ function _renderMealPlanHint(mealSlot) {
         if (chipWrap) chipWrap.style.display = 'none';
         return;
     }
-    const t = MEAL_PLAN_TYPE_MAP[typeId];
-    if (!t) {
+    const mpt = getMealPlanTypeMap()[typeId];
+    if (!mpt) {
         if (el) el.style.display = 'none';
         if (banner) banner.style.display = 'none';
         if (chipWrap) chipWrap.style.display = 'none';
         return;
     }
     if (el) {
-        el.innerHTML = `<span class="mplan-hint-badge">${t.icon} ${t.label}</span> <span class="mplan-hint-label">suggerito dal piano settimanale</span>`;
+        el.innerHTML = `<span class="mplan-hint-badge">${mpt.icon} ${mpt.label}</span> <span class="mplan-hint-label">${t('meal_plan.suggested_by')}</span>`;
         el.style.display = 'flex';
     }
     if (banner) {
-        const slotLabel = mealSlot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
-        banner.innerHTML = `<span style="opacity:0.75;font-weight:500">${slotLabel}</span><span style="opacity:0.45">·</span><span>${t.icon} ${t.label}</span>`;
+        const slotLabel = mealSlot === 'pranzo' ? '🌤️ ' + t('meal_types.pranzo') : '🌙 ' + t('meal_types.cena');
+        banner.innerHTML = `<span style="opacity:0.75;font-weight:500">${slotLabel}</span><span style="opacity:0.45">·</span><span>${mpt.icon} ${mpt.label}</span>`;
         banner.style.display = 'flex';
     }
     // Show the meal-plan chip (active by default, user can uncheck to ignore the plan)
     if (chipWrap) {
         chipWrap.style.display = '';
-        if (chipLabel) chipLabel.textContent = `${t.icon} ${t.label}`;
+        if (chipLabel) chipLabel.textContent = `${mpt.icon} ${mpt.label}`;
         if (chipCb) chipCb.checked = true;
     }
 }
@@ -10025,7 +10072,8 @@ async function generateRecipe() {
         const payload = {
             meal,
             persons,
-            sub_type: MEAL_SUB_TYPES[meal] ? getSelectedSubType() : '',
+            lang: _currentLang,
+            sub_type: getMealSubTypes()[meal] ? getSelectedSubType() : '',
             options,
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
@@ -10046,9 +10094,9 @@ async function generateRecipe() {
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-ask').style.display = '';
             if (data.error === 'no_api_key') {
-                showToast('⚠️ Chiave API Gemini non configurata', 'warning');
+                showToast(t('error.no_api_key'), 'warning');
             } else {
-                showToast(data.error || t('error.connection'), 'error');
+                showToast(data.error || t('recipes.generate_error'), 'error');
             }
             return;
         }
@@ -10092,10 +10140,10 @@ async function generateRecipe() {
             document.getElementById('recipe-ask').style.display = '';
             if (errorEvent) {
                 if (errorEvent.error === 'no_api_key') {
-                    showToast('⚠️ Chiave API Gemini non configurata', 'warning');
+                    showToast(t('error.no_api_key'), 'warning');
                 } else {
                     const detail = errorEvent.detail ? ` (${errorEvent.detail})` : '';
-                    showToast((errorEvent.error || 'Errore nella generazione') + detail, 'error');
+                    showToast((errorEvent.error || t('recipes.generate_error')) + detail, 'error');
                 }
             } else {
                 showToast(t('error.connection'), 'error');
@@ -10346,10 +10394,10 @@ function updateScreensaverMealPlan() {
     const slot = hour < 15 ? 'pranzo' : 'cena';
     const typeId = getTodayMealPlanType(slot);
     if (!typeId || typeId === 'libero') { el.style.display = 'none'; return; }
-    const t = MEAL_PLAN_TYPE_MAP[typeId];
-    if (!t) { el.style.display = 'none'; return; }
-    const slotLabel = slot === 'pranzo' ? '🌤️ Pranzo' : '🌙 Cena';
-    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${t.icon} ${t.label}</span>`;
+    const mpt = getMealPlanTypeMap()[typeId];
+    if (!mpt) { el.style.display = 'none'; return; }
+    const slotLabel = slot === 'pranzo' ? '🌤️ ' + t('meal_types.pranzo') : '🌙 ' + t('meal_types.cena');
+    el.innerHTML = `<span class="screensaver-mealplan-badge">${slotLabel} · ${mpt.icon} ${mpt.label}</span>`;
     el.style.display = 'block';
 }
 
@@ -10814,15 +10862,15 @@ function _spesaBannerStat() {
     const unique = [...new Set(names)];
     const dupes = names.length - unique.length;
     const phrases = [
-        n === 1 ? `Primo prodotto: ${_spesaSession[0].name}!` : null,
-        n >= 2 && n < 5 ? `${n} prodotti — stai scaldando i motori 🚀` : null,
-        n >= 5 && n < 10 ? `${n} prodotti — ottimo ritmo! 💪` : null,
-        n >= 10 && n < 20 ? `${n} prodotti — quasi un recordman 🏆` : null,
-        n >= 20 ? `${n} prodotti — spesa epica! 🛒🔥` : null,
-        dupes > 0 ? `${dupes} bis ${dupes===1?'(stessa cosa due volte)':'(roba presa più volte)'}` : null,
-        topCat && topCat[1] > 1 ? `Categoria top: ${topCat[0]} (${topCat[1]}×)` : null,
+        n === 1 ? t('kiosk_session.first_item').replace('{name}', _spesaSession[0].name) : null,
+        n >= 2 && n < 5 ? t('kiosk_session.items_two_four').replace('{n}', n) : null,
+        n >= 5 && n < 10 ? t('kiosk_session.items_five_nine').replace('{n}', n) : null,
+        n >= 10 && n < 20 ? t('kiosk_session.items_ten_twenty').replace('{n}', n) : null,
+        n >= 20 ? t('kiosk_session.items_twenty_plus').replace('{n}', n) : null,
+        dupes > 0 ? (dupes === 1 ? t('kiosk_session.duplicates_one') : t('kiosk_session.duplicates_many').replace('{n}', dupes)) : null,
+        topCat && topCat[1] > 1 ? t('kiosk_session.top_category').replace('{cat}', topCat[0]).replace('{count}', topCat[1]) : null,
     ].filter(Boolean);
-    return phrases[n % phrases.length] || `${n} prodott${n===1?'o':'i'} aggiunti`;
+    return phrases[n % phrases.length] || t('kiosk_session.items_fallback').replace('{n}', n).replace('{plural}', n===1?'o':'i');
 }
 
 function _initScreensaverShortcutBtn(btnId, targetPage, longPressFn) {
@@ -11298,7 +11346,7 @@ async function spesaLogin() {
     const provider = s.spesa_provider || 'dupliclick';
 
     if (!email || !password) {
-        showToast('Inserisci email e password', 'error');
+        showToast(t('settings.spesa.missing_credentials'), 'error');
         return;
     }
 
@@ -11307,7 +11355,7 @@ async function spesaLogin() {
     const resultEl = document.getElementById('spesa-login-result');
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ Accesso in corso...';
+    btn.innerHTML = `⏳ ${t('settings.spesa.login_in_progress')}`;
     statusEl.style.display = 'none';
     resultEl.style.display = 'none';
 
@@ -11316,10 +11364,10 @@ async function spesaLogin() {
 
         if (res.error) {
             statusEl.className = 'dupliclick-status error';
-            statusEl.innerHTML = `❌ <strong>Errore:</strong> ${escapeHtml(res.error)}`;
+            statusEl.innerHTML = `❌ <strong>${t('settings.spesa.login_error_prefix')}</strong> ${escapeHtml(res.error)}`;
             statusEl.style.display = 'block';
             btn.disabled = false;
-            btn.innerHTML = '🔐 Accedi';
+            btn.innerHTML = t('settings.spesa.login_btn');
             return;
         }
 
@@ -11337,7 +11385,7 @@ async function spesaLogin() {
         saveSettingsToStorage(s);
 
         statusEl.className = 'dupliclick-status success';
-        const welcomeMsg = (res.infos && res.infos[0]) ? res.infos[0].info : 'Login effettuato!';
+        const welcomeMsg = (res.infos && res.infos[0]) ? res.infos[0].info : t('settings.spesa.login_success_default');
         statusEl.innerHTML = `✅ <strong>${escapeHtml(welcomeMsg)}</strong>`;
         statusEl.style.display = 'block';
 
@@ -11351,10 +11399,10 @@ async function spesaLogin() {
         let html = '<div class="dupliclick-data">';
         html += '<div class="dupliclick-data-grid">';
         
-        if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 Nome</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
-        if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 Tessera</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
-        if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 Punto Ritiro</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
-        if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ Punti Fedeltà</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
+        if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 ${t('settings.spesa.result_name_label')}</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
+        if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 ${t('settings.spesa.result_card_label')}</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
+        if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 ${t('settings.spesa.result_pickup_label')}</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
+        if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ ${t('settings.spesa.result_points_label')}</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
         
         html += '</div></div>';
         resultEl.innerHTML = html;
@@ -11362,12 +11410,12 @@ async function spesaLogin() {
 
     } catch (e) {
         statusEl.className = 'dupliclick-status error';
-        statusEl.innerHTML = `❌ <strong>Errore di rete:</strong> ${escapeHtml(e.message)}`;
+        statusEl.innerHTML = `❌ <strong>${t('settings.spesa.login_network_error_prefix')}</strong> ${escapeHtml(e.message)}`;
         statusEl.style.display = 'block';
     }
 
     btn.disabled = false;
-    btn.innerHTML = '🔐 Accedi';
+    btn.innerHTML = t('settings.spesa.login_btn');
 }
 
 function loadSpesaSettings() {
@@ -11386,12 +11434,12 @@ function loadSpesaSettings() {
         const loginBtn = document.getElementById('spesa-login-btn');
         
         if (loginBtn) {
-            loginBtn.innerHTML = '✅ Connesso — Riaccedi';
+            loginBtn.innerHTML = t('settings.spesa.connected_relogin');
             loginBtn.className = 'btn btn-large btn-secondary full-width mt-2';
         }
         if (statusEl) {
             statusEl.className = 'dupliclick-status success';
-            statusEl.innerHTML = `✅ <strong>Connesso come ${escapeHtml(s.spesa_user.firstName || '')} ${escapeHtml(s.spesa_user.lastName || '')}</strong>`;
+            statusEl.innerHTML = `✅ <strong>${t('settings.spesa.connected_as').replace('{name}', `${escapeHtml(s.spesa_user.firstName || '')} ${escapeHtml(s.spesa_user.lastName || '')}`.trim())}</strong>`;
             statusEl.style.display = 'block';
         }
         if (resultEl) {
@@ -11401,10 +11449,10 @@ function loadSpesaSettings() {
             const fidelityPts = Array.isArray(points) ? points[0] : points['0'];
             
             let html = '<div class="dupliclick-data"><div class="dupliclick-data-grid">';
-            if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 Nome</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
-            if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 Tessera</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
-            if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 Punto Ritiro</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
-            if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ Punti Fedeltà</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
+            if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 ${t('settings.spesa.result_name_label')}</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
+            if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 ${t('settings.spesa.result_card_label')}</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
+            if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 ${t('settings.spesa.result_pickup_label')}</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
+            if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ ${t('settings.spesa.result_points_label')}</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
             html += '</div></div>';
             resultEl.innerHTML = html;
             resultEl.style.display = 'block';

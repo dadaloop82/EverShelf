@@ -169,7 +169,9 @@
         "hint": "Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo",
         "debug_toggle": "🐛 Debug Log",
         "barcode_acquired": "🔖 Barcode acquisito: {code}",
-        "scan_barcode": "🔖 Scansiona Barcode"
+        "scan_barcode": "🔖 Scansiona Barcode",
+        "create_named": "Crea {name}",
+        "new_without_barcode": "Nuovo prodotto senza barcode"
     },
     "action": {
         "title": "Cosa vuoi fare?",
@@ -212,7 +214,11 @@
         "title": "Usa / Consuma",
         "location_label": "📍 Da dove?",
         "quantity_label": "Quanto hai usato?",
+        "change": "cambia",
         "partial_hint": "Oppure specifica la quantità usata:",
+        "partial_piece_hint": "Hai usato solo una parte?",
+        "piece": "pezzo",
+        "one_whole": "1 intero",
         "use_all": "🗑️ Usato TUTTO / Finito",
         "submit": "📤 Usa questa quantità",
         "available": "📦 Disponibile:",
@@ -272,7 +278,42 @@
     },
     "recipes": {
         "title": "🍳 Ricette",
-        "generate": "✨ Genera nuova ricetta"
+        "generate": "✨ Genera nuova ricetta",
+        "archive_empty": "Nessuna ricetta salvata. Genera la tua prima ricetta!",
+        "dialog_title": "🍳 Ricetta",
+        "dialog_desc": "Genero una ricetta sana con gli ingredienti in dispensa, dando priorità a quelli in scadenza.",
+        "meal_label": "🕐 Per quale pasto?",
+        "persons_label": "👥 Quante persone?",
+        "meal_type_label": "🎯 Tipo di pasto",
+        "opt_fast": "⚡ Pasto Veloce",
+        "opt_light": "🥗 Poca Fame",
+        "opt_expiry": "⏰ Priorità Scadenze",
+        "opt_healthy": "💚 Extra Salutare",
+        "opt_opened": "📦 Priorità Cose Aperte",
+        "opt_zero_waste": "♻️ Zero Sprechi",
+        "generate_btn": "✨ Genera Ricetta",
+        "loading_msg": "Sto preparando la ricetta...",
+        "start_cooking": "👨‍🍳 Modalità Cucina",
+        "regenerate": "🔄 Generane un'altra",
+        "close_btn": "✅ Chiudi",
+        "ingredients_title": "🧾 Ingredienti",
+        "steps_title": "👨‍🍳 Procedimento",
+        "no_steps": "Nessun procedimento disponibile",
+        "generate_error": "Errore nella generazione",
+        "persons_short": "pers.",
+        "use_ingredient_title": "Usa ingrediente",
+        "recipe_qty_label": "Ricetta",
+        "from_where_label": "Da dove?",
+        "amount_label": "Quanto",
+        "use_amount_btn": "Usa questa quantità",
+        "use_all_btn": "Usa TUTTO / Finito",
+        "packs_label": "Confezioni",
+        "quantity_in_total": "Quantità in {unit} (totale: {total})",
+        "packs_of_have": "Confezioni da {size} (hai {count} conf)",
+        "scale_wait_stable": "Attendi 10s di stabilità per la compilazione automatica…",
+        "ingredient_scaled_toast": "📦 Ingrediente scalato dalla dispensa!",
+        "finished_added_bring_toast": "🛒 Prodotto finito → aggiunto a Bring!",
+        "load_error": "Errore nel caricamento"
     },
     "shopping": {
         "title": "🛒 Lista della Spesa",
@@ -326,7 +367,37 @@
         "smart_already_predicted": "📊 La spesa intelligente prevede già <strong>{name}</strong>{urgency}.",
         "item_removed": "✅ {name} rimosso dalla lista!",
         "urgency_spec_critical": "⚡ Urgente",
-        "urgency_spec_high": "🟠 Presto"
+        "urgency_spec_high": "🟠 Presto",
+        "bring_add_n": "Aggiungi {n} a Bring!",
+        "bring_add_selected": "Aggiungi selezionati a Bring!",
+        "bring_adding": "Aggiunta in corso...",
+        "bring_added_one": "1 prodotto aggiunto a Bring!",
+        "bring_added_many": "{n} prodotti aggiunti a Bring!",
+        "bring_skipped": "({n} già in lista)",
+        "force_sync": "Forza sincronizzazione Bring!",
+        "scan_target_label": "Stai cercando",
+        "scan_target_found": "Trovato! Rimuovi dalla lista",
+        "bring_add_one": "Aggiungi 1 prodotto a Bring!",
+        "bring_add_many": "Aggiungi {n} prodotti a Bring!",
+        "syncing": "Sincronizzazione…",
+        "sync_done": "Sincronizzazione completata",
+        "price_searching": "Cerco...",
+        "search_action": "Ricerca",
+        "open_action": "Apri",
+        "not_found": "Non trovato",
+        "search_price": "Cerca prezzo",
+        "tap_to_scan": "Tocca per scansionare",
+        "tag_title": "Tag",
+        "remove_title": "Rimuovi",
+        "found_count": "{found}/{total} prodotti trovati",
+        "savings_offers": "· 🏷️ Risparmi €{amount} con le offerte",
+        "searching_progress": "Cerco {current}/{total}...",
+        "remove_error": "Errore nella rimozione",
+        "suggest_loading": "Analisi in corso...",
+        "suggest_error": "Errore nella generazione",
+        "priority_high": "Alta",
+        "priority_medium": "Media",
+        "priority_low": "Bassa"
     },
     "ai": {
         "title": "🤖 Identificazione AI",
@@ -386,7 +457,9 @@
         "ingredient_deduct_title": "Scala dalla dispensa",
         "timer_expired_tts": "Timer {label} scaduto!",
         "timer_warning_tts": "Attenzione! {label}: mancano 10 secondi!",
-        "recipe_done_tts": "Ricetta completata! Buon appetito!"
+        "recipe_done_tts": "Ricetta completata! Buon appetito!",
+        "expires_chip": "scade {date}",
+        "finish": "✅ Fine"
     },
     "settings": {
         "title": "⚙️ Configurazione",
@@ -460,7 +533,18 @@
             "ai_prompt_label": "🤖 Prompt AI selezione prodotto",
             "ai_prompt_placeholder": "Istruzioni per l'AI quando deve scegliere tra più prodotti...",
             "ai_prompt_hint": "L'AI usa questo prompt per scegliere il prodotto più appropriato tra i risultati. Lascia vuoto per il comportamento predefinito.",
-            "configure_first": "Configura prima la Spesa Online nelle impostazioni"
+            "configure_first": "Configura prima la Spesa Online nelle impostazioni",
+            "missing_credentials": "Inserisci email e password",
+            "login_in_progress": "Accesso in corso...",
+            "login_error_prefix": "Errore:",
+            "login_network_error_prefix": "Errore di rete:",
+            "login_success_default": "Login effettuato!",
+            "result_name_label": "Nome",
+            "result_card_label": "Tessera",
+            "result_pickup_label": "Punto Ritiro",
+            "result_points_label": "Punti Fedeltà",
+            "connected_relogin": "✅ Connesso — Riaccedi",
+            "connected_as": "Connesso come {name}"
         },
         "camera": {
             "title": "📷 Fotocamera",
@@ -592,6 +676,8 @@
     },
     "error": {
         "generic": "Errore",
+        "network": "Errore di rete",
+        "no_api_key": "Configura la chiave API nelle impostazioni",
         "loading": "Errore nel caricamento del prodotto",
         "not_found": "Prodotto non trovato",
         "not_found_manual": "Prodotto non trovato. Inseriscilo manualmente.",
@@ -610,7 +696,8 @@
         "not_in_inventory": "Prodotto non nell'inventario",
         "appliance_exists": "Elettrodomestico già presente",
         "already_exists": "Già presente",
-        "network_retry": "Errore di connessione. Riprova."
+        "network_retry": "Errore di connessione. Riprova.",
+        "select_items": "Seleziona almeno un prodotto"
     },
     "confirm": {
         "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
@@ -632,11 +719,24 @@
         "thu": "Giovedì",
         "fri": "Venerdì",
         "sat": "Sabato",
-        "sun": "Domenica"
+        "sun": "Domenica",
+        "mon_short": "Lun",
+        "tue_short": "Mar",
+        "wed_short": "Mer",
+        "thu_short": "Gio",
+        "fri_short": "Ven",
+        "sat_short": "Sab",
+        "sun_short": "Dom"
     },
     "meal_types": {
         "lunch": "Pranzo",
-        "dinner": "Cena"
+        "dinner": "Cena",
+        "colazione": "Colazione",
+        "merenda": "Merenda",
+        "dolce": "Dolce",
+        "succo": "Succo di Frutta",
+        "pranzo": "Pranzo",
+        "cena": "Cena"
     },
     "scale": {
         "status_connected": "Bilancia connessa",
@@ -709,5 +809,49 @@
         "2": "Ingrediente culinario",
         "3": "Trasformato",
         "4": "Ultra-trasformato"
+    },
+    "meal_plan_types": {
+        "pasta": "Pasta",
+        "riso": "Riso",
+        "carne": "Carne",
+        "pesce": "Pesce",
+        "legumi": "Legumi",
+        "uova": "Uova",
+        "formaggio": "Formaggio",
+        "pizza": "Pizza",
+        "affettati": "Affettati",
+        "verdure": "Verdure",
+        "zuppa": "Zuppa",
+        "insalata": "Insalata",
+        "pane": "Pane/Sandwich",
+        "dolce": "Dolce",
+        "libero": "Libero"
+    },
+    "meal_sub": {
+        "dolce_torta": "Torta",
+        "dolce_crema": "Crema / Budino",
+        "dolce_crumble": "Crumble / Crostata",
+        "dolce_biscotti": "Biscotti / Pasticcini",
+        "dolce_frutta": "Dolce alla Frutta",
+        "succo_dolce": "Dolce / Fruttato",
+        "succo_energizzante": "Energizzante",
+        "succo_detox": "Detox / Verde",
+        "succo_rinfrescante": "Rinfrescante",
+        "succo_vitaminico": "Vitaminico / Agrumi"
+    },
+    "meal_plan": {
+        "reset_success": "Piano settimanale ripristinato",
+        "suggested_by": "suggerito dal piano settimanale"
+    },
+    "kiosk_session": {
+        "first_item": "Primo prodotto: {name}!",
+        "items_two_four": "{n} prodotti — stai scaldando i motori 🚀",
+        "items_five_nine": "{n} prodotti — ottimo ritmo! 💪",
+        "items_ten_twenty": "{n} prodotti — quasi un recordman 🏆",
+        "items_twenty_plus": "{n} prodotti — spesa epica! 🛒🔥",
+        "duplicates_one": "1 bis (stessa cosa due volte)",
+        "duplicates_many": "{n} bis (roba presa più volte)",
+        "top_category": "Categoria top: {cat} ({count}×)",
+        "items_fallback": "{n} prodott{n} aggiunti"
     }
 }

@@ -2203,6 +2203,95 @@ PROMPT;
     echo json_encode(['success' => true, 'reply' => $reply]);
 }
 
+    function recipeNormalizeLang($lang): string {
+        $lang = is_string($lang) ? strtolower(trim($lang)) : 'it';
+        return in_array($lang, ['it', 'en', 'de'], true) ? $lang : 'it';
+    }
+
+    function recipeLangName(string $lang): string {
+        return [
+            'it' => 'Italian',
+            'en' => 'English',
+            'de' => 'German',
+        ][$lang] ?? 'Italian';
+    }
+
+    function recipeText(string $lang, string $key, array $vars = []): string {
+        $dict = [
+            'it' => [
+                'status_analyze_pantry' => '📦 Analizzo la dispensa...',
+                'status_products_found' => '{n} prodotti trovati',
+                'status_passed_ai' => ' ({n} passati all\'AI)',
+                'status_all_passed_ai' => ' — tutti passati all\'AI',
+                'status_urgent' => '⚠️ {n} urgenti: {items}',
+                'status_evaluate_ingredients' => '🧠 Valuto gli ingredienti disponibili...',
+                'status_preparing_recipe' => '👨‍🍳 Preparo la ricetta...',
+                'status_recipe_with' => '🥘 Ricetta con {a} e {b}',
+                'status_variant' => ' — variante #{n}',
+                'status_dish_based_on' => '🎯 Piatto a base di {type}',
+                'status_creating_full_recipe' => '✍️ Creo la ricetta completa...',
+                'status_quota_wait' => '⏳ Quota TPM esaurita ({model}), attendo {s}s... (tentativo {a}/{m})',
+                'status_retry_generation' => '✍️ Riprovo la generazione...',
+                'status_switch_model' => '🔄 Cambio modello → {model}...',
+                'error_pantry_empty' => 'La dispensa è vuota!',
+                'error_gemini_api' => 'Errore API Gemini',
+                'error_cannot_generate' => 'Impossibile generare la ricetta',
+                'error_empty_reply' => 'Risposta vuota da Gemini',
+                'prompt_lang_rule' => 'IMPORTANTE: scrivi tutti i campi testuali della ricetta in Italiano.',
+                'prompt_step_example' => 'Passo 1…',
+            ],
+            'en' => [
+                'status_analyze_pantry' => '📦 Analyzing pantry...',
+                'status_products_found' => '{n} products found',
+                'status_passed_ai' => ' ({n} sent to AI)',
+                'status_all_passed_ai' => ' — all sent to AI',
+                'status_urgent' => '⚠️ {n} urgent: {items}',
+                'status_evaluate_ingredients' => '🧠 Evaluating available ingredients...',
+                'status_preparing_recipe' => '👨‍🍳 Preparing recipe...',
+                'status_recipe_with' => '🥘 Recipe with {a} and {b}',
+                'status_variant' => ' — variation #{n}',
+                'status_dish_based_on' => '🎯 Dish based on {type}',
+                'status_creating_full_recipe' => '✍️ Creating full recipe...',
+                'status_quota_wait' => '⏳ TPM quota reached ({model}), waiting {s}s... (attempt {a}/{m})',
+                'status_retry_generation' => '✍️ Retrying generation...',
+                'status_switch_model' => '🔄 Switching model → {model}...',
+                'error_pantry_empty' => 'Pantry is empty!',
+                'error_gemini_api' => 'Gemini API error',
+                'error_cannot_generate' => 'Unable to generate recipe',
+                'error_empty_reply' => 'Empty response from Gemini',
+                'prompt_lang_rule' => 'IMPORTANT: write all textual recipe fields in English only. Do not use Italian or German.',
+                'prompt_step_example' => 'Step 1…',
+            ],
+            'de' => [
+                'status_analyze_pantry' => '📦 Vorrat wird analysiert...',
+                'status_products_found' => '{n} Produkte gefunden',
+                'status_passed_ai' => ' ({n} an die KI gesendet)',
+                'status_all_passed_ai' => ' — alle an die KI gesendet',
+                'status_urgent' => '⚠️ {n} dringend: {items}',
+                'status_evaluate_ingredients' => '🧠 Verfuegbare Zutaten werden bewertet...',
+                'status_preparing_recipe' => '👨‍🍳 Rezept wird vorbereitet...',
+                'status_recipe_with' => '🥘 Rezept mit {a} und {b}',
+                'status_variant' => ' — Variante #{n}',
+                'status_dish_based_on' => '🎯 Gericht auf Basis von {type}',
+                'status_creating_full_recipe' => '✍️ Vollstaendiges Rezept wird erstellt...',
+                'status_quota_wait' => '⏳ TPM-Limit erreicht ({model}), warte {s}s... (Versuch {a}/{m})',
+                'status_retry_generation' => '✍️ Generierung wird erneut versucht...',
+                'status_switch_model' => '🔄 Modellwechsel → {model}...',
+                'error_pantry_empty' => 'Die Vorratskammer ist leer!',
+                'error_gemini_api' => 'Gemini-API-Fehler',
+                'error_cannot_generate' => 'Rezept konnte nicht erstellt werden',
+                'error_empty_reply' => 'Leere Antwort von Gemini',
+                'prompt_lang_rule' => 'WICHTIG: schreibe alle textuellen Rezeptfelder nur auf Deutsch. Verwende kein Italienisch oder Englisch.',
+                'prompt_step_example' => 'Schritt 1…',
+            ],
+        ];
+        $text = $dict[$lang][$key] ?? $dict['it'][$key] ?? $key;
+        foreach ($vars as $name => $value) {
+            $text = str_replace('{' . $name . '}', (string)$value, $text);
+        }
+        return $text;
+    }
+
 // ===== RECIPE GENERATION WITH GEMINI =====
 function generateRecipe(PDO $db): void {
     $apiKey = env('GEMINI_API_KEY');
@@ -2212,6 +2301,8 @@ function generateRecipe(PDO $db): void {
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
+    $lang = recipeNormalizeLang($input['lang'] ?? 'it');
+    $recipeLangName = recipeLangName($lang);
     $mealType = $input['meal'] ?? 'pranzo';
     $persons = max(1, intval($input['persons'] ?? 1));
     $subType = $input['sub_type'] ?? '';
@@ -2235,7 +2326,7 @@ function generateRecipe(PDO $db): void {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($items)) {
-        echo json_encode(['success' => false, 'error' => 'La dispensa è vuota!']);
+        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_pantry_empty')]);
         return;
     }
 
@@ -2556,8 +2647,11 @@ function generateRecipe(PDO $db): void {
         }
     }
 
+    $promptLanguageRule = recipeText($lang, 'prompt_lang_rule');
+    $promptStepExample = recipeText($lang, 'prompt_step_example');
+
     $prompt = <<<PROMPT
-Sei uno chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando gli ingredienti disponibili sotto.
+You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.
 {$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE:
@@ -2567,12 +2661,14 @@ REGOLE:
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
+7. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`). Keep `meal` unchanged.
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
+{$promptLanguageRule}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…"}
 PROMPT;
 
     $payload = [
@@ -2594,7 +2690,7 @@ PROMPT;
 
     if ($httpCode !== 200) {
         $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-        echo json_encode(['success' => false, 'error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
+        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
@@ -2801,7 +2897,7 @@ PROMPT;
         
         echo json_encode(['success' => true, 'recipe' => $recipe]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'Impossibile generare la ricetta', 'raw' => $text]);
+        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
     }
 }
 
@@ -2825,6 +2921,8 @@ function generateRecipeStream(PDO $db): void {
     if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
 
     $input               = json_decode(file_get_contents('php://input'), true) ?? [];
+    $lang                = recipeNormalizeLang($input['lang'] ?? 'it');
+    $recipeLangName      = recipeLangName($lang);
     $mealType            = $input['meal'] ?? 'pranzo';
     $persons             = max(1, intval($input['persons'] ?? 1));
     $subType             = $input['sub_type'] ?? '';
@@ -2837,7 +2935,7 @@ function generateRecipeStream(PDO $db): void {
     $rejectedIngredients = $input['rejected_ingredients'] ?? [];
 
     // ── AGENTE PASSO 1: Analisi dispensa ─────────────────────────────────────
-    $send('status', ['step' => 1, 'message' => '📦 Analizzo la dispensa...']);
+    $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_analyze_pantry')]);
 
     $stmt = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
@@ -2849,7 +2947,7 @@ function generateRecipeStream(PDO $db): void {
     ");
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (empty($items)) { $send('error', ['error' => 'La dispensa è vuota!']); return; }
+    if (empty($items)) { $send('error', ['error' => recipeText($lang, 'error_pantry_empty')]); return; }
 
     $getItemPriority = function($item): int {
         $daysLeft = floatval($item['days_left']);
@@ -2917,13 +3015,13 @@ function generateRecipeStream(PDO $db): void {
         $urgentNames = array_slice(array_map(
             fn($l) => trim(preg_replace('/\s[\[\x{26A0}\x{1F534}\x{1F7E0}].*/u', '', explode(':', ltrim($l, '- '))[0])),
             $urgentRaw), 0, 3);
-        $send('status', ['step' => 1, 'message' => "⚠️ {$urgentCount} urgenti: " . implode(', ', $urgentNames)]);
+        $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_urgent', ['n' => $urgentCount, 'items' => implode(', ', $urgentNames)])]);
     } else {
-        $countMsg = count($items) . ' prodotti trovati';
+        $countMsg = recipeText($lang, 'status_products_found', ['n' => count($items)]);
         if ($hasMealPlan && $totalIngredientsSent < count($items)) {
-            $countMsg .= " ({$totalIngredientsSent} passati all'AI)";
+            $countMsg .= recipeText($lang, 'status_passed_ai', ['n' => $totalIngredientsSent]);
         } elseif ($hasMealPlan) {
-            $countMsg .= ' — tutti passati all\'AI';
+            $countMsg .= recipeText($lang, 'status_all_passed_ai');
         }
         $send('status', ['step' => 1, 'message' => '✅ ' . $countMsg]);
     }
@@ -3041,7 +3139,7 @@ function generateRecipeStream(PDO $db): void {
     // ── AGENTE PASSO 2: Selezione concetto (locale, nessuna chiamata AI) ────────
     // Determina il concetto della ricetta in base agli ingredienti disponibili
     // e ai parametri selezionati — senza consumare quote Gemini.
-    $send('status', ['step' => 2, 'message' => "🧠 Valuto gli ingredienti disponibili..."]);
+    $send('status', ['step' => 2, 'message' => recipeText($lang, 'status_evaluate_ingredients')]);
 
     // Raccoglie i nomi degli ingredienti di maggiore priorità
     $conceptIngredients = [];
@@ -3057,11 +3155,11 @@ function generateRecipeStream(PDO $db): void {
     }
 
     // Costruisce un messaggio di stato informativo basato su ciò che verrà cucinato
-    $conceptMsg = '👨‍🍳 Preparo la ricetta...';
+    $conceptMsg = recipeText($lang, 'status_preparing_recipe');
     if (!empty($mealPlanType) && isset($mealPlanTypeLabels[$mealPlanType]) && $mealPlanTypeLabels[$mealPlanType] !== '') {
         // Tipo di pasto dal piano settimanale — mostra la categoria
         $shortLabel = explode(' (', $mealPlanTypeLabels[$mealPlanType])[0];
-        $conceptMsg = "🎯 Piatto a base di {$shortLabel}";
+        $conceptMsg = recipeText($lang, 'status_dish_based_on', ['type' => $shortLabel]);
         // Aggiungi l'ingrediente principale se disponibile
         if (!empty($matchingItems)) {
             $firstMatch = ltrim(reset($matchingItems), '→ ');
@@ -3071,8 +3169,10 @@ function generateRecipeStream(PDO $db): void {
     } elseif (!empty($conceptIngredients)) {
         // Mostra i primi 2 ingredienti più urgenti
         $shown = array_slice($conceptIngredients, 0, 2);
-        $conceptMsg = "🥘 Ricetta con " . implode(' e ', array_map('mb_strtolower', $shown));
-        if ($variation > 0) $conceptMsg .= " — variante #{$variation}";
+        $a = mb_strtolower($shown[0] ?? '');
+        $b = mb_strtolower($shown[1] ?? '');
+        $conceptMsg = recipeText($lang, 'status_recipe_with', ['a' => $a, 'b' => $b]);
+        if ($variation > 0) $conceptMsg .= recipeText($lang, 'status_variant', ['n' => $variation]);
     } elseif (!empty($subType) && !empty($subTypeLabels[$mealType][$subType])) {
         $conceptMsg = "🎨 " . explode(' (', $subTypeLabels[$mealType][$subType])[0];
     }
@@ -3080,10 +3180,12 @@ function generateRecipeStream(PDO $db): void {
 
     // ── AGENTE PASSO 3: Generazione ricetta (A+C: retry SSE-aware + fallback modello) ──
     $conceptHint = '';
-    $send('status', ['step' => 3, 'message' => '✍️ Creo la ricetta completa...']);
+    $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_creating_full_recipe')]);
 
+    $promptLanguageRule = recipeText($lang, 'prompt_lang_rule');
+    $promptStepExample = recipeText($lang, 'prompt_step_example');
     $prompt = <<<PROMPT
-Sei uno chef italiano esperto. Genera UNA ricetta per $mealLabel per $persons persona/e usando gli ingredienti disponibili sotto.{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
@@ -3092,12 +3194,14 @@ REGOLE:
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
+7. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`). Keep `meal` unchanged.
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["Passo 1…"],"nutrition_note":"…"}
+{$promptLanguageRule}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…"}
 PROMPT;
 
     $genConfig = [
@@ -3171,15 +3275,15 @@ PROMPT;
 
             // A: feedback live con countdown
             $modelName = str_replace('gemini-', 'Gemini ', $model);
-            $send('status', ['step' => 3, 'message' => "⏳ Quota TPM esaurita ({$modelName}), attendo {$waitSec}s... (tentativo {$attempt}/{$maxRetries})"]);
+            $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_quota_wait', ['model' => $modelName, 's' => $waitSec, 'a' => $attempt, 'm' => $maxRetries])]);
             sleep($waitSec);
-            $send('status', ['step' => 3, 'message' => '✍️ Riprovo la generazione...']);
+            $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_retry_generation')]);
         }
 
         // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
         if ($httpCode === 429 && $modelIdx === 0) {
             $fallbackName = str_replace('gemini-', 'Gemini ', $models[1]);
-            $send('status', ['step' => 3, 'message' => "🔄 Cambio modello → {$fallbackName}..."]);
+            $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_switch_model', ['model' => $fallbackName])]);
             continue;
         }
         break;
@@ -3187,7 +3291,7 @@ PROMPT;
 
     if ($httpCode !== 200) {
         $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-        $send('error', ['error' => 'Errore API Gemini', 'http_code' => $httpCode, 'detail' => $errDetail]);
+        $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
@@ -3198,7 +3302,7 @@ PROMPT;
     $recipe = json_decode($text, true);
 
     if (!$recipe || empty($recipe['title'])) {
-        $send('error', ['error' => 'Impossibile generare la ricetta', 'raw' => $text]);
+        $send('error', ['error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
         return;
     }
 
