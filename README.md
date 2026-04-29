@@ -46,7 +46,7 @@
 - **Smart predictions** — Know what you'll need before you run out
 - **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
 - **Auto-remove on scan** — Products are removed from the shopping list when scanned in  - **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
-  - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app- **DupliClick integration** — Online grocery ordering (Gruppo Poli)
+  - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app
 
 ### 🍳 Cooking Mode
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface

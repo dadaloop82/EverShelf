@@ -1691,6 +1691,38 @@ function getStats(PDO $db): void {
         }
         $item['is_edible'] = $item['days_to_expiry'] === null || $item['days_to_expiry'] >= 0;
         $item['has_opened_at'] = !empty($item['opened_at']);
+
+        // For conf items with opened_at that contain both whole and fractional confs:
+        // split into a "sealed" entry (whole confs, package expiry) and an "opened" entry (fraction, shelf-life expiry).
+        // This prevents a row like "1.59 conf" from showing a single misleading entry that mixes
+        // a still-sealed package with an opened portion.
+        if ($item['unit'] === 'conf' && $item['has_opened_at'] && $originalExpiry !== null) {
+            $qty   = (float)$item['quantity'];
+            $whole = (int)floor($qty + 0.001);
+            $frac  = round($qty - (float)$whole, 4);
+            if ($whole >= 1 && $frac >= 0.001) {
+                // Sealed whole confs: show with original package expiry (only if near expiry ≤ 7 d)
+                $sealedDays = (int)round(($originalExpiry - $today) / 86400);
+                if ($sealedDays <= 7 && $sealedDays >= -30) {
+                    $si = $item;
+                    $si['quantity']      = (float)$whole;
+                    $si['opened_at']     = null;
+                    $si['opened_expiry'] = date('Y-m-d', $originalExpiry);
+                    $si['days_to_expiry'] = $sealedDays;
+                    $si['is_edible']     = $sealedDays >= 0;
+                    $si['has_opened_at'] = false;
+                    $opened[] = $si;
+                }
+                // Opened fractional part: use the already-computed opened shelf-life expiry
+                if ($item['days_to_expiry'] === null || $item['days_to_expiry'] <= 365) {
+                    $fi = $item;
+                    $fi['quantity'] = $frac;
+                    $opened[] = $fi;
+                }
+                continue;
+            }
+        }
+
         // Hide non-perishable items (salt, sugar, spirits, oil, etc.) — they won't expire usefully
         if ($item['days_to_expiry'] !== null && $item['days_to_expiry'] > 365) continue;
         // Hide legacy fractional items (no opened_at) with far-off expiry — not useful for home widget
@@ -2155,7 +2187,10 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
         if ($result['http_code'] === 200) {
             $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
             $parsed = (int)preg_replace('/\D/', '', $text);
-            if ($parsed > 0 && $parsed <= 3650) {
+            // Reject AI values if they are suspiciously low compared to the rule-based estimate
+            // (protects against Gemini hallucinations like "1 day for butter").
+            $ruleMin = estimateOpenedExpiryDaysPHP($name, $category, $location);
+            if ($parsed > 0 && $parsed <= 3650 && $parsed >= max(1, (int)floor($ruleMin * 0.5))) {
                 $days = $parsed;
             }
         }
