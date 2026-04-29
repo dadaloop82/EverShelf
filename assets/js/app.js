@@ -2085,8 +2085,41 @@ const WASTE_BENCHMARKS = {
     de: { avgWasteRate: 20, avgKgMonth: 6.5, costPerKg: 7.7, currency: '€', countryKey: 'antiwaste.country_de' },
     en: { avgWasteRate: 30, avgKgMonth: 9.2, costPerKg: 8.5, currency: '$', countryKey: 'antiwaste.country_en' },
 };
-const _AW_KG_PER_EVENT = 0.5; // estimated avg kg per out/waste transaction
+const _AW_KG_PER_EVENT = 0.5;
 let _awRefreshTimer = null;
+let _awFactTimer    = null;
+
+// Food facts per language — displayed in rotating carousel inside the card
+const AW_FACTS = {
+    it: [
+        "In Italia ogni famiglia spreca in media 5,2 kg di cibo al mese",
+        "Il 30% del cibo prodotto nel mondo viene sprecato ogni anno",
+        "Sprecare 1 kg di manzo genera ~27 kg di CO₂ nell'atmosfera",
+        "Frutta e verdura sono gli alimenti più sprecati nelle famiglie italiane",
+        "Un italiano spende in media ~€450/anno in cibo mai consumato",
+        "L'8% delle emissioni mondiali di gas serra proviene dallo spreco alimentare",
+        "Ridurre lo spreco del 50% potrebbe sfamare 800 milioni di persone in più",
+        "1 kg di pane sprecato = 1.300 litri d'acqua consumati inutilmente",
+    ],
+    de: [
+        "Deutsche Haushalte werfen pro Person rund 82 kg Lebensmittel pro Jahr weg",
+        "Weltweit endet etwa 30% aller produzierten Lebensmittel als Abfall",
+        "Lebensmittelverschwendung verursacht 8% der globalen Treibhausgase",
+        "Obst und Gemüse werden in deutschen Haushalten am häufigsten weggeworfen",
+        "Ein Deutscher zahlt im Schnitt ~€300/Jahr für ungenutzte Lebensmittel",
+        "1 kg verschwendetes Rindfleisch ≈ 27 kg CO₂-Emissionen",
+        "Halbierung der Lebensmittelverschwendung könnte 800 Mio. Menschen ernähren",
+    ],
+    en: [
+        "30–40% of the US food supply is wasted each year (USDA 2021)",
+        "Food waste accounts for 8% of global greenhouse gas emissions",
+        "Americans spend ~$1,800/year on food they never eat",
+        "Fruits & vegetables are the most wasted food items worldwide",
+        "Wasting 1 lb of beef emits as much CO₂ as driving 20 miles",
+        "Halving food waste globally could feed 800 million more people",
+        "If food waste were a country, it'd be the world's 3rd largest emitter",
+    ],
+};
 
 /** Fetch fresh stats and re-render the anti-waste section. */
 function _awFetchAndRender() {
@@ -2112,9 +2145,34 @@ function _updateAwLiveDot(online) {
 /** Start/stop the 60-second auto-refresh based on connectivity. */
 function _startAntiWasteAutoRefresh() {
     clearInterval(_awRefreshTimer);
-    if (navigator.onLine) {
-        _awRefreshTimer = setInterval(_awFetchAndRender, 60_000);
+    if (navigator.onLine) _awRefreshTimer = setInterval(_awFetchAndRender, 60_000);
+}
+
+/** Build one trend mini-card. */
+function _awTrendCard(rate, label, maxRate) {
+    if (rate === null) {
+        return `<div class="aw-tcard aw-tcard-empty">
+            <span class="aw-tc-label">${label}</span>
+            <span class="aw-tc-rate">–</span>
+            <div class="aw-tc-minibar"><div style="width:0"></div></div>
+        </div>`;
     }
+    const cls    = rate <= 8 ? 'good' : rate <= 20 ? 'ok' : 'bad';
+    const barPct = Math.max(4, Math.round((rate / Math.max(maxRate, 5)) * 100));
+    return `<div class="aw-tcard aw-tcard-${cls}">
+        <span class="aw-tc-label">${label}</span>
+        <span class="aw-tc-rate">${rate}%</span>
+        <div class="aw-tc-minibar"><div style="width:${barPct}%"></div></div>
+    </div>`;
+}
+
+/** Arrow between two consecutive trend values. */
+function _awTrendArrow(prev, curr) {
+    if (prev === null || curr === null) return null;
+    const d = curr - prev;
+    if (d <= -3) return { sym: '↓', cls: 'aw-arrow-good' };
+    if (d >= 3)  return { sym: '↑', cls: 'aw-arrow-bad'  };
+    return           { sym: '→', cls: 'aw-arrow-ok'   };
 }
 
 function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, wastedP60, isOnline = navigator.onLine) {
@@ -2123,11 +2181,9 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     if (total30 === 0) { section.style.display = 'none'; return; }
     section.style.display = 'block';
 
-    const bm = WASTE_BENCHMARKS[_currentLang] || WASTE_BENCHMARKS['it'];
+    const bm      = WASTE_BENCHMARKS[_currentLang] || WASTE_BENCHMARKS['it'];
     const country = t(bm.countryKey);
-
-    // Waste rates (0–100 %)
-    const myRate = Math.round((wasted30 / total30) * 100);
+    const myRate  = Math.round((wasted30 / total30) * 100);
     const avgRate = bm.avgWasteRate;
 
     // Grade
@@ -2138,15 +2194,15 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     else if (myRate <= 25) { grade = 'C';  gradeClass = 'c';  }
     else                   { grade = 'D';  gradeClass = 'd';  }
 
-    // Estimated savings vs average person
+    // Savings vs average
     const avgWastedEvents = total30 * (avgRate / 100);
     const savedEvents     = Math.max(0, avgWastedEvents - wasted30);
     const savedKg         = +(savedEvents * _AW_KG_PER_EVENT).toFixed(1);
     const savedMoney      = Math.round(savedKg * bm.costPerKg);
-    const savedMeals      = Math.round(savedKg * 2.5);   // ~400 g per meal
-    const savedCO2        = +(savedKg * 2.5).toFixed(1); // ~2.5 kg CO2 / kg food wasted
+    const savedMeals      = Math.round(savedKg * 2.5);
+    const savedCO2        = +(savedKg * 2.5).toFixed(1);
 
-    // Status message
+    // Status
     let statusMsg, statusCls;
     if (myRate < avgRate) {
         statusMsg = t('antiwaste.better').replace('{country}', country).replace('{diff}', avgRate - myRate);
@@ -2159,46 +2215,37 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         statusCls = 'aw-status-ok';
     }
 
-    // Comparison bars (scaled to max of the two rates, min 5 for visual)
-    const maxRate    = Math.max(myRate, avgRate, 5);
-    const myBarPct   = Math.round((myRate  / maxRate) * 100);
-    const avgBarPct  = Math.round((avgRate / maxRate) * 100);
+    // Single-row compare bar: both values scaled relative to max+30% headroom
+    const scale      = Math.max(myRate, avgRate, 5) * 1.35;
+    const youFillPct = +((myRate  / scale) * 100).toFixed(1);
+    const avgTickPct = +((avgRate / scale) * 100).toFixed(1);
 
-    // Trend (3 monthly buckets: m2=oldest … m0=current)
-    const totals  = [usedP60 + wastedP60, usedP30 + wastedP30, total30];
-    const rates60 = totals.map((tot, i) => {
+    // Trend cards
+    const totals   = [usedP60 + wastedP60, usedP30 + wastedP30, total30];
+    const rates    = totals.map((tot, i) => {
         const w = [wastedP60, wastedP30, wasted30][i];
         return tot > 0 ? Math.round((w / tot) * 100) : null;
     });
-    const trendLabels = [t('antiwaste.months_ago_2'), t('antiwaste.months_ago_1'), t('antiwaste.this_month')];
-    const maxTrend = Math.max(...rates60.filter(r => r !== null), 5);
-    const hasTrendData = rates60[0] !== null || rates60[1] !== null;
+    const labels   = [t('antiwaste.months_ago_2'), t('antiwaste.months_ago_1'), t('antiwaste.this_month')];
+    const maxTrend = Math.max(...rates.filter(r => r !== null), 5);
+    const hasTrend = rates[0] !== null || rates[1] !== null;
 
-    const trendBars = rates60.map((rate, i) => {
-        if (rate === null) {
-            return `<div class="aw-trend-col aw-trend-empty">
-                <span class="aw-trend-rate">–</span>
-                <div class="aw-trend-bar-wrap"><div class="aw-trend-bar-fill" style="height:2px"></div></div>
-                <span class="aw-trend-label">${trendLabels[i]}</span>
-            </div>`;
-        }
-        const hPct = Math.max(6, Math.round((rate / maxTrend) * 100));
-        const cls  = rate <= 8 ? 'good' : rate <= 20 ? 'ok' : 'bad';
-        return `<div class="aw-trend-col">
-            <span class="aw-trend-rate aw-rate-${cls}">${rate}%</span>
-            <div class="aw-trend-bar-wrap"><div class="aw-trend-bar-fill aw-tbar-${cls}" style="height:${hPct}%"></div></div>
-            <span class="aw-trend-label">${trendLabels[i]}</span>
-        </div>`;
-    }).join('');
+    const arr1 = _awTrendArrow(rates[0], rates[1]);
+    const arr2 = _awTrendArrow(rates[1], rates[2]);
+    const arrowHtml = a => a ? `<span class="aw-tc-arrow ${a.cls}">${a.sym}</span>` : '';
 
-    // Savings badges — inline, compact
+    // Badges
     const badges = [];
     if (savedMoney > 0) badges.push(`<span class="aw-badge aw-badge-money">💰 ${bm.currency}${savedMoney}</span>`);
     if (savedMeals > 0) badges.push(`<span class="aw-badge aw-badge-meals">🥗 ${savedMeals} ${t('antiwaste.meals')}</span>`);
     if (savedCO2  > 0) badges.push(`<span class="aw-badge aw-badge-co2">🌍 −${savedCO2} kg CO₂</span>`);
 
-    const liveCls  = isOnline ? 'aw-live-on' : 'aw-live-off';
-    const liveTip  = isOnline ? t('antiwaste.live_on') : t('antiwaste.live_off');
+    // Random starting fact
+    const facts   = AW_FACTS[_currentLang] || AW_FACTS['it'];
+    const factIdx = Math.floor(Math.random() * facts.length);
+
+    const liveCls = isOnline ? 'aw-live-on'          : 'aw-live-off';
+    const liveTip = isOnline ? t('antiwaste.live_on') : t('antiwaste.live_off');
 
     section.innerHTML = `
         <div class="aw-header">
@@ -2206,37 +2253,54 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 <span class="aw-live-dot ${liveCls}" title="${liveTip}"></span>
                 <h3 class="aw-title">${t('antiwaste.title')}</h3>
             </div>
-            <div class="aw-grade-wrap">
-                <span class="aw-grade-label">${t('antiwaste.grade_label')}</span>
-                <span class="aw-grade aw-grade-${gradeClass}">${grade}</span>
-            </div>
+            <span class="aw-grade aw-grade-${gradeClass}" title="${t('antiwaste.grade_label')}">${grade}</span>
         </div>
 
-        <div class="aw-compare">
-            <div class="aw-compare-row">
-                <span class="aw-compare-lbl aw-you-lbl">${t('antiwaste.you')}</span>
-                <div class="aw-bar-track"><div class="aw-bar-you" style="width:${myBarPct}%"></div></div>
-                <span class="aw-compare-pct aw-you-pct">${myRate}%</span>
+        <div class="aw-cmp-wrap">
+            <div class="aw-cmp-row-labels">
+                <span class="aw-cmp-lbl-you">${t('antiwaste.you')} <strong>${myRate}%</strong></span>
+                <span class="aw-cmp-lbl-avg"><strong>${avgRate}%</strong> ${country}</span>
             </div>
-            <div class="aw-compare-row">
-                <span class="aw-compare-lbl">${country}</span>
-                <div class="aw-bar-track"><div class="aw-bar-avg" style="width:${avgBarPct}%"></div></div>
-                <span class="aw-compare-pct">${avgRate}%</span>
+            <div class="aw-cmp-track">
+                <div class="aw-cmp-you-fill" style="width:${youFillPct}%"></div>
+                <div class="aw-cmp-avg-tick" style="left:${avgTickPct}%"></div>
             </div>
+            <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
         </div>
-
-        <div class="aw-status ${statusCls}">${statusMsg}</div>
 
         ${badges.length > 0 ? `<div class="aw-savings-row">${badges.join('')}</div>` : ''}
 
-        ${hasTrendData ? `
-        <div class="aw-trend-section">
-            <span class="aw-trend-title">${t('antiwaste.trend_title')}</span>
-            <div class="aw-trend-bars">${trendBars}</div>
+        ${hasTrend ? `<div class="aw-trend-cards">
+            ${_awTrendCard(rates[0], labels[0], maxTrend)}
+            ${arrowHtml(arr1)}
+            ${_awTrendCard(rates[1], labels[1], maxTrend)}
+            ${arrowHtml(arr2)}
+            ${_awTrendCard(rates[2], labels[2], maxTrend)}
         </div>` : ''}
+
+        <div class="aw-fact-rotator">
+            <span class="aw-fact-icon">💡</span>
+            <span id="aw-fact-text" class="aw-fact-text">${facts[factIdx]}</span>
+        </div>
 
         <div class="aw-source">${t('antiwaste.source')}</div>
     `;
+
+    // Rotate facts every 6 s with CSS fade
+    if (_awFactTimer) clearInterval(_awFactTimer);
+    if (facts.length > 1) {
+        let idx = factIdx;
+        _awFactTimer = setInterval(() => {
+            const el = document.getElementById('aw-fact-text');
+            if (!el) { clearInterval(_awFactTimer); return; }
+            el.classList.add('aw-fact-fade');
+            setTimeout(() => {
+                idx = (idx + 1) % facts.length;
+                el.textContent = facts[idx];
+                el.classList.remove('aw-fact-fade');
+            }, 420);
+        }, 6000);
+    }
 }
 
 // ===== DASHBOARD =====

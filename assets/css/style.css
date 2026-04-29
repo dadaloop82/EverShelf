@@ -385,12 +385,12 @@ body {
     margin-bottom: 10px;
 }
 
-/* Header row: title-row + grade */
+/* Header row */
 .aw-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 7px;
 }
 .aw-title-row {
     display: flex;
@@ -398,7 +398,7 @@ body {
     gap: 6px;
 }
 .aw-title {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 700;
     margin: 0;
     color: var(--text);
@@ -413,7 +413,6 @@ body {
 }
 .aw-live-on {
     background: var(--success);
-    box-shadow: 0 0 0 0 var(--success);
     animation: aw-pulse 2s ease-in-out infinite;
 }
 .aw-live-off { background: #9ca3af; }
@@ -423,27 +422,17 @@ body {
     100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
 }
 
-.aw-grade-wrap {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.aw-grade-label {
-    font-size: 0.68rem;
-    color: var(--text-light);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
+/* Grade badge */
 .aw-grade {
     display: inline-block;
-    min-width: 32px;
+    min-width: 30px;
     text-align: center;
     padding: 2px 7px;
     border-radius: 999px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 900;
     color: #fff;
+    cursor: default;
 }
 .aw-grade-ap { background: #16a34a; }
 .aw-grade-a  { background: #22c55e; }
@@ -451,56 +440,55 @@ body {
 .aw-grade-c  { background: #fb923c; }
 .aw-grade-d  { background: #dc2626; }
 
-/* Comparison bars */
-.aw-compare { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
-.aw-compare-row { display: flex; align-items: center; gap: 6px; }
-.aw-compare-lbl {
-    min-width: 70px;
+/* ── Single-row comparison bar ──────────────────────────── */
+.aw-cmp-wrap { margin-bottom: 7px; }
+.aw-cmp-row-labels {
+    display: flex;
+    justify-content: space-between;
     font-size: 0.72rem;
-    color: var(--text-light);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-bottom: 3px;
 }
-.aw-you-lbl { color: var(--success); font-weight: 700; }
-.aw-bar-track {
-    flex: 1;
-    height: 9px;
-    border-radius: 5px;
+.aw-cmp-lbl-you { color: var(--success); }
+.aw-cmp-lbl-you strong { font-size: 0.8rem; }
+.aw-cmp-lbl-avg { color: var(--text-light); text-align: right; }
+.aw-cmp-lbl-avg strong { color: var(--text); font-size: 0.8rem; }
+.aw-cmp-track {
+    position: relative;
+    height: 8px;
     background: var(--bg-main);
-    overflow: hidden;
+    border-radius: 4px;
+    margin-bottom: 4px;
 }
-.aw-bar-you {
-    height: 100%;
+.aw-cmp-you-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
     background: var(--success);
-    border-radius: 5px;
-    transition: width 0.6s cubic-bezier(.4,0,.2,1);
-    min-width: 2px;
+    border-radius: 4px;
+    transition: width 0.7s cubic-bezier(.4,0,.2,1);
+    min-width: 3px;
 }
-.aw-bar-avg {
-    height: 100%;
-    background: #d1d5db;
-    border-radius: 5px;
-    transition: width 0.6s cubic-bezier(.4,0,.2,1);
-    min-width: 2px;
+.aw-cmp-avg-tick {
+    position: absolute;
+    top: -2px; bottom: -2px;
+    width: 3px;
+    background: #f59e0b;
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px var(--bg-card);
+    transform: translateX(-50%);
+    transition: left 0.7s cubic-bezier(.4,0,.2,1);
 }
-.aw-compare-pct { font-size: 0.74rem; font-weight: 700; color: var(--text-light); min-width: 28px; text-align: right; }
-.aw-you-pct { color: var(--success); }
-
-/* Status message */
-.aw-status {
-    font-size: 0.76rem;
+/* Inline status below bar */
+.aw-status-inline {
+    font-size: 0.72rem;
     font-weight: 600;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    margin-bottom: 7px;
-    border-left: 3px solid transparent;
+    margin: 0 0 6px;
+    padding: 0;
 }
-.aw-status-good { background: #f0fdf4; border-color: var(--success); color: #166534; }
-.aw-status-bad  { background: #fef2f2; border-color: var(--danger);  color: #991b1b; }
-.aw-status-ok   { background: #fffbeb; border-color: var(--warning); color: #92400e; }
+.aw-status-good { color: #16a34a; }
+.aw-status-bad  { color: #dc2626; }
+.aw-status-ok   { color: #b45309; }
 
-/* Savings badges */
+/* ── Savings badges ─────────────────────────────────────── */
 .aw-savings-row {
     display: flex;
     flex-wrap: wrap;
@@ -511,9 +499,9 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 999px;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     border: 1px solid transparent;
 }
@@ -521,73 +509,81 @@ body {
 .aw-badge-meals { background: #f0fdf4; color: #166534; border-color: #86efac; }
 .aw-badge-co2   { background: #eff6ff; color: #1e40af; border-color: #93c5fd; }
 
-/* Trend mini chart */
-.aw-trend-section { margin-top: 2px; }
-.aw-trend-title {
+/* ── Trend mini-cards ───────────────────────────────────── */
+.aw-trend-cards {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-bottom: 7px;
+}
+.aw-tcard {
+    flex: 1;
+    padding: 5px 4px 4px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid transparent;
+}
+.aw-tcard-good  { background: #f0fdf4; border-color: #86efac; }
+.aw-tcard-ok    { background: #fffbeb; border-color: #fde68a; }
+.aw-tcard-bad   { background: #fef2f2; border-color: #fca5a5; }
+.aw-tcard-empty { background: var(--bg-main); border-color: var(--border); opacity: 0.45; }
+.aw-tc-label {
     display: block;
-    font-size: 0.68rem;
-    font-weight: 600;
+    font-size: 0.57rem;
     color: var(--text-light);
+    margin-bottom: 1px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+}
+.aw-tc-rate {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 900;
+    line-height: 1;
     margin-bottom: 4px;
 }
-.aw-trend-bars {
+.aw-tcard-good  .aw-tc-rate { color: #16a34a; }
+.aw-tcard-ok    .aw-tc-rate { color: #b45309; }
+.aw-tcard-bad   .aw-tc-rate { color: #dc2626; }
+.aw-tcard-empty .aw-tc-rate { color: var(--text-light); }
+.aw-tc-minibar { height: 3px; background: rgba(0,0,0,.08); border-radius: 2px; overflow: hidden; }
+.aw-tc-minibar > div { height: 100%; border-radius: 2px; }
+.aw-tcard-good  .aw-tc-minibar > div { background: var(--success); }
+.aw-tcard-ok    .aw-tc-minibar > div { background: #f59e0b; }
+.aw-tcard-bad   .aw-tc-minibar > div { background: var(--danger); }
+.aw-tcard-empty .aw-tc-minibar > div { background: #d1d5db; }
+.aw-tc-arrow { font-size: 0.9rem; flex-shrink: 0; padding: 0 1px; }
+.aw-arrow-good { color: var(--success); }
+.aw-arrow-bad  { color: var(--danger); }
+.aw-arrow-ok   { color: var(--text-light); }
+
+/* ── Rotating food-fact box ─────────────────────────────── */
+.aw-fact-rotator {
     display: flex;
-    gap: 8px;
-    align-items: flex-end;
-    height: 44px;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 5px 8px;
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border-radius: 7px;
+    border-left: 2px solid #38bdf8;
+    margin-bottom: 5px;
+    min-height: 26px;
 }
-.aw-trend-col {
+.aw-fact-icon { font-size: 0.76rem; flex-shrink: 0; padding-top: 1px; }
+.aw-fact-text {
+    font-size: 0.7rem;
+    color: #0369a1;
+    line-height: 1.4;
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
+    transition: opacity 0.4s ease;
 }
-.aw-trend-col.aw-trend-empty { opacity: 0.35; }
-.aw-trend-rate {
-    font-size: 0.68rem;
-    font-weight: 800;
-    line-height: 1;
-}
-.aw-rate-good { color: var(--success); }
-.aw-rate-ok   { color: var(--warning); }
-.aw-rate-bad  { color: var(--danger);  }
-.aw-trend-bar-wrap {
-    flex: 1;
-    width: 100%;
-    max-height: 24px;
-    display: flex;
-    align-items: flex-end;
-    border-radius: 3px;
-    overflow: hidden;
-    background: var(--bg-main);
-    min-height: 4px;
-}
-.aw-trend-bar-fill {
-    width: 100%;
-    border-radius: 3px;
-    transition: height 0.5s ease;
-}
-.aw-tbar-good { background: var(--success); }
-.aw-tbar-ok   { background: var(--warning); }
-.aw-tbar-bad  { background: var(--danger);  }
-.aw-trend-label {
-    font-size: 0.6rem;
-    color: var(--text-light);
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-}
+.aw-fact-fade { opacity: 0; }
 
 /* Source footnote */
 .aw-source {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: #9ca3af;
-    margin-top: 5px;
+    margin-top: 0;
     text-align: right;
 }
 
