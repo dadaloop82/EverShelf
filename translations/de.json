@@ -700,7 +700,7 @@
         "live_on": "Live-Daten",
         "live_off": "Offline",
         "meals": "Mahlzeiten",
-        "annual_info": "📅 Du ~{you} kg/Jahr · Ø ~{avg} kg/Jahr · Spanne {min}–{max}%",
+        "annual_info": "📅 Du ~{you} kg/Jahr · Ø ~{avg} kg/Jahr",
         "badge_rate": "Verlustquote",
         "badge_saved_money": "gespart vs Ø",
         "badge_wasted": "verloren",

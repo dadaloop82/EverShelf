@@ -699,7 +699,7 @@
         "live_on": "Live data",
         "live_off": "Offline",
         "meals": "meals",
-        "annual_info": "📅 You ~{you} kg/yr · avg ~{avg} kg/yr · range {min}–{max}%",
+        "annual_info": "📅 You ~{you} kg/yr · avg ~{avg} kg/yr",
         "badge_rate": "loss rate",
         "badge_saved_money": "saved vs avg",
         "badge_wasted": "items lost",

@@ -1672,6 +1672,19 @@ function getStats(PDO $db): void {
         $originalExpiry = !empty($item['expiry_date']) ? strtotime($item['expiry_date']) : null;
 
         if (!empty($item['opened_at'])) {
+            // For conf unit: if all whole packages (no fraction), the opened_at tracks when the
+            // last package was first used, but the remaining whole confs are still sealed.
+            // Use the original package expiry, not the opened shelf-life.
+            if ($item['unit'] === 'conf' && $originalExpiry !== null) {
+                $qty  = (float)$item['quantity'];
+                $frac = round($qty - (float)(int)floor($qty + 0.001), 4);
+                if ($frac < 0.001) {
+                    // All whole: treat as sealed — use original expiry
+                    $item['opened_expiry'] = $item['expiry_date'] ?? null;
+                    $item['days_to_expiry'] = (int)round(($originalExpiry - $today) / 86400);
+                    goto after_expiry;
+                }
+            }
             // Compute opened shelf-life using AI (with rule-based fallback + persistent cache).
             // The vacuum-sealed multiplier is already handled inside getOpenedShelfLifeDays.
             $openedDays    = getOpenedShelfLifeDays($item['name'], $item['category'], $item['location'], (bool)$vacuum);
@@ -1683,6 +1696,7 @@ function getStats(PDO $db): void {
             $item['opened_expiry'] = date('Y-m-d', $finalExpiry);
             $item['days_to_expiry'] = (int)round(($finalExpiry - $today) / 86400);
         } else {
+            after_expiry:
             // Legacy: no opened_at, use stored expiry_date as-is
             $item['opened_expiry'] = $item['expiry_date'] ?? null;
             $item['days_to_expiry'] = $originalExpiry !== null

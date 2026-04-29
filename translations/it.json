@@ -699,7 +699,7 @@
         "live_on": "Dati in tempo reale",
         "live_off": "Offline",
         "meals": "pasti",
-        "annual_info": "📅 Tu ~{you} kg/anno · media ~{avg} kg/anno · intervallo {min}–{max}%",
+        "annual_info": "📅 Tu ~{you} kg/anno · media ~{avg} kg/anno",
         "badge_rate": "tasso perdita",
         "badge_saved_money": "risparmio vs media",
         "badge_wasted": "prod. persi",
