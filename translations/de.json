@@ -693,7 +693,10 @@
         "country_it": "ital. Durchschnitt",
         "country_de": "dt. Durchschnitt",
         "country_en": "US-Durchschnitt",
-        "source": "Quellen: REDUCE, Eurostat, USDA 2021"
+        "source": "Quellen: REDUCE, Eurostat, USDA 2021",
+        "live_on": "Live-Daten",
+        "live_off": "Offline",
+        "meals": "Mahlzeiten"
     },
     "error": {
         "generic": "Fehler",

@@ -2086,8 +2086,38 @@ const WASTE_BENCHMARKS = {
     en: { avgWasteRate: 30, avgKgMonth: 9.2, costPerKg: 8.5, currency: '$', countryKey: 'antiwaste.country_en' },
 };
 const _AW_KG_PER_EVENT = 0.5; // estimated avg kg per out/waste transaction
+let _awRefreshTimer = null;
 
-function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, wastedP60) {
+/** Fetch fresh stats and re-render the anti-waste section. */
+function _awFetchAndRender() {
+    if (!navigator.onLine) { _updateAwLiveDot(false); return; }
+    api('stats').then(s => {
+        _renderAntiWasteSection(
+            s.used_30d      || 0, s.wasted_30d      || 0,
+            s.used_prev_30d || 0, s.wasted_prev_30d || 0,
+            s.used_prev_60d || 0, s.wasted_prev_60d || 0,
+            true
+        );
+    }).catch(() => _updateAwLiveDot(false));
+}
+
+/** Update just the live indicator dot without re-rendering the whole card. */
+function _updateAwLiveDot(online) {
+    const dot = document.querySelector('.aw-live-dot');
+    if (!dot) return;
+    dot.className = 'aw-live-dot ' + (online ? 'aw-live-on' : 'aw-live-off');
+    dot.title = online ? t('antiwaste.live_on') : t('antiwaste.live_off');
+}
+
+/** Start/stop the 60-second auto-refresh based on connectivity. */
+function _startAntiWasteAutoRefresh() {
+    clearInterval(_awRefreshTimer);
+    if (navigator.onLine) {
+        _awRefreshTimer = setInterval(_awFetchAndRender, 60_000);
+    }
+}
+
+function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, wastedP60, isOnline = navigator.onLine) {
     const section = document.getElementById('waste-chart-section');
     const total30 = used30 + wasted30;
     if (total30 === 0) { section.style.display = 'none'; return; }
@@ -2152,7 +2182,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 <span class="aw-trend-label">${trendLabels[i]}</span>
             </div>`;
         }
-        const hPct = Math.max(4, Math.round((rate / maxTrend) * 100));
+        const hPct = Math.max(6, Math.round((rate / maxTrend) * 100));
         const cls  = rate <= 8 ? 'good' : rate <= 20 ? 'ok' : 'bad';
         return `<div class="aw-trend-col">
             <span class="aw-trend-rate aw-rate-${cls}">${rate}%</span>
@@ -2161,15 +2191,21 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         </div>`;
     }).join('');
 
-    // Savings badges
+    // Savings badges — inline, compact
     const badges = [];
-    if (savedMoney > 0) badges.push(`<div class="aw-badge aw-badge-money">💰 ${t('antiwaste.saved_money').replace('{amount}', bm.currency + savedMoney)}</div>`);
-    if (savedMeals > 0) badges.push(`<div class="aw-badge aw-badge-meals">🥗 ${t('antiwaste.saved_meals').replace('{n}', savedMeals)}</div>`);
-    if (savedCO2  > 0) badges.push(`<div class="aw-badge aw-badge-co2">🌍 ${t('antiwaste.saved_co2').replace('{n}', savedCO2)}</div>`);
+    if (savedMoney > 0) badges.push(`<span class="aw-badge aw-badge-money">💰 ${bm.currency}${savedMoney}</span>`);
+    if (savedMeals > 0) badges.push(`<span class="aw-badge aw-badge-meals">🥗 ${savedMeals} ${t('antiwaste.meals')}</span>`);
+    if (savedCO2  > 0) badges.push(`<span class="aw-badge aw-badge-co2">🌍 −${savedCO2} kg CO₂</span>`);
+
+    const liveCls  = isOnline ? 'aw-live-on' : 'aw-live-off';
+    const liveTip  = isOnline ? t('antiwaste.live_on') : t('antiwaste.live_off');
 
     section.innerHTML = `
         <div class="aw-header">
-            <h3 class="aw-title">${t('antiwaste.title')}</h3>
+            <div class="aw-title-row">
+                <span class="aw-live-dot ${liveCls}" title="${liveTip}"></span>
+                <h3 class="aw-title">${t('antiwaste.title')}</h3>
+            </div>
             <div class="aw-grade-wrap">
                 <span class="aw-grade-label">${t('antiwaste.grade_label')}</span>
                 <span class="aw-grade aw-grade-${gradeClass}">${grade}</span>
@@ -2183,7 +2219,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 <span class="aw-compare-pct aw-you-pct">${myRate}%</span>
             </div>
             <div class="aw-compare-row">
-                <span class="aw-compare-lbl">${t('antiwaste.avg_label')} ${country}</span>
+                <span class="aw-compare-lbl">${country}</span>
                 <div class="aw-bar-track"><div class="aw-bar-avg" style="width:${avgBarPct}%"></div></div>
                 <span class="aw-compare-pct">${avgRate}%</span>
             </div>
@@ -2305,8 +2341,10 @@ async function loadDashboard() {
         _renderAntiWasteSection(
             statsData.used_30d      || 0, statsData.wasted_30d      || 0,
             statsData.used_prev_30d || 0, statsData.wasted_prev_30d || 0,
-            statsData.used_prev_60d || 0, statsData.wasted_prev_60d || 0
+            statsData.used_prev_60d || 0, statsData.wasted_prev_60d || 0,
+            navigator.onLine
         );
+        _startAntiWasteAutoRefresh();
 
         // Opened (partially used products with known package capacity)
         const openedSection = document.getElementById('alert-opened');
@@ -11349,6 +11387,10 @@ async function _initApp() {
     //    dalla pagina corrente. Aggiunge urgenti, aggiorna spec, rimuove risolti.
     _backgroundBringSync();
     setInterval(() => { if (!_screensaverActive) _backgroundBringSync(); }, 5 * 60 * 1000);
+
+    // 5) Anti-waste live refresh — starts/stops based on connectivity.
+    window.addEventListener('online',  () => { _updateAwLiveDot(true);  _startAntiWasteAutoRefresh(); });
+    window.addEventListener('offline', () => { _updateAwLiveDot(false); clearInterval(_awRefreshTimer); });
     // ─────────────────────────────────────────────────────────────────────
 }
 

@@ -693,7 +693,10 @@
         "country_it": "media italiana",
         "country_de": "media tedesca",
         "country_en": "media USA",
-        "source": "Fonti: REDUCE, Eurostat, USDA 2021"
+        "source": "Fonti: REDUCE, Eurostat, USDA 2021",
+        "live_on": "Dati in tempo reale",
+        "live_off": "Offline",
+        "meals": "pasti"
     },
     "error": {
         "generic": "Errore",
