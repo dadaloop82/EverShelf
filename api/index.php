@@ -1606,17 +1606,22 @@ function getStats(PDO $db): void {
         return $da <=> $db2;
     });
 
-    // Waste vs consumption stats (last 30 days)
-    $wasteStats = $db->query("
-        SELECT type, COUNT(*) as count
+    // Waste vs consumption trend (3 × 30-day buckets)
+    $wasteStats3m = $db->query("
+        SELECT type,
+            SUM(CASE WHEN created_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m0,
+            SUM(CASE WHEN created_at >= datetime('now', '-60 days') AND created_at < datetime('now', '-30 days') THEN 1 ELSE 0 END) AS m1,
+            SUM(CASE WHEN created_at >= datetime('now', '-90 days') AND created_at < datetime('now', '-60 days') THEN 1 ELSE 0 END) AS m2
         FROM transactions
-        WHERE type IN ('out', 'waste') AND created_at >= datetime('now', '-30 days')
+        WHERE type IN ('out', 'waste') AND created_at >= datetime('now', '-90 days')
         GROUP BY type
     ")->fetchAll();
     $used30 = 0; $wasted30 = 0;
-    foreach ($wasteStats as $ws) {
-        if ($ws['type'] === 'out') $used30 = (int)$ws['count'];
-        if ($ws['type'] === 'waste') $wasted30 = (int)$ws['count'];
+    $usedP30 = 0; $wastedP30 = 0;
+    $usedP60 = 0; $wastedP60 = 0;
+    foreach ($wasteStats3m as $ws) {
+        if ($ws['type'] === 'out')   { $used30 = (int)$ws['m0']; $usedP30 = (int)$ws['m1']; $usedP60 = (int)$ws['m2']; }
+        if ($ws['type'] === 'waste') { $wasted30 = (int)$ws['m0']; $wastedP30 = (int)$ws['m1']; $wastedP60 = (int)$ws['m2']; }
     }
 
     echo json_encode([
@@ -1628,8 +1633,12 @@ function getStats(PDO $db): void {
         'expiring_soon' => $expiring,
         'expired' => $expired,
         'opened' => $opened,
-        'used_30d' => $used30,
-        'wasted_30d' => $wasted30,
+        'used_30d'     => $used30,
+        'wasted_30d'   => $wasted30,
+        'used_prev_30d'   => $usedP30,
+        'wasted_prev_30d' => $wastedP30,
+        'used_prev_60d'   => $usedP60,
+        'wasted_prev_60d' => $wastedP60,
     ]);
 }
 

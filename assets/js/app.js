@@ -2071,6 +2071,138 @@ function showPage(pageId, param = null) {
     window.scrollTo(0, 0);
 }
 
+// ===== ANTI-WASTE SECTION =====
+
+/**
+ * Benchmark data per language (data sources: REDUCE/Eurostat for IT/DE, USDA/NRDC for US).
+ * avgWasteRate: % of disposal events that end in waste (not consumed).
+ * avgKgMonth:   kg wasted at household level per person per month.
+ * costPerKg:    avg food cost per kg in the respective country (EUR/USD).
+ * KG_PER_EVENT: assumed avg weight per disposal transaction.
+ */
+const WASTE_BENCHMARKS = {
+    it: { avgWasteRate: 22, avgKgMonth: 5.4, costPerKg: 8.2, currency: '€', countryKey: 'antiwaste.country_it' },
+    de: { avgWasteRate: 20, avgKgMonth: 6.5, costPerKg: 7.7, currency: '€', countryKey: 'antiwaste.country_de' },
+    en: { avgWasteRate: 30, avgKgMonth: 9.2, costPerKg: 8.5, currency: '$', countryKey: 'antiwaste.country_en' },
+};
+const _AW_KG_PER_EVENT = 0.5; // estimated avg kg per out/waste transaction
+
+function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, wastedP60) {
+    const section = document.getElementById('waste-chart-section');
+    const total30 = used30 + wasted30;
+    if (total30 === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+
+    const bm = WASTE_BENCHMARKS[_currentLang] || WASTE_BENCHMARKS['it'];
+    const country = t(bm.countryKey);
+
+    // Waste rates (0–100 %)
+    const myRate = Math.round((wasted30 / total30) * 100);
+    const avgRate = bm.avgWasteRate;
+
+    // Grade
+    let grade, gradeClass;
+    if      (myRate <= 3)  { grade = 'A+'; gradeClass = 'ap'; }
+    else if (myRate <= 8)  { grade = 'A';  gradeClass = 'a';  }
+    else if (myRate <= 15) { grade = 'B';  gradeClass = 'b';  }
+    else if (myRate <= 25) { grade = 'C';  gradeClass = 'c';  }
+    else                   { grade = 'D';  gradeClass = 'd';  }
+
+    // Estimated savings vs average person
+    const avgWastedEvents = total30 * (avgRate / 100);
+    const savedEvents     = Math.max(0, avgWastedEvents - wasted30);
+    const savedKg         = +(savedEvents * _AW_KG_PER_EVENT).toFixed(1);
+    const savedMoney      = Math.round(savedKg * bm.costPerKg);
+    const savedMeals      = Math.round(savedKg * 2.5);   // ~400 g per meal
+    const savedCO2        = +(savedKg * 2.5).toFixed(1); // ~2.5 kg CO2 / kg food wasted
+
+    // Status message
+    let statusMsg, statusCls;
+    if (myRate < avgRate) {
+        statusMsg = t('antiwaste.better').replace('{country}', country).replace('{diff}', avgRate - myRate);
+        statusCls = 'aw-status-good';
+    } else if (myRate > avgRate) {
+        statusMsg = t('antiwaste.worse').replace('{country}', country);
+        statusCls = 'aw-status-bad';
+    } else {
+        statusMsg = t('antiwaste.on_par').replace('{country}', country);
+        statusCls = 'aw-status-ok';
+    }
+
+    // Comparison bars (scaled to max of the two rates, min 5 for visual)
+    const maxRate    = Math.max(myRate, avgRate, 5);
+    const myBarPct   = Math.round((myRate  / maxRate) * 100);
+    const avgBarPct  = Math.round((avgRate / maxRate) * 100);
+
+    // Trend (3 monthly buckets: m2=oldest … m0=current)
+    const totals  = [usedP60 + wastedP60, usedP30 + wastedP30, total30];
+    const rates60 = totals.map((tot, i) => {
+        const w = [wastedP60, wastedP30, wasted30][i];
+        return tot > 0 ? Math.round((w / tot) * 100) : null;
+    });
+    const trendLabels = [t('antiwaste.months_ago_2'), t('antiwaste.months_ago_1'), t('antiwaste.this_month')];
+    const maxTrend = Math.max(...rates60.filter(r => r !== null), 5);
+    const hasTrendData = rates60[0] !== null || rates60[1] !== null;
+
+    const trendBars = rates60.map((rate, i) => {
+        if (rate === null) {
+            return `<div class="aw-trend-col aw-trend-empty">
+                <span class="aw-trend-rate">–</span>
+                <div class="aw-trend-bar-wrap"><div class="aw-trend-bar-fill" style="height:2px"></div></div>
+                <span class="aw-trend-label">${trendLabels[i]}</span>
+            </div>`;
+        }
+        const hPct = Math.max(4, Math.round((rate / maxTrend) * 100));
+        const cls  = rate <= 8 ? 'good' : rate <= 20 ? 'ok' : 'bad';
+        return `<div class="aw-trend-col">
+            <span class="aw-trend-rate aw-rate-${cls}">${rate}%</span>
+            <div class="aw-trend-bar-wrap"><div class="aw-trend-bar-fill aw-tbar-${cls}" style="height:${hPct}%"></div></div>
+            <span class="aw-trend-label">${trendLabels[i]}</span>
+        </div>`;
+    }).join('');
+
+    // Savings badges
+    const badges = [];
+    if (savedMoney > 0) badges.push(`<div class="aw-badge aw-badge-money">💰 ${t('antiwaste.saved_money').replace('{amount}', bm.currency + savedMoney)}</div>`);
+    if (savedMeals > 0) badges.push(`<div class="aw-badge aw-badge-meals">🥗 ${t('antiwaste.saved_meals').replace('{n}', savedMeals)}</div>`);
+    if (savedCO2  > 0) badges.push(`<div class="aw-badge aw-badge-co2">🌍 ${t('antiwaste.saved_co2').replace('{n}', savedCO2)}</div>`);
+
+    section.innerHTML = `
+        <div class="aw-header">
+            <h3 class="aw-title">${t('antiwaste.title')}</h3>
+            <div class="aw-grade-wrap">
+                <span class="aw-grade-label">${t('antiwaste.grade_label')}</span>
+                <span class="aw-grade aw-grade-${gradeClass}">${grade}</span>
+            </div>
+        </div>
+
+        <div class="aw-compare">
+            <div class="aw-compare-row">
+                <span class="aw-compare-lbl aw-you-lbl">${t('antiwaste.you')}</span>
+                <div class="aw-bar-track"><div class="aw-bar-you" style="width:${myBarPct}%"></div></div>
+                <span class="aw-compare-pct aw-you-pct">${myRate}%</span>
+            </div>
+            <div class="aw-compare-row">
+                <span class="aw-compare-lbl">${t('antiwaste.avg_label')} ${country}</span>
+                <div class="aw-bar-track"><div class="aw-bar-avg" style="width:${avgBarPct}%"></div></div>
+                <span class="aw-compare-pct">${avgRate}%</span>
+            </div>
+        </div>
+
+        <div class="aw-status ${statusCls}">${statusMsg}</div>
+
+        ${badges.length > 0 ? `<div class="aw-savings-row">${badges.join('')}</div>` : ''}
+
+        ${hasTrendData ? `
+        <div class="aw-trend-section">
+            <span class="aw-trend-title">${t('antiwaste.trend_title')}</span>
+            <div class="aw-trend-bars">${trendBars}</div>
+        </div>` : ''}
+
+        <div class="aw-source">${t('antiwaste.source')}</div>
+    `;
+}
+
 // ===== DASHBOARD =====
 async function loadDashboard() {
     try {
@@ -2169,26 +2301,12 @@ async function loadDashboard() {
         // Banner alerts (suspicious quantities + consumption predictions)
         loadBannerAlerts();
 
-        // Waste vs consumption chart
-        const wasteSection = document.getElementById('waste-chart-section');
-        const used30 = statsData.used_30d || 0;
-        const wasted30 = statsData.wasted_30d || 0;
-        const total30 = used30 + wasted30;
-        if (total30 > 0) {
-            wasteSection.style.display = 'block';
-            const usedPct = Math.round((used30 / total30) * 100);
-            const wastedPct = 100 - usedPct;
-            document.getElementById('waste-chart-bar').innerHTML = `
-                <div class="waste-bar-used" style="width:${usedPct}%"></div>
-                <div class="waste-bar-wasted" style="width:${wastedPct}%"></div>
-            `;
-            document.getElementById('waste-chart-legend').innerHTML = `
-                <span class="waste-legend-item"><span class="waste-legend-dot used"></span> ${t('dashboard.consumed').replace('{n}', used30).replace('{pct}', usedPct)}</span>
-                <span class="waste-legend-item"><span class="waste-legend-dot wasted"></span> ${t('dashboard.wasted').replace('{n}', wasted30).replace('{pct}', wastedPct)}</span>
-            `;
-        } else {
-            wasteSection.style.display = 'none';
-        }
+        // Anti-waste section
+        _renderAntiWasteSection(
+            statsData.used_30d      || 0, statsData.wasted_30d      || 0,
+            statsData.used_prev_30d || 0, statsData.wasted_prev_30d || 0,
+            statsData.used_prev_60d || 0, statsData.wasted_prev_60d || 0
+        );
 
         // Opened (partially used products with known package capacity)
         const openedSection = document.getElementById('alert-opened');

@@ -675,6 +675,26 @@
         "appliance_added": "Gerät hinzugefügt",
         "item_added": "{name} hinzugefügt"
     },
+    "antiwaste": {
+        "title": "🌱 Anti-Waste Report",
+        "grade_label": "Note",
+        "you": "Du",
+        "avg_label": "Ø",
+        "better": "🎉 Du verschwendest {diff}% weniger als der {country}!",
+        "worse": "⚠️ Du verschwendest mehr als der {country}. Verbesserungspotenzial!",
+        "on_par": "→ Du liegst beim {country}. Du kannst noch besser werden!",
+        "saved_money": "~{amount}/Monat gespart",
+        "saved_meals": "~{n} Mahlzeiten gerettet",
+        "saved_co2": "{n} kg CO₂ eingespart",
+        "trend_title": "Trend (letzte 3 Monate)",
+        "months_ago_2": "-60 Tage",
+        "months_ago_1": "-30 Tage",
+        "this_month": "Jetzt",
+        "country_it": "ital. Durchschnitt",
+        "country_de": "dt. Durchschnitt",
+        "country_en": "US-Durchschnitt",
+        "source": "Quellen: REDUCE, Eurostat, USDA 2021"
+    },
     "error": {
         "generic": "Fehler",
         "network": "Netzwerkfehler",
