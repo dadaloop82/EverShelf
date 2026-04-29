@@ -222,6 +222,7 @@
         "use_all": "🗑️ ALLES verwendet / Aufgebraucht",
         "submit": "📤 Diese Menge verwenden",
         "available": "📦 Verfügbar:",
+        "opened_badge": "GEOEFFNET",
         "not_in_inventory": "⚠️ Produkt nicht im Bestand.",
         "expiry_warning": "⚠️ Verwende zuerst die{loc}, die am {date} abläuft — {when}!",
         "throw_title": "🗑️ Produkt entsorgen",

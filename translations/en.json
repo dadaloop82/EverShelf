@@ -222,6 +222,7 @@
         "use_all": "🗑️ Used ALL / Finished",
         "submit": "📤 Use this quantity",
         "available": "📦 Available:",
+        "opened_badge": "OPENED",
         "not_in_inventory": "⚠️ Product not in inventory.",
         "expiry_warning": "⚠️ Use first the one{loc} that expires on {date} — {when}!",
         "throw_title": "🗑️ Discard Product",
