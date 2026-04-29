@@ -2293,9 +2293,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const avgAnnualKg = Math.round(bm.avgKgMonth * 12);
     const annualInfo  = t('antiwaste.annual_info')
         .replace('{you}', myAnnualKg)
-        .replace('{avg}', avgAnnualKg)
-        .replace('{min}', bm.rangeMin)
-        .replace('{max}', bm.rangeMax);
+        .replace('{avg}', avgAnnualKg);
 
     // Build all badge objects (shown 4 at a time, rotated every 5 min)
     const diffPct = avgRate - myRate;
