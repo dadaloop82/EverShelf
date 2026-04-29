@@ -1,0 +1,44 @@
+{
+    "226887def70e33ef73290ebfe75ed4d0": {
+        "days": 7,
+        "source": "ai",
+        "name": "Polpa di pomodoro finissima",
+        "location": "frigo",
+        "ts": 1777444819
+    },
+    "0ed51c9496aa9edfe38caf41772f54ed": {
+        "days": 7,
+        "source": "rule",
+        "name": "Latte di Montagna",
+        "location": "frigo",
+        "ts": 1777444820
+    },
+    "2d63d0216a75d46b465150e925d2e7ad": {
+        "days": 30,
+        "source": "rule",
+        "name": "Burro",
+        "location": "frigo",
+        "ts": 1777444821
+    },
+    "f6504a014f17457e3dbe0ba917ad681f": {
+        "days": 7,
+        "source": "rule",
+        "name": "Latte di Montagna",
+        "location": "dispensa",
+        "ts": 1777444888
+    },
+    "7b15356b493402e17fa417a389e89716": {
+        "days": 60,
+        "source": "rule",
+        "name": "Yaourt Vanille",
+        "location": "dispensa",
+        "ts": 1777472391
+    },
+    "9afdf35c4a256867ef47c32495349eb6": {
+        "days": 5,
+        "source": "rule",
+        "name": "Yaourt Vanille",
+        "location": "frigo",
+        "ts": 1777480477
+    }
+}

@@ -2529,7 +2529,7 @@ async function loadDashboard() {
         if (statsData.opened && statsData.opened.length > 0) {
             // Sorted server-side by days_to_expiry ASC
             openedSection.style.display = 'block';
-            const MAX_SHOWN = 10;
+            const MAX_SHOWN = 20;
             const visible = statsData.opened.slice(0, MAX_SHOWN);
             const extra = statsData.opened.length - visible.length;
             openedList.innerHTML = visible.map(item => {
