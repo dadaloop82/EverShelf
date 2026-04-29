@@ -696,7 +696,12 @@
         "source": "Quellen: REDUCE, Eurostat, USDA 2021",
         "live_on": "Live-Daten",
         "live_off": "Offline",
-        "meals": "Mahlzeiten"
+        "meals": "Mahlzeiten",
+        "badge_rate": "Abfallquote",
+        "badge_saved_money": "gespart vs Ø",
+        "badge_meals": "Mahlzeiten gerettet",
+        "badge_wasted": "verschwendet",
+        "badge_better": "weniger als Ø"
     },
     "error": {
         "generic": "Fehler",
