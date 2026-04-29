@@ -2208,13 +2208,13 @@ function _startAntiWasteAutoRefresh() {
 }
 
 /**
- * Start badge rotation: shows MAX_VISIBLE badges at a time, cycles through all
- * with a fade-out/fade-in every INTERVAL ms.
+ * Start badge rotation: shows maxVisible badges at a time, cycles through all
+ * with a fade-out/fade-in once per hour (aligned to the next clock-hour boundary).
  */
-function _startBadgeRotation(allBadges, maxVisible = 3) {
+function _startBadgeRotation(allBadges, maxVisible = 4) {
     clearInterval(_awBadgeTimer);
     const row = document.getElementById('aw-badges-row');
-    if (!row || allBadges.length <= maxVisible) return; // no rotation needed
+    if (!row || allBadges.length <= maxVisible) return;
 
     let start = 0;
     const render = () => {
@@ -2225,7 +2225,7 @@ function _startBadgeRotation(allBadges, maxVisible = 3) {
         row.innerHTML = slice.join('');
     };
 
-    _awBadgeTimer = setInterval(() => {
+    const rotate = () => {
         if (!row.isConnected) { clearInterval(_awBadgeTimer); return; }
         row.style.opacity = '0';
         setTimeout(() => {
@@ -2233,7 +2233,14 @@ function _startBadgeRotation(allBadges, maxVisible = 3) {
             render();
             row.style.opacity = '1';
         }, 380);
-    }, 4500);
+    };
+
+    // Fire once per hour, aligned to next full clock-hour
+    const msToNextHour = (60 - new Date().getMinutes()) * 60_000 - new Date().getSeconds() * 1000;
+    setTimeout(() => {
+        rotate();
+        _awBadgeTimer = setInterval(rotate, 3_600_000); // then every hour
+    }, msToNextHour);
 }
 
 /** Build one trend mini-card. */
@@ -2303,10 +2310,11 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         statusCls = 'aw-status-ok';
     }
 
-    // Single-row compare bar
-    const scale      = Math.max(myRate, avgRate, 5) * 1.35;
-    const youFillPct = +((myRate  / scale) * 100).toFixed(1);
-    const avgTickPct = +((avgRate / scale) * 100).toFixed(1);
+    // Dual animated comparison bars — scaled so the larger value fills ~88% of its track
+    const scale   = Math.max(myRate, avgRate, 1);
+    const youPct  = +((myRate  / scale) * 88).toFixed(1);
+    const avgPct  = +((avgRate / scale) * 88).toFixed(1);
+    const youLabel = t('antiwaste.you').split(' ')[0]; // "Tu" / "You" / "Du"
 
     // Trend cards
     const totals   = [usedP60 + wastedP60, usedP30 + wastedP30, total30];
@@ -2322,7 +2330,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const arr2 = _awTrendArrow(rates[1], rates[2]);
     const arrowHtml = a => a ? `<span class="aw-tc-arrow ${a.cls}">${a.sym}</span>` : '';
 
-    // Build all badge objects (shown 3 at a time, rotated)
+    // Build all badge objects (shown 4 at a time, rotated every hour)
     const diffPct = avgRate - myRate;
     const allBadges = [];
     allBadges.push(`<span class="aw-badge aw-badge-rate">
@@ -2350,8 +2358,8 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         <span class="aw-badge-body"><b>−${diffPct}%</b><small>${t('antiwaste.badge_better')}</small></span>
     </span>`);
 
-    // Initial 3-badge slice
-    const MAX_VISIBLE = 3;
+    // Initial 4-badge slice (centered via CSS justify-content:center)
+    const MAX_VISIBLE = 4;
     const initBadges  = allBadges.slice(0, MAX_VISIBLE).join('');
 
     // Facts
@@ -2371,13 +2379,19 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         </div>
 
         <div class="aw-cmp-wrap">
-            <div class="aw-cmp-row-labels">
-                <span class="aw-cmp-lbl-you">${t('antiwaste.you')} <strong>${myRate}%</strong></span>
-                <span class="aw-cmp-lbl-avg"><strong>${avgRate}%</strong> ${country}</span>
+            <div class="aw-cmp-bar-row">
+                <span class="aw-cmp-bar-label aw-cmp-bar-label-you">${youLabel}</span>
+                <div class="aw-cmp-bar-track">
+                    <div id="aw-bar-you" class="aw-cmp-bar-fill aw-cmp-bar-fill-you"></div>
+                </div>
+                <span class="aw-cmp-bar-pct aw-cmp-bar-pct-you">${myRate}%</span>
             </div>
-            <div class="aw-cmp-track">
-                <div class="aw-cmp-you-fill" style="width:${youFillPct}%"></div>
-                <div class="aw-cmp-avg-tick" style="left:${avgTickPct}%"></div>
+            <div class="aw-cmp-bar-row">
+                <span class="aw-cmp-bar-label aw-cmp-bar-label-avg">${country}</span>
+                <div class="aw-cmp-bar-track">
+                    <div id="aw-bar-avg" class="aw-cmp-bar-fill aw-cmp-bar-fill-avg"></div>
+                </div>
+                <span class="aw-cmp-bar-pct aw-cmp-bar-pct-avg">${avgRate}%</span>
             </div>
             <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
         </div>
@@ -2400,7 +2414,15 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         <div class="aw-source">${(_awLiveFacts && _awLiveFacts.source) || t('antiwaste.source')}</div>
     `;
 
-    // Badge rotation (3 at a time)
+    // Animate comparison bars after DOM insertion
+    requestAnimationFrame(() => {
+        const barYou = document.getElementById('aw-bar-you');
+        const barAvg = document.getElementById('aw-bar-avg');
+        if (barYou) { barYou.style.width = youPct + '%'; setTimeout(() => barYou.classList.add('loaded'), 100); }
+        if (barAvg) { barAvg.style.width = avgPct + '%'; setTimeout(() => barAvg.classList.add('loaded'), 100); }
+    });
+
+    // Badge rotation: 4 at a time, every hour
     _startBadgeRotation(allBadges, MAX_VISIBLE);
 
     // Fact rotation (every 6 s)

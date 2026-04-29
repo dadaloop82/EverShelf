@@ -155,8 +155,21 @@ function migrateDB(PDO $db): void {
     // Add opened_at column to inventory if missing
     if (!in_array('opened_at', $invColNames)) {
         $db->exec("ALTER TABLE inventory ADD COLUMN opened_at DATETIME DEFAULT NULL");
-        // Backfill: detect already-opened items and set opened_at + recalculate expiry
+        // Backfill: detect already-opened fridge items and set opened_at.
+        // Only frigo items — pantry/freezer fractional quantities don't imply opened.
         backfillOpenedItems($db);
+    }
+
+    // Migration: undo incorrect backfill for non-frigo items.
+    // The original backfill also tagged dispensa/freezer items as opened, which overwrote
+    // their manufacturer expiry_date with a short estimated value.  Clear opened_at so they
+    // return to the sealed section; clear expiry_date so users can re-enter the real date.
+    $migDone = $db->query("SELECT value FROM app_settings WHERE key = 'migration_fix_nonfrigo_opened_v1'")->fetchColumn();
+    if (!$migDone) {
+        $db->exec("UPDATE inventory SET opened_at = NULL, expiry_date = NULL
+                   WHERE location NOT IN ('frigo') AND opened_at IS NOT NULL");
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_fix_nonfrigo_opened_v1', '1')");
     }
 
     // Migration v2: recalculate sealed fridge item expiry (fridge extends shelf life)
@@ -175,12 +188,16 @@ function migrateDB(PDO $db): void {
 }
 
 /**
- * Backfill opened_at for existing inventory items that appear to be opened.
+ * Backfill opened_at for frigo items that appear to be opened.
  * An item is considered opened if:
  *  - conf unit with fractional quantity
  *  - weight/volume unit (g,kg,ml,l) with quantity < default_quantity
  * Uses updated_at as the approximate opened_at date.
- * Recalculates expiry_date based on opened shelf life from opened_at.
+ * Does NOT overwrite expiry_date — the manufacturer date is preserved;
+ * getStats computes opened expiry on-the-fly from opened_at.
+ *
+ * Only frigo items: pantry/freezer fractional quantities are normal
+ * (e.g. 3 of 6 UHT milks) and do not indicate a food-safety expiry change.
  */
 function backfillOpenedItems(PDO $db): void {
     $stmt = $db->query("
@@ -188,7 +205,7 @@ function backfillOpenedItems(PDO $db): void {
                p.name, p.category, p.unit, p.default_quantity
         FROM inventory i
         JOIN products p ON i.product_id = p.id
-        WHERE i.quantity > 0
+        WHERE i.quantity > 0 AND i.location = 'frigo'
     ");
     $rows = $stmt->fetchAll();
 
@@ -207,15 +224,9 @@ function backfillOpenedItems(PDO $db): void {
 
         if (!$isOpened) continue;
 
-        $openedAt = $row['updated_at'];
-        $openedDays = estimateOpenedExpiryDaysPHP($row['name'], $row['category'], $row['location']);
-        if ($row['vacuum_sealed']) $openedDays = (int)round($openedDays * 1.5);
-
-        // Calculate new expiry from opened_at
-        $newExpiry = date('Y-m-d', strtotime($openedAt . " +{$openedDays} days"));
-
-        $upd = $db->prepare("UPDATE inventory SET opened_at = ?, expiry_date = ? WHERE id = ?");
-        $upd->execute([$openedAt, $newExpiry, $row['id']]);
+        // Only set opened_at — do NOT touch expiry_date (manufacturer date is preserved)
+        $upd = $db->prepare("UPDATE inventory SET opened_at = ? WHERE id = ? AND opened_at IS NULL");
+        $upd->execute([$row['updated_at'], $row['id']]);
     }
 }
 
