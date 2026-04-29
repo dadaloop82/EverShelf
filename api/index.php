@@ -1584,6 +1584,10 @@ function getInventoryAnomalies(PDO $db): void {
         if (!empty($dismissed[$key])) continue;
 
         $direction = $diff > 0 ? 'phantom' : 'missing';
+        // Special case: expected is negative — more consumption recorded than entries.
+        // The real qty vs tx comparison is meaningless; what we actually know is that
+        // "initial stock was never formally registered as an 'in' transaction".
+        if ($expected <= 0) $direction = 'untracked';
         $anomalies[] = [
             'inventory_id' => (int)$r['inventory_id'],
             'product_id'   => (int)$r['product_id'],

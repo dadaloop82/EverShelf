@@ -128,6 +128,9 @@
         "banner_finished_check": "Kannst du nachschauen?",
         "banner_anomaly_phantom_title": "mehr Bestand als erwartet",
         "banner_anomaly_phantom_detail": "Bestand zeigt {inv_qty} {unit}, aber laut Buchungen solltest du nur {expected_qty} {unit} haben. Hast du Bestand ohne Buchung hinzugefügt?",
+        "banner_anomaly_untracked_title": "Anfangsbestand nicht als Eingang gebucht",
+        "banner_anomaly_untracked_detail": "Du hast <strong>{inv_qty} {unit}</strong> im Bestand, aber die gebuchten Abgänge übersteigen die Eingänge — der Anfangsbestand wurde wahrscheinlich nie als \"Eingang\" erfasst. Bitte korrigiere die Menge oder trage die fehlenden Eingänge nach."
+,
         "banner_anomaly_ghost_title": "weniger Bestand als erwartet",
         "banner_anomaly_ghost_detail": "Laut Buchungen solltest du {expected_qty} {unit} von {name} haben, aber der Bestand zeigt nur {inv_qty} {unit}. Hast du etwas ohne Buchung entnommen?",
         "consumed": "Verbraucht: {n} ({pct}%)",
