@@ -2310,10 +2310,10 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         statusCls = 'aw-status-ok';
     }
 
-    // Dual animated comparison bars — scaled so the larger value fills ~88% of its track
+    // Single stacked bar: avg always fills 88% of track width; you fills proportionally inside
     const scale   = Math.max(myRate, avgRate, 1);
-    const youPct  = +((myRate  / scale) * 88).toFixed(1);
-    const avgPct  = +((avgRate / scale) * 88).toFixed(1);
+    const avgPct  = 88; // avg always = reference width
+    const youPct  = +((myRate / scale) * 88).toFixed(1); // your bar, same scale
     const youLabel = t('antiwaste.you').split(' ')[0]; // "Tu" / "You" / "Du"
 
     // Trend cards
@@ -2379,19 +2379,13 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         </div>
 
         <div class="aw-cmp-wrap">
-            <div class="aw-cmp-bar-row">
-                <span class="aw-cmp-bar-label aw-cmp-bar-label-you">${youLabel}</span>
-                <div class="aw-cmp-bar-track">
-                    <div id="aw-bar-you" class="aw-cmp-bar-fill aw-cmp-bar-fill-you"></div>
-                </div>
-                <span class="aw-cmp-bar-pct aw-cmp-bar-pct-you">${myRate}%</span>
+            <div class="aw-cmp-bar-track">
+                <div id="aw-bar-avg" class="aw-cmp-bar-fill-avg"></div>
+                <div id="aw-bar-you" class="aw-cmp-bar-fill-you"></div>
             </div>
-            <div class="aw-cmp-bar-row">
-                <span class="aw-cmp-bar-label aw-cmp-bar-label-avg">${country}</span>
-                <div class="aw-cmp-bar-track">
-                    <div id="aw-bar-avg" class="aw-cmp-bar-fill aw-cmp-bar-fill-avg"></div>
-                </div>
-                <span class="aw-cmp-bar-pct aw-cmp-bar-pct-avg">${avgRate}%</span>
+            <div class="aw-cmp-legend">
+                <span class="aw-cmp-legend-you">▮ ${youLabel} <strong>${myRate}%</strong></span>
+                <span class="aw-cmp-legend-avg">${country} <strong>${avgRate}%</strong> ▮</span>
             </div>
             <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
         </div>
