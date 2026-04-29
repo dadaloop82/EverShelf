@@ -2075,13 +2075,6 @@ function showPage(pageId, param = null) {
 
 // ===== ANTI-WASTE SECTION =====
 
-/**
- * Benchmark data per language (data sources: REDUCE/Eurostat for IT/DE, USDA/NRDC for US).
- * avgWasteRate: % of disposal events that end in waste (not consumed).
- * avgKgMonth:   kg wasted at household level per person per month.
- * costPerKg:    avg food cost per kg in the respective country (EUR/USD).
- * KG_PER_EVENT: assumed avg weight per disposal transaction.
- */
 const WASTE_BENCHMARKS = {
     it: { avgWasteRate: 22, avgKgMonth: 5.4, costPerKg: 8.2, currency: '€', countryKey: 'antiwaste.country_it' },
     de: { avgWasteRate: 20, avgKgMonth: 6.5, costPerKg: 7.7, currency: '€', countryKey: 'antiwaste.country_de' },
@@ -2090,38 +2083,102 @@ const WASTE_BENCHMARKS = {
 const _AW_KG_PER_EVENT = 0.5;
 let _awRefreshTimer = null;
 let _awFactTimer    = null;
+let _awBadgeTimer   = null;
 
-// Food facts per language — displayed in rotating carousel inside the card
-const AW_FACTS = {
+// ── Embedded fallback facts (used when offline / API not yet loaded) ──
+const AW_FACTS_FALLBACK = {
     it: [
-        "In Italia ogni famiglia spreca in media 5,2 kg di cibo al mese",
-        "Il 30% del cibo prodotto nel mondo viene sprecato ogni anno",
-        "Sprecare 1 kg di manzo genera ~27 kg di CO₂ nell'atmosfera",
-        "Frutta e verdura sono gli alimenti più sprecati nelle famiglie italiane",
-        "Un italiano spende in media ~€450/anno in cibo mai consumato",
-        "L'8% delle emissioni mondiali di gas serra proviene dallo spreco alimentare",
-        "Ridurre lo spreco del 50% potrebbe sfamare 800 milioni di persone in più",
+        "Nel 2024 ogni italiano spreca ~554 g di cibo a settimana (Waste Watcher 2024)",
+        "Lo spreco domestico in Italia vale oltre €7,5 miliardi l'anno",
+        "La frutta fresca è l'alimento più sprecato in Italia: ~22g/persona/settimana",
+        "Nel mondo si sprecano ~1,05 miliardi di tonnellate di cibo ogni anno (UNEP 2024)",
+        "Il 19% del cibo globale disponibile al consumo viene buttato (UNEP 2024)",
+        "Le famiglie sono responsabili del 60% dello spreco alimentare totale",
+        "Lo spreco alimentare conta per l'8-10% delle emissioni globali di gas serra",
+        "Se fosse un Paese, lo spreco alimentare sarebbe il 3° emettitore di CO₂ al mondo",
+        "Lo spreco alimentare consuma il 25% dell'acqua dolce usata in agricoltura",
+        "Un'area grande quanto la Cina viene coltivata per cibo mai mangiato",
+        "Lo spreco alimentare costa al mondo ~€1.000 miliardi l'anno",
+        "Il lunedì è il giorno in cui gli italiani buttano più cibo (residui del weekend)",
+        "Solo il 30% degli italiani sa distinguere 'da consumarsi entro' da 'preferibilmente entro'",
+        "Il ricorso al congelatore riduce lo spreco domestico del 20%",
         "1 kg di pane sprecato = 1.300 litri d'acqua consumati inutilmente",
+        "Sprecare 1 hamburger = stessa acqua di una doccia da 90 minuti",
+        "Lo spreco alimentare pro capite in Italia è ~29 kg/anno (domestico)",
+        "Il 42% degli italiani dichiara di sprecare meno grazie all'aumento dei prezzi",
+        "Solo il 15% degli italiani chiede la 'doggy bag' al ristorante",
+        "Un quarto del cibo sprecato basterebbe a sfamare tutti gli affamati del mondo",
+        "La Legge Gadda (166/2016) è tra le norme anti-spreco più avanzate d'Europa",
+        "Il Sud Italia spreca in media l'8% in più rispetto al Nord",
+        "Nel 2024 oltre 780 milioni di persone hanno sofferto la fame nel mondo (FAO)",
+        "Educare i bambini a scuola riduce lo spreco familiare del 15%",
+        "Il packaging intelligente potrebbe ridurre lo spreco del 15%",
     ],
     de: [
-        "Deutsche Haushalte werfen pro Person rund 82 kg Lebensmittel pro Jahr weg",
-        "Weltweit endet etwa 30% aller produzierten Lebensmittel als Abfall",
-        "Lebensmittelverschwendung verursacht 8% der globalen Treibhausgase",
-        "Obst und Gemüse werden in deutschen Haushalten am häufigsten weggeworfen",
-        "Ein Deutscher zahlt im Schnitt ~€300/Jahr für ungenutzte Lebensmittel",
+        "Deutsche Haushalte werfen pro Person rund 82 kg Lebensmittel pro Jahr weg (Destatis 2024)",
+        "Weltweit werden ~1,05 Milliarden Tonnen Lebensmittel pro Jahr verschwendet (UNEP 2024)",
+        "19% des global verfügbaren Lebensmittelangebots landet im Müll (UNEP 2024)",
+        "Haushalte verursachen 60% der gesamten Lebensmittelverschwendung",
+        "Lebensmittelverschwendung ist für 8-10% der globalen Treibhausgase verantwortlich",
+        "Wäre Lebensmittelverschwendung ein Land, wäre es der 3. größte CO₂-Emittent",
+        "25% des in der Landwirtschaft genutzten Süßwassers wird für nie gegessenes Essen verbraucht",
         "1 kg verschwendetes Rindfleisch ≈ 27 kg CO₂-Emissionen",
-        "Halbierung der Lebensmittelverschwendung könnte 800 Mio. Menschen ernähren",
+        "Das Einfrieren reduziert Haushaltsabfälle um bis zu 20%",
+        "Nur ein Viertel der verschwendeten Lebensmittel würde alle Hungernden ernähren",
+        "Schlaue Verpackungen könnten den Lebensmittelabfall um 15% senken",
     ],
     en: [
+        "~1.05 billion tonnes of food are wasted globally every year (UNEP 2024)",
+        "19% of food available for human consumption is wasted globally (UNEP 2024)",
+        "Households account for 60% of all food waste globally",
+        "Food waste represents 8-10% of global greenhouse gas emissions",
+        "If food waste were a country, it would be the world's 3rd largest CO₂ emitter",
+        "25% of freshwater used in farming grows food that is never eaten",
+        "Food waste costs the world ~$1 trillion per year",
         "30–40% of the US food supply is wasted each year (USDA 2021)",
-        "Food waste accounts for 8% of global greenhouse gas emissions",
         "Americans spend ~$1,800/year on food they never eat",
-        "Fruits & vegetables are the most wasted food items worldwide",
-        "Wasting 1 lb of beef emits as much CO₂ as driving 20 miles",
-        "Halving food waste globally could feed 800 million more people",
-        "If food waste were a country, it'd be the world's 3rd largest emitter",
+        "Just a quarter of wasted food would feed all the world's hungry",
+        "Smart packaging could cut food waste by 15%",
+        "1 kg of wasted bread = 1,300 litres of water wasted",
+        "Wasting one hamburger uses as much water as a 90-minute shower",
+        "Teaching children about food waste reduces household waste by 15%",
+        "In 2024, over 780 million people faced hunger despite global food abundance (FAO)",
     ],
 };
+
+// Live facts cache (loaded from API daily, falls back to embedded)
+let _awLiveFacts = null;
+const _AW_FACTS_LS_KEY = 'aw_facts_v2';
+const _AW_FACTS_TS_KEY = 'aw_facts_ts_v2';
+
+/** Load facts from localStorage cache or fetch from server (once per day). */
+async function _awLoadFacts() {
+    const cached = localStorage.getItem(_AW_FACTS_LS_KEY);
+    const ts = parseInt(localStorage.getItem(_AW_FACTS_TS_KEY) || '0');
+    const age = Date.now() - ts;
+
+    // Use localStorage cache if < 24 h old
+    if (cached && age < 86_400_000) {
+        try { _awLiveFacts = JSON.parse(cached); return; } catch {}
+    }
+
+    // Try fetching from server if online
+    if (!navigator.onLine) return;
+    try {
+        const data = await api('food_facts');
+        if (data && data.it && data.it.length > 0) {
+            _awLiveFacts = data;
+            localStorage.setItem(_AW_FACTS_LS_KEY, JSON.stringify(data));
+            localStorage.setItem(_AW_FACTS_TS_KEY, String(Date.now()));
+        }
+    } catch {}
+}
+
+/** Return current facts array for the active language. */
+function _awGetFacts() {
+    const src = _awLiveFacts || AW_FACTS_FALLBACK;
+    return src[_currentLang] || src['it'] || AW_FACTS_FALLBACK['it'];
+}
 
 /** Fetch fresh stats and re-render the anti-waste section. */
 function _awFetchAndRender() {
@@ -2148,6 +2205,35 @@ function _updateAwLiveDot(online) {
 function _startAntiWasteAutoRefresh() {
     clearInterval(_awRefreshTimer);
     if (navigator.onLine) _awRefreshTimer = setInterval(_awFetchAndRender, 60_000);
+}
+
+/**
+ * Start badge rotation: shows MAX_VISIBLE badges at a time, cycles through all
+ * with a fade-out/fade-in every INTERVAL ms.
+ */
+function _startBadgeRotation(allBadges, maxVisible = 3) {
+    clearInterval(_awBadgeTimer);
+    const row = document.getElementById('aw-badges-row');
+    if (!row || allBadges.length <= maxVisible) return; // no rotation needed
+
+    let start = 0;
+    const render = () => {
+        const slice = [];
+        for (let i = 0; i < maxVisible; i++) {
+            slice.push(allBadges[(start + i) % allBadges.length]);
+        }
+        row.innerHTML = slice.join('');
+    };
+
+    _awBadgeTimer = setInterval(() => {
+        if (!row.isConnected) { clearInterval(_awBadgeTimer); return; }
+        row.style.opacity = '0';
+        setTimeout(() => {
+            start = (start + 1) % allBadges.length;
+            render();
+            row.style.opacity = '1';
+        }, 380);
+    }, 4500);
 }
 
 /** Build one trend mini-card. */
@@ -2217,7 +2303,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         statusCls = 'aw-status-ok';
     }
 
-    // Single-row compare bar: both values scaled relative to max+30% headroom
+    // Single-row compare bar
     const scale      = Math.max(myRate, avgRate, 5) * 1.35;
     const youFillPct = +((myRate  / scale) * 100).toFixed(1);
     const avgTickPct = +((avgRate / scale) * 100).toFixed(1);
@@ -2236,37 +2322,40 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const arr2 = _awTrendArrow(rates[1], rates[2]);
     const arrowHtml = a => a ? `<span class="aw-tc-arrow ${a.cls}">${a.sym}</span>` : '';
 
-    // Badges — richer info chips
-    const diffPct = avgRate - myRate; // positive = you're better
-    const badges = [];
-    // Always show your waste rate vs avg
-    badges.push(`<span class="aw-badge aw-badge-rate">
+    // Build all badge objects (shown 3 at a time, rotated)
+    const diffPct = avgRate - myRate;
+    const allBadges = [];
+    allBadges.push(`<span class="aw-badge aw-badge-rate">
         <span class="aw-badge-icon">📊</span>
         <span class="aw-badge-body"><b>${myRate}%</b><small>${t('antiwaste.badge_rate')}</small></span>
     </span>`);
-    if (savedMoney > 0) badges.push(`<span class="aw-badge aw-badge-money">
-        <span class="aw-badge-icon">💰</span>
-        <span class="aw-badge-body"><b>${bm.currency}${savedMoney}/m</b><small>${t('antiwaste.badge_saved_money')}</small></span>
-    </span>`);
-    if (savedMeals > 0) badges.push(`<span class="aw-badge aw-badge-meals">
-        <span class="aw-badge-icon">🥗</span>
-        <span class="aw-badge-body"><b>${savedMeals}</b><small>${t('antiwaste.badge_meals')}</small></span>
-    </span>`);
-    if (savedCO2 > 0) badges.push(`<span class="aw-badge aw-badge-co2">
-        <span class="aw-badge-icon">🌍</span>
-        <span class="aw-badge-body"><b>−${savedCO2} kg</b><small>CO₂</small></span>
-    </span>`);
-    if (wasted30 > 0) badges.push(`<span class="aw-badge aw-badge-wasted">
+    if (wasted30 > 0) allBadges.push(`<span class="aw-badge aw-badge-wasted">
         <span class="aw-badge-icon">🗑️</span>
         <span class="aw-badge-body"><b>${wasted30}</b><small>${t('antiwaste.badge_wasted')}</small></span>
     </span>`);
-    if (diffPct > 0) badges.push(`<span class="aw-badge aw-badge-better">
+    if (savedMoney > 0) allBadges.push(`<span class="aw-badge aw-badge-money">
+        <span class="aw-badge-icon">💰</span>
+        <span class="aw-badge-body"><b>${bm.currency}${savedMoney}/m</b><small>${t('antiwaste.badge_saved_money')}</small></span>
+    </span>`);
+    if (savedMeals > 0) allBadges.push(`<span class="aw-badge aw-badge-meals">
+        <span class="aw-badge-icon">🥗</span>
+        <span class="aw-badge-body"><b>${savedMeals}</b><small>${t('antiwaste.badge_meals')}</small></span>
+    </span>`);
+    if (savedCO2 > 0) allBadges.push(`<span class="aw-badge aw-badge-co2">
+        <span class="aw-badge-icon">🌍</span>
+        <span class="aw-badge-body"><b>−${savedCO2} kg</b><small>CO₂</small></span>
+    </span>`);
+    if (diffPct > 0) allBadges.push(`<span class="aw-badge aw-badge-better">
         <span class="aw-badge-icon">✅</span>
         <span class="aw-badge-body"><b>−${diffPct}%</b><small>${t('antiwaste.badge_better')}</small></span>
     </span>`);
 
-    // Random starting fact
-    const facts   = AW_FACTS[_currentLang] || AW_FACTS['it'];
+    // Initial 3-badge slice
+    const MAX_VISIBLE = 3;
+    const initBadges  = allBadges.slice(0, MAX_VISIBLE).join('');
+
+    // Facts
+    const facts   = _awGetFacts();
     const factIdx = Math.floor(Math.random() * facts.length);
 
     const liveCls = isOnline ? 'aw-live-on'          : 'aw-live-off';
@@ -2293,7 +2382,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
             <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
         </div>
 
-        ${badges.length > 0 ? `<div class="aw-savings-row">${badges.join('')}</div>` : ''}
+        ${allBadges.length > 0 ? `<div id="aw-badges-row" class="aw-savings-row">${initBadges}</div>` : ''}
 
         ${hasTrend ? `<div class="aw-trend-cards">
             ${_awTrendCard(rates[0], labels[0], maxTrend)}
@@ -2308,10 +2397,13 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
             <span id="aw-fact-text" class="aw-fact-text">${facts[factIdx]}</span>
         </div>
 
-        <div class="aw-source">${t('antiwaste.source')}</div>
+        <div class="aw-source">${(_awLiveFacts && _awLiveFacts.source) || t('antiwaste.source')}</div>
     `;
 
-    // Rotate facts every 6 s with CSS fade
+    // Badge rotation (3 at a time)
+    _startBadgeRotation(allBadges, MAX_VISIBLE);
+
+    // Fact rotation (every 6 s)
     if (_awFactTimer) clearInterval(_awFactTimer);
     if (facts.length > 1) {
         let idx = factIdx;
@@ -2426,7 +2518,8 @@ async function loadDashboard() {
         // Banner alerts (suspicious quantities + consumption predictions)
         loadBannerAlerts();
 
-        // Anti-waste section
+        // Anti-waste section (load facts first so rotation has full dataset)
+        await _awLoadFacts();
         _renderAntiWasteSection(
             statsData.used_30d      || 0, statsData.wasted_30d      || 0,
             statsData.used_prev_30d || 0, statsData.wasted_prev_30d || 0,

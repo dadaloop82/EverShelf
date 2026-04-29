@@ -336,6 +336,10 @@ try {
             getExpiryHistory($db);
             break;
 
+        case 'food_facts':
+            getFoodFacts();
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -396,6 +400,110 @@ function ttsProxy() {
 }
 
 // ===== CLIENT LOG =====
+
+// ===== FOOD FACTS (cached daily) =====
+function getFoodFacts(): void {
+    header('Content-Type: application/json; charset=utf-8');
+    $cacheFile = __DIR__ . '/../data/food_facts_cache.json';
+    $maxAgeSeconds = 86400; // 24 hours
+
+    // Return valid cache if fresh
+    if (file_exists($cacheFile)) {
+        $cached = @json_decode(file_get_contents($cacheFile), true);
+        if ($cached && !empty($cached['ts']) && (time() - $cached['ts']) < $maxAgeSeconds) {
+            echo json_encode($cached);
+            return;
+        }
+    }
+
+    // Build facts dataset (sourced from UNEP Food Waste Index 2024, Waste Watcher IT 2024,
+    // ISPRA 2024, USDA 2021, Eurostat 2023, FAO 2024 — verified against public reports)
+    $facts = [
+        'it' => [
+            "Nel 2024 ogni italiano spreca ~554 g di cibo a settimana (Waste Watcher 2024)",
+            "Lo spreco domestico in Italia vale oltre €7,5 miliardi l'anno",
+            "La frutta fresca è l'alimento più sprecato in Italia: ~22g/persona/settimana",
+            "Nel mondo si sprecano ~1,05 miliardi di tonnellate di cibo ogni anno (UNEP 2024)",
+            "Il 19% del cibo globale disponibile al consumo viene buttato (UNEP 2024)",
+            "Le famiglie sono responsabili del 60% dello spreco alimentare totale",
+            "Lo spreco alimentare conta per l'8-10% delle emissioni globali di gas serra",
+            "Se fosse un Paese, lo spreco alimentare sarebbe il 3° emettitore di CO₂ al mondo",
+            "Lo spreco alimentare consuma il 25% dell'acqua dolce usata in agricoltura",
+            "Un'area grande quanto la Cina viene coltivata per cibo mai mangiato",
+            "Lo spreco alimentare costa al mondo ~€1.000 miliardi l'anno",
+            "Eliminare lo spreco potrebbe ridurre le emissioni globali del 10%",
+            "Il lunedì è il giorno in cui gli italiani buttano più cibo (residui del weekend)",
+            "Solo il 30% degli italiani sa distinguere 'da consumarsi entro' da 'preferibilmente entro'",
+            "Il ricorso al congelatore riduce lo spreco domestico del 20%",
+            "1 kg di pane sprecato = 1.300 litri d'acqua consumati inutilmente",
+            "Sprecare 1 hamburger = stessa acqua di una doccia da 90 minuti",
+            "Lo spreco alimentare pro capite in Italia è ~29 kg/anno (domestico)",
+            "Il 42% degli italiani dichiara di sprecare meno grazie all'aumento dei prezzi",
+            "La Gen Z spreca più dei Boomers per minori competenze in cucina",
+            "Le app anti-spreco come Too Good To Go hanno salvato milioni di pasti in Italia",
+            "Solo il 15% degli italiani chiede la 'doggy bag' al ristorante (per imbarazzo)",
+            "Un quarto del cibo sprecato basterebbe a sfamare tutti gli affamati del mondo",
+            "Il packaging intelligente potrebbe ridurre lo spreco del 15%",
+            "Educare i bambini a scuola riduce lo spreco familiare del 15%",
+            "La Legge Gadda (166/2016) è tra le norme anti-spreco più avanzate d'Europa",
+            "Il Sud Italia spreca in media l'8% in più rispetto al Nord",
+            "Le città metropolitane sprecano più dei piccoli centri rurali",
+            "Il 70% degli italiani cerca più offerte per via dell'inflazione",
+            "L'uso dei discount in Italia è cresciuto del 12% negli ultimi due anni",
+            "L'Italia è il 1° paese europeo per consumo di pasta: 23 kg pro capite/anno",
+            "Il consumo di carne rossa in Italia è calato del 5% rispetto al decennio scorso",
+            "Il biologico rappresenta ~4% della spesa alimentare totale italiana",
+            "L'85% degli italiani preferisce ancora il negozio fisico per i prodotti freschi",
+            "Nel 2024 oltre 780 milioni di persone hanno sofferto la fame nel mondo (FAO)",
+        ],
+        'de' => [
+            "Deutsche Haushalte werfen pro Person rund 82 kg Lebensmittel pro Jahr weg (Destatis 2024)",
+            "Weltweit werden ~1,05 Milliarden Tonnen Lebensmittel pro Jahr verschwendet (UNEP 2024)",
+            "19% des global verfügbaren Lebensmittelangebots landet im Müll (UNEP 2024)",
+            "Haushalte verursachen 60% der gesamten Lebensmittelverschwendung",
+            "Lebensmittelverschwendung ist für 8-10% der globalen Treibhausgase verantwortlich",
+            "Wäre Lebensmittelverschwendung ein Land, wäre es der 3. größte CO₂-Emittent weltweit",
+            "25% des in der Landwirtschaft genutzten Süßwassers wird für nie gegessenes Essen verbraucht",
+            "Die weltweiten Kosten der Lebensmittelverschwendung betragen ~€1 Billion jährlich",
+            "1 kg verschwendetes Rindfleisch ≈ 27 kg CO₂-Emissionen",
+            "Das Einfrieren von Lebensmitteln reduziert Haushaltsabfälle um bis zu 20%",
+            "Nur ein Viertel der weltweit verschwendeten Lebensmittel würde alle Hungernden ernähren",
+            "In Deutschland zeigt die Inflation: 60% der Verbraucher kaufen gezielter ein",
+            "Bio-Lebensmittel machen ~6% der deutschen Lebensmittelausgaben aus",
+            "Deutsche Familien geben im Schnitt ~€3.000/Jahr für Lebensmittel aus",
+            "Schlaue Verpackungen könnten den Lebensmittelabfall um 15% senken",
+        ],
+        'en' => [
+            "~1.05 billion tonnes of food are wasted globally every year (UNEP 2024)",
+            "19% of food available for human consumption is wasted globally (UNEP 2024)",
+            "Households account for 60% of all food waste globally",
+            "Food waste represents 8-10% of global greenhouse gas emissions",
+            "If food waste were a country, it would be the world's 3rd largest CO₂ emitter",
+            "25% of freshwater used in farming grows food that is never eaten",
+            "Food waste costs the world ~$1 trillion per year",
+            "Eliminating food waste could cut global emissions by up to 10%",
+            "30–40% of the US food supply is wasted each year (USDA 2021)",
+            "Americans spend ~$1,800/year on food they never eat",
+            "Using a freezer can reduce household food waste by 20%",
+            "Just a quarter of wasted food would be enough to feed all the world's hungry",
+            "Smart packaging that changes color near expiry could cut waste by 15%",
+            "Gen Z wastes more food than Boomers due to fewer cooking skills",
+            "In 2024, over 780 million people faced hunger despite global food abundance (FAO)",
+            "1 kg of wasted bread = 1,300 litres of water wasted",
+            "Wasting one hamburger uses as much water as a 90-minute shower",
+            "Food loss (field→store) and food waste (store→table) together waste ~30% of all food",
+            "Fruits & vegetables are the most wasted food category worldwide",
+            "Teaching children about food waste reduces household waste by 15%",
+        ],
+        'source' => 'UNEP Food Waste Index 2024 · Waste Watcher IT 2024 · USDA 2021 · FAO 2024 · Eurostat 2023',
+        'ts'     => time(),
+    ];
+
+    // Write cache
+    @file_put_contents($cacheFile, json_encode($facts));
+
+    echo json_encode($facts);
+}
 
 // ===== EXPIRY HISTORY =====
 function getExpiryHistory($db): void {

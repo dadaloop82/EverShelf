@@ -492,9 +492,11 @@ body {
 /* ── Savings badges ─────────────────────────────────────── */
 .aw-savings-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow: hidden;
     gap: 5px;
     margin-bottom: 7px;
+    transition: opacity 0.38s ease;
 }
 .aw-badge {
     display: inline-flex;
