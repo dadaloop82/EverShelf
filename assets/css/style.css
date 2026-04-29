@@ -499,6 +499,14 @@ body {
 }
 .aw-cmp-legend-you { color: #16a34a; }
 .aw-cmp-legend-avg { color: #f97316; }
+/* Annual totals + range note */
+.aw-cmp-range {
+    font-size: 0.67rem;
+    color: #6b7280;
+    margin: 1px 0 4px;
+    padding: 0;
+    text-align: center;
+}
 /* Inline status below bars */
 .aw-status-inline {
     font-size: 0.75rem;

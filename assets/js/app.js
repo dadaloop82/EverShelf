@@ -2076,9 +2076,9 @@ function showPage(pageId, param = null) {
 // ===== ANTI-WASTE SECTION =====
 
 const WASTE_BENCHMARKS = {
-    it: { avgWasteRate: 22, avgKgMonth: 5.4, costPerKg: 8.2, currency: '€', countryKey: 'antiwaste.country_it' },
-    de: { avgWasteRate: 20, avgKgMonth: 6.5, costPerKg: 7.7, currency: '€', countryKey: 'antiwaste.country_de' },
-    en: { avgWasteRate: 30, avgKgMonth: 9.2, costPerKg: 8.5, currency: '$', countryKey: 'antiwaste.country_en' },
+    it: { avgWasteRate: 22, avgKgMonth: 5.4, costPerKg: 8.2, currency: '€', countryKey: 'antiwaste.country_it', rangeMin: 8,  rangeMax: 36 },
+    de: { avgWasteRate: 20, avgKgMonth: 6.5, costPerKg: 7.7, currency: '€', countryKey: 'antiwaste.country_de', rangeMin: 7,  rangeMax: 34 },
+    en: { avgWasteRate: 30, avgKgMonth: 9.2, costPerKg: 8.5, currency: '$', countryKey: 'antiwaste.country_en', rangeMin: 12, rangeMax: 50 },
 };
 const _AW_KG_PER_EVENT = 0.5;
 let _awRefreshTimer = null;
@@ -2291,7 +2291,6 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const savedEvents     = Math.max(0, avgWastedEvents - wasted30);
     const savedKg         = +(savedEvents * _AW_KG_PER_EVENT).toFixed(1);
     const savedMoney      = Math.round(savedKg * bm.costPerKg);
-    const savedMeals      = Math.round(savedKg * 2.5);
     const savedCO2        = +(savedKg * 2.5).toFixed(1);
 
     // Status
@@ -2313,21 +2312,16 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const youPct  = +((myRate / scale) * 88).toFixed(1); // your bar, same scale
     const youLabel = t('antiwaste.you').split(' ')[0]; // "Tu" / "You" / "Du"
 
-    // Trend cards
-    const totals   = [usedP60 + wastedP60, usedP30 + wastedP30, total30];
-    const rates    = totals.map((tot, i) => {
-        const w = [wastedP60, wastedP30, wasted30][i];
-        return tot > 0 ? Math.round((w / tot) * 100) : null;
-    });
-    const labels   = [t('antiwaste.months_ago_2'), t('antiwaste.months_ago_1'), t('antiwaste.this_month')];
-    const maxTrend = Math.max(...rates.filter(r => r !== null), 5);
-    const hasTrend = rates[0] !== null || rates[1] !== null;
+    // Annual totals for comparison bar
+    const myAnnualKg  = Math.round(wasted30 * _AW_KG_PER_EVENT * 12);
+    const avgAnnualKg = Math.round(bm.avgKgMonth * 12);
+    const annualInfo  = t('antiwaste.annual_info')
+        .replace('{you}', myAnnualKg)
+        .replace('{avg}', avgAnnualKg)
+        .replace('{min}', bm.rangeMin)
+        .replace('{max}', bm.rangeMax);
 
-    const arr1 = _awTrendArrow(rates[0], rates[1]);
-    const arr2 = _awTrendArrow(rates[1], rates[2]);
-    const arrowHtml = a => a ? `<span class="aw-tc-arrow ${a.cls}">${a.sym}</span>` : '';
-
-    // Build all badge objects (shown 4 at a time, rotated every hour)
+    // Build all badge objects (shown 4 at a time, rotated every 5 min)
     const diffPct = avgRate - myRate;
     const allBadges = [];
     allBadges.push(`<span class="aw-badge aw-badge-rate">
@@ -2341,10 +2335,6 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     if (savedMoney > 0) allBadges.push(`<span class="aw-badge aw-badge-money">
         <span class="aw-badge-icon">💰</span>
         <span class="aw-badge-body"><b>${bm.currency}${savedMoney}/m</b><small>${t('antiwaste.badge_saved_money')}</small></span>
-    </span>`);
-    if (savedMeals > 0) allBadges.push(`<span class="aw-badge aw-badge-meals">
-        <span class="aw-badge-icon">🥗</span>
-        <span class="aw-badge-body"><b>${savedMeals}</b><small>${t('antiwaste.badge_meals')}</small></span>
     </span>`);
     if (savedCO2 > 0) allBadges.push(`<span class="aw-badge aw-badge-co2">
         <span class="aw-badge-icon">🌍</span>
@@ -2384,18 +2374,11 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 <span class="aw-cmp-legend-you">▮ ${youLabel} <strong>${myRate}%</strong></span>
                 <span class="aw-cmp-legend-avg">${country} <strong>${avgRate}%</strong> ▮</span>
             </div>
+            <p class="aw-cmp-range">${annualInfo}</p>
             <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
         </div>
 
         ${allBadges.length > 0 ? `<div id="aw-badges-row" class="aw-savings-row">${initBadges}</div>` : ''}
-
-        ${hasTrend ? `<div class="aw-trend-cards">
-            ${_awTrendCard(rates[0], labels[0], maxTrend)}
-            ${arrowHtml(arr1)}
-            ${_awTrendCard(rates[1], labels[1], maxTrend)}
-            ${arrowHtml(arr2)}
-            ${_awTrendCard(rates[2], labels[2], maxTrend)}
-        </div>` : ''}
 
         <div class="aw-fact-rotator">
             <span class="aw-fact-icon">💡</span>
@@ -2453,7 +2436,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 el.textContent = facts[idx];
                 el.classList.remove('aw-fact-fade');
             }, 420);
-        }, 6000);
+        }, 5 * 60_000);
     }
 }
 
@@ -11177,6 +11160,10 @@ function generateScreensaverFact() {
             return `Distribuzione: ${parts.join('  ·  ')}`;
         });
     }
+
+    // --- Anti-waste knowledge facts ---
+    const awFacts = _awGetFacts();
+    for (const f of awFacts) { facts.push(() => f); }
 
     // Pick a random fact
     if (facts.length === 0) {
