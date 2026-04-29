@@ -340,6 +340,10 @@ try {
             getFoodFacts();
             break;
 
+        case 'opened_shelf_life':
+            getOpenedShelfLifeAction();
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -1678,16 +1682,19 @@ function getStats(PDO $db): void {
     $today = strtotime('today midnight');
     foreach ($openedRaw as $item) {
         $vacuum = (int)($item['vacuum_sealed'] ?? 0);
+        // originalExpiry = manufacturer date stored in inventory.expiry_date.
+        // For items correctly managed, this is the sealed expiry from the package.
         $originalExpiry = !empty($item['expiry_date']) ? strtotime($item['expiry_date']) : null;
 
         if (!empty($item['opened_at'])) {
-            // Compute the opened shelf-life from the moment it was opened
-            $openedDays = estimateOpenedExpiryDaysPHP($item['name'], $item['category'], $item['location']);
-            if ($vacuum) $openedDays = (int)round($openedDays * 1.5);
+            // Compute opened shelf-life using AI (with rule-based fallback + persistent cache).
+            // The vacuum-sealed multiplier is already handled inside getOpenedShelfLifeDays.
+            $openedDays    = getOpenedShelfLifeDays($item['name'], $item['category'], $item['location'], (bool)$vacuum);
             $computedExpiry = strtotime($item['opened_at']) + $openedDays * 86400;
-            // Use the computed opened expiry only — stored expiry_date may have been set by
-            // an older (inaccurate) estimation and would give wrong results if mixed in.
-            $finalExpiry = $computedExpiry;
+            // Always respect the manufacturer date: if the package expires before our estimate,
+            // use the manufacturer date (e.g., milk opened 2 days before its sealed expiry).
+            $finalExpiry = ($originalExpiry !== null && $originalExpiry < $computedExpiry)
+                ? $originalExpiry : $computedExpiry;
             $item['opened_expiry'] = date('Y-m-d', $finalExpiry);
             $item['days_to_expiry'] = (int)round(($finalExpiry - $today) / 86400);
         } else {
@@ -2121,6 +2128,89 @@ function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 3
         // 429/503 on this model → try next model
     }
     return $last;
+}
+
+// ===== AI-POWERED OPENED SHELF LIFE =====
+
+/**
+ * Return the number of days a product remains safe after opening, depending on storage location.
+ * Checks a local JSON cache first (keyed by product name+location); on cache miss, asks Gemini AI.
+ * Falls back to the rule-based estimate if AI is unavailable or returns an unusable answer.
+ * Cache has no expiry — shelf-life science doesn't change; the file can be manually deleted to refresh.
+ */
+function getOpenedShelfLifeDays(string $name, string $category, string $location, bool $vacuumSealed = false): int {
+    $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
+    $cacheKey  = md5(mb_strtolower($name) . '|' . mb_strtolower($location));
+
+    // Load cache
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+    }
+
+    if (isset($cache[$cacheKey]['days'])) {
+        $days = (int)$cache[$cacheKey]['days'];
+        return $vacuumSealed ? (int)round($days * 1.5) : $days;
+    }
+
+    // Try Gemini AI
+    $apiKey = env('GEMINI_API_KEY');
+    $days   = 0;
+    if (!empty($apiKey)) {
+        $locLabel = match($location) {
+            'frigo'   => 'refrigerator (4 °C / 39 °F)',
+            'freezer' => 'freezer (-18 °C / 0 °F)',
+            default   => 'pantry / room temperature (18-22 °C)',
+        };
+        $catHint = $category ? " (category: {$category})" : '';
+        $prompt  = "How many days can \"{$name}\"{$catHint} be safely consumed after being OPENED and stored in a {$locLabel}? "
+                 . "Reply with ONLY a single integer (the number of days). No units, no explanation, just the number.";
+
+        $payload = [
+            'contents'         => [['parts' => [['text' => $prompt]]]],
+            'generationConfig' => ['maxOutputTokens' => 8, 'temperature' => 0],
+        ];
+        $result = callGeminiWithFallback($apiKey, $payload, 12);
+        if ($result['http_code'] === 200) {
+            $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
+            $parsed = (int)preg_replace('/\D/', '', $text);
+            if ($parsed > 0 && $parsed <= 3650) {
+                $days = $parsed;
+            }
+        }
+    }
+
+    // Fall back to rule-based estimate if AI unavailable / unusable
+    $source = 'rule';
+    if ($days <= 0) {
+        $days   = estimateOpenedExpiryDaysPHP($name, $category, $location);
+        $source = 'rule';
+    } else {
+        $source = 'ai';
+    }
+
+    // Persist to cache
+    $cache[$cacheKey] = ['days' => $days, 'source' => $source, 'name' => $name, 'location' => $location, 'ts' => time()];
+    @file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+    return $vacuumSealed ? (int)round($days * 1.5) : $days;
+}
+
+/**
+ * Expose the shelf-life cache via API so the JS can pre-warm it when a user marks an item opened.
+ * Accepts: POST { name, category, location, vacuum_sealed? }
+ * Returns: { days, source }
+ */
+function getOpenedShelfLifeAction(): void {
+    header('Content-Type: application/json; charset=utf-8');
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $name  = trim($input['name']     ?? '');
+    $cat   = trim($input['category'] ?? '');
+    $loc   = trim($input['location'] ?? 'frigo');
+    $vac   = !empty($input['vacuum_sealed']);
+    if ($name === '') { echo json_encode(['error' => 'name required']); return; }
+    $days = getOpenedShelfLifeDays($name, $cat, $loc, $vac);
+    echo json_encode(['days' => $days]);
 }
 
 function geminiReadExpiry(): void {
