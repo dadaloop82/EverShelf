@@ -2208,10 +2208,11 @@ function _startAntiWasteAutoRefresh() {
 }
 
 /**
- * Start badge rotation: shows maxVisible badges at a time, cycles through all
- * with a fade-out/fade-in once per hour (aligned to the next clock-hour boundary).
+ * Start badge rotation: shows only as many badges as fit in one row (auto-measured),
+ * cycles through all with a fade every 5 minutes.
+ * Call AFTER the row is already in the DOM with the initial slice rendered.
  */
-function _startBadgeRotation(allBadges, maxVisible = 4) {
+function _startBadgeRotation(allBadges, maxVisible) {
     clearInterval(_awBadgeTimer);
     const row = document.getElementById('aw-badges-row');
     if (!row || allBadges.length <= maxVisible) return;
@@ -2235,12 +2236,8 @@ function _startBadgeRotation(allBadges, maxVisible = 4) {
         }, 380);
     };
 
-    // Fire once per hour, aligned to next full clock-hour
-    const msToNextHour = (60 - new Date().getMinutes()) * 60_000 - new Date().getSeconds() * 1000;
-    setTimeout(() => {
-        rotate();
-        _awBadgeTimer = setInterval(rotate, 3_600_000); // then every hour
-    }, msToNextHour);
+    // Rotate every 5 minutes
+    _awBadgeTimer = setInterval(rotate, 5 * 60_000);
 }
 
 /** Build one trend mini-card. */
@@ -2358,9 +2355,9 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         <span class="aw-badge-body"><b>−${diffPct}%</b><small>${t('antiwaste.badge_better')}</small></span>
     </span>`);
 
-    // Initial 4-badge slice (centered via CSS justify-content:center)
-    const MAX_VISIBLE = 4;
-    const initBadges  = allBadges.slice(0, MAX_VISIBLE).join('');
+    // Initial render: show all badges (row uses nowrap so they overflow off-screen, no wrapping)
+    // We'll measure and trim in requestAnimationFrame below.
+    const initBadges = allBadges.join('');
 
     // Facts
     const facts   = _awGetFacts();
@@ -2408,16 +2405,40 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
         <div class="aw-source">${(_awLiveFacts && _awLiveFacts.source) || t('antiwaste.source')}</div>
     `;
 
-    // Animate comparison bars after DOM insertion
+    // After DOM insertion: animate bars + measure how many badges actually fit in one row
     requestAnimationFrame(() => {
+        // Animate comparison bars
         const barYou = document.getElementById('aw-bar-you');
         const barAvg = document.getElementById('aw-bar-avg');
         if (barYou) { barYou.style.width = youPct + '%'; setTimeout(() => barYou.classList.add('loaded'), 100); }
         if (barAvg) { barAvg.style.width = avgPct + '%'; setTimeout(() => barAvg.classList.add('loaded'), 100); }
-    });
 
-    // Badge rotation: 4 at a time, every hour
-    _startBadgeRotation(allBadges, MAX_VISIBLE);
+        // Measure how many badges fit in one row
+        const row = document.getElementById('aw-badges-row');
+        if (!row || !allBadges.length) return;
+
+        const GAP = 6; // matches CSS gap
+        const rowW = row.offsetWidth;
+
+        // Measure each badge width by reading the rendered children
+        const kids = [...row.children];
+        let totalW = 0;
+        let fit = 0;
+        for (const el of kids) {
+            const bw = el.offsetWidth;
+            if (fit > 0) totalW += GAP;
+            totalW += bw;
+            if (totalW > rowW + 1) break; // +1 for sub-pixel rounding
+            fit++;
+        }
+        fit = Math.max(1, fit);
+
+        // Trim visible row to the fit count
+        row.innerHTML = allBadges.slice(0, fit).join('');
+
+        // Start rotation only if there are more badges than fit
+        _startBadgeRotation(allBadges, fit);
+    });
 
     // Fact rotation (every 6 s)
     if (_awFactTimer) clearInterval(_awFactTimer);
