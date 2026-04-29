@@ -128,6 +128,8 @@
         "banner_finished_check": "Can you check?",
         "banner_anomaly_phantom_title": "you have more stock than expected",
         "banner_anomaly_phantom_detail": "Inventory shows {inv_qty} {unit}, but based on records you should only have {expected_qty} {unit}. Did you add stock without recording it?",
+        "banner_anomaly_untracked_title": "stock not recorded as an entry",
+        "banner_anomaly_untracked_detail": "You have <strong>{inv_qty} {unit}</strong> in inventory, but recorded outflows exceed inflows — the initial stock was likely never added as an \"in\" transaction. You can correct the quantity or log the missing entries.",
         "banner_anomaly_ghost_title": "you have less stock than expected",
         "banner_anomaly_ghost_detail": "Based on recorded operations you should have {expected_qty} {unit} of {name}, but inventory shows only {inv_qty} {unit}. Did you take stock without recording it?",
         "consumed": "Consumed: {n} ({pct}%)",

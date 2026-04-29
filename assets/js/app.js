@@ -2962,9 +2962,14 @@ function renderBannerItem() {
     } else if (entry.type === 'anomaly') {
         const an = entry.data;
         const isPhantom = an.direction === 'phantom';
+        const isUntracked = an.direction === 'untracked';
         banner.className = 'alert-banner banner-anomaly';
         iconEl.textContent = '🔍';
-        if (isPhantom) {
+        if (isUntracked) {
+            // More consumption recorded than entries — initial stock was never registered
+            titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_untracked_title')}`;
+            detailEl.innerHTML = t('dashboard.banner_anomaly_untracked_detail', { inv_qty: an.inv_qty, unit: an.unit });
+        } else if (isPhantom) {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_phantom_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty });
         } else {

@@ -128,6 +128,8 @@
         "banner_finished_check": "Puoi controllare?",
         "banner_anomaly_phantom_title": "hai più scorte del previsto",
         "banner_anomaly_phantom_detail": "L'inventario segna {inv_qty} {unit}, ma in base alle registrazioni ne dovresti avere solo {expected_qty} {unit}. Hai aggiunto scorte senza registrarle?",
+        "banner_anomaly_untracked_title": "scorte non registrate come entrata",
+        "banner_anomaly_untracked_detail": "Hai <strong>{inv_qty} {unit}</strong> in inventario, ma le uscite registrate superano le entrate — le scorte iniziali probabilmente non sono mai state aggiunte come entrata. Puoi correggere la quantità o registrare le entrate mancanti.",
         "banner_anomaly_ghost_title": "hai meno scorte del previsto",
         "banner_anomaly_ghost_detail": "In base alle operazioni registrate dovresti avere {expected_qty} {unit} di {name}, ma l'inventario mostra solo {inv_qty} {unit}. Hai prelevato senza registrarlo?",
         "consumed": "Consumati: {n} ({pct}%)",
