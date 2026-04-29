@@ -696,7 +696,12 @@
         "source": "Sources: REDUCE, Eurostat, USDA 2021",
         "live_on": "Live data",
         "live_off": "Offline",
-        "meals": "meals"
+        "meals": "meals",
+        "badge_rate": "waste rate",
+        "badge_saved_money": "saved vs avg",
+        "badge_meals": "meals saved",
+        "badge_wasted": "items wasted",
+        "badge_better": "less than avg"
     },
     "error": {
         "generic": "Error",

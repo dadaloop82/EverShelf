@@ -1337,7 +1337,9 @@ function estimateOpenedExpiryDays(product, location) {
     }
 
     if (/latte\s+(fresco|intero|parzial|scremato)/.test(name)) return 3;
-    if (/latte\s+(uht|a\s+lunga)/.test(name)) return 5;
+    if (/latte\s+(uht|a\s+lunga)/.test(name)) return 7;
+    // Long-life mountain/brand milks stored in pantry before use (UHT)
+    if (/latte.*(montagna|alta\s+qual|parmalat|granarolo|esselunga|conservaz|microfiltrat)/i.test(name)) return 7;
     if (/\blatte\b/.test(name)) return 4;
     if (/\byogurt\b/.test(name)) return 5;
     if (/mozzarella|burrata|stracciatella/.test(name)) return 3;
@@ -2234,11 +2236,34 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     const arr2 = _awTrendArrow(rates[1], rates[2]);
     const arrowHtml = a => a ? `<span class="aw-tc-arrow ${a.cls}">${a.sym}</span>` : '';
 
-    // Badges
+    // Badges — richer info chips
+    const diffPct = avgRate - myRate; // positive = you're better
     const badges = [];
-    if (savedMoney > 0) badges.push(`<span class="aw-badge aw-badge-money">💰 ${bm.currency}${savedMoney}</span>`);
-    if (savedMeals > 0) badges.push(`<span class="aw-badge aw-badge-meals">🥗 ${savedMeals} ${t('antiwaste.meals')}</span>`);
-    if (savedCO2  > 0) badges.push(`<span class="aw-badge aw-badge-co2">🌍 −${savedCO2} kg CO₂</span>`);
+    // Always show your waste rate vs avg
+    badges.push(`<span class="aw-badge aw-badge-rate">
+        <span class="aw-badge-icon">📊</span>
+        <span class="aw-badge-body"><b>${myRate}%</b><small>${t('antiwaste.badge_rate')}</small></span>
+    </span>`);
+    if (savedMoney > 0) badges.push(`<span class="aw-badge aw-badge-money">
+        <span class="aw-badge-icon">💰</span>
+        <span class="aw-badge-body"><b>${bm.currency}${savedMoney}/m</b><small>${t('antiwaste.badge_saved_money')}</small></span>
+    </span>`);
+    if (savedMeals > 0) badges.push(`<span class="aw-badge aw-badge-meals">
+        <span class="aw-badge-icon">🥗</span>
+        <span class="aw-badge-body"><b>${savedMeals}</b><small>${t('antiwaste.badge_meals')}</small></span>
+    </span>`);
+    if (savedCO2 > 0) badges.push(`<span class="aw-badge aw-badge-co2">
+        <span class="aw-badge-icon">🌍</span>
+        <span class="aw-badge-body"><b>−${savedCO2} kg</b><small>CO₂</small></span>
+    </span>`);
+    if (wasted30 > 0) badges.push(`<span class="aw-badge aw-badge-wasted">
+        <span class="aw-badge-icon">🗑️</span>
+        <span class="aw-badge-body"><b>${wasted30}</b><small>${t('antiwaste.badge_wasted')}</small></span>
+    </span>`);
+    if (diffPct > 0) badges.push(`<span class="aw-badge aw-badge-better">
+        <span class="aw-badge-icon">✅</span>
+        <span class="aw-badge-body"><b>−${diffPct}%</b><small>${t('antiwaste.badge_better')}</small></span>
+    </span>`);
 
     // Random starting fact
     const facts   = AW_FACTS[_currentLang] || AW_FACTS['it'];

@@ -696,7 +696,12 @@
         "source": "Fonti: REDUCE, Eurostat, USDA 2021",
         "live_on": "Dati in tempo reale",
         "live_off": "Offline",
-        "meals": "pasti"
+        "meals": "pasti",
+        "badge_rate": "tasso spreco",
+        "badge_saved_money": "risparmio vs media",
+        "badge_meals": "pasti salvati",
+        "badge_wasted": "prod. sprecati",
+        "badge_better": "in meno vs media"
     },
     "error": {
         "generic": "Errore",
