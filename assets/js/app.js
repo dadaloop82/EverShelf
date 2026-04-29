@@ -1553,14 +1553,6 @@ const _debouncedSyncSettings = debounce(function() {
         pref_zerowaste: s.pref_zerowaste,
         dietary: s.dietary,
         appliances: s.appliances,
-        spesa_provider: s.spesa_provider,
-        spesa_ai_prompt: s.spesa_ai_prompt,
-        spesa_email: s.spesa_email,
-        spesa_password: s.spesa_password,
-        spesa_logged_in: s.spesa_logged_in,
-        spesa_user: s.spesa_user,
-        spesa_data: s.spesa_data,
-        spesa_token: s.spesa_token
     };
     api('app_settings_save', {}, 'POST', { settings: { user_prefs: shared } }).catch(() => {});
 }, 1000);
@@ -1576,8 +1568,8 @@ async function syncSettingsFromDB() {
         const s = getSettings();
         const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
-            'camera_facing','scale_enabled','scale_gateway_url','spesa_provider',
-            'spesa_ai_prompt','meal_plan_enabled','tts_enabled','tts_url','tts_token',
+            'camera_facing','scale_enabled','scale_gateway_url',
+            'meal_plan_enabled','tts_enabled','tts_url','tts_token',
             'tts_method','tts_auth_type','tts_content_type','tts_payload_key'];
         for (const key of serverKeys) {
             if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
@@ -1589,16 +1581,6 @@ async function syncSettingsFromDB() {
         // Also load review_confirmed from DB
         const res = await api('app_settings_get');
         if (res.success && res.settings) {
-            // Spesa credentials still come from DB (not .env)
-            if (res.settings.user_prefs) {
-                const db = res.settings.user_prefs;
-                for (const key of ['spesa_email','spesa_password','spesa_logged_in',
-                    'spesa_user','spesa_data','spesa_token']) {
-                    if (db[key] !== undefined) s[key] = db[key];
-                }
-                _settingsCache = s;
-                localStorage.setItem('evershelf_settings', JSON.stringify(s));
-            }
             if (res.settings.review_confirmed) {
                 _reviewConfirmedCache = res.settings.review_confirmed;
             }
@@ -1624,7 +1606,6 @@ async function loadSettingsUI() {
     if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
     loadCameraDevices();
     renderAppliances(s.appliances || []);
-    loadSpesaSettings();
     const mealPlanEnabled = s.meal_plan_enabled !== false;
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) mpEnabledEl.checked = mealPlanEnabled;
@@ -1692,8 +1673,8 @@ async function loadSettingsUI() {
         const serverKeys = ['gemini_key','bring_email','bring_password',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
-            'camera_facing','scale_enabled','scale_gateway_url','spesa_provider',
-            'spesa_ai_prompt','meal_plan_enabled',
+            'camera_facing','scale_enabled','scale_gateway_url',
+            'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
             'tts_content_type','tts_payload_key'];
         let changed = false;
@@ -1906,9 +1887,6 @@ async function saveSettings() {
     if (ttsPayloadKeyEl2) s.tts_payload_key = ttsPayloadKeyEl2.value.trim() || 'message';
     const ttsExtraEl2 = document.getElementById('setting-tts-extra-fields');
     if (ttsExtraEl2) s.tts_extra_fields = ttsExtraEl2.value.trim();
-    // Save spesa AI prompt if the field exists
-    const spesaPromptEl = document.getElementById('setting-spesa-ai-prompt');
-    if (spesaPromptEl) s.spesa_ai_prompt = spesaPromptEl.value.trim();
     // Scale settings
     const scaleEnabledEl = document.getElementById('setting-scale-enabled');
     if (scaleEnabledEl) s.scale_enabled = scaleEnabledEl.checked;
@@ -1934,8 +1912,6 @@ async function saveSettings() {
             camera_facing: s.camera_facing,
             scale_enabled: s.scale_enabled,
             scale_gateway_url: s.scale_gateway_url,
-            spesa_provider: s.spesa_provider,
-            spesa_ai_prompt: s.spesa_ai_prompt,
             meal_plan_enabled: s.meal_plan_enabled,
             tts_enabled: s.tts_enabled,
             tts_url: s.tts_url,
@@ -2374,8 +2350,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
                 <span class="aw-cmp-legend-you">▮ ${youLabel} <strong>${myRate}%</strong></span>
                 <span class="aw-cmp-legend-avg">${country} <strong>${avgRate}%</strong> ▮</span>
             </div>
-            <p class="aw-cmp-range">${annualInfo}</p>
-            <p class="aw-status-inline ${statusCls}">${statusMsg}</p>
+            <p class="aw-status-inline ${statusCls}">${statusMsg} &nbsp;·&nbsp; ${annualInfo}</p>
         </div>
 
         ${allBadges.length > 0 ? `<div id="aw-badges-row" class="aw-savings-row">${initBadges}</div>` : ''}
@@ -7225,7 +7200,6 @@ async function selectProductForAction(productId) {
 let shoppingListUUID = '';
 let shoppingItems = [];
 let suggestionItems = [];
-let shoppingPrices = {}; // { itemName: { product, searched: true } }
 let _spesaScanTarget = null; // { name, rawName, idx } when tapping item to scan
 
 // ===== SHOPPING TABS =====
@@ -7510,41 +7484,6 @@ function logOperation(action, details) {
         if (log.length > 200) log.splice(0, log.length - 200);
         localStorage.setItem('_opLog', JSON.stringify(log));
     } catch (e) { /* ignore */ }
-}
-
-const DEFAULT_SPESA_AI_PROMPT = `Sei un assistente per la spesa online. Ti viene dato il nome di un prodotto che l'utente vuole comprare e una lista di prodotti trovati nel catalogo del supermercato.
-
-Regole di selezione:
-- Scegli il prodotto che corrisponde ESATTAMENTE a quello richiesto (stessa categoria merceologica)
-- Preferisci prodotti freschi/sfusi rispetto a trasformati (es. "Arance" = arance frutta, NON aranciata bevanda)
-- Se c'è una descrizione (es. "a cubetti", "biologico"), trova il prodotto che include quella caratteristica
-- Se ci sono più varianti valide, scegli quella con il miglior rapporto qualità/prezzo
-- Preferisci formati standard per una famiglia
-- NON scegliere mai un prodotto di categoria diversa (bevanda vs frutta, surgelato vs fresco, condimento vs ortaggio, ecc.)
-- "Finocchio" = ortaggio fresco, NON semi di finocchio o tisana
-- "Arance" = frutta fresca, NON aranciata o succo
-
-Rispondi SOLO con il numero (indice 0-based) del prodotto migliore, oppure -1 se nessun prodotto è appropriato.`;
-
-function saveShoppingPrices() {
-    try {
-        // Only save items that have been searched (not loading state)
-        const toSave = {};
-        for (const [k, v] of Object.entries(shoppingPrices)) {
-            if (v.searched) toSave[k] = v;
-        }
-        // Persist to shared DB
-        api('app_settings_save', {}, 'POST', { settings: { shopping_prices: toSave } }).catch(() => {});
-    } catch (e) { /* ignore */ }
-}
-
-async function loadShoppingPrices() {
-    try {
-        const res = await api('app_settings_get');
-        if (res.success && res.settings && res.settings.shopping_prices) {
-            shoppingPrices = res.settings.shopping_prices;
-        }
-    } catch (e) { shoppingPrices = {}; }
 }
 
 // Build a better search query from item name + specification
@@ -8037,18 +7976,6 @@ async function loadShoppingList() {
         }
         shoppingItems = newItems;
         
-        // Clean up shoppingPrices for items no longer on the list
-        const currentKeys = new Set(shoppingItems.map(i => i.name.toLowerCase()));
-        let pricesChanged = false;
-        for (const key of Object.keys(shoppingPrices)) {
-            if (!currentKeys.has(key)) {
-                delete shoppingPrices[key];
-                pricesChanged = true;
-            }
-        }
-        if (pricesChanged) saveShoppingPrices();
-        
-        loadShoppingPrices();
         // Sync urgente local tags from Bring specification (items marked urgent by us or manually)
         _syncTagsFromBringSpec();
         renderShoppingItems();
@@ -8102,26 +8029,10 @@ async function renderShoppingItems() {
     
     if (shoppingItems.length === 0) {
         container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>${t('shopping.empty')}</p></div>`;
-        updateSpesaTotal();
         return;
     }
     
     const s = getSettings();
-    let hasSpesa = s.spesa_logged_in && s.spesa_token;
-    
-    // If not logged in locally, check server-side token
-    if (!hasSpesa) {
-        try {
-            const status = await api('dupliclick_status');
-            if (status.logged_in) {
-                hasSpesa = true;
-                s.spesa_logged_in = true;
-                s.spesa_token = 'server';
-                s.spesa_user = status.email || '';
-                saveSettings(s);
-            }
-        } catch (e) { /* ignore */ }
-    }
 
     // Build section groups, sorted by urgency weight within each section
     const TAG_LABELS = { urgente: t('shopping.tag_urgent'), prio: t('shopping.tag_priority'), check: t('shopping.tag_check') };
@@ -8175,8 +8086,6 @@ async function renderShoppingItems() {
 
         for (const { item, idx, smartData, urgency } of group.items) {
             const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
-            const priceKey = item.name.toLowerCase();
-            const priceData = shoppingPrices[priceKey];
             const bgStyle = urgency && URGENCY_BG[urgency] ? ` style="background:${URGENCY_BG[urgency]}"` : '';
             const localTags = getShoppingTags(item.name);
 
@@ -8203,44 +8112,8 @@ async function renderShoppingItems() {
                 ).join('')}
             </div>`;
 
-            let detailHtml = '';
-            let priceTag = '';
-            let spesaBar = '';
-            if (hasSpesa) {
-                if (priceData && priceData.loading) {
-                    detailHtml = `<div class="spesa-loading">🔍 ${t('shopping.price_searching')}</div>`;
-                } else if (priceData && priceData.product) {
-                    const p = priceData.product;
-                    const promoHtml = p.promo
-                        ? `<span class="spesa-promo-badge">${escapeHtml(p.promo.label)} -${Math.round(p.promo.discountPerc)}%</span>`
-                        : '';
-                    const est = estimateItemPrice(p, item.specification || priceData.spec || '');
-                    priceTag = est
-                        ? `<div class="shopping-item-price">~€${est.estimated.toFixed(2)}</div>`
-                        : `<div class="shopping-item-price">€${p.price.toFixed(2)}</div>`;
-                    detailHtml = `<div class="spesa-detail-left">
-                        <span class="spesa-found-name">${escapeHtml(p.name)}</span>
-                        <span class="spesa-pkg">${escapeHtml(p.packageDescr)}${est ? ' · ' + escapeHtml(String(p.priceUm || '')) + '/kg' : ''}</span>
-                        ${promoHtml}
-                    </div>`;
-                    spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="${t('shopping.search_action')}">🔄 ${t('shopping.search_action')}</button>
-                        <a href="${escapeHtml(p.url)}" target="_blank" class="spesa-bar-btn" title="${escapeHtml(p.name)}" onclick="event.stopPropagation()">🔗 ${t('shopping.open_action')}</a>
-                    </div>`;
-                } else if (priceData && priceData.searched && !priceData.product) {
-                    detailHtml = `<div class="spesa-detail-left"><span class="spesa-not-found">${t('shopping.not_found')}</span></div>`;
-                    spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx}, true)" title="${t('btn.retry').replace('🔄 ', '')}">${t('btn.retry')}</button>
-                    </div>`;
-                } else {
-                    spesaBar = `<div class="spesa-bar">
-                        <button class="spesa-bar-btn" onclick="event.stopPropagation(); searchItemPrice(${idx})" title="${t('shopping.search_price')}">🔍 ${t('shopping.search_price')}</button>
-                    </div>`;
-                }
-            }
-
             html += `
-            <div class="shopping-item ${priceData?.product?.promo ? 'has-promo' : ''}" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="${t('shopping.tap_to_scan')}"${bgStyle}>
+            <div class="shopping-item" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="${t('shopping.tap_to_scan')}"${bgStyle}>
                 <span class="shopping-item-icon">${catIcon}</span>
                 <div class="shopping-item-body">
                     <div class="shopping-item-top">
@@ -8251,15 +8124,12 @@ async function renderShoppingItems() {
                             </div>
                             ${_specDisplayText(item.specification) ? `<div class="shopping-item-spec">${escapeHtml(_specDisplayText(item.specification))}</div>` : ''}
                             ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
-                            ${detailHtml}
                         </div>
                         <div class="shopping-item-right" onclick="event.stopPropagation()">
-                            ${priceTag}
                             <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="${t('shopping.tag_title')}">🏷️</button>
                             <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="${t('shopping.remove_title')}">✕</button>
                         </div>
                     </div>
-                    ${spesaBar}
                     <div class="shopping-tag-menu-container" style="display:none">${tagMenu}</div>
                 </div>
             </div>`;
@@ -8267,7 +8137,6 @@ async function renderShoppingItems() {
     }
 
     container.innerHTML = html;
-    updateSpesaTotal();
 }
 
 function toggleShoppingTagMenu(btn) {
@@ -8277,157 +8146,6 @@ function toggleShoppingTagMenu(btn) {
     // Close all other menus first
     document.querySelectorAll('.shopping-tag-menu-container').forEach(c => c.style.display = 'none');
     container.style.display = isOpen ? 'none' : 'block';
-}
-
-function updateSpesaTotal() {
-    const banner = document.getElementById('spesa-total-banner');
-    const valueEl = document.getElementById('spesa-total-value');
-    const detailEl = document.getElementById('spesa-total-detail');
-    
-    let total = 0;
-    let found = 0;
-    let promoSaved = 0;
-    
-    for (const item of shoppingItems) {
-        const pd = shoppingPrices[item.name.toLowerCase()];
-        if (pd && pd.product) {
-            const est = estimateItemPrice(pd.product, item.specification || pd.spec || '');
-            total += est ? est.estimated : pd.product.price;
-            found++;
-            if (pd.product.promo) {
-                promoSaved += pd.product.promo.discount;
-            }
-        }
-    }
-    
-    if (found === 0) {
-        banner.style.display = 'none';
-        return;
-    }
-    
-    banner.style.display = 'block';
-    valueEl.textContent = `€ ${total.toFixed(2)}`;
-    
-    let detail = t('shopping.found_count').replace('{found}', found).replace('{total}', shoppingItems.length);
-    if (promoSaved > 0) {
-        detail += ` ${t('shopping.savings_offers').replace('{amount}', promoSaved.toFixed(2))}`;
-    }
-    detailEl.textContent = detail;
-}
-
-async function searchItemPrice(idx, force = false) {
-    const item = shoppingItems[idx];
-    if (!item) return;
-    
-    const priceKey = item.name.toLowerCase();
-    const cached = shoppingPrices[priceKey];
-    // Invalidate cache if spec changed (e.g. item was updated in Bring)
-    if (!force && cached && cached.searched) {
-        const cachedSpec = (cached.spec || '').toLowerCase();
-        const currentSpec = (item.specification || '').toLowerCase();
-        if (cachedSpec === currentSpec) return;
-    }
-    
-    const s = getSettings();
-    const provider = s.spesa_provider || 'dupliclick';
-    
-    // Show loading state
-    shoppingPrices[priceKey] = { searched: false, loading: true, product: null };
-    renderShoppingItems();
-    
-    try {
-        // Send item name as query, spec separately for AI selection (strip urgency markers)
-        const searchQ = item.name;
-        const spec = _cleanSpecForSearch(item.specification || '');
-        
-        const s2 = getSettings();
-        const aiPrompt = s2.spesa_ai_prompt || '';
-        const res = await api(`${provider}_search`, { 
-            q: searchQ, 
-            spec: spec,
-            prompt: aiPrompt
-        });
-        if (res.success && res.product) {
-            shoppingPrices[priceKey] = { searched: true, product: res.product, spec: _cleanSpecForSearch(item.specification || '') };
-        } else {
-            shoppingPrices[priceKey] = { searched: true, product: null };
-        }
-    } catch (e) {
-        shoppingPrices[priceKey] = { searched: true, product: null };
-    }
-    
-    saveShoppingPrices();
-    renderShoppingItems();
-}
-
-async function searchAllPrices() {
-    const s = getSettings();
-    if (!s.spesa_logged_in && !s.spesa_token) {
-        // Try server-side check
-        try {
-            const status = await api('dupliclick_status');
-            if (!status.logged_in) {
-                showToast(t('settings.spesa.configure_first'), 'error');
-                return;
-            }
-            s.spesa_logged_in = true;
-            s.spesa_token = 'server';
-            saveSettings(s);
-        } catch (e) {
-            showToast(t('settings.spesa.configure_first'), 'error');
-            return;
-        }
-    }
-    
-    const btn = document.getElementById('btn-search-prices');
-    const toSearch = shoppingItems.filter(item => {
-        const pd = shoppingPrices[item.name.toLowerCase()];
-        return !pd || !pd.searched;
-    });
-    
-    if (toSearch.length === 0) {
-        showToast(t('shopping.all_searched'), 'info');
-        return;
-    }
-    
-    btn.disabled = true;
-    const totalToSearch = toSearch.length;
-    
-    for (let i = 0; i < toSearch.length; i++) {
-        const item = toSearch[i];
-        btn.innerHTML = `⏳ ${t('shopping.searching_progress').replace('{current}', i + 1).replace('{total}', totalToSearch)}`;
-        
-        const priceKey = item.name.toLowerCase();
-        const provider = s.spesa_provider || 'dupliclick';
-        
-        try {
-            const aiPrompt = s.spesa_ai_prompt || '';
-            const res = await api(`${provider}_search`, { 
-                q: item.name, 
-                spec: _cleanSpecForSearch(item.specification || ''),
-                prompt: aiPrompt
-            });
-            if (res.success && res.product) {
-                shoppingPrices[priceKey] = { searched: true, product: res.product, spec: _cleanSpecForSearch(item.specification || '') };
-            } else {
-                shoppingPrices[priceKey] = { searched: true, product: null };
-            }
-        } catch (e) {
-            shoppingPrices[priceKey] = { searched: true, product: null };
-        }
-        
-        saveShoppingPrices();
-        renderShoppingItems();
-        
-        // Small delay to not overwhelm the API
-        if (i < toSearch.length - 1) {
-            await new Promise(r => setTimeout(r, 300));
-        }
-    }
-    
-    btn.disabled = false;
-    btn.innerHTML = `🔍 ${t('shopping.search_prices')}`;
-    showToast(t('shopping.search_complete').replace('{count}', totalToSearch), 'success');
 }
 
 async function removeBringItem(idx) {
@@ -10884,18 +10602,6 @@ function generateScreensaverFact() {
     // Greeting based on time
     const greeting = hour < 12 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera';
 
-    // Estimated shopping total
-    let spesaTotal = 0;
-    let spesaPriced = 0;
-    for (const item of shop) {
-        const pd = shoppingPrices[item.name.toLowerCase()];
-        if (pd && pd.product) {
-            const est = estimateItemPrice(pd.product, item.specification || pd.spec || '');
-            spesaTotal += est ? est.estimated : pd.product.price;
-            spesaPriced++;
-        }
-    }
-
     // Random item picker
     const rItem = (arr) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
 
@@ -10959,12 +10665,6 @@ function generateScreensaverFact() {
             const names = shop.slice(0, 4).map(i => i.name);
             return `Nella spesa: ${names.join(', ')}${shop.length > 4 ? '...' : ''}`;
         });
-        if (spesaTotal > 0) {
-            facts.push(() => `Il totale previsto per la spesa è circa €${spesaTotal.toFixed(2)}.`);
-            if (spesaPriced < shop.length) {
-                facts.push(() => `Spesa stimata: €${spesaTotal.toFixed(2)} (${spesaPriced} di ${shop.length} prodotti con prezzo).`);
-            }
-        }
     }
     if (shop.length === 0) {
         facts.push(() => `La lista della spesa è vuota. Tutto a posto!`);
@@ -11719,133 +11419,3 @@ async function _backgroundBringSync() {
     } catch (e) { /* silent — best effort */ }
 }
 
-// ===== DUPLICLICK (SPESA ONLINE) =====
-
-function selectSpesaProvider(btn, provider) {
-    document.querySelectorAll('.provider-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const s = getSettings();
-    s.spesa_provider = provider;
-    saveSettingsToStorage(s);
-}
-
-async function spesaLogin() {
-    const email = document.getElementById('setting-spesa-email').value.trim();
-    const password = document.getElementById('setting-spesa-password').value.trim();
-    const s = getSettings();
-    const provider = s.spesa_provider || 'dupliclick';
-
-    if (!email || !password) {
-        showToast(t('settings.spesa.missing_credentials'), 'error');
-        return;
-    }
-
-    const btn = document.getElementById('spesa-login-btn');
-    const statusEl = document.getElementById('spesa-login-status');
-    const resultEl = document.getElementById('spesa-login-result');
-
-    btn.disabled = true;
-    btn.innerHTML = `⏳ ${t('settings.spesa.login_in_progress')}`;
-    statusEl.style.display = 'none';
-    resultEl.style.display = 'none';
-
-    try {
-        const res = await api(`${provider}_login`, {}, 'POST', { email, password });
-
-        if (res.error) {
-            statusEl.className = 'dupliclick-status error';
-            statusEl.innerHTML = `❌ <strong>${t('settings.spesa.login_error_prefix')}</strong> ${escapeHtml(res.error)}`;
-            statusEl.style.display = 'block';
-            btn.disabled = false;
-            btn.innerHTML = t('settings.spesa.login_btn');
-            return;
-        }
-
-        // Save credentials and session data persistently
-        s.spesa_email = email;
-        s.spesa_password = password;
-        s.spesa_token = res.token_full || '';
-        s.spesa_provider = provider;
-        s.spesa_logged_in = true;
-        s.spesa_user = res.user || (res.data && res.data.user) || {};
-        s.spesa_data = res.data || {};
-        // Save AI prompt too
-        const promptEl = document.getElementById('setting-spesa-ai-prompt');
-        if (promptEl) s.spesa_ai_prompt = promptEl.value.trim();
-        saveSettingsToStorage(s);
-
-        statusEl.className = 'dupliclick-status success';
-        const welcomeMsg = (res.infos && res.infos[0]) ? res.infos[0].info : t('settings.spesa.login_success_default');
-        statusEl.innerHTML = `✅ <strong>${escapeHtml(welcomeMsg)}</strong>`;
-        statusEl.style.display = 'block';
-
-        // Display key info only
-        const user = res.user || (res.data && res.data.user) || {};
-        const data = res.data || {};
-        const shipping = data.shippingAddress || {};
-        const points = user.userPoints || data.userPoints || {};
-        const fidelityPts = Array.isArray(points) ? points[0] : points['0'];
-        
-        let html = '<div class="dupliclick-data">';
-        html += '<div class="dupliclick-data-grid">';
-        
-        if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 ${t('settings.spesa.result_name_label')}</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
-        if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 ${t('settings.spesa.result_card_label')}</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
-        if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 ${t('settings.spesa.result_pickup_label')}</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
-        if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ ${t('settings.spesa.result_points_label')}</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
-        
-        html += '</div></div>';
-        resultEl.innerHTML = html;
-        resultEl.style.display = 'block';
-
-    } catch (e) {
-        statusEl.className = 'dupliclick-status error';
-        statusEl.innerHTML = `❌ <strong>${t('settings.spesa.login_network_error_prefix')}</strong> ${escapeHtml(e.message)}`;
-        statusEl.style.display = 'block';
-    }
-
-    btn.disabled = false;
-    btn.innerHTML = t('settings.spesa.login_btn');
-}
-
-function loadSpesaSettings() {
-    const s = getSettings();
-    const emailEl = document.getElementById('setting-spesa-email');
-    const passEl = document.getElementById('setting-spesa-password');
-    const promptEl = document.getElementById('setting-spesa-ai-prompt');
-    if (emailEl) emailEl.value = s.spesa_email || s.dupliclick_email || '';
-    if (passEl) passEl.value = s.spesa_password || s.dupliclick_password || '';
-    if (promptEl) promptEl.value = s.spesa_ai_prompt || DEFAULT_SPESA_AI_PROMPT;
-    
-    // Show saved login state
-    if (s.spesa_logged_in && s.spesa_user) {
-        const statusEl = document.getElementById('spesa-login-status');
-        const resultEl = document.getElementById('spesa-login-result');
-        const loginBtn = document.getElementById('spesa-login-btn');
-        
-        if (loginBtn) {
-            loginBtn.innerHTML = t('settings.spesa.connected_relogin');
-            loginBtn.className = 'btn btn-large btn-secondary full-width mt-2';
-        }
-        if (statusEl) {
-            statusEl.className = 'dupliclick-status success';
-            statusEl.innerHTML = `✅ <strong>${t('settings.spesa.connected_as').replace('{name}', `${escapeHtml(s.spesa_user.firstName || '')} ${escapeHtml(s.spesa_user.lastName || '')}`.trim())}</strong>`;
-            statusEl.style.display = 'block';
-        }
-        if (resultEl) {
-            const user = s.spesa_user;
-            const shipping = (s.spesa_data && s.spesa_data.shippingAddress) || {};
-            const points = user.userPoints || (s.spesa_data && s.spesa_data.userPoints) || {};
-            const fidelityPts = Array.isArray(points) ? points[0] : points['0'];
-            
-            let html = '<div class="dupliclick-data"><div class="dupliclick-data-grid">';
-            if (user.firstName) html += `<div class="data-row"><span class="data-label">👤 ${t('settings.spesa.result_name_label')}</span><span class="data-value">${escapeHtml(user.firstName)} ${escapeHtml(user.lastName || '')}</span></div>`;
-            if (user.fidelityCard) html += `<div class="data-row"><span class="data-label">💳 ${t('settings.spesa.result_card_label')}</span><span class="data-value">${escapeHtml(user.fidelityCard)}</span></div>`;
-            if (shipping.addressName) html += `<div class="data-row"><span class="data-label">🏪 ${t('settings.spesa.result_pickup_label')}</span><span class="data-value">${escapeHtml(shipping.addressName)}</span></div>`;
-            if (fidelityPts) html += `<div class="data-row"><span class="data-label">⭐ ${t('settings.spesa.result_points_label')}</span><span class="data-value">${fidelityPts.value || 0}</span></div>`;
-            html += '</div></div>';
-            resultEl.innerHTML = html;
-            resultEl.style.display = 'block';
-        }
-    }
-}
