@@ -675,6 +675,26 @@
         "appliance_added": "Appliance added",
         "item_added": "{name} added"
     },
+    "antiwaste": {
+        "title": "🌱 Anti-Waste Report",
+        "grade_label": "Grade",
+        "you": "You",
+        "avg_label": "Avg",
+        "better": "🎉 You waste {diff}% less than the {country}!",
+        "worse": "⚠️ You waste more than the {country}. Let's improve!",
+        "on_par": "→ You're at the {country}. You can do better!",
+        "saved_money": "~{amount}/month saved",
+        "saved_meals": "~{n} meals saved",
+        "saved_co2": "{n} kg CO₂ avoided",
+        "trend_title": "Trend (last 3 months)",
+        "months_ago_2": "-60 days",
+        "months_ago_1": "-30 days",
+        "this_month": "Now",
+        "country_it": "Italian avg",
+        "country_de": "German avg",
+        "country_en": "US average",
+        "source": "Sources: REDUCE, Eurostat, USDA 2021"
+    },
     "error": {
         "generic": "Error",
         "network": "Network error",

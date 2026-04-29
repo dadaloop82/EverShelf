@@ -376,55 +376,196 @@ body {
 .btn-quick-recipe span:last-child { font-size: 1.1rem; opacity: 0.8; }
 .btn-quick-recipe:active { transform: scale(0.98); }
 
-/* Waste chart section */
-.waste-chart-section {
+/* ── Anti-Waste Report Card ─────────────────────────────── */
+#waste-chart-section {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 14px 16px;
     margin-bottom: 12px;
 }
-.waste-chart-section h3 {
-    font-size: 0.95rem;
-    margin-bottom: 10px;
-}
-.waste-chart-bar {
-    display: flex;
-    height: 24px;
-    border-radius: 12px;
-    overflow: hidden;
-    background: var(--bg-main);
-    margin-bottom: 8px;
-}
-.waste-bar-used {
-    background: var(--success);
-    transition: width 0.5s ease;
-    min-width: 0;
-}
-.waste-bar-wasted {
-    background: var(--danger);
-    transition: width 0.5s ease;
-    min-width: 0;
-}
-.waste-chart-legend {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    color: var(--text-light);
-}
-.waste-legend-item {
+
+/* Header row: title + grade */
+.aw-header {
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: space-between;
+    margin-bottom: 12px;
 }
-.waste-legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+.aw-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text);
+}
+.aw-grade-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.aw-grade-label {
+    font-size: 0.72rem;
+    color: var(--text-light);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.aw-grade {
     display: inline-block;
+    min-width: 36px;
+    text-align: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: #fff;
 }
-.waste-legend-dot.used { background: var(--success); }
-.waste-legend-dot.wasted { background: var(--danger); }
+.aw-grade-ap { background: #16a34a; }
+.aw-grade-a  { background: #22c55e; }
+.aw-grade-b  { background: #f59e0b; }
+.aw-grade-c  { background: #fb923c; }
+.aw-grade-d  { background: #dc2626; }
+
+/* Comparison bars */
+.aw-compare { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.aw-compare-row { display: flex; align-items: center; gap: 8px; }
+.aw-compare-lbl {
+    min-width: 76px;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.aw-you-lbl { color: var(--success); font-weight: 700; }
+.aw-bar-track {
+    flex: 1;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--bg-main);
+    overflow: hidden;
+}
+.aw-bar-you {
+    height: 100%;
+    background: var(--success);
+    border-radius: 6px;
+    transition: width 0.6s cubic-bezier(.4,0,.2,1);
+    min-width: 2px;
+}
+.aw-bar-avg {
+    height: 100%;
+    background: #d1d5db;
+    border-radius: 6px;
+    transition: width 0.6s cubic-bezier(.4,0,.2,1);
+    min-width: 2px;
+}
+.aw-compare-pct { font-size: 0.78rem; font-weight: 700; color: var(--text-light); min-width: 30px; text-align: right; }
+.aw-you-pct { color: var(--success); }
+
+/* Status message */
+.aw-status {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    border-left: 3px solid transparent;
+}
+.aw-status-good { background: #f0fdf4; border-color: var(--success); color: #166534; }
+.aw-status-bad  { background: #fef2f2; border-color: var(--danger);  color: #991b1b; }
+.aw-status-ok   { background: #fffbeb; border-color: var(--warning); color: #92400e; }
+
+/* Savings badges */
+.aw-savings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.aw-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.aw-badge-money { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+.aw-badge-meals { background: #f0fdf4; color: #166534; border-color: #86efac; }
+.aw-badge-co2   { background: #eff6ff; color: #1e40af; border-color: #93c5fd; }
+
+/* Trend mini chart */
+.aw-trend-section { margin-top: 2px; }
+.aw-trend-title {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+.aw-trend-bars {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    height: 56px;
+}
+.aw-trend-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+.aw-trend-col.aw-trend-empty { opacity: 0.35; }
+.aw-trend-rate {
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+}
+.aw-rate-good { color: var(--success); }
+.aw-rate-ok   { color: var(--warning); }
+.aw-rate-bad  { color: var(--danger);  }
+.aw-trend-bar-wrap {
+    flex: 1;
+    width: 100%;
+    max-height: 32px;
+    display: flex;
+    align-items: flex-end;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-main);
+    min-height: 6px;
+}
+.aw-trend-bar-fill {
+    width: 100%;
+    border-radius: 4px;
+    transition: height 0.5s ease;
+}
+.aw-tbar-good { background: var(--success); }
+.aw-tbar-ok   { background: var(--warning); }
+.aw-tbar-bad  { background: var(--danger);  }
+.aw-trend-label {
+    font-size: 0.64rem;
+    color: var(--text-light);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Source footnote */
+.aw-source {
+    font-size: 0.62rem;
+    color: #9ca3af;
+    margin-top: 8px;
+    text-align: right;
+}
 
 .alert-section h3 {
     font-size: 1.05rem;

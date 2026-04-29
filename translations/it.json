@@ -675,6 +675,26 @@
         "appliance_added": "Elettrodomestico aggiunto",
         "item_added": "{name} aggiunto"
     },
+    "antiwaste": {
+        "title": "🌱 Anti-Waste Report",
+        "grade_label": "Voto",
+        "you": "Tu",
+        "avg_label": "Media",
+        "better": "🎉 Sprechi il {diff}% in meno della {country}!",
+        "worse": "⚠️ Sprechi più della media {country}. Puoi migliorare!",
+        "on_par": "→ Sei nella media {country}. Prova a fare ancora meglio!",
+        "saved_money": "~{amount}/mese risparmiati",
+        "saved_meals": "~{n} pasti salvati",
+        "saved_co2": "{n} kg CO₂ evitata",
+        "trend_title": "Andamento (ultimi 3 mesi)",
+        "months_ago_2": "-60 gg",
+        "months_ago_1": "-30 gg",
+        "this_month": "Ora",
+        "country_it": "media italiana",
+        "country_de": "media tedesca",
+        "country_en": "media USA",
+        "source": "Fonti: REDUCE, Eurostat, USDA 2021"
+    },
     "error": {
         "generic": "Errore",
         "network": "Errore di rete",
