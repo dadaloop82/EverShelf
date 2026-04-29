@@ -565,14 +565,6 @@
 
             <!-- Tab panel: Da comprare -->
             <div id="tab-panel-acquisto" class="tab-panel-shopping active">
-                <!-- Price total banner -->
-                <div class="spesa-total-banner" id="spesa-total-banner" style="display:none">
-                    <div class="spesa-total-row">
-                        <span class="spesa-total-label" data-i18n="shopping.total_label">💰 Totale stimato</span>
-                        <span class="spesa-total-value" id="spesa-total-value">€ 0,00</span>
-                    </div>
-                    <div class="spesa-total-detail" id="spesa-total-detail"></div>
-                </div>
                 <div class="shopping-current" id="shopping-current" style="display:none">
                     <div class="shopping-section-header">
                         <h3 data-i18n="shopping.section_to_buy">🛍️ Da comprare</h3>
@@ -593,9 +585,6 @@
                     </div>
                 </div>
                 <div class="shopping-actions">
-                    <button class="btn btn-large btn-accent" onclick="searchAllPrices()" id="btn-search-prices" data-i18n="shopping.search_prices">
-                        🔍 Cerca tutti i prezzi
-                    </button>
                     <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest" data-i18n="shopping.suggest_btn">
                         🤖 Suggerisci cosa comprare
                     </button>
@@ -697,7 +686,6 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale">📅</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici">🔌</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-spesa')" data-tab="tab-spesa" title="Spesa Online">🛍️</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts">🔊</button>
@@ -818,44 +806,6 @@
                             <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Pentola a pressione')">🫕 Pentola pressione</button>
                             <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Tostapane')">🍞 Tostapane</button>
                             <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Frullatore/Mixer')">🍹 Frullatore</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Spesa Online Tab -->
-            <div class="settings-panel" id="tab-spesa">
-                <div class="settings-card">
-                    <h4>🛍️ Spesa Online</h4>
-                    <p class="settings-hint">Configura il provider per la spesa online.</p>
-                    <div class="form-group">
-                        <label>🏪 Provider</label>
-                        <div class="provider-selector">
-                            <button class="provider-btn active" onclick="selectSpesaProvider(this, 'dupliclick')">
-                                <span class="provider-icon">🛒</span>
-                                <span class="provider-name">DupliClick</span>
-                                <span class="provider-desc">Gruppo Poli</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="spesa-provider-config">
-                        <div class="form-group">
-                            <label>📧 Email</label>
-                            <input type="email" id="setting-spesa-email" class="form-input" placeholder="email@esempio.com">
-                        </div>
-                        <div class="form-group">
-                            <label>🔒 Password</label>
-                            <input type="password" id="setting-spesa-password" class="form-input" placeholder="Password">
-                            <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-spesa-password')">👁️ Mostra/Nascondi</button>
-                        </div>
-                        <button class="btn btn-large btn-accent full-width mt-2" id="spesa-login-btn" onclick="spesaLogin()">
-                            🔐 Accedi
-                        </button>
-                        <div id="spesa-login-status" style="display:none"></div>
-                        <div id="spesa-login-result" style="display:none"></div>
-                        <div class="form-group mt-2">
-                            <label>🤖 Prompt AI selezione prodotto</label>
-                            <textarea id="setting-spesa-ai-prompt" class="form-input" rows="4" placeholder="Istruzioni per l'AI quando deve scegliere tra più prodotti..."></textarea>
-                            <p class="settings-hint">L'AI usa questo prompt per scegliere il prodotto più appropriato tra i risultati. Lascia vuoto per il comportamento predefinito.</p>
                         </div>
                     </div>
                 </div>

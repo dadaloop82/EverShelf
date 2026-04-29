@@ -500,39 +500,6 @@ paths:
         "200":
           description: Recipe deleted
 
-  /index.php?action=dupliclick_login:
-    post:
-      summary: Login to DupliClick (online shopping)
-      tags: [DupliClick]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
-      responses:
-        "200":
-          description: Login successful
-
-  /index.php?action=dupliclick_search:
-    get:
-      summary: Search DupliClick product catalog
-      tags: [DupliClick]
-      parameters:
-        - name: q
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Search results
-
   /index.php?action=tts_proxy:
     post:
       summary: Proxy TTS request to external endpoint
@@ -685,7 +652,5 @@ tags:
     description: Recipe storage
   - name: Settings
     description: Application and server settings
-  - name: DupliClick
-    description: DupliClick online shopping integration
   - name: TTS
     description: Text-to-Speech proxy

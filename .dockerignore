@@ -7,7 +7,6 @@ data/cron.log
 data/smart_shopping_cache.json
 data/bring_token.json
 data/bring_catalog.json
-data/dupliclick_token.json
 data/client_debug.log
 data/*.crt
 data/*.pem
