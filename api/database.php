@@ -263,8 +263,37 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
         if (preg_match('/\b(lenticchie|ceci|fagioli|piselli)\b/', $n) && !preg_match('/\b(cotto|vapore|scatola)\b/', $n)) return 365;
     }
 
-    // ── D: Freezer ───────────────────────────────────────────────────────
-    if ($loc === 'freezer') return 90;
+    // ── D: Freezer — per-product estimates (USDA/EFSA guidelines) ───────
+    if ($loc === 'freezer') {
+        // Bread, pastry, dough
+        if (preg_match('/\b(pane|bread|toast|brioche|ciabatta|baguette|focaccia|pizza\s*base|impasto)\b/', $n)) return 90;
+        if (preg_match('/\b(pasta\s+fresca|gnocchi|ravioli|tortellini|lasagna\s+fresca)\b/', $n)) return 60;
+        if (preg_match('/\b(croissant|cornetto|pasticceria|dolce|torta|plumcake|muffin|biscotti)\b/', $n)) return 90;
+        // Ice cream / sorbet
+        if (preg_match('/\b(gelato|sorbetto|ice\s*cream|ghiacciolo)\b/', $n)) return 365;
+        // Fish & seafood — shorter (3–6 months)
+        if (preg_match('/\b(salmone|trota|spigola|orata|tonno|merluzzo|baccalà|nasello|sgombro|pesce|calamaro|gambero|gamberetti|polpo|seppia|cozza|vongola|frutti\s+di\s+mare|seafood)\b/', $n)) return 120;
+        // Poultry — 9 months
+        if (preg_match('/\b(pollo|tacchino|anatra|faraona|petto\s+di\s+pollo|coscia|fesa)\b/', $n)) return 270;
+        // Red meat whole cuts — 12 months
+        if (preg_match('/\b(manzo|vitello|agnello|maiale|lonza|costata|arrosto|fesa|fettina|bistecca)\b/', $n)) return 365;
+        // Ground meat / mince — 3–4 months
+        if (preg_match('/\b(macinato|macinata|hamburger|polpette|ragù)\b/', $n)) return 120;
+        // Sausage / cured meat frozen
+        if (preg_match('/\b(salsiccia|würstel|wurstel|salame|pancetta|speck|prosciutto)\b/', $n)) return 60;
+        // Dairy
+        if (preg_match('/\b(burro)\b/', $n)) return 270;
+        if (preg_match('/\b(panna)\b/', $n)) return 90;
+        if (preg_match('/\b(formaggio|mozzarella|ricotta)\b/', $n)) return 90;
+        // Vegetables (blanched/processed for freezer)
+        if (preg_match('/\b(piselli|fagioli|fagiolini|spinaci|broccoli|cavolfiore|carote|mais|edamame|verdure\s+miste|minestrone)\b/', $n)) return 270;
+        // Fruits
+        if (preg_match('/\b(fragole|lamponi|mirtilli|more|ciliegia|frutta\s+mista|frutta)\b/', $n)) return 270;
+        // Stocks, soups, sauces (already cooked)
+        if (preg_match('/\b(brodo|zuppa|minestra|sugo|salsa|passata)\b/', $n)) return 180;
+        // Generic freezer fallback
+        return 180;
+    }
 
     // ── E: Pantry/dispensa — specific products then generic fallback ─────
     if ($loc !== 'frigo') {
