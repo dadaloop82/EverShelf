@@ -59,7 +59,10 @@
 
 ### 📊 Dashboard
 - **Waste tracking** — Monitor consumed vs. wasted products over 30 days
+- **Anti-waste report** — Personalised waste rate vs. national average with annual kg estimate; shown above the expiring-items list
 - **Expiry alerts** — Visual warnings for expired and soon-to-expire items
+- **Opened products panel** — Tracks partially-used items; expiry is recalculated from the opening date using AI (Gemini) + per-category rule fallback; whole sealed packages always keep their original manufacturer expiry; conf items with mixed whole + fractional units are shown as two separate entries
+- **Freezer shelf-life** — Granular per-product estimates (USDA/EFSA): fish 120 d, poultry 270 d, whole red-meat cuts 365 d, mince 120 d, vegetables/fruit 270 d, generic 180 d; AI + cache still take priority over rules
 - **Safety ratings** — Smart assessment of expired product safety (by category and location); expired unsafe items shown with a red danger banner and "L'ho buttato" as the primary action
 - **Expired product banner** — Products that have passed their effective shelf-life (including opened-product reduced expiry) appear in the top notification banner with safety tip, danger styling for high-risk items, and a prominent discard action
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
