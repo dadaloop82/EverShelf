@@ -222,6 +222,7 @@
         "use_all": "🗑️ Usato TUTTO / Finito",
         "submit": "📤 Usa questa quantità",
         "available": "📦 Disponibile:",
+        "opened_badge": "APERTO",
         "not_in_inventory": "⚠️ Prodotto non presente nell'inventario.",
         "expiry_warning": "⚠️ Usa prima quella{loc} che scade il {date} — {when}!",
         "throw_title": "🗑️ Butta Prodotto",

@@ -17,6 +17,8 @@
 - Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders like `meal_types.*` and `meal_plan_types.*` from appearing in the UI.
 - Recipe generation now receives the selected app language (`it`/`en`/`de`) and enforces localized output in both streaming and non-streaming API flows.
 - Added missing shared error keys (`error.network`, `error.no_api_key`) across all language files to keep fallback/error toasts fully translated.
+- "Use product" and "use recipe ingredient" location buttons now show a clear opened-package badge, so the default choice is visibly understandable.
+- Explicit "used all / finished" actions are now treated as confirmed by the user and no longer create redundant finished-confirmation banners.
 
 ## ✨ Features
 

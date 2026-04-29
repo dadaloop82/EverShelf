@@ -991,6 +991,30 @@ body {
     transform: scale(0.97);
 }
 
+.loc-btn-opened {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
+}
+
+.loc-opened-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #7a4b00;
+    background: #fde68a;
+    border: 1px solid #f59e0b;
+}
+
+.loc-btn.active .loc-opened-badge {
+    color: #7a4b00;
+    background: #fde68a;
+    border-color: #f59e0b;
+}
+
 /* ===== QUANTITY CONTROL ===== */
 .qty-control {
     display: flex;

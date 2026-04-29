@@ -5583,8 +5583,16 @@ let _useNormalUnit = 'pz'; // unit when not in conf mode
 function _renderUseExpiryHint(items) {
     const hintEl = document.getElementById('use-expiry-hint');
 
-    // Filtra solo item con scadenza e quantità > 0
-    const withExpiry = items.filter(i => i.expiry_date && parseFloat(i.quantity) > 0);
+    // Parse YYYY-MM-DD as local noon to avoid timezone edge cases on some engines.
+    const parseLocalExpiryDate = (dateStr) => {
+        if (!dateStr) return null;
+        const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return null;
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+    };
+
+    // Ignore tiny residual quantities to avoid misleading hints on near-zero leftovers.
+    const withExpiry = items.filter(i => i.expiry_date && parseFloat(i.quantity) > 0.01);
 
     // Serve almeno 2 item con scadenze diverse (o locazioni diverse con scadenze)
     if (withExpiry.length < 2) { hintEl.style.display = 'none'; return; }
@@ -5597,11 +5605,16 @@ function _renderUseExpiryHint(items) {
     if (uniqueDates.size < 2 && uniqueLocs.size < 2) { hintEl.style.display = 'none'; return; }
 
     // Trova il più vicino alla scadenza
-    withExpiry.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+    withExpiry.sort((a, b) => {
+        const da = parseLocalExpiryDate(a.expiry_date);
+        const db = parseLocalExpiryDate(b.expiry_date);
+        return (da ? da.getTime() : Infinity) - (db ? db.getTime() : Infinity);
+    });
     const soonest = withExpiry[0];
+    const expDate = parseLocalExpiryDate(soonest.expiry_date);
+    if (!expDate || Number.isNaN(expDate.getTime())) { hintEl.style.display = 'none'; return; }
 
     const today = new Date(); today.setHours(0,0,0,0);
-    const expDate = new Date(soonest.expiry_date);
     const diffDays = Math.round((expDate - today) / 86400000);
 
     const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
@@ -5619,6 +5632,18 @@ function _renderUseExpiryHint(items) {
 
     hintEl.innerHTML = t('use.expiry_warning').replace('{loc}', locLabel).replace('{date}', `<strong>${dateStr}</strong>`).replace('{when}', whenStr);
     hintEl.style.display = 'block';
+}
+
+function _isOpenedInventoryItem(item) {
+    const q = parseFloat(item.quantity);
+    const dq = parseFloat(item.default_quantity) || 0;
+    if (item.unit === 'conf' && dq > 0) return q !== Math.floor(q);
+    if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
+    return false;
+}
+
+function _locationHasOpenedPackage(items, location) {
+    return items.some(i => i.location === location && _isOpenedInventoryItem(i));
 }
 
 async function loadUseInventoryInfo() {
@@ -5641,13 +5666,7 @@ async function loadUseInventoryInfo() {
         // ─────────────────────────────────────────────────────────────────
 
         // Auto-select the location with an opened package first (use from opened before sealed)
-        const openedItem = items.find(i => {
-            const q = parseFloat(i.quantity);
-            const dq = parseFloat(i.default_quantity) || 0;
-            if (i.unit === 'conf' && dq > 0) return q !== Math.floor(q);
-            if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
-            return false;
-        });
+        const openedItem = items.find(_isOpenedInventoryItem);
         const firstLoc = openedItem ? openedItem.location : items[0].location;
         
         // Build location buttons only for locations where the product exists
@@ -5666,7 +5685,10 @@ async function loadUseInventoryInfo() {
             const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const u = locItems[0].unit || 'pz';
             const qtyLabel = formatQuantity(locQty, u, locItems[0].default_quantity, locItems[0].package_unit);
-            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
+            const openedBadge = _locationHasOpenedPackage(items, loc)
+                ? ` <span class="loc-opened-badge">🔓 ${t('use.opened_badge')}</span>`
+                : '';
+            return `<button type="button" class="loc-btn ${loc === active ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectUseLocation(this, '${loc}')">${locInfo.icon} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
         }).join('');
 
         if (prefLoc && productLocations.includes(prefLoc) && productLocations.length > 1) {
@@ -8953,13 +8975,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         const isConf = unit === 'conf' && pkgSize > 0 && pkgUnit;
         
         // Find opened package location
-        const openedItem = items.find(i => {
-            const q = parseFloat(i.quantity);
-            const dq = parseFloat(i.default_quantity) || 0;
-            if (i.unit === 'conf' && dq > 0) return q !== Math.floor(q);
-            if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
-            return false;
-        });
+        const openedItem = items.find(_isOpenedInventoryItem);
         const defaultLoc = openedItem ? openedItem.location : (items.find(i => i.location === location) ? location : items[0].location);
         
         // Build location buttons
@@ -8969,7 +8985,10 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             const locItems = items.filter(i => i.location === loc);
             const locQty = locItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const qtyLabel = formatQuantity(locQty, unit, pkgSize, pkgUnit);
-            return `<button type="button" class="loc-btn ${loc === defaultLoc ? 'active' : ''}" onclick="selectRecipeUseLoc(this, '${loc}')">${locInfo.icon} ${locInfo.label} (${qtyLabel})</button>`;
+            const openedBadge = _locationHasOpenedPackage(items, loc)
+                ? ` <span class="loc-opened-badge">🔓 ${t('use.opened_badge')}</span>`
+                : '';
+            return `<button type="button" class="loc-btn ${loc === defaultLoc ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectRecipeUseLoc(this, '${loc}')">${locInfo.icon} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
         }).join('');
         
         // Build quantity controls

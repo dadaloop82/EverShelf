@@ -943,13 +943,22 @@ function useFromInventory(PDO $db): void {
         $stmt->execute([$productId]);
         $allItems = $stmt->fetchAll();
         $totalRemoved = 0;
+        $explicitFinish = ($notes !== 'Buttato');
         foreach ($allItems as $item) {
             $totalRemoved += $item['quantity'];
-            $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-            $stmt->execute([$item['id']]);
             $type = ($notes === 'Buttato') ? 'waste' : 'out';
             $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$productId, $type, $item['quantity'], $item['location'], $notes]);
+
+            // User explicitly chose "use all/finished": do not keep qty=0 rows that
+            // would trigger a redundant "are you sure it's finished" banner.
+            if ($explicitFinish) {
+                $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+                $stmt->execute([$item['id']]);
+            } else {
+                $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                $stmt->execute([$item['id']]);
+            }
         }
         echo json_encode(['success' => true, 'remaining' => 0, 'removed' => $totalRemoved]);
         return;
@@ -1063,6 +1072,13 @@ function useFromInventory(PDO $db): void {
     $type = ($notes === 'Buttato') ? 'waste' : 'out';
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$productId, $type, $actualDeducted, $location, $notes]);
+
+    // User explicitly chose "use all/finished": remove this row now instead of
+    // leaving quantity=0 pending confirmation.
+    if ($useAll && $notes !== 'Buttato' && $newQty <= 0) {
+        $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+        $stmt->execute([$existing['id']]);
+    }
     
     $remaining = $newQty;
     
