@@ -693,7 +693,10 @@
         "country_it": "Italian avg",
         "country_de": "German avg",
         "country_en": "US average",
-        "source": "Sources: REDUCE, Eurostat, USDA 2021"
+        "source": "Sources: REDUCE, Eurostat, USDA 2021",
+        "live_on": "Live data",
+        "live_off": "Offline",
+        "meals": "meals"
     },
     "error": {
         "generic": "Error",
