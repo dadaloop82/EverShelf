@@ -14,6 +14,7 @@
 
 ## 🌍 Recent Updates
 
+- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry (e.g. 191 ml of milk in the fridge) when the same product has stock in another location (e.g. 11 sealed packages in the pantry). Sibling entries are detected by barcode or name+brand.
 - **Non-alarmist expired banner** — The expired-product banner now adapts its icon, colour, and title to the actual safety level: green ✅ for long-life products that are still safe, amber 👀 for items that should be checked, and the original red 🚫 only for genuinely dangerous items (raw meat, dairy, fish). Low-risk products like canned tomatoes or pasta are no longer shown with a scary red banner.
 - Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders like `meal_types.*` and `meal_plan_types.*` from appearing in the UI.
 - Recipe generation now receives the selected app language (`it`/`en`/`de`) and enforces localized output in both streaming and non-streaming API flows.

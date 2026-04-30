@@ -2726,18 +2726,39 @@ async function loadBannerAlerts() {
         });
 
         // 2. Suspicious quantities ("expiring soon" shown only in dashboard sections, not in banner)
+        // Group items by product identity to detect sibling entries in other locations.
+        // A "low quantity" alert is suppressed when other stock of the same product exists
+        // (e.g. 191 ml of milk in the fridge is fine if there are 11 sealed packages in the pantry).
+        const _productKey = item => item.barcode || `${item.name}||${item.brand || ''}`;
+        const _productGroups = {};
+        items.forEach(item => {
+            const k = _productKey(item);
+            if (!_productGroups[k]) _productGroups[k] = [];
+            _productGroups[k].push(item);
+        });
+
         items.forEach(item => {
             if (confirmed[item.id]) return;
-            if (isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit)) {
-                const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
-                const suspQty = isSuspiciousQty(item.quantity, item.unit);
-                const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
-                let warning;
-                if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
-                else if (parseFloat(item.quantity) < t_.min) warning = '⬇️ Troppo poco';
-                else warning = '⬆️ Troppo';
-                _bannerQueue.push({ type: 'review', data: { ...item, warning } });
+            const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
+            const qty = parseFloat(item.quantity);
+            const isLow  = !isNaN(qty) && qty > 0 && qty < t_.min;
+            const isHigh = !isNaN(qty) && qty > t_.max;
+            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
+
+            if (!isLow && !isHigh && !suspDq) return;
+
+            // Suppress low-qty warning when sibling entries for the same product exist
+            // in other locations — the user is simply tracking a partial/opened unit.
+            if (isLow && !isHigh && !suspDq) {
+                const siblings = (_productGroups[_productKey(item)] || []).filter(s => s.id !== item.id && parseFloat(s.quantity) > 0);
+                if (siblings.length > 0) return;
             }
+
+            let warning;
+            if (suspDq && !isLow && !isHigh) warning = '📦 Conf. sospetta';
+            else if (isLow) warning = '⬇️ Troppo poco';
+            else warning = '⬆️ Troppo';
+            _bannerQueue.push({ type: 'review', data: { ...item, warning } });
         });
 
         // 4. Consumption predictions that don't match actual quantity
