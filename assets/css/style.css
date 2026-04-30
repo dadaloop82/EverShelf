@@ -5641,6 +5641,28 @@ body {
     background: #fee2e2;
     color: #dc2626;
 }
+.alert-banner.banner-expired-ok {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #16a34a;
+}
+.banner-expired-ok .alert-banner-title {
+    color: #14532d;
+}
+.banner-expired-ok .alert-banner-counter {
+    color: #15803d;
+}
+.banner-expired-ok .banner-dot.active { background: #16a34a; }
+.alert-banner.banner-expired-warning {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: #d97706;
+}
+.banner-expired-warning .alert-banner-title {
+    color: #78350f;
+}
+.banner-expired-warning .alert-banner-counter {
+    color: #92400e;
+}
+.banner-expired-warning .banner-dot.active { background: #d97706; }
 .alert-banner.banner-expired-danger {
     background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
     border-color: #b91c1c;

@@ -640,6 +640,8 @@
         "expired_today_long": "Scaduto oggi",
         "expired_ago_long": "Scaduto da {n} giorni",
         "expired_suffix": "— Scaduto!",
+        "expired_suffix_ok": "— Scaduto (ancora ok)",
+        "expired_suffix_warning": "— Scaduto (controlla)",
         "days_compact": "{n}gg"
     },
     "status": {

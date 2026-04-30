@@ -2840,11 +2840,22 @@ function renderBannerItem() {
             ? t('expiry.expired_today_long')
             : t('expiry.expired_ago_long').replace('{n}', item.days_expired);
         const safety = getExpiredSafety(item, item.days_expired);
-        banner.className = safety.level === 'danger'
-            ? 'alert-banner banner-expired banner-expired-danger'
-            : 'alert-banner banner-expired';
-        iconEl.textContent = '🚫';
-        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${t('expiry.expired_suffix')}`;
+        if (safety.level === 'danger') {
+            banner.className = 'alert-banner banner-expired banner-expired-danger';
+            iconEl.textContent = '🚫';
+        } else if (safety.level === 'warning') {
+            banner.className = 'alert-banner banner-expired banner-expired-warning';
+            iconEl.textContent = '👀';
+        } else {
+            banner.className = 'alert-banner banner-expired banner-expired-ok';
+            iconEl.textContent = '✅';
+        }
+        const expiredSuffix = safety.level === 'ok'
+            ? t('expiry.expired_suffix_ok')
+            : safety.level === 'warning'
+                ? t('expiry.expired_suffix_warning')
+                : t('expiry.expired_suffix');
+        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${expiredSuffix}`;
         const baseDetail = t('dashboard.banner_expired_detail').replace('{when}', daysText).replace('{qty}', qtyDisplay);
         detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
         let btns = '';

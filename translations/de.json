@@ -641,6 +641,8 @@
         "expired_today_long": "Heute abgelaufen",
         "expired_ago_long": "Seit {n} Tagen abgelaufen",
         "expired_suffix": "— Abgelaufen!",
+        "expired_suffix_ok": "— Abgelaufen (noch ok)",
+        "expired_suffix_warning": "— Abgelaufen (erst prüfen)",
         "days_compact": "{n}T"
     },
     "status": {
