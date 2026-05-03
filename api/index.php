@@ -11,6 +11,28 @@
 // database.php must always be loaded (used both by HTTP router and cron)
 require_once __DIR__ . '/database.php';
 
+// ── Global PHP error/exception reporters ─────────────────────────────────────
+// These are registered immediately so any crash anywhere in this file is caught.
+// The handler function _phpErrorReport() is defined later; PHP resolves function
+// names at call time so forward-referencing is safe.
+if (!defined('CRON_MODE')) {
+    set_exception_handler(function (Throwable $e): void {
+        _phpErrorReport(
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine(),
+            $e->getTraceAsString(),
+            get_class($e)
+        );
+    });
+    register_shutdown_function(function (): void {
+        $err = error_get_last();
+        if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            _phpErrorReport($err['message'], $err['file'], $err['line'], '', 'PHP Fatal');
+        }
+    });
+}
+
 /**
  * Load environment variables from .env file.
  * Returns associative array of key => value pairs.
@@ -67,6 +89,7 @@ function checkRateLimit(string $action): void {
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
+    $errorActions = ['report_error'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
@@ -76,6 +99,10 @@ function checkRateLimit(string $action): void {
         $limit = 5;
         $window = 60;
         $bucket = 'recipe';
+    } elseif (in_array($action, $errorActions)) {
+        $limit = 20;
+        $window = 60;
+        $bucket = 'error_report';
     } elseif (in_array($action, $loginActions)) {
         $limit = 5;
         $window = 60;
@@ -323,6 +350,10 @@ try {
 
         case 'opened_shelf_life':
             getOpenedShelfLifeAction();
+            break;
+
+        case 'report_error':
+            reportError();
             break;
 
         default:
@@ -5534,4 +5565,229 @@ function migrateUnitsToBase(PDO $db): void {
     }
 
     echo json_encode(['success' => true, 'changes' => $changes]);
+}
+
+// =============================================================================
+// ===== CENTRALIZED ERROR REPORTING → GITHUB ISSUES ==========================
+// =============================================================================
+
+/**
+ * POST /api/?action=report_error
+ *
+ * Accepts error payloads from any client (PWA browser, Android kiosk, cron).
+ * Creates a GitHub issue on dadaloop82/EverShelf with deduplication:
+ * if an open issue with the same fingerprint already exists it posts a comment
+ * instead of opening a duplicate.
+ *
+ * Expected JSON body:
+ *   source      string  'pwa'|'kiosk'|'php'|'cron'|'scale'
+ *   type        string  e.g. 'js-error'|'php-crash'|'unhandled-promise'|…
+ *   message     string  Error message (required)
+ *   stack       string? Stack trace
+ *   context     object? Arbitrary key→value extra info
+ *   url         string? Page URL where the error occurred
+ *   user_agent  string? Navigator UA
+ *   version     string? App version
+ */
+function reportError(): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+
+    $source    = preg_replace('/[^a-z0-9_\-]/', '', strtolower($input['source']    ?? 'unknown'));
+    $type      = preg_replace('/[^a-z0-9_\-]/', '', strtolower($input['type']      ?? 'error'));
+    $message   = substr(trim($input['message']   ?? ''), 0, 500);
+    $stack     = substr(trim($input['stack']     ?? ''), 0, 4000);
+    $pageUrl   = substr(trim($input['url']       ?? ''), 0, 300);
+    $ua        = substr(trim($input['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);
+    $version   = substr(trim($input['version']   ?? ''), 0, 50);
+    $context   = $input['context'] ?? [];
+
+    if (empty($message)) {
+        echo json_encode(['ok' => false, 'error' => 'message required']);
+        return;
+    }
+
+    // ── Write to local log regardless of GitHub availability ──────────────
+    _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
+
+    // ── Fire GitHub issue (non-blocking: we always return ok to client) ───
+    $token = env('GITHUB_ISSUE_TOKEN');
+    $repo  = env('GITHUB_REPO', 'dadaloop82/EverShelf');
+    if (!empty($token) && !empty($repo)) {
+        _createOrCommentGithubIssue($token, $repo, $source, $type, $message, $stack, $pageUrl, $ua, $version, $context);
+    }
+
+    echo json_encode(['ok' => true]);
+}
+
+/**
+ * Append to data/error_reports.log (local safety net, max 500 KB)
+ */
+function _appendErrorLog(string $source, string $type, string $message, string $stack, string $url, string $ua, array $context): void {
+    $logFile = __DIR__ . '/../data/error_reports.log';
+    // Rotate if > 500 KB
+    if (file_exists($logFile) && filesize($logFile) > 500000) {
+        $lines = file($logFile);
+        $lines = array_slice($lines, -300);
+        file_put_contents($logFile, implode('', $lines));
+    }
+    $ts   = date('Y-m-d H:i:s');
+    $ctx  = $context ? ' ctx=' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
+    $line = "[$ts] [$source] [$type] $message" . ($url ? " | url=$url" : '') . $ctx . "\n";
+    if ($stack) $line .= "  STACK: " . str_replace("\n", "\n  ", $stack) . "\n";
+    file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
+}
+
+/**
+ * Fingerprint = sha1(source:type:first-120-chars-of-message)
+ * Used to deduplicate open issues.
+ */
+function _errorFingerprint(string $source, string $type, string $message): string {
+    return sha1($source . ':' . $type . ':' . substr($message, 0, 120));
+}
+
+/**
+ * Create a GitHub issue, or add a comment to an existing open issue with the
+ * same fingerprint.  Uses the REST API v3 directly (no library needed).
+ */
+function _createOrCommentGithubIssue(
+    string $token, string $repo,
+    string $source, string $type, string $message,
+    string $stack, string $pageUrl, string $ua,
+    string $version, array $context
+): void {
+    $fp = _errorFingerprint($source, $type, $message);
+
+    // ── 1. Search for an existing open issue with this fingerprint ─────────
+    $searchQuery = urlencode("repo:$repo is:issue is:open label:auto-report \"fp:$fp\" in:body");
+    $searchResult = _githubRequest($token, 'GET', "https://api.github.com/search/issues?q=$searchQuery&per_page=1");
+
+    $existingIssueNumber = null;
+    if (isset($searchResult['body']['items']) && count($searchResult['body']['items']) > 0) {
+        $existingIssueNumber = $searchResult['body']['items'][0]['number'] ?? null;
+    }
+
+    // ── Build the common details block ─────────────────────────────────────
+    $ts      = date('Y-m-d H:i:s T');
+    $ctxMd   = '';
+    if ($context) {
+        $ctxMd = "\n**Context:**\n```json\n" . json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n```\n";
+    }
+    $stackMd = $stack ? "\n**Stack trace:**\n```\n$stack\n```\n" : '';
+    $urlMd   = $pageUrl ? "\n**URL:** `$pageUrl`" : '';
+    $uaMd    = $ua ? "\n**User-Agent:** `$ua`" : '';
+    $verMd   = $version ? "\n**Version:** `$version`" : '';
+
+    if ($existingIssueNumber) {
+        // ── 2a. Post a comment to the existing issue ──────────────────────
+        $body = "### 🔁 Recurrence — $ts\n"
+            . "**Source:** `$source` | **Type:** `$type`\n"
+            . $urlMd . $uaMd . $verMd . "\n"
+            . $ctxMd . $stackMd
+            . "\n---\n_fp:$fp_";
+        _githubRequest($token, 'POST',
+            "https://api.github.com/repos/$repo/issues/$existingIssueNumber/comments",
+            ['body' => $body]
+        );
+    } else {
+        // ── 2b. Create a new issue ────────────────────────────────────────
+        // Determine labels from source
+        $labelMap = [
+            'pwa'   => 'js-error',
+            'kiosk' => 'kiosk-error',
+            'php'   => 'php-crash',
+            'cron'  => 'php-crash',
+            'scale' => 'scale-error',
+        ];
+        $typeLabel = $labelMap[$source] ?? 'js-error';
+
+        $shortMsg = strlen($message) > 70 ? substr($message, 0, 70) . '…' : $message;
+        $title    = "[" . strtoupper($source) . "] $shortMsg";
+
+        $body = "## 🚨 Automatic Error Report\n\n"
+            . "**Source:** `$source`  \n"
+            . "**Type:** `$type`  \n"
+            . "**Reported at:** $ts  \n"
+            . $urlMd . "\n"
+            . $uaMd . "\n"
+            . $verMd . "\n\n"
+            . "**Error message:**\n> $message\n"
+            . $stackMd
+            . $ctxMd
+            . "\n---\n"
+            . "<!-- auto-report fp:$fp -->\n"
+            . "_This issue was created automatically by EverShelf's error reporter. fp:`$fp`_";
+
+        _githubRequest($token, 'POST',
+            "https://api.github.com/repos/$repo/issues",
+            [
+                'title'  => $title,
+                'body'   => $body,
+                'labels' => ['auto-report', $typeLabel],
+            ]
+        );
+    }
+}
+
+/**
+ * Minimal GitHub REST API helper (curl).
+ * Returns ['http_code' => int, 'body' => array].
+ */
+function _githubRequest(string $token, string $method, string $url, array $payload = []): array {
+    $ch = curl_init($url);
+    $headers = [
+        'Authorization: token ' . $token,
+        'Accept: application/vnd.github+json',
+        'X-GitHub-Api-Version: 2022-11-28',
+        'User-Agent: EverShelf-ErrorReporter/1.0',
+        'Content-Type: application/json',
+    ];
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    }
+    $raw  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ['http_code' => $code, 'body' => json_decode($raw ?: '{}', true) ?: []];
+}
+
+/**
+ * Called by the PHP exception/shutdown handlers registered at the top of this file.
+ * Writes to local log + creates a GitHub issue.
+ */
+function _phpErrorReport(string $message, string $file, int $line, string $trace, string $type): void {
+    // Prevent infinite loops if this function itself throws
+    static $running = false;
+    if ($running) return;
+    $running = true;
+
+    $source  = 'php';
+    $errType = 'php-crash';
+    $context = [
+        'file'    => $file,
+        'line'    => $line,
+        'php'     => PHP_VERSION,
+        'action'  => $_GET['action'] ?? '',
+        'method'  => $_SERVER['REQUEST_METHOD'] ?? '',
+    ];
+
+    _appendErrorLog($source, $errType, "[$type] $message", $trace, '', '', $context);
+
+    $token = env('GITHUB_ISSUE_TOKEN');
+    $repo  = env('GITHUB_REPO', 'dadaloop82/EverShelf');
+    if (!empty($token) && !empty($repo)) {
+        _createOrCommentGithubIssue(
+            $token, $repo, $source, $errType,
+            "[$type] $message", $trace,
+            '', '', PHP_VERSION, $context
+        );
+    }
+
+    $running = false;
 }

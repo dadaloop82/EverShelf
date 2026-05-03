@@ -7,8 +7,11 @@
  * @license MIT
  */
 
-// ===== REMOTE LOGGING =====
-// Global remote logger: captures all errors, warnings and key operations
+// ===== REMOTE LOGGING + ERROR REPORTING =====
+// Two-tier system:
+//  1. remoteLog() — batched INFO/WARN/ERROR → existing client_log endpoint (debug tail)
+//  2. reportError() — immediate single POST → report_error endpoint → GitHub Issue
+
 const _remoteLogBuffer = [];
 let _remoteLogTimer = null;
 const _origConsoleError = console.error.bind(console);
@@ -47,12 +50,54 @@ console.warn = function(...args) {
     remoteLog('WARN', ...args);
 };
 
-// Catch unhandled errors
+// ── Error reporter: creates/updates GitHub Issues ────────────────────────────
+// Rate-limit client-side: max 1 report per fingerprint per page session.
+const _reportedFingerprints = new Set();
+
+function reportError(payload) {
+    // Build fingerprint to deduplicate within the same page session
+    const fp = `${payload.source}:${payload.type}:${String(payload.message).slice(0, 120)}`;
+    if (_reportedFingerprints.has(fp)) return;
+    _reportedFingerprints.add(fp);
+
+    const body = Object.assign({
+        source:     'pwa',
+        version:    document.querySelector('.header-version')?.textContent?.trim() || '',
+        url:        location.href,
+        user_agent: navigator.userAgent,
+    }, payload);
+
+    fetch('api/index.php?action=report_error', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    }).catch(() => {}); // fire-and-forget; never throw from error handler
+}
+
+// ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
-    remoteLog('UNCAUGHT', `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+    const msg = e.message || String(e.error);
+    // Ignore benign third-party noise
+    if (/Script error/i.test(msg)) return;
+    remoteLog('UNCAUGHT', `${msg} at ${e.filename}:${e.lineno}:${e.colno}`);
+    reportError({
+        type:    'uncaught-error',
+        message: msg,
+        stack:   e.error?.stack || '',
+        context: { filename: e.filename, lineno: e.lineno, colno: e.colno },
+    });
 });
+
 window.addEventListener('unhandledrejection', function(e) {
-    remoteLog('UNHANDLED_PROMISE', e.reason);
+    const reason = e.reason;
+    const msg  = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? (reason.stack || '') : '';
+    remoteLog('UNHANDLED_PROMISE', msg);
+    reportError({
+        type:    'unhandled-promise',
+        message: msg,
+        stack:   stack,
+    });
 });
 
 // ===== CONFIGURATION =====
@@ -2068,6 +2113,14 @@ async function api(action, params = {}, method = 'GET', body = null) {
     const res = await fetch(url, opts);
     if (!res.ok) {
         remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
+        // Report HTTP 5xx as server errors (not 4xx which are usually user errors)
+        if (res.status >= 500) {
+            reportError({
+                type:    'api-server-error',
+                message: `API ${action} returned HTTP ${res.status}`,
+                context: { action, status: res.status },
+            });
+        }
     }
     const data = await res.json();
     if (data && data.error) {

@@ -106,6 +106,11 @@ class KioskActivity : AppCompatActivity() {
         enableKioskLock()
         requestAllPermissions()
 
+        // Initialise centralised error reporter as early as possible so the
+        // UncaughtExceptionHandler is installed before any background work starts.
+        val savedUrl = prefs.getString(KEY_URL, "") ?: ""
+        ErrorReporter.init(this, savedUrl)
+
         // Initialise native TTS engine so the JS bridge works even when
         // Web Speech API voices are unavailable in the Android WebView.
         tts = TextToSpeech(this) { status ->
@@ -320,6 +325,9 @@ class KioskActivity : AppCompatActivity() {
     private fun finishWizard() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
         wizardContainer.visibility = View.GONE
+        // Re-init ErrorReporter with the confirmed URL so future errors are reported
+        val confirmedUrl = prefs.getString(KEY_URL, "") ?: ""
+        ErrorReporter.init(this, confirmedUrl)
         launchWebView()
     }
 
@@ -468,7 +476,15 @@ class KioskActivity : AppCompatActivity() {
                 view: WebView?, request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
+                val errorDesc = error?.description?.toString() ?: "unknown"
+                val errorCode = error?.errorCode ?: -1
+                val url = request?.url?.toString() ?: ""
                 if (request?.isForMainFrame == true) {
+                    ErrorReporter.reportMessage(
+                        type    = "webview-load-error",
+                        message = "WebView failed to load main frame: $errorDesc (code $errorCode)",
+                        extra   = mapOf("url" to url, "errorCode" to errorCode)
+                    )
                     view?.loadData(errorPageHtml(), "text/html", "UTF-8")
                 }
             }
@@ -509,7 +525,20 @@ class KioskActivity : AppCompatActivity() {
                     }
                 }
             }
-            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean = true
+            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
+                // Forward JS errors and warnings to the error reporter
+                if (msg != null && msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    ErrorReporter.reportMessage(
+                        type    = "webview-js-error",
+                        message = msg.message(),
+                        extra   = mapOf(
+                            "source_id" to msg.sourceId(),
+                            "line"      to msg.lineNumber()
+                        )
+                    )
+                }
+                return true
+            }
             override fun onShowFileChooser(
                 wv: WebView?,
                 callback: ValueCallback<Array<Uri>>?,
