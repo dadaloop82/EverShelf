@@ -3,9 +3,14 @@ package it.dadaloop.evershelf.kiosk
 import android.annotation.SuppressLint
 import android.Manifest
 import android.app.ActivityManager
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.app.PendingIntent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -14,6 +19,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.view.WindowInsets
@@ -71,6 +77,16 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusIcon: TextView
     private lateinit var scaleStatusText: TextView
     private lateinit var scaleStatusDetail: TextView
+    private lateinit var scaleQuestionLayout: LinearLayout
+    private lateinit var step3BottomButtons: LinearLayout
+    // Update banner (native, shown at the top over the WebView)
+    private lateinit var updateBanner: LinearLayout
+    private lateinit var tvUpdateMessage: TextView
+    private lateinit var btnInstallUpdate: MaterialButton
+    private lateinit var btnDismissUpdate: MaterialButton
+    private var pendingApkDownloadUrl: String = ""
+    private var pendingInstallFile: java.io.File? = null
+    private var pendingInstallPkg: String = ""
 
     // Triple-tap to exit
     private var tapCount = 0
@@ -84,11 +100,15 @@ class KioskActivity : AppCompatActivity() {
     private var pendingWebPermission: PermissionRequest? = null
 
     companion object {
-        private const val FILE_CHOOSER_REQUEST = 1002
+        private const val FILE_CHOOSER_REQUEST    = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
+        private const val INSTALL_PERM_REQUEST    = 1004   // ACTION_MANAGE_UNKNOWN_APP_SOURCES
+        private const val INSTALL_CONFIRM_REQUEST = 1005   // system installer confirm dialog
+        private const val UNINSTALL_REQUEST       = 1006   // ACTION_DELETE → auto-retry install
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
+        private const val KEY_HAS_SCALE = "has_scale"
         private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
         private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
         private const val KIOSK_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-kiosk.apk"
@@ -105,6 +125,11 @@ class KioskActivity : AppCompatActivity() {
         enterImmersiveMode()
         enableKioskLock()
         requestAllPermissions()
+
+        // Initialise centralised error reporter as early as possible so the
+        // UncaughtExceptionHandler is installed before any background work starts.
+        val savedUrl = prefs.getString(KEY_URL, "") ?: ""
+        ErrorReporter.init(this, savedUrl)
 
         // Initialise native TTS engine so the JS bridge works even when
         // Web Speech API voices are unavailable in the Android WebView.
@@ -144,6 +169,16 @@ class KioskActivity : AppCompatActivity() {
         scaleStatusIcon = findViewById(R.id.scaleStatusIcon)
         scaleStatusText = findViewById(R.id.scaleStatusText)
         scaleStatusDetail = findViewById(R.id.scaleStatusDetail)
+        scaleQuestionLayout = findViewById(R.id.scaleQuestionLayout)
+        step3BottomButtons = findViewById(R.id.step3BottomButtons)
+
+        // Update banner
+        updateBanner    = findViewById(R.id.updateBanner)
+        tvUpdateMessage = findViewById(R.id.tvUpdateMessage)
+        btnInstallUpdate = findViewById(R.id.btnInstallUpdate)
+        btnDismissUpdate = findViewById(R.id.btnDismissUpdate)
+        btnDismissUpdate.setOnClickListener { updateBanner.visibility = View.GONE }
+        btnInstallUpdate.setOnClickListener { triggerApkDownload(pendingApkDownloadUrl) }
 
         // Triple-tap on wizard title is disabled — exit only via the X button in the overlay
 
@@ -174,10 +209,21 @@ class KioskActivity : AppCompatActivity() {
             goToStep(2)
         }
         findViewById<MaterialButton>(R.id.btnFinish).setOnClickListener {
+            prefs.edit().putBoolean(KEY_HAS_SCALE, true).apply()
             launchGatewayInBackground()
             finishWizard()
         }
-        findViewById<MaterialButton>(R.id.btnSkipScale).setOnClickListener {
+        // "Yes" → reveal gateway status and proceed flow
+        findViewById<MaterialButton>(R.id.btnScaleYes).setOnClickListener {
+            scaleQuestionLayout.visibility = View.GONE
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            statusCard.visibility = View.VISIBLE
+            step3BottomButtons.visibility = View.VISIBLE
+            checkGatewayStatus()
+        }
+        // "No" → save pref and skip to web view
+        findViewById<MaterialButton>(R.id.btnScaleNo).setOnClickListener {
+            prefs.edit().putBoolean(KEY_HAS_SCALE, false).apply()
             finishWizard()
         }
 
@@ -290,7 +336,12 @@ class KioskActivity : AppCompatActivity() {
         updateStepIndicator()
 
         if (step == 3) {
-            checkGatewayStatus()
+            // Reset to question state every time step 3 is entered
+            scaleQuestionLayout.visibility = View.VISIBLE
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            statusCard.visibility = View.GONE
+            step3BottomButtons.visibility = View.GONE
+            findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
         }
     }
 
@@ -320,6 +371,9 @@ class KioskActivity : AppCompatActivity() {
     private fun finishWizard() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
         wizardContainer.visibility = View.GONE
+        // Re-init ErrorReporter with the confirmed URL so future errors are reported
+        val confirmedUrl = prefs.getString(KEY_URL, "") ?: ""
+        ErrorReporter.init(this, confirmedUrl)
         launchWebView()
     }
 
@@ -343,6 +397,7 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun launchGatewayInBackground() {
+        if (!prefs.getBoolean(KEY_HAS_SCALE, false)) return
         if (!isGatewayInstalled()) return
         val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE) ?: return
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -356,30 +411,91 @@ class KioskActivity : AppCompatActivity() {
 
     private fun checkGatewayStatus() {
         if (isGatewayInstalled()) {
-            scaleStatusIcon.text = "✅"
-            scaleStatusText.text = "Scale Gateway is installed"
-            scaleStatusDetail.text = "It will be launched in the background when you proceed"
-            scaleStatusDetail.setTextColor(0xFF34d399.toInt())
+            scaleStatusIcon.text = "\u2705"
+            scaleStatusText.text = getString(R.string.wizard_gateway_installed)
+            scaleStatusDetail.text = getString(R.string.wizard_gateway_checking)
+            scaleStatusDetail.setTextColor(0xFF94a3b8.toInt())
             findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
-            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch EverShelf"
+            findViewById<MaterialButton>(R.id.btnFinish).text = getString(R.string.btn_launch)
+            // Check async if a newer version is available
+            checkGatewayUpdate()
         } else {
-            scaleStatusIcon.text = "📥"
-            scaleStatusText.text = "Scale Gateway not installed"
-            scaleStatusDetail.text = "Install the Scale Gateway app to use a Bluetooth scale"
+            scaleStatusIcon.text = "\uD83D\uDCE5"
+            scaleStatusText.text = getString(R.string.wizard_gateway_not_installed)
+            scaleStatusDetail.text = getString(R.string.wizard_gateway_not_installed_detail)
             scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
-
-            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch without scale"
-
+            findViewById<MaterialButton>(R.id.btnFinish).text = getString(R.string.btn_launch_no_scale)
             findViewById<MaterialButton>(R.id.btnSkipScale).apply {
-                text = "📥  Download Scale Gateway"
-                setTextColor(0xFF7c3aed.toInt())
+                text = getString(R.string.btn_download_gateway)
+                setTextColor(0xFFa78bfa.toInt())
                 visibility = View.VISIBLE
-                setOnClickListener {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GATEWAY_DOWNLOAD_URL))
-                    startActivity(intent)
-                }
+                setOnClickListener { triggerApkDownload(GATEWAY_DOWNLOAD_URL) }
             }
         }
+    }
+
+    /** Fetches the latest GitHub release and, if the gateway has an available update,
+     *  shows the update button in the wizard status card. */
+    private fun checkGatewayUpdate() {
+        val currentVersion = try {
+            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: return
+        } catch (_: Exception) { return }
+
+        Thread {
+            try {
+                val conn = URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                conn.disconnect()
+
+                val latestTag = json.optString("tag_name", "")
+                if (latestTag.isEmpty()) { showGatewayUpToDate(); return@Thread }
+
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
+                val norm = { v: String -> v.trimStart('v') }
+                val needsUpdate = !isSemver || norm(latestTag) != norm(currentVersion)
+
+                if (!needsUpdate) { showGatewayUpToDate(); return@Thread }
+
+                // Locate the gateway APK among release assets
+                var apkUrl = GATEWAY_DOWNLOAD_URL
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val a = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) {
+                            apkUrl = url; break
+                        }
+                    }
+                }
+                val finalUrl = apkUrl
+                runOnUiThread {
+                    scaleStatusIcon.text = "\uD83D\uDD04"
+                    scaleStatusText.text = getString(R.string.wizard_gateway_update_available)
+                    scaleStatusDetail.text = getString(R.string.wizard_gateway_update_detail)
+                    scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
+                    pendingInstallPkg = GATEWAY_PACKAGE
+                    pendingApkDownloadUrl = finalUrl
+                    findViewById<MaterialButton>(R.id.btnSkipScale).apply {
+                        text = getString(R.string.btn_update_gateway)
+                        setTextColor(0xFFfbbf24.toInt())
+                        visibility = View.VISIBLE
+                        setOnClickListener { triggerApkDownload(finalUrl) }
+                    }
+                }
+            } catch (_: Exception) {
+                showGatewayUpToDate()
+            }
+        }.start()
+    }
+
+    private fun showGatewayUpToDate() = runOnUiThread {
+        scaleStatusDetail.text = getString(R.string.wizard_gateway_installed_detail)
+        scaleStatusDetail.setTextColor(0xFF34d399.toInt())
     }
 
     // ── Connection Test ───────────────────────────────────────────────────
@@ -468,7 +584,15 @@ class KioskActivity : AppCompatActivity() {
                 view: WebView?, request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
+                val errorDesc = error?.description?.toString() ?: "unknown"
+                val errorCode = error?.errorCode ?: -1
+                val url = request?.url?.toString() ?: ""
                 if (request?.isForMainFrame == true) {
+                    ErrorReporter.reportMessage(
+                        type    = "webview-load-error",
+                        message = "WebView failed to load main frame: $errorDesc (code $errorCode)",
+                        extra   = mapOf("url" to url, "errorCode" to errorCode)
+                    )
                     view?.loadData(errorPageHtml(), "text/html", "UTF-8")
                 }
             }
@@ -509,7 +633,20 @@ class KioskActivity : AppCompatActivity() {
                     }
                 }
             }
-            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean = true
+            override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
+                // Forward JS errors and warnings to the error reporter
+                if (msg != null && msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    ErrorReporter.reportMessage(
+                        type    = "webview-js-error",
+                        message = msg.message(),
+                        extra   = mapOf(
+                            "source_id" to msg.sourceId(),
+                            "line"      to msg.lineNumber()
+                        )
+                    )
+                }
+                return true
+            }
             override fun onShowFileChooser(
                 wv: WebView?,
                 callback: ValueCallback<Array<Uri>>?,
@@ -640,56 +777,241 @@ class KioskActivity : AppCompatActivity() {
                 conn.disconnect()
                 val json = JSONObject(body)
                 val latestTag = json.optString("tag_name", "")
+                if (latestTag.isEmpty()) return@Thread
 
-                // Check kiosk APK version
                 val currentKiosk = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: ""
                 } catch (_: Exception) { "" }
-
-                // Check gateway APK version
                 val currentGateway = try {
                     packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: ""
                 } catch (_: Exception) { null }
 
-                var updateMsg = ""
-                // If the release has kiosk or gateway assets with newer versions
+                // Normalise: strip leading 'v' for comparison
+                val norm = { v: String -> v.trimStart('v') }
+                // If tag is not semver-like (e.g. "latest") we can't compare — treat as "needs update"
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
+
+                // Find APK download URLs in release assets
                 val assets = json.optJSONArray("assets")
+                var kioskApkUrl = ""     // only set if the release actually contains the APK
+                var gatewayApkUrl = ""
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val name = asset.optString("name", "")
-                        if (name.contains("kiosk") && latestTag.isNotEmpty() &&
-                            latestTag != currentKiosk && latestTag != "v$currentKiosk") {
-                            updateMsg += "• Kiosk update available: $latestTag\n"
-                        }
-                        if (name.contains("gateway") && currentGateway != null &&
-                            latestTag.isNotEmpty() && latestTag != currentGateway &&
-                            latestTag != "v$currentGateway") {
-                            updateMsg += "• Gateway update available: $latestTag\n"
-                        }
+                        val a    = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) gatewayApkUrl = url
                     }
                 }
 
-                if (updateMsg.isNotEmpty()) {
-                    runOnUiThread { showUpdateBanner(updateMsg.trim()) }
+                // Kiosk needs update: APK is in release AND (non-semver tag OR version mismatch)
+                val kioskHasApk = kioskApkUrl.isNotEmpty()
+                val kioskNeedsUpdate = kioskHasApk && currentKiosk.isNotEmpty() &&
+                    (!isSemver || norm(latestTag) != norm(currentKiosk))
+
+                // Gateway needs update: installed AND APK in release AND (non-semver OR mismatch)
+                val gatewayHasApk = gatewayApkUrl.isNotEmpty()
+                val gatewayNeedsUpdate = currentGateway != null && gatewayHasApk &&
+                    (!isSemver || norm(latestTag) != norm(currentGateway))
+
+                if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
+
+                // Build message and choose primary download (kiosk takes precedence)
+                val lines = mutableListOf<String>()
+                var primaryApkUrl = ""
+                if (kioskNeedsUpdate) {
+                    val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
+                    lines += "🔄 Kiosk $label"
+                    primaryApkUrl = kioskApkUrl
                 }
+                if (gatewayNeedsUpdate) {
+                    val label = if (isSemver) "$currentGateway → $latestTag" else latestTag
+                    lines += "🔄 Scale Gateway $label"
+                    if (primaryApkUrl.isEmpty()) primaryApkUrl = gatewayApkUrl
+                }
+                val message = lines.joinToString("  •  ")
+
+                runOnUiThread { showNativeUpdateBanner(message, primaryApkUrl) }
             } catch (_: Exception) { }
         }.start()
     }
 
-    private fun showUpdateBanner(message: String) {
-        val js = """
-        (function() {
-            if (document.getElementById('_kiosk_update_banner')) return;
-            var banner = document.createElement('div');
-            banner.id = '_kiosk_update_banner';
-            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;padding:10px 16px;font-size:13px;z-index:999998;display:flex;align-items:center;justify-content:space-between;border-top:2px solid #fbbf24;';
-            banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")} — Per installare: disinstalla prima la versione attuale, poi installa la nuova.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
-            document.body.appendChild(banner);
-            setTimeout(function(){ var b = document.getElementById('_kiosk_update_banner'); if(b) b.remove(); }, 12000);
-        })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
+    /**
+     * Shows a native Android banner at the TOP of the screen (above the WebView).
+     * Includes a prominent "Scarica" button that downloads and installs the APK.
+     */
+    private fun showNativeUpdateBanner(message: String, apkDownloadUrl: String) {
+        pendingApkDownloadUrl = apkDownloadUrl
+        tvUpdateMessage.text = "⬆️ Aggiornamento disponibile:  $message"
+        updateBanner.visibility = View.VISIBLE
+        // Auto-hide after 30 s (user can dismiss manually)
+        updateBanner.postDelayed({ updateBanner.visibility = View.GONE }, 30_000)
+    }
+
+    /**
+     * Downloads the APK via DownloadManager and opens the installer when done.
+     * Requires INTERNET + REQUEST_INSTALL_PACKAGES permissions.
+     */
+    private fun triggerApkDownload(apkUrl: String) {
+        if (apkUrl.isEmpty()) return
+        try {
+            // On Android 8+ check the "install unknown apps" source permission
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()) {
+                pendingApkDownloadUrl = apkUrl   // remember URL for the retry
+                @Suppress("DEPRECATION")
+                startActivityForResult(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")),
+                    INSTALL_PERM_REQUEST
+                )
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi torna qui", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            // Download to app-private external dir — no storage permission needed
+            val destDir  = getExternalFilesDir(null) ?: filesDir
+            val destFile = java.io.File(destDir, "evershelf-update.apk")
+
+            val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                setTitle("EverShelf — Aggiornamento")
+                setDescription("Scaricamento aggiornamento in corso…")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationUri(Uri.fromFile(destFile))
+                setMimeType("application/vnd.android.package-archive")
+            }
+            val downloadId = dm.enqueue(req)
+            Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
+
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                    if (id != downloadId) return
+                    unregisterReceiver(this)
+                    // Verify the download succeeded before trying to install
+                    val q    = DownloadManager.Query().setFilterById(downloadId)
+                    val c    = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
+                    var ok   = false
+                    if (c.moveToFirst()) {
+                        val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        ok = (status == DownloadManager.STATUS_SUCCESSFUL)
+                    }
+                    c.close()
+                    if (ok) installApk(destFile)
+                    else runOnUiThread {
+                        Toast.makeText(this@KioskActivity, "Download fallito, riprova", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore download: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun installApk(file: java.io.File) {
+        if (!file.exists() || file.length() == 0L) {
+            runOnUiThread { Toast.makeText(this, "File APK non trovato", Toast.LENGTH_LONG).show() }
+            return
+        }
+        // Derive the package name we are installing from the filename
+        val targetPkg = when {
+            file.name.contains("gateway") || file.name.contains("scale") -> GATEWAY_PACKAGE
+            else -> packageName   // kiosk self-update
+        }
+        installWithPackageInstaller(file, targetPkg)
+    }
+
+    /** Use PackageInstaller (API 21+) for reliable install-over-existing support. */
+    private fun installWithPackageInstaller(file: java.io.File, targetPkg: String) {
+        try {
+            val pi = packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            )
+            params.setAppPackageName(targetPkg)
+            val sessionId = pi.createSession(params)
+            pi.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("package", 0, file.length()).use { out ->
+                        input.copyTo(out)
+                        session.fsync(out)
+                    }
+                }
+                // Register a BroadcastReceiver for the install result
+                val action = "it.dadaloop.evershelf.kiosk.INSTALL_RESULT_$sessionId"
+                val resultReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        unregisterReceiver(this)
+                        val status = intent?.getIntExtra(
+                            android.content.pm.PackageInstaller.EXTRA_STATUS,
+                            android.content.pm.PackageInstaller.STATUS_FAILURE
+                        ) ?: android.content.pm.PackageInstaller.STATUS_FAILURE
+                        when (status) {
+                            android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                                // Android needs user confirmation — use startActivityForResult so we
+                                // get notified if the system installer fails (e.g. signature conflict)
+                                @Suppress("DEPRECATION")
+                                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                    intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                                else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
+                                if (confirmIntent != null) {
+                                    pendingInstallFile = file
+                                    pendingInstallPkg  = targetPkg
+                                    startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
+                                }
+                            }
+                            android.content.pm.PackageInstaller.STATUS_SUCCESS ->
+                                runOnUiThread { Toast.makeText(this@KioskActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
+                            android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+                            android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT -> {
+                                // Signature mismatch: offer to uninstall; on return auto-retry install
+                                runOnUiThread {
+                                    pendingInstallFile = file
+                                    pendingInstallPkg  = targetPkg
+                                    androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
+                                        .setTitle("⚠️ Conflitto firma APK")
+                                        .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
+                                        .setPositiveButton("Disinstalla") { _, _ ->
+                                            startActivityForResult(
+                                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")),
+                                                UNINSTALL_REQUEST
+                                            )
+                                        }
+                                        .setNegativeButton("Annulla", null)
+                                        .show()
+                                }
+                            }
+                            else -> {
+                                val msg = intent?.getStringExtra(
+                                    android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE
+                                ) ?: "status=$status"
+                                runOnUiThread { Toast.makeText(this@KioskActivity, "Installazione: $msg", Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                    }
+                }
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    RECEIVER_NOT_EXPORTED else 0
+                registerReceiver(resultReceiver, IntentFilter(action), flags)
+                val pi2 = PendingIntent.getBroadcast(
+                    this, sessionId,
+                    Intent(action).setPackage(packageName),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                session.commit(pi2.intentSender)
+            }
+            Toast.makeText(this, "Installazione in corso…", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show() }
+        }
     }
 
     // ── Error Page ────────────────────────────────────────────────────────
@@ -757,7 +1079,9 @@ class KioskActivity : AppCompatActivity() {
             showWizard()
         }
         if (currentStep == 3 && wizardContainer.visibility == View.VISIBLE) {
-            checkGatewayStatus()
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            // Only re-check if the user has already answered "Yes" (status card visible)
+            if (statusCard.visibility == View.VISIBLE) checkGatewayStatus()
         }
     }
 
@@ -769,6 +1093,41 @@ class KioskActivity : AppCompatActivity() {
             } else null
             fileChooserCallback?.onReceiveValue(result)
             fileChooserCallback = null
+        }
+        // Returned from ACTION_MANAGE_UNKNOWN_APP_SOURCES — retry the download
+        // regardless of resultCode (the system always returns RESULT_CANCELED here).
+        if (requestCode == INSTALL_PERM_REQUEST) {
+            val url = pendingApkDownloadUrl
+            if (url.isNotEmpty()) triggerApkDownload(url)
+        }
+        // System installer returned: if not OK the install failed (possibly signature conflict).
+        // Show a dialog offering to uninstall the old version so the user can retry.
+        if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode != RESULT_OK) {
+            val f   = pendingInstallFile
+            val pkg = pendingInstallPkg
+            if (f != null && f.exists() && pkg.isNotEmpty()) {
+                runOnUiThread {
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("⚠️ Installazione non riuscita")
+                        .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora? L'installazione ripartirà automaticamente.")
+                        .setPositiveButton("Disinstalla") { _, _ ->
+                            startActivityForResult(
+                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")),
+                                UNINSTALL_REQUEST
+                            )
+                        }
+                        .setNegativeButton("Annulla", null)
+                        .show()
+                }
+            }
+        }
+        // Returned from uninstall screen — auto-retry the install with the saved APK file.
+        if (requestCode == UNINSTALL_REQUEST) {
+            val f   = pendingInstallFile
+            val pkg = pendingInstallPkg
+            if (f != null && f.exists() && pkg.isNotEmpty()) {
+                installWithPackageInstaller(f, pkg)
+            }
         }
     }
 

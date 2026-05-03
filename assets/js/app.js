@@ -7,8 +7,11 @@
  * @license MIT
  */
 
-// ===== REMOTE LOGGING =====
-// Global remote logger: captures all errors, warnings and key operations
+// ===== REMOTE LOGGING + ERROR REPORTING =====
+// Two-tier system:
+//  1. remoteLog() — batched INFO/WARN/ERROR → existing client_log endpoint (debug tail)
+//  2. reportError() — immediate single POST → report_error endpoint → GitHub Issue
+
 const _remoteLogBuffer = [];
 let _remoteLogTimer = null;
 const _origConsoleError = console.error.bind(console);
@@ -47,12 +50,114 @@ console.warn = function(...args) {
     remoteLog('WARN', ...args);
 };
 
-// Catch unhandled errors
+// ── Error reporter: creates/updates GitHub Issues ────────────────────────────
+// Rate-limit client-side: max 1 report per fingerprint per page session.
+const _reportedFingerprints = new Set();
+
+function reportError(payload) {
+    // Build fingerprint to deduplicate within the same page session
+    const fp = `${payload.source}:${payload.type}:${String(payload.message).slice(0, 120)}`;
+    if (_reportedFingerprints.has(fp)) return;
+    _reportedFingerprints.add(fp);
+
+    const body = Object.assign({
+        source:     'pwa',
+        version:    document.querySelector('.header-version')?.textContent?.trim() || '',
+        url:        location.href,
+        user_agent: navigator.userAgent,
+    }, payload);
+
+    fetch('api/index.php?action=report_error', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    }).catch(() => {}); // fire-and-forget; never throw from error handler
+    // Note: the server will also skip issue creation if this version is not the latest.
+}
+
+// ── Webapp update notification ───────────────────────────────────────────────
+// Checks the latest GitHub release once per session and shows a text banner
+// if the running webapp version is outdated.
+function _checkWebappUpdate() {
+    const STORAGE_KEY  = '_evershelf_update_checked_at';   // last-checked timestamp
+    const SEEN_KEY     = '_evershelf_update_seen_ts';      // published_at of last-dismissed release
+    const TTL_MS       = 6 * 60 * 60 * 1000;              // re-check every 6 h (localStorage)
+    const now = Date.now();
+    const lastCheck = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+    if (now - lastCheck < TTL_MS) return;
+    localStorage.setItem(STORAGE_KEY, String(now));
+
+    fetch('api/index.php?action=check_update', { method: 'GET' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data) return;
+            // Release date-based comparison: show banner only if the release is
+            // newer than the last one the user acknowledged.
+            const publishedAt = data.published_at || '';
+            const seenTs      = localStorage.getItem(SEEN_KEY) || '';
+            if (!publishedAt || publishedAt === seenTs) return;
+
+            const latestTag = (data.latest_tag || '').replace(/^v/, '');
+            const current   = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
+            // If tag looks like a proper semver and they match → no update needed
+            if (/^\d+\.\d+/.test(latestTag) && current && current === latestTag) return;
+
+            // Show a dismissible banner at the top of the page
+            if (document.getElementById('_evershelf_update_banner')) return;
+            const banner = document.createElement('div');
+            banner.id = '_evershelf_update_banner';
+            banner.style.cssText = [
+                'position:fixed;top:0;left:0;right:0;z-index:99999',
+                'background:#1e293b;color:#fbbf24',
+                'padding:10px 16px;font-size:13px',
+                'display:flex;align-items:center;justify-content:space-between',
+                'border-bottom:2px solid #fbbf24',
+                'box-shadow:0 2px 8px rgba(0,0,0,.4)',
+            ].join(';');
+            const releaseUrl = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
+            const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>${latestTag}</strong>` : '';
+            banner.innerHTML =
+                `<span>⬆️ EverShelf${versionText} disponibile. ` +
+                `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#64748b;font-size:0.9em;text-decoration:underline">novità</a></span>` +
+                `<button onclick="window.location.href=window.location.pathname+'?bust='+Date.now()" ` +
+                `style="background:#fbbf24;border:none;color:#1e293b;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 8px">Aggiorna ora</button>` +
+                `<button id="_evershelf_banner_close" ` +
+                `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
+            document.body.prepend(banner);
+            document.getElementById('_evershelf_banner_close').onclick = () => {
+                localStorage.setItem(SEEN_KEY, publishedAt); // mark as seen
+                banner.remove();
+            };
+            // Auto-dismiss after 30 s (without marking as seen, so it reappears next visit)
+            setTimeout(() => banner.remove(), 30000);
+        })
+        .catch(() => {});
+}
+
+// ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
-    remoteLog('UNCAUGHT', `${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+    const msg = e.message || String(e.error);
+    // Ignore benign third-party noise
+    if (/Script error/i.test(msg)) return;
+    remoteLog('UNCAUGHT', `${msg} at ${e.filename}:${e.lineno}:${e.colno}`);
+    reportError({
+        type:    'uncaught-error',
+        message: msg,
+        stack:   e.error?.stack || '',
+        context: { filename: e.filename, lineno: e.lineno, colno: e.colno },
+    });
 });
+
 window.addEventListener('unhandledrejection', function(e) {
-    remoteLog('UNHANDLED_PROMISE', e.reason);
+    const reason = e.reason;
+    const msg  = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? (reason.stack || '') : '';
+    remoteLog('UNHANDLED_PROMISE', msg);
+    reportError({
+        type:    'unhandled-promise',
+        message: msg,
+        stack:   stack,
+    });
 });
 
 // ===== CONFIGURATION =====
@@ -1086,6 +1191,106 @@ function guessCategoryFromName(name) {
     return 'altro';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Embedding-based category classifier (async, @xenova/transformers)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Canonical descriptions for each local category (used as embedding anchors).
+const _CATEGORY_DESCRIPTIONS = {
+    latticini:  'latte yogurt formaggio burro panna mozzarella latticini dairy',
+    carne:      'carne pollo manzo maiale vitello prosciutto salame bresaola meat',
+    pesce:      'pesce tonno salmone merluzzo gamberi seafood fish',
+    frutta:     'frutta mela banana arancia pera fragola uva kiwi fruit',
+    verdura:    'verdura insalata zucchina carota cipolla spinaci tomato vegetables',
+    pasta:      'pasta spaghetti penne fusilli riso risotto noodles rice',
+    pane:       'pane fette biscottate grissini cracker toast bread bakery',
+    surgelati:  'surgelati congelato frozen gelato ice cream',
+    bevande:    'acqua birra vino succo caffè tè bevande drinks beverages',
+    condimenti: 'olio aceto sale zucchero farina ketchup maionese senape spezie condiments',
+    snack:      'biscotti cioccolato patatine snack caramelle wafer merendine',
+    conserve:   'conserve pelati passata marmellata miele legumi ceci beans canned',
+    cereali:    'cereali muesli granola fiocchi d\'avena oat breakfast cereal',
+    igiene:     'sapone shampoo dentifricio deodorante igiene personale hygiene',
+    pulizia:    'detersivo detergente pulizia casa sgrassatore cleaning',
+    altro:      'prodotto generico varie altro miscellaneous',
+};
+
+// In-memory cache: productName → category (avoids re-embedding the same product)
+const _embeddingCache = new Map();
+
+/**
+ * Cosine similarity between two Float32Array vectors.
+ */
+function _cosineSim(a, b) {
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na  += a[i] * a[i];
+        nb  += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(na) * Math.sqrt(nb) + 1e-9);
+}
+
+/**
+ * Mean-pool a [1, tokens, dims] tensor → Float32Array of length dims.
+ */
+function _meanPool(tensor) {
+    const [, tokens, dims] = tensor.dims;
+    const data = tensor.data;
+    const out  = new Float32Array(dims);
+    for (let t = 0; t < tokens; t++) {
+        for (let d = 0; d < dims; d++) {
+            out[d] += data[t * dims + d];
+        }
+    }
+    for (let d = 0; d < dims; d++) out[d] /= tokens;
+    return out;
+}
+
+/**
+ * Async: returns the best-matching category key for `productName`.
+ * Returns null if the model is unavailable or similarity is too low.
+ * THRESHOLD 0.30 — below this the regex fallback is more reliable.
+ */
+async function classifyCategoryByEmbedding(productName) {
+    if (!productName) return null;
+    const key = productName.toLowerCase().trim();
+    if (_embeddingCache.has(key)) return _embeddingCache.get(key);
+
+    if (typeof window._getCategoryPipeline !== 'function') return null;
+    const pipe = await window._getCategoryPipeline();
+    if (!pipe) return null;
+
+    try {
+        const labels = Object.keys(_CATEGORY_DESCRIPTIONS);
+        const texts  = [key, ...labels.map(l => _CATEGORY_DESCRIPTIONS[l])];
+
+        // Embed all texts in one batched call for efficiency
+        const output  = await pipe(texts, { pooling: 'mean', normalize: true });
+        const vectors = labels.map((_, i) => {
+            const t = output[i + 1];
+            // output[i] may be a Tensor or already a plain array-like
+            return t.dims ? _meanPool(t) : new Float32Array(t.data ?? t);
+        });
+        const queryVec = output[0].dims
+            ? _meanPool(output[0])
+            : new Float32Array(output[0].data ?? output[0]);
+
+        let bestLabel = null, bestSim = 0;
+        for (let i = 0; i < labels.length; i++) {
+            const sim = _cosineSim(queryVec, vectors[i]);
+            if (sim > bestSim) { bestSim = sim; bestLabel = labels[i]; }
+        }
+
+        const result = (bestSim >= 0.30 && bestLabel !== 'altro') ? bestLabel : null;
+        _embeddingCache.set(key, result);
+        return result;
+    } catch (e) {
+        console.warn('[EverShelf] Embedding classify error:', e);
+        return null;
+    }
+}
+
 // Determine safety level for expired products
 // Returns { level: 'danger'|'warning'|'ok', icon, label, tip }
 function getExpiredSafety(item, daysExpired) {
@@ -1968,6 +2173,14 @@ async function api(action, params = {}, method = 'GET', body = null) {
     const res = await fetch(url, opts);
     if (!res.ok) {
         remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
+        // Report HTTP 5xx as server errors (not 4xx which are usually user errors)
+        if (res.status >= 500) {
+            reportError({
+                type:    'api-server-error',
+                message: `API ${action} returned HTTP ${res.status}`,
+                context: { action, status: res.status },
+            });
+        }
     }
     const data = await res.json();
     if (data && data.error) {
@@ -2016,7 +2229,14 @@ function showPage(pageId, param = null) {
     
     // Page-specific init
     switch(pageId) {
-        case 'dashboard': loadDashboard(); break;
+        case 'dashboard':
+            // Show skeleton on stat-cards while data loads
+            ['dispensa', 'frigo', 'freezer'].forEach(loc => {
+                const el = document.getElementById(`stat-${loc}`);
+                if (el) { el.textContent = '…'; el.classList.add('stat-loading'); }
+            });
+            loadDashboard();
+            break;
         case 'inventory':
             if (param !== null) {
                 currentLocation = param;
@@ -2024,7 +2244,12 @@ function showPage(pageId, param = null) {
             }
             loadInventory();
             break;
-        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner(); break;
+        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner();
+            // Pre-warm the embedding model the first time user visits scan page
+            if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
+                window._getCategoryPipeline(); // fire-and-forget
+            }
+            break;
         case 'products': loadAllProducts(); break;
         case 'shopping': loadShoppingList(); break;
         case 'recipe': loadRecipeArchive(); break;
@@ -2427,7 +2652,9 @@ async function loadDashboard() {
         ['dispensa', 'frigo', 'freezer'].forEach(loc => {
             const s = summary.find(x => x.location === loc);
             const count = s ? s.product_count : 0;
-            document.getElementById(`stat-${loc}`).textContent = count;
+            const el = document.getElementById(`stat-${loc}`);
+            el.textContent = count;
+            el.classList.remove('stat-loading');
             total += count;
         });
         // Add non-standard locations
@@ -2477,12 +2704,16 @@ async function loadDashboard() {
             expiringSection.style.display = 'none';
         }
         
-        // Expired items
+        // Expired items — items in the freezer that are still within the safety window are hidden
         const expiredSection = document.getElementById('alert-expired');
         const expiredList = document.getElementById('expired-list');
-        if (statsData.expired && statsData.expired.length > 0) {
+        const visibleExpired = (statsData.expired || []).filter(item => {
+            const days = Math.abs(daysUntilExpiry(item.expiry_date));
+            return getExpiredSafety(item, days).level !== 'ok';
+        });
+        if (visibleExpired.length > 0) {
             expiredSection.style.display = 'block';
-            expiredList.innerHTML = statsData.expired.map(item => {
+            expiredList.innerHTML = visibleExpired.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 let daysText;
                 if (days === 0) daysText = t('expiry.expired_today');
@@ -2722,22 +2953,62 @@ async function loadBannerAlerts() {
             }
 
             if (daysExpired === null) return; // not expired by any measure
+            // Skip items the freezer bonus still considers safe — no need to alarm the user
+            if (getExpiredSafety(item, daysExpired).level === 'ok') return;
             _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: daysExpired } });
         });
 
         // 2. Suspicious quantities ("expiring soon" shown only in dashboard sections, not in banner)
+        // Group items by product identity to detect sibling entries in other locations.
+        // A "low quantity" alert is suppressed when other stock of the same product exists
+        // (e.g. 191 ml of milk in the fridge is fine if there are 11 sealed packages in the pantry).
+        const _productKey = item => item.barcode || `${item.name}||${item.brand || ''}`;
+        const _productGroups = {};
+        items.forEach(item => {
+            const k = _productKey(item);
+            if (!_productGroups[k]) _productGroups[k] = [];
+            _productGroups[k].push(item);
+        });
+
         items.forEach(item => {
             if (confirmed[item.id]) return;
-            if (isSuspiciousQty(item.quantity, item.unit) || isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit)) {
-                const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
-                const suspQty = isSuspiciousQty(item.quantity, item.unit);
-                const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
-                let warning;
-                if (suspDq && !suspQty) warning = '📦 Conf. sospetta';
-                else if (parseFloat(item.quantity) < t_.min) warning = '⬇️ Troppo poco';
-                else warning = '⬆️ Troppo';
-                _bannerQueue.push({ type: 'review', data: { ...item, warning } });
+            const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
+            const qty = parseFloat(item.quantity);
+            let isLow  = !isNaN(qty) && qty > 0 && qty < t_.min;
+            let isHigh = !isNaN(qty) && qty > t_.max;
+
+            // For conf unit: evaluate thresholds on total sub-unit volume when possible,
+            // not on raw package count. "400 conf" with no package size is uninterpretable
+            // (could be grams entered with the wrong unit) — skip the high check.
+            if (item.unit === 'conf') {
+                const pkgSize = parseFloat(item.default_quantity);
+                if (pkgSize > 0 && item.package_unit) {
+                    const totalSub = qty * pkgSize;
+                    const subTh = QTY_THRESHOLDS[item.package_unit] || QTY_THRESHOLDS['pz'];
+                    isLow  = totalSub > 0 && totalSub < subTh.min;
+                    isHigh = totalSub > subTh.max;
+                } else {
+                    // No package size known — can't judge quantity; suppress high-qty noise
+                    isHigh = false;
+                }
             }
+
+            const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
+
+            if (!isLow && !isHigh && !suspDq) return;
+
+            // Suppress low-qty warning when sibling entries for the same product exist
+            // in other locations — the user is simply tracking a partial/opened unit.
+            if (isLow && !isHigh && !suspDq) {
+                const siblings = (_productGroups[_productKey(item)] || []).filter(s => s.id !== item.id && parseFloat(s.quantity) > 0);
+                if (siblings.length > 0) return;
+            }
+
+            let warning;
+            if (suspDq && !isLow && !isHigh) warning = '📦 Conf. sospetta';
+            else if (isLow) warning = '⬇️ Troppo poco';
+            else warning = '⬆️ Troppo';
+            _bannerQueue.push({ type: 'review', data: { ...item, warning, _isLow: isLow } });
         });
 
         // 4. Consumption predictions that don't match actual quantity
@@ -2840,11 +3111,22 @@ function renderBannerItem() {
             ? t('expiry.expired_today_long')
             : t('expiry.expired_ago_long').replace('{n}', item.days_expired);
         const safety = getExpiredSafety(item, item.days_expired);
-        banner.className = safety.level === 'danger'
-            ? 'alert-banner banner-expired banner-expired-danger'
-            : 'alert-banner banner-expired';
-        iconEl.textContent = '🚫';
-        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${t('expiry.expired_suffix')}`;
+        if (safety.level === 'danger') {
+            banner.className = 'alert-banner banner-expired banner-expired-danger';
+            iconEl.textContent = '🚫';
+        } else if (safety.level === 'warning') {
+            banner.className = 'alert-banner banner-expired banner-expired-warning';
+            iconEl.textContent = '👀';
+        } else {
+            banner.className = 'alert-banner banner-expired banner-expired-ok';
+            iconEl.textContent = '✅';
+        }
+        const expiredSuffix = safety.level === 'ok'
+            ? t('expiry.expired_suffix_ok')
+            : safety.level === 'warning'
+                ? t('expiry.expired_suffix_warning')
+                : t('expiry.expired_suffix');
+        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${expiredSuffix}`;
         const baseDetail = t('dashboard.banner_expired_detail').replace('{when}', daysText).replace('{qty}', qtyDisplay);
         detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
         let btns = '';
@@ -2861,17 +3143,25 @@ function renderBannerItem() {
 
     } else if (entry.type === 'review') {
         const item = entry.data;
-        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        // For conf unit with known package size, display the sub-unit total (e.g., 800g)
+        // instead of a raw conf count that could be confused with "N confezioni".
+        let qtyDisplay;
+        if (item.unit === 'conf' && parseFloat(item.default_quantity) > 0 && item.package_unit) {
+            const totalSub = Math.round(parseFloat(item.quantity) * parseFloat(item.default_quantity));
+            qtyDisplay = `${totalSub} ${item.package_unit}`;
+        } else {
+            qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        }
         const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
-        const suspQty = isSuspiciousQty(item.quantity, item.unit);
+        const isLow  = !!item._isLow; // set when banner item was built
         const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
         banner.className = 'alert-banner';
         iconEl.textContent = '⚠️';
         let titleText, detailText;
-        if (suspDq && !suspQty) {
+        if (suspDq && !isLow) {
             titleText = `${t('dashboard.banner_review_unusual_pkg_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
             detailText = t('dashboard.banner_review_unusual_pkg_detail', { qty: item.default_quantity, unit: item.package_unit });
-        } else if (parseFloat(item.quantity) < t_.min) {
+        } else if (isLow) {
             titleText = `${t('dashboard.banner_review_low_qty_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
             detailText = t('dashboard.banner_review_low_qty_detail', { qty: qtyDisplay });
         } else {
@@ -2881,6 +3171,9 @@ function renderBannerItem() {
         titleEl.textContent = titleText;
         detailEl.textContent = detailText;
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
+        if (isLow) {
+            btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_review_action_finish')}</button>`;
+        }
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_review_action_weigh')}</button>`;
@@ -3069,6 +3362,25 @@ function bannerThrowAway() {
         }
     }).catch(() => showToast(t('error.connection'), 'error'));
     dismissBannerItem();
+}
+
+function bannerFinishAll() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry) return;
+    const item = entry.data;
+    dismissBannerItem();
+    api('inventory_use', {}, 'POST', {
+        product_id: item.product_id,
+        use_all: true,
+        location: '__all__',
+    }).then(res => {
+        if (res.success) {
+            showToast(`📤 ${item.name} terminato!`, 'success');
+            showLowStockBringPrompt(res, () => loadDashboard());
+        } else {
+            showToast(res.error || 'Errore', 'error');
+        }
+    }).catch(() => showToast(t('error.connection'), 'error'));
 }
 
 function editBannerExpiry() {
@@ -3617,6 +3929,17 @@ async function quickUse(productId, location) {
         });
         
         renderUsePreview();
+
+        // Reset scale state so the stale weight already on the scale doesn't
+        // immediately trigger an auto-fill. Only a weight *change* (≥10 g) after
+        // the page opens should be treated as a new product being placed.
+        _cancelScaleAutoConfirm(false); // stops timers, clears _scaleStabilityVal & _scaleLastConfirmedGrams
+        if (_scaleLatestWeight) {
+            const _baselineG = _scaleToGrams(parseFloat(_scaleLatestWeight.value), _scaleLatestWeight.unit);
+            if (_baselineG !== null && _baselineG >= 10) _scaleLastConfirmedGrams = _baselineG;
+            _scaleLatestWeight = null; // prevent immediate call inside loadUseInventoryInfo
+        }
+
         loadUseInventoryInfo();
         showLoading(false);
         showPage('use');
@@ -4374,7 +4697,7 @@ function selectQuickProduct(product) {
 async function createQuickProduct(name) {
     showLoading(true);
     
-    // Auto-detect category from name
+    // Auto-detect category from name (sync regex first)
     const category = guessCategoryFromName(name);
     
     try {
@@ -4398,6 +4721,27 @@ async function createQuickProduct(name) {
             showLoading(false);
             clearQuickNameResults();
             showToast('Prodotto creato!', 'success');
+
+            // If regex gave 'altro', try embedding in background and silently update
+            if (category === 'altro' && typeof classifyCategoryByEmbedding === 'function') {
+                classifyCategoryByEmbedding(name).then(async embCat => {
+                    if (!embCat || !result.id) return;
+                    try {
+                        await api('product_save', {}, 'POST', {
+                            id: result.id,
+                            name: name,
+                            brand: '',
+                            category: embCat,
+                            unit: 'pz',
+                            default_quantity: 1,
+                        });
+                        if (currentProduct && currentProduct.id === result.id) {
+                            currentProduct.category = embCat;
+                        }
+                    } catch (_) { /* silent */ }
+                });
+            }
+
             showProductAction();
         } else {
             showLoading(false);
@@ -4517,6 +4861,20 @@ function autoDetectCategory() {
             onCategoryChange(true);
             return;
         }
+    }
+
+    // ── Embedding fallback: async, only when keywords didn't match ──────────
+    // Kick off model load (no-op if already loaded/loading) and update the
+    // select once the result is ready.  Only runs when pipeline is available.
+    if (typeof classifyCategoryByEmbedding === 'function') {
+        classifyCategoryByEmbedding(document.getElementById('pf-name').value).then(embCat => {
+            if (!embCat) return;
+            // Re-check manuallySet — user might have picked something while awaiting
+            const sel = document.getElementById('pf-category');
+            if (!sel || sel.dataset.manuallySet === 'true') return;
+            sel.value = embCat;
+            onCategoryChange(true);
+        });
     }
 }
 
@@ -5910,6 +6268,7 @@ function renderUsePreview() {
 // Conf-mode tracking for USE form
 let _useConfMode = null; // null = normal, { packageSize, packageUnit, totalSub, unit } = conf mode active
 let _useNormalUnit = 'pz'; // unit when not in conf mode
+let _useCurrentItems = []; // cached inventory items for the current product on the use page
 
 /**
  * Mostra un suggerimento giallo sotto le info inventario quando ci sono più
@@ -5986,6 +6345,7 @@ async function loadUseInventoryInfo() {
     try {
         const data = await api('inventory_list');
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        _useCurrentItems = items; // cache for submitUseAll context detection
         const infoEl = document.getElementById('use-inventory-info');
         const unitSwitch = document.getElementById('use-unit-switch');
         
@@ -6541,18 +6901,117 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
 async function submitUseAll() {
     showLoading(true);
     try {
+        const currentLoc = document.getElementById('use-location').value;
+        const items = _useCurrentItems.filter(i => parseFloat(i.quantity) > 0);
+
+        const openedAtCurrentLoc = items.find(i => i.location === currentLoc && _isOpenedInventoryItem(i));
+        const allOpened = items.filter(_isOpenedInventoryItem);
+
+        let useLocation;
+
+        if (openedAtCurrentLoc) {
+            // Opened package at the currently selected location → finish only the opened item.
+            // The PHP backend fetches fractional (opened) rows first, so use_all on a specific
+            // location will clear the opened row and leave sealed packages untouched.
+            useLocation = currentLoc;
+        } else if (allOpened.length === 1) {
+            // One opened package somewhere else → almost certainly this is what the user means
+            useLocation = allOpened[0].location;
+        } else if (allOpened.length > 1) {
+            // Multiple opened packages at different locations → ask the user
+            showLoading(false);
+            _showUseAllDisambiguation(allOpened, items);
+            return;
+        } else {
+            // No opened packages anywhere → finish everything (original behaviour)
+            useLocation = '__all__';
+        }
+
+        const isOpenedFinish = useLocation !== '__all__' && items.some(
+            i => i.location === useLocation && _isOpenedInventoryItem(i)
+        );
+
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             use_all: true,
-            location: '__all__',
+            location: useLocation,
         });
         showLoading(false);
         if (result.success) {
-            showToast(`📤 ${currentProduct.name} terminato!`, 'success');
+            const toastMsg = isOpenedFinish
+                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
+                : `📤 ${currentProduct.name} terminato!`;
+            showToast(toastMsg, 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
             }
             // Check low stock (product may exist at other locations)
+            showLowStockBringPrompt(result, () => showPage('dashboard'));
+        } else {
+            showToast(result.error || 'Errore', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/**
+ * Show a modal asking which opened package to mark as finished.
+ * Called when multiple opened packages exist across different locations.
+ */
+function _showUseAllDisambiguation(openedItems, allItems) {
+    const contentEl = document.getElementById('modal-content');
+    const locButtons = openedItems.map(item => {
+        const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+        const qtyStr = formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit);
+        return `<button class="btn btn-warning full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
+            onclick="closeModal(); _submitUseAllAt('${item.location}', true)">
+            <span style="font-size:1.3rem">${locInfo.icon}</span>
+            <span><strong>${locInfo.label}</strong> — 🔓 ${t('use.opened_badge')}<br>
+            <small style="opacity:0.8">${qtyStr}</small></span>
+        </button>`;
+    }).join('');
+
+    // Option to finish everything
+    const totalQty = allItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
+    const unit = allItems[0]?.unit || 'pz';
+    const defaultQty = allItems[0]?.default_quantity;
+    const pkgUnit = allItems[0]?.package_unit;
+    const totalStr = formatQuantity(totalQty, unit, defaultQty, pkgUnit);
+
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3>${t('use.use_all')}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${t('use.disambiguation_hint')}</p>
+        ${locButtons}
+        <button class="btn btn-danger full-width" style="margin-top:4px"
+            onclick="closeModal(); _submitUseAllAt('__all__', false)">
+            🗑️ ${t('use.disambiguation_all').replace('{qty}', totalStr)}
+        </button>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function _submitUseAllAt(location, isOpenedOnly) {
+    showLoading(true);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: currentProduct.id,
+            use_all: true,
+            location,
+        });
+        showLoading(false);
+        if (result.success) {
+            const toastMsg = isOpenedOnly
+                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
+                : `📤 ${currentProduct.name} terminato!`;
+            showToast(toastMsg, 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            }
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -11270,6 +11729,17 @@ async function _initApp() {
     startBgShoppingRefresh();
     scaleInit(); // connect to smart scale gateway if configured
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
+
+    // Hide preloader once the dashboard is rendered
+    const preloader = document.getElementById('app-preloader');
+    if (preloader) {
+        preloader.classList.add('fade-out');
+        setTimeout(() => preloader.remove(), 380);
+    }
+
+    // Defer update check: fire 6 s after app is ready so it doesn't compete
+    // with initial API calls and the PHP worker isn't blocked during startup.
+    setTimeout(_checkWebappUpdate, 6000);
 
     // ── Background intervals ───────────────────────────────────────────────
     // 1) Ogni 5 min: ricarica la pagina corrente (scadenze, inventario, ecc.)

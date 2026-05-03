@@ -12,8 +12,13 @@
 
 ---
 
-## 🌍 Recent i18n Updates
+## 🌍 Recent Updates
 
+- **Dashboard skeleton loading** — Stat cards (Dispensa/Frigo/Freezer) show an animated shimmer while data loads instead of a jarring `0` flash for 3–5 seconds.
+- **APK self-update with conflict recovery** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog offering to uninstall the old version instead of a cryptic failure.
+- **Webapp + Android update notifications** — A dismissible banner appears when a newer GitHub release is available (checked every 6 hours in the webapp; natively in the Android apps).
+- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry (e.g. 191 ml of milk in the fridge) when the same product has stock in another location (e.g. 11 sealed packages in the pantry). Sibling entries are detected by barcode or name+brand.
+- **Non-alarmist expired banner** — The expired-product banner now adapts its icon, colour, and title to the actual safety level: green ✅ for long-life products that are still safe, amber 👀 for items that should be checked, and the original red 🚫 only for genuinely dangerous items (raw meat, dairy, fish). Low-risk products like canned tomatoes or pasta are no longer shown with a scary red banner.
 - Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders like `meal_types.*` and `meal_plan_types.*` from appearing in the UI.
 - Recipe generation now receives the selected app language (`it`/`en`/`de`) and enforces localized output in both streaming and non-streaming API flows.
 - Added missing shared error keys (`error.network`, `error.no_api_key`) across all language files to keep fallback/error toasts fully translated.
@@ -64,7 +69,7 @@
 - **Opened products panel** — Tracks partially-used items; expiry is recalculated from the opening date using AI (Gemini) + per-category rule fallback; whole sealed packages always keep their original manufacturer expiry; conf items with mixed whole + fractional units are shown as two separate entries
 - **Freezer shelf-life** — Granular per-product estimates (USDA/EFSA): fish 120 d, poultry 270 d, whole red-meat cuts 365 d, mince 120 d, vegetables/fruit 270 d, generic 180 d; AI + cache still take priority over rules
 - **Safety ratings** — Smart assessment of expired product safety (by category and location); expired unsafe items shown with a red danger banner and "L'ho buttato" as the primary action
-- **Expired product banner** — Products that have passed their effective shelf-life (including opened-product reduced expiry) appear in the top notification banner with safety tip, danger styling for high-risk items, and a prominent discard action
+- **Expired product banner** — Products that have passed their effective shelf-life (including opened-product reduced expiry) appear in the top notification banner; icon, colour and title adapt to the actual safety level (✅ green for safe, 👀 amber to check, 🚫 red for danger); high-risk items get a prominent discard action
 - **Quick recipe bar** — One-tap recipe suggestion using expiring products
 - **Anomaly banner** — Scrollable banner with suspicious quantities and consumption prediction mismatches, with one-tap correction or inline edit
 - **Expired/expiring alerts** — Priority-sorted banner notifications for expired and soon-to-expire products with use, throw, edit, and dismiss actions

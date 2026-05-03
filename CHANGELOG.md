@@ -2,8 +2,49 @@
 
 All notable changes to EverShelf will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.6.0] - 2026-05-03
+
+### Added
+- **Dashboard skeleton loading** — Stat cards (Dispensa / Frigo / Freezer) show an animated shimmer placeholder (`…`) instead of the jarring `0` flash that appeared for 3–5 seconds before data loaded; the loading class is applied before the API call and removed atomically when data arrives
+- **Webapp startup preloader** — Full-screen spinner overlay during initial app load, fades out after the dashboard is ready
+- **Webapp update notification** — A dismissible top banner alerts the user when a newer GitHub release is available (checked once every 6 hours, comparison based on `published_at`)
+- **Native Android update banners** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) show a native top bar when a newer APK is available, with one-tap download and install
+
+### Fixed
+- **APK install conflict** — Replaced `ACTION_VIEW`-based APK install with the `PackageInstaller.Session` API (API 21+) in both Kiosk and Scale Gateway; the session-based approach correctly handles:
+  - `STATUS_PENDING_USER_ACTION` → automatically launches the system confirmation dialog
+  - `STATUS_SUCCESS` → success toast
+  - `STATUS_FAILURE_CONFLICT` / `STATUS_FAILURE_INCOMPATIBLE` → `AlertDialog` offering to uninstall the old app (signature mismatch) before reinstalling
+- **Cooking mode z-index** — Update banner and app header are now hidden when `body.cooking-mode-active` is set, and the cooking overlay z-index was raised to `99998` so it can no longer be obscured by UI chrome
+- **Version-aware error reporting** — GitHub Issues are only created when the client is running the latest released version, avoiding noise from stale deployments; non-semver tag names (e.g. `"latest"`) are treated as "always up-to-date"
+- **XOR-obfuscated GitHub token** — The PAT used for GitHub API calls is stored as an XOR-encoded hex string in both the PHP backend and Kotlin apps to prevent accidental exposure via secret scanning
+
+### Kiosk (v1.3.0 → v1.4.0)
+- FileProvider + `REQUEST_INSTALL_PACKAGES` permission added
+- APK download destination moved to `getExternalFilesDir(null)` (no storage permission needed)
+- `PackageInstaller` self-update with signature-conflict recovery
+- BLE scale gateway update banner with download + install flow
+
+### Scale Gateway (v2.0.0 → v2.1.0)
+- Same FileProvider + permission + `PackageInstaller` changes as Kiosk
+- Update banner for self-update
+- CI workflow now triggers on `develop` branch (in addition to `main`)
+
+## [Unreleased] - 2026-04-30
+
+### Fixed
+- **Low-qty banner false positive** — A "suspiciously low quantity" review alert is now suppressed for a partially-used inventory entry when one or more sibling entries for the same product (identified by barcode, or name+brand as fallback) exist in other locations with stock > 0. Prevents noise like "191 ml of milk" when 11 sealed packages are stored in the pantry.
+
+### Changed
+- **Non-alarmist expired banner** — Banner icon, CSS class, and title suffix now adapt to the `getExpiredSafety()` level:
+  - `ok` (long-life products, freezer within margin): green banner, ✅ icon, "— Scaduto (ancora ok)"
+  - `warning` (items that should be inspected): amber/yellow banner, 👀 icon, "— Scaduto (controlla)"
+  - `danger` (raw meat, dairy, fish, etc.): unchanged red 🚫 banner and "— Scaduto!" title
+- Added `expiry.expired_suffix_ok` and `expiry.expired_suffix_warning` i18n keys to all three language files (IT/EN/DE)
+- Added `banner-expired-ok` and `banner-expired-warning` CSS variants (green / amber) in `style.css`
 
 ## [1.5.0] - 2026-04-28
 

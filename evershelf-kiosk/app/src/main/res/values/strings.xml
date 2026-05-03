@@ -1,3 +1,27 @@
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
+
+    <!-- Wizard Step 3: Smart scale -->
+    <string name="wizard_step3_title">Smart Scale (Optional)</string>
+    <string name="wizard_step3_description">To use a Bluetooth kitchen scale, you need the EverShelf Scale Gateway app installed separately.</string>
+    <string name="wizard_step3_question">Do you have a Bluetooth smart scale?</string>
+    <string name="wizard_step3_yes">✅  Yes, I have a scale</string>
+    <string name="wizard_step3_no">➡️  No, skip this step</string>
+
+    <!-- Gateway status messages -->
+    <string name="wizard_gateway_installed">Scale Gateway installed ✅</string>
+    <string name="wizard_gateway_installed_detail">Will be launched in the background when you proceed.</string>
+    <string name="wizard_gateway_not_installed">Scale Gateway not installed</string>
+    <string name="wizard_gateway_not_installed_detail">Install the Scale Gateway app to use a Bluetooth scale.</string>
+    <string name="wizard_gateway_checking">Checking for updates…</string>
+    <string name="wizard_gateway_up_to_date">Scale Gateway is up to date.</string>
+    <string name="wizard_gateway_update_available">Update available for Scale Gateway</string>
+    <string name="wizard_gateway_update_detail">Tap the button below to update it now.</string>
+
+    <!-- Buttons -->
+    <string name="btn_back">Back</string>
+    <string name="btn_launch">🚀  Launch EverShelf</string>
+    <string name="btn_launch_no_scale">🚀  Launch without scale</string>
+    <string name="btn_download_gateway">📥  Install Scale Gateway</string>
+    <string name="btn_update_gateway">📥  Update Scale Gateway</string>
 </resources>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EverShelf Kiosk</string>
+
+    <!-- Wizard Schritt 3: Smart-Waage -->
+    <string name="wizard_step3_title">Smart-Waage (Optional)</string>
+    <string name="wizard_step3_description">Um eine Bluetooth-Küchenwaage zu verwenden, musst du die EverShelf Scale Gateway App separat installieren.</string>
+    <string name="wizard_step3_question">Hast du eine Bluetooth-Küchenwaage?</string>
+    <string name="wizard_step3_yes">✅  Ja, ich habe eine Waage</string>
+    <string name="wizard_step3_no">➡️  Nein, überspringen</string>
+
+    <!-- Gateway-Statusmeldungen -->
+    <string name="wizard_gateway_installed">Scale Gateway installiert ✅</string>
+    <string name="wizard_gateway_installed_detail">Wird beim Fortfahren im Hintergrund gestartet.</string>
+    <string name="wizard_gateway_not_installed">Scale Gateway nicht installiert</string>
+    <string name="wizard_gateway_not_installed_detail">Installiere die Scale Gateway App, um eine Bluetooth-Waage zu nutzen.</string>
+    <string name="wizard_gateway_checking">Prüfe auf Updates…</string>
+    <string name="wizard_gateway_up_to_date">Scale Gateway ist aktuell.</string>
+    <string name="wizard_gateway_update_available">Update für Scale Gateway verfügbar</string>
+    <string name="wizard_gateway_update_detail">Tippe auf den Button, um jetzt zu aktualisieren.</string>
+
+    <!-- Schaltflächen -->
+    <string name="btn_back">Zurück</string>
+    <string name="btn_launch">🚀  EverShelf starten</string>
+    <string name="btn_launch_no_scale">🚀  Ohne Waage starten</string>
+    <string name="btn_download_gateway">📥  Scale Gateway installieren</string>
+    <string name="btn_update_gateway">📥  Scale Gateway aktualisieren</string>
+</resources>

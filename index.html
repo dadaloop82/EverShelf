@@ -14,13 +14,54 @@
     <link rel="stylesheet" href="assets/css/style.css?v=20260421a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+    <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
+    <script type="module">
+        // Lazy-load the embedding pipeline only when first needed.
+        // Using a dynamic import so the ~2 MB WASM is not fetched on page load.
+        window._categoryPipelineReady = false;
+        window._categoryPipelinePromise = null;
+
+        window._getCategoryPipeline = async function() {
+            if (window._categoryPipelinePromise) return window._categoryPipelinePromise;
+            window._categoryPipelinePromise = (async () => {
+                try {
+                    const { pipeline, env } = await import(
+                        'https://cdn.jsdelivr.net/npm/@xenova/transformers@2/src/transformers.min.js'
+                    );
+                    // Keep WASM/model files in the browser cache; disable remote model check
+                    // to avoid CORS issues with the self-hosted instance.
+                    env.allowRemoteModels = true;
+                    env.useBrowserCache   = true;
+                    const pipe = await pipeline(
+                        'feature-extraction',
+                        'Xenova/all-MiniLM-L6-v2',
+                        { quantized: true }
+                    );
+                    window._categoryPipelineReady = true;
+                    return pipe;
+                } catch (e) {
+                    console.warn('[EverShelf] Embedding model unavailable, regex fallback only:', e);
+                    return null;
+                }
+            })();
+            return window._categoryPipelinePromise;
+        };
+    </script>
 </head>
 <body>
+
+<!-- ===== APP PRELOADER (hidden by JS once _initApp completes) ===== -->
+<div id="app-preloader" aria-hidden="true">
+    <div class="app-preloader-inner">
+        <div class="app-preloader-spinner"></div>
+        <span class="app-preloader-label">🏠 EverShelf</span>
+    </div>
+</div>
 
 <!-- Top Header -->
 <header class="app-header">
     <div class="header-content">
-        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.5.0</span></h1>
+        <h1 class="header-title" onclick="showPage('dashboard')"><span data-i18n="nav.title">🏠 EverShelf</span><span class="header-version">v1.6.0</span></h1>
         <div class="header-actions">
             <span id="scale-status-indicator" class="scale-status-indicator scale-status-disconnected" style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia">⚖️</span>
             <button class="header-scan-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
@@ -41,17 +82,17 @@
         <div class="dashboard-stats" id="dashboard-stats">
             <div class="stat-card" onclick="showPage('inventory', 'dispensa')">
                 <span class="stat-icon">🗄️</span>
-                <span class="stat-value" id="stat-dispensa">0</span>
+                <span class="stat-value stat-loading" id="stat-dispensa">…</span>
                 <span class="stat-label" data-i18n="locations.dispensa">Dispensa</span>
             </div>
             <div class="stat-card" onclick="showPage('inventory', 'frigo')">
                 <span class="stat-icon">🧊</span>
-                <span class="stat-value" id="stat-frigo">0</span>
+                <span class="stat-value stat-loading" id="stat-frigo">…</span>
                 <span class="stat-label" data-i18n="locations.frigo">Frigo</span>
             </div>
             <div class="stat-card" onclick="showPage('inventory', 'freezer')">
                 <span class="stat-icon">❄️</span>
-                <span class="stat-value" id="stat-freezer">0</span>
+                <span class="stat-value stat-loading" id="stat-freezer">…</span>
                 <span class="stat-label" data-i18n="locations.freezer">Freezer</span>
             </div>
             <div class="stat-card" onclick="showPage('shopping')">

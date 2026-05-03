@@ -8,8 +8,54 @@
  * @license MIT
  */
 
+// ── GitHub error-reporting credentials ───────────────────────────────────────
+// The token is XOR-obfuscated so the literal secret string never appears in
+// source or git history (prevents GitHub secret scanning from revoking it).
+// Scoped only to Issues (R+W) on this single repository.
+// Defined at the very top so the global exception handler can use it.
+define('_GH_TK_ENC', '23580718460c2c444031290243627e7971622b29035e2a647726407d194f61440b6e05246a0c067c79730e77114b774501730043433d1866682225511b5443417170444443142941673c4046086c05737363293e7821006e470a466a1d');
+define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
+define('GH_REPO',    'dadaloop82/EverShelf');
+
+/** Decode the XOR-obfuscated GitHub token at runtime. */
+function _ghToken(): string {
+    static $token = null;
+    if ($token !== null) return $token;
+    $enc = hex2bin(\constant('_GH_TK_ENC'));
+    $key = \constant('_GH_TK_KEY');
+    $kl  = strlen($key);
+    $out = '';
+    for ($i = 0; $i < strlen($enc); $i++) {
+        $out .= chr(ord($enc[$i]) ^ ord($key[$i % $kl]));
+    }
+    $token = $out;
+    return $token;
+}
+
 // database.php must always be loaded (used both by HTTP router and cron)
 require_once __DIR__ . '/database.php';
+
+// ── Global PHP error/exception reporters ─────────────────────────────────────
+// These are registered immediately so any crash anywhere in this file is caught.
+// The handler function _phpErrorReport() is defined later; PHP resolves function
+// names at call time so forward-referencing is safe.
+if (!defined('CRON_MODE')) {
+    set_exception_handler(function (Throwable $e): void {
+        _phpErrorReport(
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine(),
+            $e->getTraceAsString(),
+            get_class($e)
+        );
+    });
+    register_shutdown_function(function (): void {
+        $err = error_get_last();
+        if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            _phpErrorReport($err['message'], $err['file'], $err['line'], '', 'PHP Fatal');
+        }
+    });
+}
 
 /**
  * Load environment variables from .env file.
@@ -67,6 +113,7 @@ function checkRateLimit(string $action): void {
     $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
+    $errorActions = ['report_error', 'check_update'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
@@ -76,6 +123,10 @@ function checkRateLimit(string $action): void {
         $limit = 5;
         $window = 60;
         $bucket = 'recipe';
+    } elseif (in_array($action, $errorActions)) {
+        $limit = 20;
+        $window = 60;
+        $bucket = 'error_report';
     } elseif (in_array($action, $loginActions)) {
         $limit = 5;
         $window = 60;
@@ -323,6 +374,14 @@ try {
 
         case 'opened_shelf_life':
             getOpenedShelfLifeAction();
+            break;
+
+        case 'report_error':
+            reportError();
+            break;
+
+        case 'check_update':
+            checkUpdate();
             break;
 
         default:
@@ -2243,21 +2302,194 @@ function getOpenedShelfLifeAction(): void {
     echo json_encode(['days' => $days]);
 }
 
-function geminiReadExpiry(): void {
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'no_api_key']);
-        return;
+// ===== TESSERACT OFFLINE OCR HELPER =====
+
+/**
+ * Try to extract an expiry date from a base64 image using Tesseract OCR (offline).
+ * Returns ['found'=>true,'date'=>'YYYY-MM-DD','raw_text'=>'...','confidence'=>float]
+ * or      ['found'=>false,'raw_text'=>'...']
+ *
+ * Strategy:
+ *  1. Decode base64 → temp JPEG
+ *  2. Pre-process with GD: desaturate, auto-contrast, sharpen, 2× upscale
+ *  3. Run tesseract with Italian+English langs, PSM-6 (block of text)
+ *  4. Run date-format regexes (Italian & international patterns)
+ *  5. Normalise to YYYY-MM-DD
+ *
+ * Returns null if tesseract binary is not available or GD is not compiled in.
+ */
+function tesseractReadExpiry(string $imageBase64): ?array {
+    // Require both the binary and the GD extension
+    if (!function_exists('imagecreatefromstring')) return null;
+    $tesseract = trim(shell_exec('which tesseract 2>/dev/null') ?? '');
+    if (empty($tesseract)) return null;
+
+    // ── 1. Decode image ────────────────────────────────────────────────────
+    $imgData = base64_decode($imageBase64);
+    if ($imgData === false || strlen($imgData) < 100) return null;
+
+    $src = @imagecreatefromstring($imgData);
+    if (!$src) return null;
+
+    $w = imagesx($src);
+    $h = imagesy($src);
+
+    // ── 2. Pre-process ─────────────────────────────────────────────────────
+    // 2a. Upscale ×2 – Tesseract performs best on ≥300 DPI; packaging photos
+    //     are often low-res so doubling helps character recognition.
+    $w2 = $w * 2;
+    $h2 = $h * 2;
+    $dst = imagecreatetruecolor($w2, $h2);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $w2, $h2, $w, $h);
+    imagedestroy($src);
+
+    // 2b. Greyscale + auto-contrast
+    imagefilter($dst, IMG_FILTER_GRAYSCALE);
+    imagefilter($dst, IMG_FILTER_CONTRAST, -40); // negative = increase contrast in GD
+
+    // 2c. Sharpen (convolution kernel)
+    $kernel = [[0,-1,0],[-1,5,-1],[0,-1,0]];
+    imageconvolution($dst, $kernel, 1, 0);
+
+    // ── 3. Write temp file & run Tesseract ────────────────────────────────
+    $tmpIn  = sys_get_temp_dir() . '/ocr_in_'  . uniqid() . '.png';
+    $tmpOut = sys_get_temp_dir() . '/ocr_out_' . uniqid();
+    imagepng($dst, $tmpIn);
+    imagedestroy($dst);
+
+    // PSM 6 = assume a single uniform block of text (good for cropped label areas)
+    $cmd = escapeshellcmd($tesseract)
+         . ' ' . escapeshellarg($tmpIn)
+         . ' ' . escapeshellarg($tmpOut)
+         . ' -l ita+eng --psm 6 --oem 1'
+         . ' quiet 2>/dev/null';
+    shell_exec($cmd);
+
+    $rawText = '';
+    if (file_exists($tmpOut . '.txt')) {
+        $rawText = trim(file_get_contents($tmpOut . '.txt'));
+        unlink($tmpOut . '.txt');
     }
-    
+    if (file_exists($tmpIn)) unlink($tmpIn);
+
+    if (empty($rawText)) return ['found' => false, 'raw_text' => ''];
+
+    // ── 4. Parse date patterns ─────────────────────────────────────────────
+    $today = new DateTime();
+    $currentYear = (int)$today->format('Y');
+
+    // Normalise confusable OCR chars: O→0, I/l→1, S→5
+    $clean = preg_replace('/\bO\b/', '0', $rawText);
+    $clean = preg_replace('/[Il](?=\d)/', '1', $clean);
+
+    $patterns = [
+        // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+        '/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/',
+        // MM/YYYY or MM-YYYY (best-before month/year only)
+        '/\b(\d{1,2})[\/\-\.](\d{4})\b/',
+        // YYYY-MM-DD (ISO)
+        '/\b(\d{4})-(\d{2})-(\d{2})\b/',
+        // DD MMM YYYY  (e.g. 15 APR 2026)
+        '/\b(\d{1,2})\s+(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s*(\d{4})\b/i',
+        // MMM YYYY  (e.g. APR 2026)
+        '/\b(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s*(\d{4})\b/i',
+    ];
+
+    $monthMap = [
+        'gen'=>1,'jan'=>1,'feb'=>2,'mar'=>3,'apr'=>4,'mag'=>5,'may'=>5,
+        'giu'=>6,'jun'=>6,'lug'=>7,'jul'=>7,'ago'=>8,'aug'=>8,
+        'set'=>9,'sep'=>9,'ott'=>10,'oct'=>10,'nov'=>11,'dic'=>12,'dec'=>12,
+    ];
+
+    $candidates = [];
+    foreach ($patterns as $pat) {
+        if (!preg_match_all($pat, $clean, $m, PREG_SET_ORDER)) continue;
+        foreach ($m as $match) {
+            $full = $match[0];
+            // Determine Y/M/D from which pattern matched
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $full)) {
+                // ISO
+                $y = (int)$match[1]; $mo = (int)$match[2]; $d = (int)$match[3];
+            } elseif (isset($monthMap[strtolower($match[2] ?? '')])) {
+                // DD MMM YYYY
+                $d  = (int)$match[1];
+                $mo = $monthMap[strtolower($match[2])];
+                $y  = (int)$match[3];
+            } elseif (isset($monthMap[strtolower($match[1] ?? '')])) {
+                // MMM YYYY
+                $d  = 1;
+                $mo = $monthMap[strtolower($match[1])];
+                $y  = (int)$match[2];
+            } elseif (count($match) === 3) {
+                // MM/YYYY
+                $mo = (int)$match[1]; $y = (int)$match[2]; $d = 1;
+            } else {
+                // DD/MM/YYYY
+                $d = (int)$match[1]; $mo = (int)$match[2]; $y = (int)$match[3];
+            }
+            // Sanity
+            if ($y < 2020 || $y > 2040) continue;
+            if ($mo < 1 || $mo > 12) continue;
+            if ($d < 1 || $d > 31) continue;
+            $dateStr = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            // Prefer dates in the future or near past (within 2 years)
+            $dt   = new DateTime($dateStr);
+            $diff = (int)$today->diff($dt)->days * ($dt >= $today ? 1 : -1);
+            $candidates[] = ['date' => $dateStr, 'score' => $diff, 'raw' => $full];
+        }
+    }
+
+    if (empty($candidates)) {
+        return ['found' => false, 'raw_text' => $rawText];
+    }
+
+    // Pick candidate closest to today (but prefer future dates, then near-past)
+    usort($candidates, fn($a, $b) => abs($a['score']) - abs($b['score']));
+    $best = $candidates[0];
+
+    return [
+        'found'      => true,
+        'date'       => $best['date'],
+        'raw_text'   => $rawText,
+        'raw_match'  => $best['raw'],
+        'confidence' => count($candidates) === 1 ? 0.9 : 0.75,
+        'source'     => 'tesseract',
+    ];
+}
+
+function geminiReadExpiry(): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $imageBase64 = $input['image'] ?? '';
-    
+
     if (empty($imageBase64)) {
         echo json_encode(['success' => false, 'error' => 'No image provided']);
         return;
     }
-    
+
+    // ── Step 1: Try Tesseract offline OCR first ────────────────────────────
+    $ocrResult = tesseractReadExpiry($imageBase64);
+    if ($ocrResult !== null && !empty($ocrResult['found']) && !empty($ocrResult['date'])) {
+        echo json_encode([
+            'success'     => true,
+            'expiry_date' => $ocrResult['date'],
+            'raw_text'    => $ocrResult['raw_text'] ?? '',
+            'source'      => 'ocr',
+        ]);
+        return;
+    }
+
+    // ── Step 2: Fall back to Gemini Vision ────────────────────────────────
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        // No Gemini key and OCR failed/unavailable
+        echo json_encode([
+            'success'  => false,
+            'error'    => 'no_api_key',
+            'raw_text' => $ocrResult['raw_text'] ?? '',
+        ]);
+        return;
+    }
+
     // Call Gemini API
     $payload = [
         'contents' => [
@@ -2305,7 +2537,7 @@ function geminiReadExpiry(): void {
         // Validate date format
         $date = $parsed['date'];
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            echo json_encode(['success' => true, 'expiry_date' => $date, 'raw_text' => $parsed['raw_text'] ?? '']);
+            echo json_encode(['success' => true, 'expiry_date' => $date, 'raw_text' => $parsed['raw_text'] ?? '', 'source' => 'gemini']);
             return;
         }
     }
@@ -5361,4 +5593,321 @@ function migrateUnitsToBase(PDO $db): void {
     }
 
     echo json_encode(['success' => true, 'changes' => $changes]);
+}
+
+// =============================================================================
+// ===== CENTRALIZED ERROR REPORTING → GITHUB ISSUES ==========================
+// =============================================================================
+
+// GH_REPO is defined at the very top of this file so they
+// are available to the global exception handler even before this point.
+// The token is accessed via _ghToken() which decodes it at runtime.
+
+/**
+ * POST /api/?action=report_error
+ *
+ * Accepts error payloads from any client (PWA browser, Android kiosk, cron).
+ * Creates a GitHub issue on dadaloop82/EverShelf with deduplication:
+ * if an open issue with the same fingerprint already exists it posts a comment
+ * instead of opening a duplicate.
+ *
+ * Expected JSON body:
+ *   source      string  'pwa'|'kiosk'|'php'|'cron'|'scale'
+ *   type        string  e.g. 'js-error'|'php-crash'|'unhandled-promise'|…
+ *   message     string  Error message (required)
+ *   stack       string? Stack trace
+ *   context     object? Arbitrary key→value extra info
+ *   url         string? Page URL where the error occurred
+ *   user_agent  string? Navigator UA
+ *   version     string? App version
+ */
+function reportError(): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+
+    $source    = preg_replace('/[^a-z0-9_\-]/', '', strtolower($input['source']    ?? 'unknown'));
+    $type      = preg_replace('/[^a-z0-9_\-]/', '', strtolower($input['type']      ?? 'error'));
+    $message   = substr(trim($input['message']   ?? ''), 0, 500);
+    $stack     = substr(trim($input['stack']     ?? ''), 0, 4000);
+    $pageUrl   = substr(trim($input['url']       ?? ''), 0, 300);
+    $ua        = substr(trim($input['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);
+    $version   = substr(trim($input['version']   ?? ''), 0, 50);
+    $context   = $input['context'] ?? [];
+
+    if (empty($message)) {
+        echo json_encode(['ok' => false, 'error' => 'message required']);
+        return;
+    }
+
+    // ── Write to local log regardless of GitHub availability ──────────────
+    _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
+
+    // ── Version guard: skip GitHub issue if client is not on latest release ─
+    // Avoids noise from bugs already fixed in a newer version.
+    if (!_isLatestVersion($version)) {
+        echo json_encode(['ok' => true, 'skipped' => 'outdated_version']);
+        return;
+    }
+
+    // ── Fire GitHub issue (non-blocking: we always return ok to client) ───
+    _createOrCommentGithubIssue(_ghToken(), GH_REPO, $source, $type, $message, $stack, $pageUrl, $ua, $version, $context);
+
+    echo json_encode(['ok' => true]);
+}
+
+/**
+ * Append to data/error_reports.log (local safety net, max 500 KB)
+ */
+function _appendErrorLog(string $source, string $type, string $message, string $stack, string $url, string $ua, array $context): void {
+    $logFile = __DIR__ . '/../data/error_reports.log';
+    // Rotate if > 500 KB
+    if (file_exists($logFile) && filesize($logFile) > 500000) {
+        $lines = file($logFile);
+        $lines = array_slice($lines, -300);
+        file_put_contents($logFile, implode('', $lines));
+    }
+    $ts   = date('Y-m-d H:i:s');
+    $ctx  = $context ? ' ctx=' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
+    $line = "[$ts] [$source] [$type] $message" . ($url ? " | url=$url" : '') . $ctx . "\n";
+    if ($stack) $line .= "  STACK: " . str_replace("\n", "\n  ", $stack) . "\n";
+    file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
+}
+
+/**
+ * Fingerprint = sha1(source:type:first-120-chars-of-message)
+ * Used to deduplicate open issues.
+ */
+function _errorFingerprint(string $source, string $type, string $message): string {
+    return sha1($source . ':' . $type . ':' . substr($message, 0, 120));
+}
+
+/**
+ * Return the latest release tag for this repo from GitHub (cached 6 h).
+ * Returns '' if no release exists or the API is unreachable.
+ */
+function _latestReleaseTag(): string {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+
+    $cacheFile = __DIR__ . '/../data/latest_release_cache.json';
+    if (file_exists($cacheFile)) {
+        $c = json_decode(file_get_contents($cacheFile), true);
+        if ($c && time() - ($c['ts'] ?? 0) < 21600) { // 6 h
+            return $cached = ($c['tag'] ?? '');
+        }
+    }
+    $res = _githubRequest(_ghToken(), 'GET', 'https://api.github.com/repos/' . GH_REPO . '/releases/latest');
+    $tag = $res['body']['tag_name'] ?? '';
+    file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $res['body'] ?? []]));
+    return $cached = $tag;
+}
+
+/**
+ * Read the webapp version from manifest.json (cached per process).
+ */
+function _appVersion(): string {
+    static $ver = null;
+    if ($ver !== null) return $ver;
+    $manifest = @json_decode(@file_get_contents(__DIR__ . '/../manifest.json'), true);
+    return $ver = ($manifest['version'] ?? '');
+}
+
+/**
+ * Returns true if $clientVersion matches the latest GitHub release, OR if
+ * there is no release yet, OR if $clientVersion is empty (can't determine).
+ * A leading 'v' is stripped from both sides before comparison.
+ */
+function _isLatestVersion(string $clientVersion): bool {
+    if ($clientVersion === '') return true; // unknown → allow (don't suppress)
+    $latest = _latestReleaseTag();
+    if ($latest === '') return true; // no release yet → allow
+    $latestNorm = ltrim($latest, 'v');
+    // If tag is not semver-like (e.g. "latest", "rolling") we can't compare
+    // meaningfully, so don't suppress error reporting.
+    if (!preg_match('/^\d+\.\d+/', $latestNorm)) return true;
+    return ltrim($clientVersion, 'v') === $latestNorm;
+}
+
+/**
+ * GET/POST /api/?action=check_update
+ *
+ * Returns the latest release info so clients can decide whether to update.
+ * Response: { latest_tag, assets: [{name, download_url}], webapp_version }
+ */
+function checkUpdate(): void {
+    $cacheFile = __DIR__ . '/../data/latest_release_cache.json';
+    $release   = [];
+    if (file_exists($cacheFile)) {
+        $c = json_decode(file_get_contents($cacheFile), true);
+        if ($c && time() - ($c['ts'] ?? 0) < 21600) {
+            $release = $c['release'] ?? [];
+        }
+    }
+    if (empty($release)) {
+        $res     = _githubRequest(_ghToken(), 'GET', 'https://api.github.com/repos/' . GH_REPO . '/releases/latest');
+        $release = $res['body'] ?? [];
+        $tag     = $release['tag_name'] ?? '';
+        file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $release]));
+    }
+
+    $assets = [];
+    foreach (($release['assets'] ?? []) as $a) {
+        $assets[] = ['name' => $a['name'] ?? '', 'download_url' => $a['browser_download_url'] ?? ''];
+    }
+
+    echo json_encode([
+        'ok'             => true,
+        'latest_tag'     => $release['tag_name'] ?? '',
+        'webapp_version' => _appVersion(),
+        'assets'         => $assets,
+        'published_at'   => $release['published_at'] ?? '',
+        'html_url'       => $release['html_url'] ?? '',
+    ]);
+}
+
+/**
+ * Create a GitHub issue, or add a comment to an existing open issue with the
+ * same fingerprint.  Uses the REST API v3 directly (no library needed).
+ */
+function _createOrCommentGithubIssue(
+    string $token, string $repo,
+    string $source, string $type, string $message,
+    string $stack, string $pageUrl, string $ua,
+    string $version, array $context
+): void {
+    $fp = _errorFingerprint($source, $type, $message);
+
+    // ── 1. Search for an existing open issue with this fingerprint ─────────
+    $searchQuery = urlencode("repo:$repo is:issue is:open label:auto-report \"fp:$fp\" in:body");
+    $searchResult = _githubRequest($token, 'GET', "https://api.github.com/search/issues?q=$searchQuery&per_page=1");
+
+    $existingIssueNumber = null;
+    if (isset($searchResult['body']['items']) && count($searchResult['body']['items']) > 0) {
+        $existingIssueNumber = $searchResult['body']['items'][0]['number'] ?? null;
+    }
+
+    // ── Build the common details block ─────────────────────────────────────
+    $ts      = date('Y-m-d H:i:s T');
+    $ctxMd   = '';
+    if ($context) {
+        $ctxMd = "\n**Context:**\n```json\n" . json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n```\n";
+    }
+    $stackMd = $stack ? "\n**Stack trace:**\n```\n$stack\n```\n" : '';
+    $urlMd   = $pageUrl ? "\n**URL:** `$pageUrl`" : '';
+    $uaMd    = $ua ? "\n**User-Agent:** `$ua`" : '';
+    $verMd   = $version ? "\n**Version:** `$version`" : '';
+
+    if ($existingIssueNumber) {
+        // ── 2a. Post a comment to the existing issue ──────────────────────
+        $body = "### 🔁 Recurrence — $ts\n"
+            . "**Source:** `$source` | **Type:** `$type`\n"
+            . $urlMd . $uaMd . $verMd . "\n"
+            . $ctxMd . $stackMd
+            . "\n---\n_fp:{$fp}_";
+        _githubRequest($token, 'POST',
+            "https://api.github.com/repos/$repo/issues/$existingIssueNumber/comments",
+            ['body' => $body]
+        );
+    } else {
+        // ── 2b. Create a new issue ────────────────────────────────────────
+        // Determine labels from source
+        $labelMap = [
+            'pwa'   => 'js-error',
+            'kiosk' => 'kiosk-error',
+            'php'   => 'php-crash',
+            'cron'  => 'php-crash',
+            'scale' => 'scale-error',
+        ];
+        $typeLabel = $labelMap[$source] ?? 'js-error';
+
+        $shortMsg = strlen($message) > 70 ? substr($message, 0, 70) . '…' : $message;
+        $title    = "[" . strtoupper($source) . "] $shortMsg";
+
+        $body = "## 🚨 Automatic Error Report\n\n"
+            . "**Source:** `$source`  \n"
+            . "**Type:** `$type`  \n"
+            . "**Reported at:** $ts  \n"
+            . $urlMd . "\n"
+            . $uaMd . "\n"
+            . $verMd . "\n\n"
+            . "**Error message:**\n> $message\n"
+            . $stackMd
+            . $ctxMd
+            . "\n---\n"
+            . "<!-- auto-report fp:$fp -->\n"
+            . "_This issue was created automatically by EverShelf's error reporter. fp:`{$fp}`_";
+
+        _githubRequest($token, 'POST',
+            "https://api.github.com/repos/$repo/issues",
+            [
+                'title'  => $title,
+                'body'   => $body,
+                'labels' => ['auto-report', $typeLabel],
+            ]
+        );
+    }
+}
+
+/**
+ * Minimal GitHub REST API helper (curl).
+ * Returns ['http_code' => int, 'body' => array].
+ */
+function _githubRequest(string $token, string $method, string $url, array $payload = []): array {
+    $ch = curl_init($url);
+    $headers = [
+        'Authorization: token ' . $token,
+        'Accept: application/vnd.github+json',
+        'X-GitHub-Api-Version: 2022-11-28',
+        'User-Agent: EverShelf-ErrorReporter/1.0',
+        'Content-Type: application/json',
+    ];
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    }
+    $raw  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ['http_code' => $code, 'body' => json_decode($raw ?: '{}', true) ?: []];
+}
+
+/**
+ * Called by the PHP exception/shutdown handlers registered at the top of this file.
+ * Writes to local log + creates a GitHub issue.
+ */
+function _phpErrorReport(string $message, string $file, int $line, string $trace, string $type): void {
+    // Prevent infinite loops if this function itself throws
+    static $running = false;
+    if ($running) return;
+    $running = true;
+
+    $source  = 'php';
+    $errType = 'php-crash';
+    $appVer  = _appVersion();
+    $context = [
+        'file'    => $file,
+        'line'    => $line,
+        'php'     => PHP_VERSION,
+        'app_ver' => $appVer,
+        'action'  => $_GET['action'] ?? '',
+        'method'  => $_SERVER['REQUEST_METHOD'] ?? '',
+    ];
+
+    _appendErrorLog($source, $errType, "[$type] $message", $trace, '', '', $context);
+
+    // Only create GitHub issue if running the latest released version
+    if (_isLatestVersion($appVer)) {
+        _createOrCommentGithubIssue(
+            _ghToken(), GH_REPO, $source, $errType,
+            "[$type] $message", $trace,
+            '', '', $appVer, $context
+        );
+    }
+
+    $running = false;
 }

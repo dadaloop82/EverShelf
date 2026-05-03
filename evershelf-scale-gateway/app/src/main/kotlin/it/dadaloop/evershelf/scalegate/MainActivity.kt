@@ -1,15 +1,24 @@
 package it.dadaloop.evershelf.scalegate
 
 import android.Manifest
+import android.app.DownloadManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.app.PendingIntent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,12 +27,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import it.dadaloop.evershelf.scalegate.databinding.ActivityMainBinding
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONObject
 
 private const val WS_PORT = 8765
 
@@ -41,11 +52,15 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private var debugVisible = false
     private var lastDebugUpdate = 0L
     private val debugTimeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-    /** True while the app is trying to re-establish a lost connection automatically. */
     private var isAutoReconnecting = false
+    // Update banner
+    private var pendingApkDownloadUrl = ""
+    private var pendingInstallFile: java.io.File? = null
     private companion object {
         const val MAX_DEBUG_LINES = 150
         const val DEBUG_THROTTLE_MS = 200L
+        const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/latest"
+        const val APK_DOWNLOAD_URL    = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
     }
 
     // ─── Permission launcher ───────────────────────────────────────────────────
@@ -68,6 +83,45 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         else showDialog("Bluetooth required", "Please enable Bluetooth to use the gateway.")
     }
 
+    /** Returns from ACTION_MANAGE_UNKNOWN_APP_SOURCES — retry the download. */
+    private val installPermLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val url = pendingApkDownloadUrl
+        if (url.isNotEmpty()) triggerApkDownload(url)
+    }
+
+    /** Returns from system installer dialog — if not OK the install failed (signature conflict?). */
+    private val installConfirmLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != RESULT_OK) {
+            val f = pendingInstallFile
+            if (f != null && f.exists()) {
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("⚠️ Installazione non riuscita")
+                        .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora? L'installazione ripartirà automaticamente.")
+                        .setPositiveButton("Disinstalla") { _, _ ->
+                            uninstallLauncher.launch(
+                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName"))
+                            )
+                        }
+                        .setNegativeButton("Annulla", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    /** Returns from uninstall screen — auto-retry the install with the saved APK file. */
+    private val uninstallLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val f = pendingInstallFile
+        if (f != null && f.exists()) installApk(f)
+    }
+
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +130,10 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         setContentView(binding.root)
 
         bleManager = BleScaleManager(this, this)
+
+        // Initialise error reporter early so the UncaughtExceptionHandler is installed
+        // and any pending crash from a previous session is sent
+        ErrorReporter.init(this)
 
         deviceAdapter = DeviceAdapter(devices) { info ->
             bleManager.connect(info.device)
@@ -121,6 +179,13 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
         updateGatewayUrl()
         checkPermissionsAndStart()
+
+        // Wire update banner buttons
+        binding.btnDismissUpdate.setOnClickListener { binding.updateBanner.visibility = View.GONE }
+        binding.btnInstallUpdate.setOnClickListener { triggerApkDownload(pendingApkDownloadUrl) }
+
+        // Check for a newer release (background thread, at most once every 6 h)
+        checkForUpdates()
 
         // Auto-connect: if we have a saved device, start scanning with auto-connect enabled
         if (bleManager.getSavedDeviceAddress() != null) {
@@ -191,6 +256,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             binding.tvGatewayStatus.text = "\u2705 Gateway active on port $WS_PORT"
         } catch (e: Exception) {
             binding.tvGatewayStatus.text = "\u274C Failed to start gateway: ${e.message}"
+            ErrorReporter.report(e, "startGatewayServer", mapOf("port" to WS_PORT))
         }
 
         // Auto-scan if there's a saved device
@@ -287,6 +353,11 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     override fun onError(message: String) {
         binding.tvScaleStatus.text = "❌ $message"
         binding.cardConnection.setCardBackgroundColor(getColor(android.R.color.holo_red_light))
+        ErrorReporter.reportMessage(
+            type    = "ble-error",
+            message = message,
+            extra   = mapOf("connected_device" to (bleManager.getSavedDeviceAddress() ?: "none"))
+        )
     }
 
     override fun onScanStopped() {
@@ -373,6 +444,186 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             .setMessage(message)
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    // ─── Update check ─────────────────────────────────────────────────────────
+
+    private fun checkForUpdates() {
+        Thread {
+            try {
+                val conn = java.net.URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val body = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                val json = JSONObject(body)
+                val latestTag = json.optString("tag_name", "").ifEmpty { return@Thread }
+                val current   = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (_: Exception) { "" }
+                val norm = { v: String -> v.trimStart('v') }
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
+
+                // Find scale-gateway APK in release assets
+                var apkUrl = ""
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val a    = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) {
+                            apkUrl = url; break
+                        }
+                    }
+                }
+                // Only show banner if the release actually contains our APK
+                if (apkUrl.isEmpty()) return@Thread
+                // If semver tag matches current version → already up to date
+                if (isSemver && norm(latestTag) == norm(current)) return@Thread
+
+                val label = if (isSemver) "$current → $latestTag" else latestTag
+                val msg = "⬆️ Scale Gateway $label"
+                runOnUiThread { showNativeUpdateBanner(msg, apkUrl) }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun showNativeUpdateBanner(message: String, apkUrl: String) {
+        pendingApkDownloadUrl = apkUrl
+        binding.tvUpdateMessage.text = message
+        binding.updateBanner.visibility = View.VISIBLE
+        binding.updateBanner.postDelayed({ binding.updateBanner.visibility = View.GONE }, 30_000)
+    }
+
+    private fun triggerApkDownload(apkUrl: String) {
+        if (apkUrl.isEmpty()) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()) {
+                pendingApkDownloadUrl = apkUrl   // remember for retry
+                installPermLauncher.launch(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                )
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi torna qui", Toast.LENGTH_LONG).show()
+                return
+            }
+            // Download to app-private external dir — no storage permission needed
+            val destDir  = getExternalFilesDir(null) ?: filesDir
+            val destFile = java.io.File(destDir, "evershelf-scale-update.apk")
+            pendingInstallFile = destFile
+            val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                setTitle("EverShelf Scale Gateway — Aggiornamento")
+                setDescription("Scaricamento aggiornamento…")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationUri(Uri.fromFile(destFile))
+                setMimeType("application/vnd.android.package-archive")
+            }
+            val downloadId = dm.enqueue(req)
+            Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                    if (id != downloadId) return
+                    unregisterReceiver(this)
+                    val q  = DownloadManager.Query().setFilterById(downloadId)
+                    val c  = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
+                    var ok = false
+                    if (c.moveToFirst()) {
+                        val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        ok = (status == DownloadManager.STATUS_SUCCESSFUL)
+                    }
+                    c.close()
+                    if (ok) installApk(destFile)
+                    else runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Download fallito, riprova", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore download: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun installApk(file: java.io.File) {
+        if (!file.exists() || file.length() == 0L) {
+            runOnUiThread { Toast.makeText(this, "File APK non trovato", Toast.LENGTH_LONG).show() }
+            return
+        }
+        try {
+            val pi = packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(packageName)
+            val sessionId = pi.createSession(params)
+            pi.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("package", 0, file.length()).use { out ->
+                        input.copyTo(out)
+                        session.fsync(out)
+                    }
+                }
+                val action = "it.dadaloop.evershelf.scalegate.INSTALL_RESULT_$sessionId"
+                val resultReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        unregisterReceiver(this)
+                        val status = intent?.getIntExtra(
+                            PackageInstaller.EXTRA_STATUS,
+                            PackageInstaller.STATUS_FAILURE
+                        ) ?: PackageInstaller.STATUS_FAILURE
+                        when (status) {
+                            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                                // Use launcher so we get notified if system installer fails
+                                @Suppress("DEPRECATION")
+                                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                    intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                                else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
+                                if (confirmIntent != null) installConfirmLauncher.launch(confirmIntent)
+                            }
+                            PackageInstaller.STATUS_SUCCESS ->
+                                runOnUiThread { Toast.makeText(this@MainActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
+                            PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+                            PackageInstaller.STATUS_FAILURE_CONFLICT -> {
+                                runOnUiThread {
+                                    AlertDialog.Builder(this@MainActivity)
+                                        .setTitle("⚠️ Conflitto firma APK")
+                                        .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
+                                        .setPositiveButton("Disinstalla") { _, _ ->
+                                            uninstallLauncher.launch(
+                                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName"))
+                                            )
+                                        }
+                                        .setNegativeButton("Annulla", null)
+                                        .show()
+                                }
+                            }
+                            else -> {
+                                val msg = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                                    ?: "status=$status"
+                                runOnUiThread { Toast.makeText(this@MainActivity, "Installazione: $msg", Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                    }
+                }
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    RECEIVER_NOT_EXPORTED else 0
+                registerReceiver(resultReceiver, IntentFilter(action), flags)
+                val pi2 = PendingIntent.getBroadcast(
+                    this, sessionId,
+                    Intent(action).setPackage(packageName),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                session.commit(pi2.intentSender)
+            }
+            Toast.makeText(this, "Installazione in corso…", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            runOnUiThread { Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show() }
+        }
     }
 
     // ─── RecyclerView adapter ──────────────────────────────────────────────────

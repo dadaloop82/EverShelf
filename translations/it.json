@@ -87,6 +87,7 @@
         "quick_recipe": "🍳 Ricetta veloce con prodotti in scadenza",
         "banner_review_title": "Quantità anomala",
         "banner_review_action_ok": "È corretto",
+        "banner_review_action_finish": "🗑️ È finito tutto",
         "banner_review_action_edit": "Correggi",
         "banner_review_action_weigh": "Pesa",
         "banner_review_dismiss": "Ignora",
@@ -237,7 +238,10 @@
         "when_tomorrow": "scade <strong>domani</strong>",
         "when_days": "scade tra <strong>{n} giorni</strong>",
         "toast_used": "📤 Usato {qty} di {name}",
-        "toast_bring": "🛒 Prodotto finito → aggiunto a Bring!"
+        "toast_bring": "🛒 Prodotto finito → aggiunto a Bring!",
+        "toast_opened_finished": "🔓 Confezione aperta di {name} finita!",
+        "disambiguation_hint": "Cosa intendi con \"finito tutto\"?",
+        "disambiguation_all": "🗑️ Finito TUTTO ({qty})"
     },
     "product": {
         "title_new": "Nuovo Prodotto",
@@ -640,6 +644,8 @@
         "expired_today_long": "Scaduto oggi",
         "expired_ago_long": "Scaduto da {n} giorni",
         "expired_suffix": "— Scaduto!",
+        "expired_suffix_ok": "— Scaduto (ancora ok)",
+        "expired_suffix_warning": "— Scaduto (controlla)",
         "days_compact": "{n}gg"
     },
     "status": {
