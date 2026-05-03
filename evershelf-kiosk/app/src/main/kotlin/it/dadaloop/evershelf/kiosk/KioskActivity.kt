@@ -229,6 +229,8 @@ class KioskActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             prefs.edit().putString(KEY_URL, url).apply()
+            // Re-init ErrorReporter immediately so install errors in step 3 reach GitHub Issues.
+            ErrorReporter.init(this, url)
             goToStep(3)
         }
 
@@ -728,11 +730,32 @@ class KioskActivity : AppCompatActivity() {
                     conn.requestMethod = "GET"
                     val code = conn.responseCode
                     conn.disconnect()
+                    if (code !in 200..399) {
+                        runOnUiThread { showUrlStatus("⚠ Server responded with code $code", false) }
+                        return@Thread
+                    }
+                    // Second check: verify the EverShelf PHP API is actually present.
+                    var apiOk = false
+                    var apiCode = -1
+                    try {
+                        val base = url.trimEnd('/')
+                        val apiConn = java.net.URL("$base/api/?action=check_update")
+                            .openConnection() as java.net.HttpURLConnection
+                        apiConn.requestMethod = "GET"
+                        apiConn.connectTimeout = 5000
+                        apiConn.readTimeout = 5000
+                        apiCode = apiConn.responseCode
+                        val body = apiConn.inputStream.bufferedReader().readText()
+                        apiConn.disconnect()
+                        apiOk = apiCode in 200..399 &&
+                            (body.contains("latest_tag") || body.contains("webapp_version") || body.contains("ok"))
+                    } catch (_: Exception) {}
                     runOnUiThread {
-                        if (code in 200..399) {
-                            showUrlStatus("✓ Connected successfully!", true)
+                        if (apiOk) {
+                            showUrlStatus("✅ Server EverShelf trovato e API attiva!", true)
                         } else {
-                            showUrlStatus("⚠ Server responded with code $code", false)
+                            showUrlStatus("⚠ Server raggiungibile (HTTP $code) ma API PHP non trovata (codice $apiCode). " +
+                                "Verifica che il server EverShelf sia installato correttamente.", false)
                         }
                     }
                 }
@@ -1176,6 +1199,29 @@ class KioskActivity : AppCompatActivity() {
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             return
         }
+        // Validate APK magic bytes (ZIP local file header = 0x504B0304).
+        // If GitHub returned a 404 HTML page, DownloadManager still reports SUCCESS
+        // but the file starts with '<' not 'PK' — this catches that case early.
+        val magic = try { file.inputStream().use { it.read(4) ; true }; // read to check open
+            file.inputStream().use { s -> val b = ByteArray(4); s.read(b); b }
+        } catch (_: Exception) { null }
+        val isApk = magic != null && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte()
+        if (!isApk) {
+            setInstallUI(
+                "\u274C",
+                getString(R.string.install_error_download),
+                "Il file scaricato non è un APK valido (possibile 404 sulla release). " +
+                    "Verifica che la release GitHub sia pubblicata.",
+                0xFFf87171.toInt(),
+                btnEnabled = true,
+                progress = -2
+            )
+            runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+            ErrorReporter.reportMessage("install_invalid_apk",
+                "Downloaded file is not a valid APK (bad magic bytes). URL=$pendingApkDownloadUrl size=${file.length()}")
+            file.delete()   // remove corrupt file so next attempt re-downloads
+            return
+        }
         // Derive the target package from the download URL (not the filename, which is always
         // 'evershelf-update.apk'). The URL contains 'gateway' or 'scale' when installing the
         // scale gateway; anything else is a kiosk self-update.
@@ -1260,6 +1306,7 @@ class KioskActivity : AppCompatActivity() {
                                         .setTitle("⚠️ Conflitto firma APK")
                                         .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
                                         .setPositiveButton("Disinstalla") { _, _ ->
+                                            disableKioskLock()   // release screen pin so uninstall UI can open
                                             startActivityForResult(
                                                 Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")),
                                                 UNINSTALL_REQUEST
@@ -1275,7 +1322,7 @@ class KioskActivity : AppCompatActivity() {
                                 ) ?: "status=$status"
                                 setInstallUI(
                                     "\u274C",
-                                    getString(R.string.install_error_download),
+                                    getString(R.string.install_error_install),
                                     msg,
                                     0xFFf87171.toInt(),
                                     btnEnabled = true,
@@ -1284,9 +1331,7 @@ class KioskActivity : AppCompatActivity() {
                                 runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                                 ErrorReporter.reportMessage("install_failure",
                                     "PackageInstaller status=$status msg=$msg pkg=$targetPkg")
-                                // Generic failure on an already-installed package often means
-                                // a signature conflict with the old version. Offer uninstall as
-                                // last resort (only after the system installer already failed).
+                                // Generic failure on an already-installed package: offer uninstall as last resort.
                                 val pkgInstalled = try {
                                     packageManager.getPackageInfo(targetPkg, 0); true
                                 } catch (_: Exception) { false }
@@ -1301,6 +1346,7 @@ class KioskActivity : AppCompatActivity() {
                                                 "bisogna prima disinstallarla.\n\n" +
                                                 "Disinstalla ora e riprova automaticamente?")
                                             .setPositiveButton("Disinstalla e riprova") { _, _ ->
+                                                disableKioskLock()   // release screen pin so uninstall UI can open
                                                 startActivityForResult(
                                                     Intent(Intent.ACTION_DELETE,
                                                         android.net.Uri.parse("package:$targetPkg")),
@@ -1464,6 +1510,7 @@ class KioskActivity : AppCompatActivity() {
                         .setTitle("⚠️ Installazione non riuscita")
                         .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora? L'installazione ripartirà automaticamente.")
                         .setPositiveButton("Disinstalla") { _, _ ->
+                            disableKioskLock()   // release screen pin so uninstall UI can open
                             startActivityForResult(
                                 Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")),
                                 UNINSTALL_REQUEST
@@ -1474,12 +1521,16 @@ class KioskActivity : AppCompatActivity() {
                 }
             }
         }
-        // Returned from uninstall screen — auto-retry the install with the saved APK file.
+        // Returned from uninstall screen — re-enable kiosk lock, then auto-retry install.
         if (requestCode == UNINSTALL_REQUEST) {
+            enableKioskLock()
             val f   = pendingInstallFile
             val pkg = pendingInstallPkg
             if (f != null && f.exists() && pkg.isNotEmpty()) {
-                installWithPackageInstaller(f, pkg)
+                // Small delay: give PackageManager time to finish processing the removal.
+                Handler(Looper.getMainLooper()).postDelayed({
+                    installWithPackageInstaller(f, pkg)
+                }, 600)
             }
         }
     }
