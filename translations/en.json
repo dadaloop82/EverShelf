@@ -87,6 +87,7 @@
         "quick_recipe": "🍳 Quick recipe with expiring products",
         "banner_review_title": "Anomalous quantity",
         "banner_review_action_ok": "It's correct",
+        "banner_review_action_finish": "🗑️ All gone",
         "banner_review_action_edit": "Correct",
         "banner_review_action_weigh": "Weigh",
         "banner_review_dismiss": "Dismiss",
@@ -237,7 +238,10 @@
         "when_tomorrow": "expires <strong>tomorrow</strong>",
         "when_days": "expires in <strong>{n} days</strong>",
         "toast_used": "📤 Used {qty} of {name}",
-        "toast_bring": "🛒 Product finished → added to Bring!"
+        "toast_bring": "🛒 Product finished → added to Bring!",
+        "toast_opened_finished": "🔓 Opened package of {name} finished!",
+        "disambiguation_hint": "What do you mean by \"all done\"?",
+        "disambiguation_all": "🗑️ Finish EVERYTHING ({qty})"
     },
     "product": {
         "title_new": "New Product",

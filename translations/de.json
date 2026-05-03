@@ -87,6 +87,7 @@
         "quick_recipe": "🍳 Schnelles Rezept mit ablaufenden Produkten",
         "banner_review_title": "Ungewöhnliche Menge",
         "banner_review_action_ok": "Ist korrekt",
+        "banner_review_action_finish": "🗑️ Alles aufgebraucht",
         "banner_review_action_edit": "Korrigieren",
         "banner_review_action_weigh": "Wiegen",
         "banner_review_dismiss": "Ignorieren",
@@ -238,7 +239,10 @@
         "when_tomorrow": "läuft <strong>morgen</strong> ab",
         "when_days": "läuft in <strong>{n} Tagen</strong> ab",
         "toast_used": "📤 {qty} von {name} verwendet",
-        "toast_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt"
+        "toast_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt",
+        "toast_opened_finished": "🔓 Geöffnete Packung von {name} aufgebraucht!",
+        "disambiguation_hint": "Was meinst du mit \"alles aufgebraucht\"?",
+        "disambiguation_all": "🗑️ ALLES aufgebraucht ({qty})"
     },
     "product": {
         "title_new": "Neues Produkt",

@@ -2477,12 +2477,16 @@ async function loadDashboard() {
             expiringSection.style.display = 'none';
         }
         
-        // Expired items
+        // Expired items — items in the freezer that are still within the safety window are hidden
         const expiredSection = document.getElementById('alert-expired');
         const expiredList = document.getElementById('expired-list');
-        if (statsData.expired && statsData.expired.length > 0) {
+        const visibleExpired = (statsData.expired || []).filter(item => {
+            const days = Math.abs(daysUntilExpiry(item.expiry_date));
+            return getExpiredSafety(item, days).level !== 'ok';
+        });
+        if (visibleExpired.length > 0) {
             expiredSection.style.display = 'block';
-            expiredList.innerHTML = statsData.expired.map(item => {
+            expiredList.innerHTML = visibleExpired.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 let daysText;
                 if (days === 0) daysText = t('expiry.expired_today');
@@ -2722,6 +2726,8 @@ async function loadBannerAlerts() {
             }
 
             if (daysExpired === null) return; // not expired by any measure
+            // Skip items the freezer bonus still considers safe — no need to alarm the user
+            if (getExpiredSafety(item, daysExpired).level === 'ok') return;
             _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: daysExpired } });
         });
 
@@ -2741,8 +2747,25 @@ async function loadBannerAlerts() {
             if (confirmed[item.id]) return;
             const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
             const qty = parseFloat(item.quantity);
-            const isLow  = !isNaN(qty) && qty > 0 && qty < t_.min;
-            const isHigh = !isNaN(qty) && qty > t_.max;
+            let isLow  = !isNaN(qty) && qty > 0 && qty < t_.min;
+            let isHigh = !isNaN(qty) && qty > t_.max;
+
+            // For conf unit: evaluate thresholds on total sub-unit volume when possible,
+            // not on raw package count. "400 conf" with no package size is uninterpretable
+            // (could be grams entered with the wrong unit) — skip the high check.
+            if (item.unit === 'conf') {
+                const pkgSize = parseFloat(item.default_quantity);
+                if (pkgSize > 0 && item.package_unit) {
+                    const totalSub = qty * pkgSize;
+                    const subTh = QTY_THRESHOLDS[item.package_unit] || QTY_THRESHOLDS['pz'];
+                    isLow  = totalSub > 0 && totalSub < subTh.min;
+                    isHigh = totalSub > subTh.max;
+                } else {
+                    // No package size known — can't judge quantity; suppress high-qty noise
+                    isHigh = false;
+                }
+            }
+
             const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
 
             if (!isLow && !isHigh && !suspDq) return;
@@ -2758,7 +2781,7 @@ async function loadBannerAlerts() {
             if (suspDq && !isLow && !isHigh) warning = '📦 Conf. sospetta';
             else if (isLow) warning = '⬇️ Troppo poco';
             else warning = '⬆️ Troppo';
-            _bannerQueue.push({ type: 'review', data: { ...item, warning } });
+            _bannerQueue.push({ type: 'review', data: { ...item, warning, _isLow: isLow } });
         });
 
         // 4. Consumption predictions that don't match actual quantity
@@ -2893,17 +2916,25 @@ function renderBannerItem() {
 
     } else if (entry.type === 'review') {
         const item = entry.data;
-        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        // For conf unit with known package size, display the sub-unit total (e.g., 800g)
+        // instead of a raw conf count that could be confused with "N confezioni".
+        let qtyDisplay;
+        if (item.unit === 'conf' && parseFloat(item.default_quantity) > 0 && item.package_unit) {
+            const totalSub = Math.round(parseFloat(item.quantity) * parseFloat(item.default_quantity));
+            qtyDisplay = `${totalSub} ${item.package_unit}`;
+        } else {
+            qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+        }
         const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
-        const suspQty = isSuspiciousQty(item.quantity, item.unit);
+        const isLow  = !!item._isLow; // set when banner item was built
         const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
         banner.className = 'alert-banner';
         iconEl.textContent = '⚠️';
         let titleText, detailText;
-        if (suspDq && !suspQty) {
+        if (suspDq && !isLow) {
             titleText = `${t('dashboard.banner_review_unusual_pkg_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
             detailText = t('dashboard.banner_review_unusual_pkg_detail', { qty: item.default_quantity, unit: item.package_unit });
-        } else if (parseFloat(item.quantity) < t_.min) {
+        } else if (isLow) {
             titleText = `${t('dashboard.banner_review_low_qty_title')}: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}`;
             detailText = t('dashboard.banner_review_low_qty_detail', { qty: qtyDisplay });
         } else {
@@ -2913,6 +2944,9 @@ function renderBannerItem() {
         titleEl.textContent = titleText;
         detailEl.textContent = detailText;
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerReview()">${t('dashboard.banner_review_action_ok')}</button>`;
+        if (isLow) {
+            btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_review_action_finish')}</button>`;
+        }
         btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerReview()">${t('dashboard.banner_review_action_edit')}</button>`;
         if (hasScale) {
             btns += `<button class="btn-banner btn-banner-weigh" onclick="weighBannerItem()">${t('dashboard.banner_review_action_weigh')}</button>`;
@@ -3101,6 +3135,25 @@ function bannerThrowAway() {
         }
     }).catch(() => showToast(t('error.connection'), 'error'));
     dismissBannerItem();
+}
+
+function bannerFinishAll() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry) return;
+    const item = entry.data;
+    dismissBannerItem();
+    api('inventory_use', {}, 'POST', {
+        product_id: item.product_id,
+        use_all: true,
+        location: '__all__',
+    }).then(res => {
+        if (res.success) {
+            showToast(`📤 ${item.name} terminato!`, 'success');
+            showLowStockBringPrompt(res, () => loadDashboard());
+        } else {
+            showToast(res.error || 'Errore', 'error');
+        }
+    }).catch(() => showToast(t('error.connection'), 'error'));
 }
 
 function editBannerExpiry() {
@@ -3649,6 +3702,17 @@ async function quickUse(productId, location) {
         });
         
         renderUsePreview();
+
+        // Reset scale state so the stale weight already on the scale doesn't
+        // immediately trigger an auto-fill. Only a weight *change* (≥10 g) after
+        // the page opens should be treated as a new product being placed.
+        _cancelScaleAutoConfirm(false); // stops timers, clears _scaleStabilityVal & _scaleLastConfirmedGrams
+        if (_scaleLatestWeight) {
+            const _baselineG = _scaleToGrams(parseFloat(_scaleLatestWeight.value), _scaleLatestWeight.unit);
+            if (_baselineG !== null && _baselineG >= 10) _scaleLastConfirmedGrams = _baselineG;
+            _scaleLatestWeight = null; // prevent immediate call inside loadUseInventoryInfo
+        }
+
         loadUseInventoryInfo();
         showLoading(false);
         showPage('use');
@@ -5942,6 +6006,7 @@ function renderUsePreview() {
 // Conf-mode tracking for USE form
 let _useConfMode = null; // null = normal, { packageSize, packageUnit, totalSub, unit } = conf mode active
 let _useNormalUnit = 'pz'; // unit when not in conf mode
+let _useCurrentItems = []; // cached inventory items for the current product on the use page
 
 /**
  * Mostra un suggerimento giallo sotto le info inventario quando ci sono più
@@ -6018,6 +6083,7 @@ async function loadUseInventoryInfo() {
     try {
         const data = await api('inventory_list');
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
+        _useCurrentItems = items; // cache for submitUseAll context detection
         const infoEl = document.getElementById('use-inventory-info');
         const unitSwitch = document.getElementById('use-unit-switch');
         
@@ -6573,18 +6639,117 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
 async function submitUseAll() {
     showLoading(true);
     try {
+        const currentLoc = document.getElementById('use-location').value;
+        const items = _useCurrentItems.filter(i => parseFloat(i.quantity) > 0);
+
+        const openedAtCurrentLoc = items.find(i => i.location === currentLoc && _isOpenedInventoryItem(i));
+        const allOpened = items.filter(_isOpenedInventoryItem);
+
+        let useLocation;
+
+        if (openedAtCurrentLoc) {
+            // Opened package at the currently selected location → finish only the opened item.
+            // The PHP backend fetches fractional (opened) rows first, so use_all on a specific
+            // location will clear the opened row and leave sealed packages untouched.
+            useLocation = currentLoc;
+        } else if (allOpened.length === 1) {
+            // One opened package somewhere else → almost certainly this is what the user means
+            useLocation = allOpened[0].location;
+        } else if (allOpened.length > 1) {
+            // Multiple opened packages at different locations → ask the user
+            showLoading(false);
+            _showUseAllDisambiguation(allOpened, items);
+            return;
+        } else {
+            // No opened packages anywhere → finish everything (original behaviour)
+            useLocation = '__all__';
+        }
+
+        const isOpenedFinish = useLocation !== '__all__' && items.some(
+            i => i.location === useLocation && _isOpenedInventoryItem(i)
+        );
+
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             use_all: true,
-            location: '__all__',
+            location: useLocation,
         });
         showLoading(false);
         if (result.success) {
-            showToast(`📤 ${currentProduct.name} terminato!`, 'success');
+            const toastMsg = isOpenedFinish
+                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
+                : `📤 ${currentProduct.name} terminato!`;
+            showToast(toastMsg, 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
             }
             // Check low stock (product may exist at other locations)
+            showLowStockBringPrompt(result, () => showPage('dashboard'));
+        } else {
+            showToast(result.error || 'Errore', 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/**
+ * Show a modal asking which opened package to mark as finished.
+ * Called when multiple opened packages exist across different locations.
+ */
+function _showUseAllDisambiguation(openedItems, allItems) {
+    const contentEl = document.getElementById('modal-content');
+    const locButtons = openedItems.map(item => {
+        const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+        const qtyStr = formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit);
+        return `<button class="btn btn-warning full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
+            onclick="closeModal(); _submitUseAllAt('${item.location}', true)">
+            <span style="font-size:1.3rem">${locInfo.icon}</span>
+            <span><strong>${locInfo.label}</strong> — 🔓 ${t('use.opened_badge')}<br>
+            <small style="opacity:0.8">${qtyStr}</small></span>
+        </button>`;
+    }).join('');
+
+    // Option to finish everything
+    const totalQty = allItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
+    const unit = allItems[0]?.unit || 'pz';
+    const defaultQty = allItems[0]?.default_quantity;
+    const pkgUnit = allItems[0]?.package_unit;
+    const totalStr = formatQuantity(totalQty, unit, defaultQty, pkgUnit);
+
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3>${t('use.use_all')}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${t('use.disambiguation_hint')}</p>
+        ${locButtons}
+        <button class="btn btn-danger full-width" style="margin-top:4px"
+            onclick="closeModal(); _submitUseAllAt('__all__', false)">
+            🗑️ ${t('use.disambiguation_all').replace('{qty}', totalStr)}
+        </button>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function _submitUseAllAt(location, isOpenedOnly) {
+    showLoading(true);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: currentProduct.id,
+            use_all: true,
+            location,
+        });
+        showLoading(false);
+        if (result.success) {
+            const toastMsg = isOpenedOnly
+                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
+                : `📤 ${currentProduct.name} terminato!`;
+            showToast(toastMsg, 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            }
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
             showToast(result.error || 'Errore', 'error');
