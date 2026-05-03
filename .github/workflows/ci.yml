@@ -86,3 +86,36 @@ jobs:
               else:
                   print(f'{f}: complete ✓')
           "
+
+  # ── Auto-merge develop → main ────────────────────────────────────────────
+  # Runs automatically after ALL checks pass on develop.
+  # You never need to merge manually again — just push to develop.
+  auto-merge-to-main:
+    name: Auto-merge develop → main
+    needs: [lint-php, lint-js, docker-build, validate-translations]
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge develop → main
+        run: |
+          LAST=$(git log --oneline -1 origin/develop)
+          git checkout main
+          git pull --ff-only origin main
+          git merge --no-ff origin/develop \
+            -m "chore: auto-merge develop → main
+
+          Triggered by: $LAST"
+          git push origin main
