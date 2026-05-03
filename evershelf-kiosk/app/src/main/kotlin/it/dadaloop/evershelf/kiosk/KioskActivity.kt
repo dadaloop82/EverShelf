@@ -77,6 +77,8 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusIcon: TextView
     private lateinit var scaleStatusText: TextView
     private lateinit var scaleStatusDetail: TextView
+    private lateinit var scaleQuestionLayout: LinearLayout
+    private lateinit var step3BottomButtons: LinearLayout
     // Update banner (native, shown at the top over the WebView)
     private lateinit var updateBanner: LinearLayout
     private lateinit var tvUpdateMessage: TextView
@@ -106,6 +108,7 @@ class KioskActivity : AppCompatActivity() {
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
+        private const val KEY_HAS_SCALE = "has_scale"
         private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
         private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
         private const val KIOSK_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-kiosk.apk"
@@ -166,6 +169,8 @@ class KioskActivity : AppCompatActivity() {
         scaleStatusIcon = findViewById(R.id.scaleStatusIcon)
         scaleStatusText = findViewById(R.id.scaleStatusText)
         scaleStatusDetail = findViewById(R.id.scaleStatusDetail)
+        scaleQuestionLayout = findViewById(R.id.scaleQuestionLayout)
+        step3BottomButtons = findViewById(R.id.step3BottomButtons)
 
         // Update banner
         updateBanner    = findViewById(R.id.updateBanner)
@@ -204,10 +209,21 @@ class KioskActivity : AppCompatActivity() {
             goToStep(2)
         }
         findViewById<MaterialButton>(R.id.btnFinish).setOnClickListener {
+            prefs.edit().putBoolean(KEY_HAS_SCALE, true).apply()
             launchGatewayInBackground()
             finishWizard()
         }
-        findViewById<MaterialButton>(R.id.btnSkipScale).setOnClickListener {
+        // "Yes" → reveal gateway status and proceed flow
+        findViewById<MaterialButton>(R.id.btnScaleYes).setOnClickListener {
+            scaleQuestionLayout.visibility = View.GONE
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            statusCard.visibility = View.VISIBLE
+            step3BottomButtons.visibility = View.VISIBLE
+            checkGatewayStatus()
+        }
+        // "No" → save pref and skip to web view
+        findViewById<MaterialButton>(R.id.btnScaleNo).setOnClickListener {
+            prefs.edit().putBoolean(KEY_HAS_SCALE, false).apply()
             finishWizard()
         }
 
@@ -320,7 +336,12 @@ class KioskActivity : AppCompatActivity() {
         updateStepIndicator()
 
         if (step == 3) {
-            checkGatewayStatus()
+            // Reset to question state every time step 3 is entered
+            scaleQuestionLayout.visibility = View.VISIBLE
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            statusCard.visibility = View.GONE
+            step3BottomButtons.visibility = View.GONE
+            findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
         }
     }
 
@@ -376,6 +397,7 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun launchGatewayInBackground() {
+        if (!prefs.getBoolean(KEY_HAS_SCALE, false)) return
         if (!isGatewayInstalled()) return
         val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE) ?: return
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -389,30 +411,91 @@ class KioskActivity : AppCompatActivity() {
 
     private fun checkGatewayStatus() {
         if (isGatewayInstalled()) {
-            scaleStatusIcon.text = "✅"
-            scaleStatusText.text = "Scale Gateway is installed"
-            scaleStatusDetail.text = "It will be launched in the background when you proceed"
-            scaleStatusDetail.setTextColor(0xFF34d399.toInt())
+            scaleStatusIcon.text = "\u2705"
+            scaleStatusText.text = getString(R.string.wizard_gateway_installed)
+            scaleStatusDetail.text = getString(R.string.wizard_gateway_checking)
+            scaleStatusDetail.setTextColor(0xFF94a3b8.toInt())
             findViewById<MaterialButton>(R.id.btnSkipScale).visibility = View.GONE
-            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch EverShelf"
+            findViewById<MaterialButton>(R.id.btnFinish).text = getString(R.string.btn_launch)
+            // Check async if a newer version is available
+            checkGatewayUpdate()
         } else {
-            scaleStatusIcon.text = "📥"
-            scaleStatusText.text = "Scale Gateway not installed"
-            scaleStatusDetail.text = "Install the Scale Gateway app to use a Bluetooth scale"
+            scaleStatusIcon.text = "\uD83D\uDCE5"
+            scaleStatusText.text = getString(R.string.wizard_gateway_not_installed)
+            scaleStatusDetail.text = getString(R.string.wizard_gateway_not_installed_detail)
             scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
-
-            findViewById<MaterialButton>(R.id.btnFinish).text = "🚀  Launch without scale"
-
+            findViewById<MaterialButton>(R.id.btnFinish).text = getString(R.string.btn_launch_no_scale)
             findViewById<MaterialButton>(R.id.btnSkipScale).apply {
-                text = "📥  Download Scale Gateway"
-                setTextColor(0xFF7c3aed.toInt())
+                text = getString(R.string.btn_download_gateway)
+                setTextColor(0xFFa78bfa.toInt())
                 visibility = View.VISIBLE
-                setOnClickListener {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GATEWAY_DOWNLOAD_URL))
-                    startActivity(intent)
-                }
+                setOnClickListener { triggerApkDownload(GATEWAY_DOWNLOAD_URL) }
             }
         }
+    }
+
+    /** Fetches the latest GitHub release and, if the gateway has an available update,
+     *  shows the update button in the wizard status card. */
+    private fun checkGatewayUpdate() {
+        val currentVersion = try {
+            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: return
+        } catch (_: Exception) { return }
+
+        Thread {
+            try {
+                val conn = URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                conn.disconnect()
+
+                val latestTag = json.optString("tag_name", "")
+                if (latestTag.isEmpty()) { showGatewayUpToDate(); return@Thread }
+
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
+                val norm = { v: String -> v.trimStart('v') }
+                val needsUpdate = !isSemver || norm(latestTag) != norm(currentVersion)
+
+                if (!needsUpdate) { showGatewayUpToDate(); return@Thread }
+
+                // Locate the gateway APK among release assets
+                var apkUrl = GATEWAY_DOWNLOAD_URL
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val a = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) {
+                            apkUrl = url; break
+                        }
+                    }
+                }
+                val finalUrl = apkUrl
+                runOnUiThread {
+                    scaleStatusIcon.text = "\uD83D\uDD04"
+                    scaleStatusText.text = getString(R.string.wizard_gateway_update_available)
+                    scaleStatusDetail.text = getString(R.string.wizard_gateway_update_detail)
+                    scaleStatusDetail.setTextColor(0xFFfbbf24.toInt())
+                    pendingInstallPkg = GATEWAY_PACKAGE
+                    pendingApkDownloadUrl = finalUrl
+                    findViewById<MaterialButton>(R.id.btnSkipScale).apply {
+                        text = getString(R.string.btn_update_gateway)
+                        setTextColor(0xFFfbbf24.toInt())
+                        visibility = View.VISIBLE
+                        setOnClickListener { triggerApkDownload(finalUrl) }
+                    }
+                }
+            } catch (_: Exception) {
+                showGatewayUpToDate()
+            }
+        }.start()
+    }
+
+    private fun showGatewayUpToDate() = runOnUiThread {
+        scaleStatusDetail.text = getString(R.string.wizard_gateway_installed_detail)
+        scaleStatusDetail.setTextColor(0xFF34d399.toInt())
     }
 
     // ── Connection Test ───────────────────────────────────────────────────
@@ -996,7 +1079,9 @@ class KioskActivity : AppCompatActivity() {
             showWizard()
         }
         if (currentStep == 3 && wizardContainer.visibility == View.VISIBLE) {
-            checkGatewayStatus()
+            val statusCard = findViewById<LinearLayout>(R.id.scaleStatusCard)
+            // Only re-check if the user has already answered "Yes" (status card visible)
+            if (statusCard.visibility == View.VISIBLE) checkGatewayStatus()
         }
     }
 

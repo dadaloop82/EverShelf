@@ -302,7 +302,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Smart Scale (Optional)"
+                    android:text="@string/wizard_step3_title"
                     android:textColor="#f1f5f9"
                     android:textSize="24sp"
                     android:textStyle="bold"
@@ -311,14 +311,56 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="To use a Bluetooth kitchen scale, you need the EverShelf Scale Gateway app installed separately."
+                    android:text="@string/wizard_step3_description"
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"
                     android:lineSpacingExtra="4dp"
                     android:layout_marginBottom="24dp" />
 
-                <!-- Scale status card -->
+                <!-- Scale question card — shown first, hidden after answer -->
+                <LinearLayout
+                    android:id="@+id/scaleQuestionLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="20dp"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/wizard_step3_question"
+                        android:textColor="#f1f5f9"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:layout_marginBottom="20dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScaleYes"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="@string/wizard_step3_yes"
+                        android:textSize="15sp"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#059669"
+                        android:layout_marginBottom="10dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScaleNo"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="@string/wizard_step3_no"
+                        android:textSize="15sp"
+                        android:textAllCaps="false"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:strokeColor="#334155"
+                        android:textColor="#94a3b8" />
+                </LinearLayout>
+
+                <!-- Scale status card — shown after user answers "Yes" -->
                 <LinearLayout
                     android:id="@+id/scaleStatusCard"
                     android:layout_width="match_parent"
@@ -326,7 +368,8 @@
                     android:orientation="vertical"
                     android:background="@drawable/card_background"
                     android:padding="20dp"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="16dp"
+                    android:visibility="gone">
 
                     <TextView
                         android:id="@+id/scaleStatusIcon"
@@ -357,19 +400,22 @@
                         android:gravity="center" />
                 </LinearLayout>
 
+                <!-- Bottom nav (Back / Launch) — hidden until user answers the question -->
                 <LinearLayout
+                    android:id="@+id/step3BottomButtons"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center"
-                    android:layout_marginTop="16dp">
+                    android:layout_marginTop="16dp"
+                    android:visibility="gone">
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnStep3Back"
                         android:layout_width="0dp"
                         android:layout_height="48dp"
                         android:layout_weight="1"
-                        android:text="Back"
+                        android:text="@string/btn_back"
                         android:textSize="15sp"
                         android:textAllCaps="false"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -382,22 +428,24 @@
                         android:layout_width="0dp"
                         android:layout_height="56dp"
                         android:layout_weight="2"
-                        android:text="🚀  Launch EverShelf"
+                        android:text="@string/btn_launch"
                         android:textSize="16sp"
                         android:textAllCaps="false"
                         android:backgroundTint="#059669" />
                 </LinearLayout>
 
+                <!-- Install/Update gateway button — shown by checkGatewayStatus() as needed -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSkipScale"
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="Skip — I don't have a scale"
-                    android:textSize="13sp"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
                     android:textAllCaps="false"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
-                    android:textColor="#64748b"
-                    android:layout_marginTop="12dp" />
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:strokeColor="#7c3aed"
+                    android:textColor="#a78bfa"
+                    android:layout_marginTop="12dp"
+                    android:visibility="gone" />
             </LinearLayout>
 
         </LinearLayout>
