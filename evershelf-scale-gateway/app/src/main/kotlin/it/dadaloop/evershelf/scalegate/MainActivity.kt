@@ -541,7 +541,9 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+                // RECEIVER_EXPORTED required: ACTION_DOWNLOAD_COMPLETE is sent by the system DownloadManager
+                // (an external process), so NOT_EXPORTED would silently block the broadcast on API 33+.
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_EXPORTED)
             } else {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
                 registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
