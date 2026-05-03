@@ -41,6 +41,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.ProgressBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -79,16 +80,22 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusDetail: TextView
     private lateinit var scaleQuestionLayout: LinearLayout
     private lateinit var step3BottomButtons: LinearLayout
-    // Update banner (native, shown at the top over the WebView)
+    // Update banner
     private lateinit var updateBanner: LinearLayout
     private lateinit var tvUpdateMessage: TextView
     private lateinit var btnInstallUpdate: MaterialButton
     private lateinit var btnDismissUpdate: MaterialButton
+    private lateinit var downloadProgressBar: ProgressBar
+    private lateinit var downloadProgressText: TextView
+    private lateinit var bannerProgressBar: ProgressBar
     private var pendingApkDownloadUrl: String = ""
     private var pendingInstallFile: java.io.File? = null
     private var pendingInstallPkg: String = ""
     /** The button that triggered the current download/install — updated throughout the flow. */
     private var activeInstallBtn: MaterialButton? = null
+    /** Handler for the 500 ms download-progress polling loop. */
+    private val pollHandler = Handler(Looper.getMainLooper())
+    private var activeDownloadId: Long = -1
 
     // Triple-tap to exit
     private var tapCount = 0
@@ -175,11 +182,18 @@ class KioskActivity : AppCompatActivity() {
         step3BottomButtons = findViewById(R.id.step3BottomButtons)
 
         // Update banner
-        updateBanner    = findViewById(R.id.updateBanner)
-        tvUpdateMessage = findViewById(R.id.tvUpdateMessage)
-        btnInstallUpdate = findViewById(R.id.btnInstallUpdate)
-        btnDismissUpdate = findViewById(R.id.btnDismissUpdate)
-        btnDismissUpdate.setOnClickListener { updateBanner.visibility = View.GONE }
+        updateBanner     = findViewById(R.id.updateBanner)
+        tvUpdateMessage  = findViewById(R.id.tvUpdateMessage)
+        btnInstallUpdate  = findViewById(R.id.btnInstallUpdate)
+        btnDismissUpdate  = findViewById(R.id.btnDismissUpdate)
+        downloadProgressBar  = findViewById(R.id.downloadProgressBar)
+        downloadProgressText = findViewById(R.id.downloadProgressText)
+        bannerProgressBar    = findViewById(R.id.bannerProgressBar)
+        btnDismissUpdate.setOnClickListener {
+            updateBanner.visibility = View.GONE
+            bannerProgressBar.visibility = View.GONE
+            pollHandler.removeCallbacksAndMessages(null)
+        }
         btnInstallUpdate.setOnClickListener {
             activeInstallBtn = btnInstallUpdate
             triggerApkDownload(pendingApkDownloadUrl)
@@ -520,10 +534,14 @@ class KioskActivity : AppCompatActivity() {
      * @param detail    Secondary detail line (status card only)
      * @param color     ARGB color for the detail text
      * @param btnEnabled Whether to re-enable the active button after this state
+     * @param progress  0-100 to show determinate bar; -1 = indeterminate; -2 = hide bar
+     * @param progressText  optional text shown under the bar (e.g. "18.2 MB / 40.5 MB")
      */
     private fun setInstallUI(
         icon: String, title: String, detail: String, color: Int,
-        btnEnabled: Boolean = false
+        btnEnabled: Boolean = false,
+        progress: Int = -2,
+        progressText: String = ""
     ) = runOnUiThread {
         // Wizard status card (step 3)
         val statusCard = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
@@ -532,11 +550,42 @@ class KioskActivity : AppCompatActivity() {
             scaleStatusText.text = title
             scaleStatusDetail.text = detail
             scaleStatusDetail.setTextColor(color)
+            when {
+                progress == -2 -> {
+                    downloadProgressBar.visibility = View.GONE
+                    downloadProgressText.visibility = View.GONE
+                }
+                progress == -1 -> {
+                    downloadProgressBar.isIndeterminate = true
+                    downloadProgressBar.visibility = View.VISIBLE
+                    downloadProgressText.text = progressText
+                    downloadProgressText.visibility = if (progressText.isEmpty()) View.GONE else View.VISIBLE
+                }
+                else -> {
+                    downloadProgressBar.isIndeterminate = false
+                    downloadProgressBar.progress = progress
+                    downloadProgressBar.visibility = View.VISIBLE
+                    downloadProgressText.text = progressText
+                    downloadProgressText.visibility = if (progressText.isEmpty()) View.GONE else View.VISIBLE
+                }
+            }
         }
         // Update banner (kiosk / gateway auto-update outside wizard)
         if (updateBanner.visibility == View.VISIBLE) {
             tvUpdateMessage.text = "$icon  $title"
             if (detail.isNotEmpty()) tvUpdateMessage.text = "${tvUpdateMessage.text}\n$detail"
+            when {
+                progress == -2 -> bannerProgressBar.visibility = View.GONE
+                progress == -1 -> {
+                    bannerProgressBar.isIndeterminate = true
+                    bannerProgressBar.visibility = View.VISIBLE
+                }
+                else -> {
+                    bannerProgressBar.isIndeterminate = false
+                    bannerProgressBar.progress = progress
+                    bannerProgressBar.visibility = View.VISIBLE
+                }
+            }
         }
         // Button state
         val btn = activeInstallBtn
@@ -544,6 +593,46 @@ class KioskActivity : AppCompatActivity() {
             btn.isEnabled = btnEnabled
             btn.text = "$icon  $title"
         }
+    }
+
+    /**
+     * Polls DownloadManager every 500 ms to report actual byte-level progress
+     * in the status card and banner. Stops automatically when download is no
+     * longer RUNNING or PENDING.
+     */
+    private fun startDownloadProgressPoll(downloadId: Long) {
+        activeDownloadId = downloadId
+        pollHandler.removeCallbacksAndMessages(null)
+        fun tick() {
+            if (activeDownloadId != downloadId) return   // superseded download
+            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val c  = dm.query(DownloadManager.Query().setFilterById(downloadId))
+            if (!c.moveToFirst()) { c.close(); return }
+            val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+            if (status == DownloadManager.STATUS_RUNNING ||
+                status == DownloadManager.STATUS_PENDING) {
+                val dl  = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                val tot = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                c.close()
+                val pct = if (tot > 0) (dl * 100 / tot).toInt() else 0
+                val dlMb  = dl  / 1_048_576f
+                val totMb = tot / 1_048_576f
+                val txt = if (tot > 0) "%.1f MB / %.1f MB".format(dlMb, totMb) else ""
+                setInstallUI(
+                    "\u23F3",
+                    getString(R.string.install_downloading) + if (tot > 0) " ($pct%)" else "",
+                    txt,
+                    0xFF94a3b8.toInt(),
+                    btnEnabled = false,
+                    progress = pct,
+                    progressText = txt
+                )
+                pollHandler.postDelayed({ tick() }, 500)
+            } else {
+                c.close()  // terminal state — BroadcastReceiver will handle success/failure
+            }
+        }
+        pollHandler.post { tick() }
     }
 
     // ── Connection Test ───────────────────────────────────────────────────
@@ -947,6 +1036,7 @@ class KioskActivity : AppCompatActivity() {
                 setMimeType("application/vnd.android.package-archive")
             }
             val downloadId = dm.enqueue(req)
+            startDownloadProgressPoll(downloadId)
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -963,23 +1053,31 @@ class KioskActivity : AppCompatActivity() {
                     }
                     c.close()
                     if (ok) {
+                        pollHandler.removeCallbacksAndMessages(null)
+                        activeDownloadId = -1
                         setInstallUI(
                             "\u23F3",
                             getString(R.string.install_installing),
                             getString(R.string.install_installing),
                             0xFF94a3b8.toInt(),
-                            btnEnabled = false
+                            btnEnabled = false,
+                            progress = -1
                         )
                         installApk(destFile)
                     } else {
+                        pollHandler.removeCallbacksAndMessages(null)
+                        activeDownloadId = -1
                         setInstallUI(
                             "\u274C",
                             getString(R.string.install_error_download),
                             getString(R.string.install_error_download_detail),
                             0xFFf87171.toInt(),
-                            btnEnabled = true
+                            btnEnabled = true,
+                            progress = -2
                         )
                         runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                        ErrorReporter.report(this@KioskActivity, "install_download_failed",
+                            "DownloadManager returned failure for URL: $apkUrl")
                     }
                 }
             }
@@ -1073,13 +1171,15 @@ class KioskActivity : AppCompatActivity() {
                                     getString(R.string.install_success),
                                     getString(R.string.install_success_detail),
                                     0xFF34d399.toInt(),
-                                    btnEnabled = false
+                                    btnEnabled = false,
+                                    progress = -2
                                 )
                                 // Re-check gateway status after 3 s so the wizard reflects reality
                                 Handler(Looper.getMainLooper()).postDelayed({
                                     val card = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
                                     if (card?.visibility == View.VISIBLE) checkGatewayStatus()
                                     updateBanner.visibility = View.GONE
+                                    bannerProgressBar.visibility = View.GONE
                                 }, 3000)
                             }
                             android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
@@ -1110,9 +1210,12 @@ class KioskActivity : AppCompatActivity() {
                                     getString(R.string.install_error_download),
                                     msg,
                                     0xFFf87171.toInt(),
-                                    btnEnabled = true
+                                    btnEnabled = true,
+                                    progress = -2
                                 )
                                 runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                                ErrorReporter.report(this@KioskActivity, "install_failure",
+                                    "PackageInstaller status=$status msg=$msg pkg=$targetPkg")
                             }
                         }
                     }
@@ -1134,7 +1237,8 @@ class KioskActivity : AppCompatActivity() {
                 getString(R.string.install_installing),
                 getString(R.string.install_installing),
                 0xFF94a3b8.toInt(),
-                btnEnabled = false
+                btnEnabled = false,
+                progress = -1
             )
         } catch (e: Exception) {
             setInstallUI(
@@ -1142,9 +1246,12 @@ class KioskActivity : AppCompatActivity() {
                 getString(R.string.install_error_download),
                 e.message ?: "",
                 0xFFf87171.toInt(),
-                btnEnabled = true
+                btnEnabled = true,
+                progress = -2
             )
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+            ErrorReporter.report(this, "install_packager_exception",
+                "installWithPackageInstaller exception for $targetPkg: ${e.message}")
         }
     }
 
@@ -1241,12 +1348,14 @@ class KioskActivity : AppCompatActivity() {
                 getString(R.string.install_success),
                 getString(R.string.install_success_detail),
                 0xFF34d399.toInt(),
-                btnEnabled = false
+                btnEnabled = false,
+                progress = -2
             )
             Handler(Looper.getMainLooper()).postDelayed({
                 val card = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
                 if (card?.visibility == View.VISIBLE) checkGatewayStatus()
                 updateBanner.visibility = View.GONE
+                bannerProgressBar.visibility = View.GONE
             }, 3000)
         }
         // Not OK = install failed (possibly signature conflict).
