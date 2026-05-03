@@ -88,6 +88,11 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var downloadProgressBar: ProgressBar
     private lateinit var downloadProgressText: TextView
     private lateinit var bannerProgressBar: ProgressBar
+    // Step 3: server-reachability check card
+    private lateinit var serverStatusCard: LinearLayout
+    private lateinit var serverCheckIcon: TextView
+    private lateinit var serverCheckText: TextView
+    private lateinit var serverCheckDetail: TextView
     private var pendingApkDownloadUrl: String = ""
     private var pendingInstallFile: java.io.File? = null
     private var pendingInstallPkg: String = ""
@@ -189,6 +194,10 @@ class KioskActivity : AppCompatActivity() {
         downloadProgressBar  = findViewById(R.id.downloadProgressBar)
         downloadProgressText = findViewById(R.id.downloadProgressText)
         bannerProgressBar    = findViewById(R.id.bannerProgressBar)
+        serverStatusCard  = findViewById(R.id.serverStatusCard)
+        serverCheckIcon   = findViewById(R.id.serverCheckIcon)
+        serverCheckText   = findViewById(R.id.serverCheckText)
+        serverCheckDetail = findViewById(R.id.serverCheckDetail)
         btnDismissUpdate.setOnClickListener {
             updateBanner.visibility = View.GONE
             bannerProgressBar.visibility = View.GONE
@@ -521,6 +530,58 @@ class KioskActivity : AppCompatActivity() {
     private fun showGatewayUpToDate() = runOnUiThread {
         scaleStatusDetail.text = getString(R.string.wizard_gateway_installed_detail)
         scaleStatusDetail.setTextColor(0xFF34d399.toInt())
+    }
+
+    /**
+     * Pings the configured EverShelf server to verify it is reachable and that the
+     * error-reporting API endpoint responds. Called every time step 3 is entered so
+     * the user knows whether install failures will be automatically sent to GitHub Issues.
+     */
+    private fun checkServerReachability() {
+        val url = prefs.getString(KEY_URL, "") ?: ""
+        serverCheckIcon.text = "⏳"
+        serverCheckText.text = getString(R.string.wizard_server_checking)
+        serverCheckText.setTextColor(0xFF94a3b8.toInt())
+        serverCheckDetail.visibility = View.GONE
+
+        if (url.isEmpty()) {
+            serverCheckIcon.text = "⚠️"
+            serverCheckText.text = getString(R.string.wizard_server_error)
+            serverCheckText.setTextColor(0xFFfbbf24.toInt())
+            serverCheckDetail.text = getString(R.string.wizard_server_error_detail)
+            serverCheckDetail.visibility = View.VISIBLE
+            return
+        }
+
+        Thread {
+            var reachable = false
+            try {
+                val base = url.trimEnd('/')
+                val conn = java.net.URL("$base/api/?action=check_update")
+                    .openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 5000
+                conn.readTimeout    = 5000
+                val code = conn.responseCode
+                conn.disconnect()
+                reachable = code in 200..499   // any HTTP response = server is up
+            } catch (_: Exception) {}
+            runOnUiThread {
+                if (reachable) {
+                    serverCheckIcon.text = "✅"
+                    serverCheckText.text = getString(R.string.wizard_server_ok)
+                    serverCheckText.setTextColor(0xFF34d399.toInt())
+                    serverCheckDetail.text = getString(R.string.wizard_server_ok_detail)
+                    serverCheckDetail.visibility = View.VISIBLE
+                } else {
+                    serverCheckIcon.text = "⚠️"
+                    serverCheckText.text = getString(R.string.wizard_server_error)
+                    serverCheckText.setTextColor(0xFFfbbf24.toInt())
+                    serverCheckDetail.text = getString(R.string.wizard_server_error_detail)
+                    serverCheckDetail.visibility = View.VISIBLE
+                }
+            }
+        }.start()
     }
 
     /**
@@ -1223,6 +1284,33 @@ class KioskActivity : AppCompatActivity() {
                                 runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                                 ErrorReporter.reportMessage("install_failure",
                                     "PackageInstaller status=$status msg=$msg pkg=$targetPkg")
+                                // Generic failure on an already-installed package often means
+                                // a signature conflict with the old version. Offer uninstall as
+                                // last resort (only after the system installer already failed).
+                                val pkgInstalled = try {
+                                    packageManager.getPackageInfo(targetPkg, 0); true
+                                } catch (_: Exception) { false }
+                                if (pkgInstalled) {
+                                    runOnUiThread {
+                                        pendingInstallFile = file
+                                        pendingInstallPkg  = targetPkg
+                                        androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
+                                            .setTitle("⚠️ Installazione fallita")
+                                            .setMessage("Installazione fallita (status=$status).\n\n" +
+                                                "Se la versione precedente usa una firma diversa " +
+                                                "bisogna prima disinstallarla.\n\n" +
+                                                "Disinstalla ora e riprova automaticamente?")
+                                            .setPositiveButton("Disinstalla e riprova") { _, _ ->
+                                                startActivityForResult(
+                                                    Intent(Intent.ACTION_DELETE,
+                                                        android.net.Uri.parse("package:$targetPkg")),
+                                                    UNINSTALL_REQUEST
+                                                )
+                                            }
+                                            .setNegativeButton("Annulla", null)
+                                            .show()
+                                    }
+                                }
                             }
                         }
                     }

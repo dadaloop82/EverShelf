@@ -36,4 +36,11 @@
     <string name="btn_launch_no_scale">🚀  Launch without scale</string>
     <string name="btn_download_gateway">📥  Install Scale Gateway</string>
     <string name="btn_update_gateway">📥  Update Scale Gateway</string>
+
+    <!-- Server reachability check (wizard step 3) -->
+    <string name="wizard_server_checking">Checking server connection…</string>
+    <string name="wizard_server_ok">Server reachable ✅</string>
+    <string name="wizard_server_ok_detail">Error reporting is active — install failures will be sent to GitHub Issues automatically.</string>
+    <string name="wizard_server_error">Server not reachable ⚠️</string>
+    <string name="wizard_server_error_detail">Install errors won\'t reach GitHub Issues. Check the URL entered in step 2.</string>
 </resources>
