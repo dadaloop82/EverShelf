@@ -1,11 +1,15 @@
 FROM php:8.2-apache
 
-# Install required PHP extensions
+# Install required PHP extensions + Tesseract OCR for offline expiry date reading
 RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     libcurl4-openssl-dev \
     libonig-dev \
-    && docker-php-ext-install pdo_sqlite curl mbstring \
+    libgd-dev \
+    tesseract-ocr \
+    tesseract-ocr-ita \
+    tesseract-ocr-eng \
+    && docker-php-ext-install pdo_sqlite curl mbstring gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite and mod_headers

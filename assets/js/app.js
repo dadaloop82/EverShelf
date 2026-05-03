@@ -1086,6 +1086,106 @@ function guessCategoryFromName(name) {
     return 'altro';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Embedding-based category classifier (async, @xenova/transformers)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Canonical descriptions for each local category (used as embedding anchors).
+const _CATEGORY_DESCRIPTIONS = {
+    latticini:  'latte yogurt formaggio burro panna mozzarella latticini dairy',
+    carne:      'carne pollo manzo maiale vitello prosciutto salame bresaola meat',
+    pesce:      'pesce tonno salmone merluzzo gamberi seafood fish',
+    frutta:     'frutta mela banana arancia pera fragola uva kiwi fruit',
+    verdura:    'verdura insalata zucchina carota cipolla spinaci tomato vegetables',
+    pasta:      'pasta spaghetti penne fusilli riso risotto noodles rice',
+    pane:       'pane fette biscottate grissini cracker toast bread bakery',
+    surgelati:  'surgelati congelato frozen gelato ice cream',
+    bevande:    'acqua birra vino succo caffè tè bevande drinks beverages',
+    condimenti: 'olio aceto sale zucchero farina ketchup maionese senape spezie condiments',
+    snack:      'biscotti cioccolato patatine snack caramelle wafer merendine',
+    conserve:   'conserve pelati passata marmellata miele legumi ceci beans canned',
+    cereali:    'cereali muesli granola fiocchi d\'avena oat breakfast cereal',
+    igiene:     'sapone shampoo dentifricio deodorante igiene personale hygiene',
+    pulizia:    'detersivo detergente pulizia casa sgrassatore cleaning',
+    altro:      'prodotto generico varie altro miscellaneous',
+};
+
+// In-memory cache: productName → category (avoids re-embedding the same product)
+const _embeddingCache = new Map();
+
+/**
+ * Cosine similarity between two Float32Array vectors.
+ */
+function _cosineSim(a, b) {
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na  += a[i] * a[i];
+        nb  += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(na) * Math.sqrt(nb) + 1e-9);
+}
+
+/**
+ * Mean-pool a [1, tokens, dims] tensor → Float32Array of length dims.
+ */
+function _meanPool(tensor) {
+    const [, tokens, dims] = tensor.dims;
+    const data = tensor.data;
+    const out  = new Float32Array(dims);
+    for (let t = 0; t < tokens; t++) {
+        for (let d = 0; d < dims; d++) {
+            out[d] += data[t * dims + d];
+        }
+    }
+    for (let d = 0; d < dims; d++) out[d] /= tokens;
+    return out;
+}
+
+/**
+ * Async: returns the best-matching category key for `productName`.
+ * Returns null if the model is unavailable or similarity is too low.
+ * THRESHOLD 0.30 — below this the regex fallback is more reliable.
+ */
+async function classifyCategoryByEmbedding(productName) {
+    if (!productName) return null;
+    const key = productName.toLowerCase().trim();
+    if (_embeddingCache.has(key)) return _embeddingCache.get(key);
+
+    if (typeof window._getCategoryPipeline !== 'function') return null;
+    const pipe = await window._getCategoryPipeline();
+    if (!pipe) return null;
+
+    try {
+        const labels = Object.keys(_CATEGORY_DESCRIPTIONS);
+        const texts  = [key, ...labels.map(l => _CATEGORY_DESCRIPTIONS[l])];
+
+        // Embed all texts in one batched call for efficiency
+        const output  = await pipe(texts, { pooling: 'mean', normalize: true });
+        const vectors = labels.map((_, i) => {
+            const t = output[i + 1];
+            // output[i] may be a Tensor or already a plain array-like
+            return t.dims ? _meanPool(t) : new Float32Array(t.data ?? t);
+        });
+        const queryVec = output[0].dims
+            ? _meanPool(output[0])
+            : new Float32Array(output[0].data ?? output[0]);
+
+        let bestLabel = null, bestSim = 0;
+        for (let i = 0; i < labels.length; i++) {
+            const sim = _cosineSim(queryVec, vectors[i]);
+            if (sim > bestSim) { bestSim = sim; bestLabel = labels[i]; }
+        }
+
+        const result = (bestSim >= 0.30 && bestLabel !== 'altro') ? bestLabel : null;
+        _embeddingCache.set(key, result);
+        return result;
+    } catch (e) {
+        console.warn('[EverShelf] Embedding classify error:', e);
+        return null;
+    }
+}
+
 // Determine safety level for expired products
 // Returns { level: 'danger'|'warning'|'ok', icon, label, tip }
 function getExpiredSafety(item, daysExpired) {
@@ -2024,7 +2124,12 @@ function showPage(pageId, param = null) {
             }
             loadInventory();
             break;
-        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner(); break;
+        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner();
+            // Pre-warm the embedding model the first time user visits scan page
+            if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
+                window._getCategoryPipeline(); // fire-and-forget
+            }
+            break;
         case 'products': loadAllProducts(); break;
         case 'shopping': loadShoppingList(); break;
         case 'recipe': loadRecipeArchive(); break;
@@ -4470,7 +4575,7 @@ function selectQuickProduct(product) {
 async function createQuickProduct(name) {
     showLoading(true);
     
-    // Auto-detect category from name
+    // Auto-detect category from name (sync regex first)
     const category = guessCategoryFromName(name);
     
     try {
@@ -4494,6 +4599,27 @@ async function createQuickProduct(name) {
             showLoading(false);
             clearQuickNameResults();
             showToast('Prodotto creato!', 'success');
+
+            // If regex gave 'altro', try embedding in background and silently update
+            if (category === 'altro' && typeof classifyCategoryByEmbedding === 'function') {
+                classifyCategoryByEmbedding(name).then(async embCat => {
+                    if (!embCat || !result.id) return;
+                    try {
+                        await api('product_save', {}, 'POST', {
+                            id: result.id,
+                            name: name,
+                            brand: '',
+                            category: embCat,
+                            unit: 'pz',
+                            default_quantity: 1,
+                        });
+                        if (currentProduct && currentProduct.id === result.id) {
+                            currentProduct.category = embCat;
+                        }
+                    } catch (_) { /* silent */ }
+                });
+            }
+
             showProductAction();
         } else {
             showLoading(false);
@@ -4613,6 +4739,20 @@ function autoDetectCategory() {
             onCategoryChange(true);
             return;
         }
+    }
+
+    // ── Embedding fallback: async, only when keywords didn't match ──────────
+    // Kick off model load (no-op if already loaded/loading) and update the
+    // select once the result is ready.  Only runs when pipeline is available.
+    if (typeof classifyCategoryByEmbedding === 'function') {
+        classifyCategoryByEmbedding(document.getElementById('pf-name').value).then(embCat => {
+            if (!embCat) return;
+            // Re-check manuallySet — user might have picked something while awaiting
+            const sel = document.getElementById('pf-category');
+            if (!sel || sel.dataset.manuallySet === 'true') return;
+            sel.value = embCat;
+            onCategoryChange(true);
+        });
     }
 }
 

@@ -2243,21 +2243,194 @@ function getOpenedShelfLifeAction(): void {
     echo json_encode(['days' => $days]);
 }
 
-function geminiReadExpiry(): void {
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'no_api_key']);
-        return;
+// ===== TESSERACT OFFLINE OCR HELPER =====
+
+/**
+ * Try to extract an expiry date from a base64 image using Tesseract OCR (offline).
+ * Returns ['found'=>true,'date'=>'YYYY-MM-DD','raw_text'=>'...','confidence'=>float]
+ * or      ['found'=>false,'raw_text'=>'...']
+ *
+ * Strategy:
+ *  1. Decode base64 → temp JPEG
+ *  2. Pre-process with GD: desaturate, auto-contrast, sharpen, 2× upscale
+ *  3. Run tesseract with Italian+English langs, PSM-6 (block of text)
+ *  4. Run date-format regexes (Italian & international patterns)
+ *  5. Normalise to YYYY-MM-DD
+ *
+ * Returns null if tesseract binary is not available or GD is not compiled in.
+ */
+function tesseractReadExpiry(string $imageBase64): ?array {
+    // Require both the binary and the GD extension
+    if (!function_exists('imagecreatefromstring')) return null;
+    $tesseract = trim(shell_exec('which tesseract 2>/dev/null') ?? '');
+    if (empty($tesseract)) return null;
+
+    // ── 1. Decode image ────────────────────────────────────────────────────
+    $imgData = base64_decode($imageBase64);
+    if ($imgData === false || strlen($imgData) < 100) return null;
+
+    $src = @imagecreatefromstring($imgData);
+    if (!$src) return null;
+
+    $w = imagesx($src);
+    $h = imagesy($src);
+
+    // ── 2. Pre-process ─────────────────────────────────────────────────────
+    // 2a. Upscale ×2 – Tesseract performs best on ≥300 DPI; packaging photos
+    //     are often low-res so doubling helps character recognition.
+    $w2 = $w * 2;
+    $h2 = $h * 2;
+    $dst = imagecreatetruecolor($w2, $h2);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $w2, $h2, $w, $h);
+    imagedestroy($src);
+
+    // 2b. Greyscale + auto-contrast
+    imagefilter($dst, IMG_FILTER_GRAYSCALE);
+    imagefilter($dst, IMG_FILTER_CONTRAST, -40); // negative = increase contrast in GD
+
+    // 2c. Sharpen (convolution kernel)
+    $kernel = [[0,-1,0],[-1,5,-1],[0,-1,0]];
+    imageconvolution($dst, $kernel, 1, 0);
+
+    // ── 3. Write temp file & run Tesseract ────────────────────────────────
+    $tmpIn  = sys_get_temp_dir() . '/ocr_in_'  . uniqid() . '.png';
+    $tmpOut = sys_get_temp_dir() . '/ocr_out_' . uniqid();
+    imagepng($dst, $tmpIn);
+    imagedestroy($dst);
+
+    // PSM 6 = assume a single uniform block of text (good for cropped label areas)
+    $cmd = escapeshellcmd($tesseract)
+         . ' ' . escapeshellarg($tmpIn)
+         . ' ' . escapeshellarg($tmpOut)
+         . ' -l ita+eng --psm 6 --oem 1'
+         . ' quiet 2>/dev/null';
+    shell_exec($cmd);
+
+    $rawText = '';
+    if (file_exists($tmpOut . '.txt')) {
+        $rawText = trim(file_get_contents($tmpOut . '.txt'));
+        unlink($tmpOut . '.txt');
     }
-    
+    if (file_exists($tmpIn)) unlink($tmpIn);
+
+    if (empty($rawText)) return ['found' => false, 'raw_text' => ''];
+
+    // ── 4. Parse date patterns ─────────────────────────────────────────────
+    $today = new DateTime();
+    $currentYear = (int)$today->format('Y');
+
+    // Normalise confusable OCR chars: O→0, I/l→1, S→5
+    $clean = preg_replace('/\bO\b/', '0', $rawText);
+    $clean = preg_replace('/[Il](?=\d)/', '1', $clean);
+
+    $patterns = [
+        // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+        '/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/',
+        // MM/YYYY or MM-YYYY (best-before month/year only)
+        '/\b(\d{1,2})[\/\-\.](\d{4})\b/',
+        // YYYY-MM-DD (ISO)
+        '/\b(\d{4})-(\d{2})-(\d{2})\b/',
+        // DD MMM YYYY  (e.g. 15 APR 2026)
+        '/\b(\d{1,2})\s+(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s*(\d{4})\b/i',
+        // MMM YYYY  (e.g. APR 2026)
+        '/\b(gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s*(\d{4})\b/i',
+    ];
+
+    $monthMap = [
+        'gen'=>1,'jan'=>1,'feb'=>2,'mar'=>3,'apr'=>4,'mag'=>5,'may'=>5,
+        'giu'=>6,'jun'=>6,'lug'=>7,'jul'=>7,'ago'=>8,'aug'=>8,
+        'set'=>9,'sep'=>9,'ott'=>10,'oct'=>10,'nov'=>11,'dic'=>12,'dec'=>12,
+    ];
+
+    $candidates = [];
+    foreach ($patterns as $pat) {
+        if (!preg_match_all($pat, $clean, $m, PREG_SET_ORDER)) continue;
+        foreach ($m as $match) {
+            $full = $match[0];
+            // Determine Y/M/D from which pattern matched
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $full)) {
+                // ISO
+                $y = (int)$match[1]; $mo = (int)$match[2]; $d = (int)$match[3];
+            } elseif (isset($monthMap[strtolower($match[2] ?? '')])) {
+                // DD MMM YYYY
+                $d  = (int)$match[1];
+                $mo = $monthMap[strtolower($match[2])];
+                $y  = (int)$match[3];
+            } elseif (isset($monthMap[strtolower($match[1] ?? '')])) {
+                // MMM YYYY
+                $d  = 1;
+                $mo = $monthMap[strtolower($match[1])];
+                $y  = (int)$match[2];
+            } elseif (count($match) === 3) {
+                // MM/YYYY
+                $mo = (int)$match[1]; $y = (int)$match[2]; $d = 1;
+            } else {
+                // DD/MM/YYYY
+                $d = (int)$match[1]; $mo = (int)$match[2]; $y = (int)$match[3];
+            }
+            // Sanity
+            if ($y < 2020 || $y > 2040) continue;
+            if ($mo < 1 || $mo > 12) continue;
+            if ($d < 1 || $d > 31) continue;
+            $dateStr = sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            // Prefer dates in the future or near past (within 2 years)
+            $dt   = new DateTime($dateStr);
+            $diff = (int)$today->diff($dt)->days * ($dt >= $today ? 1 : -1);
+            $candidates[] = ['date' => $dateStr, 'score' => $diff, 'raw' => $full];
+        }
+    }
+
+    if (empty($candidates)) {
+        return ['found' => false, 'raw_text' => $rawText];
+    }
+
+    // Pick candidate closest to today (but prefer future dates, then near-past)
+    usort($candidates, fn($a, $b) => abs($a['score']) - abs($b['score']));
+    $best = $candidates[0];
+
+    return [
+        'found'      => true,
+        'date'       => $best['date'],
+        'raw_text'   => $rawText,
+        'raw_match'  => $best['raw'],
+        'confidence' => count($candidates) === 1 ? 0.9 : 0.75,
+        'source'     => 'tesseract',
+    ];
+}
+
+function geminiReadExpiry(): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $imageBase64 = $input['image'] ?? '';
-    
+
     if (empty($imageBase64)) {
         echo json_encode(['success' => false, 'error' => 'No image provided']);
         return;
     }
-    
+
+    // ── Step 1: Try Tesseract offline OCR first ────────────────────────────
+    $ocrResult = tesseractReadExpiry($imageBase64);
+    if ($ocrResult !== null && !empty($ocrResult['found']) && !empty($ocrResult['date'])) {
+        echo json_encode([
+            'success'     => true,
+            'expiry_date' => $ocrResult['date'],
+            'raw_text'    => $ocrResult['raw_text'] ?? '',
+            'source'      => 'ocr',
+        ]);
+        return;
+    }
+
+    // ── Step 2: Fall back to Gemini Vision ────────────────────────────────
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        // No Gemini key and OCR failed/unavailable
+        echo json_encode([
+            'success'  => false,
+            'error'    => 'no_api_key',
+            'raw_text' => $ocrResult['raw_text'] ?? '',
+        ]);
+        return;
+    }
+
     // Call Gemini API
     $payload = [
         'contents' => [
@@ -2305,7 +2478,7 @@ function geminiReadExpiry(): void {
         // Validate date format
         $date = $parsed['date'];
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            echo json_encode(['success' => true, 'expiry_date' => $date, 'raw_text' => $parsed['raw_text'] ?? '']);
+            echo json_encode(['success' => true, 'expiry_date' => $date, 'raw_text' => $parsed['raw_text'] ?? '', 'source' => 'gemini']);
             return;
         }
     }
