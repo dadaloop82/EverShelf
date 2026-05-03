@@ -19,6 +19,11 @@ import java.util.concurrent.Executors
  * (POST /api/?action=report_error) which in turn creates or
  * updates a GitHub Issue automatically.
  *
+ * Crash persistence: if the app crashes and the network POST fails (or
+ * doesn't have time to complete), the crash details are saved to
+ * SharedPreferences. On the next launch (in init()), any pending crash
+ * is detected and re-sent before normal operation begins.
+ *
  * Usage:
  *   // In Application or Activity onCreate:
  *   ErrorReporter.init(this, prefs.getString("evershelf_url", "")!!)
@@ -32,6 +37,11 @@ import java.util.concurrent.Executors
 object ErrorReporter {
 
     private const val TAG = "EverShelfErrorReporter"
+
+    // SharedPreferences for crash persistence
+    private const val PREFS_NAME  = "evershelf_kiosk_errors"
+    private const val KEY_PENDING = "pending_crash_json"
+
     private val executor = Executors.newSingleThreadExecutor()
 
     // Fingerprints already sent in this process to avoid flooding
@@ -40,6 +50,7 @@ object ErrorReporter {
     private var serverBaseUrl: String = ""
     private var appVersion: String = ""
     private var deviceInfo: String = ""
+    private lateinit var appContext: Context
 
     /**
      * Call once (e.g. in KioskActivity.onCreate) before reporting any errors.
@@ -47,6 +58,7 @@ object ErrorReporter {
      * @param baseUrl   The EverShelf server URL, e.g. "http://192.168.1.10:8080"
      */
     fun init(context: Context, baseUrl: String) {
+        appContext = context.applicationContext
         serverBaseUrl = baseUrl.trimEnd('/')
         try {
             val pi = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -54,16 +66,23 @@ object ErrorReporter {
         } catch (_: Exception) {}
         deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE})"
 
+        // Send any crash that was saved to prefs during a previous session
+        sendPendingCrash()
+
         // Install a global UncaughtExceptionHandler so ANY unhandled crash is reported
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                reportSync(
-                    type    = "uncaught-exception",
-                    message = throwable.message ?: throwable.javaClass.simpleName,
-                    stack   = throwable.stackTraceToString(),
-                    context = mapOf("thread" to thread.name)
-                )
+                val type    = "uncaught-exception"
+                val message = throwable.message ?: throwable.javaClass.simpleName
+                val stack   = throwable.stackTraceToString()
+                val ctx     = mapOf("thread" to thread.name)
+                // Persist to SharedPreferences first so the data survives even if
+                // the network POST doesn't complete before the process is killed.
+                savePendingCrash(type, message, stack, ctx)
+                reportSync(type, message, stack, ctx)
+                // If reportSync succeeded, the issue was sent — clear the pending entry
+                clearPendingCrash()
             } catch (_: Exception) {}
             // Re-throw to the previous handler so the system crash dialog/restart still works
             previousHandler?.uncaughtException(thread, throwable)
@@ -122,6 +141,55 @@ object ErrorReporter {
         val fp = fingerprint(type, message)
         synchronized(sentFingerprints) { sentFingerprints.add(fp) }
         doPost(type, message, stack, context)
+    }
+
+    // ── Crash persistence helpers ─────────────────────────────────────────────
+
+    private fun savePendingCrash(type: String, message: String, stack: String, context: Map<String, Any?>) {
+        try {
+            val ctxJson = JSONObject()
+            context.forEach { (k, v) -> ctxJson.put(k, v) }
+            val payload = JSONObject().apply {
+                put("type",    type)
+                put("message", message)
+                put("stack",   stack)
+                put("context", ctxJson)
+                put("version", appVersion)
+                put("ts",      SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
+            }
+            appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_PENDING, payload.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    private fun clearPendingCrash() {
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().remove(KEY_PENDING).apply()
+    }
+
+    /**
+     * Called at the start of [init]: if there is an unsent crash from the
+     * previous session, send it now and then clear the entry.
+     */
+    private fun sendPendingCrash() {
+        val json = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_PENDING, null) ?: return
+        // Clear immediately so we don't re-send if THIS launch also crashes
+        clearPendingCrash()
+        executor.execute {
+            try {
+                val p       = JSONObject(json)
+                val type    = p.optString("type", "uncaught-exception")
+                val message = p.optString("message", "")
+                val stack   = p.optString("stack", "")
+                val savedTs = p.optString("ts", "")
+                val ctxJson = p.optJSONObject("context") ?: JSONObject()
+                val ctx     = mutableMapOf<String, Any?>("note" to "Sent on next launch after crash")
+                if (savedTs.isNotEmpty()) ctx["crash_ts"] = savedTs
+                ctxJson.keys().forEach { k -> ctx[k] = ctxJson.opt(k) }
+                doPost("$type-survived", message, stack, ctx)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun doPost(type: String, message: String, stack: String, context: Map<String, Any?>) {

@@ -8,6 +8,13 @@
  * @license MIT
  */
 
+// ── GitHub error-reporting credentials ───────────────────────────────────────
+// Token is intentionally hardcoded: scoped only to Issues (R+W) on this repo.
+// Defined here (at the very top) so they are available to the global exception
+// handler registered below, before any other code runs.
+define('GH_ISSUE_TOKEN', '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');
+define('GH_REPO',        'dadaloop82/EverShelf');
+
 // database.php must always be loaded (used both by HTTP router and cron)
 require_once __DIR__ . '/database.php';
 
@@ -5571,6 +5578,9 @@ function migrateUnitsToBase(PDO $db): void {
 // ===== CENTRALIZED ERROR REPORTING → GITHUB ISSUES ==========================
 // =============================================================================
 
+// GH_ISSUE_TOKEN and GH_REPO are defined at the very top of this file so they
+// are available to the global exception handler even before this point.
+
 /**
  * POST /api/?action=report_error
  *
@@ -5610,11 +5620,7 @@ function reportError(): void {
     _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
 
     // ── Fire GitHub issue (non-blocking: we always return ok to client) ───
-    $token = env('GITHUB_ISSUE_TOKEN');
-    $repo  = env('GITHUB_REPO', 'dadaloop82/EverShelf');
-    if (!empty($token) && !empty($repo)) {
-        _createOrCommentGithubIssue($token, $repo, $source, $type, $message, $stack, $pageUrl, $ua, $version, $context);
-    }
+    _createOrCommentGithubIssue(GH_ISSUE_TOKEN, GH_REPO, $source, $type, $message, $stack, $pageUrl, $ua, $version, $context);
 
     echo json_encode(['ok' => true]);
 }
@@ -5683,7 +5689,7 @@ function _createOrCommentGithubIssue(
             . "**Source:** `$source` | **Type:** `$type`\n"
             . $urlMd . $uaMd . $verMd . "\n"
             . $ctxMd . $stackMd
-            . "\n---\n_fp:$fp_";
+            . "\n---\n_fp:{$fp}_";
         _githubRequest($token, 'POST',
             "https://api.github.com/repos/$repo/issues/$existingIssueNumber/comments",
             ['body' => $body]
@@ -5715,7 +5721,7 @@ function _createOrCommentGithubIssue(
             . $ctxMd
             . "\n---\n"
             . "<!-- auto-report fp:$fp -->\n"
-            . "_This issue was created automatically by EverShelf's error reporter. fp:`$fp`_";
+            . "_This issue was created automatically by EverShelf's error reporter. fp:`{$fp}`_";
 
         _githubRequest($token, 'POST',
             "https://api.github.com/repos/$repo/issues",
@@ -5779,15 +5785,11 @@ function _phpErrorReport(string $message, string $file, int $line, string $trace
 
     _appendErrorLog($source, $errType, "[$type] $message", $trace, '', '', $context);
 
-    $token = env('GITHUB_ISSUE_TOKEN');
-    $repo  = env('GITHUB_REPO', 'dadaloop82/EverShelf');
-    if (!empty($token) && !empty($repo)) {
-        _createOrCommentGithubIssue(
-            $token, $repo, $source, $errType,
-            "[$type] $message", $trace,
-            '', '', PHP_VERSION, $context
-        );
-    }
+    _createOrCommentGithubIssue(
+        GH_ISSUE_TOKEN, GH_REPO, $source, $errType,
+        "[$type] $message", $trace,
+        '', '', PHP_VERSION, $context
+    );
 
     $running = false;
 }

@@ -77,6 +77,10 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
         bleManager = BleScaleManager(this, this)
 
+        // Initialise error reporter early so the UncaughtExceptionHandler is installed
+        // and any pending crash from a previous session is sent
+        ErrorReporter.init(this)
+
         deviceAdapter = DeviceAdapter(devices) { info ->
             bleManager.connect(info.device)
         }
@@ -191,6 +195,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             binding.tvGatewayStatus.text = "\u2705 Gateway active on port $WS_PORT"
         } catch (e: Exception) {
             binding.tvGatewayStatus.text = "\u274C Failed to start gateway: ${e.message}"
+            ErrorReporter.report(e, "startGatewayServer", mapOf("port" to WS_PORT))
         }
 
         // Auto-scan if there's a saved device
@@ -287,6 +292,11 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     override fun onError(message: String) {
         binding.tvScaleStatus.text = "❌ $message"
         binding.cardConnection.setCardBackgroundColor(getColor(android.R.color.holo_red_light))
+        ErrorReporter.reportMessage(
+            type    = "ble-error",
+            message = message,
+            extra   = mapOf("connected_device" to (bleManager.getSavedDeviceAddress() ?: "none"))
+        )
     }
 
     override fun onScanStopped() {
