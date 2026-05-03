@@ -372,6 +372,21 @@ body {
     color: var(--primary);
 }
 
+/* Skeleton pulse while stat is loading */
+.stat-value.stat-loading {
+    color: transparent;
+    background: linear-gradient(90deg, var(--border) 25%, var(--bg-dark, #e2e8f0) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: stat-shimmer 1.2s infinite;
+    border-radius: 6px;
+    min-width: 2rem;
+    display: inline-block;
+}
+@keyframes stat-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 .stat-label {
     font-size: 0.85rem;
     color: var(--text-light);

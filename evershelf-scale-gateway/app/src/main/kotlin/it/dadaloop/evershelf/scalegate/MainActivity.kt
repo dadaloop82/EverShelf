@@ -8,6 +8,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.app.PendingIntent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -517,21 +519,75 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     }
 
     private fun installApk(file: java.io.File) {
+        if (!file.exists() || file.length() == 0L) {
+            runOnUiThread { Toast.makeText(this, "File APK non trovato", Toast.LENGTH_LONG).show() }
+            return
+        }
         try {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                androidx.core.content.FileProvider.getUriForFile(
-                    this, "$packageName.provider", file
+            val pi = packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(packageName)
+            val sessionId = pi.createSession(params)
+            pi.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("package", 0, file.length()).use { out ->
+                        input.copyTo(out)
+                        session.fsync(out)
+                    }
+                }
+                val action = "it.dadaloop.evershelf.scalegate.INSTALL_RESULT_$sessionId"
+                val resultReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        unregisterReceiver(this)
+                        val status = intent?.getIntExtra(
+                            PackageInstaller.EXTRA_STATUS,
+                            PackageInstaller.STATUS_FAILURE
+                        ) ?: PackageInstaller.STATUS_FAILURE
+                        when (status) {
+                            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                                @Suppress("DEPRECATION")
+                                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                    intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                                else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
+                                if (confirmIntent != null) startActivity(confirmIntent)
+                            }
+                            PackageInstaller.STATUS_SUCCESS ->
+                                runOnUiThread { Toast.makeText(this@MainActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
+                            PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+                            PackageInstaller.STATUS_FAILURE_CONFLICT -> {
+                                runOnUiThread {
+                                    AlertDialog.Builder(this@MainActivity)
+                                        .setTitle("⚠️ Conflitto firma APK")
+                                        .setMessage("L'app installata usa una firma diversa.\n\nDevi disinstallare la versione precedente e poi ripremere Scarica.")
+                                        .setPositiveButton("Disinstalla") { _, _ ->
+                                            startActivity(Intent(Intent.ACTION_DELETE,
+                                                android.net.Uri.parse("package:$packageName")))
+                                        }
+                                        .setNegativeButton("Annulla", null)
+                                        .show()
+                                }
+                            }
+                            else -> {
+                                val msg = intent?.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
+                                    ?: "status=$status"
+                                runOnUiThread { Toast.makeText(this@MainActivity, "Installazione: $msg", Toast.LENGTH_LONG).show() }
+                            }
+                        }
+                    }
+                }
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    RECEIVER_NOT_EXPORTED else 0
+                registerReceiver(resultReceiver, IntentFilter(action), flags)
+                val pi2 = PendingIntent.getBroadcast(
+                    this, sessionId,
+                    Intent(action).setPackage(packageName),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
-            } else { Uri.fromFile(file) }
-            val install = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                session.commit(pi2.intentSender)
             }
-            startActivity(install)
+            Toast.makeText(this, "Installazione in corso…", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            runOnUiThread {
-                Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
-            }
+            runOnUiThread { Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show() }
         }
     }
 

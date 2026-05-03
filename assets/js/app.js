@@ -2227,7 +2227,14 @@ function showPage(pageId, param = null) {
     
     // Page-specific init
     switch(pageId) {
-        case 'dashboard': loadDashboard(); break;
+        case 'dashboard':
+            // Show skeleton on stat-cards while data loads
+            ['dispensa', 'frigo', 'freezer'].forEach(loc => {
+                const el = document.getElementById(`stat-${loc}`);
+                if (el) { el.textContent = '…'; el.classList.add('stat-loading'); }
+            });
+            loadDashboard();
+            break;
         case 'inventory':
             if (param !== null) {
                 currentLocation = param;
@@ -2643,7 +2650,9 @@ async function loadDashboard() {
         ['dispensa', 'frigo', 'freezer'].forEach(loc => {
             const s = summary.find(x => x.location === loc);
             const count = s ? s.product_count : 0;
-            document.getElementById(`stat-${loc}`).textContent = count;
+            const el = document.getElementById(`stat-${loc}`);
+            el.textContent = count;
+            el.classList.remove('stat-loading');
             total += count;
         });
         // Add non-standard locations
