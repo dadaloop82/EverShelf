@@ -1199,10 +1199,10 @@ class KioskActivity : AppCompatActivity() {
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             return
         }
-        // Validate APK magic bytes (ZIP local file header = 0x504B0304).
+        // Validate APK magic bytes (ZIP local file header = 'PK' = 0x50 0x4B).
         // If GitHub returned a 404 HTML page, DownloadManager still reports SUCCESS
-        // but the file starts with '<' not 'PK' — this catches that case early.
-        val magic = try { file.inputStream().use { it.read(4) ; true }; // read to check open
+        // but the file starts with '<' not 'PK' — catch that before calling PackageInstaller.
+        val magic: ByteArray? = try {
             file.inputStream().use { s -> val b = ByteArray(4); s.read(b); b }
         } catch (_: Exception) { null }
         val isApk = magic != null && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte()
