@@ -5643,7 +5643,13 @@ function reportError(): void {
 
     // ── Version guard: skip GitHub issue if client is not on latest release ─
     // Avoids noise from bugs already fixed in a newer version.
-    if (!_isLatestVersion($version)) {
+    // Exception: install/update errors are ALWAYS reported regardless of version,
+    // because a device that is failing to install the update is by definition on
+    // an old version — suppressing the issue is the opposite of useful.
+    $installErrorTypes = ['install_download_failed', 'install_failure', 'install_packager_exception'];
+    $bypassVersionGuard = in_array($type, $installErrorTypes, true)
+        || ($context['version_guard_bypass'] ?? false);
+    if (!$bypassVersionGuard && !_isLatestVersion($version)) {
         echo json_encode(['ok' => true, 'skipped' => 'outdated_version']);
         return;
     }

@@ -993,11 +993,13 @@ class KioskActivity : AppCompatActivity() {
      */
     private fun triggerApkDownload(apkUrl: String) {
         if (apkUrl.isEmpty()) return
+        // Always keep this up-to-date so installApk() can derive the target package from the URL.
+        pendingApkDownloadUrl = apkUrl
         try {
             // On Android 8+ check the "install unknown apps" source permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()) {
-                pendingApkDownloadUrl = apkUrl
+                // pendingApkDownloadUrl already set above
                 setInstallUI(
                     "\uD83D\uDD12",
                     getString(R.string.install_perm_detail),
@@ -1113,10 +1115,13 @@ class KioskActivity : AppCompatActivity() {
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             return
         }
-        // Derive the package name we are installing from the filename
+        // Derive the target package from the download URL (not the filename, which is always
+        // 'evershelf-update.apk'). The URL contains 'gateway' or 'scale' when installing the
+        // scale gateway; anything else is a kiosk self-update.
         val targetPkg = when {
-            file.name.contains("gateway") || file.name.contains("scale") -> GATEWAY_PACKAGE
-            else -> packageName   // kiosk self-update
+            pendingApkDownloadUrl.contains("gateway", ignoreCase = true) ||
+            pendingApkDownloadUrl.contains("scale",   ignoreCase = true) -> GATEWAY_PACKAGE
+            else -> packageName
         }
         installWithPackageInstaller(file, targetPkg)
     }
