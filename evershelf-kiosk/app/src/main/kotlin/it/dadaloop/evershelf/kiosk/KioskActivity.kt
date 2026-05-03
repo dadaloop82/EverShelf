@@ -1076,7 +1076,7 @@ class KioskActivity : AppCompatActivity() {
                             progress = -2
                         )
                         runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
-                        ErrorReporter.report(this@KioskActivity, "install_download_failed",
+                        ErrorReporter.reportMessage("install_download_failed",
                             "DownloadManager returned failure for URL: $apkUrl")
                     }
                 }
@@ -1214,7 +1214,7 @@ class KioskActivity : AppCompatActivity() {
                                     progress = -2
                                 )
                                 runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
-                                ErrorReporter.report(this@KioskActivity, "install_failure",
+                                ErrorReporter.reportMessage("install_failure",
                                     "PackageInstaller status=$status msg=$msg pkg=$targetPkg")
                             }
                         }
@@ -1250,7 +1250,7 @@ class KioskActivity : AppCompatActivity() {
                 progress = -2
             )
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
-            ErrorReporter.report(this, "install_packager_exception",
+            ErrorReporter.reportMessage("install_packager_exception",
                 "installWithPackageInstaller exception for $targetPkg: ${e.message}")
         }
     }
