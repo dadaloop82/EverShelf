@@ -28,6 +28,7 @@
     <string name="install_success_detail">L\'app è stata aggiornata.</string>
     <string name="install_error_download">Download fallito</string>
     <string name="install_error_download_detail">Controlla la connessione e riprova.</string>
+    <string name="install_error_install">Installazione fallita</string>
     <string name="install_perm_detail">Abilita \'Installa app sconosciute\' nelle impostazioni, poi torna qui.</string>
     <string name="install_btn_retry">↩  Riprova</string>
 

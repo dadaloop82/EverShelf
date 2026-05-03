@@ -28,6 +28,7 @@
     <string name="install_success_detail">Die App wurde aktualisiert.</string>
     <string name="install_error_download">Download fehlgeschlagen</string>
     <string name="install_error_download_detail">Verbindung prüfen und erneut versuchen.</string>
+    <string name="install_error_install">Installation fehlgeschlagen</string>
     <string name="install_perm_detail">Aktiviere \'Unbekannte Apps installieren\' in den Einstellungen, dann komm zurück.</string>
     <string name="install_btn_retry">↩  Nochmal versuchen</string>
 
