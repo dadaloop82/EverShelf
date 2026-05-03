@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private var isAutoReconnecting = false
     // Update banner
     private var pendingApkDownloadUrl = ""
+    private var pendingInstallFile: java.io.File? = null
     private companion object {
         const val MAX_DEBUG_LINES = 150
         const val DEBUG_THROTTLE_MS = 200L
@@ -88,6 +89,37 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     ) { _ ->
         val url = pendingApkDownloadUrl
         if (url.isNotEmpty()) triggerApkDownload(url)
+    }
+
+    /** Returns from system installer dialog — if not OK the install failed (signature conflict?). */
+    private val installConfirmLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != RESULT_OK) {
+            val f = pendingInstallFile
+            if (f != null && f.exists()) {
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("⚠️ Installazione non riuscita")
+                        .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora? L'installazione ripartirà automaticamente.")
+                        .setPositiveButton("Disinstalla") { _, _ ->
+                            uninstallLauncher.launch(
+                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName"))
+                            )
+                        }
+                        .setNegativeButton("Annulla", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    /** Returns from uninstall screen — auto-retry the install with the saved APK file. */
+    private val uninstallLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val f = pendingInstallFile
+        if (f != null && f.exists()) installApk(f)
     }
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -478,6 +510,7 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             // Download to app-private external dir — no storage permission needed
             val destDir  = getExternalFilesDir(null) ?: filesDir
             val destFile = java.io.File(destDir, "evershelf-scale-update.apk")
+            pendingInstallFile = destFile
             val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                 setTitle("EverShelf Scale Gateway — Aggiornamento")
@@ -545,11 +578,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                         ) ?: PackageInstaller.STATUS_FAILURE
                         when (status) {
                             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                                // Use launcher so we get notified if system installer fails
                                 @Suppress("DEPRECATION")
                                 val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                                     intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                                 else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
-                                if (confirmIntent != null) startActivity(confirmIntent)
+                                if (confirmIntent != null) installConfirmLauncher.launch(confirmIntent)
                             }
                             PackageInstaller.STATUS_SUCCESS ->
                                 runOnUiThread { Toast.makeText(this@MainActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
@@ -558,10 +592,11 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                                 runOnUiThread {
                                     AlertDialog.Builder(this@MainActivity)
                                         .setTitle("⚠️ Conflitto firma APK")
-                                        .setMessage("L'app installata usa una firma diversa.\n\nDevi disinstallare la versione precedente e poi ripremere Scarica.")
+                                        .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
                                         .setPositiveButton("Disinstalla") { _, _ ->
-                                            startActivity(Intent(Intent.ACTION_DELETE,
-                                                android.net.Uri.parse("package:$packageName")))
+                                            uninstallLauncher.launch(
+                                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$packageName"))
+                                            )
                                         }
                                         .setNegativeButton("Annulla", null)
                                         .show()

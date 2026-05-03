@@ -117,8 +117,10 @@ function _checkWebappUpdate() {
             const releaseUrl = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
             const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>${latestTag}</strong>` : '';
             banner.innerHTML =
-                `<span>⬆️ Nuovo aggiornamento EverShelf${versionText} disponibile. ` +
-                `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:underline">Vedi novità</a></span>` +
+                `<span>⬆️ EverShelf${versionText} disponibile. ` +
+                `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#64748b;font-size:0.9em;text-decoration:underline">novità</a></span>` +
+                `<button onclick="window.location.href=window.location.pathname+'?bust='+Date.now()" ` +
+                `style="background:#fbbf24;border:none;color:#1e293b;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 8px">Aggiorna ora</button>` +
                 `<button id="_evershelf_banner_close" ` +
                 `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
             document.body.prepend(banner);

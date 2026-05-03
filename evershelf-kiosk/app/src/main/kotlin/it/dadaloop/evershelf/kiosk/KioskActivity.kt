@@ -83,6 +83,8 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var btnInstallUpdate: MaterialButton
     private lateinit var btnDismissUpdate: MaterialButton
     private var pendingApkDownloadUrl: String = ""
+    private var pendingInstallFile: java.io.File? = null
+    private var pendingInstallPkg: String = ""
 
     // Triple-tap to exit
     private var tapCount = 0
@@ -99,6 +101,8 @@ class KioskActivity : AppCompatActivity() {
         private const val FILE_CHOOSER_REQUEST    = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
         private const val INSTALL_PERM_REQUEST    = 1004   // ACTION_MANAGE_UNKNOWN_APP_SOURCES
+        private const val INSTALL_CONFIRM_REQUEST = 1005   // system installer confirm dialog
+        private const val UNINSTALL_REQUEST       = 1006   // ACTION_DELETE → auto-retry install
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
@@ -869,25 +873,34 @@ class KioskActivity : AppCompatActivity() {
                         ) ?: android.content.pm.PackageInstaller.STATUS_FAILURE
                         when (status) {
                             android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                                // Android needs user confirmation — launch the system dialog
+                                // Android needs user confirmation — use startActivityForResult so we
+                                // get notified if the system installer fails (e.g. signature conflict)
                                 @Suppress("DEPRECATION")
                                 val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                                     intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                                 else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
-                                if (confirmIntent != null) startActivity(confirmIntent)
+                                if (confirmIntent != null) {
+                                    pendingInstallFile = file
+                                    pendingInstallPkg  = targetPkg
+                                    startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
+                                }
                             }
                             android.content.pm.PackageInstaller.STATUS_SUCCESS ->
                                 runOnUiThread { Toast.makeText(this@KioskActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
                             android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
                             android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT -> {
-                                // Signature mismatch: offer to uninstall the old version first
+                                // Signature mismatch: offer to uninstall; on return auto-retry install
                                 runOnUiThread {
+                                    pendingInstallFile = file
+                                    pendingInstallPkg  = targetPkg
                                     androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
                                         .setTitle("⚠️ Conflitto firma APK")
-                                        .setMessage("L'app installata usa una firma diversa.\n\nDevi disinstallare la versione precedente e poi ripremere Scarica.")
+                                        .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
                                         .setPositiveButton("Disinstalla") { _, _ ->
-                                            startActivity(Intent(Intent.ACTION_DELETE,
-                                                android.net.Uri.parse("package:$targetPkg")))
+                                            startActivityForResult(
+                                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")),
+                                                UNINSTALL_REQUEST
+                                            )
                                         }
                                         .setNegativeButton("Annulla", null)
                                         .show()
@@ -1001,6 +1014,35 @@ class KioskActivity : AppCompatActivity() {
         if (requestCode == INSTALL_PERM_REQUEST) {
             val url = pendingApkDownloadUrl
             if (url.isNotEmpty()) triggerApkDownload(url)
+        }
+        // System installer returned: if not OK the install failed (possibly signature conflict).
+        // Show a dialog offering to uninstall the old version so the user can retry.
+        if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode != RESULT_OK) {
+            val f   = pendingInstallFile
+            val pkg = pendingInstallPkg
+            if (f != null && f.exists() && pkg.isNotEmpty()) {
+                runOnUiThread {
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("⚠️ Installazione non riuscita")
+                        .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora? L'installazione ripartirà automaticamente.")
+                        .setPositiveButton("Disinstalla") { _, _ ->
+                            startActivityForResult(
+                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")),
+                                UNINSTALL_REQUEST
+                            )
+                        }
+                        .setNegativeButton("Annulla", null)
+                        .show()
+                }
+            }
+        }
+        // Returned from uninstall screen — auto-retry the install with the saved APK file.
+        if (requestCode == UNINSTALL_REQUEST) {
+            val f   = pendingInstallFile
+            val pkg = pendingInstallPkg
+            if (f != null && f.exists() && pkg.isNotEmpty()) {
+                installWithPackageInstaller(f, pkg)
+            }
         }
     }
 
