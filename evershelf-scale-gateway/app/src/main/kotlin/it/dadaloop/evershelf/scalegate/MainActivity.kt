@@ -12,7 +12,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
@@ -79,6 +78,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     ) { result ->
         if (result.resultCode == RESULT_OK) checkPermissionsAndStart()
         else showDialog("Bluetooth required", "Please enable Bluetooth to use the gateway.")
+    }
+
+    /** Returns from ACTION_MANAGE_UNKNOWN_APP_SOURCES — retry the download. */
+    private val installPermLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        val url = pendingApkDownloadUrl
+        if (url.isNotEmpty()) triggerApkDownload(url)
     }
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -453,26 +460,42 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()) {
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
-                startActivity(intent)
-                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi ripremi Scarica", Toast.LENGTH_LONG).show()
+                pendingApkDownloadUrl = apkUrl   // remember for retry
+                installPermLauncher.launch(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                )
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi torna qui", Toast.LENGTH_LONG).show()
                 return
             }
+            // Download to app-private external dir — no storage permission needed
+            val destDir  = getExternalFilesDir(null) ?: filesDir
+            val destFile = java.io.File(destDir, "evershelf-scale-update.apk")
             val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                 setTitle("EverShelf Scale Gateway — Aggiornamento")
                 setDescription("Scaricamento aggiornamento…")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "evershelf-scale-update.apk")
+                setDestinationUri(Uri.fromFile(destFile))
                 setMimeType("application/vnd.android.package-archive")
             }
             val downloadId = dm.enqueue(req)
             Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
-                    if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadId) {
-                        unregisterReceiver(this)
-                        installApk("evershelf-scale-update.apk")
+                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                    if (id != downloadId) return
+                    unregisterReceiver(this)
+                    val q  = DownloadManager.Query().setFilterById(downloadId)
+                    val c  = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
+                    var ok = false
+                    if (c.moveToFirst()) {
+                        val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        ok = (status == DownloadManager.STATUS_SUCCESSFUL)
+                    }
+                    c.close()
+                    if (ok) installApk(destFile)
+                    else runOnUiThread {
+                        Toast.makeText(this@MainActivity, "Download fallito, riprova", Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -487,11 +510,12 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
         }
     }
 
-    private fun installApk(fileName: String) {
+    private fun installApk(file: java.io.File) {
         try {
-            val file = java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+                androidx.core.content.FileProvider.getUriForFile(
+                    this, "$packageName.provider", file
+                )
             } else { Uri.fromFile(file) }
             val install = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
@@ -499,7 +523,9 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             }
             startActivity(install)
         } catch (e: Exception) {
-            Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+            runOnUiThread {
+                Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 

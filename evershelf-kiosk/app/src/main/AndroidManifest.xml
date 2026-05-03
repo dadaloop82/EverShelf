@@ -23,6 +23,9 @@
     <!-- Move task to front (bring kiosk back after gateway launch) -->
     <uses-permission android:name="android.permission.REORDER_TASKS" />
 
+    <!-- Self-update: install APK downloaded at runtime -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- Query gateway app visibility (required Android 11+) -->
     <queries>
         <package android:name="it.dadaloop.evershelf.scalegate" />
@@ -53,6 +56,17 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.MaterialComponents.Light.NoActionBar" />
+
+        <!-- FileProvider for serving the downloaded APK to the installer -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

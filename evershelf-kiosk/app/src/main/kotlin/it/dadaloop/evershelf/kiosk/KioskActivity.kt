@@ -15,7 +15,6 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -95,8 +94,9 @@ class KioskActivity : AppCompatActivity() {
     private var pendingWebPermission: PermissionRequest? = null
 
     companion object {
-        private const val FILE_CHOOSER_REQUEST = 1002
+        private const val FILE_CHOOSER_REQUEST    = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
+        private const val INSTALL_PERM_REQUEST    = 1004   // ACTION_MANAGE_UNKNOWN_APP_SOURCES
         private const val PREFS_NAME = "evershelf_kiosk"
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
@@ -758,33 +758,52 @@ class KioskActivity : AppCompatActivity() {
     private fun triggerApkDownload(apkUrl: String) {
         if (apkUrl.isEmpty()) return
         try {
-            // On Android 8+ we need to check "install unknown apps" permission
+            // On Android 8+ check the "install unknown apps" source permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()) {
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:$packageName"))
-                startActivity(intent)
-                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi ripremi Scarica", Toast.LENGTH_LONG).show()
+                pendingApkDownloadUrl = apkUrl   // remember URL for the retry
+                @Suppress("DEPRECATION")
+                startActivityForResult(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")),
+                    INSTALL_PERM_REQUEST
+                )
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi torna qui", Toast.LENGTH_LONG).show()
                 return
             }
 
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            // Download to app-private external dir — no storage permission needed
+            val destDir  = getExternalFilesDir(null) ?: filesDir
+            val destFile = java.io.File(destDir, "evershelf-update.apk")
+
+            val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                 setTitle("EverShelf — Aggiornamento")
                 setDescription("Scaricamento aggiornamento in corso…")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "evershelf-update.apk")
+                setDestinationUri(Uri.fromFile(destFile))
                 setMimeType("application/vnd.android.package-archive")
             }
             val downloadId = dm.enqueue(req)
             Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
 
-            // Listen for completion
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
-                    if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadId) {
-                        unregisterReceiver(this)
-                        installApk()
+                    val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                    if (id != downloadId) return
+                    unregisterReceiver(this)
+                    // Verify the download succeeded before trying to install
+                    val q    = DownloadManager.Query().setFilterById(downloadId)
+                    val c    = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
+                    var ok   = false
+                    if (c.moveToFirst()) {
+                        val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        ok = (status == DownloadManager.STATUS_SUCCESSFUL)
+                    }
+                    c.close()
+                    if (ok) installApk(destFile)
+                    else runOnUiThread {
+                        Toast.makeText(this@KioskActivity, "Download fallito, riprova", Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -799,11 +818,12 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
-    private fun installApk() {
+    private fun installApk(file: java.io.File) {
         try {
-            val file = java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "evershelf-update.apk")
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+                androidx.core.content.FileProvider.getUriForFile(
+                    this, "$packageName.provider", file
+                )
             } else {
                 Uri.fromFile(file)
             }
@@ -814,7 +834,9 @@ class KioskActivity : AppCompatActivity() {
             }
             startActivity(install)
         } catch (e: Exception) {
-            Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+            runOnUiThread {
+                Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -895,6 +917,12 @@ class KioskActivity : AppCompatActivity() {
             } else null
             fileChooserCallback?.onReceiveValue(result)
             fileChooserCallback = null
+        }
+        // Returned from ACTION_MANAGE_UNKNOWN_APP_SOURCES — retry the download
+        // regardless of resultCode (the system always returns RESULT_CANCELED here).
+        if (requestCode == INSTALL_PERM_REQUEST) {
+            val url = pendingApkDownloadUrl
+            if (url.isNotEmpty()) triggerApkDownload(url)
         }
     }
 
