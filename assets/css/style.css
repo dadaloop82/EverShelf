@@ -2505,7 +2505,7 @@ body {
 
 /* Raise modal above cooking overlay when in cooking mode */
 .cooking-mode-active #modal-overlay {
-    z-index: 600;
+    z-index: 99999;
 }
 
 .modal-content {
@@ -3605,12 +3605,18 @@ body {
     position: fixed;
     inset: 0;
     background: #0a0a0a;
-    z-index: 500;
+    z-index: 99998; /* above every fixed UI: header, update banner, etc. */
     display: flex;
     flex-direction: column;
     color: #fff;
     overflow: hidden;
     touch-action: pan-y;
+}
+
+/* Hide update banner, app-header and any other fixed-top chrome while in cooking mode */
+body.cooking-mode-active #_evershelf_update_banner,
+body.cooking-mode-active .app-header {
+    display: none !important;
 }
 
 .cooking-header {
