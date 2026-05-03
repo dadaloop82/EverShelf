@@ -79,19 +79,28 @@ function reportError(payload) {
 // Checks the latest GitHub release once per session and shows a text banner
 // if the running webapp version is outdated.
 (function _checkWebappUpdate() {
-    const STORAGE_KEY = '_evershelf_update_checked';
+    const STORAGE_KEY  = '_evershelf_update_checked_at';   // last-checked timestamp
+    const SEEN_KEY     = '_evershelf_update_seen_ts';      // published_at of last-dismissed release
+    const TTL_MS       = 6 * 60 * 60 * 1000;              // re-check every 6 h (localStorage)
     const now = Date.now();
-    const lastCheck = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
-    if (now - lastCheck < 3 * 60 * 60 * 1000) return; // once per 3 h per tab
-    sessionStorage.setItem(STORAGE_KEY, String(now));
+    const lastCheck = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+    if (now - lastCheck < TTL_MS) return;
+    localStorage.setItem(STORAGE_KEY, String(now));
 
     fetch('api/index.php?action=check_update', { method: 'GET' })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-            if (!data || !data.latest_tag) return;
-            const latest  = data.latest_tag.replace(/^v/, '');
-            const current = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
-            if (!current || !latest || current === latest) return;
+            if (!data) return;
+            // Release date-based comparison: show banner only if the release is
+            // newer than the last one the user acknowledged.
+            const publishedAt = data.published_at || '';
+            const seenTs      = localStorage.getItem(SEEN_KEY) || '';
+            if (!publishedAt || publishedAt === seenTs) return;
+
+            const latestTag = (data.latest_tag || '').replace(/^v/, '');
+            const current   = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
+            // If tag looks like a proper semver and they match → no update needed
+            if (/^\d+\.\d+/.test(latestTag) && current && current === latestTag) return;
 
             // Show a dismissible banner at the top of the page
             if (document.getElementById('_evershelf_update_banner')) return;
@@ -105,18 +114,23 @@ function reportError(payload) {
                 'border-bottom:2px solid #fbbf24',
                 'box-shadow:0 2px 8px rgba(0,0,0,.4)',
             ].join(';');
-            const releaseUrl = data.html_url || `https://github.com/dadaloop82/EverShelf/releases/latest`;
+            const releaseUrl = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
+            const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>${latestTag}</strong>` : '';
             banner.innerHTML =
-                `<span>⬆️ <strong>EverShelf ${latest}</strong> disponibile (stai usando ${current}). ` +
+                `<span>⬆️ Nuovo aggiornamento EverShelf${versionText} disponibile. ` +
                 `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:underline">Vedi novità</a></span>` +
-                `<button onclick="document.getElementById('_evershelf_update_banner').remove()" ` +
+                `<button id="_evershelf_banner_close" ` +
                 `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
             document.body.prepend(banner);
-            // Auto-dismiss after 20 s
-            setTimeout(() => banner.remove(), 20000);
+            document.getElementById('_evershelf_banner_close').onclick = () => {
+                localStorage.setItem(SEEN_KEY, publishedAt); // mark as seen
+                banner.remove();
+            };
+            // Auto-dismiss after 30 s (without marking as seen, so it reappears next visit)
+            setTimeout(() => banner.remove(), 30000);
         })
         .catch(() => {});
-})();
+});
 
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
@@ -11704,6 +11718,17 @@ async function _initApp() {
     startBgShoppingRefresh();
     scaleInit(); // connect to smart scale gateway if configured
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
+
+    // Hide preloader once the dashboard is rendered
+    const preloader = document.getElementById('app-preloader');
+    if (preloader) {
+        preloader.classList.add('fade-out');
+        setTimeout(() => preloader.remove(), 380);
+    }
+
+    // Defer update check: fire 6 s after app is ready so it doesn't compete
+    // with initial API calls and the PHP worker isn't blocked during startup.
+    setTimeout(_checkWebappUpdate, 6000);
 
     // ── Background intervals ───────────────────────────────────────────────
     // 1) Ogni 5 min: ricarica la pagina corrente (scadenze, inventario, ecc.)

@@ -699,21 +699,16 @@ class KioskActivity : AppCompatActivity() {
 
                 // Normalise: strip leading 'v' for comparison
                 val norm = { v: String -> v.trimStart('v') }
-
-                val kioskNeedsUpdate = latestTag.isNotEmpty() && currentKiosk.isNotEmpty() &&
-                    norm(latestTag) != norm(currentKiosk)
-                val gatewayNeedsUpdate = currentGateway != null && latestTag.isNotEmpty() &&
-                    norm(latestTag) != norm(currentGateway)
-
-                if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
+                // If tag is not semver-like (e.g. "latest") we can't compare — treat as "needs update"
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
 
                 // Find APK download URLs in release assets
                 val assets = json.optJSONArray("assets")
-                var kioskApkUrl = KIOSK_DOWNLOAD_URL
-                var gatewayApkUrl = GATEWAY_DOWNLOAD_URL
+                var kioskApkUrl = ""     // only set if the release actually contains the APK
+                var gatewayApkUrl = ""
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
-                        val a = assets.getJSONObject(i)
+                        val a    = assets.getJSONObject(i)
                         val name = a.optString("name", "").lowercase()
                         val url  = a.optString("browser_download_url", "")
                         if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
@@ -721,15 +716,29 @@ class KioskActivity : AppCompatActivity() {
                     }
                 }
 
+                // Kiosk needs update: APK is in release AND (non-semver tag OR version mismatch)
+                val kioskHasApk = kioskApkUrl.isNotEmpty()
+                val kioskNeedsUpdate = kioskHasApk && currentKiosk.isNotEmpty() &&
+                    (!isSemver || norm(latestTag) != norm(currentKiosk))
+
+                // Gateway needs update: installed AND APK in release AND (non-semver OR mismatch)
+                val gatewayHasApk = gatewayApkUrl.isNotEmpty()
+                val gatewayNeedsUpdate = currentGateway != null && gatewayHasApk &&
+                    (!isSemver || norm(latestTag) != norm(currentGateway))
+
+                if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
+
                 // Build message and choose primary download (kiosk takes precedence)
                 val lines = mutableListOf<String>()
                 var primaryApkUrl = ""
                 if (kioskNeedsUpdate) {
-                    lines += "🔄 Kiosk $currentKiosk → $latestTag"
+                    val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
+                    lines += "🔄 Kiosk $label"
                     primaryApkUrl = kioskApkUrl
                 }
                 if (gatewayNeedsUpdate) {
-                    lines += "🔄 Scale Gateway $currentGateway → $latestTag"
+                    val label = if (isSemver) "$currentGateway → $latestTag" else latestTag
+                    lines += "🔄 Scale Gateway $label"
                     if (primaryApkUrl.isEmpty()) primaryApkUrl = gatewayApkUrl
                 }
                 val message = lines.joinToString("  •  ")

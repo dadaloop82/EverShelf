@@ -427,10 +427,10 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                 val latestTag = json.optString("tag_name", "").ifEmpty { return@Thread }
                 val current   = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (_: Exception) { "" }
                 val norm = { v: String -> v.trimStart('v') }
-                if (norm(latestTag) == norm(current)) return@Thread  // already up to date
+                val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
 
                 // Find scale-gateway APK in release assets
-                var apkUrl = APK_DOWNLOAD_URL
+                var apkUrl = ""
                 val assets = json.optJSONArray("assets")
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
@@ -442,7 +442,13 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                         }
                     }
                 }
-                val msg = "⬆️ Scale Gateway $current → $latestTag"
+                // Only show banner if the release actually contains our APK
+                if (apkUrl.isEmpty()) return@Thread
+                // If semver tag matches current version → already up to date
+                if (isSemver && norm(latestTag) == norm(current)) return@Thread
+
+                val label = if (isSemver) "$current → $latestTag" else latestTag
+                val msg = "⬆️ Scale Gateway $label"
                 runOnUiThread { showNativeUpdateBanner(msg, apkUrl) }
             } catch (_: Exception) {}
         }.start()

@@ -5720,7 +5720,11 @@ function _isLatestVersion(string $clientVersion): bool {
     if ($clientVersion === '') return true; // unknown → allow (don't suppress)
     $latest = _latestReleaseTag();
     if ($latest === '') return true; // no release yet → allow
-    return ltrim($clientVersion, 'v') === ltrim($latest, 'v');
+    $latestNorm = ltrim($latest, 'v');
+    // If tag is not semver-like (e.g. "latest", "rolling") we can't compare
+    // meaningfully, so don't suppress error reporting.
+    if (!preg_match('/^\d+\.\d+/', $latestNorm)) return true;
+    return ltrim($clientVersion, 'v') === $latestNorm;
 }
 
 /**
