@@ -199,13 +199,13 @@ object ErrorReporter {
 
         if (existingNumber != null) {
             // Comment on existing issue
-            val body = "### 🔁 Recurrence — $ts\n**Source:** `$source` | **Type:** `$type`\n**UA:** `$ua`\n$ctxMd$stackMd\n---\n_fp:$fp_"
+            val body = "### 🔁 Recurrence — $ts\n**Source:** `$source` | **Type:** `$type`\n**UA:** `$ua`\n$ctxMd$stackMd\n---\n_fp:${fp}_"
             ghPost("https://api.github.com/repos/$GH_REPO/issues/$existingNumber/comments", JSONObject().put("body", body))
         } else {
             // Create new issue
             val shortMsg = if (message.length > 70) "${message.take(70)}…" else message
             val title = "[SCALE] $shortMsg"
-            val body = "## 🚨 Automatic Error Report\n\n**Source:** `$source`  \n**Type:** `$type`  \n**Reported at:** $ts  \n**UA:** `$ua`  \n**Version:** `$version`\n\n**Error message:**\n> $message\n$stackMd$ctxMd\n---\n<!-- auto-report fp:$fp -->\n_This issue was created automatically by EverShelf Scale Gateway error reporter. fp:`$fp`_"
+            val body = "## 🚨 Automatic Error Report\n\n**Source:** `$source`  \n**Type:** `$type`  \n**Reported at:** $ts  \n**UA:** `$ua`  \n**Version:** `$version`\n\n**Error message:**\n> $message\n$stackMd$ctxMd\n---\n<!-- auto-report fp:$fp -->\n_This issue was created automatically by EverShelf Scale Gateway error reporter. fp:`${fp}`_"
             ghPost(
                 "https://api.github.com/repos/$GH_REPO/issues",
                 JSONObject()
