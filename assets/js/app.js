@@ -78,7 +78,7 @@ function reportError(payload) {
 // ── Webapp update notification ───────────────────────────────────────────────
 // Checks the latest GitHub release once per session and shows a text banner
 // if the running webapp version is outdated.
-(function _checkWebappUpdate() {
+function _checkWebappUpdate() {
     const STORAGE_KEY  = '_evershelf_update_checked_at';   // last-checked timestamp
     const SEEN_KEY     = '_evershelf_update_seen_ts';      // published_at of last-dismissed release
     const TTL_MS       = 6 * 60 * 60 * 1000;              // re-check every 6 h (localStorage)
@@ -130,7 +130,7 @@ function reportError(payload) {
             setTimeout(() => banner.remove(), 30000);
         })
         .catch(() => {});
-});
+}
 
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {
