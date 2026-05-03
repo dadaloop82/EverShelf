@@ -37,4 +37,11 @@
     <string name="btn_launch_no_scale">🚀  Ohne Waage starten</string>
     <string name="btn_download_gateway">📥  Scale Gateway installieren</string>
     <string name="btn_update_gateway">📥  Scale Gateway aktualisieren</string>
+
+    <!-- Server-Erreichbarkeit prüfen (Wizard Schritt 3) -->
+    <string name="wizard_server_checking">Server-Verbindung wird geprüft…</string>
+    <string name="wizard_server_ok">Server erreichbar ✅</string>
+    <string name="wizard_server_ok_detail">Fehlerberichterstattung aktiv — Installationsfehler werden automatisch an GitHub Issues gesendet.</string>
+    <string name="wizard_server_error">Server nicht erreichbar ⚠️</string>
+    <string name="wizard_server_error_detail">Fehler werden GitHub Issues nicht erreichen. URL in Schritt 2 prüfen.</string>
 </resources>

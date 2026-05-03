@@ -316,7 +316,54 @@
                     android:textSize="15sp"
                     android:gravity="center"
                     android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="24dp" />
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Server reachability check — shown as soon as step 3 is entered -->
+                <LinearLayout
+                    android:id="@+id/serverStatusCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/card_background"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="12dp"
+                    android:paddingBottom="12dp"
+                    android:layout_marginBottom="16dp"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/serverCheckIcon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⏳"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/serverCheckText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/wizard_server_checking"
+                            android:textColor="#94a3b8"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/serverCheckDetail"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="#64748b"
+                            android:textSize="11sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <!-- Scale question card — shown first, hidden after answer -->
                 <LinearLayout
