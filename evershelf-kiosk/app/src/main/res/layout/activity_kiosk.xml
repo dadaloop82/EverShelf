@@ -425,4 +425,53 @@
         android:scaleType="centerInside"
         android:visibility="gone" />
 
+    <!-- ── Update banner (shown at the TOP when a new version is available) ── -->
+    <LinearLayout
+        android:id="@+id/updateBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:background="#1e293b"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvUpdateMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#fbbf24"
+            android:textSize="13sp"
+            android:text=""
+            android:drawablePadding="6dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnInstallUpdate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="⬇ Scarica"
+            android:textSize="12sp"
+            android:textColor="#1e293b"
+            android:backgroundTint="#fbbf24"
+            style="@style/Widget.MaterialComponents.Button" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDismissUpdate"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:text="✕"
+            android:textSize="14sp"
+            android:textColor="#94a3b8"
+            android:backgroundTint="@android:color/transparent"
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
+
+    </LinearLayout>
+
 </FrameLayout>

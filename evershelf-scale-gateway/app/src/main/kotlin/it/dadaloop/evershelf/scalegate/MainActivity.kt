@@ -1,15 +1,23 @@
 package it.dadaloop.evershelf.scalegate
 
 import android.Manifest
+import android.app.DownloadManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,12 +26,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import it.dadaloop.evershelf.scalegate.databinding.ActivityMainBinding
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONObject
 
 private const val WS_PORT = 8765
 
@@ -41,11 +51,14 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
     private var debugVisible = false
     private var lastDebugUpdate = 0L
     private val debugTimeFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-    /** True while the app is trying to re-establish a lost connection automatically. */
     private var isAutoReconnecting = false
+    // Update banner
+    private var pendingApkDownloadUrl = ""
     private companion object {
         const val MAX_DEBUG_LINES = 150
         const val DEBUG_THROTTLE_MS = 200L
+        const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/latest"
+        const val APK_DOWNLOAD_URL    = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
     }
 
     // ─── Permission launcher ───────────────────────────────────────────────────
@@ -125,6 +138,13 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
 
         updateGatewayUrl()
         checkPermissionsAndStart()
+
+        // Wire update banner buttons
+        binding.btnDismissUpdate.setOnClickListener { binding.updateBanner.visibility = View.GONE }
+        binding.btnInstallUpdate.setOnClickListener { triggerApkDownload(pendingApkDownloadUrl) }
+
+        // Check for a newer release (background thread, at most once every 6 h)
+        checkForUpdates()
 
         // Auto-connect: if we have a saved device, start scanning with auto-connect enabled
         if (bleManager.getSavedDeviceAddress() != null) {
@@ -383,6 +403,104 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
             .setMessage(message)
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    // ─── Update check ─────────────────────────────────────────────────────────
+
+    private fun checkForUpdates() {
+        Thread {
+            try {
+                val conn = java.net.URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("Accept", "application/vnd.github+json")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                val body = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+                val json = JSONObject(body)
+                val latestTag = json.optString("tag_name", "").ifEmpty { return@Thread }
+                val current   = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (_: Exception) { "" }
+                val norm = { v: String -> v.trimStart('v') }
+                if (norm(latestTag) == norm(current)) return@Thread  // already up to date
+
+                // Find scale-gateway APK in release assets
+                var apkUrl = APK_DOWNLOAD_URL
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val a    = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) {
+                            apkUrl = url; break
+                        }
+                    }
+                }
+                val msg = "⬆️ Scale Gateway $current → $latestTag"
+                runOnUiThread { showNativeUpdateBanner(msg, apkUrl) }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun showNativeUpdateBanner(message: String, apkUrl: String) {
+        pendingApkDownloadUrl = apkUrl
+        binding.tvUpdateMessage.text = message
+        binding.updateBanner.visibility = View.VISIBLE
+        binding.updateBanner.postDelayed({ binding.updateBanner.visibility = View.GONE }, 30_000)
+    }
+
+    private fun triggerApkDownload(apkUrl: String) {
+        if (apkUrl.isEmpty()) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()) {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+                startActivity(intent)
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi ripremi Scarica", Toast.LENGTH_LONG).show()
+                return
+            }
+            val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                setTitle("EverShelf Scale Gateway — Aggiornamento")
+                setDescription("Scaricamento aggiornamento…")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "evershelf-scale-update.apk")
+                setMimeType("application/vnd.android.package-archive")
+            }
+            val downloadId = dm.enqueue(req)
+            Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadId) {
+                        unregisterReceiver(this)
+                        installApk("evershelf-scale-update.apk")
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore download: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun installApk(fileName: String) {
+        try {
+            val file = java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+            } else { Uri.fromFile(file) }
+            val install = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(install)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ─── RecyclerView adapter ──────────────────────────────────────────────────

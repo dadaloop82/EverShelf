@@ -72,7 +72,51 @@ function reportError(payload) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),
     }).catch(() => {}); // fire-and-forget; never throw from error handler
+    // Note: the server will also skip issue creation if this version is not the latest.
 }
+
+// ── Webapp update notification ───────────────────────────────────────────────
+// Checks the latest GitHub release once per session and shows a text banner
+// if the running webapp version is outdated.
+(function _checkWebappUpdate() {
+    const STORAGE_KEY = '_evershelf_update_checked';
+    const now = Date.now();
+    const lastCheck = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
+    if (now - lastCheck < 3 * 60 * 60 * 1000) return; // once per 3 h per tab
+    sessionStorage.setItem(STORAGE_KEY, String(now));
+
+    fetch('api/index.php?action=check_update', { method: 'GET' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data || !data.latest_tag) return;
+            const latest  = data.latest_tag.replace(/^v/, '');
+            const current = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
+            if (!current || !latest || current === latest) return;
+
+            // Show a dismissible banner at the top of the page
+            if (document.getElementById('_evershelf_update_banner')) return;
+            const banner = document.createElement('div');
+            banner.id = '_evershelf_update_banner';
+            banner.style.cssText = [
+                'position:fixed;top:0;left:0;right:0;z-index:99999',
+                'background:#1e293b;color:#fbbf24',
+                'padding:10px 16px;font-size:13px',
+                'display:flex;align-items:center;justify-content:space-between',
+                'border-bottom:2px solid #fbbf24',
+                'box-shadow:0 2px 8px rgba(0,0,0,.4)',
+            ].join(';');
+            const releaseUrl = data.html_url || `https://github.com/dadaloop82/EverShelf/releases/latest`;
+            banner.innerHTML =
+                `<span>⬆️ <strong>EverShelf ${latest}</strong> disponibile (stai usando ${current}). ` +
+                `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:underline">Vedi novità</a></span>` +
+                `<button onclick="document.getElementById('_evershelf_update_banner').remove()" ` +
+                `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
+            document.body.prepend(banner);
+            // Auto-dismiss after 20 s
+            setTimeout(() => banner.remove(), 20000);
+        })
+        .catch(() => {});
+})();
 
 // ── Global uncaught error handler ────────────────────────────────────────────
 window.addEventListener('error', function(e) {

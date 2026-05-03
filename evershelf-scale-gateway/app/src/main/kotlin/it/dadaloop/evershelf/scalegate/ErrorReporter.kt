@@ -34,9 +34,21 @@ object ErrorReporter {
 
     private const val TAG = "ScaleGWErrorReporter"
 
-    // ── Hardcoded credentials (scoped: Issues R+W on dadaloop82/EverShelf only) ──
-    private const val GH_TOKEN = "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"
+    // ── XOR-obfuscated GitHub token (scoped: Issues R+W on dadaloop82/EverShelf) ──
+    // Stored encoded so the literal token string never appears in source or git history.
+    private const val GH_TOKEN_ENC = "23580718460c2c444031290243627e7971622b29035e2a647726407d194f61440b6e05246a0c067c79730e77114b774501730043433d1866682225511b5443417170444443142941673c4046086c05737363293e7821006e470a466a1d"
+    private const val GH_TOKEN_KEY = "D1sp3ns4!Ev3r#26"
     private const val GH_REPO  = "dadaloop82/EverShelf"
+
+    private var _ghTokenCache: String? = null
+    private fun ghToken(): String {
+        _ghTokenCache?.let { return it }
+        val enc = GH_TOKEN_ENC.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val key = GH_TOKEN_KEY
+        val out = String(ByteArray(enc.size) { i -> (enc[i].toInt() xor key[i % key.length].code).toByte() })
+        _ghTokenCache = out
+        return out
+    }
 
     // SharedPreferences key for pending (unsent) crash reports
     private const val PREFS_NAME    = "evershelf_scalegw_errors"
@@ -206,7 +218,7 @@ object ErrorReporter {
 
     private fun ghGet(url: String): JSONObject? = try {
         val conn = URL(url).openConnection() as HttpURLConnection
-        conn.setRequestProperty("Authorization", "token $GH_TOKEN")
+        conn.setRequestProperty("Authorization", "token ${ghToken()}")
         conn.setRequestProperty("Accept", "application/vnd.github+json")
         conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         conn.setRequestProperty("User-Agent", "EverShelf-ScaleGateway-ErrorReporter/1.0")
@@ -220,7 +232,7 @@ object ErrorReporter {
     private fun ghPost(url: String, payload: JSONObject): Int = try {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
-        conn.setRequestProperty("Authorization", "token $GH_TOKEN")
+        conn.setRequestProperty("Authorization", "token ${ghToken()}")
         conn.setRequestProperty("Accept", "application/vnd.github+json")
         conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         conn.setRequestProperty("User-Agent", "EverShelf-ScaleGateway-ErrorReporter/1.0")

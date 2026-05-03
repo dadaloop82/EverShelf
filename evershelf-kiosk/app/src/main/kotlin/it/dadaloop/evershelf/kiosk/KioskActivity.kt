@@ -3,8 +3,11 @@ package it.dadaloop.evershelf.kiosk
 import android.annotation.SuppressLint
 import android.Manifest
 import android.app.ActivityManager
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.drawable.GradientDrawable
@@ -12,8 +15,10 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.view.WindowInsets
@@ -71,6 +76,12 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var scaleStatusIcon: TextView
     private lateinit var scaleStatusText: TextView
     private lateinit var scaleStatusDetail: TextView
+    // Update banner (native, shown at the top over the WebView)
+    private lateinit var updateBanner: LinearLayout
+    private lateinit var tvUpdateMessage: TextView
+    private lateinit var btnInstallUpdate: MaterialButton
+    private lateinit var btnDismissUpdate: MaterialButton
+    private var pendingApkDownloadUrl: String = ""
 
     // Triple-tap to exit
     private var tapCount = 0
@@ -149,6 +160,14 @@ class KioskActivity : AppCompatActivity() {
         scaleStatusIcon = findViewById(R.id.scaleStatusIcon)
         scaleStatusText = findViewById(R.id.scaleStatusText)
         scaleStatusDetail = findViewById(R.id.scaleStatusDetail)
+
+        // Update banner
+        updateBanner    = findViewById(R.id.updateBanner)
+        tvUpdateMessage = findViewById(R.id.tvUpdateMessage)
+        btnInstallUpdate = findViewById(R.id.btnInstallUpdate)
+        btnDismissUpdate = findViewById(R.id.btnDismissUpdate)
+        btnDismissUpdate.setOnClickListener { updateBanner.visibility = View.GONE }
+        btnInstallUpdate.setOnClickListener { triggerApkDownload(pendingApkDownloadUrl) }
 
         // Triple-tap on wizard title is disabled — exit only via the X button in the overlay
 
@@ -669,56 +688,134 @@ class KioskActivity : AppCompatActivity() {
                 conn.disconnect()
                 val json = JSONObject(body)
                 val latestTag = json.optString("tag_name", "")
+                if (latestTag.isEmpty()) return@Thread
 
-                // Check kiosk APK version
                 val currentKiosk = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: ""
                 } catch (_: Exception) { "" }
-
-                // Check gateway APK version
                 val currentGateway = try {
                     packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: ""
                 } catch (_: Exception) { null }
 
-                var updateMsg = ""
-                // If the release has kiosk or gateway assets with newer versions
+                // Normalise: strip leading 'v' for comparison
+                val norm = { v: String -> v.trimStart('v') }
+
+                val kioskNeedsUpdate = latestTag.isNotEmpty() && currentKiosk.isNotEmpty() &&
+                    norm(latestTag) != norm(currentKiosk)
+                val gatewayNeedsUpdate = currentGateway != null && latestTag.isNotEmpty() &&
+                    norm(latestTag) != norm(currentGateway)
+
+                if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
+
+                // Find APK download URLs in release assets
                 val assets = json.optJSONArray("assets")
+                var kioskApkUrl = KIOSK_DOWNLOAD_URL
+                var gatewayApkUrl = GATEWAY_DOWNLOAD_URL
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val name = asset.optString("name", "")
-                        if (name.contains("kiosk") && latestTag.isNotEmpty() &&
-                            latestTag != currentKiosk && latestTag != "v$currentKiosk") {
-                            updateMsg += "• Kiosk update available: $latestTag\n"
-                        }
-                        if (name.contains("gateway") && currentGateway != null &&
-                            latestTag.isNotEmpty() && latestTag != currentGateway &&
-                            latestTag != "v$currentGateway") {
-                            updateMsg += "• Gateway update available: $latestTag\n"
-                        }
+                        val a = assets.getJSONObject(i)
+                        val name = a.optString("name", "").lowercase()
+                        val url  = a.optString("browser_download_url", "")
+                        if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
+                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) gatewayApkUrl = url
                     }
                 }
 
-                if (updateMsg.isNotEmpty()) {
-                    runOnUiThread { showUpdateBanner(updateMsg.trim()) }
+                // Build message and choose primary download (kiosk takes precedence)
+                val lines = mutableListOf<String>()
+                var primaryApkUrl = ""
+                if (kioskNeedsUpdate) {
+                    lines += "🔄 Kiosk $currentKiosk → $latestTag"
+                    primaryApkUrl = kioskApkUrl
                 }
+                if (gatewayNeedsUpdate) {
+                    lines += "🔄 Scale Gateway $currentGateway → $latestTag"
+                    if (primaryApkUrl.isEmpty()) primaryApkUrl = gatewayApkUrl
+                }
+                val message = lines.joinToString("  •  ")
+
+                runOnUiThread { showNativeUpdateBanner(message, primaryApkUrl) }
             } catch (_: Exception) { }
         }.start()
     }
 
-    private fun showUpdateBanner(message: String) {
-        val js = """
-        (function() {
-            if (document.getElementById('_kiosk_update_banner')) return;
-            var banner = document.createElement('div');
-            banner.id = '_kiosk_update_banner';
-            banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fbbf24;padding:10px 16px;font-size:13px;z-index:999998;display:flex;align-items:center;justify-content:space-between;border-top:2px solid #fbbf24;';
-            banner.innerHTML = '<span>⬆️ ${message.replace("\n", "<br>")} — Per installare: disinstalla prima la versione attuale, poi installa la nuova.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;">✕</button>';
-            document.body.appendChild(banner);
-            setTimeout(function(){ var b = document.getElementById('_kiosk_update_banner'); if(b) b.remove(); }, 12000);
-        })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
+    /**
+     * Shows a native Android banner at the TOP of the screen (above the WebView).
+     * Includes a prominent "Scarica" button that downloads and installs the APK.
+     */
+    private fun showNativeUpdateBanner(message: String, apkDownloadUrl: String) {
+        pendingApkDownloadUrl = apkDownloadUrl
+        tvUpdateMessage.text = "⬆️ Aggiornamento disponibile:  $message"
+        updateBanner.visibility = View.VISIBLE
+        // Auto-hide after 30 s (user can dismiss manually)
+        updateBanner.postDelayed({ updateBanner.visibility = View.GONE }, 30_000)
+    }
+
+    /**
+     * Downloads the APK via DownloadManager and opens the installer when done.
+     * Requires INTERNET + REQUEST_INSTALL_PACKAGES permissions.
+     */
+    private fun triggerApkDownload(apkUrl: String) {
+        if (apkUrl.isEmpty()) return
+        try {
+            // On Android 8+ we need to check "install unknown apps" permission
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                !packageManager.canRequestPackageInstalls()) {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"))
+                startActivity(intent)
+                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi ripremi Scarica", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+            val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                setTitle("EverShelf — Aggiornamento")
+                setDescription("Scaricamento aggiornamento in corso…")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "evershelf-update.apk")
+                setMimeType("application/vnd.android.package-archive")
+            }
+            val downloadId = dm.enqueue(req)
+            Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
+
+            // Listen for completion
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    if (intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadId) {
+                        unregisterReceiver(this)
+                        installApk()
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore download: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun installApk() {
+        try {
+            val file = java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "evershelf-update.apk")
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", file)
+            } else {
+                Uri.fromFile(file)
+            }
+            val install = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(install)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     // ── Error Page ────────────────────────────────────────────────────────
