@@ -398,6 +398,31 @@
                         android:textColor="#64748b"
                         android:textSize="13sp"
                         android:gravity="center" />
+
+                    <!-- Download / install progress bar — shown only during active download -->
+                    <ProgressBar
+                        android:id="@+id/downloadProgressBar"
+                        style="@android:style/Widget.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="2dp"
+                        android:progressTint="#7c3aed"
+                        android:progressBackgroundTint="#334155"
+                        android:max="100"
+                        android:progress="0"
+                        android:indeterminate="false"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/downloadProgressText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="#94a3b8"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- Bottom nav (Back / Launch) — hidden until user answers the question -->
@@ -479,46 +504,66 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:background="#1e293b"
-        android:paddingStart="16dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:gravity="center_vertical"
         android:visibility="gone">
 
-        <TextView
-            android:id="@+id/tvUpdateMessage"
-            android:layout_width="0dp"
+        <!-- Banner row: message + buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="#fbbf24"
-            android:textSize="13sp"
-            android:text=""
-            android:drawablePadding="6dp" />
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:gravity="center_vertical">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnInstallUpdate"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="⬇ Scarica"
-            android:textSize="12sp"
-            android:textColor="#1e293b"
-            android:backgroundTint="#fbbf24"
-            style="@style/Widget.MaterialComponents.Button" />
+            <TextView
+                android:id="@+id/tvUpdateMessage"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#fbbf24"
+                android:textSize="13sp"
+                android:text=""
+                android:drawablePadding="6dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnDismissUpdate"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:text="✕"
-            android:textSize="14sp"
-            android:textColor="#94a3b8"
-            android:backgroundTint="@android:color/transparent"
-            style="@style/Widget.MaterialComponents.Button.TextButton" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnInstallUpdate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="⬇ Scarica"
+                android:textSize="12sp"
+                android:textColor="#1e293b"
+                android:backgroundTint="#fbbf24"
+                style="@style/Widget.MaterialComponents.Button" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDismissUpdate"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:text="✕"
+                android:textSize="14sp"
+                android:textColor="#94a3b8"
+                android:backgroundTint="@android:color/transparent"
+                style="@style/Widget.MaterialComponents.Button.TextButton" />
+        </LinearLayout>
+
+        <!-- Thin progress bar at the bottom of the banner — visible during download/install -->
+        <ProgressBar
+            android:id="@+id/bannerProgressBar"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:progressTint="#7c3aed"
+            android:progressBackgroundTint="#334155"
+            android:max="100"
+            android:progress="0"
+            android:indeterminate="false"
+            android:visibility="gone" />
 
     </LinearLayout>
 
