@@ -18,6 +18,18 @@
     <string name="wizard_gateway_update_available">Update available for Scale Gateway</string>
     <string name="wizard_gateway_update_detail">Tap the button below to update it now.</string>
 
+    <!-- Install / download progress states -->
+    <string name="install_downloading">Scaricamento in corso…</string>
+    <string name="install_downloading_detail">Attendi, il file viene scaricato.</string>
+    <string name="install_installing">Installazione in corso…</string>
+    <string name="install_confirm_detail">Conferma l\'installazione nel dialog che si è aperto.</string>
+    <string name="install_success">Installato con successo!</string>
+    <string name="install_success_detail">L\'app è stata aggiornata.</string>
+    <string name="install_error_download">Download fallito</string>
+    <string name="install_error_download_detail">Controlla la connessione e riprova.</string>
+    <string name="install_perm_detail">Abilita \'Installa app sconosciute\' nelle impostazioni, poi torna qui.</string>
+    <string name="install_btn_retry">↩  Riprova</string>
+
     <!-- Buttons -->
     <string name="btn_back">Back</string>
     <string name="btn_launch">🚀  Launch EverShelf</string>

@@ -87,6 +87,8 @@ class KioskActivity : AppCompatActivity() {
     private var pendingApkDownloadUrl: String = ""
     private var pendingInstallFile: java.io.File? = null
     private var pendingInstallPkg: String = ""
+    /** The button that triggered the current download/install — updated throughout the flow. */
+    private var activeInstallBtn: MaterialButton? = null
 
     // Triple-tap to exit
     private var tapCount = 0
@@ -178,7 +180,10 @@ class KioskActivity : AppCompatActivity() {
         btnInstallUpdate = findViewById(R.id.btnInstallUpdate)
         btnDismissUpdate = findViewById(R.id.btnDismissUpdate)
         btnDismissUpdate.setOnClickListener { updateBanner.visibility = View.GONE }
-        btnInstallUpdate.setOnClickListener { triggerApkDownload(pendingApkDownloadUrl) }
+        btnInstallUpdate.setOnClickListener {
+            activeInstallBtn = btnInstallUpdate
+            triggerApkDownload(pendingApkDownloadUrl)
+        }
 
         // Triple-tap on wizard title is disabled — exit only via the X button in the overlay
 
@@ -429,7 +434,10 @@ class KioskActivity : AppCompatActivity() {
                 text = getString(R.string.btn_download_gateway)
                 setTextColor(0xFFa78bfa.toInt())
                 visibility = View.VISIBLE
-                setOnClickListener { triggerApkDownload(GATEWAY_DOWNLOAD_URL) }
+                setOnClickListener {
+                    activeInstallBtn = this
+                    triggerApkDownload(GATEWAY_DOWNLOAD_URL)
+                }
             }
         }
     }
@@ -484,7 +492,10 @@ class KioskActivity : AppCompatActivity() {
                         text = getString(R.string.btn_update_gateway)
                         setTextColor(0xFFfbbf24.toInt())
                         visibility = View.VISIBLE
-                        setOnClickListener { triggerApkDownload(finalUrl) }
+                        setOnClickListener {
+                            activeInstallBtn = this
+                            triggerApkDownload(finalUrl)
+                        }
                     }
                 }
             } catch (_: Exception) {
@@ -496,6 +507,43 @@ class KioskActivity : AppCompatActivity() {
     private fun showGatewayUpToDate() = runOnUiThread {
         scaleStatusDetail.text = getString(R.string.wizard_gateway_installed_detail)
         scaleStatusDetail.setTextColor(0xFF34d399.toInt())
+    }
+
+    /**
+     * Central UI updater for the download/install progress.
+     * - Updates the wizard status card if it is currently visible (step 3).
+     * - Updates the update banner message if it is visible (kiosk self-update).
+     * - Always updates the active install button text and enabled state.
+     *
+     * @param icon      Emoji icon shown in the status card and button
+     * @param title     One-line status title (also used as button label)
+     * @param detail    Secondary detail line (status card only)
+     * @param color     ARGB color for the detail text
+     * @param btnEnabled Whether to re-enable the active button after this state
+     */
+    private fun setInstallUI(
+        icon: String, title: String, detail: String, color: Int,
+        btnEnabled: Boolean = false
+    ) = runOnUiThread {
+        // Wizard status card (step 3)
+        val statusCard = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
+        if (statusCard?.visibility == View.VISIBLE) {
+            scaleStatusIcon.text = icon
+            scaleStatusText.text = title
+            scaleStatusDetail.text = detail
+            scaleStatusDetail.setTextColor(color)
+        }
+        // Update banner (kiosk / gateway auto-update outside wizard)
+        if (updateBanner.visibility == View.VISIBLE) {
+            tvUpdateMessage.text = "$icon  $title"
+            if (detail.isNotEmpty()) tvUpdateMessage.text = "${tvUpdateMessage.text}\n$detail"
+        }
+        // Button state
+        val btn = activeInstallBtn
+        if (btn != null) {
+            btn.isEnabled = btnEnabled
+            btn.text = "$icon  $title"
+        }
     }
 
     // ── Connection Test ───────────────────────────────────────────────────
@@ -852,6 +900,7 @@ class KioskActivity : AppCompatActivity() {
     /**
      * Downloads the APK via DownloadManager and opens the installer when done.
      * Requires INTERNET + REQUEST_INSTALL_PACKAGES permissions.
+     * All progress is reflected in the active UI (status card or banner) — no Toasts.
      */
     private fun triggerApkDownload(apkUrl: String) {
         if (apkUrl.isEmpty()) return
@@ -859,16 +908,31 @@ class KioskActivity : AppCompatActivity() {
             // On Android 8+ check the "install unknown apps" source permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !packageManager.canRequestPackageInstalls()) {
-                pendingApkDownloadUrl = apkUrl   // remember URL for the retry
+                pendingApkDownloadUrl = apkUrl
+                setInstallUI(
+                    "\uD83D\uDD12",
+                    getString(R.string.install_perm_detail),
+                    getString(R.string.install_perm_detail),
+                    0xFFfbbf24.toInt(),
+                    btnEnabled = false
+                )
                 @Suppress("DEPRECATION")
                 startActivityForResult(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:$packageName")),
                     INSTALL_PERM_REQUEST
                 )
-                Toast.makeText(this, "Abilita 'Installa app sconosciute', poi torna qui", Toast.LENGTH_LONG).show()
                 return
             }
+
+            // Show "downloading" state immediately
+            setInstallUI(
+                "\u23F3",
+                getString(R.string.install_downloading),
+                getString(R.string.install_downloading_detail),
+                0xFF94a3b8.toInt(),
+                btnEnabled = false
+            )
 
             // Download to app-private external dir — no storage permission needed
             val destDir  = getExternalFilesDir(null) ?: filesDir
@@ -877,13 +941,12 @@ class KioskActivity : AppCompatActivity() {
             val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
             val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                 setTitle("EverShelf — Aggiornamento")
-                setDescription("Scaricamento aggiornamento in corso…")
+                setDescription(getString(R.string.install_downloading))
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationUri(Uri.fromFile(destFile))
                 setMimeType("application/vnd.android.package-archive")
             }
             val downloadId = dm.enqueue(req)
-            Toast.makeText(this, "Download avviato…", Toast.LENGTH_SHORT).show()
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -891,17 +954,32 @@ class KioskActivity : AppCompatActivity() {
                     if (id != downloadId) return
                     unregisterReceiver(this)
                     // Verify the download succeeded before trying to install
-                    val q    = DownloadManager.Query().setFilterById(downloadId)
-                    val c    = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
-                    var ok   = false
+                    val q  = DownloadManager.Query().setFilterById(downloadId)
+                    val c  = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).query(q)
+                    var ok = false
                     if (c.moveToFirst()) {
                         val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
                         ok = (status == DownloadManager.STATUS_SUCCESSFUL)
                     }
                     c.close()
-                    if (ok) installApk(destFile)
-                    else runOnUiThread {
-                        Toast.makeText(this@KioskActivity, "Download fallito, riprova", Toast.LENGTH_LONG).show()
+                    if (ok) {
+                        setInstallUI(
+                            "\u23F3",
+                            getString(R.string.install_installing),
+                            getString(R.string.install_installing),
+                            0xFF94a3b8.toInt(),
+                            btnEnabled = false
+                        )
+                        installApk(destFile)
+                    } else {
+                        setInstallUI(
+                            "\u274C",
+                            getString(R.string.install_error_download),
+                            getString(R.string.install_error_download_detail),
+                            0xFFf87171.toInt(),
+                            btnEnabled = true
+                        )
+                        runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                     }
                 }
             }
@@ -912,13 +990,27 @@ class KioskActivity : AppCompatActivity() {
                 registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
             }
         } catch (e: Exception) {
-            Toast.makeText(this, "Errore download: ${e.message}", Toast.LENGTH_LONG).show()
+            setInstallUI(
+                "\u274C",
+                getString(R.string.install_error_download),
+                e.message ?: "",
+                0xFFf87171.toInt(),
+                btnEnabled = true
+            )
+            runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
         }
     }
 
     private fun installApk(file: java.io.File) {
         if (!file.exists() || file.length() == 0L) {
-            runOnUiThread { Toast.makeText(this, "File APK non trovato", Toast.LENGTH_LONG).show() }
+            setInstallUI(
+                "\u274C",
+                getString(R.string.install_error_download),
+                "File APK non trovato sul dispositivo.",
+                0xFFf87171.toInt(),
+                btnEnabled = true
+            )
+            runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             return
         }
         // Derive the package name we are installing from the filename
@@ -965,11 +1057,31 @@ class KioskActivity : AppCompatActivity() {
                                 if (confirmIntent != null) {
                                     pendingInstallFile = file
                                     pendingInstallPkg  = targetPkg
+                                    setInstallUI(
+                                        "\u23F3",
+                                        getString(R.string.install_installing),
+                                        getString(R.string.install_confirm_detail),
+                                        0xFF94a3b8.toInt(),
+                                        btnEnabled = false
+                                    )
                                     startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
                                 }
                             }
-                            android.content.pm.PackageInstaller.STATUS_SUCCESS ->
-                                runOnUiThread { Toast.makeText(this@KioskActivity, "✅ Aggiornamento installato", Toast.LENGTH_SHORT).show() }
+                            android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                                setInstallUI(
+                                    "\u2705",
+                                    getString(R.string.install_success),
+                                    getString(R.string.install_success_detail),
+                                    0xFF34d399.toInt(),
+                                    btnEnabled = false
+                                )
+                                // Re-check gateway status after 3 s so the wizard reflects reality
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    val card = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
+                                    if (card?.visibility == View.VISIBLE) checkGatewayStatus()
+                                    updateBanner.visibility = View.GONE
+                                }, 3000)
+                            }
                             android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
                             android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT -> {
                                 // Signature mismatch: offer to uninstall; on return auto-retry install
@@ -993,7 +1105,14 @@ class KioskActivity : AppCompatActivity() {
                                 val msg = intent?.getStringExtra(
                                     android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE
                                 ) ?: "status=$status"
-                                runOnUiThread { Toast.makeText(this@KioskActivity, "Installazione: $msg", Toast.LENGTH_LONG).show() }
+                                setInstallUI(
+                                    "\u274C",
+                                    getString(R.string.install_error_download),
+                                    msg,
+                                    0xFFf87171.toInt(),
+                                    btnEnabled = true
+                                )
+                                runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
                             }
                         }
                     }
@@ -1008,9 +1127,24 @@ class KioskActivity : AppCompatActivity() {
                 )
                 session.commit(pi2.intentSender)
             }
-            Toast.makeText(this, "Installazione in corso…", Toast.LENGTH_SHORT).show()
+            // "Installazione in corso…" is already set by the download-complete handler.
+            // If called from onActivityResult (retry after uninstall), set it now.
+            setInstallUI(
+                "\u23F3",
+                getString(R.string.install_installing),
+                getString(R.string.install_installing),
+                0xFF94a3b8.toInt(),
+                btnEnabled = false
+            )
         } catch (e: Exception) {
-            runOnUiThread { Toast.makeText(this, "Errore installazione: ${e.message}", Toast.LENGTH_LONG).show() }
+            setInstallUI(
+                "\u274C",
+                getString(R.string.install_error_download),
+                e.message ?: "",
+                0xFFf87171.toInt(),
+                btnEnabled = true
+            )
+            runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
         }
     }
 
@@ -1100,7 +1234,22 @@ class KioskActivity : AppCompatActivity() {
             val url = pendingApkDownloadUrl
             if (url.isNotEmpty()) triggerApkDownload(url)
         }
-        // System installer returned: if not OK the install failed (possibly signature conflict).
+        // System installer returned: OK = install succeeded.
+        if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode == RESULT_OK) {
+            setInstallUI(
+                "\u2705",
+                getString(R.string.install_success),
+                getString(R.string.install_success_detail),
+                0xFF34d399.toInt(),
+                btnEnabled = false
+            )
+            Handler(Looper.getMainLooper()).postDelayed({
+                val card = try { findViewById<LinearLayout>(R.id.scaleStatusCard) } catch (_: Exception) { null }
+                if (card?.visibility == View.VISIBLE) checkGatewayStatus()
+                updateBanner.visibility = View.GONE
+            }, 3000)
+        }
+        // Not OK = install failed (possibly signature conflict).
         // Show a dialog offering to uninstall the old version so the user can retry.
         if (requestCode == INSTALL_CONFIRM_REQUEST && resultCode != RESULT_OK) {
             val f   = pendingInstallFile
