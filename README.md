@@ -14,6 +14,9 @@
 
 ## 🌍 Recent Updates
 
+- **Dashboard skeleton loading** — Stat cards (Dispensa/Frigo/Freezer) show an animated shimmer while data loads instead of a jarring `0` flash for 3–5 seconds.
+- **APK self-update with conflict recovery** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog offering to uninstall the old version instead of a cryptic failure.
+- **Webapp + Android update notifications** — A dismissible banner appears when a newer GitHub release is available (checked every 6 hours in the webapp; natively in the Android apps).
 - **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry (e.g. 191 ml of milk in the fridge) when the same product has stock in another location (e.g. 11 sealed packages in the pantry). Sibling entries are detected by barcode or name+brand.
 - **Non-alarmist expired banner** — The expired-product banner now adapts its icon, colour, and title to the actual safety level: green ✅ for long-life products that are still safe, amber 👀 for items that should be checked, and the original red 🚫 only for genuinely dangerous items (raw meat, dairy, fish). Low-risk products like canned tomatoes or pasta are no longer shown with a scary red banner.
 - Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders like `meal_types.*` and `meal_plan_types.*` from appearing in the UI.
