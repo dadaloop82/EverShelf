@@ -4672,6 +4672,13 @@ function bringGetList(): void {
 
 function bringAddItems(): void {
     $auth = bringAuth();
+    if (!$auth) {
+        echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $items = $input['items'] ?? [];
     $listUUID = $input['listUUID'] ?? $auth['bringListUUID'];
     
     if (empty($listUUID)) {
