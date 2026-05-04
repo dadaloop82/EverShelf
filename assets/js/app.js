@@ -80,6 +80,35 @@ function reportError(payload) {
 // Fires on tab focus and every 5 minutes.
 const _loadedVersion = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
 
+// ── Gemini AI availability ────────────────────────────────────────────────────
+// Set to true in _initApp / syncSettingsFromDB once server confirms key is set.
+// All AI entry points call _requireGemini() before opening camera / API calls.
+let _geminiAvailable = false;
+
+function _requireGemini() {
+    if (_geminiAvailable) return true;
+    showToast(
+        '🤖 ' + t('error.no_api_key'),
+        'warning',
+        6000
+    );
+    return false;
+}
+
+// Update Gemini button visual state to signal no key configured
+function _updateGeminiButtonState() {
+    const btn = document.querySelector('.header-gemini-btn');
+    if (!btn) return;
+    if (_geminiAvailable) {
+        btn.classList.remove('header-btn-no-ai');
+        btn.removeAttribute('title');
+        btn.setAttribute('title', 'Chat con Gemini');
+    } else {
+        btn.classList.add('header-btn-no-ai');
+        btn.setAttribute('title', '🤖 Gemini non configurato — imposta GEMINI_API_KEY nelle impostazioni');
+    }
+}
+
 function _checkWebappUpdate() {
     const STORAGE_KEY  = '_evershelf_update_checked_at';
     const SEEN_KEY     = '_evershelf_update_seen_ts';
@@ -1779,6 +1808,8 @@ async function syncSettingsFromDB() {
     try {
         // Primary: load from server .env
         const serverSettings = await api('get_settings');
+        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.gemini_key);
+        _updateGeminiButtonState();
         const s = getSettings();
         const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
@@ -2265,7 +2296,7 @@ function showPage(pageId, param = null) {
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
         case 'settings': loadSettingsUI(); break;
-        case 'chat': initChat(); break;
+        case 'chat': if (_requireGemini()) initChat(); break;
     }
 
     // Auto-refresh banner notifications while on dashboard (every 5 min)
@@ -2865,6 +2896,7 @@ function openedFraction(item) {
 }
 
 function quickRecipeSuggestion() {
+    if (!_requireGemini()) return;
     // Navigate to chat and auto-send a prompt about expiring products
     showPage('chat');
     setTimeout(() => {
@@ -7090,6 +7122,7 @@ async function submitUse(e) {
 
 // ===== AI IDENTIFICATION =====
 async function captureForAI() {
+    if (!_requireGemini()) return;
     stopScanner();
     showPage('ai');
 }
@@ -7399,6 +7432,7 @@ async function saveAIProductDirect() {
 let _pfAiStream = null;
 
 async function captureForAIFormFill() {
+    if (!_requireGemini()) return;
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>📷 ${t('scan.ai_identify')}</h3>
@@ -8781,6 +8815,7 @@ async function addSelectedSuggestions() {
 let expiryStream = null;
 
 async function scanExpiryWithAI() {
+    if (!_requireGemini()) return;
     // Create modal for camera capture
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -9435,6 +9470,7 @@ let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
 let _rejectedRecipeIngredients = []; // ingredient names from previously rejected recipes
 
 function openRecipeDialog() {
+    if (!_requireGemini()) return;
     const meal = getMealType();
     const settings = getSettings();
     document.getElementById('recipe-overlay').style.display = 'flex';
@@ -10600,6 +10636,7 @@ function regenerateRecipe() {
 }
 
 async function generateRecipe() {
+    if (!_requireGemini()) return;
     const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
@@ -11719,6 +11756,8 @@ async function _initApp() {
         // are taken into account before deciding which wizard steps to show.
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
+        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.gemini_key);
+        _updateGeminiButtonState();
         const missing = _getMissingSetupSteps(serverSettings);
         if (missing.length > 0) {
             showSetupWizard(missing);
