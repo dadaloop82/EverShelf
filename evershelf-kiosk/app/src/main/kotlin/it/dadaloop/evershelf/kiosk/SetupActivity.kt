@@ -152,6 +152,10 @@ class SetupActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_setup)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        // Init ErrorReporter immediately using any previously saved URL (so install
+        // errors during setup are reported even before the user confirms the URL)
+        val savedUrl = prefs.getString(KEY_URL, "") ?: ""
+        if (savedUrl.isNotEmpty()) ErrorReporter.init(this, savedUrl)
         bindViews()
         // Restore step from instance state (e.g. after recreate() for locale change)
         val savedStep = savedInstanceState?.getInt("step", -1) ?: -1
@@ -863,6 +867,11 @@ class SetupActivity : AppCompatActivity() {
                             else -> {
                                 val msg = intent?.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status=$status"
                                 setGatewayUI("❌", getString(R.string.install_error_install), msg, 0xFFf87171.toInt())
+                                ErrorReporter.reportMessage(
+                                    "install-failure",
+                                    "PackageInstaller failed: status=$status msg=$msg",
+                                    mapOf("pkg" to targetPkg, "status" to status, "msg" to msg)
+                                )
                                 val pkgInstalled = try { packageManager.getPackageInfo(targetPkg, 0); true } catch (_: Exception) { false }
                                 if (pkgInstalled) runOnUiThread { offerUninstallAndRetry(file, targetPkg) }
                             }
@@ -924,6 +933,32 @@ class SetupActivity : AppCompatActivity() {
 
     private fun finishSetup() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
+        // ── Pre-configure Scale Gateway URL in webapp settings ──────────────────
+        // If the user has a scale and the gateway is installed, write the WebSocket
+        // URL and enable the scale in the webapp's server settings (.env via API)
+        // so the webapp works out-of-the-box without manual settings configuration.
+        if (prefs.getBoolean(KEY_HAS_SCALE, false) && isGatewayInstalled()) {
+            val baseUrl = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+            if (baseUrl.isNotEmpty()) {
+                val gwUrl = "ws://127.0.0.1:8765"
+                Thread {
+                    try {
+                        val url = "$baseUrl/api/index.php?action=save_settings"
+                        val body = """{"scale_enabled":true,"scale_gateway_url":"$gwUrl"}"""
+                        val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                            requestMethod = "POST"
+                            setRequestProperty("Content-Type", "application/json")
+                            connectTimeout = 5000
+                            readTimeout    = 5000
+                            doOutput = true
+                        }
+                        conn.outputStream.use { it.write(body.toByteArray()) }
+                        conn.inputStream.close()
+                        conn.disconnect()
+                    } catch (_: Exception) {}
+                }.start()
+            }
+        }
         setResult(RESULT_OK)
         finish()
     }
