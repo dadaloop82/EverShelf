@@ -2231,7 +2231,7 @@ function showPage(pageId, param = null) {
     switch(pageId) {
         case 'dashboard':
             // Show skeleton on stat-cards while data loads
-            ['dispensa', 'frigo', 'freezer'].forEach(loc => {
+            ['dispensa', 'frigo', 'freezer', 'spesa'].forEach(loc => {
                 const el = document.getElementById(`stat-${loc}`);
                 if (el) { el.textContent = '…'; el.classList.add('stat-loading'); }
             });
@@ -8314,13 +8314,17 @@ async function addSmartToBring() {
 async function loadShoppingCount() {
     try {
         const data = await api('bring_list');
+        const el = document.getElementById('stat-spesa');
         if (data.success && data.purchase) {
-            document.getElementById('stat-spesa').textContent = data.purchase.length;
+            el.textContent = data.purchase.length;
         } else {
-            document.getElementById('stat-spesa').textContent = '-';
+            el.textContent = '-';
         }
+        el.classList.remove('stat-loading');
     } catch {
-        document.getElementById('stat-spesa').textContent = '-';
+        const el = document.getElementById('stat-spesa');
+        el.textContent = '-';
+        el.classList.remove('stat-loading');
     }
     // Smart urgency badge: use cached data if fresh (< 2 min), else fetch
     if (smartShoppingItems.length > 0 && (Date.now() - _smartShoppingLastFetch) < 2 * 60 * 1000) {
