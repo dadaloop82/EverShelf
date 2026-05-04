@@ -10147,7 +10147,7 @@ function startCookingMode() {
     document.getElementById('cooking-tts-btn').textContent = '🔊';
     document.getElementById('cooking-overlay').style.display = 'flex';
     document.body.classList.add('cooking-mode-active');
-    try { screen.orientation?.lock('portrait'); } catch (_) { /* ignore */ }
+    try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
     if (_cookingTTS) {
         const text = ((_cookingRecipe.steps || [])[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
@@ -10159,7 +10159,7 @@ function closeCookingMode() {
     document.body.classList.remove('cooking-mode-active');
     // NOTE: intentionally keep _cookingRecipe, _cookingStep, _cookingVisited
     // so the user can resume from the same step when they reopen
-    try { screen.orientation?.unlock(); } catch (_) { /* ignore */ }
+    try { screen.orientation?.unlock().catch(() => {}); } catch (_) { /* ignore */ }
 }
 
 function restartCookingMode() {

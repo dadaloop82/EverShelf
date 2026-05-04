@@ -50,14 +50,20 @@ jobs:
       - name: Delete existing kiosk release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release delete kiosk-latest --yes || true
+        run: |
+          gh release delete kiosk-latest --yes || true
+          sleep 5
 
       - name: Create GitHub Release and upload APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create kiosk-latest \
-            --title "EverShelf Kiosk v${{ steps.version.outputs.name }}" \
-            --notes "Kiosk mode app with embedded BLE scale gateway. Install on your Android device (7.0+)." \
-            --prerelease \
-            artifacts/evershelf-kiosk.apk
+          for i in 1 2 3; do
+            gh release create kiosk-latest \
+              --title "EverShelf Kiosk v${{ steps.version.outputs.name }}" \
+              --notes "Kiosk mode app with embedded BLE scale gateway. Install on your Android device (7.0+)." \
+              --prerelease \
+              artifacts/evershelf-kiosk.apk && break
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
