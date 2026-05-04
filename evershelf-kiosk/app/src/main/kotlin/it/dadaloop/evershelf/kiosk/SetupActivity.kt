@@ -826,70 +826,112 @@ class SetupActivity : AppCompatActivity() {
             val params = android.content.pm.PackageInstaller.SessionParams(
                 android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
             )
-            params.setAppPackageName(targetPkg)
+            // Note: setAppPackageName() is intentionally omitted — it causes STATUS_FAILURE (1)
+            // on some OEM/Android versions even when the package name is correct.
             val sessionId = pi.createSession(params)
-            pi.openSession(sessionId).use { session ->
+            val session   = pi.openSession(sessionId)
+            try {
                 file.inputStream().use { input ->
                     session.openWrite("package", 0, file.length()).use { out ->
                         input.copyTo(out)
                         session.fsync(out)
                     }
                 }
-                val action = "it.dadaloop.evershelf.kiosk.SETUP_INSTALL_$sessionId"
-                val resultReceiver = object : BroadcastReceiver() {
-                    override fun onReceive(ctx: Context?, intent: Intent?) {
-                        unregisterReceiver(this)
-                        val status = intent?.getIntExtra(
-                            android.content.pm.PackageInstaller.EXTRA_STATUS,
-                            android.content.pm.PackageInstaller.STATUS_FAILURE
-                        ) ?: android.content.pm.PackageInstaller.STATUS_FAILURE
-                        when (status) {
-                            android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+            } catch (e: Exception) {
+                try { session.abandon() } catch (_: Exception) {}
+                throw e
+            }
+            // Do NOT close() the session after commit — it is now owned by the system.
+
+            val action = "it.dadaloop.evershelf.kiosk.SETUP_INSTALL_$sessionId"
+            val resultReceiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context?, intent: Intent?) {
+                    val status = intent?.getIntExtra(
+                        android.content.pm.PackageInstaller.EXTRA_STATUS,
+                        android.content.pm.PackageInstaller.STATUS_FAILURE
+                    ) ?: android.content.pm.PackageInstaller.STATUS_FAILURE
+
+                    when (status) {
+                        android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                            // Do NOT unregister here — on Android 11+ the final result
+                            // (STATUS_SUCCESS or STATUS_FAILURE) arrives as a second broadcast
+                            // to this same receiver AFTER the user confirms the dialog.
+                            @Suppress("DEPRECATION")
+                            val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                            else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
+                            if (confirmIntent != null) {
+                                pendingInstallFile = file
+                                pendingInstallPkg  = targetPkg
+                                setGatewayUI("⏳", getString(R.string.install_installing),
+                                    getString(R.string.install_confirm_detail), 0xFF94a3b8.toInt(),
+                                    btnEnabled = false, progress = -1)
                                 @Suppress("DEPRECATION")
-                                val confirmIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                                    intent?.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-                                else intent?.getParcelableExtra(Intent.EXTRA_INTENT)
-                                if (confirmIntent != null) {
-                                    pendingInstallFile = file
-                                    pendingInstallPkg  = targetPkg
-                                    @Suppress("DEPRECATION")
-                                    startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
-                                }
+                                startActivityForResult(confirmIntent, INSTALL_CONFIRM_REQUEST)
+                            } else {
+                                // No confirmation intent — give up gracefully
+                                unregisterReceiver(this)
+                                setGatewayUI("❌", getString(R.string.install_error_install),
+                                    "No confirmation intent", 0xFFf87171.toInt())
                             }
-                            android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
-                                setGatewayUI("✅", getString(R.string.install_success), getString(R.string.install_success_detail), 0xFF34d399.toInt(), btnEnabled = false)
-                                Handler(Looper.getMainLooper()).postDelayed({ checkGatewayStatus() }, 1500)
-                            }
-                            android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
-                            android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT -> {
-                                runOnUiThread { offerUninstallAndRetry(file, targetPkg) }
-                            }
-                            else -> {
-                                val msg = intent?.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status=$status"
-                                setGatewayUI("❌", getString(R.string.install_error_install), msg, 0xFFf87171.toInt())
-                                ErrorReporter.reportMessage(
-                                    "install_failure",
-                                    "PackageInstaller failed: status=$status msg=$msg",
-                                    mapOf("pkg" to targetPkg, "status" to status, "msg" to msg)
+                        }
+                        android.content.pm.PackageInstaller.STATUS_SUCCESS -> {
+                            unregisterReceiver(this)
+                            setGatewayUI("✅", getString(R.string.install_success),
+                                getString(R.string.install_success_detail), 0xFF34d399.toInt(),
+                                btnEnabled = false)
+                            Handler(Looper.getMainLooper()).postDelayed({ checkGatewayStatus() }, 1500)
+                        }
+                        android.content.pm.PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+                        android.content.pm.PackageInstaller.STATUS_FAILURE_CONFLICT -> {
+                            unregisterReceiver(this)
+                            runOnUiThread { offerUninstallAndRetry(file, targetPkg) }
+                        }
+                        -1 /* STATUS_FAILURE_ABORTED */ -> {
+                            // User cancelled the install confirmation dialog — just reset UI
+                            unregisterReceiver(this)
+                            runOnUiThread { checkGatewayStatus() }
+                        }
+                        else -> {
+                            unregisterReceiver(this)
+                            val msg = intent?.getStringExtra(
+                                android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE
+                            ) ?: "status=$status"
+                            setGatewayUI("❌", getString(R.string.install_error_install),
+                                msg, 0xFFf87171.toInt())
+                            ErrorReporter.reportMessage(
+                                "install_failure",
+                                "PackageInstaller failed: status=$status msg=$msg",
+                                mapOf(
+                                    "pkg"     to targetPkg,
+                                    "status"  to status,
+                                    "msg"     to msg,
+                                    "apk_kb"  to (file.length() / 1024),
+                                    "android" to Build.VERSION.SDK_INT
                                 )
-                                val pkgInstalled = try { packageManager.getPackageInfo(targetPkg, 0); true } catch (_: Exception) { false }
-                                if (pkgInstalled) runOnUiThread { offerUninstallAndRetry(file, targetPkg) }
-                            }
+                            )
+                            val pkgInstalled = try {
+                                packageManager.getPackageInfo(targetPkg, 0); true
+                            } catch (_: Exception) { false }
+                            if (pkgInstalled) runOnUiThread { offerUninstallAndRetry(file, targetPkg) }
                         }
                     }
                 }
-                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0
-                registerReceiver(resultReceiver, IntentFilter(action), flags)
-                val pi2 = PendingIntent.getBroadcast(
-                    this, sessionId,
-                    Intent(action).setPackage(packageName),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                session.commit(pi2.intentSender)
             }
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0
+            registerReceiver(resultReceiver, IntentFilter(action), flags)
+            val pi2 = PendingIntent.getBroadcast(
+                this, sessionId,
+                Intent(action).setPackage(packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            session.commit(pi2.intentSender)
             setGatewayUI("⏳", getString(R.string.install_installing), "", 0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
         } catch (e: Exception) {
             setGatewayUI("❌", getString(R.string.install_error_install), e.message ?: "", 0xFFf87171.toInt())
+            ErrorReporter.reportMessage("install_packager_exception",
+                "installWithPackageInstaller exception for $targetPkg: ${e.message}",
+                mapOf("android" to Build.VERSION.SDK_INT, "apk_kb" to (file.length() / 1024)))
         }
     }
 
@@ -973,23 +1015,14 @@ class SetupActivity : AppCompatActivity() {
                 if (pendingApkDownloadUrl.isNotEmpty()) triggerApkDownload(pendingApkDownloadUrl)
             }
             INSTALL_CONFIRM_REQUEST -> {
-                if (resultCode == RESULT_OK) {
-                    setGatewayUI("✅", getString(R.string.install_success), getString(R.string.install_success_detail), 0xFF34d399.toInt(), btnEnabled = false)
-                    Handler(Looper.getMainLooper()).postDelayed({ checkGatewayStatus() }, 1500)
-                } else {
-                    val f   = pendingInstallFile
-                    val pkg = pendingInstallPkg
-                    if (f != null && f.exists() && pkg.isNotEmpty()) {
-                        runOnUiThread {
-                            AlertDialog.Builder(this)
-                                .setTitle("⚠️ Installazione non riuscita")
-                                .setMessage("Se c'è un conflitto di firma, devi disinstallare la versione precedente.\n\nDisinstalla ora?")
-                                .setPositiveButton("Disinstalla") { _, _ ->
-                                    startActivityForResult(Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg")), UNINSTALL_REQUEST)
-                                }
-                                .setNegativeButton("Annulla", null).show()
-                        }
-                    }
+                // On Android 11+ the final install result (STATUS_SUCCESS / STATUS_FAILURE)
+                // arrives via the BroadcastReceiver, not via onActivityResult.
+                // RESULT_OK  = user tapped "Install" in the system dialog (not "install succeeded")
+                // RESULT_CANCELED = user pressed Back without confirming
+                if (resultCode != RESULT_OK) {
+                    // User backed out of the confirmation — BroadcastReceiver will receive
+                    // STATUS_FAILURE_ABORTED (-1) and reset the UI automatically.
+                    // No action needed here.
                 }
             }
             UNINSTALL_REQUEST -> {
