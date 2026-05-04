@@ -191,6 +191,20 @@ $action = $_GET['action'] ?? '';
 
 if (!defined('CRON_MODE')):
 try {
+    // DEMO_MODE guard
+    if (env('DEMO_MODE') === 'true') {
+        $demoBlocked = [
+            'save_settings', 'product_save', 'product_delete', 'product_merge',
+            'inventory_add', 'inventory_use', 'inventory_update', 'inventory_remove',
+            'dismiss_anomaly', 'bring_add', 'bring_remove', 'bring_sync',
+        ];
+        if (in_array($action, $demoBlocked, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'demo_mode']);
+            exit;
+        }
+    }
+
     switch ($action) {
         // ===== PRODUCTS =====
         case 'search_barcode':
@@ -2037,9 +2051,10 @@ function getServerSettings(): void {
     $bringEmail = env('BRING_EMAIL');
     
     echo json_encode([
-        'gemini_key' => $geminiKey,
         'gemini_key_set' => !empty($geminiKey),
         'bring_email' => $bringEmail,
+        'settings_token_set' => !empty(env('SETTINGS_TOKEN')),
+        'demo_mode' => env('DEMO_MODE') === 'true',
         'bring_password_set' => !empty(env('BRING_PASSWORD')),
         'tts_url' => env('TTS_URL'),
         'tts_token' => env('TTS_TOKEN'),
@@ -2066,6 +2081,17 @@ function getServerSettings(): void {
 }
 
 function saveSettings(): void {
+    // Require SETTINGS_TOKEN if configured
+    $requiredToken = env('SETTINGS_TOKEN');
+    if (!empty($requiredToken)) {
+        $provided = $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
+        if (!hash_equals($requiredToken, $provided)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'unauthorized']);
+            return;
+        }
+    }
+
     $input = json_decode(file_get_contents('php://input'), true);
     $envFile = __DIR__ . '/../.env';
     $envVars = loadEnv();

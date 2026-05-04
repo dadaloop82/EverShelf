@@ -84,6 +84,7 @@ const _loadedVersion = (document.querySelector('.header-version')?.textContent?.
 // Set to true in _initApp / syncSettingsFromDB once server confirms key is set.
 // All AI entry points call _requireGemini() before opening camera / API calls.
 let _geminiAvailable = false;
+let _demoMode = false;
 
 function _requireGemini() {
     if (_geminiAvailable) return true;
@@ -1808,7 +1809,8 @@ async function syncSettingsFromDB() {
     try {
         // Primary: load from server .env
         const serverSettings = await api('get_settings');
-        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.gemini_key);
+        _geminiAvailable = !!(serverSettings.gemini_key_set);
+        _demoMode = !!serverSettings.demo_mode;
         _updateGeminiButtonState();
         const s = getSettings();
         const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
@@ -1915,13 +1917,17 @@ async function loadSettingsUI() {
     try {
         const serverSettings = await api('get_settings');
         // Merge all server settings into local cache (server wins)
-        const serverKeys = ['gemini_key','bring_email','bring_password',
+        const serverKeys = ['bring_email',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
             'tts_content_type','tts_payload_key'];
+        // Note: gemini_key is never sent from server; settings_token_set is metadata only
+        const settingsTokenRequired = !!serverSettings.settings_token_set;
+        const tokenHintEl = document.getElementById('settings-token-status-hint');
+        if (tokenHintEl) tokenHintEl.style.display = settingsTokenRequired ? 'block' : 'none';
         let changed = false;
         for (const key of serverKeys) {
             if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
@@ -2141,6 +2147,8 @@ async function saveSettings() {
     
     // Save ALL settings to server .env
     try {
+        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || '';
+        const tokenHeader = settingsToken ? { 'X-Settings-Token': settingsToken } : {};
         const result = await api('save_settings', {}, 'POST', {
             gemini_key: s.gemini_key,
             bring_email: s.bring_email,
@@ -2165,14 +2173,17 @@ async function saveSettings() {
             tts_auth_type: s.tts_auth_type,
             tts_content_type: s.tts_content_type,
             tts_payload_key: s.tts_payload_key,
-        });
+        }, tokenHeader);
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
             statusEl.className = 'settings-status success';
             statusEl.textContent = `✅ ${t('settings.saved')}`;
         } else {
             statusEl.className = 'settings-status error';
-            statusEl.textContent = `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
+            const errMsg = result.error === 'unauthorized'
+                ? '🔒 Token non valido o mancante'
+                : `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
+            statusEl.textContent = errMsg;
         }
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
@@ -2198,7 +2209,7 @@ function togglePasswordVisibility(inputId) {
 }
 
 // ===== API HELPER =====
-async function api(action, params = {}, method = 'GET', body = null) {
+async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}) {
     let url = `${API_BASE}?action=${action}`;
     if (method === 'GET') {
         Object.entries(params).forEach(([k, v]) => {
@@ -2207,8 +2218,10 @@ async function api(action, params = {}, method = 'GET', body = null) {
     }
     const opts = { method };
     if (body) {
-        opts.headers = { 'Content-Type': 'application/json' };
+        opts.headers = { 'Content-Type': 'application/json', ...extraHeaders };
         opts.body = JSON.stringify(body);
+    } else if (Object.keys(extraHeaders).length > 0) {
+        opts.headers = { ...extraHeaders };
     }
     const res = await fetch(url, opts);
     if (!res.ok) {
@@ -11706,7 +11719,7 @@ function _getMissingSetupSteps(serverSettings) {
     // Steps 1 & 2 only show on first run (before setup is completed/skipped)
     if (!setupDone) {
         // Step 1 — Gemini API key (check both localStorage and server .env)
-        if (!s.gemini_key && !srv.gemini_key && !srv.gemini_key_set) missing.push(1);
+        if (!s.gemini_key && !srv.gemini_key_set) missing.push(1);
         // Step 2 — Bring! credentials (check both localStorage and server .env)
         if ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set)) missing.push(2);
     }
@@ -11910,7 +11923,8 @@ async function _initApp() {
         // are taken into account before deciding which wizard steps to show.
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
-        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.gemini_key);
+        _geminiAvailable = !!(serverSettings.gemini_key_set);
+        _demoMode = !!serverSettings.demo_mode;
         _updateGeminiButtonState();
         const missing = _getMissingSetupSteps(serverSettings);
         if (missing.length > 0) {

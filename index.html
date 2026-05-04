@@ -871,6 +871,16 @@
             <!-- Security Tab -->
             <div class="settings-panel" id="tab-security">
                 <div class="settings-card">
+                    <h4>🔑 Token Impostazioni</h4>
+                    <p class="settings-hint">Se <code>SETTINGS_TOKEN</code> è configurato nel <code>.env</code> server, inserisci qui il token prima di salvare le impostazioni. Lascia vuoto se non configurato.</p>
+                    <div class="form-group">
+                        <label>Token di accesso</label>
+                        <input type="password" id="setting-settings-token" class="form-input" placeholder="(vuoto = nessuna protezione)">
+                        <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-settings-token')">👁️ Mostra/Nascondi</button>
+                    </div>
+                    <p class="settings-hint" id="settings-token-status-hint" style="display:none;color:var(--accent)">🔒 Questo server richiede un token per salvare le impostazioni.</p>
+                </div>
+                <div class="settings-card">
                     <h4>🔒 Certificato HTTPS</h4>
                     <p class="settings-hint">Se il browser mostra l'errore "La connessione non è privata" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.</p>
                     <div class="form-group">
