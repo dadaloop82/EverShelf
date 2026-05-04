@@ -14,16 +14,16 @@
 
 ## 🌍 Recent Updates
 
-- **Dashboard skeleton loading** — Stat cards (Dispensa/Frigo/Freezer) show an animated shimmer while data loads instead of a jarring `0` flash for 3–5 seconds.
-- **APK self-update with conflict recovery** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog offering to uninstall the old version instead of a cryptic failure.
-- **Webapp + Android update notifications** — A dismissible banner appears when a newer GitHub release is available (checked every 6 hours in the webapp; natively in the Android apps).
-- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry (e.g. 191 ml of milk in the fridge) when the same product has stock in another location (e.g. 11 sealed packages in the pantry). Sibling entries are detected by barcode or name+brand.
-- **Non-alarmist expired banner** — The expired-product banner now adapts its icon, colour, and title to the actual safety level: green ✅ for long-life products that are still safe, amber 👀 for items that should be checked, and the original red 🚫 only for genuinely dangerous items (raw meat, dairy, fish). Low-risk products like canned tomatoes or pasta are no longer shown with a scary red banner.
-- Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders like `meal_types.*` and `meal_plan_types.*` from appearing in the UI.
-- Recipe generation now receives the selected app language (`it`/`en`/`de`) and enforces localized output in both streaming and non-streaming API flows.
-- Added missing shared error keys (`error.network`, `error.no_api_key`) across all language files to keep fallback/error toasts fully translated.
-- "Use product" and "use recipe ingredient" location buttons now show a clear opened-package badge, so the default choice is visibly understandable.
-- Explicit "used all / finished" actions are now treated as confirmed by the user and no longer create redundant finished-confirmation banners.
+- **3 new AI features (Gemini)** — Storage/shelf-life hint shown inline in the add form; AI-enriched shopping suggestions with a short practical tip per item; plain-language anomaly explanation via a "🤖 Spiega" button on anomaly banners.
+- **Security hardening** — `get_settings` no longer exposes API keys in plain text (boolean flags only); `save_settings` protected by optional `SETTINGS_TOKEN` (validated with `hash_equals`); native `DEMO_MODE` in `.env` blocks all write operations at the PHP router level before any other guard.
+- **Real-time webapp update detection** — An inline header pill appears when a newer release is on GitHub (checked on load + every 30 min); no intrusive full-page banners.
+- **Gemini availability flag** — All AI entry points check `_geminiAvailable` before firing; the header button shows a visual no-AI state (greyed + amber dot) when no key is configured.
+- **Dashboard skeleton loading** — Stat cards show an animated shimmer while data loads instead of a jarring `0` flash for 3–5 seconds.
+- **APK self-update with conflict recovery** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog to uninstall the old version instead of a cryptic failure.
+- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry when the same product has stock in another location. Sibling entries are detected by barcode or name+brand.
+- **Non-alarmist expired banner** — Adapts icon, colour, and title to the actual safety level: green ✅ for long-life products still safe, amber 👀 for items to check, red 🚫 only for genuinely dangerous items.
+- Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders from appearing in the UI.
+- Recipe generation now receives the selected app language and enforces localized output in both streaming and non-streaming API flows.
 
 ## ✨ Features
 
@@ -40,10 +40,13 @@
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
 - **Product identification** — Point your camera at any product for instant recognition
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
+- **Storage & shelf-life hint** — When adding a new product, Gemini suggests the optimal storage location and shelf-life in the background; shown as an inline AI badge next to the expiry estimate
 - **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
-- **Shopping suggestions** — AI-powered purchase recommendations
-- **Model fallback** — All AI endpoints try `gemini-2.5-flash` first (separate quota) and fall back to `gemini-2.0-flash` automatically, matching the resilience already used for recipe generation
+- **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip
+- **Anomaly explanation** — "🤖 Spiega" button on anomaly banners explains in plain language why a discrepancy likely occurred and what to do
+- **Model fallback** — All AI endpoints try `gemini-2.5-flash` first and fall back to `gemini-2.0-flash` automatically
+- **Graceful no-key state** — When no Gemini key is configured, AI entry points show a friendly message; the header button is visually greyed with an amber dot
 
 ### 🛒 Shopping List
 - **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
@@ -165,6 +168,13 @@ BRING_PASSWORD=your_password
 TTS_URL=http://your-home-assistant:8123/api/events/tts_speak
 TTS_TOKEN=your_long_lived_token
 TTS_ENABLED=true
+
+# Optional: Security — protect the save_settings endpoint
+# Set a strong random string; the Settings UI will ask for it before saving
+SETTINGS_TOKEN=
+
+# Optional: Demo mode — block all write operations at the router level
+DEMO_MODE=false
 ```
 
 ### Web Server Configuration
@@ -288,6 +298,9 @@ evershelf-kiosk/            # 📺 Android kiosk app (add-on)
 | | `gemini_expiry` | POST | Read expiry date from photo |
 | | `gemini_chat` | POST | Chat with AI assistant |
 | | `generate_recipe` | POST | Generate recipe from inventory |
+| | `gemini_product_hint` | POST | Storage location + shelf-life hint |
+| | `gemini_shopping_enrich` | POST | Enrich shopping suggestions with tips |
+| | `gemini_anomaly_explain` | POST | Plain-language anomaly explanation |
 | **Shopping** | `bring_list` | GET | Get Bring! shopping list |
 | | `bring_add` | POST | Add items to Bring! |
 | | `smart_shopping` | GET | Smart shopping predictions |
@@ -300,10 +313,12 @@ evershelf-kiosk/            # 📺 Android kiosk app (add-on)
 
 - **Credentials** are stored in `.env` (server-side, never committed to Git)
 - **Database** stays local — never pushed to remote repositories
-- **API keys** are passed server-side only — never exposed to the browser
+- **API keys are never exposed to the browser** — `get_settings` returns only boolean flags (`gemini_key_set`, `settings_token_set`), never raw key values
+- **Settings write protection** — set `SETTINGS_TOKEN` in `.env` to require a secret token (`X-Settings-Token` header) for all `save_settings` calls; validated with `hash_equals` to prevent timing attacks
+- **Demo / public mode** — set `DEMO_MODE=true` to block all write operations at the PHP router level before any business logic runs
 - The API uses **parameterized SQL queries** (PDO prepared statements) against injection
 - **Input validation** on all inventory operations (quantity bounds, location whitelist)
-- Consider adding **authentication** if the server is accessible from the internet
+- Consider adding **reverse-proxy authentication** (e.g. Authelia, Nginx `auth_basic`) if the server is accessible from the internet
 
 ---
 
@@ -335,10 +350,14 @@ The application uses no build tools — edit files directly and refresh.
 - [x] Anomaly detection banner — suspicious quantities + consumption predictions
 - [x] AI scan local matching — suggest existing pantry products before OFF lookup
 - [x] Scale auto-fill improvements — 10g threshold, ml conversion hints
-- [x] Update notification system — kiosk checks GitHub releases
+- [x] Update notification system — inline header pill (webapp) + kiosk checks GitHub releases
 - [x] Generic shopping name grouping — compound-phrase + keyword map (100+ entries) + Gemini AI fallback
 - [x] Auto-add to Bring! on product depletion — no confirmation step when stock reaches zero
 - [x] Native Android TTS in kiosk — bypasses Web Speech API voice detection issues
+- [x] AI product storage hint — background Gemini call suggests location + shelf-life in the add form
+- [x] AI shopping tips enrichment — each suggestion enriched with a short practical tip
+- [x] AI anomaly explanation — "🤖 Spiega" button explains discrepancies in plain language
+- [x] Security hardening — no raw key exposure, SETTINGS_TOKEN auth, DEMO_MODE native blocking
 - [ ] Offline mode with service worker
 - [ ] Export/import inventory data
 - [ ] Notification system (Telegram, email) for expiring products
