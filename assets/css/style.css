@@ -108,10 +108,8 @@ body {
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     width: 100%;
-    max-width: none;
-    margin: 0;
 }
 
 .header-title {
@@ -128,8 +126,6 @@ body {
     pointer-events: auto;
     /* prevent title overlapping action buttons on small screens */
     max-width: calc(100% - 200px);
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .header-version {

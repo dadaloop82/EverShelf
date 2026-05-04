@@ -76,12 +76,14 @@ function reportError(payload) {
 }
 
 // ── Webapp update notification ───────────────────────────────────────────────
-// Checks the latest GitHub release once per session and shows a text banner
-// if the running webapp version is outdated.
+// Checks both the deployed webapp version and the latest GitHub release.
+// Fires on tab focus and every 5 minutes.
+const _loadedVersion = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
+
 function _checkWebappUpdate() {
     const STORAGE_KEY  = '_evershelf_update_checked_at';   // last-checked timestamp
     const SEEN_KEY     = '_evershelf_update_seen_ts';      // published_at of last-dismissed release
-    const TTL_MS       = 6 * 60 * 60 * 1000;              // re-check every 6 h (localStorage)
+    const TTL_MS       = 5 * 60 * 1000;                   // re-check every 5 min
     const now = Date.now();
     const lastCheck = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
     if (now - lastCheck < TTL_MS) return;
@@ -91,19 +93,22 @@ function _checkWebappUpdate() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
             if (!data) return;
-            // Release date-based comparison: show banner only if the release is
-            // newer than the last one the user acknowledged.
-            const publishedAt = data.published_at || '';
-            const seenTs      = localStorage.getItem(SEEN_KEY) || '';
-            if (!publishedAt || publishedAt === seenTs) return;
-
-            const latestTag = (data.latest_tag || '').replace(/^v/, '');
-            const current   = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
-            // If tag looks like a proper semver and they match → no update needed
-            if (/^\d+\.\d+/.test(latestTag) && current && current === latestTag) return;
-
-            // Show a dismissible banner at the top of the page
             if (document.getElementById('_evershelf_update_banner')) return;
+
+            // ── Check 1: server has a different version deployed since this page loaded ──
+            const serverVer     = (data.webapp_version || '').replace(/^v/, '');
+            const deployChanged = serverVer && _loadedVersion && serverVer !== _loadedVersion;
+
+            // ── Check 2: a newer GitHub release not yet acknowledged ──
+            const publishedAt  = data.published_at || '';
+            const seenTs       = localStorage.getItem(SEEN_KEY) || '';
+            const latestTag    = (data.latest_tag || '').replace(/^v/, '');
+            const releaseNewer = publishedAt && publishedAt !== seenTs &&
+                                 /^\d+\.\d+/.test(latestTag) &&
+                                 _loadedVersion && latestTag !== _loadedVersion;
+
+            if (!deployChanged && !releaseNewer) return;
+
             const banner = document.createElement('div');
             banner.id = '_evershelf_update_banner';
             banner.style.cssText = [
@@ -114,22 +119,30 @@ function _checkWebappUpdate() {
                 'border-bottom:2px solid #fbbf24',
                 'box-shadow:0 2px 8px rgba(0,0,0,.4)',
             ].join(';');
-            const releaseUrl = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
-            const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>${latestTag}</strong>` : '';
-            banner.innerHTML =
-                `<span>⬆️ EverShelf${versionText} disponibile. ` +
-                `<a href="${releaseUrl}" target="_blank" rel="noopener" style="color:#64748b;font-size:0.9em;text-decoration:underline">novità</a></span>` +
-                `<button onclick="window.location.href=window.location.pathname+'?bust='+Date.now()" ` +
-                `style="background:#fbbf24;border:none;color:#1e293b;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 8px">Aggiorna ora</button>` +
+
+            let msgHtml, dismissAction;
+            if (deployChanged) {
+                // Server files updated — simple reload prompt
+                msgHtml = `<span>🔄 Nuova versione dell'app disponibile sul server.</span>`;
+                dismissAction = () => banner.remove(); // just hide, will reappear next check
+            } else {
+                const releaseUrl  = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
+                const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>v${latestTag}</strong>` : '';
+                msgHtml = `<span>⬆️ EverShelf${versionText} disponibile. ` +
+                    `<a href="${releaseUrl}" target="_blank" rel="noopener" ` +
+                    `style="color:#64748b;font-size:0.9em;text-decoration:underline">novità</a></span>`;
+                dismissAction = () => { localStorage.setItem(SEEN_KEY, publishedAt); banner.remove(); };
+            }
+
+            banner.innerHTML = msgHtml +
+                `<button onclick="window.location.reload()" ` +
+                `style="background:#fbbf24;border:none;color:#1e293b;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 8px">Ricarica</button>` +
                 `<button id="_evershelf_banner_close" ` +
                 `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
             document.body.prepend(banner);
-            document.getElementById('_evershelf_banner_close').onclick = () => {
-                localStorage.setItem(SEEN_KEY, publishedAt); // mark as seen
-                banner.remove();
-            };
-            // Auto-dismiss after 30 s (without marking as seen, so it reappears next visit)
-            setTimeout(() => banner.remove(), 30000);
+            document.getElementById('_evershelf_banner_close').onclick = dismissAction;
+            // Auto-dismiss after 30 s without marking as seen
+            setTimeout(() => { if (banner.isConnected) banner.remove(); }, 30000);
         })
         .catch(() => {});
 }
@@ -11763,7 +11776,10 @@ async function _initApp() {
 
     // 3) Aggiorna immediatamente quando la tab torna visibile (es. torni da Bring! app)
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) refreshCurrentPage();
+        if (!document.hidden) {
+            refreshCurrentPage();
+            _checkWebappUpdate(); // also check for app updates when user returns to tab
+        }
     });
 
     // 4) Background Bring sync ogni 5 min — completamente autonomo, non dipende
