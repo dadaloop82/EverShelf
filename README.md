@@ -2,7 +2,23 @@
 
 > **Self-hosted pantry management system** — Track your food inventory, scan barcodes, get AI-powered recipe suggestions, and reduce waste.
 
-🌐 **Website:** [evershelfproject.dadaloop.it](https://evershelfproject.dadaloop.it/)
+---
+
+<div align="center">
+
+### 🚀 Try the live demo — no installation required!
+
+**[▶ Open Live Demo](https://evershelfproject.dadaloop.it/demo)**
+&nbsp;·&nbsp;
+[🌐 Project Website](https://evershelfproject.dadaloop.it/)
+&nbsp;·&nbsp;
+[📖 Wiki](docs/wiki/Home.md)
+
+*The demo runs with mock pantry data. AI features are fully enabled. All write operations are safely sandboxed.*
+
+</div>
+
+---
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PHP](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/)
