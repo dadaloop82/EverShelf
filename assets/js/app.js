@@ -3283,6 +3283,9 @@ function renderBannerItem() {
         }
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')} (${an.inv_qty} ${an.unit})</button>`;
+        if (_geminiAvailable) {
+            btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="Chiedi a Gemini una spiegazione">\ud83e\udd16 Spiega</button>`;
+        }
         actionsEl.innerHTML = btns;
     }
 
@@ -3337,6 +3340,45 @@ function editBannerPrediction() {
     if (!entry || entry.type !== 'prediction') return;
     _bannerEditPending = true;
     editReviewItem(entry.data.inventory_id, entry.data.product_id);
+}
+
+async function explainBannerAnomaly() {
+    if (!_requireGemini()) return;
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    const an = entry.data;
+
+    // Show loading inline in the banner detail area
+    const detailEl = document.querySelector('#alert-banner .banner-detail');
+    if (!detailEl) return;
+    const originalHtml = detailEl.innerHTML;
+    detailEl.innerHTML = '<em style="opacity:0.7">\ud83e\udd16 Analizzo…</em>';
+
+    // Disable the Spiega button to prevent double calls
+    const explainBtn = document.querySelector('#alert-banner .btn-banner-ai');
+    if (explainBtn) explainBtn.disabled = true;
+
+    try {
+        const result = await api('gemini_anomaly_explain', {}, 'POST', {
+            name:         an.name,
+            inv_qty:      an.inv_qty,
+            expected_qty: an.expected_qty,
+            diff:         an.diff,
+            direction:    an.direction,
+            unit:         an.unit,
+            lang:         _currentLang,
+        });
+
+        if (result.success && result.explanation) {
+            detailEl.innerHTML = `<span style="font-size:0.85rem">\ud83e\udd16 ${escapeHtml(result.explanation)}</span>`;
+        } else {
+            detailEl.innerHTML = originalHtml;
+            showToast('Impossibile ottenere spiegazione AI', 'error');
+        }
+    } catch (e) {
+        detailEl.innerHTML = originalHtml;
+        showToast('Errore AI', 'error');
+    }
 }
 
 function editBannerAnomaly() {
@@ -5874,6 +5916,10 @@ function showAddForm() {
     if (currentProduct && currentProduct.id) {
         _fetchExpiryHistoryAndUpdate(currentProduct.id);
     }
+    // If Gemini is available and product was just created (no history), ask for AI hint
+    if (_geminiAvailable && currentProduct && !currentProduct._aiHintFetched) {
+        _applyAIProductHint();
+    }
 }
 
 function toggleVacuumSealed() {
@@ -5939,6 +5985,78 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
         }
     } catch (e) {
         // silently fall back to rule-based estimate
+    }
+}
+
+// ===== AI PRODUCT HINT: shelf-life + storage suggestion =====
+let _aiProductHintController = null;
+async function _applyAIProductHint() {
+    if (!currentProduct) return;
+    // Abort any in-flight request for a previous product
+    if (_aiProductHintController) _aiProductHintController.abort();
+    _aiProductHintController = new AbortController();
+
+    // Show a subtle loading indicator near the estimate label
+    const estimateEl = document.querySelector('.expiry-estimate-label');
+    if (estimateEl) {
+        const oldHtml = estimateEl.innerHTML;
+        estimateEl.dataset.aiOriginal = oldHtml;
+        estimateEl.innerHTML += ' <span id="ai-hint-loading" style="font-size:0.75rem;opacity:0.7">🤖…</span>';
+    }
+
+    try {
+        const data = await api('gemini_product_hint', {}, 'POST', {
+            name:     currentProduct.name,
+            category: currentProduct.category || '',
+            lang:     _currentLang,
+        });
+
+        // Remove loading indicator
+        document.getElementById('ai-hint-loading')?.remove();
+
+        if (!data.success || !data.location || !data.expiry_days) return;
+        // Mark so we don't re-fetch on the same product
+        currentProduct._aiHintFetched = true;
+
+        const curLoc  = document.getElementById('add-location')?.value;
+        const locChanged = data.location !== curLoc;
+
+        // Update location if AI suggests a different one (and user hasn't manually picked)
+        if (locChanged) {
+            document.getElementById('add-location').value = data.location;
+            // Update active loc-btn
+            document.querySelectorAll('#page-add .loc-btn').forEach(b => {
+                const onclick = b.getAttribute('onclick') || '';
+                const locMatch = onclick.match(/'([^']+)'\s*\)/);
+                if (locMatch) b.classList.toggle('active', locMatch[1] === data.location);
+            });
+        }
+
+        // Update expiry only if we have no historical data (history takes priority)
+        if (!window._historyExpiryDays) {
+            window._addBaseExpiryDays = data.expiry_days;
+            const newDate  = addDays(data.expiry_days);
+            const newLabel = formatEstimatedExpiry(data.expiry_days);
+            const expiryInput = document.getElementById('add-expiry');
+            const dateEl      = document.querySelector('.expiry-estimate-date');
+            if (expiryInput) expiryInput.value = newDate;
+            if (dateEl) dateEl.textContent = formatDate(newDate);
+            const aiSuffix = ` <span class="history-badge" style="background:rgba(99,102,241,0.15);color:#6366f1" title="${escapeHtml(data.reason || '')}">🤖 AI</span>`;
+            if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}</strong>${aiSuffix}`;
+        } else if (estimateEl && estimateEl.dataset.aiOriginal) {
+            // Restore original if history already set
+            estimateEl.innerHTML = estimateEl.dataset.aiOriginal;
+        }
+
+        // Show a toast only if location changed
+        if (locChanged) {
+            const locLabels = { dispensa: t('location.dispensa') || 'Dispensa', frigo: t('location.frigo') || 'Frigo', freezer: t('location.freezer') || 'Freezer' };
+            showToast(`🤖 AI: conserva in ${locLabels[data.location] || data.location}`, 'info', 4000);
+        }
+    } catch (e) {
+        document.getElementById('ai-hint-loading')?.remove();
+        if (estimateEl && estimateEl.dataset.aiOriginal) estimateEl.innerHTML = estimateEl.dataset.aiOriginal;
+        // silent — AI hint is best-effort
     }
 }
 
@@ -8710,6 +8828,11 @@ async function generateSuggestions() {
         
         // Scroll to suggestions
         suggestionsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // AI enrich suggestions in background (best-effort)
+        if (_geminiAvailable && suggestionItems.length > 0) {
+            _enrichSuggestionsWithAI();
+        }
         
     } catch (err) {
         btn.disabled = false;
@@ -8734,7 +8857,7 @@ function renderSuggestions() {
         }[item.priority] || '';
         
         return `
-        <div class="suggestion-item ${item.selected ? 'selected' : ''}" onclick="toggleSuggestion(${idx})">
+        <div class="suggestion-item ${item.selected ? 'selected' : ''}" onclick="toggleSuggestion(${idx})" data-suggestion-name="${escapeHtml(item.name)}">
             <div class="suggestion-check">${item.selected ? '☑️' : '⬜'}</div>
             <span class="shopping-item-icon">${catIcon}</span>
             <div class="suggestion-info">
@@ -8745,6 +8868,37 @@ function renderSuggestions() {
     }).join('');
     
     updateSuggestionActionBtn();
+}
+
+async function _enrichSuggestionsWithAI() {
+    try {
+        const items = suggestionItems.map(s => ({
+            name:     s.name,
+            reason:   s.reason   || '',
+            category: s.category || '',
+            priority: s.priority || 'media',
+        }));
+        const data = await api('gemini_shopping_enrich', {}, 'POST', { items, lang: _currentLang });
+        if (!data.success || !Array.isArray(data.items)) return;
+
+        // For each item that has a tip, find its DOM element and append the tip
+        data.items.forEach(enriched => {
+            if (!enriched.tip) return;
+            const nameAttr = enriched.name.replace(/"/g, '&quot;');
+            const el = document.querySelector(`#suggestion-items [data-suggestion-name="${nameAttr}"]`);
+            if (!el) return;
+            const infoDiv = el.querySelector('.suggestion-info');
+            if (!infoDiv) return;
+            // Avoid duplicate tips
+            if (infoDiv.querySelector('.suggestion-ai-tip')) return;
+            const tipEl = document.createElement('div');
+            tipEl.className = 'suggestion-ai-tip';
+            tipEl.innerHTML = `💡 <em>${escapeHtml(enriched.tip)}</em>`;
+            infoDiv.appendChild(tipEl);
+        });
+    } catch (e) {
+        // best-effort — silently ignore
+    }
 }
 
 function toggleSuggestion(idx) {
