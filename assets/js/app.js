@@ -5814,7 +5814,6 @@ function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
 }
 
 async function throwAll() {
-    closeModal();
     const name = currentProduct ? currentProduct.name : '';
     _showDestructiveConfirm(
         t('use.throw_all_confirm_title') || '🗑️ Butta tutto',
