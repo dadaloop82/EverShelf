@@ -14,16 +14,21 @@
 
 ## 🌍 Recent Updates
 
+- **Demo mode (JS)** — Full frontend demo with mock pantry data, Gemini enabled, Bring! writes silently no-op'd; accessible via `?demo=1` or `.env` `DEMO_MODE=true`.
+- **Graceful Bring! no-key state** — When Bring! credentials are not configured, the shopping tab shows a friendly message with a direct link to Settings instead of a raw error.
+- **Use-quantity guard** — Consuming more than the stocked quantity at a given location is now blocked client-side with a shake animation on the quantity field.
+- **Kiosk setup wizard overhaul** — Auto-discovery rewritten with `ExecutorCompletionService` + `NetworkInterface` (no deprecated `WifiManager`), 60 parallel TCP pre-checks, real-time UI feedback, ports 80/443/8080/8443, correct LAN subnet detection (VPN/cellular interfaces filtered, `wlan`/`eth` prioritised).
+- **Kiosk permissions flow** — Grant button transforms into a green "✅ Permessi concessi — Continua →" button after permissions are granted instead of just showing a card.
+- **Gateway install error reporting** — APK installation failures now call `ErrorReporter.reportMessage()` with status code and message; `ErrorReporter.init()` is called at `onCreate` so errors in step 4 are never silently dropped.
+- **Gateway auto pre-configuration** — After a successful gateway install the setup wizard POSTs `scale_enabled=true` + `scale_gateway_url=ws://127.0.0.1:8765` to the server, so the webapp works with the scale out-of-the-box without manual settings.
 - **3 new AI features (Gemini)** — Storage/shelf-life hint shown inline in the add form; AI-enriched shopping suggestions with a short practical tip per item; plain-language anomaly explanation via a "🤖 Spiega" button on anomaly banners.
 - **Security hardening** — `get_settings` no longer exposes API keys in plain text (boolean flags only); `save_settings` protected by optional `SETTINGS_TOKEN` (validated with `hash_equals`); native `DEMO_MODE` in `.env` blocks all write operations at the PHP router level before any other guard.
 - **Real-time webapp update detection** — An inline header pill appears when a newer release is on GitHub (checked on load + every 30 min); no intrusive full-page banners.
 - **Gemini availability flag** — All AI entry points check `_geminiAvailable` before firing; the header button shows a visual no-AI state (greyed + amber dot) when no key is configured.
 - **Dashboard skeleton loading** — Stat cards show an animated shimmer while data loads instead of a jarring `0` flash for 3–5 seconds.
-- **APK self-update with conflict recovery** — Both Kiosk (v1.4.0) and Scale Gateway (v2.1.0) use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog to uninstall the old version instead of a cryptic failure.
-- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry when the same product has stock in another location. Sibling entries are detected by barcode or name+brand.
+- **APK self-update with conflict recovery** — Both Kiosk and Scale Gateway use the `PackageInstaller` session API for OTA installs; a signature conflict now shows a dialog to uninstall the old version instead of a cryptic failure.
+- **Smarter low-quantity alerts** — The "suspiciously low quantity" banner is no longer raised for a partially-used entry when the same product has stock in another location.
 - **Non-alarmist expired banner** — Adapts icon, colour, and title to the actual safety level: green ✅ for long-life products still safe, amber 👀 for items to check, red 🚫 only for genuinely dangerous items.
-- Recipe and meal-plan labels now resolve at runtime from translations, preventing raw placeholders from appearing in the UI.
-- Recipe generation now receives the selected app language and enforces localized output in both streaming and non-streaming API flows.
 
 ## ✨ Features
 
@@ -98,9 +103,12 @@
 ### 📺 Android Kiosk Mode (Add-on)
 - **Dedicated tablet app** — Full-screen WebView wrapper for wall-mounted kitchen tablets
 - **True kiosk lock** — Screen pinning blocks home/recent buttons
-- **Setup wizard** — 3-step guided configuration (URL, connection test, gateway)
+- **Setup wizard** — 6-step guided configuration (language, welcome, permissions, server URL, scale/gateway, screensaver, summary)
+- **Smart auto-discovery** — Scans the LAN in parallel (60 threads, TCP pre-check, ports 80/443/8080/8443) with real-time UI feedback; correctly identifies the device's Wi-Fi/Ethernet subnet (VPN and cellular interfaces are filtered out)
+- **Gateway auto-install** — Downloads and installs the Scale Gateway APK directly from the wizard; errors are automatically reported via `ErrorReporter`
+- **Gateway auto-pre-configuration** — On successful install, the wizard writes `scale_enabled` and `scale_gateway_url` to the EverShelf server so the webapp is ready immediately
 - **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
-- **Camera & mic permissions** — Full hardware access for barcode scanning and voice
+- **Camera & mic permissions** — Full hardware access for barcode scanning and voice; grant button transforms to a green confirmation after granting
 - **Native TTS bridge** — Cooking mode voice readout uses the Android TextToSpeech engine directly, bypassing Web Speech API voice limitations; no offline voice packs required
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
 - **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
