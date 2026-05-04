@@ -1,6 +1,21 @@
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
 
+    <!-- Setup wizard strings -->
+    <string name="setup_enter_url">Please enter a URL first</string>
+    <string name="setup_testing">Testing connection…</string>
+    <string name="setup_server_found">EverShelf server found and API active!</string>
+    <string name="setup_api_not_found">Server reachable but EverShelf API not found. Check the path.</string>
+    <string name="setup_unreachable">Cannot reach server</string>
+    <string name="setup_discover_btn">🔍  Search local network</string>
+    <string name="setup_discovering">Scanning…</string>
+    <string name="setup_discovering_detail">Scanning local network for EverShelf servers (this may take up to 30 s)…</string>
+    <string name="setup_discover_not_found">No EverShelf server found automatically. Enter the URL manually.</string>
+    <string name="setup_exit_title">Exit setup?</string>
+    <string name="setup_exit_message">You can complete setup later when you reopen the app.</string>
+    <string name="setup_exit_confirm">Exit</string>
+    <string name="setup_exit_cancel">Continue</string>
+
     <!-- Wizard Step 3: Smart scale -->
     <string name="wizard_step3_title">Smart Scale (Optional)</string>
     <string name="wizard_step3_description">To use a Bluetooth kitchen scale, you need the EverShelf Scale Gateway app installed separately.</string>

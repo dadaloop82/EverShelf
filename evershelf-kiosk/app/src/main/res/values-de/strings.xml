@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
 
+    <!-- Setup-Assistent Zeichenfolgen -->
+    <string name="setup_enter_url">Bitte zuerst eine URL eingeben</string>
+    <string name="setup_testing">Verbindung wird getestet…</string>
+    <string name="setup_server_found">EverShelf-Server gefunden und API aktiv!</string>
+    <string name="setup_api_not_found">Server erreichbar, aber EverShelf-API nicht gefunden. Pfad prüfen.</string>
+    <string name="setup_unreachable">Server nicht erreichbar</string>
+    <string name="setup_discover_btn">🔍  Lokales Netzwerk durchsuchen</string>
+    <string name="setup_discovering">Suche läuft…</string>
+    <string name="setup_discovering_detail">Suche nach EverShelf-Servern im lokalen Netzwerk (kann bis zu 30 s dauern)…</string>
+    <string name="setup_discover_not_found">Kein EverShelf-Server automatisch gefunden. URL manuell eingeben.</string>
+    <string name="setup_exit_title">Setup beenden?</string>
+    <string name="setup_exit_message">Die Einrichtung kann später beim erneuten Öffnen der App abgeschlossen werden.</string>
+    <string name="setup_exit_confirm">Beenden</string>
+    <string name="setup_exit_cancel">Weiter</string>
+
     <!-- Wizard Schritt 3: Smart-Waage -->
     <string name="wizard_step3_title">Smart-Waage (Optional)</string>
     <string name="wizard_step3_description">Um eine Bluetooth-Küchenwaage zu verwenden, musst du die EverShelf Scale Gateway App separat installieren.</string>

@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
 
+    <!-- Stringhe setup wizard -->
+    <string name="setup_enter_url">Inserisci prima un URL</string>
+    <string name="setup_testing">Verifica connessione…</string>
+    <string name="setup_server_found">Server EverShelf trovato e API attiva!</string>
+    <string name="setup_api_not_found">Server raggiungibile ma API EverShelf non trovata. Verifica il percorso.</string>
+    <string name="setup_unreachable">Impossibile raggiungere il server</string>
+    <string name="setup_discover_btn">🔍  Cerca nella rete locale</string>
+    <string name="setup_discovering">Scansione in corso…</string>
+    <string name="setup_discovering_detail">Ricerca server EverShelf nella rete locale (potrebbe richiedere fino a 30 s)…</string>
+    <string name="setup_discover_not_found">Nessun server EverShelf trovato automaticamente. Inserisci l\'URL manualmente.</string>
+    <string name="setup_exit_title">Uscire dalla configurazione?</string>
+    <string name="setup_exit_message">Puoi completare la configurazione più tardi riaprendo l\'app.</string>
+    <string name="setup_exit_confirm">Esci</string>
+    <string name="setup_exit_cancel">Continua</string>
+
     <!-- Wizard Step 3: Bilancia smart -->
     <string name="wizard_step3_title">Bilancia Smart (Opzionale)</string>
     <string name="wizard_step3_description">Per usare una bilancia da cucina Bluetooth, devi installare l\'app EverShelf Scale Gateway separatamente.</string>
