@@ -81,9 +81,9 @@ function reportError(payload) {
 const _loadedVersion = (document.querySelector('.header-version')?.textContent?.trim() || '').replace(/^v/, '');
 
 function _checkWebappUpdate() {
-    const STORAGE_KEY  = '_evershelf_update_checked_at';   // last-checked timestamp
-    const SEEN_KEY     = '_evershelf_update_seen_ts';      // published_at of last-dismissed release
-    const TTL_MS       = 5 * 60 * 1000;                   // re-check every 5 min
+    const STORAGE_KEY  = '_evershelf_update_checked_at';
+    const SEEN_KEY     = '_evershelf_update_seen_ts';
+    const TTL_MS       = 5 * 60 * 1000;
     const now = Date.now();
     const lastCheck = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
     if (now - lastCheck < TTL_MS) return;
@@ -93,9 +93,10 @@ function _checkWebappUpdate() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
             if (!data) return;
-            if (document.getElementById('_evershelf_update_banner')) return;
+            // Already showing — don't stack
+            if (document.getElementById('_header_update_pill')) return;
 
-            // ── Check 1: server has a different version deployed since this page loaded ──
+            // ── Check 1: server has a newer version deployed since this page loaded ──
             const serverVer     = (data.webapp_version || '').replace(/^v/, '');
             const deployChanged = serverVer && _loadedVersion && serverVer !== _loadedVersion;
 
@@ -109,40 +110,35 @@ function _checkWebappUpdate() {
 
             if (!deployChanged && !releaseNewer) return;
 
-            const banner = document.createElement('div');
-            banner.id = '_evershelf_update_banner';
-            banner.style.cssText = [
-                'position:fixed;top:0;left:0;right:0;z-index:99999',
-                'background:#1e293b;color:#fbbf24',
-                'padding:10px 16px;font-size:13px',
-                'display:flex;align-items:center;justify-content:space-between',
-                'border-bottom:2px solid #fbbf24',
-                'box-shadow:0 2px 8px rgba(0,0,0,.4)',
-            ].join(';');
+            // ── Show update indicator inside the header title area ──
+            const titleEl = document.querySelector('.header-title');
+            if (!titleEl) return;
+            const originalHTML = titleEl.innerHTML;
 
-            let msgHtml, dismissAction;
+            const versionLabel = deployChanged
+                ? (serverVer ? `v${serverVer}` : 'Nuova versione')
+                : (latestTag ? `v${latestTag}` : 'Nuova versione');
+
+            let dismissAction;
             if (deployChanged) {
-                // Server files updated — simple reload prompt
-                msgHtml = `<span>🔄 Nuova versione dell'app disponibile sul server.</span>`;
-                dismissAction = () => banner.remove(); // just hide, will reappear next check
+                dismissAction = () => { titleEl.innerHTML = originalHTML; };
             } else {
-                const releaseUrl  = data.html_url || 'https://github.com/dadaloop82/EverShelf/releases/latest';
-                const versionText = /^\d+\.\d+/.test(latestTag) ? ` <strong>v${latestTag}</strong>` : '';
-                msgHtml = `<span>⬆️ EverShelf${versionText} disponibile. ` +
-                    `<a href="${releaseUrl}" target="_blank" rel="noopener" ` +
-                    `style="color:#64748b;font-size:0.9em;text-decoration:underline">novità</a></span>`;
-                dismissAction = () => { localStorage.setItem(SEEN_KEY, publishedAt); banner.remove(); };
+                dismissAction = () => { localStorage.setItem(SEEN_KEY, publishedAt); titleEl.innerHTML = originalHTML; };
             }
 
-            banner.innerHTML = msgHtml +
-                `<button onclick="window.location.reload()" ` +
-                `style="background:#fbbf24;border:none;color:#1e293b;font-weight:700;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 8px">Ricarica</button>` +
-                `<button id="_evershelf_banner_close" ` +
-                `style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px">✕</button>`;
-            document.body.prepend(banner);
-            document.getElementById('_evershelf_banner_close').onclick = dismissAction;
-            // Auto-dismiss after 30 s without marking as seen
-            setTimeout(() => { if (banner.isConnected) banner.remove(); }, 30000);
+            titleEl.innerHTML =
+                `<span class="header-update-pill" id="_header_update_pill">` +
+                `<span>⬆️ ${versionLabel}</span>` +
+                `<button class="header-update-btn" onclick="window.location.reload()">Aggiorna</button>` +
+                `<button style="background:none;border:none;color:rgba(255,255,255,0.6);font-size:1rem;cursor:pointer;padding:0 2px;line-height:1" ` +
+                `id="_header_update_close">✕</button>` +
+                `</span>`;
+            document.getElementById('_header_update_close').onclick = (e) => {
+                e.stopPropagation();
+                dismissAction();
+            };
+            // Auto-restore after 60 s without marking as seen
+            setTimeout(() => { if (document.getElementById('_header_update_pill')) dismissAction(); }, 60000);
         })
         .catch(() => {});
 }

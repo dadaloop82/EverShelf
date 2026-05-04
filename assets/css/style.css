@@ -135,6 +135,41 @@ body {
     letter-spacing: 0.03em;
 }
 
+/* Update available indicator — replaces title content, same absolute centering */
+.header-update-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    animation: header-update-pulse 2s ease-in-out infinite;
+}
+.header-update-pill span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.95;
+    white-space: nowrap;
+}
+.header-update-btn {
+    background: #fbbf24;
+    color: #1e293b;
+    border: none;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+}
+.header-update-btn:active {
+    background: #f59e0b;
+    transform: scale(0.96);
+}
+@keyframes header-update-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.7; }
+}
+
 .header-btn {
     background: rgba(255,255,255,0.2);
     border: none;
