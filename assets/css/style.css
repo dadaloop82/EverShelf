@@ -105,21 +105,31 @@ body {
 }
 
 .header-content {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     width: 100%;
-    max-width: 600px;
-    margin: 0 auto;
+    max-width: none;
+    margin: 0;
 }
 
 .header-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 1.3rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: baseline;
     gap: 6px;
+    white-space: nowrap;
+    pointer-events: auto;
+    /* prevent title overlapping action buttons on small screens */
+    max-width: calc(100% - 200px);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .header-version {
