@@ -384,6 +384,18 @@ try {
             checkUpdate();
             break;
 
+        case 'gemini_product_hint':
+            geminiProductHint();
+            break;
+
+        case 'gemini_shopping_enrich':
+            geminiShoppingEnrich($db);
+            break;
+
+        case 'gemini_anomaly_explain':
+            geminiAnomalyExplain();
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -5923,4 +5935,246 @@ function _phpErrorReport(string $message, string $file, int $line, string $trace
     }
 
     $running = false;
+}
+
+// =============================================================================
+// ===== GEMINI AI: PRODUCT HINT (shelf-life + storage suggestion) =============
+// =============================================================================
+/**
+ * POST /api/?action=gemini_product_hint
+ * Body: { name, category, lang }
+ * Returns: { success, location, expiry_days, reason, source }
+ * Uses a permanent cache keyed by (name, lang) — science doesn't change.
+ */
+function geminiProductHint(): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input    = json_decode(file_get_contents('php://input'), true) ?? [];
+    $name     = trim($input['name']    ?? '');
+    $category = trim($input['category'] ?? '');
+    $lang     = trim($input['lang']    ?? 'it');
+
+    if (empty($name)) {
+        echo json_encode(['success' => false, 'error' => 'missing name']);
+        return;
+    }
+
+    // Cache keyed by normalised name + lang
+    $cacheFile = __DIR__ . '/../data/food_facts_cache.json';
+    $cacheKey  = 'phint_' . md5(mb_strtolower($name) . '|' . $lang);
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+    }
+    if (!empty($cache[$cacheKey])) {
+        echo json_encode(array_merge(['success' => true, 'source' => 'cache'], $cache[$cacheKey]));
+        return;
+    }
+
+    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $prompt = "You are a food safety expert. For the food product named \"{$name}\" (category: {$category}), "
+        . "answer in {$langLabel} with a strict JSON object and NOTHING else:\n"
+        . "{\n"
+        . "  \"location\": \"dispensa\" | \"frigo\" | \"freezer\",\n"
+        . "  \"expiry_days\": <integer, typical unopened shelf life in days>,\n"
+        . "  \"reason\": \"<1 short sentence explaining location and duration>\"\n"
+        . "}\n"
+        . "Rules: location must be one of the three values. expiry_days must be a positive integer. "
+        . "If the product is typically refrigerated use 'frigo'. If frozen use 'freezer'. Otherwise 'dispensa'. "
+        . "Output ONLY the JSON, no markdown, no extra text.";
+
+    $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
+    $result  = callGeminiWithFallback($apiKey, $payload, 15);
+
+    if ($result['http_code'] !== 200) {
+        echo json_encode(['success' => false, 'error' => 'gemini_error', 'http_code' => $result['http_code']]);
+        return;
+    }
+
+    $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    // Strip potential markdown fences
+    $text = preg_replace('/^```json\s*/i', '', trim($text));
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $parsed = json_decode(trim($text), true);
+
+    $allowedLocations = ['dispensa', 'frigo', 'freezer'];
+    if (
+        !is_array($parsed)
+        || empty($parsed['location'])
+        || !in_array($parsed['location'], $allowedLocations, true)
+        || empty($parsed['expiry_days'])
+        || !is_numeric($parsed['expiry_days'])
+    ) {
+        echo json_encode(['success' => false, 'error' => 'parse_error', 'raw' => $text]);
+        return;
+    }
+
+    $data = [
+        'location'    => $parsed['location'],
+        'expiry_days' => (int)$parsed['expiry_days'],
+        'reason'      => $parsed['reason'] ?? '',
+    ];
+
+    // Persist to cache (permanent — no expiry)
+    $cache[$cacheKey] = $data;
+    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+    echo json_encode(array_merge(['success' => true, 'source' => 'gemini'], $data));
+}
+
+// =============================================================================
+// ===== GEMINI AI: SHOPPING SUGGESTION ENRICHMENT ============================
+// =============================================================================
+/**
+ * POST /api/?action=gemini_shopping_enrich
+ * Body: { items: [{name, reason, category, priority}], lang }
+ * Returns: { success, items: [{name, reason, tip}] }
+ * Enriches shopping suggestions with a short actionable tip per item.
+ * Batches all items in a single Gemini call. Cached by name+lang hash.
+ */
+function geminiShoppingEnrich(PDO $db): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $items = $input['items'] ?? [];
+    $lang  = trim($input['lang'] ?? 'it');
+
+    if (empty($items)) {
+        echo json_encode(['success' => true, 'items' => []]);
+        return;
+    }
+
+    // Cache keyed by sorted item names + lang (so reorder doesn't bust it)
+    $names = array_column($items, 'name');
+    sort($names);
+    $cacheFile = __DIR__ . '/../data/food_facts_cache.json';
+    $cacheKey  = 'senrich_' . md5(implode('|', $names) . '|' . $lang);
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+    }
+    if (!empty($cache[$cacheKey])) {
+        echo json_encode(['success' => true, 'items' => $cache[$cacheKey], 'source' => 'cache']);
+        return;
+    }
+
+    $langLabel  = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $itemsJson  = json_encode(array_map(fn($i) => [
+        'name'     => $i['name'],
+        'reason'   => $i['reason'] ?? '',
+        'category' => $i['category'] ?? '',
+        'priority' => $i['priority'] ?? 'media',
+    ], $items), JSON_UNESCAPED_UNICODE);
+
+    $prompt = "You are a practical household assistant. "
+        . "For each item in this shopping list, add a very short tip (max 10 words) in {$langLabel} "
+        . "on what to look for when buying or how to store it. "
+        . "Input JSON array:\n{$itemsJson}\n\n"
+        . "Reply ONLY with a JSON array of objects with exactly these keys:\n"
+        . "[{\"name\":\"...\",\"tip\":\"...\"},...]\n"
+        . "Keep the same order and count as the input. Output ONLY the JSON array, no markdown.";
+
+    $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
+    $result  = callGeminiWithFallback($apiKey, $payload, 20);
+
+    if ($result['http_code'] !== 200) {
+        echo json_encode(['success' => false, 'error' => 'gemini_error']);
+        return;
+    }
+
+    $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $text = preg_replace('/^```json\s*/i', '', trim($text));
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $parsed = json_decode(trim($text), true);
+
+    if (!is_array($parsed)) {
+        echo json_encode(['success' => false, 'error' => 'parse_error']);
+        return;
+    }
+
+    // Build tip map by name for safe merging
+    $tipMap = [];
+    foreach ($parsed as $p) {
+        if (!empty($p['name'])) $tipMap[mb_strtolower($p['name'])] = $p['tip'] ?? '';
+    }
+
+    $enriched = array_map(function($item) use ($tipMap) {
+        $item['tip'] = $tipMap[mb_strtolower($item['name'])] ?? '';
+        return $item;
+    }, $items);
+
+    // Cache for 24 h (TTL stored alongside)
+    $cache[$cacheKey] = $enriched;
+    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+    echo json_encode(['success' => true, 'items' => $enriched, 'source' => 'gemini']);
+}
+
+// =============================================================================
+// ===== GEMINI AI: ANOMALY EXPLANATION =======================================
+// =============================================================================
+/**
+ * POST /api/?action=gemini_anomaly_explain
+ * Body: { name, inv_qty, expected_qty, diff, direction, unit, lang }
+ * Returns: { success, explanation }
+ * Explains in plain language why the anomaly likely occurred and what to do.
+ */
+function geminiAnomalyExplain(): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input     = json_decode(file_get_contents('php://input'), true) ?? [];
+    $name      = trim($input['name']         ?? '');
+    $invQty    = $input['inv_qty']            ?? 0;
+    $expQty    = $input['expected_qty']       ?? 0;
+    $diff      = $input['diff']              ?? 0;
+    $direction = $input['direction']         ?? 'missing';
+    $unit      = $input['unit']              ?? 'pz';
+    $lang      = trim($input['lang']         ?? 'it');
+
+    if (empty($name)) {
+        echo json_encode(['success' => false, 'error' => 'missing name']);
+        return;
+    }
+
+    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+
+    $directionDesc = match($direction) {
+        'phantom'   => "The inventory shows {$invQty} {$unit} but transaction history predicts only {$expQty} {$unit} (excess of " . abs($diff) . " {$unit}).",
+        'missing'   => "The inventory shows {$invQty} {$unit} but transaction history predicts {$expQty} {$unit} (shortage of " . abs($diff) . " {$unit}).",
+        'untracked' => "More consumption was recorded than purchase entries. The initial stock was likely never registered as an 'in' transaction. Current inventory: {$invQty} {$unit}.",
+        default     => "Inventory discrepancy detected for {$name}.",
+    };
+
+    $prompt = "You are a helpful home pantry assistant. "
+        . "An inventory discrepancy has been detected for the product \"{$name}\". "
+        . $directionDesc . " "
+        . "In 2-3 sentences in {$langLabel}, explain in simple friendly language: "
+        . "(1) the most likely everyday reason this happened, and "
+        . "(2) the simplest action the user should take to fix it. "
+        . "Do NOT mention databases, transactions, or technical terms. "
+        . "Be conversational and practical.";
+
+    $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
+    $result  = callGeminiWithFallback($apiKey, $payload, 15);
+
+    if ($result['http_code'] !== 200) {
+        echo json_encode(['success' => false, 'error' => 'gemini_error']);
+        return;
+    }
+
+    $explanation = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
+
+    echo json_encode(['success' => true, 'explanation' => $explanation]);
 }

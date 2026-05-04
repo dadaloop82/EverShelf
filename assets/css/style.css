@@ -2093,6 +2093,12 @@ body {
     color: var(--text-muted);
     margin-top: 2px;
 }
+.suggestion-ai-tip {
+    font-size: 0.75rem;
+    color: #6366f1;
+    margin-top: 3px;
+    opacity: 0.88;
+}
 
 .priority-badge {
     display: inline-block;
@@ -4898,6 +4904,10 @@ body.cooking-mode-active .app-header {
 .btn-banner-edit {
     background: #e0e7ff;
     color: #4338ca;
+}
+.btn-banner-ai {
+    background: #ede9fe;
+    color: #7c3aed;
 }
 .btn-banner-weigh {
     background: #f3e8ff;
