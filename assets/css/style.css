@@ -274,6 +274,26 @@ body {
     background: rgba(99, 102, 241, 0.55);
 }
 
+/* When Gemini API key is not configured */
+.header-gemini-btn.header-btn-no-ai {
+    opacity: 0.45;
+    filter: grayscale(0.7);
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.1);
+    position: relative;
+}
+.header-gemini-btn.header-btn-no-ai::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    background: #f59e0b;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,0,0,0.3);
+}
+
 .gemini-icon {
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
 }
