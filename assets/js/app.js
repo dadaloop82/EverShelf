@@ -1101,9 +1101,6 @@ function translatePage() {
 // Populate the language selector dropdown
 function _populateLanguageSelector() {
     const sel = document.getElementById('setting-language');
-    // Screensaver toggle
-    const ssEl = document.getElementById('setting-screensaver-enabled');
-    if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     if (!sel) return;
     sel.innerHTML = '';
     for (const [code, name] of Object.entries(_SUPPORTED_LANGS)) {
@@ -1868,6 +1865,8 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
     document.getElementById('setting-pref-opened').checked = !!s.pref_opened;
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
+    const ssEl = document.getElementById('setting-screensaver-enabled');
+    if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     document.getElementById('setting-dietary').value = s.dietary || '';
     // Camera
     const cameraSelect = document.getElementById('setting-camera-facing');
