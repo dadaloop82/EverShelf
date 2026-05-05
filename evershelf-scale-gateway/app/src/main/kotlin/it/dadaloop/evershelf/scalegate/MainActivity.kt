@@ -478,8 +478,22 @@ class MainActivity : AppCompatActivity(), BleScaleListener, ServerEventListener 
                 }
                 // Only show banner if the release actually contains our APK
                 if (apkUrl.isEmpty()) return@Thread
-                // If semver tag matches current version → already up to date
-                if (isSemver && norm(latestTag) == norm(current)) return@Thread
+
+                // Proper semver comparison: only update if remote is strictly newer
+                fun semverNewer(remote: String, local: String): Boolean {
+                    val r = remote.split(".").map { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+                    val l = local.split(".").map  { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+                    val len = maxOf(r.size, l.size)
+                    for (i in 0 until len) {
+                        val rv = r.getOrElse(i) { 0 }
+                        val lv = l.getOrElse(i) { 0 }
+                        if (rv != lv) return rv > lv
+                    }
+                    return false
+                }
+
+                if (current.isEmpty()) return@Thread
+                if (isSemver && !semverNewer(norm(latestTag), norm(current))) return@Thread
 
                 val label = if (isSemver) "$current → $latestTag" else latestTag
                 val msg = "⬆️ Scale Gateway $label"

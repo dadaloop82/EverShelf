@@ -10,7 +10,7 @@
     <meta name="description" content="Self-hosted pantry manager with barcode scanning, AI identification, and shopping list integration.">
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+    <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
     <link rel="stylesheet" href="assets/css/style.css?v=20260421a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
@@ -1158,7 +1158,7 @@
 <!-- Bottom Navigation -->
 <nav class="bottom-nav">
     <button class="nav-btn" onclick="showPage('dashboard')" data-page="dashboard">
-        <span class="nav-icon">🏠</span>
+        <span class="nav-icon"><img src="assets/img/logo/logo_icon.png" alt="" class="nav-logo-icon" /></span>
         <span class="nav-label" data-i18n="nav.home">Home</span>
     </button>
     <button class="nav-btn" onclick="showPage('inventory', '')" data-page="inventory">
@@ -1246,7 +1246,7 @@
 <div class="modal-overlay" id="setup-wizard" style="display:none">
     <div class="modal-content setup-wizard-content" onclick="event.stopPropagation()">
         <div class="setup-header">
-            <h2>🏠 EverShelf</h2>
+            <h2><img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" style="height:28px;vertical-align:middle;margin-right:6px" /> EverShelf</h2>
             <div class="setup-progress" id="setup-progress"></div>
         </div>
         <div class="setup-body" id="setup-body"></div>
