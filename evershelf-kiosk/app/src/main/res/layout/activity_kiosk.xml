@@ -14,20 +14,13 @@
         android:visibility="visible">
 
         <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:src="@drawable/ic_launcher_foreground"
-            android:layout_marginBottom="24dp"
-            android:contentDescription="EverShelf" />
-
-        <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="260dp"
             android:layout_height="wrap_content"
-            android:text="EverShelf"
-            android:textColor="#f1f5f9"
-            android:textSize="32sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:src="@drawable/ic_logo"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="EverShelf" />
 
         <TextView
             android:layout_width="wrap_content"
