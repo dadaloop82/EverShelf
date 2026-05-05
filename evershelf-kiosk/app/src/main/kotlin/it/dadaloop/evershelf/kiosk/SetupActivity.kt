@@ -189,6 +189,14 @@ class SetupActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // When returning from the gateway app (after pressing "Configura"), refresh status
+        if (currentStep == 4 && gatewayInstallCard.visibility == View.VISIBLE) {
+            checkGatewayStatus()
+        }
+    }
+
     // ── Binding ────────────────────────────────────────────────────────────
 
     private fun bindViews() {
@@ -701,12 +709,34 @@ class SetupActivity : AppCompatActivity() {
         if (isGatewayInstalled()) {
             gatewayStatusIcon.text = "✅"
             gatewayStatusText.text = getString(R.string.wizard_gateway_installed)
-            gatewayStatusDetail.text = getString(R.string.wizard_gateway_installed_detail)
-            gatewayStatusDetail.setTextColor(0xFF34d399.toInt())
+            gatewayStatusDetail.text = "⏳ Verifica connessione in corso..."
+            gatewayStatusDetail.setTextColor(0xFF94a3b8.toInt())
             btnInstallGateway.visibility    = View.GONE
             btnConfigureGateway.visibility  = View.VISIBLE
             gatewayProgressBar.visibility   = View.GONE
             gatewayProgressText.visibility  = View.GONE
+            // Probe WebSocket port to tell user if gateway is actually running
+            Thread {
+                val running = try {
+                    java.net.Socket().use { s ->
+                        s.connect(java.net.InetSocketAddress("127.0.0.1", 8765), 1200)
+                        true
+                    }
+                } catch (_: Exception) { false }
+                runOnUiThread {
+                    if (running) {
+                        gatewayStatusDetail.text = "✅ Gateway attivo su ws://127.0.0.1:8765"
+                        gatewayStatusDetail.setTextColor(0xFF34d399.toInt())
+                        btnConfigureGateway.text = "⚙️  Riapri Gateway per configurarlo"
+                    } else {
+                        gatewayStatusDetail.text =
+                            "⚠️ Gateway installato ma non ancora avviato.\n" +
+                            "Premi il pulsante qui sotto per aprirlo e configurarlo, poi torna a questa schermata."
+                        gatewayStatusDetail.setTextColor(0xFFfbbf24.toInt())
+                        btnConfigureGateway.text = "▶️  Apri e configura Gateway"
+                    }
+                }
+            }.start()
         } else {
             gatewayStatusIcon.text = "📲"
             gatewayStatusText.text = getString(R.string.wizard_gateway_not_installed)

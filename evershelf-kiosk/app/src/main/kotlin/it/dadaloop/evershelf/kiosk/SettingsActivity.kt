@@ -77,6 +77,25 @@ class SettingsActivity : AppCompatActivity() {
                 val intent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE)
                 if (intent != null) startActivity(intent)
             }
+            // Probe WebSocket port in background to show live status
+            Thread {
+                val running = try {
+                    java.net.Socket().use { s ->
+                        s.connect(java.net.InetSocketAddress("127.0.0.1", 8765), 1200); true
+                    }
+                } catch (_: Exception) { false }
+                runOnUiThread {
+                    if (running) {
+                        statusView.text = "Attivo ✅"
+                        statusView.setTextColor(0xFF34d399.toInt())
+                        deviceView.text = "Gateway in ascolto su ws://127.0.0.1:8765"
+                    } else {
+                        statusView.text = "Installato, non avviato ⚠️"
+                        statusView.setTextColor(0xFFfbbf24.toInt())
+                        deviceView.text = "Premi \"Apri Gateway\" per avviarlo e configurarlo"
+                    }
+                }
+            }.start()
         } else {
             btnConfigureGateway.visibility = android.view.View.GONE
         }

@@ -312,6 +312,10 @@ class KioskActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun launchWebView() {
+        // Start gateway BEFORE entering kiosk lock — in lock task mode Android blocks
+        // startActivity() for other packages, so the gateway would never launch.
+        launchGatewayInBackground()
+
         // Ensure kiosk lock and permissions are active
         enableKioskLock()
         requestAllPermissions()
@@ -432,9 +436,9 @@ class KioskActivity : AppCompatActivity() {
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
+        webView.clearCache(true)
         webView.loadUrl(url)
 
-        launchGatewayInBackground()
         applyScreensaverFlag()
     }
 
@@ -513,6 +517,19 @@ class KioskActivity : AppCompatActivity() {
                 val norm = { v: String -> v.trimStart('v') }
                 val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
 
+                // Compare semver: returns true if `remote` is strictly greater than `local`
+                fun semverNewer(remote: String, local: String): Boolean {
+                    val r = remote.split(".").map { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+                    val l = local.split(".").map  { it.filter(Char::isDigit).toIntOrNull() ?: 0 }
+                    val len = maxOf(r.size, l.size)
+                    for (i in 0 until len) {
+                        val rv = r.getOrElse(i) { 0 }
+                        val lv = l.getOrElse(i) { 0 }
+                        if (rv != lv) return rv > lv
+                    }
+                    return false
+                }
+
                 val assets = json.optJSONArray("assets")
                 var kioskApkUrl   = ""
                 var gatewayApkUrl = ""
@@ -527,9 +544,9 @@ class KioskActivity : AppCompatActivity() {
                 }
 
                 val kioskNeedsUpdate   = kioskApkUrl.isNotEmpty() && currentKiosk.isNotEmpty() &&
-                    (!isSemver || norm(latestTag) != norm(currentKiosk))
+                    (!isSemver || semverNewer(norm(latestTag), norm(currentKiosk)))
                 val gatewayNeedsUpdate = currentGateway != null && gatewayApkUrl.isNotEmpty() &&
-                    (!isSemver || norm(latestTag) != norm(currentGateway))
+                    (!isSemver || semverNewer(norm(latestTag), norm(currentGateway)))
 
                 if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
 
@@ -555,7 +572,9 @@ class KioskActivity : AppCompatActivity() {
         pendingApkDownloadUrl = apkDownloadUrl
         tvUpdateMessage.text = "⬆️ Aggiornamento disponibile:  $message"
         updateBanner.visibility = View.VISIBLE
-        updateBanner.postDelayed({ updateBanner.visibility = View.GONE }, 30_000)
+        // Auto-start download immediately — no timer hide, stays until done or dismissed
+        activeInstallBtn = btnInstallUpdate
+        triggerApkDownload(apkDownloadUrl)
     }
 
     // ── APK Download + Install ─────────────────────────────────────────────
