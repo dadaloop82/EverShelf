@@ -69,12 +69,14 @@
                 android:gravity="center_horizontal"
                 android:visibility="visible">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <ImageView
+                    android:layout_width="160dp"
                     android:layout_height="wrap_content"
-                    android:text="🌐"
-                    android:textSize="64sp"
-                    android:layout_marginBottom="16dp" />
+                    android:src="@drawable/ic_logo"
+                    android:adjustViewBounds="true"
+                    android:scaleType="fitCenter"
+                    android:layout_marginBottom="24dp"
+                    android:contentDescription="EverShelf" />
 
                 <!-- Title shown in all 3 languages so it's always readable -->
                 <TextView
@@ -132,10 +134,12 @@
 
                 <!-- App logo -->
                 <ImageView
-                    android:layout_width="96dp"
-                    android:layout_height="96dp"
-                    android:src="@drawable/ic_launcher_foreground"
-                    android:layout_marginBottom="16dp"
+                    android:layout_width="200dp"
+                    android:layout_height="wrap_content"
+                    android:src="@drawable/ic_logo"
+                    android:adjustViewBounds="true"
+                    android:scaleType="fitCenter"
+                    android:layout_marginBottom="20dp"
                     android:contentDescription="EverShelf" />
 
                 <TextView
@@ -196,7 +200,7 @@
                         <TextView
                             android:layout_width="22dp"
                             android:layout_height="wrap_content"
-                            android:text="🏠"
+                            android:text="💻"
                             android:textSize="14sp" />
 
                         <TextView
@@ -804,38 +808,9 @@
                         android:textColor="#64748b" />
                 </LinearLayout>
 
-                <!-- Gateway info card (shown after YES) -->
+                <!-- BLE scan card (shown after YES) -->
                 <LinearLayout
-                    android:id="@+id/gatewayInfoCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/tip_background"
-                    android:padding="16dp"
-                    android:layout_marginBottom="12dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📱  EverShelf Scale Gateway"
-                        android:textColor="#f1f5f9"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Un'app separata che fa da ponte: legge i dati della bilancia Bluetooth e li trasmette al pannello kiosk via rete locale. Rimane in esecuzione in background e si avvia automaticamente insieme a EverShelf."
-                        android:textColor="#94a3b8"
-                        android:textSize="13sp"
-                        android:lineSpacingExtra="3dp" />
-                </LinearLayout>
-
-                <!-- Gateway install status card (shown after YES) -->
-                <LinearLayout
-                    android:id="@+id/gatewayInstallCard"
+                    android:id="@+id/bleSetupCard"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
@@ -845,82 +820,46 @@
                     android:visibility="gone">
 
                     <TextView
-                        android:id="@+id/gatewayStatusIcon"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📲"
-                        android:textSize="32sp"
-                        android:layout_gravity="center"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:id="@+id/gatewayStatusText"
+                        android:id="@+id/tvScanStatus"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Scale Gateway non installato"
-                        android:textColor="#cbd5e1"
-                        android:textSize="16sp"
+                        android:text="Cerca la tua bilancia Bluetooth nelle vicinanze e selezionala dall'elenco."
+                        android:textColor="#94a3b8"
+                        android:textSize="14sp"
                         android:gravity="center"
-                        android:layout_marginBottom="4dp" />
+                        android:layout_marginBottom="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScanBle"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="🔍  Cerca bilancia"
+                        android:textSize="14sp"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#7c3aed"
+                        android:layout_marginBottom="12dp" />
 
                     <TextView
-                        android:id="@+id/gatewayStatusDetail"
+                        android:id="@+id/tvSelectedScale"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text=""
-                        android:textColor="#94a3b8"
-                        android:textSize="13sp"
-                        android:gravity="center"
-                        android:layout_marginBottom="14dp" />
-
-                    <ProgressBar
-                        android:id="@+id/gatewayProgressBar"
-                        style="@android:style/Widget.ProgressBar.Horizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="8dp"
-                        android:layout_marginBottom="4dp"
-                        android:progressTint="#7c3aed"
-                        android:progressBackgroundTint="#334155"
-                        android:max="100"
-                        android:progress="0"
-                        android:indeterminate="false"
-                        android:visibility="gone" />
-
-                    <TextView
-                        android:id="@+id/gatewayProgressText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="#94a3b8"
-                        android:textSize="12sp"
-                        android:gravity="center"
-                        android:layout_marginBottom="10dp"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnInstallGateway"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="📥  Installa Scale Gateway"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnConfigureGateway"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="⚙️  Apri Gateway per configurarlo"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#34d399"
                         android:textColor="#34d399"
-                        android:layout_marginTop="8dp"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:layout_marginBottom="8dp"
                         android:visibility="gone" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvScaleDevices"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false" />
+
                 </LinearLayout>
 
-                <!-- Step 3 navigation (shown after YES) -->
+                <!-- Step 4 navigation (shown after YES) -->
                 <LinearLayout
                     android:id="@+id/step3NextButtons"
                     android:layout_width="match_parent"
@@ -1143,5 +1082,36 @@
 
         </LinearLayout>
     </ScrollView>
+
+    <!-- ── Credits Footer ── -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:background="#0a1120"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Creato da Stimpfl Daniel  •  Open Source"
+            android:textColor="#475569"
+            android:textSize="11sp"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="github.com/dadaloop82/EverShelf"
+            android:textColor="#334155"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:layout_marginTop="2dp" />
+
+    </LinearLayout>
 
 </LinearLayout>

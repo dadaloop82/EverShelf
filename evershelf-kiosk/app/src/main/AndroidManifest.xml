@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -20,16 +21,28 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- Move task to front (bring kiosk back after gateway launch) -->
+    <!-- Move task to front -->
     <uses-permission android:name="android.permission.REORDER_TASKS" />
 
-    <!-- Self-update: install APK downloaded at runtime -->
+    <!-- Self-update: install own APK at runtime -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Query gateway app visibility (required Android 11+) -->
-    <queries>
-        <package android:name="it.dadaloop.evershelf.scalegate" />
-    </queries>
+    <!-- ── BLE Scale Gateway (integrated) ───────────────────────────── -->
+    <!-- Legacy BLE permissions (Android ≤ 11) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- Fine location required for BLE scan on Android < 12 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- Android 12+ BLE permissions -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Foreground service for keeping BLE+WebSocket alive -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- BLE hardware — not required, app gracefully disables scale if absent -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -63,6 +76,12 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.MaterialComponents.Light.NoActionBar" />
+
+        <!-- GatewayService: runs BLE scan + WebSocket server as a foreground service -->
+        <service
+            android:name=".scale.GatewayService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <!-- FileProvider for serving the downloaded APK to the installer -->
         <provider

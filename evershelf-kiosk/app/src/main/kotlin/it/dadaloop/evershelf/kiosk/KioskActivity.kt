@@ -2,7 +2,6 @@ package it.dadaloop.evershelf.kiosk
 
 import android.annotation.SuppressLint
 import android.Manifest
-import android.app.ActivityManager
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -97,8 +96,6 @@ class KioskActivity : AppCompatActivity() {
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val KEY_HAS_SCALE = "has_scale"
         private const val KEY_SCREENSAVER = "screensaver_enabled"
-        private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
-        private const val GATEWAY_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk"
         private const val KIOSK_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk"
         private const val SPLASH_DURATION = 1500L
         private const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/latest"
@@ -222,25 +219,13 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
-    // ── Gateway ────────────────────────────────────────────────────────────
+    // ── Gateway Service ────────────────────────────────────────────────────
 
-    private fun isGatewayInstalled(): Boolean {
-        return try {
-            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) { false }
-    }
-
-    private fun launchGatewayInBackground() {
+    private fun startGatewayService() {
         if (!prefs.getBoolean(KEY_HAS_SCALE, false)) return
-        if (!isGatewayInstalled()) return
-        val launchIntent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE) ?: return
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(launchIntent)
-        Handler(Looper.getMainLooper()).postDelayed({
-            val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            am.moveTaskToFront(taskId, ActivityManager.MOVE_TASK_WITH_HOME)
-        }, 1500)
+        val intent = Intent(this, it.dadaloop.evershelf.kiosk.scale.GatewayService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+        else startService(intent)
     }
 
     // ── Install UI ────────────────────────────────────────────────────────
@@ -312,9 +297,9 @@ class KioskActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun launchWebView() {
-        // Start gateway BEFORE entering kiosk lock — in lock task mode Android blocks
-        // startActivity() for other packages, so the gateway would never launch.
-        launchGatewayInBackground()
+        // Start BLE gateway service BEFORE entering kiosk lock — in lock task mode Android blocks
+        // startForegroundService() for foreground services, so we must start before lockTask.
+        startGatewayService()
 
         // Ensure kiosk lock and permissions are active
         enableKioskLock()
@@ -510,9 +495,6 @@ class KioskActivity : AppCompatActivity() {
                 val currentKiosk = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: ""
                 } catch (_: Exception) { "" }
-                val currentGateway = try {
-                    packageManager.getPackageInfo(GATEWAY_PACKAGE, 0).versionName ?: ""
-                } catch (_: Exception) { null }
 
                 val norm = { v: String -> v.trimStart('v') }
                 val isSemver = latestTag.trimStart('v').matches(Regex("\\d+\\.\\d+.*"))
@@ -531,39 +513,24 @@ class KioskActivity : AppCompatActivity() {
                 }
 
                 val assets = json.optJSONArray("assets")
-                var kioskApkUrl   = ""
-                var gatewayApkUrl = ""
+                var kioskApkUrl = ""
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
                         val a    = assets.getJSONObject(i)
                         val name = a.optString("name", "").lowercase()
                         val url  = a.optString("browser_download_url", "")
                         if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
-                        if ((name.contains("gateway") || name.contains("scale")) && url.isNotEmpty()) gatewayApkUrl = url
                     }
                 }
 
-                val kioskNeedsUpdate   = kioskApkUrl.isNotEmpty() && currentKiosk.isNotEmpty() &&
+                val kioskNeedsUpdate = kioskApkUrl.isNotEmpty() && currentKiosk.isNotEmpty() &&
                     (!isSemver || semverNewer(norm(latestTag), norm(currentKiosk)))
-                val gatewayNeedsUpdate = currentGateway != null && gatewayApkUrl.isNotEmpty() &&
-                    (!isSemver || semverNewer(norm(latestTag), norm(currentGateway)))
 
-                if (!kioskNeedsUpdate && !gatewayNeedsUpdate) return@Thread
+                if (!kioskNeedsUpdate) return@Thread
 
-                val lines = mutableListOf<String>()
-                var primaryApkUrl = ""
-                if (kioskNeedsUpdate) {
-                    val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
-                    lines += "\uD83D\uDD04 Kiosk $label"
-                    primaryApkUrl = kioskApkUrl
-                }
-                if (gatewayNeedsUpdate) {
-                    val label = if (isSemver) "$currentGateway → $latestTag" else latestTag
-                    lines += "\uD83D\uDD04 Scale Gateway $label"
-                    if (primaryApkUrl.isEmpty()) primaryApkUrl = gatewayApkUrl
-                }
-                val message = lines.joinToString("  •  ")
-                runOnUiThread { showNativeUpdateBanner(message, primaryApkUrl) }
+                val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
+                val message = "🔄 Kiosk $label"
+                runOnUiThread { showNativeUpdateBanner(message, kioskApkUrl) }
             } catch (_: Exception) { }
         }.start()
     }
@@ -650,11 +617,8 @@ class KioskActivity : AppCompatActivity() {
             file.delete()
             return
         }
-        val targetPkg = when {
-            pendingApkDownloadUrl.contains("gateway", ignoreCase = true) ||
-            pendingApkDownloadUrl.contains("scale",   ignoreCase = true) -> GATEWAY_PACKAGE
-            else -> packageName
-        }
+        // Only kiosk self-update is handled; gateway is now integrated
+        val targetPkg = packageName
         installWithPackageInstaller(file, targetPkg)
     }
 

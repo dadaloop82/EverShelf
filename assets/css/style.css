@@ -2575,6 +2575,16 @@ body {
 
 .nav-icon {
     font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-logo-icon {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+    display: block;
 }
 
 .nav-label {

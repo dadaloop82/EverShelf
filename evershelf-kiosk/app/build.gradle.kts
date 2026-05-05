@@ -11,8 +11,8 @@ android {
         applicationId = "it.dadaloop.evershelf.kiosk"
         minSdk = 24
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.5.3"
+        versionCode = 10
+        versionName = "1.6.0"
     }
 
     signingConfigs {
@@ -59,4 +59,6 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("org.java-websocket:Java-WebSocket:1.5.5")
 }
