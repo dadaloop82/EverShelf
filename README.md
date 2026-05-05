@@ -33,10 +33,9 @@
 - **Demo mode (JS)** — Full frontend demo with mock pantry data, Gemini enabled, Bring! writes silently no-op'd; accessible via `?demo=1` or `.env` `DEMO_MODE=true`.
 - **Graceful Bring! no-key state** — When Bring! credentials are not configured, the shopping tab shows a friendly message with a direct link to Settings instead of a raw error.
 - **Use-quantity guard** — Consuming more than the stocked quantity at a given location is now blocked client-side with a shake animation on the quantity field.
+- **Kiosk v1.6.0: BLE scale gateway integrated** — The standalone Scale Gateway app is no longer needed. BLE scanning, GATT connection and the WebSocket server (`:8765`) now run as a built-in `GatewayService` foreground service inside the kiosk app. Setup step 4 shows a live BLE device scan — users select their scale directly, no external APK install required. The external gateway app is deprecated.
 - **Kiosk setup wizard overhaul** — Auto-discovery rewritten with `ExecutorCompletionService` + `NetworkInterface` (no deprecated `WifiManager`), 60 parallel TCP pre-checks, real-time UI feedback, ports 80/443/8080/8443, correct LAN subnet detection (VPN/cellular interfaces filtered, `wlan`/`eth` prioritised).
 - **Kiosk permissions flow** — Grant button transforms into a green "✅ Permessi concessi — Continua →" button after permissions are granted instead of just showing a card.
-- **Gateway install error reporting** — APK installation failures now call `ErrorReporter.reportMessage()` with status code and message; `ErrorReporter.init()` is called at `onCreate` so errors in step 4 are never silently dropped.
-- **Gateway auto pre-configuration** — After a successful gateway install the setup wizard POSTs `scale_enabled=true` + `scale_gateway_url=ws://127.0.0.1:8765` to the server, so the webapp works with the scale out-of-the-box without manual settings.
 - **3 new AI features (Gemini)** — Storage/shelf-life hint shown inline in the add form; AI-enriched shopping suggestions with a short practical tip per item; plain-language anomaly explanation via a "🤖 Spiega" button on anomaly banners.
 - **Security hardening** — `get_settings` no longer exposes API keys in plain text (boolean flags only); `save_settings` protected by optional `SETTINGS_TOKEN` (validated with `hash_equals`); native `DEMO_MODE` in `.env` blocks all write operations at the PHP router level before any other guard.
 - **Real-time webapp update detection** — An inline header pill appears when a newer release is on GitHub (checked on load + every 30 min); no intrusive full-page banners.
@@ -114,16 +113,15 @@
 - **Stability + auto-confirm** — 10s stable wait + 5s countdown before confirming
 - **Real-time status** — Scale connection indicator always visible in the header
 - **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
-- **Android gateway app** — [`evershelf-scale-gateway/`](evershelf-scale-gateway/) — open-source, downloadable APK
+- **Built into kiosk (v1.6.0+)** — BLE gateway runs as an integrated foreground service inside the [EverShelf Kiosk](evershelf-kiosk/) app; no separate APK needed. The standalone gateway app in [`evershelf-scale-gateway/`](evershelf-scale-gateway/) is deprecated but kept for non-kiosk use cases.
 
 ### 📺 Android Kiosk Mode (Add-on)
 - **Dedicated tablet app** — Full-screen WebView wrapper for wall-mounted kitchen tablets
 - **True kiosk lock** — Screen pinning blocks home/recent buttons
-- **Setup wizard** — 6-step guided configuration (language, welcome, permissions, server URL, scale/gateway, screensaver, summary)
+- **Setup wizard** — 6-step guided configuration (language, welcome, permissions, server URL, BLE scale scan, screensaver, summary)
 - **Smart auto-discovery** — Scans the LAN in parallel (60 threads, TCP pre-check, ports 80/443/8080/8443) with real-time UI feedback; correctly identifies the device's Wi-Fi/Ethernet subnet (VPN and cellular interfaces are filtered out)
-- **Gateway auto-install** — Downloads and installs the Scale Gateway APK directly from the wizard; errors are automatically reported via `ErrorReporter`
-- **Gateway auto-pre-configuration** — On successful install, the wizard writes `scale_enabled` and `scale_gateway_url` to the EverShelf server so the webapp is ready immediately
-- **Gateway auto-launch** — Launches the Scale Gateway in the background on startup
+- **Built-in BLE scale gateway** — `GatewayService` foreground service; BLE scanning + WebSocket server `:8765` run directly inside the kiosk app. Select your scale in step 5 of the wizard — no external app required
+- **Scale auto-configuration** — After selecting the BLE device, the wizard writes `scale_enabled` and `scale_gateway_url=ws://127.0.0.1:8765` to the server automatically
 - **Camera & mic permissions** — Full hardware access for barcode scanning and voice; grant button transforms to a green confirmation after granting
 - **Native TTS bridge** — Cooking mode voice readout uses the Android TextToSpeech engine directly, bypassing Web Speech API voice limitations; no offline voice packs required
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
@@ -297,8 +295,8 @@ evershelf/
     ├── backups/            # Local DB backups
     └── *.json              # Token/cache files
 
-evershelf-scale-gateway/    # ⚖️ Android BLE gateway (add-on)
-    ├── README.md           # Setup & protocol docs
+evershelf-scale-gateway/    # ⚖️ Android BLE gateway [DEPRECATED — integrated into kiosk v1.6.0+]
+    ├── README.md           # Deprecation notice + legacy docs
     └── app/src/            # Kotlin Android source (WebSocket + BLE)
 
 evershelf-kiosk/            # 📺 Android kiosk app (add-on)

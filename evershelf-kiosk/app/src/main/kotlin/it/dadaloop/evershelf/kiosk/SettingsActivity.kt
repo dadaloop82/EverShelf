@@ -3,8 +3,7 @@ package it.dadaloop.evershelf.kiosk
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.pm.PackageManager
-import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.EditText
@@ -13,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
+import it.dadaloop.evershelf.kiosk.scale.GatewayService
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
@@ -29,7 +29,7 @@ class SettingsActivity : AppCompatActivity() {
         private const val KEY_URL = "evershelf_url"
         private const val KEY_SETUP_COMPLETE = "setup_complete"
         private const val KEY_SCREENSAVER = "screensaver_enabled"
-        private const val GATEWAY_PACKAGE = "it.dadaloop.evershelf.scalegate"
+        private const val KEY_HAS_SCALE = "has_scale"
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -51,53 +51,58 @@ class SettingsActivity : AppCompatActivity() {
         val switchScreensaver = findViewById<SwitchMaterial>(R.id.switchScreensaver)
         switchScreensaver.isChecked = prefs.getBoolean(KEY_SCREENSAVER, false)
 
-        // Gateway status
-        val gatewayInstalled = try {
-            packageManager.getPackageInfo(GATEWAY_PACKAGE, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        }
-        val statusView = findViewById<TextView>(R.id.scaleGatewayStatus)
-        val deviceView = findViewById<TextView>(R.id.scaleDeviceInfo)
-        if (gatewayInstalled) {
-            statusView.text = "Installed"
-            statusView.setTextColor(0xFF34d399.toInt())
-            deviceView.text = "EverShelf Scale Gateway app is installed"
-        } else {
-            statusView.text = "Not installed"
-            statusView.setTextColor(0xFFfbbf24.toInt())
-            deviceView.text = "Install the Scale Gateway app to use a Bluetooth scale"
-        }
+        // ── Smart Scale (BLE gateway service) ──────────────────────────────
+        val hasScale    = prefs.getBoolean(KEY_HAS_SCALE, false)
+        val deviceName  = prefs.getString("scale_device_name", null)
+        val deviceAddr  = prefs.getString("scale_device_address", null)
+        val statusView  = findViewById<TextView>(R.id.scaleGatewayStatus)
+        val deviceView  = findViewById<TextView>(R.id.scaleDeviceInfo)
+        val btnScaleAction = findViewById<MaterialButton>(R.id.btnConfigureGateway)
 
-        val btnConfigureGateway = findViewById<MaterialButton>(R.id.btnConfigureGateway)
-        if (gatewayInstalled) {
-            btnConfigureGateway.visibility = android.view.View.VISIBLE
-            btnConfigureGateway.setOnClickListener {
-                val intent = packageManager.getLaunchIntentForPackage(GATEWAY_PACKAGE)
-                if (intent != null) startActivity(intent)
-            }
-            // Probe WebSocket port in background to show live status
-            Thread {
-                val running = try {
-                    java.net.Socket().use { s ->
-                        s.connect(java.net.InetSocketAddress("127.0.0.1", 8765), 1200); true
-                    }
-                } catch (_: Exception) { false }
-                runOnUiThread {
-                    if (running) {
-                        statusView.text = "Attivo ✅"
-                        statusView.setTextColor(0xFF34d399.toInt())
-                        deviceView.text = "Gateway in ascolto su ws://127.0.0.1:8765"
-                    } else {
-                        statusView.text = "Installato, non avviato ⚠️"
-                        statusView.setTextColor(0xFFfbbf24.toInt())
-                        deviceView.text = "Premi \"Apri Gateway\" per avviarlo e configurarlo"
-                    }
+        when {
+            !hasScale || deviceAddr == null -> {
+                statusView.text = "Non configurata"
+                statusView.setTextColor(0xFF94a3b8.toInt())
+                deviceView.text = "Nessuna bilancia configurata — riesegui il wizard per aggiungerne una"
+                btnScaleAction.visibility = android.view.View.VISIBLE
+                btnScaleAction.text = "⚙️  Configura bilancia"
+                btnScaleAction.setOnClickListener {
+                    prefs.edit().putBoolean(KEY_SETUP_COMPLETE, false).apply()
+                    startActivity(Intent(this, SetupActivity::class.java))
+                    finish()
                 }
-            }.start()
-        } else {
-            btnConfigureGateway.visibility = android.view.View.GONE
+            }
+            else -> {
+                statusView.text = "Configurata"
+                statusView.setTextColor(0xFF34d399.toInt())
+                deviceView.text = deviceName ?: deviceAddr
+                btnScaleAction.visibility = android.view.View.VISIBLE
+                btnScaleAction.text = "🔄  Riavvia servizio bilancia"
+                btnScaleAction.setOnClickListener {
+                    GatewayService.stop(this)
+                    GatewayService.start(this)
+                    Toast.makeText(this, "Servizio bilancia riavviato", Toast.LENGTH_SHORT).show()
+                }
+                // Probe WebSocket port to show live status
+                Thread {
+                    val running = try {
+                        java.net.Socket().use { s ->
+                            s.connect(java.net.InetSocketAddress("127.0.0.1", 8765), 1200); true
+                        }
+                    } catch (_: Exception) { false }
+                    runOnUiThread {
+                        if (running) {
+                            statusView.text = "Attivo ✅"
+                            statusView.setTextColor(0xFF34d399.toInt())
+                            deviceView.text = "${deviceName ?: "Bilancia"} — ws://127.0.0.1:8765"
+                        } else {
+                            statusView.text = "Non avviato ⚠️"
+                            statusView.setTextColor(0xFFfbbf24.toInt())
+                            deviceView.text = "${deviceName ?: "Bilancia"} — servizio non in esecuzione"
+                        }
+                    }
+                }.start()
+            }
         }
 
         // Back

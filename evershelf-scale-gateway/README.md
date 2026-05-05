@@ -1,4 +1,16 @@
-# EverShelf Scale Gateway
+# ~~EverShelf Scale Gateway~~ — DEPRECATED
+
+> ⚠️ **This app is deprecated and no longer maintained.**
+>
+> As of **EverShelf Kiosk v1.6.0**, BLE scale support is fully integrated into the kiosk app itself. You no longer need to install or configure this separate gateway app.
+>
+> **If you are using the EverShelf Kiosk app** → the scale gateway runs automatically as a background service. Configure your Bluetooth scale in **step 4 of the setup wizard**.
+>
+> **If you are NOT using the kiosk app** (standalone Android tablet) → you may still use this APK, but no new releases will be published.
+
+---
+
+# EverShelf Scale Gateway (legacy)
 
 > Android gateway app that bridges Bluetooth LE smart scales with EverShelf via WebSocket.
 
@@ -12,7 +24,7 @@ Smart Scale ──(BLE)──► Android Gateway App ──(WebSocket/LAN)──
 
 The app runs a local WebSocket server (port **8765**) on your Android device. The EverShelf server connects to it via a server-side relay (`api/scale_relay.php` SSE + `api/scale_ping.php` WebSocket client), avoiding mixed-content (HTTPS→WS) issues. Weight readings are streamed to the browser in real time.
 
-> **Kiosk integration:** When using the [EverShelf Kiosk](../evershelf-kiosk/) app, the gateway is launched automatically in the background — no manual setup needed.
+> **Kiosk integration (v1.6.0+):** The gateway is now **built into the EverShelf Kiosk app** as a foreground service. This separate app is not needed when using the kiosk.
 
 ---
 

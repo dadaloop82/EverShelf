@@ -95,7 +95,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SMART SCALE"
+            android:text="BILANCIA SMART"
             android:textColor="#7c3aed"
             android:textSize="12sp"
             android:textStyle="bold"
@@ -121,7 +121,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Scale Gateway"
+                    android:text="Servizio bilancia BLE"
                     android:textColor="#cbd5e1"
                     android:textSize="14sp" />
 
@@ -146,7 +146,7 @@
                 android:id="@+id/btnConfigureGateway"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
-                android:text="⚙️  Apri Gateway per configurarlo"
+                android:text="⚙️  Configura bilancia"
                 android:textSize="13sp"
                 android:textAllCaps="false"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
