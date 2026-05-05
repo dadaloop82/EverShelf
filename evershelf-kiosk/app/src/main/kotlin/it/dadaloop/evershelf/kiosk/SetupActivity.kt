@@ -1112,8 +1112,14 @@ class SetupActivity : AppCompatActivity() {
                 }
             }
             INSTALL_FALLBACK_REQUEST -> {
-                // System package installer returned — check if the package is now installed
+                // System package installer returned — check if the package is now installed.
+                // Whether the user pressed "Done" or "Open", bring setup back to foreground.
                 Handler(Looper.getMainLooper()).postDelayed({
+                    // Bring this activity back to front in case user pressed "Open"
+                    val bringFront = Intent(this, SetupActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    }
+                    startActivity(bringFront)
                     val installed = try { packageManager.getPackageInfo(pendingInstallPkg, 0); true } catch (_: Exception) { false }
                     if (installed) {
                         setGatewayUI("✅", getString(R.string.install_success),
@@ -1138,11 +1144,25 @@ class SetupActivity : AppCompatActivity() {
             }
             pendingInstallFile = file
             pendingInstallPkg  = targetPkg
-            setGatewayUI("⏳", getString(R.string.install_installing),
-                "Conferma l'installazione nella finestra di sistema...",
-                0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
-            @Suppress("DEPRECATION")
-            startActivityForResult(intent, INSTALL_FALLBACK_REQUEST)
+
+            // Warn user: after installation Android shows "Open" and "Done" buttons.
+            // Opening the gateway app directly would leave the kiosk in the background.
+            AlertDialog.Builder(this)
+                .setTitle("📦 Installazione in corso")
+                .setMessage(
+                    "Quando Android mostra la schermata di installazione completata:\n\n" +
+                    "✅  Premi  \"Fine\"  per tornare al setup\n" +
+                    "⛔  NON premere  \"Apri\"  — l'app potrebbe non funzionare correttamente se aperta direttamente"
+                )
+                .setPositiveButton("Ho capito, procedi") { _, _ ->
+                    setGatewayUI("⏳", getString(R.string.install_installing),
+                        "Conferma l'installazione nella finestra di sistema...",
+                        0xFF94a3b8.toInt(), btnEnabled = false, progress = -1)
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent, INSTALL_FALLBACK_REQUEST)
+                }
+                .setCancelable(false)
+                .show()
         } catch (e: Exception) {
             val deviceLabel = buildDeviceLabel()
             val diagInfo = buildString {
