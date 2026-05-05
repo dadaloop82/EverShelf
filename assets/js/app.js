@@ -3416,10 +3416,10 @@ async function explainBannerAnomaly() {
     const an = entry.data;
 
     // Show loading inline in the banner detail area
-    const detailEl = document.querySelector('#alert-banner .banner-detail');
+    const detailEl = document.getElementById('alert-banner-detail');
     if (!detailEl) return;
     const originalHtml = detailEl.innerHTML;
-    detailEl.innerHTML = '<em style="opacity:0.7">\ud83e\udd16 Analizzo…</em>';
+    detailEl.innerHTML = '<em style="opacity:0.7">\ud83e\udd16 Analizzo\u2026</em>';
 
     // Disable the Spiega button to prevent double calls
     const explainBtn = document.querySelector('#alert-banner .btn-banner-ai');
