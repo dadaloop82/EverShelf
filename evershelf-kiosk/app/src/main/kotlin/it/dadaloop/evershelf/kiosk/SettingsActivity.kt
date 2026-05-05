@@ -106,12 +106,24 @@ class SettingsActivity : AppCompatActivity() {
                 .putString(KEY_URL, url)
                 .putBoolean(KEY_SCREENSAVER, screensaverOn)
                 .apply()
-            // Apply FLAG_KEEP_SCREEN_ON immediately based on new setting
-            if (screensaverOn) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
+            // Screen always stays on in kiosk mode — no FLAG_KEEP_SCREEN_ON change needed here.
+            // Push screensaver preference to the webapp so the in-app clock overlay is toggled.
+            Thread {
+                try {
+                    val apiUrl = "$url/api/index.php?action=save_settings"
+                    val body   = "{\"screensaver_enabled\":$screensaverOn}"
+                    val conn   = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json")
+                        connectTimeout = 5000
+                        readTimeout    = 5000
+                        doOutput = true
+                    }
+                    conn.outputStream.use { it.write(body.toByteArray()) }
+                    conn.inputStream.close()
+                    conn.disconnect()
+                } catch (_: Exception) {}
+            }.start()
             Toast.makeText(this, "Impostazioni salvate", Toast.LENGTH_SHORT).show()
             finish()
         }

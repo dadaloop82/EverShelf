@@ -985,7 +985,7 @@
                     android:id="@+id/tvScreensaverDesc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Mostra un orologio con fatti utili dopo 5 minuti di inattività. Di default è disattivato (lo schermo resta sempre acceso)."
+                    android:text="Dopo 5 minuti di inattività mostra un overlay con l&#39;orologio e informazioni utili (statistiche, piano pasti). Lo schermo rimane SEMPRE acceso — questa opzione riguarda solo l&#39;overlay visivo in-app."
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"

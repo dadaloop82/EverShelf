@@ -1068,31 +1068,35 @@ class SetupActivity : AppCompatActivity() {
 
     private fun finishSetup() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
-        // ── Pre-configure Scale Gateway URL in webapp settings ──────────────────
-        // If the user has a scale and the gateway is installed, write the WebSocket
-        // URL and enable the scale in the webapp's server settings (.env via API)
-        // so the webapp works out-of-the-box without manual settings configuration.
-        if (prefs.getBoolean(KEY_HAS_SCALE, false) && isGatewayInstalled()) {
-            val baseUrl = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
-            if (baseUrl.isNotEmpty()) {
-                val gwUrl = "ws://127.0.0.1:8765"
-                Thread {
-                    try {
-                        val url = "$baseUrl/api/index.php?action=save_settings"
-                        val body = """{"scale_enabled":true,"scale_gateway_url":"$gwUrl"}"""
-                        val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                            requestMethod = "POST"
-                            setRequestProperty("Content-Type", "application/json")
-                            connectTimeout = 5000
-                            readTimeout    = 5000
-                            doOutput = true
+        // ── Sync settings to webapp API ─────────────────────────────────────────
+        // Always push: screensaver_enabled (in-app clock overlay preference).
+        // Conditionally add: scale settings when gateway is installed.
+        val baseUrl = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+        if (baseUrl.isNotEmpty()) {
+            val hasScale    = prefs.getBoolean(KEY_HAS_SCALE, false) && isGatewayInstalled()
+            val screensaver = prefs.getBoolean(KEY_SCREENSAVER, false)
+            Thread {
+                try {
+                    val url  = "$baseUrl/api/index.php?action=save_settings"
+                    val body = buildString {
+                        append("{\"screensaver_enabled\":$screensaver")
+                        if (hasScale) {
+                            append(",\"scale_enabled\":true,\"scale_gateway_url\":\"ws://127.0.0.1:8765\"")
                         }
-                        conn.outputStream.use { it.write(body.toByteArray()) }
-                        conn.inputStream.close()
-                        conn.disconnect()
-                    } catch (_: Exception) {}
-                }.start()
-            }
+                        append("}")
+                    }
+                    val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        setRequestProperty("Content-Type", "application/json")
+                        connectTimeout = 5000
+                        readTimeout    = 5000
+                        doOutput = true
+                    }
+                    conn.outputStream.use { it.write(body.toByteArray()) }
+                    conn.inputStream.close()
+                    conn.disconnect()
+                } catch (_: Exception) {}
+            }.start()
         }
         setResult(RESULT_OK)
         finish()
@@ -1148,7 +1152,33 @@ class SetupActivity : AppCompatActivity() {
                             getString(R.string.install_success_detail), 0xFF34d399.toInt(), btnEnabled = false)
                         Handler(Looper.getMainLooper()).postDelayed({ checkGatewayStatus() }, 1500)
                     } else {
-                        checkGatewayStatus()
+                        // Install failed or user cancelled. Show an explicit retry button
+                        // that re-launches the system installer directly (skipping PackageInstaller,
+                        // which is known to give STATUS=1 on this device).
+                        val retryFile = pendingInstallFile
+                        val retryPkg  = pendingInstallPkg
+                        setGatewayUI(
+                            "⚠️",
+                            "Installazione non completata",
+                            "L'app non risulta installata. Premi il pulsante sotto per riprovare.",
+                            0xFFfbbf24.toInt()
+                        )
+                        btnInstallGateway.visibility = View.VISIBLE
+                        btnInstallGateway.text = "🔄  Riprova installazione"
+                        btnInstallGateway.setOnClickListener {
+                            // Reset button back to default before retrying
+                            btnInstallGateway.text = "📥  Installa Scale Gateway"
+                            btnInstallGateway.setOnClickListener {
+                                pendingApkDownloadUrl = GATEWAY_DOWNLOAD_URL
+                                triggerApkDownload(GATEWAY_DOWNLOAD_URL)
+                            }
+                            if (retryFile != null && retryFile.exists()) {
+                                tryFallbackInstall(retryFile, retryPkg)
+                            } else {
+                                pendingApkDownloadUrl = GATEWAY_DOWNLOAD_URL
+                                triggerApkDownload(GATEWAY_DOWNLOAD_URL)
+                            }
+                        }
                     }
                 }, 800)
             }
@@ -1162,7 +1192,9 @@ class SetupActivity : AppCompatActivity() {
             )
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                // Note: do NOT add FLAG_ACTIVITY_NEW_TASK — it breaks startActivityForResult:
+                // Android would return RESULT_CANCELED immediately without waiting for the user.
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             pendingInstallFile = file
             pendingInstallPkg  = targetPkg

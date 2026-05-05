@@ -439,11 +439,10 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun applyScreensaverFlag() {
-        if (prefs.getBoolean(KEY_SCREENSAVER, false)) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
+        // The kiosk screen must ALWAYS stay on — the in-app screensaver is a JS overlay
+        // (clock + info) shown by the webapp after inactivity, not an Android screen timeout.
+        // Never clear FLAG_KEEP_SCREEN_ON regardless of the screensaver preference.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     // ── Inject kiosk overlay (exit + refresh buttons) ────────────────────
