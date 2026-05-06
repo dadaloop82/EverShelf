@@ -16,26 +16,22 @@ android {
     }
 
     signingConfigs {
-        // Use the standard Android debug keystore when building locally so the
-        // debug APK signature stays consistent across machines (needed for OTA updates).
-        // In CI the keystore doesn't exist — fall back to Gradle's auto-generated key.
-        getByName("debug") {
-            val ks = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            if (ks.exists()) {
-                storeFile = ks
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
-            }
+        // Project keystore — same on every machine so OTA updates always work.
+        create("project") {
+            storeFile = file("../evershelf.jks")
+            storePassword = "evershelf123"
+            keyAlias = "evershelf"
+            keyPassword = "evershelf123"
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("project")
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("project")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
