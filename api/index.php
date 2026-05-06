@@ -2078,6 +2078,7 @@ function getServerSettings(): void {
         'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
         'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
+        'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
     ]);
 }
 
@@ -2127,7 +2128,8 @@ function saveSettings(): void {
     ];
     // Integer keys
     $intMap = [
-        'default_persons' => 'DEFAULT_PERSONS',
+        'default_persons'    => 'DEFAULT_PERSONS',
+        'screensaver_timeout' => 'SCREENSAVER_TIMEOUT',
     ];
 
     foreach ($keyMap as $inKey => $envKey) {

@@ -1128,7 +1128,7 @@
                 </div>
                 <div class="settings-card">
                     <h4 data-i18n="settings.screensaver.card_title">🌙 Salvaschermo</h4>
-                    <p class="settings-hint" data-i18n="settings.screensaver.card_hint">Mostra un orologio con fatti utili dopo 5 minuti di inattività. Di default è disattivato.</p>
+                    <p class="settings-hint" data-i18n="settings.screensaver.card_hint">Mostra un orologio con fatti utili dopo un periodo di inattività. Di default è disattivato.</p>
                     <div class="form-group">
                         <label class="toggle-row">
                             <span data-i18n="settings.screensaver.label">Attiva salvaschermo</span>
@@ -1137,6 +1137,18 @@
                                 <span class="toggle-slider"></span>
                             </span>
                         </label>
+                    </div>
+                    <div class="form-group" id="screensaver-timeout-row" style="margin-top:10px">
+                        <label for="setting-screensaver-timeout" style="font-size:0.85rem;font-weight:600;color:var(--text-secondary)">⏱️ Avvia dopo</label>
+                        <select id="setting-screensaver-timeout" class="form-control" style="margin-top:6px;max-width:200px">
+                            <option value="1">1 minuto</option>
+                            <option value="2">2 minuti</option>
+                            <option value="5" selected>5 minuti</option>
+                            <option value="10">10 minuti</option>
+                            <option value="15">15 minuti</option>
+                            <option value="30">30 minuti</option>
+                            <option value="60">1 ora</option>
+                        </select>
                     </div>
                 </div>
             </div>

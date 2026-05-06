@@ -1878,7 +1878,7 @@ async function syncSettingsFromDB() {
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled','tts_enabled','tts_url','tts_token',
             'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
-            'screensaver_enabled'];
+            'screensaver_enabled','screensaver_timeout'];
         for (const key of serverKeys) {
             if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
                 s[key] = serverSettings[key];
@@ -1910,6 +1910,8 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
+    const ssTimeout = document.getElementById('setting-screensaver-timeout');
+    if (ssTimeout) ssTimeout.value = String(s.screensaver_timeout || 5);
     document.getElementById('setting-dietary').value = s.dietary || '';
     // Camera
     const cameraSelect = document.getElementById('setting-camera-facing');
@@ -2312,6 +2314,8 @@ async function saveSettings() {
     // Screensaver
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) s.screensaver_enabled = ssEl.checked;
+    const ssTimeoutEl = document.getElementById('setting-screensaver-timeout');
+    if (ssTimeoutEl) s.screensaver_timeout = parseInt(ssTimeoutEl.value, 10) || 5;
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
@@ -11710,12 +11714,16 @@ let _screensaverClockInterval = null;
 let _screensaverFactInterval = null;
 let _screensaverData = null; // cached data for fact generation
 const SCREENSAVER_FACT_DURATION = 5 * 60 * 1000; // 5 minutes per fact
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+function _screensaverTimeoutMs() {
+    const mins = parseInt(getSettings().screensaver_timeout || 5, 10);
+    return (isNaN(mins) || mins < 1 ? 5 : mins) * 60 * 1000;
+}
 
 function resetInactivityTimer() {
     if (_screensaverActive) return; // don't reset while screensaver is showing
     clearTimeout(_inactivityTimer);
-    _inactivityTimer = setTimeout(activateScreensaver, INACTIVITY_TIMEOUT);
+    _inactivityTimer = setTimeout(activateScreensaver, _screensaverTimeoutMs());
 }
 
 function activateScreensaver() {
