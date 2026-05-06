@@ -42,6 +42,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import it.dadaloop.evershelf.kiosk.scale.GatewayService
 import org.json.JSONObject
 import java.net.URL
 import java.util.Locale
@@ -418,6 +419,23 @@ class KioskActivity : AppCompatActivity() {
             fun stopSpeech() { tts?.stop() }
             @JavascriptInterface
             fun isTtsReady(): String = if (ttsReady) "true" else "false"
+            @JavascriptInterface
+            fun reconfigureScale() {
+                // Stop the BLE gateway service, clear saved scale device,
+                // and launch SetupActivity directly at step 4 (BLE scan)
+                runOnUiThread {
+                    GatewayService.stop(this@KioskActivity)
+                    prefs.edit()
+                        .remove("scale_device_address")
+                        .remove("scale_device_name")
+                        .putBoolean("has_scale", false)
+                        .putBoolean("setup_complete", false)
+                        .apply()
+                    val intent = Intent(this@KioskActivity, SetupActivity::class.java)
+                    intent.putExtra("start_step", 4)
+                    startActivity(intent)
+                }
+            }
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"

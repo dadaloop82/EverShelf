@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260506a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260506b">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -1034,8 +1034,15 @@
                     <h4 data-i18n="settings.scale.title">⚖️ Bilancia Smart</h4>
                     <p class="settings-hint" data-i18n="settings.scale.hint">Collega una bilancia Bluetooth tramite il gateway Android per leggere il peso automaticamente.</p>
 
+                    <!-- Kiosk-mode panel: replace WebSocket config with native reconfigure button -->
+                    <div id="scale-kiosk-panel" style="display:none;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:14px;margin-bottom:16px">
+                        <p style="margin:0 0 6px;font-weight:600">📡 Bilancia BLE integrata nel Kiosk</p>
+                        <p class="settings-hint" style="margin-bottom:12px">La bilancia è gestita direttamente dal Gateway BLE interno al kiosk. Per abbinare un nuovo dispositivo usa il wizard di configurazione.</p>
+                        <button class="btn btn-secondary full-width" onclick="_kioskReconfigureScale()">🔄 Riconfigura bilancia BLE</button>
+                    </div>
+
                     <!-- Download gateway app -->
-                    <div style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px;margin-bottom:16px">
+                    <div id="scale-gateway-download-section" style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:14px;margin-bottom:16px">
                         <p style="margin:0 0 4px;font-weight:600">📱 EverShelf Scale Gateway</p>
                         <p class="settings-hint" style="margin-bottom:10px" data-i18n="settings.scale.download_hint">App Android che fa da ponte tra la bilancia BLE e questo sito.</p>
                         <a href="https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-scale-gateway.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center" data-i18n="settings.scale.download_btn">📥 Scarica Gateway Android (APK)</a>
@@ -1054,7 +1061,7 @@
                     </div>
 
                     <!-- Gateway URL -->
-                    <div class="form-group">
+                    <div id="scale-websocket-section" class="form-group">
                         <label data-i18n="settings.scale.url_label">🌐 URL Gateway WebSocket</label>
                         <div style="display:flex;gap:8px;align-items:center">
                             <input type="url" id="setting-scale-url" class="form-input" style="flex:1" placeholder="ws://192.168.1.x:8765" data-i18n-placeholder="settings.scale.url_placeholder">
@@ -1065,8 +1072,10 @@
                     </div>
 
                     <!-- Test button -->
-                    <button class="btn btn-secondary full-width mt-2" onclick="testScaleConnection()" data-i18n="settings.scale.test_btn">🔗 Testa connessione</button>
-                    <div id="scale-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
+                    <div id="scale-test-section">
+                        <button class="btn btn-secondary full-width mt-2" onclick="testScaleConnection()" data-i18n="settings.scale.test_btn">🔗 Testa connessione</button>
+                        <div id="scale-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
+                    </div>
 
                     <!-- Protocol info -->
                     <div class="settings-hint" style="margin-top:16px;padding:10px;background:var(--bg-secondary,#f8fafc);border-radius:8px">

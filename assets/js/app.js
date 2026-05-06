@@ -2018,6 +2018,28 @@ async function loadSettingsUI() {
     if (kioskBanner && /; wv\)/.test(navigator.userAgent)) {
         kioskBanner.style.display = 'none';
     }
+    // In kiosk mode: replace WebSocket scale config with native BLE reconfigure panel
+    const isKiosk = typeof _kioskBridge !== 'undefined';
+    const scaleGwDl   = document.getElementById('scale-gateway-download-section');
+    const scaleWsEl   = document.getElementById('scale-websocket-section');
+    const scaleTestEl = document.getElementById('scale-test-section');
+    const scaleKiosk  = document.getElementById('scale-kiosk-panel');
+    if (isKiosk) {
+        if (scaleGwDl)   scaleGwDl.style.display   = 'none';
+        if (scaleWsEl)   scaleWsEl.style.display    = 'none';
+        if (scaleTestEl) scaleTestEl.style.display  = 'none';
+        if (scaleKiosk)  scaleKiosk.style.display   = '';
+        // Auto-set URL to localhost gateway (always port 8765 in kiosk)
+        if (scaleUrlUiEl && !scaleUrlUiEl.value) scaleUrlUiEl.value = 'ws://localhost:8765';
+    }
+}
+
+// ── Kiosk: trigger native BLE scale reconfiguration wizard ────────────
+function _kioskReconfigureScale() {
+    if (typeof _kioskBridge === 'undefined') return;
+    if (typeof _kioskBridge.reconfigureScale === 'function') {
+        _kioskBridge.reconfigureScale();
+    }
 }
 
 // ── Kiosk overlay: X (close) + ↻ (refresh) buttons ───────────────────
