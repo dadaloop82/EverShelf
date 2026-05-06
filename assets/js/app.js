@@ -2119,20 +2119,19 @@ window._kioskUpdateResult = function(result) {
 
 function _kioskCheckForUpdates() {
     if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.checkForUpdates !== 'function') {
-        // Kiosk is present but old — direct user to manual download
+        // Kiosk is present but old — trigger download via installUpdate which exists since v1.3
         const status = document.getElementById('kiosk-update-status');
+        const installBtn = document.getElementById('btn-kiosk-install-update');
         if (status) {
             status.style.display = '';
             status.style.background = 'rgba(245,158,11,0.1)';
             status.style.border = '1px solid rgba(245,158,11,0.35)';
-            status.innerHTML = `⚠️ Il kiosk installato è troppo vecchio per aggiornarsi automaticamente.<br>
-                <strong>Installa manualmente la v1.7.0:</strong><br>
-                <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk"
-                   style="color:#d97706;font-weight:600"
-                   target="_blank" rel="noopener noreferrer">
-                   📥 Scarica evershelf-kiosk.apk
-                </a>`;
+            status.innerHTML = `⚠️ Il kiosk installato è troppo vecchio per il controllo automatico.<br>
+                Premi il pulsante qui sotto per scaricare e installare la v1.7.0 direttamente.`;
         }
+        // Pre-set the pending URL and show the install button (installUpdate works in old APKs too)
+        _kioskPendingApkUrl = 'https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk';
+        if (installBtn) installBtn.style.display = '';
         return;
     }
     const btn    = document.getElementById('btn-kiosk-check-update');
@@ -2150,8 +2149,23 @@ function _kioskCheckForUpdates() {
 
 function _kioskInstallUpdate() {
     if (!_kioskPendingApkUrl) return;
-    if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.installUpdate !== 'function') {
-        showToast('⚠️ Aggiorna il kiosk per usare questa funzione', 'warning');
+    if (typeof _kioskBridge === 'undefined') return;
+    if (typeof _kioskBridge.installUpdate !== 'function') {
+        // Old APK without installUpdate — show instructions
+        const status = document.getElementById('kiosk-update-status');
+        if (status) {
+            status.style.display = '';
+            status.style.background = 'rgba(239,68,68,0.1)';
+            status.style.border = '1px solid rgba(239,68,68,0.3)';
+            status.innerHTML = `⚠️ Questo kiosk non supporta l'installazione automatica.<br>
+                <strong>Procedura manuale:</strong><br>
+                1. Esci dal kiosk (tasto ✕ in alto a sinistra)<br>
+                2. Disinstalla l'app EverShelf Kiosk<br>
+                3. Scarica e installa la nuova APK da GitHub:<br>
+                <code style="font-size:0.75rem;word-break:break-all">
+                https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk
+                </code>`;
+        }
         return;
     }
     const installBtn = document.getElementById('btn-kiosk-install-update');
