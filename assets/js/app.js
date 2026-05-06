@@ -2119,7 +2119,20 @@ window._kioskUpdateResult = function(result) {
 
 function _kioskCheckForUpdates() {
     if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.checkForUpdates !== 'function') {
-        showToast('⚠️ Questa funzione richiede il kiosk nativo', 'warning');
+        // Kiosk is present but old — direct user to manual download
+        const status = document.getElementById('kiosk-update-status');
+        if (status) {
+            status.style.display = '';
+            status.style.background = 'rgba(245,158,11,0.1)';
+            status.style.border = '1px solid rgba(245,158,11,0.35)';
+            status.innerHTML = `⚠️ Il kiosk installato è troppo vecchio per aggiornarsi automaticamente.<br>
+                <strong>Installa manualmente la v1.7.0:</strong><br>
+                <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk"
+                   style="color:#d97706;font-weight:600"
+                   target="_blank" rel="noopener noreferrer">
+                   📥 Scarica evershelf-kiosk.apk
+                </a>`;
+        }
         return;
     }
     const btn    = document.getElementById('btn-kiosk-check-update');
