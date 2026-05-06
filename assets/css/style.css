@@ -123,6 +123,7 @@ body {
     display: flex;
     align-items: center;
     width: 100%;
+    position: relative;
     gap: 8px;
 }
 
@@ -132,16 +133,24 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    position: relative;
+    z-index: 1;
 }
 
-/* Title wrap — fills available space, left-aligned */
+/* Title wrap — absolutely centered in the full header width */
 .header-title-wrap {
-    flex: 1 1 0;
+    position: absolute;
+    left: 0;
+    right: 0;
     display: flex;
+    justify-content: center;
     align-items: center;
     gap: 8px;
-    min-width: 0;
+    pointer-events: none;
     overflow: hidden;
+}
+.header-title-wrap > * {
+    pointer-events: auto;
 }
 
 .header-title {
@@ -218,9 +227,12 @@ body {
 /* Actions — fixed-width, no stretching */
 .header-actions {
     flex: 0 0 auto;
+    margin-left: auto;
     display: flex;
     gap: 8px;
     align-items: center;
+    position: relative;
+    z-index: 1;
 }
 
 /* ── Base header button — all action icons use this ─────────────────── */
