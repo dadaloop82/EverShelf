@@ -2339,11 +2339,6 @@ function showPage(pageId, param = null) {
     // Page-specific init
     switch(pageId) {
         case 'dashboard':
-            // Show skeleton on stat-cards while data loads
-            ['dispensa', 'frigo', 'freezer', 'spesa'].forEach(loc => {
-                const el = document.getElementById(`stat-${loc}`);
-                if (el) { el.textContent = '…'; el.classList.add('stat-loading'); }
-            });
             loadDashboard();
             break;
         case 'inventory':
@@ -2763,7 +2758,6 @@ async function loadDashboard() {
             const count = s ? s.product_count : 0;
             const el = document.getElementById(`stat-${loc}`);
             el.textContent = count;
-            el.classList.remove('stat-loading');
             total += count;
         });
         // Add non-standard locations
@@ -8694,11 +8688,9 @@ async function loadShoppingCount() {
         } else {
             el.textContent = '-';
         }
-        el.classList.remove('stat-loading');
     } catch {
         const el = document.getElementById('stat-spesa');
         el.textContent = '-';
-        el.classList.remove('stat-loading');
     }
     // Smart urgency badge: use cached data if fresh (< 2 min), else fetch
     if (smartShoppingItems.length > 0 && (Date.now() - _smartShoppingLastFetch) < 2 * 60 * 1000) {
