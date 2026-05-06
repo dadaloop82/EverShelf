@@ -308,8 +308,8 @@ body {
     transition: background 0.4s, box-shadow 0.4s, border-color 0.4s;
     pointer-events: none;
 }
-/* Connected: bright green fill + white border — visible on both dark and light backgrounds */
-.scale-status-connected    .scale-status-dot { background: #4ade80; border-color: rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.2), 0 0 6px #4ade80bb; }
+/* Connected: white fill + bright-green border ring — clearly visible on any dark/green bg */
+.scale-status-connected    .scale-status-dot { background: #ffffff; border-color: #4ade80; box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 0 8px #4ade80cc, 0 0 2px #fff; }
 .scale-status-connected    .scale-icon-emoji  { filter: none; opacity: 1; }
 .scale-status-searching    .scale-status-dot { background: #f59e0b; border-color: rgba(0,0,0,0.35); animation: scaleStatusPulse 1.4s infinite; }
 .scale-status-searching    .scale-icon-emoji  { filter: none; opacity: 0.85; }

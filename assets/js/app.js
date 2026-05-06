@@ -290,6 +290,11 @@ function _scaleOnMessage(msg) {
         _scaleDevice = msg.device || null;
         _scaleBattery = msg.battery ?? null;
         _scaleUpdateStatus(_scaleConnected ? 'connected' : 'searching');
+        // Update protocol info in settings diagnostic
+        if (msg.protocol) {
+            const protoEl = document.getElementById('scale-diag-proto');
+            if (protoEl) protoEl.textContent = `📡 ${msg.protocol}`;
+        }
         // Refresh all scale UI elements immediately so buttons/live-box appear
         // without requiring a manual page refresh
         updateScaleReadButtons();
@@ -322,6 +327,9 @@ function _scaleOnMessage(msg) {
         // Also update edit-form inline scale reading if visible
         const editLive = document.getElementById('edit-scale-reading');
         if (editLive) editLive.textContent = `${msg.value} ${msg.unit || 'kg'}${liveMsg.stable ? ' ✓' : ' …'}`;
+        // Update settings diagnostic live weight
+        const diagW = document.getElementById('scale-diag-weight');
+        if (diagW) diagW.textContent = `${parseFloat(msg.value).toFixed(1)} ${msg.unit || 'g'}`;
         // Always update the persistent live box on the use page (every message, stable or not)
         _scaleUpdateLiveBox(liveMsg);
         // If weight is NOT stable: stop any running timer/bar but keep the sentinel value.
@@ -803,6 +811,20 @@ function _scaleUpdateStatus(state) {
         error:        `⚖️ ${t('scale.status_error')}`,
     };
     el.title = labels[state] || '';
+    // Update settings live-diagnostic panel
+    const diag = document.getElementById('scale-live-diag');
+    if (!diag) return;
+    diag.style.display = state === 'connected' ? '' : 'none';
+    if (state === 'connected') {
+        const devEl = document.getElementById('scale-diag-device');
+        const batEl = document.getElementById('scale-diag-battery');
+        if (devEl) devEl.textContent = _scaleDevice || 'Dispositivo sconosciuto';
+        if (batEl) batEl.textContent = _scaleBattery != null ? `🔋 ${_scaleBattery}%` : '';
+        const weightEl = document.getElementById('scale-diag-weight');
+        if (weightEl && _scaleLatestWeight) {
+            weightEl.textContent = `${parseFloat(_scaleLatestWeight.value).toFixed(1)} ${_scaleLatestWeight.unit || 'g'}`;
+        }
+    }
 }
 
 /**
@@ -2038,7 +2060,12 @@ async function loadSettingsUI() {
 function _kioskReconfigureScale() {
     if (typeof _kioskBridge === 'undefined') return;
     if (typeof _kioskBridge.reconfigureScale === 'function') {
-        _kioskBridge.reconfigureScale();
+        try { _kioskBridge.reconfigureScale(); } catch(e) {}
+    } else {
+        // Kiosk APK is outdated — show update notice
+        const notice = document.getElementById('kiosk-needs-update-notice');
+        if (notice) notice.style.display = '';
+        showToast('⚠️ Aggiorna il kiosk per usare questa funzione', 'warning');
     }
 }
 

@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260506c">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260506d">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -1042,6 +1042,12 @@
                         <p style="margin:0 0 6px;font-weight:600">📡 Bilancia BLE integrata nel Kiosk</p>
                         <p class="settings-hint" style="margin-bottom:12px">La bilancia è gestita direttamente dal Gateway BLE interno al kiosk. Per abbinare un nuovo dispositivo usa il wizard di configurazione.</p>
                         <button class="btn btn-secondary full-width" onclick="_kioskReconfigureScale()">🔄 Riconfigura bilancia BLE</button>
+                        <!-- shown when kiosk APK is too old to have reconfigureScale() -->
+                        <div id="kiosk-needs-update-notice" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:8px;font-size:0.83rem">
+                            ⚠️ Il kiosk installato non supporta questa funzione.
+                            Aggiorna l'app kiosk per abilitarla.
+                            <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" style="display:block;margin-top:6px;color:#d97706;font-weight:600;text-decoration:none">📥 Scarica aggiornamento kiosk</a>
+                        </div>
                     </div>
 
                     <!-- Download gateway app -->
@@ -1078,6 +1084,22 @@
                     <div id="scale-test-section">
                         <button class="btn btn-secondary full-width mt-2" onclick="testScaleConnection()" data-i18n="settings.scale.test_btn">🔗 Testa connessione</button>
                         <div id="scale-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
+                    </div>
+
+                    <!-- Live diagnostic: device info + real-time weight (visible when connected) -->
+                    <div id="scale-live-diag" style="display:none;margin-top:14px;padding:12px 14px;background:var(--bg-secondary,#f8fafc);border-radius:10px;border:1px solid var(--border,#e2e8f0)">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+                            <span style="font-size:0.8rem;color:var(--text-secondary)">🔗 <span id="scale-diag-device">—</span></span>
+                            <span id="scale-diag-battery" style="font-size:0.8rem;color:var(--text-secondary)"></span>
+                        </div>
+                        <div style="text-align:center">
+                            <div id="scale-diag-weight" style="font-size:2rem;font-weight:700;line-height:1;letter-spacing:1px">— g</div>
+                            <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:3px">peso in tempo reale</div>
+                        </div>
+                        <div style="margin-top:10px;display:flex;gap:8px;font-size:0.78rem;color:var(--text-secondary)">
+                            <span>🔁 Riconnessione: automatica</span>
+                            <span style="margin-left:auto" id="scale-diag-proto">—</span>
+                        </div>
                     </div>
 
                     <!-- Protocol info -->
