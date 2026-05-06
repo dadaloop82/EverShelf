@@ -30,6 +30,16 @@
 
 ## 🌍 Recent Updates
 
+- **Kiosk v1.7.0: OTA update system** — "Cerca aggiornamenti" button in Settings triggers a forced GitHub release check; new `installUpdate()` JS bridge calls Android `DownloadManager` directly (lockTask mode blocks external browser links); graceful degradation for older APKs with manual instructions. Automatic OTA check every 6 hours with native update banner.
+- **Kiosk: consistent APK signing** — Project keystore (`evershelf.jks`) committed to the repo; every build — local or CI — now produces an APK with the same signature, eliminating "APK incompatible / signature conflict" errors on OTA update.
+- **GitHub Actions: auto-publish kiosk APK** — On every push to `main` that touches `evershelf-kiosk/`, Actions builds the APK and publishes a versioned semver release (`kiosk-X.Y.Z`) plus updates the `kiosk-latest` alias. No more manual release uploads.
+- **Fix: false "update available" on launch** — `checkForUpdates` now requires a strictly-greater semver tag to flag an update. Non-semver tags (e.g. `kiosk-latest`) no longer trigger a false positive immediately after a fresh install.
+- **Kiosk: live scale diagnostic panel** — When connected, Settings shows device name, battery %, real-time weight, protocol and reconnection status without leaving the settings page.
+- **Kiosk: scale dot visible on header** — Connected-state dot changed from green-on-green to white fill + green glow, clearly visible on any background.
+- **Kiosk: reconfigure BLE scale** — New "Riconfigura bilancia BLE" button in Settings; shows amber notice with download link if the installed APK predates the `reconfigureScale()` bridge method.
+- **Nutrition analysis dashboard** — Category distribution pie chart (3D conic-gradient), health/variety/freshness score bars, alternates with the anti-waste section hourly.
+- **Screensaver nutrition panel** — Animated 3D pie + donut ring scores rotate with fact cards every 5 minutes in the screensaver overlay.
+- **Automatic error reporting** — Unhandled JS errors, Android crashes and PHP exceptions are silently posted to `api/?action=report_error`; the server deduplicates by fingerprint and creates or comments on a GitHub Issue automatically. Crash details are persisted to `SharedPreferences` so even errors that prevent network I/O are sent on the next launch.
 - **Demo mode (JS)** — Full frontend demo with mock pantry data, Gemini enabled, Bring! writes silently no-op'd; accessible via `?demo=1` or `.env` `DEMO_MODE=true`.
 - **Graceful Bring! no-key state** — When Bring! credentials are not configured, the shopping tab shows a friendly message with a direct link to Settings instead of a raw error.
 - **Use-quantity guard** — Consuming more than the stocked quantity at a given location is now blocked client-side with a shake animation on the quantity field.
@@ -373,6 +383,13 @@ The application uses no build tools — edit files directly and refresh.
 - [x] AI scan local matching — suggest existing pantry products before OFF lookup
 - [x] Scale auto-fill improvements — 10g threshold, ml conversion hints
 - [x] Update notification system — inline header pill (webapp) + kiosk checks GitHub releases
+- [x] Kiosk OTA update — forced check button, `installUpdate()` bridge, graceful old-APK fallback
+- [x] Kiosk consistent APK signing — project keystore eliminates signature conflicts on OTA
+- [x] GitHub Actions kiosk CI — auto-builds and publishes versioned semver APK on every push to main
+- [x] Kiosk live scale diagnostics — device, battery, real-time weight in Settings when connected
+- [x] Nutrition analysis dashboard — category pie + health/variety/freshness scores, alternates with waste section
+- [x] Screensaver nutrition panel — animated pie + donut ring scores rotate with facts
+- [x] Automatic error reporting — JS/Android/PHP errors → GitHub Issues with deduplication
 - [x] Generic shopping name grouping — compound-phrase + keyword map (100+ entries) + Gemini AI fallback
 - [x] Auto-add to Bring! on product depletion — no confirmation step when stock reaches zero
 - [x] Native Android TTS in kiosk — bypasses Web Speech API voice detection issues
