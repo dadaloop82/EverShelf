@@ -2053,6 +2053,9 @@ async function loadSettingsUI() {
         if (scaleKiosk)  scaleKiosk.style.display   = '';
         // Auto-set URL to localhost gateway (always port 8765 in kiosk)
         if (scaleUrlUiEl && !scaleUrlUiEl.value) scaleUrlUiEl.value = 'ws://localhost:8765';
+        // Show kiosk self-update panel
+        const updatePanel = document.getElementById('kiosk-update-panel');
+        if (updatePanel) updatePanel.style.display = '';
     }
 }
 
@@ -2066,6 +2069,83 @@ function _kioskReconfigureScale() {
         const notice = document.getElementById('kiosk-needs-update-notice');
         if (notice) notice.style.display = '';
         showToast('⚠️ Aggiorna il kiosk per usare questa funzione', 'warning');
+    }
+}
+
+// ── Kiosk: manual update check ────────────────────────────────────────
+let _kioskPendingApkUrl = '';
+
+/** Called by Kotlin with JSON: { has_update, current, latest, apk_url, error } */
+window._kioskUpdateResult = function(result) {
+    const btn    = document.getElementById('btn-kiosk-check-update');
+    const status = document.getElementById('kiosk-update-status');
+    const installBtn = document.getElementById('btn-kiosk-install-update');
+    const verLabel   = document.getElementById('kiosk-update-version-label');
+    if (!status) return;
+
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Cerca aggiornamenti'; }
+
+    if (result.error && !result.has_update) {
+        status.style.display = '';
+        status.style.background = 'rgba(239,68,68,0.1)';
+        status.style.border = '1px solid rgba(239,68,68,0.3)';
+        status.style.color = '';
+        status.innerHTML = `❌ Errore: ${result.error}`;
+        return;
+    }
+
+    const current = result.current || '?';
+    const latest  = result.latest  || '?';
+    if (verLabel) verLabel.textContent = `Installata: ${current}`;
+
+    if (result.has_update) {
+        _kioskPendingApkUrl = result.apk_url || '';
+        status.style.display = '';
+        status.style.background = 'rgba(245,158,11,0.1)';
+        status.style.border = '1px solid rgba(245,158,11,0.35)';
+        status.style.color = '';
+        status.innerHTML = `⬆️ Nuova versione disponibile: <strong>${latest}</strong> (installata: ${current})`;
+        if (installBtn) installBtn.style.display = '';
+    } else {
+        _kioskPendingApkUrl = '';
+        status.style.display = '';
+        status.style.background = 'rgba(52,211,153,0.1)';
+        status.style.border = '1px solid rgba(52,211,153,0.3)';
+        status.style.color = '';
+        status.innerHTML = `✅ Sei già aggiornato — versione <strong>${current}</strong>`;
+        if (installBtn) installBtn.style.display = 'none';
+    }
+};
+
+function _kioskCheckForUpdates() {
+    if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.checkForUpdates !== 'function') {
+        showToast('⚠️ Questa funzione richiede il kiosk nativo', 'warning');
+        return;
+    }
+    const btn    = document.getElementById('btn-kiosk-check-update');
+    const status = document.getElementById('kiosk-update-status');
+    const installBtn = document.getElementById('btn-kiosk-install-update');
+    if (btn)        { btn.disabled = true; btn.textContent = '⏳ Controllo…'; }
+    if (status)     { status.style.display = 'none'; }
+    if (installBtn) { installBtn.style.display = 'none'; }
+    _kioskPendingApkUrl = '';
+    try { _kioskBridge.checkForUpdates(); } catch(e) {
+        if (btn) { btn.disabled = false; btn.textContent = '🔍 Cerca aggiornamenti'; }
+        showToast('❌ Errore durante il controllo', 'error');
+    }
+}
+
+function _kioskInstallUpdate() {
+    if (!_kioskPendingApkUrl) return;
+    if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.installUpdate !== 'function') {
+        showToast('⚠️ Aggiorna il kiosk per usare questa funzione', 'warning');
+        return;
+    }
+    const installBtn = document.getElementById('btn-kiosk-install-update');
+    if (installBtn) { installBtn.disabled = true; installBtn.textContent = '⏳ Avvio download…'; }
+    try { _kioskBridge.installUpdate(_kioskPendingApkUrl); } catch(e) {
+        if (installBtn) { installBtn.disabled = false; installBtn.textContent = '⬇️ Installa aggiornamento'; }
+        showToast('❌ Errore avvio installazione', 'error');
     }
 }
 

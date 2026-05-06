@@ -337,7 +337,7 @@ class KioskActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 injectKioskOverlay()
-                checkForUpdates()
+                checkForUpdates(forceCheck = false)
             }
         }
 
@@ -436,6 +436,24 @@ class KioskActivity : AppCompatActivity() {
                     startActivity(intent)
                 }
             }
+            /**
+             * Called by the webapp "Cerca aggiornamenti" button.
+             * Forces a GitHub release check regardless of the 6-hour throttle.
+             * Result is delivered back via window._kioskUpdateResult(jsonString).
+             */
+            @JavascriptInterface
+            fun checkForUpdates() {
+                checkForUpdates(forceCheck = true, jsCallback = "window._kioskUpdateResult")
+            }
+            /**
+             * Trigger download + install of the kiosk APK.
+             * @param apkUrl direct URL to the .apk file (from checkForUpdates result)
+             */
+            @JavascriptInterface
+            fun installUpdate(apkUrl: String) {
+                if (apkUrl.isBlank()) return
+                runOnUiThread { triggerApkDownload(apkUrl) }
+            }
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
@@ -492,23 +510,46 @@ class KioskActivity : AppCompatActivity() {
 
     // ── Update Check ──────────────────────────────────────────────────────
 
-    private fun checkForUpdates() {
-        val lastCheck = prefs.getLong("last_update_check", 0)
+    /**
+     * @param forceCheck  bypass the 6-hour throttle
+     * @param jsCallback  optional JS function name to call back with a JSON result
+     *                    Signature: fn({ has_update, current, latest, apk_url, error })
+     */
+    private fun checkForUpdates(forceCheck: Boolean = false, jsCallback: String? = null) {
         val now = System.currentTimeMillis()
-        if (now - lastCheck < 6 * 60 * 60 * 1000) return
+        if (!forceCheck) {
+            val lastCheck = prefs.getLong("last_update_check", 0)
+            if (now - lastCheck < 6 * 60 * 60 * 1000) return
+        }
         prefs.edit().putLong("last_update_check", now).apply()
 
         Thread {
+            fun notifyJs(obj: JSONObject) {
+                if (jsCallback == null) return
+                val escaped = obj.toString().replace("'", "\\'")
+                runOnUiThread {
+                    webView.evaluateJavascript("$jsCallback($escaped)", null)
+                }
+            }
             try {
                 val conn = URL(GITHUB_RELEASES_API).openConnection() as java.net.HttpURLConnection
                 conn.setRequestProperty("Accept", "application/vnd.github+json")
-                conn.connectTimeout = 5000
-                conn.readTimeout    = 5000
+                conn.connectTimeout = 8000
+                conn.readTimeout    = 8000
+                val responseCode = conn.responseCode
+                if (responseCode != 200) {
+                    notifyJs(JSONObject().put("has_update", false).put("error", "HTTP $responseCode"))
+                    conn.disconnect()
+                    return@Thread
+                }
                 val body = conn.inputStream.bufferedReader().readText()
                 conn.disconnect()
                 val json = JSONObject(body)
                 val latestTag = json.optString("tag_name", "")
-                if (latestTag.isEmpty()) return@Thread
+                if (latestTag.isEmpty()) {
+                    notifyJs(JSONObject().put("has_update", false).put("error", "no tag"))
+                    return@Thread
+                }
 
                 val currentKiosk = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: ""
@@ -540,16 +581,26 @@ class KioskActivity : AppCompatActivity() {
                         if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
                     }
                 }
+                if (kioskApkUrl.isEmpty()) kioskApkUrl = KIOSK_DOWNLOAD_URL
 
-                val kioskNeedsUpdate = kioskApkUrl.isNotEmpty() && currentKiosk.isNotEmpty() &&
+                val kioskNeedsUpdate = currentKiosk.isNotEmpty() &&
                     (!isSemver || semverNewer(norm(latestTag), norm(currentKiosk)))
+
+                val result = JSONObject()
+                    .put("has_update", kioskNeedsUpdate)
+                    .put("current",    currentKiosk)
+                    .put("latest",     latestTag)
+                    .put("apk_url",    kioskApkUrl)
+
+                notifyJs(result)
 
                 if (!kioskNeedsUpdate) return@Thread
 
                 val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
-                val message = "🔄 Kiosk $label"
-                runOnUiThread { showNativeUpdateBanner(message, kioskApkUrl) }
-            } catch (_: Exception) { }
+                runOnUiThread { showNativeUpdateBanner("🔄 Kiosk $label", kioskApkUrl) }
+            } catch (e: Exception) {
+                notifyJs(JSONObject().put("has_update", false).put("error", e.message ?: "network error"))
+            }
         }.start()
     }
 

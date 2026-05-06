@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260506d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260506e">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -1153,6 +1153,22 @@
             </div>
             <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_btn">📥 Scarica EverShelf Kiosk (APK)</a>
             <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: <code>evershelf-kiosk/</code></p>
+        </div>
+
+        <!-- Kiosk self-update panel (visible only inside kiosk WebView) -->
+        <div id="kiosk-update-panel" style="display:none;background:rgba(16,185,129,0.06);border:1.5px solid rgba(16,185,129,0.2);border-radius:12px;padding:16px;margin-top:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:1.4rem">📦</span>
+                    <div>
+                        <p style="margin:0;font-weight:700;font-size:0.9rem">Aggiornamento Kiosk</p>
+                        <p class="settings-hint" style="margin:2px 0 0" id="kiosk-update-version-label">—</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" style="white-space:nowrap;min-width:120px" id="btn-kiosk-check-update" onclick="_kioskCheckForUpdates()">🔍 Cerca aggiornamenti</button>
+            </div>
+            <div id="kiosk-update-status" style="display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4"></div>
+            <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()">⬇️ Installa aggiornamento</button>
         </div>
 
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
