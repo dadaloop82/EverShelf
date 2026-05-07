@@ -6540,8 +6540,8 @@ Rules:
 PROMPT;
 
     $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
-    // Allow more time for batch (max 45s)
-    $result  = callGeminiWithFallback($apiKey, $payload, 45);
+    // 55s timeout — generous for large batches (set_time_limit(120) in getAllShoppingPrices)
+    $result  = callGeminiWithFallback($apiKey, $payload, 55);
 
     if ($result['http_code'] !== 200) return [];
 
@@ -6638,6 +6638,9 @@ function getShoppingPrice(PDO $db): void {
  * Returns: { success, prices: { name → priceEntry }, total, total_label, from_total_cache }
  */
 function getAllShoppingPrices(PDO $db): void {
+    // This endpoint may call the AI for many items at once — extend timeout.
+    set_time_limit(120);
+
     $input    = json_decode(file_get_contents('php://input'), true) ?? [];
     $clientItems = $input['items'] ?? [];
     $country  = trim($input['country']  ?? env('PRICE_COUNTRY', 'Italia'));
