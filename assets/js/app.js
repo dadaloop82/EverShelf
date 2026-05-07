@@ -10012,6 +10012,11 @@ async function renderShoppingItems() {
             if (fetchBtn2) fetchBtn2.disabled = false;
             if (refreshBtn2) { refreshBtn2.disabled = false; refreshBtn2.textContent = '🔄'; }
             _updateDashboardPriceTotal();
+        } else if (smartShoppingItems.length === 0 && _smartShoppingLastFetch === 0) {
+            // Smart data hasn't loaded yet — don't trigger fetch now.
+            // The second renderShoppingItems() call (inside loadSmartShopping().then()) will handle prices
+            // once we have real qty/unit data. Just apply whatever is cached silently.
+            _applyPriceBadgesFromCache();
         } else {
             // Immediately apply any prices already fetched this session — no flicker for cached items
             _applyPriceBadgesFromCache();
