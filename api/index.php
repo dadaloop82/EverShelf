@@ -6646,7 +6646,8 @@ function getAllShoppingPrices(PDO $db): void {
     $country  = trim($input['country']  ?? env('PRICE_COUNTRY', 'Italia'));
     $currency = trim($input['currency'] ?? env('PRICE_CURRENCY', 'EUR'));
     $lang     = trim($input['lang']     ?? 'it');
-    $forceRefresh = !empty($input['force_refresh']);
+    $forceRefresh = !empty($input['force_refresh']); // re-fetch AI prices (expensive, rarely used)
+    $forceTotal   = !empty($input['force_total']);   // bust only the 5-min total cache (fast)
     $updateMonths = (int)env('PRICE_UPDATE_MONTHS', '3');
 
     if (empty($clientItems)) {
@@ -6696,7 +6697,7 @@ function getAllShoppingPrices(PDO $db): void {
         $items
     )) . $country . $currency);
 
-    if (!$forceRefresh && file_exists($totalCachePath)) {
+    if (!$forceRefresh && !$forceTotal && file_exists($totalCachePath)) {
         $tc = json_decode(file_get_contents($totalCachePath), true) ?? [];
         if (isset($tc[$totalCacheKey]) && (time() - ($tc[$totalCacheKey]['ts'] ?? 0)) < 300) {
             $cached = $tc[$totalCacheKey]['result'];

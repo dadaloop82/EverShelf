@@ -8870,10 +8870,12 @@ async function fetchAllPrices(forceRefresh = false) {
     // the active fetch finishes and re-enables them in its finally block.
     const fetchBtn = document.getElementById('btn-fetch-prices');
     const refreshBtn = document.getElementById('btn-price-refresh');
+    if (_pricesFetching) {
+        // Already running — don't stack calls, just leave the active fetch to finish
+        return;
+    }
     if (fetchBtn) fetchBtn.disabled = true;
     if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '⏳'; }
-
-    if (_pricesFetching) return;
     if (!shoppingItems.length) {
         if (fetchBtn) fetchBtn.disabled = false;
         if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄'; }
@@ -8898,22 +8900,11 @@ async function fetchAllPrices(forceRefresh = false) {
 
     const sym = _currencySymbol(s.price_currency || 'EUR');
 
-    if (forceRefresh) {
-        _cachedPrices = {};
-        try { sessionStorage.removeItem('_pricecache'); sessionStorage.removeItem('_pricetotal'); sessionStorage.removeItem('_pricecachets'); } catch { /* ignore */ }
-        shoppingItems.forEach((_, idx) => {
-            const badge = document.getElementById(`price-badge-${idx}`);
-            if (badge) badge.innerHTML = `<span class="price-col-loading">…</span>`;
-        });
-        if (totalEl) totalEl.textContent = t('shopping.price_loading');
-        if (loadingBar) loadingBar.style.display = 'block';
-        if (loadingInner) { loadingInner.style.transition = 'none'; loadingInner.style.width = '5%'; }
-    } else {
-        // Show cached prices instantly while the server call is in flight
-        _applyPriceBadgesFromCache();
-        if (loadingBar) loadingBar.style.display = 'block';
-        if (loadingInner) { loadingInner.style.transition = 'none'; loadingInner.style.width = '5%'; }
-    }
+    // Show cached badges instantly while the server call is in flight
+    _applyPriceBadgesFromCache();
+    if (totalEl && forceRefresh) totalEl.textContent = t('shopping.price_loading');
+    if (loadingBar) loadingBar.style.display = 'block';
+    if (loadingInner) { loadingInner.style.transition = 'none'; loadingInner.style.width = '5%'; }
 
     const lang     = s.language    || 'it';
     const country  = s.price_country  || 'Italia';
@@ -8927,7 +8918,10 @@ async function fetchAllPrices(forceRefresh = false) {
         const data = await api('get_all_shopping_prices', {}, 'POST', {
             items: itemsPayload,
             country, currency, lang,
-            force_refresh: forceRefresh,
+            // force_refresh=true only busts the 5-min total cache on the server;
+            // it never re-fetches AI prices (3-month per-item cache stays intact)
+            force_total: forceRefresh,
+            force_refresh: false,
         });
 
         if (data && data.success) {
