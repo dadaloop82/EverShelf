@@ -16,6 +16,9 @@ function getDB(): PDO {
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec("PRAGMA journal_mode=WAL");
     $db->exec("PRAGMA foreign_keys=ON");
+    $db->exec("PRAGMA synchronous=NORMAL");    // faster writes, still safe with WAL
+    $db->exec("PRAGMA cache_size=-8000");      // ~8 MB page cache (was 2 MB)
+    $db->exec("PRAGMA temp_store=MEMORY");     // temp tables in RAM
     
     if ($isNew) {
         initializeDB($db);

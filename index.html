@@ -630,6 +630,17 @@
 
             <!-- Tab panel: Da comprare -->
             <div id="tab-panel-acquisto" class="tab-panel-shopping active">
+                <!-- Price summary bar (shown when prices are enabled) -->
+                <div id="shopping-price-bar" style="display:none">
+                    <div class="shopping-price-total-row">
+                        <span class="price-total-label" data-i18n="shopping.price_total_label">💰 Spesa stimata:</span>
+                        <span class="price-total-value" id="price-total-value">–</span>
+                        <button class="btn-price-refresh" id="btn-price-refresh" onclick="fetchAllPrices(false)" title="Aggiorna prezzi">🔄</button>
+                    </div>
+                    <div id="price-loading-bar" style="display:none" class="price-loading-bar">
+                        <div class="price-loading-inner"></div>
+                    </div>
+                </div>
                 <div class="shopping-current" id="shopping-current" style="display:none">
                     <div class="shopping-section-header">
                         <h3 data-i18n="shopping.section_to_buy">🛍️ Da comprare</h3>
@@ -651,10 +662,13 @@
                 </div>
                 <div class="shopping-actions">
                     <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest" data-i18n="shopping.suggest_btn">
-                        🤖 Suggerisci cosa comprare
+                        Suggerisci cosa comprare
                     </button>
                     <button class="btn btn-secondary" onclick="forceSyncBring()" style="margin-top:4px" data-i18n="shopping.force_sync">
                         🔄 Forza sincronizzazione Bring!
+                    </button>
+                    <button class="btn btn-secondary" id="btn-fetch-prices" onclick="fetchAllPrices(false)" style="margin-top:4px;display:none" data-i18n="shopping.btn_fetch_prices">
+                        Cerca i prezzi
                     </button>
                 </div>
             </div>
@@ -783,6 +797,67 @@
                         <label>🔒 Password Bring!</label>
                         <input type="password" id="setting-bring-password" class="form-input" placeholder="Password">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-bring-password')">👁️ Mostra/Nascondi</button>
+                    </div>
+                </div>
+                <!-- Price Estimation Settings -->
+                <div class="settings-card" style="margin-top:12px">
+                    <h4 data-i18n="settings.price.title">💰 Stima Prezzi (AI)</h4>
+                    <p class="settings-hint" data-i18n="settings.price.hint">Mostra il costo stimato di ogni prodotto nella lista della spesa usando l'AI.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.price.enabled_label">Attiva stima prezzi</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-price-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="price-settings-sub" style="display:none">
+                        <div class="form-group">
+                            <label data-i18n="settings.price.country_label">🌍 Paese di riferimento</label>
+                            <select id="setting-price-country" class="form-input" onchange="onPriceCountryChange()">
+                                <option value="Italia">🇮🇹 Italia</option>
+                                <option value="USA">🇺🇸 USA</option>
+                                <option value="Germany">🇩🇪 Germania</option>
+                                <option value="France">🇫🇷 Francia</option>
+                                <option value="Spain">🇪🇸 Spagna</option>
+                                <option value="UK">🇬🇧 Regno Unito</option>
+                                <option value="Switzerland">🇨🇭 Svizzera</option>
+                                <option value="Austria">🇦🇹 Austria</option>
+                                <option value="Netherlands">🇳🇱 Olanda</option>
+                                <option value="Belgium">🇧🇪 Belgio</option>
+                                <option value="Canada">🇨🇦 Canada</option>
+                                <option value="Australia">🇦🇺 Australia</option>
+                                <option value="Brazil">🇧🇷 Brasile</option>
+                                <option value="Japan">🇯🇵 Giappone</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="settings.price.currency_label">💱 Valuta</label>
+                            <select id="setting-price-currency" class="form-input">
+                                <option value="EUR">€ Euro (EUR)</option>
+                                <option value="USD">$ Dollaro USA (USD)</option>
+                                <option value="GBP">£ Sterlina (GBP)</option>
+                                <option value="CHF">CHF Franco Svizzero</option>
+                                <option value="CAD">CA$ Dollaro Canadese</option>
+                                <option value="AUD">A$ Dollaro Australiano</option>
+                                <option value="BRL">R$ Real Brasiliano</option>
+                                <option value="JPY">¥ Yen Giapponese</option>
+                                <option value="SEK">kr Corona Svedese</option>
+                                <option value="NOK">kr Corona Norvegese</option>
+                                <option value="DKK">kr Corona Danese</option>
+                                <option value="PLN">zł Zloty Polacco</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="settings.price.update_label">🔄 Aggiorna prezzi ogni</label>
+                            <div class="qty-control">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-price-update-months', -1, 1, 24)">−</button>
+                                <input type="number" id="setting-price-update-months" value="3" min="1" max="24" class="qty-input">
+                                <button type="button" class="qty-btn" onclick="adjustQty('setting-price-update-months', 1, 1, 24)">+</button>
+                            </div>
+                            <span class="settings-hint" style="display:inline;margin-left:8px" data-i18n="settings.price.update_suffix">mesi</span>
+                        </div>
                     </div>
                 </div>
             </div>

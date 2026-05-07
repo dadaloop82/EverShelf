@@ -162,7 +162,8 @@
         "label_quantity": "📦 Quantity",
         "label_added": "📅 Added",
         "empty_text": "No products here.<br>Scan a product to add it!",
-        "empty_db": "No products in the database.<br>Scan a product to get started!"
+        "empty_db": "No products in the database.<br>Scan a product to get started!",
+        "qty_trace": "< 1"
     },
     "scan": {
         "title": "Scan Product",
@@ -345,7 +346,7 @@
         "suggestions_title": "💡 AI Suggestions",
         "suggestions_add": "✅ Add selected to Bring!",
         "search_prices": "🔍 Search all prices",
-        "suggest_btn": "🤖 Suggest what to buy",
+        "suggest_btn": "Suggest what to buy",
         "smart_title": "🧠 Smart Predictions",
         "smart_empty": "No predictions available.<br>Add products to your pantry to receive smart predictions.",
         "smart_filter_all": "All",
@@ -417,6 +418,10 @@
         "savings_offers": "· 🏷️ You save €{amount} with offers",
         "searching_progress": "Searching {current}/{total}...",
         "remove_error": "Removal error",
+        "btn_fetch_prices": "Find prices",
+        "price_total_label": "💰 Estimated total:",
+        "price_loading": "Looking up prices…",
+        "price_not_found": "price n/a",
         "suggest_loading": "Analyzing...",
         "suggest_error": "Suggestion generation error",
         "priority_high": "High",
@@ -508,6 +513,15 @@
             "hint": "Credentials for the Bring! shopping list integration.",
             "email_label": "📧 Bring! Email",
             "password_label": "🔒 Bring! Password"
+        },
+        "price": {
+            "title": "💰 Price Estimation (AI)",
+            "hint": "Show estimated cost per product in the shopping list using AI.",
+            "enabled_label": "Enable price estimation",
+            "country_label": "🌍 Reference country",
+            "currency_label": "💱 Currency",
+            "update_label": "🔄 Refresh prices every",
+            "update_suffix": "months"
         },
         "recipe": {
             "title": "🍳 Recipe Preferences",
@@ -907,6 +921,7 @@
     },
     "meal_plan": {
         "reset_success": "Weekly plan reset",
+        "not_available": "not available in pantry",
         "suggested_by": "suggested by weekly plan"
     },
     "kiosk_session": {

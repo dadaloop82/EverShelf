@@ -16,6 +16,7 @@
 define('_GH_TK_ENC', '23580718460c2c444031290243627e7971622b29030a3e4d50001e45261659420b6e110a423f30447133205b425a577971561f32762b0b034e0b3e56106d5945020406254a3a4647592a1a611c66687a0b672043700f34757900014004');
 define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
 define('GH_REPO',    'dadaloop82/EverShelf');
+define('PRICE_CACHE_PATH', __DIR__ . '/../data/shopping_price_cache.json');
 
 /** Decode the XOR-obfuscated GitHub token at runtime. */
 function _ghToken(): string {
@@ -408,6 +409,14 @@ try {
 
         case 'gemini_anomaly_explain':
             geminiAnomalyExplain();
+            break;
+
+        case 'get_shopping_price':
+            getShoppingPrice($db);
+            break;
+
+        case 'get_all_shopping_prices':
+            getAllShoppingPrices($db);
             break;
 
         default:
@@ -1213,17 +1222,19 @@ function useFromInventory(PDO $db): void {
         $stmt = $db->prepare("UPDATE inventory SET quantity = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$existing['id']]);
     } else {
-        // Check if item is now opened (first use reduces quantity)
+        // Check if item is now opened (first use creates a fractional/partial package)
         $wasOpened = !empty($existing['opened_at']);
         $isNowOpened = false;
         $unit = $prodInfo['unit'] ?? 'pz';
         $defQty = (float)($prodInfo['default_quantity'] ?? 0);
         if ($unit === 'conf') {
-            $w = floor($newQty + 0.001);
-            $f = round($newQty - $w, 6);
+            // Opened = a fractional (non-integer) quantity remains
+            $f = round($newQty - floor($newQty + 0.001), 6);
             if ($f > 0.001) $isNowOpened = true;
-        } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0 && $newQty < $defQty - 0.001) {
-            $isNowOpened = true;
+        } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0) {
+            // Opened = remaining qty is not a clean multiple of the package size
+            $pkgRem = round($newQty - floor($newQty / $defQty + 0.001) * $defQty, 6);
+            if ($pkgRem > $defQty * 0.01) $isNowOpened = true;
         }
 
         if ($isNowOpened && !$wasOpened) {
@@ -1238,8 +1249,45 @@ function useFromInventory(PDO $db): void {
             if (!empty($existing['expiry_date']) && strtotime($existing['expiry_date']) < strtotime($openedExpiry)) {
                 $openedExpiry = $existing['expiry_date'];
             }
-            $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-            $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
+
+            // Split opened portion from sealed packages into two separate rows:
+            // closed packages stay at original location, opened portion is offered to move.
+            if ($unit === 'conf') {
+                $newWhole = (int)floor($newQty + 0.001);
+                $newFrac  = round($newQty - $newWhole, 6);
+                if ($newFrac > 0.001 && $newWhole >= 1) {
+                    // Keep whole confs in original row (no opened_at, sealed expiry unchanged)
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt->execute([$newWhole, $existing['id']]);
+                    // New row for the opened fraction with short shelf-life expiry
+                    $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
+                    $stmt->execute([$productId, $location, $newFrac, $openedExpiry, $vacuum]);
+                    $openedId = (int)$db->lastInsertId();
+                } else {
+                    // Only the opened fraction remains (≤ 1 conf) — single row
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
+                }
+            } elseif (in_array($unit, ['g','kg','ml','l']) && $defQty > 0) {
+                $newWholePkgs  = (int)floor($newQty / $defQty + 0.001);
+                $newRemainder  = round($newQty - $newWholePkgs * $defQty, 6);
+                if ($newRemainder > $defQty * 0.01 && $newWholePkgs >= 1) {
+                    // Keep whole packages in original row (no opened_at, sealed expiry unchanged)
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt->execute([$newWholePkgs * $defQty, $existing['id']]);
+                    // New row for the opened partial package with short shelf-life expiry
+                    $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
+                    $stmt->execute([$productId, $location, $newRemainder, $openedExpiry, $vacuum]);
+                    $openedId = (int)$db->lastInsertId();
+                } else {
+                    // Only the opened remainder (last package) — single row
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
+                }
+            } else {
+                $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = CURRENT_TIMESTAMP, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                $stmt->execute([$newQty, $openedExpiry, $existing['id']]);
+            }
         } else {
             $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$newQty, $existing['id']]);
@@ -1260,12 +1308,16 @@ function useFromInventory(PDO $db): void {
     
     $remaining = $newQty;
     
-    // Check if opened part remains (for non-split path)
-    if ($remaining > 0 && $prodInfo && $prodInfo['unit'] === 'conf') {
-        $w = floor($remaining + 0.001);
-        $f = round($remaining - $w, 6);
-        if ($f > 0.001) {
-            $openedId = (int)$existing['id'];
+    // Check if opened part remains (for non-split path, only when not already set by split above)
+    if ($openedId === null && $remaining > 0 && $prodInfo) {
+        $unitFb  = $prodInfo['unit'] ?? '';
+        $defQtyFb = (float)($prodInfo['default_quantity'] ?? 0);
+        if ($unitFb === 'conf') {
+            $f = round($remaining - floor($remaining + 0.001), 6);
+            if ($f > 0.001) $openedId = (int)$existing['id'];
+        } elseif (in_array($unitFb, ['g','kg','ml','l']) && $defQtyFb > 0) {
+            $pkgRemFb = round($remaining - floor($remaining / $defQtyFb + 0.001) * $defQtyFb, 6);
+            if ($pkgRemFb > $defQtyFb * 0.01) $openedId = (int)$existing['id'];
         }
     }
     
@@ -1772,7 +1824,7 @@ function getStats(PDO $db): void {
             }
             // Compute opened shelf-life using AI (with rule-based fallback + persistent cache).
             // The vacuum-sealed multiplier is already handled inside getOpenedShelfLifeDays.
-            $openedDays    = getOpenedShelfLifeDays($item['name'], $item['category'], $item['location'], (bool)$vacuum);
+            $openedDays    = getOpenedShelfLifeDays($item['name'], $item['category'], $item['location'], (bool)$vacuum, false);
             $computedExpiry = strtotime($item['opened_at']) + $openedDays * 86400;
             // Always respect the manufacturer date: if the package expires before our estimate,
             // use the manufacturer date (e.g., milk opened 2 days before its sealed expiry).
@@ -2079,6 +2131,10 @@ function getServerSettings(): void {
         'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
         'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
+        'price_enabled' => env('PRICE_ENABLED', 'false') === 'true',
+        'price_country' => env('PRICE_COUNTRY', 'Italia'),
+        'price_currency' => env('PRICE_CURRENCY', 'EUR'),
+        'price_update_months' => (int)env('PRICE_UPDATE_MONTHS', '3'),
     ]);
 }
 
@@ -2112,6 +2168,8 @@ function saveSettings(): void {
         'camera_facing'   => 'CAMERA_FACING',
         'dietary'         => 'DIETARY',
         'scale_gateway_url' => 'SCALE_GATEWAY_URL',
+        'price_country'     => 'PRICE_COUNTRY',
+        'price_currency'    => 'PRICE_CURRENCY',
     ];
     // Boolean keys
     $boolMap = [
@@ -2125,11 +2183,13 @@ function saveSettings(): void {
         'scale_enabled'   => 'SCALE_ENABLED',
         'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
+        'price_enabled' => 'PRICE_ENABLED',
     ];
     // Integer keys
     $intMap = [
         'default_persons'    => 'DEFAULT_PERSONS',
         'screensaver_timeout' => 'SCREENSAVER_TIMEOUT',
+        'price_update_months' => 'PRICE_UPDATE_MONTHS',
     ];
 
     foreach ($keyMap as $inKey => $envKey) {
@@ -2266,14 +2326,19 @@ function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 3
  * Falls back to the rule-based estimate if AI is unavailable or returns an unusable answer.
  * Cache has no expiry — shelf-life science doesn't change; the file can be manually deleted to refresh.
  */
-function getOpenedShelfLifeDays(string $name, string $category, string $location, bool $vacuumSealed = false): int {
+function getOpenedShelfLifeDays(string $name, string $category, string $location, bool $vacuumSealed = false, bool $allowAI = true): int {
     $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
     $cacheKey  = md5(mb_strtolower($name) . '|' . mb_strtolower($location));
 
-    // Load cache
-    $cache = [];
-    if (file_exists($cacheFile)) {
-        $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+    // Static in-memory cache: the file is read only ONCE per PHP request,
+    // even when this function is called for many items in a loop (e.g. getStats).
+    static $cache = null;
+    static $cacheDirty = false;
+    if ($cache === null) {
+        $cache = [];
+        if (file_exists($cacheFile)) {
+            $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+        }
     }
 
     if (isset($cache[$cacheKey]['days'])) {
@@ -2281,10 +2346,10 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
         return $vacuumSealed ? (int)round($days * 1.5) : $days;
     }
 
-    // Try Gemini AI
+    // Try Gemini AI (only when explicitly allowed — NOT during bulk stats loops)
     $apiKey = env('GEMINI_API_KEY');
     $days   = 0;
-    if (!empty($apiKey)) {
+    if ($allowAI && !empty($apiKey)) {
         $locLabel = match($location) {
             'frigo'   => 'refrigerator (4 °C / 39 °F)',
             'freezer' => 'freezer (-18 °C / 0 °F)',
@@ -2324,8 +2389,10 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
         $source = 'ai';
     }
 
-    // Persist to cache
+    // Persist to in-memory cache (file will be flushed at end of request via register_shutdown_function)
     $cache[$cacheKey] = ['days' => $days, 'source' => $source, 'name' => $name, 'location' => $location, 'ts' => time()];
+    $cacheDirty = true;
+    // Write immediately so single-item requests (opened_shelf_life action) are persisted
     @file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
     return $vacuumSealed ? (int)round($days * 1.5) : $days;
@@ -3045,7 +3112,7 @@ function generateRecipe(PDO $db): void {
     
     $extraRulesText = '';
     if (!empty($extraRules)) {
-        $extraRulesText = "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules);
+        $extraRulesText = "\n\n⚠️ PREFERENZE OBBLIGATORIE (RISPETTALE SEMPRE, non sono suggerimenti):\n" . implode("\n", array_map(fn($r) => "→ $r", $extraRules));
     }
     
     // Appliances
@@ -3189,7 +3256,7 @@ You are an expert home chef. Generate ONE recipe for $mealLabel for $persons per
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
 2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
-3. Quantità per $persons persona/e. Se un ingrediente ha poca quantità, usalo TUTTO.
+3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 180g/pers, pesce 200g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 200g/pers, formaggio 80g/pers, latte 200ml/pers, farina per dolci 200g/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
@@ -3722,7 +3789,7 @@ You are an expert home chef. Generate ONE recipe for $mealLabel for $persons per
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
 2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
-3. Quantità per $persons persona/e. Se un ingrediente ha poca quantità, usalo TUTTO.
+3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 180g/pers, pesce 200g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 200g/pers, formaggio 80g/pers, latte 200ml/pers, farina per dolci 200g/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0.
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
@@ -5378,13 +5445,19 @@ function smartShopping(PDO $db): void {
             $need14 = $dailyRate * 14;
 
             if ($unit === 'conf') {
-                // dailyRate already in conf/day
-                $suggestedQty   = (int) max(1, min(20, (int)($need14 + 0.3)));
+                // Guard against unit mismatch: transactions may have been recorded in g/ml
+                // (e.g. product unit was changed from 'g' to 'conf' after initial tracking).
+                // If totalUsed is much larger than buy_count (e.g. 900 vs 4), it's clearly grams.
+                // In that case fall back to purchase-frequency as the daily rate.
+                if ($buyCount > 0 && $totalUsed > $buyCount * 5 && $daysSinceFirst < 999) {
+                    $need14 = ($buyCount / $daysSinceFirst) * 14;
+                }
+                $suggestedQty   = (int) max(1, min(10, (int)($need14 + 0.3)));
                 $suggestedUnit  = 'conf';
 
             } elseif ($pkgUnit !== '' && $defQty > 0) {
                 // Real package info available → express in confezioni (definitive)
-                $pkgs           = (int) max(1, min(20, (int)($need14 / $defQty + 0.3)));
+                $pkgs           = (int) max(1, min(10, (int)($need14 / $defQty + 0.3)));
                 $suggestedQty   = $pkgs;
                 $suggestedUnit  = 'conf';
 
@@ -5393,7 +5466,7 @@ function smartShopping(PDO $db): void {
                 // use defQty as the minimum purchase unit and round to nearest multiple.
                 // This ensures we never suggest less than one "reference pack".
                 $pkgs           = (int) max(1, (int)($need14 / $defQty + 0.3));
-                $pkgs           = min(20, $pkgs);
+                $pkgs           = min(10, $pkgs);
                 $suggestedQty   = $pkgs * (int)$defQty;
                 $suggestedUnit  = $unit;
                 $suggestedApprox = true; // always "almeno" — no confirmed pkg size
@@ -5416,7 +5489,7 @@ function smartShopping(PDO $db): void {
 
             } elseif ($unit === 'pz') {
                 // No package info → raw pz count, approximate
-                $suggestedQty    = (int) max(1, min(20, (int)($need14 + 0.3)));
+                $suggestedQty    = (int) max(1, min(10, (int)($need14 + 0.3)));
                 $suggestedUnit   = 'pz';
                 $suggestedApprox = ($suggestedQty > 1);
             }
@@ -6389,3 +6462,328 @@ function geminiAnomalyExplain(): void {
 
     echo json_encode(['success' => true, 'explanation' => $explanation]);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOPPING LIST PRICE ESTIMATION (AI-powered, cached)
+// ─────────────────────────────────────────────────────────────────────────────
+// Note: PRICE_CACHE_PATH constant is defined at the top of the file.
+
+function _loadPriceCache(): array {
+    if (!file_exists(PRICE_CACHE_PATH)) return [];
+    try { return json_decode(file_get_contents(PRICE_CACHE_PATH), true) ?? []; } catch (\Throwable $e) { return []; }
+}
+
+function _savePriceCache(array $data): void {
+    file_put_contents(PRICE_CACHE_PATH, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+/**
+ * Return cache key: md5(lowercase name + country + schema version)
+ * Bump version suffix when AI prompt format changes to auto-invalidate old entries.
+ */
+function _priceKey(string $name, string $country): string {
+    return md5(mb_strtolower(trim($name)) . '|' . mb_strtolower(trim($country)) . '|v2');
+}
+
+/**
+ * Ask Gemini for the estimated retail price per unit (kg, l, pz as appropriate)
+ * for a product in a given country/currency. Returns an array:
+ * { price_per_unit, unit_label, currency, source_note } or null on failure.
+ */
+function _fetchPriceFromAI(string $name, string $country, string $currency, string $lang): ?array {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) return null;
+
+    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+
+    $prompt = <<<PROMPT
+You are a grocery price assistant. Estimate the typical retail price for "{$name}" in {$country}, currency {$currency}.
+
+Return the price for the MOST NATURAL RETAIL UNIT — that is, the smallest standard unit a shopper would actually buy:
+- Products in standard packages (pasta, flour, frozen food, yogurt, canned goods): price per typical package (e.g. "pacco 500g", "barattolo 400g", "confezione")
+- Products sold by the piece or bunch (fresh herbs, eggs, individual fruits/vegetables, single portions): price per piece/bunch (e.g. "mazzo", "uovo", "pz")
+- Liquids in bottles or cartons: price per typical container (e.g. "bottiglia 1L", "brick 1L")
+- Deli counter items sold loose by weight (prosciutto, salami, fresh fish): price per kg
+
+Rules:
+1. Use mid-range supermarket prices (not premium, not discount).
+2. Round to 2 decimal places.
+3. NEVER return per-kg for items normally sold in packages or by the piece.
+4. Respond ONLY with valid JSON — no markdown, no explanation:
+{"price_per_unit": 1.50, "unit_label": "mazzo", "currency": "{$currency}", "source_note": "Basilico fresco ~€1.50/mazzo in {$country}"}
+
+If truly unknown, return: {"price_per_unit": null, "unit_label": null, "currency": "{$currency}", "source_note": "prezzo non disponibile"}
+PROMPT;
+
+    $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
+    $result  = callGeminiWithFallback($apiKey, $payload, 20);
+
+    if ($result['http_code'] !== 200) return null;
+
+    $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
+    $text = preg_replace('/^```json\s*/i', '', $text);
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $data = json_decode(trim($text), true);
+
+    if (!$data || !isset($data['price_per_unit'])) return null;
+    return $data;
+}
+
+/**
+ * GET /api/?action=get_shopping_price
+ * POST body: { name, quantity, unit, default_quantity, package_unit, country, currency, lang, force_refresh }
+ *
+ * Returns: { success, name, price_per_unit, unit_label, currency, estimated_total, estimated_total_label, cached_at, source_note }
+ */
+function getShoppingPrice(PDO $db): void {
+    $input   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $name    = trim($input['name']             ?? '');
+    $qty     = (float)($input['quantity']      ?? 1);
+    $unit    = trim($input['unit']             ?? 'pz');
+    $defQty  = (float)($input['default_quantity'] ?? 0);
+    $pkgUnit = trim($input['package_unit']     ?? '');
+    $country = trim($input['country']          ?? env('PRICE_COUNTRY', 'Italia'));
+    $currency= trim($input['currency']         ?? env('PRICE_CURRENCY', 'EUR'));
+    $lang    = trim($input['lang']             ?? 'it');
+    $forceRefresh = !empty($input['force_refresh']);
+    $updateMonths = (int)env('PRICE_UPDATE_MONTHS', '3');
+
+    if (empty($name)) {
+        echo json_encode(['success' => false, 'error' => 'missing name']);
+        return;
+    }
+
+    $cache = _loadPriceCache();
+    $key   = _priceKey($name, $country);
+    $now   = time();
+    $maxAge = $updateMonths * 30 * 86400;
+
+    // Use cache if fresh
+    if (!$forceRefresh && isset($cache[$key])) {
+        $entry = $cache[$key];
+        $age = $now - ($entry['cached_at'] ?? 0);
+        if ($age < $maxAge) {
+            $entry['success'] = true;
+            $entry['from_cache'] = true;
+            $entry['estimated_total'] = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $qty, $unit, $defQty, $pkgUnit);
+            $entry['estimated_total_label'] = _formatPrice($entry['estimated_total'], $currency);
+            echo json_encode($entry);
+            return;
+        }
+    }
+
+    $priceData = _fetchPriceFromAI($name, $country, $currency, $lang);
+    if (!$priceData || $priceData['price_per_unit'] === null) {
+        echo json_encode(['success' => false, 'error' => 'price_not_found', 'name' => $name]);
+        return;
+    }
+
+    $entry = [
+        'name'          => $name,
+        'price_per_unit'=> (float)$priceData['price_per_unit'],
+        'unit_label'    => $priceData['unit_label'] ?? 'kg',
+        'currency'      => $currency,
+        'source_note'   => $priceData['source_note'] ?? '',
+        'country'       => $country,
+        'cached_at'     => $now,
+    ];
+    $cache[$key] = $entry;
+    _savePriceCache($cache);
+
+    $entry['success']               = true;
+    $entry['from_cache']            = false;
+    $entry['estimated_total']       = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'], $qty, $unit, $defQty, $pkgUnit);
+    $entry['estimated_total_label'] = _formatPrice($entry['estimated_total'], $currency);
+    echo json_encode($entry);
+}
+
+/**
+ * GET /api/?action=get_all_shopping_prices
+ * POST body: { items: [{name, quantity, unit, default_quantity, package_unit}], country, currency, lang, force_refresh }
+ *
+ * Returns: { success, prices: { name → priceEntry }, total, total_label }
+ */
+function getAllShoppingPrices(PDO $db): void {
+    $input   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $items   = $input['items']     ?? [];
+    $country = trim($input['country']  ?? env('PRICE_COUNTRY', 'Italia'));
+    $currency= trim($input['currency'] ?? env('PRICE_CURRENCY', 'EUR'));
+    $lang    = trim($input['lang']     ?? 'it');
+    $forceRefresh = !empty($input['force_refresh']);
+    $updateMonths = (int)env('PRICE_UPDATE_MONTHS', '3');
+
+    if (empty($items)) {
+        echo json_encode(['success' => true, 'prices' => [], 'total' => 0, 'total_label' => _formatPrice(0, $currency)]);
+        return;
+    }
+
+    $cache  = _loadPriceCache();
+    $now    = time();
+    $maxAge = $updateMonths * 30 * 86400;
+    $prices = [];
+    $total  = 0.0;
+    $missing = [];
+
+    // First pass: serve from cache
+    foreach ($items as $item) {
+        $name    = trim($item['name']             ?? '');
+        $qty     = (float)($item['quantity']      ?? 1);
+        $unit    = trim($item['unit']             ?? 'pz');
+        $defQty  = (float)($item['default_quantity'] ?? 0);
+        $pkgUnit = trim($item['package_unit']     ?? '');
+        if (empty($name)) continue;
+
+        $key = _priceKey($name, $country);
+        if (!$forceRefresh && isset($cache[$key])) {
+            $age = $now - ($cache[$key]['cached_at'] ?? 0);
+            if ($age < $maxAge) {
+                $entry = $cache[$key];
+                $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $qty, $unit, $defQty, $pkgUnit);
+                $prices[$name] = array_merge($entry, [
+                    'estimated_total' => $est,
+                    'estimated_total_label' => _formatPrice($est, $currency),
+                    'from_cache' => true,
+                ]);
+                $total += $est ?? 0;
+                continue;
+            }
+        }
+        $missing[] = $item;
+    }
+
+    // Second pass: fetch missing from AI (sequential to avoid rate limits)
+    foreach ($missing as $item) {
+        $name    = trim($item['name']             ?? '');
+        $qty     = (float)($item['quantity']      ?? 1);
+        $unit    = trim($item['unit']             ?? 'pz');
+        $defQty  = (float)($item['default_quantity'] ?? 0);
+        $pkgUnit = trim($item['package_unit']     ?? '');
+        $key     = _priceKey($name, $country);
+
+        $priceData = _fetchPriceFromAI($name, $country, $currency, $lang);
+        if ($priceData && $priceData['price_per_unit'] !== null) {
+            $entry = [
+                'name'          => $name,
+                'price_per_unit'=> (float)$priceData['price_per_unit'],
+                'unit_label'    => $priceData['unit_label'] ?? 'kg',
+                'currency'      => $currency,
+                'source_note'   => $priceData['source_note'] ?? '',
+                'country'       => $country,
+                'cached_at'     => $now,
+            ];
+            $cache[$key] = $entry;
+            $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'], $qty, $unit, $defQty, $pkgUnit);
+            $prices[$name] = array_merge($entry, [
+                'estimated_total' => $est,
+                'estimated_total_label' => _formatPrice($est, $currency),
+                'from_cache' => false,
+            ]);
+            $total += $est ?? 0;
+        } else {
+            $prices[$name] = ['name' => $name, 'error' => 'not_found', 'estimated_total' => null];
+        }
+    }
+
+    _savePriceCache($cache);
+
+    $total = round($total, 2);
+    echo json_encode([
+        'success'     => true,
+        'prices'      => $prices,
+        'total'       => $total,
+        'total_label' => _formatPrice($total, $currency),
+    ]);
+}
+
+/**
+ * Calculate estimated cost for a shopping item given price_per_unit and the item's quantity/unit.
+ * Price unit: kg, l, pz/unit
+ */
+function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float $qty, string $unit, float $defQty, string $pkgUnit): ?float {
+    if ($pricePerUnit <= 0) return null;
+
+    $label = strtolower(trim($priceUnitLabel));
+
+    // ── Weight-based price (per kg) ───────────────────────────────────────────
+    // Only exact 'kg' triggers weight conversion; retail-unit labels like
+    // "pacco 500g" or "mazzo" fall through to the countable path below.
+    if ($label === 'kg') {
+        $weightKg = 0.0;
+        if ($unit === 'conf' && $defQty > 0 && !empty($pkgUnit)) {
+            $sub = strtolower($pkgUnit);
+            if ($sub === 'g')  $weightKg = $qty * $defQty / 1000.0;
+            elseif ($sub === 'kg') $weightKg = $qty * $defQty;
+            // unknown sub-unit: can't convert → return null
+        } elseif ($unit === 'g')  {
+            $weightKg = $qty / 1000.0;
+        } elseif ($unit === 'kg') {
+            $weightKg = $qty;
+        }
+        // pz / conf without defQty → we don't know the weight → no total
+        if ($weightKg <= 0) return null;
+        return round($pricePerUnit * $weightKg, 2);
+    }
+
+    // ── Volume-based price (per liter) ────────────────────────────────────────
+    if (in_array($label, ['l', 'lt', 'litre', 'liter', 'litro'])) {
+        $volumeL = 0.0;
+        if ($unit === 'conf' && $defQty > 0 && !empty($pkgUnit)) {
+            $sub = strtolower($pkgUnit);
+            if ($sub === 'ml') $volumeL = $qty * $defQty / 1000.0;
+            elseif ($sub === 'l') $volumeL = $qty * $defQty;
+        } elseif ($unit === 'ml') {
+            $volumeL = $qty / 1000.0;
+        } elseif ($unit === 'l') {
+            $volumeL = $qty;
+        }
+        if ($volumeL <= 0) return null;
+        return round($pricePerUnit * $volumeL, 2);
+    }
+
+    // ── Countable retail unit (mazzo, pacco, barattolo, pz, conf, …) ─────────
+    // price_per_unit is already the price for ONE retail unit.
+    //
+    // Special case: shopping qty is in g/ml but price is per-package.
+    // We must convert grams→packages so we don't multiply 100×€2.75=€275.
+    if (in_array(strtolower($unit), ['g', 'ml'])) {
+        $pkgWeight = 0.0;
+        // 1) Use defQty if package unit matches (e.g. defQty=250, pkgUnit='g', unit='g')
+        if ($defQty > 0 && !empty($pkgUnit) && strtolower($pkgUnit) === strtolower($unit)) {
+            $pkgWeight = $defQty;
+        }
+        // 2) Extract weight from label: "confezione 250g", "vasetto 125ml", "pacco 500g"
+        if ($pkgWeight <= 0) {
+            if (preg_match('/\b(\d+(?:[.,]\d+)?)\s*(g|ml)\b/i', $priceUnitLabel, $m)) {
+                if (strtolower($m[2]) === strtolower($unit)) {
+                    $pkgWeight = (float)str_replace(',', '.', $m[1]);
+                }
+            }
+        }
+        // 3) Also try defQty alone (no pkgUnit set but defQty likely in same unit)
+        if ($pkgWeight <= 0 && $defQty > 0) {
+            $pkgWeight = $defQty;
+        }
+        if ($pkgWeight > 0) {
+            $packages = (int) max(1, ceil($qty / $pkgWeight));
+            return round($pricePerUnit * $packages, 2);
+        }
+        // No conversion possible → return single-unit price (1 package minimum)
+        return round($pricePerUnit, 2);
+    }
+
+    $buyQty = max(1.0, $qty);
+    return round($pricePerUnit * $buyQty, 2);
+}
+
+function _formatPrice(float $amount, string $currency): string {
+    $sym = match(strtoupper($currency)) {
+        'EUR' => '€', 'USD' => '$', 'GBP' => '£', 'CHF' => 'CHF',
+        'JPY' => '¥', 'CNY' => '¥', 'CAD' => 'CA$', 'AUD' => 'A$',
+        'BRL' => 'R$', 'RUB' => '₽', 'INR' => '₹', 'MXN' => '$',
+        'SEK' => 'kr', 'NOK' => 'kr', 'DKK' => 'kr', 'PLN' => 'zł',
+        'CZK' => 'Kč', 'HUF' => 'Ft', 'RON' => 'lei',
+        default => $currency,
+    };
+    return $sym . number_format($amount, 2, '.', '');
+}
+
