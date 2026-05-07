@@ -30,6 +30,7 @@
 
 ## 🌍 Recent Updates
 
+- **AI price estimation for shopping list** — Each Bring! shopping item now shows an estimated retail price badge (unit price + total). Prices are fetched via Gemini AI, cached server-side for 3 months, and stored client-side in `sessionStorage` to survive navigation. The dashboard shopping stat card shows a live green `ca. €X.XX` badge that updates in real-time as prices are calculated — even in background when you're on another tab.
 - **Kiosk v1.7.0: OTA update system** — "Cerca aggiornamenti" button in Settings triggers a forced GitHub release check; new `installUpdate()` JS bridge calls Android `DownloadManager` directly (lockTask mode blocks external browser links); graceful degradation for older APKs with manual instructions. Automatic OTA check every 6 hours with native update banner.
 - **Kiosk: consistent APK signing** — Project keystore (`evershelf.jks`) committed to the repo; every build — local or CI — now produces an APK with the same signature, eliminating "APK incompatible / signature conflict" errors on OTA update.
 - **GitHub Actions: auto-publish kiosk APK** — On every push to `main` that touches `evershelf-kiosk/`, Actions builds the APK and publishes a versioned semver release (`kiosk-X.Y.Z`) plus updates the `kiosk-latest` alias. No more manual release uploads.

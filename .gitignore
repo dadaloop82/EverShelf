@@ -11,6 +11,11 @@ data/cron.log
 data/smart_shopping_cache.json
 data/bring_token.json
 data/bring_catalog.json
+data/bring_migrate_ts.json
+data/shopping_price_cache.json
+data/anomaly_dismissed.json
+data/opened_shelf_cache.json
+data/shopping_name_cache.json
 data/client_debug.log
 data/rate_limits/
 

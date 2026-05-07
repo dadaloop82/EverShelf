@@ -294,7 +294,9 @@ body {
 .scale-icon-emoji {
     font-size: 20px;
     line-height: 1;
-    transition: filter 0.3s, opacity 0.3s;
+    /* Force white icon regardless of connection status — only the dot changes color */
+    filter: brightness(0) invert(1);
+    opacity: 0.9;
 }
 .scale-status-dot {
     position: absolute;
@@ -310,13 +312,10 @@ body {
 }
 /* Connected: white fill + bright-green border ring — clearly visible on any dark/green bg */
 .scale-status-connected    .scale-status-dot { background: #ffffff; border-color: #4ade80; box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 0 8px #4ade80cc, 0 0 2px #fff; }
-.scale-status-connected    .scale-icon-emoji  { filter: none; opacity: 1; }
 .scale-status-searching    .scale-status-dot { background: #f59e0b; border-color: rgba(0,0,0,0.35); animation: scaleStatusPulse 1.4s infinite; }
-.scale-status-searching    .scale-icon-emoji  { filter: none; opacity: 0.85; }
 .scale-status-disconnected .scale-status-dot { background: #64748b; border-color: rgba(0,0,0,0.35); }
-.scale-status-disconnected .scale-icon-emoji  { filter: grayscale(0.5); opacity: 0.55; }
+.scale-status-disconnected .scale-icon-emoji  { opacity: 0.55; }
 .scale-status-error        .scale-status-dot { background: #ef4444; border-color: rgba(0,0,0,0.35); box-shadow: 0 0 5px #ef4444aa; }
-.scale-status-error        .scale-icon-emoji  { filter: none; opacity: 1; }
 @keyframes scaleStatusPulse {
     0%, 100% { box-shadow: 0 0 3px #f59e0b88; }
     50%       { box-shadow: 0 0 9px #f59e0bcc; }
@@ -515,6 +514,24 @@ body {
     font-size: 2rem;
     font-weight: 800;
     color: var(--primary);
+}
+
+/* Skeleton shimmer while stat card data is loading */
+@keyframes stat-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.stat-value.stat-loading {
+    color: transparent !important;
+    background: linear-gradient(90deg, var(--border) 25%, color-mix(in srgb, var(--border) 40%, white) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: stat-shimmer 1.2s ease-in-out infinite;
+    border-radius: 8px;
+    min-width: 40px;
+    min-height: 2.4rem;
+    display: inline-block;
+    vertical-align: middle;
+    user-select: none;
 }
 
 .stat-label {
@@ -1862,6 +1879,121 @@ body {
 .badge-local-tag { background: #e0f2fe; color: #0369a1; cursor: pointer; }
 .badge-local-tag:hover { background: #bae6fd; }
 
+/* ─── Shopping price badge ─── */
+.shopping-item-price-badge {
+    margin-top: 4px;
+    min-height: 1.2rem;
+}
+.price-badge-value {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #15803d;
+    background: #dcfce7;
+    border-radius: 8px;
+    padding: 1px 7px;
+    white-space: nowrap;
+}
+.price-badge-loading {
+    display: inline-block;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-style: italic;
+}
+.price-badge-error {
+    display: inline-block;
+    font-size: 0.65rem;
+    color: #94a3b8;
+}
+
+/* ─── Price column — right-side per-item price display ─── */
+.shopping-item-price-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 58px;
+    text-align: right;
+    padding: 0 4px;
+}
+.price-col-main {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #15803d;
+    white-space: nowrap;
+    line-height: 1.25;
+}
+.price-col-unit {
+    font-size: 0.62rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+.price-col-loading {
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    font-style: italic;
+}
+.price-col-error {
+    font-size: 0.75rem;
+    color: #cbd5e1;
+}
+
+/* ─── Price summary bar (top of shopping tab) ─── */
+.shopping-price-total-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 4px;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border-radius: 10px;
+    margin: 8px 0 4px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #166534;
+    box-shadow: 0 1px 4px rgba(21,128,61,0.08);
+}
+.price-total-label {
+    flex: 1;
+}
+.price-total-value {
+    font-size: 1rem;
+    font-weight: 700;
+}
+.btn-price-refresh {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+.btn-price-refresh:hover { background: rgba(0,0,0,0.07); }
+.btn-price-refresh:disabled { opacity: 0.5; cursor: default; }
+
+/* Loading progress bar */
+.price-loading-bar {
+    height: 3px;
+    background: #dcfce7;
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 12px 6px;
+}
+.price-loading-inner {
+    height: 100%;
+    width: 0%;
+    background: #16a34a;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+@keyframes price-sweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+}
+
 /* Tag add button */
 .shopping-item-tag-btn {
     background: none;
@@ -2194,6 +2326,11 @@ body {
     background: #ecfdf5;
     color: #059669;
 }
+.priority-ai {
+    background: #f0f4ff;
+    color: #4338ca;
+    font-style: italic;
+}
 
 .suggestion-actions {
     margin-top: 12px;
@@ -2389,6 +2526,18 @@ body {
     color: #15803d;
 }
 
+.smart-freq-badge.freq-suggest {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-weight: 600;
+}
+.smart-freq-badge.freq-suggest-approx {
+    background: #f0f9ff;
+    color: #0284c7;
+    font-weight: 500;
+    font-style: italic;
+}
+
 .smart-pred-badge {
     background: #fefce8;
     color: #a16207;
@@ -2459,6 +2608,19 @@ body {
     padding: 1px 5px;
     border-radius: 8px;
     line-height: 1.3;
+}
+.stat-price-total {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: #dcfce7;
+    color: #15803d;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    line-height: 1.3;
+    white-space: nowrap;
 }
 
 /* ===== PRODUCT PREVIEW ===== */
@@ -4915,6 +5077,12 @@ body.cooking-mode-active .app-header {
 }
 .banner-anomaly .alert-banner-title { color: #9a3412; }
 .banner-anomaly .alert-banner-counter .banner-dot.active { background: #ea580c; }
+.alert-banner.banner-no-expiry {
+    background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%);
+    border-color: #16a34a;
+}
+.banner-no-expiry .alert-banner-title { color: #14532d; }
+.banner-no-expiry .alert-banner-counter .banner-dot.active { background: #16a34a; }
 .alert-banner-inner {
     display: flex;
     align-items: flex-start;

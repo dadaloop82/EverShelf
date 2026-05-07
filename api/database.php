@@ -16,6 +16,9 @@ function getDB(): PDO {
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec("PRAGMA journal_mode=WAL");
     $db->exec("PRAGMA foreign_keys=ON");
+    $db->exec("PRAGMA synchronous=NORMAL");    // faster writes, still safe with WAL
+    $db->exec("PRAGMA cache_size=-8000");      // ~8 MB page cache (was 2 MB)
+    $db->exec("PRAGMA temp_store=MEMORY");     // temp tables in RAM
     
     if ($isNew) {
         initializeDB($db);
@@ -308,7 +311,12 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
         if (preg_match('/\bpane\b/', $n)) return 4;
         // Specific jarred tomato sauce in pantry (opened, not refrigerated)
         if (preg_match('/salsa\s+di\s+(pomodoro|pronta)/', $n)) return 5;
-        return 60; // generic pantry fallback (was 30, doubled)
+        // Dairy opened outside fridge: bad very quickly at room temperature
+        if (preg_match('/\bpanna\b/', $n)) return 3;
+        if (preg_match('/\b(yogurt|yaourt|yoghurt)\b/', $n)) return 2;
+        if (preg_match('/\blatte\b/', $n)) return 1;
+        if (preg_match('/\bformaggio\b/', $n)) return 2;
+        return 60; // generic pantry fallback
     }
 
     // ── F: Fridge — short-life perishables ──────────────────────────────
@@ -317,7 +325,7 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
     // Long-life mountain/brand milks stored in pantry before use (UHT)
     if (preg_match('/latte.*(montagna|alta\s+qual|parmalat|granarolo|esselunga|conservaz|microfiltrat)/i', $n)) return 7;
     if (preg_match('/\blatte\b/', $n)) return 4;
-    if (preg_match('/\byogurt\b/', $n)) return 5;
+    if (preg_match('/\b(yogurt|yaourt|yoghurt)\b/', $n)) return 5;
     if (preg_match('/mozzarella|burrata|stracciatella/', $n)) return 3;
     if (preg_match('/philadelphia|spalmabile/', $n)) return 7;
     if (preg_match('/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/', $n)) return 5;

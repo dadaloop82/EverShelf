@@ -84,7 +84,7 @@
         "opened_title": "📦 Prodotti Aperti",
         "review_title": "🔍 Da revisionare",
         "review_hint": "Quantità che sembrano anomale. Conferma se corrette o modifica.",
-        "quick_recipe": "🍳 Ricetta veloce con prodotti in scadenza",
+        "quick_recipe": "Ricetta veloce con prodotti in scadenza",
         "banner_review_title": "Quantità anomala",
         "banner_review_action_ok": "È corretto",
         "banner_review_action_finish": "🗑️ È finito tutto",
@@ -104,6 +104,11 @@
         "banner_expired_action_edit": "Correggi data",
         "banner_anomaly_action_edit": "Correggi inventario",
         "banner_anomaly_action_dismiss": "La quantità è giusta",
+        "banner_no_expiry_title": "Scadenza mancante: {name}",
+        "banner_no_expiry_detail": "Questo prodotto non ha una data di scadenza. Vuoi aggiungerla o confermare che non scade?",
+        "banner_no_expiry_action_set": "Imposta scadenza",
+        "banner_no_expiry_action_dismiss": "Non scade ✓",
+        "banner_no_expiry_toast_dismissed": "Segnato come 'non scade'",
         "banner_expiring_title": "In scadenza",
         "banner_expiring_today": "Scade oggi!",
         "banner_expiring_tomorrow": "Scade domani",
@@ -157,7 +162,8 @@
         "label_quantity": "📦 Quantità",
         "label_added": "📅 Aggiunto",
         "empty_text": "Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!",
-        "empty_db": "Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!"
+        "empty_db": "Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!",
+        "qty_trace": "< 1"
     },
     "scan": {
         "title": "Scansiona Prodotto",
@@ -340,7 +346,7 @@
         "suggestions_title": "💡 Suggerimenti AI",
         "suggestions_add": "✅ Aggiungi selezionati a Bring!",
         "search_prices": "🔍 Cerca tutti i prezzi",
-        "suggest_btn": "🤖 Suggerisci cosa comprare",
+        "suggest_btn": "Suggerisci cosa comprare",
         "smart_title": "🧠 Previsioni intelligenti",
         "smart_empty": "Nessuna previsione disponibile.<br>Aggiungi prodotti alla dispensa per ricevere previsioni intelligenti.",
         "smart_filter_all": "Tutti",
@@ -357,6 +363,10 @@
         "all_searched": "Tutti i prodotti sono già stati cercati. Usa 🔄 per ricercare singoli.",
         "search_complete": "Ricerca completata: {count} prodotti",
         "removed_sufficient": "🧹 {removed} prodotto/i con scorte sufficienti rimosso/i dalla lista",
+        "suggest_buy": "🛒 Compra: {qty} {unit}",
+        "suggest_buy_approx": "🛒 Almeno: {qty} {unit}",
+        "suggest_buy_tip": "Quantità suggerita in base al consumo degli ultimi 14 giorni",
+        "suggest_buy_approx_tip": "Stima minima basata sul consumo (compra la confezione più vicina)",
         "bring_badge": "🛒 Già su Bring!",
         "add_urgent_toast": "🔴 {n} prodotto/i urgente/i aggiunto/i automaticamente a Bring!",
         "migration_done": "✅ {migrated} aggiornati, {skipped} già ok",
@@ -408,6 +418,10 @@
         "savings_offers": "· 🏷️ Risparmi €{amount} con le offerte",
         "searching_progress": "Cerco {current}/{total}...",
         "remove_error": "Errore nella rimozione",
+        "btn_fetch_prices": "Cerca i prezzi",
+        "price_total_label": "💰 Spesa stimata:",
+        "price_loading": "Ricerca prezzi…",
+        "price_not_found": "prezzo n/d",
         "suggest_loading": "Analisi in corso...",
         "suggest_error": "Errore nella generazione",
         "priority_high": "Alta",
@@ -426,7 +440,7 @@
         "use_data_no_barcode": "✅ Usa dati AI (senza barcode)"
     },
     "log": {
-        "title": "� Storico",
+        "title": "📒 Storico",
         "type_added": "Aggiunto",
         "type_waste": "Buttato",
         "type_used": "Usato",
@@ -499,6 +513,15 @@
             "hint": "Credenziali per l'integrazione con la lista della spesa Bring!",
             "email_label": "📧 Email Bring!",
             "password_label": "🔒 Password Bring!"
+        },
+        "price": {
+            "title": "💰 Stima Prezzi (AI)",
+            "hint": "Mostra il costo stimato di ogni prodotto nella lista della spesa usando l'AI.",
+            "enabled_label": "Attiva stima prezzi",
+            "country_label": "🌍 Paese di riferimento",
+            "currency_label": "💱 Valuta",
+            "update_label": "🔄 Aggiorna prezzi ogni",
+            "update_suffix": "mesi"
         },
         "recipe": {
             "title": "🍳 Preferenze Ricette",
@@ -898,7 +921,8 @@
     },
     "meal_plan": {
         "reset_success": "Piano settimanale ripristinato",
-        "suggested_by": "suggerito dal piano settimanale"
+        "suggested_by": "suggerito dal piano settimanale",
+        "not_available": "non disponibile in dispensa"
     },
     "kiosk_session": {
         "first_item": "Primo prodotto: {name}!",

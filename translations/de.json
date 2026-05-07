@@ -84,7 +84,7 @@
         "opened_title": "📦 Geöffnete Produkte",
         "review_title": "🔍 Zu prüfen",
         "review_hint": "Mengen, die ungewöhnlich erscheinen. Bestätigen oder ändern.",
-        "quick_recipe": "🍳 Schnelles Rezept mit ablaufenden Produkten",
+        "quick_recipe": "Schnelles Rezept mit ablaufenden Produkten",
         "banner_review_title": "Ungewöhnliche Menge",
         "banner_review_action_ok": "Ist korrekt",
         "banner_review_action_finish": "🗑️ Alles aufgebraucht",
@@ -104,6 +104,11 @@
         "banner_expired_action_edit": "Datum korrigieren",
         "banner_anomaly_action_edit": "Bestand korrigieren",
         "banner_anomaly_action_dismiss": "Menge ist korrekt",
+        "banner_no_expiry_title": "Ablaufdatum fehlt: {name}",
+        "banner_no_expiry_detail": "Dieses Produkt hat kein Ablaufdatum. Möchten Sie eines hinzufügen oder bestätigen, dass es nicht verfällt?",
+        "banner_no_expiry_action_set": "Ablaufdatum setzen",
+        "banner_no_expiry_action_dismiss": "Läuft nicht ab ✓",
+        "banner_no_expiry_toast_dismissed": "Als 'läuft nicht ab' markiert",
         "banner_expiring_title": "Bald ablaufend",
         "banner_expiring_today": "Läuft heute ab!",
         "banner_expiring_tomorrow": "Läuft morgen ab",
@@ -130,8 +135,7 @@
         "banner_anomaly_phantom_title": "mehr Bestand als erwartet",
         "banner_anomaly_phantom_detail": "Bestand zeigt {inv_qty} {unit}, aber laut Buchungen solltest du nur {expected_qty} {unit} haben. Hast du Bestand ohne Buchung hinzugefügt?",
         "banner_anomaly_untracked_title": "Anfangsbestand nicht als Eingang gebucht",
-        "banner_anomaly_untracked_detail": "Du hast <strong>{inv_qty} {unit}</strong> im Bestand, aber die gebuchten Abgänge übersteigen die Eingänge — der Anfangsbestand wurde wahrscheinlich nie als \"Eingang\" erfasst. Bitte korrigiere die Menge oder trage die fehlenden Eingänge nach."
-,
+        "banner_anomaly_untracked_detail": "Du hast <strong>{inv_qty} {unit}</strong> im Bestand, aber die gebuchten Abgänge übersteigen die Eingänge — der Anfangsbestand wurde wahrscheinlich nie als \"Eingang\" erfasst. Bitte korrigiere die Menge oder trage die fehlenden Eingänge nach.",
         "banner_anomaly_ghost_title": "weniger Bestand als erwartet",
         "banner_anomaly_ghost_detail": "Laut Buchungen solltest du {expected_qty} {unit} von {name} haben, aber der Bestand zeigt nur {inv_qty} {unit}. Hast du etwas ohne Buchung entnommen?",
         "consumed": "Verbraucht: {n} ({pct}%)",
@@ -158,7 +162,8 @@
         "label_quantity": "📦 Menge",
         "label_added": "📅 Hinzugefügt",
         "empty_text": "Keine Produkte hier.<br>Scanne ein Produkt, um es hinzuzufügen!",
-        "empty_db": "Keine Produkte in der Datenbank.<br>Scanne ein Produkt, um loszulegen!"
+        "empty_db": "Keine Produkte in der Datenbank.<br>Scanne ein Produkt, um loszulegen!",
+        "qty_trace": "< 1"
     },
     "scan": {
         "title": "Produkt scannen",
@@ -341,7 +346,7 @@
         "suggestions_title": "💡 KI-Vorschläge",
         "suggestions_add": "✅ Ausgewählte zu Bring! hinzufügen",
         "search_prices": "🔍 Alle Preise suchen",
-        "suggest_btn": "🤖 Einkaufsvorschläge",
+        "suggest_btn": "Einkaufsvorschläge",
         "smart_title": "🧠 Intelligente Vorhersagen",
         "smart_empty": "Keine Vorhersagen verfügbar.<br>Füge Produkte zur Vorratskammer hinzu, um intelligente Vorhersagen zu erhalten.",
         "smart_filter_all": "Alle",
@@ -357,6 +362,10 @@
         "smart_already": "📊 Intelligenter Einkauf sagt bereits {name} voraus",
         "all_searched": "Alle Produkte wurden bereits gesucht. Nutze 🔄 für einzelne Suchen.",
         "search_complete": "Suche abgeschlossen: {count} Produkte",
+        "suggest_buy": "🛒 Kaufen: {qty} {unit}",
+        "suggest_buy_approx": "🛒 Mindestens: {qty} {unit}",
+        "suggest_buy_tip": "Empfohlene Menge basierend auf dem Verbrauch der letzten 14 Tage",
+        "suggest_buy_approx_tip": "Mindestschätzung basierend auf Verbrauch (nächste Packungsgröße kaufen)",
         "removed_sufficient": "🧹 {removed} Produkt(e) mit ausreichendem Bestand von der Liste entfernt",
         "bring_badge": "🛒 Schon auf Bring!",
         "add_urgent_toast": "🔴 {n} dringende(s) Produkt(e) automatisch zu Bring! hinzugefügt",
@@ -409,6 +418,10 @@
         "savings_offers": "· 🏷️ Du sparst €{amount} mit Angeboten",
         "searching_progress": "Suche {current}/{total}...",
         "remove_error": "Fehler beim Entfernen",
+        "btn_fetch_prices": "Preise suchen",
+        "price_total_label": "💰 Geschätzter Gesamtpreis:",
+        "price_loading": "Preise werden gesucht…",
+        "price_not_found": "Preis n/v",
         "suggest_loading": "Analyse läuft...",
         "suggest_error": "Fehler bei der Vorschlagserstellung",
         "priority_high": "Hoch",
@@ -427,7 +440,7 @@
         "use_data_no_barcode": "✅ KI-Daten verwenden (ohne Barcode)"
     },
     "log": {
-        "title": "� Verlauf",
+        "title": "📒 Verlauf",
         "type_added": "Hinzugefügt",
         "type_waste": "Entsorgt",
         "type_used": "Verwendet",
@@ -500,6 +513,15 @@
             "hint": "Zugangsdaten für die Bring! Einkaufslisten-Integration.",
             "email_label": "📧 Bring! E-Mail",
             "password_label": "🔒 Bring! Passwort"
+        },
+        "price": {
+            "title": "💰 Preisschätzung (KI)",
+            "hint": "Zeigt geschätzte Kosten pro Produkt in der Einkaufsliste mithilfe von KI an.",
+            "enabled_label": "Preisschätzung aktivieren",
+            "country_label": "🌍 Referenzland",
+            "currency_label": "💱 Währung",
+            "update_label": "🔄 Preise aktualisieren alle",
+            "update_suffix": "Monate"
         },
         "recipe": {
             "title": "🍳 Rezept-Einstellungen",
@@ -899,6 +921,7 @@
     },
     "meal_plan": {
         "reset_success": "Wochenplan zurückgesetzt",
+        "not_available": "nicht im Vorrat verfügbar",
         "suggested_by": "vom Wochenplan vorgeschlagen"
     },
     "kiosk_session": {
