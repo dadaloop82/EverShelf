@@ -8742,11 +8742,10 @@ async function forceSyncBring() {
 // ─────────────────────────────────────────────────────────────────
 let _pricesFetching = false;
 /** In-memory price cache: survives list re-renders in the same session */
-// Price cache persisted in sessionStorage — survives SPA navigation, cleared on tab close.
-// Each entry includes _qty/_unit metadata so stale estimated_totals auto-invalidate when qty changes.
-let _cachedPrices = (() => {
-    try { return JSON.parse(sessionStorage.getItem('_pricecache') || '{}'); } catch { return {}; }
-})();
+// Price cache — populated by fetchAllPrices() from the server response.
+// Intentionally NOT pre-loaded from sessionStorage: the server is the single
+// source of truth so every client (phone, tablet, browser) sees the same prices.
+let _cachedPrices = {};
 
 /**
  * Build the items payload for the price API from the current shoppingItems array.
@@ -9203,7 +9202,8 @@ function _updateDashboardPriceTotal() {
     const s = getSettings();
     if (!s.price_enabled) { el.style.display = 'none'; return; }
 
-    // Compute total from cached prices (server is source of truth — entries set by batch call)
+    // Compute total only from prices just received from the server (in _cachedPrices).
+    // No sessionStorage fallback — the server is the single source of truth.
     const sym = _currencySymbol(s.price_currency || 'EUR');
     let total = 0, count = 0;
     for (const item of shoppingItems) {
@@ -9214,14 +9214,11 @@ function _updateDashboardPriceTotal() {
         const text = `ca. ${sym}${total.toFixed(2)}`;
         el.textContent = text;
         el.style.display = '';
+        // Persist only so the screensaver can show it (ephemeral — never used as cache)
         try { sessionStorage.setItem('_pricetotal', text); } catch { /* quota */ }
-        return;
+    } else {
+        el.style.display = 'none';
     }
-
-    // Fallback: restore last known total from sessionStorage
-    const saved = sessionStorage.getItem('_pricetotal');
-    if (saved) { el.textContent = saved; el.style.display = ''; }
-    else el.style.display = 'none';
 }
 
 /**
@@ -9949,33 +9946,14 @@ async function renderShoppingItems() {
         document.getElementById('btn-fetch-prices').style.display = 'inline-flex';
         // Allow a new fetch (re-render may have happened while old fetch was running)
         _pricesFetching = false;
-        // Trust client cache only if a batch call was made recently (< 5 min).
-        // This aligns with the server-side 5-minute total cache and prevents stale
-        // per-item data (from the old approach) from being shown as authoritative.
-        const _cacheTs = parseInt(sessionStorage.getItem('_pricecachets') || '0');
-        const _cacheAge = Date.now() - _cacheTs;
-        const _allCached = _cacheAge < 5 * 60 * 1000 && shoppingItems.length > 0 && shoppingItems.every(item => {
-            const e = _cachedPrices[item.name];
-            return e && e.estimated_total != null;
-        });
-        if (_allCached) {
-            // Server batch was called recently — apply instantly, no new network call
-            const { total: ct, count: cc } = _applyPriceBadgesFromCache();
-            const sym = _currencySymbol(s2.price_currency || 'EUR');
-            const totalEl = document.getElementById('price-total-value');
-            if (totalEl && cc > 0) totalEl.textContent = `ca. ${sym}${ct.toFixed(2)}`;
-            const fetchBtn2 = document.getElementById('btn-fetch-prices');
-            const refreshBtn2 = document.getElementById('btn-price-refresh');
-            if (fetchBtn2) fetchBtn2.disabled = false;
-            if (refreshBtn2) { refreshBtn2.disabled = false; refreshBtn2.textContent = '🔄'; }
-            _updateDashboardPriceTotal();
-        } else if (smartShoppingItems.length === 0 && _smartShoppingLastFetch === 0) {
-            // Smart data hasn't loaded yet — don't trigger fetch now.
-            // The second renderShoppingItems() call (inside loadSmartShopping().then()) will handle prices
-            // once we have real qty/unit data. Just apply whatever is cached silently.
+        if (smartShoppingItems.length === 0 && _smartShoppingLastFetch === 0) {
+            // Smart data hasn't loaded yet — show cached badges silently.
+            // loadSmartShopping().then() will call renderShoppingItems() again with real data.
             _applyPriceBadgesFromCache();
         } else {
-            // Apply any cached prices instantly while batch fetch runs
+            // Always ask the server — it has a 5-min total cache and responds instantly
+            // if data is fresh. This guarantees every client sees the same prices.
+            // Show cached badges instantly while the server call is in flight.
             _applyPriceBadgesFromCache();
             fetchAllPrices(false);
         }
