@@ -12448,6 +12448,7 @@ function activateScreensaver() {
     requestAnimationFrame(() => overlay.classList.add('visible'));
     updateScreensaverClock();
     _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
+    updateScreensaverShopping();
     // Load data and start fact/nutrition rotation
     loadScreensaverData().then(() => {
         _startScreensaverRotation();
@@ -12465,6 +12466,34 @@ function updateScreensaverClock() {
 }
 
 /** Show/hide the planned meal type badge on the screensaver based on current time slot. */
+function updateScreensaverShopping() {
+    const el = document.getElementById('screensaver-shopping');
+    if (!el) return;
+    const s = getSettings();
+    const itemCount = shoppingItems.length;
+    if (itemCount === 0) { el.style.display = 'none'; return; }
+
+    const countCol = `<div class="ss-shop-col">
+        <div class="ss-shop-value">${itemCount}</div>
+        <div class="ss-shop-label">🛒 articoli</div>
+    </div>`;
+
+    let priceCol = '';
+    if (s.price_enabled) {
+        const saved = sessionStorage.getItem('_pricetotal');
+        if (saved) {
+            priceCol = `<div class="ss-shop-sep"></div>
+            <div class="ss-shop-col">
+                <div class="ss-shop-value">${saved.replace('ca. ', '')}</div>
+                <div class="ss-shop-label">💰 spesa stimata</div>
+            </div>`;
+        }
+    }
+
+    el.innerHTML = `<div class="screensaver-shopping-card">${countCol}${priceCol}</div>`;
+    el.style.display = 'block';
+}
+
 function updateScreensaverMealPlan() {
     const el = document.getElementById('screensaver-mealplan');
     if (!el) return;
@@ -12759,35 +12788,28 @@ function generateScreensaverFact() {
         facts.push(() => `In questo mese scadranno ${expiringThisMonth.length} prodotti.`);
     }
 
-    // --- Shopping list facts ---
+    // --- Shopping list facts (skip count/names — already shown in the shopping panel) ---
     if (shop.length > 0) {
-        facts.push(() => `Hai ${shop.length} ${shop.length === 1 ? 'prodotto' : 'prodotti'} nella lista della spesa.`);
-        facts.push(() => {
-            const names = shop.slice(0, 4).map(i => i.name);
-            return `Nella spesa: ${names.join(', ')}${shop.length > 4 ? '...' : ''}`;
-        });
+        const names = shop.slice(0, 3).map(i => i.name).join(', ');
+        const extra = shop.length > 3 ? ` e altri ${shop.length - 3}` : '';
+        facts.push(() => `Metti in lista: ${names}${extra} 🛒`);
     }
     if (shop.length === 0) {
-        facts.push(() => `La lista della spesa è vuota. Tutto a posto!`);
+        facts.push(() => `Lista della spesa vuota. Tutto rifornito! ✅`);
     }
 
     // --- Location-based facts ---
     if (inFrigo.length > 0) {
-        facts.push(() => `Hai ${inFrigo.length} prodotti in frigo.`);
         facts.push(() => {
             const item = rItem(inFrigo);
             return `In frigo c'è: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}.`;
         });
     }
     if (inFreezer.length > 0) {
-        facts.push(() => `Hai ${inFreezer.length} prodotti nel freezer.`);
         facts.push(() => {
             const item = rItem(inFreezer);
             return `Nel freezer c'è: ${item.name}. Non dimenticartelo!`;
         });
-    }
-    if (inDispensa.length > 0) {
-        facts.push(() => `In dispensa ci sono ${inDispensa.length} prodotti.`);
     }
 
     // --- Category-based facts ---
@@ -12834,7 +12856,6 @@ function generateScreensaverFact() {
 
     // --- General inventory facts ---
     if (inv.length > 0) {
-        facts.push(() => `Hai ${totalProducts} prodotti diversi in casa per un totale di ${Math.round(totalItems)} pezzi.`);
         facts.push(() => {
             const item = rItem(inv);
             return `Lo sapevi? Hai ${item.name} in ${LOCATIONS[item.location]?.label || item.location}.`;

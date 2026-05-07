@@ -5767,6 +5767,47 @@ body.cooking-mode-active .app-header {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
+.screensaver-shopping {
+    text-align: center;
+    user-select: none;
+    margin: -8px 0 0;
+}
+.screensaver-shopping-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 20px;
+    padding: 14px 32px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+.ss-shop-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.ss-shop-sep {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,0.18);
+}
+.ss-shop-value {
+    color: rgba(255,255,255,0.92);
+    font-size: 1.9rem;
+    font-weight: 300;
+    letter-spacing: 1px;
+    line-height: 1;
+}
+.ss-shop-label {
+    color: rgba(255,255,255,0.38);
+    font-size: 0.8rem;
+    font-weight: 400;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
 .screensaver-shortcuts {
     position: absolute;
     bottom: max(32px, env(safe-area-inset-bottom, 32px));
