@@ -7736,12 +7736,20 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId) {
 }
 
 async function submitUseAll() {
-    // Gate: show a countdown-confirmation before the destructive use_all call
     const name = currentProduct ? currentProduct.name : '';
     const items0 = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
+
+    // If there are opened packages, show the disambiguation FIRST (before the destructive confirm)
+    const allOpened = items0.filter(_isOpenedInventoryItem);
+    if (allOpened.length >= 1) {
+        _showUseAllDisambiguation(allOpened, items0);
+        return;
+    }
+
+    // No opened packages → standard destructive confirm
     const totalQty = items0.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
     const unit = items0[0]?.unit || 'pz';
-    const qtyStr = formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit);
+    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit));
     _showDestructiveConfirm(
         t('use.use_all_confirm_title') || '✅ Finisci tutto',
         `${t('use.use_all_confirm_msg') || 'Conferma che hai finito tutto il prodotto:'} "${name}" (${qtyStr})`,
@@ -7751,44 +7759,20 @@ async function submitUseAll() {
 }
 
 async function _doSubmitUseAll() {
+    // Called only when there are no opened packages (submitUseAll already handles disambiguation)
     showLoading(true);
     try {
-        const currentLoc = document.getElementById('use-location')?.value || '__all__';
-        const items = _useCurrentItems.filter(i => parseFloat(i.quantity) > 0);
-
-        const allOpened = items.filter(_isOpenedInventoryItem);
-
-        let useLocation;
-
-        if (allOpened.length >= 1) {
-            // One or more opened packages → always ask the user what they mean
-            showLoading(false);
-            _showUseAllDisambiguation(allOpened, items);
-            return;
-        } else {
-            // No opened packages anywhere → finish everything (original behaviour)
-            useLocation = '__all__';
-        }
-
-        const isOpenedFinish = useLocation !== '__all__' && items.some(
-            i => i.location === useLocation && _isOpenedInventoryItem(i)
-        );
-
         const result = await api('inventory_use', {}, 'POST', {
             product_id: currentProduct.id,
             use_all: true,
-            location: useLocation,
+            location: '__all__',
         });
         showLoading(false);
         if (result.success) {
-            const toastMsg = isOpenedFinish
-                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
-                : `📤 ${currentProduct.name} terminato!`;
-            showToast(toastMsg, 'success');
+            showToast(`📤 ${currentProduct.name} terminato!`, 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
             }
-            // Check low stock (product may exist at other locations)
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
             showToast(result.error || 'Errore', 'error');
@@ -7805,23 +7789,23 @@ async function _doSubmitUseAll() {
  */
 function _showUseAllDisambiguation(openedItems, allItems) {
     const contentEl = document.getElementById('modal-content');
+    const name = currentProduct ? currentProduct.name : '';
+
     const locButtons = openedItems.map(item => {
         const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
-        const qtyStr = formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit);
+        const qtyStr = stripHtml(formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit));
         return `<button class="btn btn-warning full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
-            onclick="closeModal(); _submitUseAllAt('${item.location}', true)">
+            onclick="closeModal(); _confirmThenSubmitUseAllAt('${item.location}', true)">
             <span style="font-size:1.3rem">${locInfo.icon}</span>
-            <span><strong>${locInfo.label}</strong> — 🔓 ${t('use.opened_badge')}<br>
-            <small style="opacity:0.8">${qtyStr}</small></span>
+            <span><strong>${escapeHtml(locInfo.label)}</strong> — 🔓 ${t('use.opened_badge')}<br>
+            <small style="opacity:0.8">${escapeHtml(qtyStr)}</small></span>
         </button>`;
     }).join('');
 
     // Option to finish everything
     const totalQty = allItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
     const unit = allItems[0]?.unit || 'pz';
-    const defaultQty = allItems[0]?.default_quantity;
-    const pkgUnit = allItems[0]?.package_unit;
-    const totalStr = formatQuantity(totalQty, unit, defaultQty, pkgUnit);
+    const totalStr = stripHtml(formatQuantity(totalQty, unit, allItems[0]?.default_quantity, allItems[0]?.package_unit));
 
     contentEl.innerHTML = `
         <div class="modal-header">
@@ -7831,11 +7815,31 @@ function _showUseAllDisambiguation(openedItems, allItems) {
         <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${t('use.disambiguation_hint')}</p>
         ${locButtons}
         <button class="btn btn-danger full-width" style="margin-top:4px"
-            onclick="closeModal(); _submitUseAllAt('__all__', false)">
-            🗑️ ${t('use.disambiguation_all').replace('{qty}', totalStr)}
+            onclick="closeModal(); _confirmThenSubmitUseAllAt('__all__', false)">
+            🗑️ ${t('use.disambiguation_all').replace('{qty}', escapeHtml(totalStr))}
         </button>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function _confirmThenSubmitUseAllAt(location, isOpenedOnly) {
+    const name = currentProduct ? currentProduct.name : '';
+    const items = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
+    if (isOpenedOnly) {
+        // Finisce solo la confezione aperta — azione leggera, nessun confirm necessario
+        _submitUseAllAt(location, true);
+        return;
+    }
+    // Finisce tutto — richiede confirm distruttivo
+    const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
+    const unit = items[0]?.unit || 'pz';
+    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
+    _showDestructiveConfirm(
+        t('use.use_all_confirm_title') || '✅ Finisci tutto',
+        `${t('use.use_all_confirm_msg') || 'Conferma che hai finito tutto il prodotto:'} "${name}" (${qtyStr})`,
+        () => _submitUseAllAt('__all__', false),
+        t('use.use_all_confirm_btn') || '✅ Sì, finito'
+    );
 }
 
 async function _submitUseAllAt(location, isOpenedOnly) {
@@ -10319,6 +10323,11 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+function stripHtml(str) {
+    if (!str) return '';
+    return str.replace(/<[^>]*>/g, '');
 }
 
 function formatDate(dateStr) {
