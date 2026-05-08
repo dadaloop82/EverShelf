@@ -94,6 +94,8 @@ class GatewayWebSocketServer(
 
     override fun onError(conn: WebSocket?, ex: Exception) {
         Log.e(TAG, "WebSocket error on ${conn?.remoteSocketAddress}", ex)
+        ErrorReporter.report(ex, "GatewayWebSocketServer.onError",
+            mapOf("remote_addr" to (conn?.remoteSocketAddress?.toString() ?: "null")))
     }
 
     // ─── Publishing API ────────────────────────────────────────────────────────

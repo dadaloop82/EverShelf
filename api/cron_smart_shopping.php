@@ -41,6 +41,9 @@ try {
 
     echo '[' . date('Y-m-d H:i:s') . '] OK — ' . count($decoded['items'] ?? []) . " items cached\n";
 } catch (Throwable $e) {
-    echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $e->getMessage() . "\n";
+    $msg = $e->getMessage();
+    echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $msg . "\n";
+    // Report to GitHub Issues (uses the same _phpErrorReport from index.php)
+    _phpErrorReport($msg, $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
     exit(1);
 }

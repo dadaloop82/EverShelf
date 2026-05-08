@@ -188,6 +188,7 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
     exit;
 }
 
@@ -432,6 +433,7 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
+    _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
 }
 endif; // end !CRON_MODE
 
@@ -1652,6 +1654,7 @@ function undoTransaction(PDO $db): void {
         $db->rollBack();
         http_response_code(500);
         echo json_encode(['error' => 'DB error: ' . $e->getMessage()]);
+        _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
     }
 }
 
