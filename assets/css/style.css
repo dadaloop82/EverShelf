@@ -1924,6 +1924,11 @@ body {
     white-space: nowrap;
     line-height: 1.25;
 }
+.price-col-qty {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: #64748b;
+}
 .price-col-unit {
     font-size: 0.62rem;
     color: #94a3b8;

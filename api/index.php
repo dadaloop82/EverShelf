@@ -6733,6 +6733,8 @@ function getAllShoppingPrices(PDO $db): void {
                     'estimated_total'       => $est,
                     'estimated_total_label' => $est !== null ? _formatPrice($est, $currency) : null,
                     'from_cache'            => true,
+                    '_resolved_qty'         => $qty,
+                    '_resolved_unit'        => $unit,
                 ]);
                 $total += $est ?? 0;
                 continue;
@@ -6775,6 +6777,8 @@ function getAllShoppingPrices(PDO $db): void {
                     'estimated_total'       => $est,
                     'estimated_total_label' => $est !== null ? _formatPrice($est, $currency) : null,
                     'from_cache'            => false,
+                    '_resolved_qty'         => $qty,
+                    '_resolved_unit'        => $unit,
                 ]);
                 $total += $est ?? 0;
             } else {
@@ -6818,34 +6822,36 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
     // "pacco 500g" or "mazzo" fall through to the countable path below.
     if ($label === 'kg') {
         $weightKg = 0.0;
-        if ($unit === 'conf' && $defQty > 0 && !empty($pkgUnit)) {
+        if (($unit === 'conf' || $unit === 'pz') && $defQty > 0 && !empty($pkgUnit)) {
+            // Each conf/pz weighs defQty pkgUnit (e.g. defQty=250, pkgUnit='g')
             $sub = strtolower($pkgUnit);
             if ($sub === 'g')  $weightKg = $qty * $defQty / 1000.0;
             elseif ($sub === 'kg') $weightKg = $qty * $defQty;
-            // unknown sub-unit: can't convert → return null
         } elseif ($unit === 'g')  {
             $weightKg = $qty / 1000.0;
         } elseif ($unit === 'kg') {
             $weightKg = $qty;
         }
-        // pz / conf without defQty → assume 1 unit at price_per_unit (e.g. 1kg of fruit)
-        if ($weightKg <= 0) return round($pricePerUnit, 2);
+        // Cannot convert unit to kg → return null instead of misleadingly using
+        // price_per_unit as total (which would inflate estimates for items like
+        // "3 pz Salame" priced at €21.50/kg, returning €21.50 for just ~300g).
+        if ($weightKg <= 0) return null;
         return round($pricePerUnit * $weightKg, 2);
     }
 
     // ── Volume-based price (per liter) ────────────────────────────────────────
     if (in_array($label, ['l', 'lt', 'litre', 'liter', 'litro'])) {
         $volumeL = 0.0;
-        if ($unit === 'conf' && $defQty > 0 && !empty($pkgUnit)) {
+        if (($unit === 'conf' || $unit === 'pz') && $defQty > 0 && !empty($pkgUnit)) {
             $sub = strtolower($pkgUnit);
             if ($sub === 'ml') $volumeL = $qty * $defQty / 1000.0;
             elseif ($sub === 'l') $volumeL = $qty * $defQty;
         } elseif ($unit === 'ml') {
             $volumeL = $qty / 1000.0;
         } elseif ($unit === 'l') {
-            $volumeL = $qty;
+            $volumeL = $qty; 
         }
-        if ($volumeL <= 0) return round($pricePerUnit, 2);
+        if ($volumeL <= 0) return null;
         return round($pricePerUnit * $volumeL, 2);
     }
 

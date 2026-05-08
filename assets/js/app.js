@@ -8804,8 +8804,14 @@ function _buildPriceBadgeHTML(entry, sym) {
     const unitLine = unitLabel && entry.price_per_unit != null
         ? `${sym}${entry.price_per_unit.toFixed(2)}/${unitLabel}`
         : '';
+    // Show resolved qty so user can verify the computation
+    const resolvedQty  = entry._resolved_qty  ?? null;
+    const resolvedUnit = entry._resolved_unit ?? null;
+    const qtyLine = (resolvedQty != null && resolvedQty !== 1)
+        ? `${resolvedQty}\u202f${resolvedUnit}`
+        : '';
     const title = entry.source_note || '';
-    return `<div class="price-col-main" title="${escapeHtml(title)}">${mainLabel}</div>`
+    return `<div class="price-col-main" title="${escapeHtml(title)}">${mainLabel}${qtyLine ? `<span class=\"price-col-qty\">\u00a0·\u00a0${escapeHtml(qtyLine)}</span>` : ''}</div>`
          + (unitLine ? `<div class="price-col-unit">${unitLine}</div>` : '');
 }
 
@@ -8935,15 +8941,17 @@ async function fetchAllPrices(forceRefresh = false) {
                 const entry = prices[item.name];
                 const badge = document.getElementById(`price-badge-${idx}`);
                 if (entry && !entry.error && entry.estimated_total != null) {
-                    // Store in client cache keyed by whatever qty the server used
+                    // Store with server-resolved qty/unit for correct cache validation
                     _cachedPrices[item.name] = {
                         ...entry,
-                        _qty:  entry._qty  ?? entry.quantity  ?? 1,
-                        _unit: entry._unit ?? entry.unit      ?? 'conf',
+                        _qty:  entry._resolved_qty  ?? 1,
+                        _unit: entry._resolved_unit ?? 'conf',
                     };
                     if (badge) badge.innerHTML = _buildPriceBadgeHTML(entry, sym);
-                } else if (badge) {
-                    badge.innerHTML = `<span class="price-col-error">–</span>`;
+                } else {
+                    // Item has no estimate (unit conversion impossible or not found)
+                    // Keep any old cache entry but don't update badge to stale value
+                    if (badge) badge.innerHTML = `<span class="price-col-error">–</span>`;
                 }
             });
 
