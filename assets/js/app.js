@@ -2500,7 +2500,7 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
             url += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
         });
     }
-    const opts = { method };
+    const opts = { method, cache: 'no-store' };
     if (body) {
         opts.headers = { 'Content-Type': 'application/json', ...extraHeaders };
         opts.body = JSON.stringify(body);
@@ -2598,6 +2598,20 @@ function showPage(pageId, param = null) {
     if (_bannerRefreshTimer) { clearInterval(_bannerRefreshTimer); _bannerRefreshTimer = null; }
     if (pageId === 'dashboard') {
         _bannerRefreshTimer = setInterval(() => loadBannerAlerts(), 5 * 60 * 1000);
+    }
+
+    // Auto-refresh shopping list every 45s while on shopping page so all clients stay in sync
+    if (_shoppingPollTimer) { clearInterval(_shoppingPollTimer); _shoppingPollTimer = null; }
+    if (pageId === 'shopping') {
+        _shoppingPollTimer = setInterval(() => {
+            loadShoppingList._bgCall = true;
+            loadShoppingList();
+            loadSmartShopping().then(() => {
+                _syncOnBringFlags();
+                renderSmartShopping();
+                updateShoppingTabCounts();
+            });
+        }, 45 * 1000);
     }
     
     // Stop scanner when leaving scan page
@@ -3479,6 +3493,7 @@ let _bannerQueue = [];   // array of { type, data } — 'review' or 'prediction'
 let _bannerIndex = 0;
 let _bannerEditPending = false;  // true when editing from banner → dismiss after save
 let _bannerRefreshTimer = null;  // periodic refresh while on dashboard
+let _shoppingPollTimer  = null;  // periodic refresh while on shopping page (multi-client sync)
 
 /**
  * Load suspicious quantities + consumption predictions + expired + expiring soon,
@@ -3726,7 +3741,9 @@ function renderBannerItem() {
                 : t('expiry.expired_suffix');
         titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${expiredSuffix}`;
         const baseDetail = t('dashboard.banner_expired_detail').replace('{when}', daysText).replace('{qty}', qtyDisplay);
-        detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
+        const locationTag = item.location ? ` · <strong>${escapeHtml(item.location)}</strong>` : '';
+        const expiryTag = item.expiry_date ? ` · scade il <strong>${escapeHtml(item.expiry_date)}</strong>` : '';
+        detailEl.innerHTML = `${baseDetail}${locationTag}${expiryTag} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
         let btns = '';
         if (safety.level !== 'danger') {
             btns += `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
@@ -4852,6 +4869,19 @@ async function initScanner() {
     }
 }
 
+// ===== EAN-13 / EAN-8 CHECKSUM VALIDATOR =====
+function validateEANChecksum(code) {
+    const s = String(code).replace(/\D/g, '');
+    if (s.length !== 13 && s.length !== 8) return false;
+    const digits = s.split('').map(Number);
+    const last = digits.pop();
+    const sum = digits.reduce((acc, d, i) => {
+        return acc + d * (s.length === 13 ? (i % 2 === 0 ? 1 : 3) : (i % 2 === 0 ? 3 : 1));
+    }, 0);
+    const check = (10 - (sum % 10)) % 10;
+    return check === last;
+}
+
 // ===== NATIVE BarcodeDetector SCANNER =====
 async function startNativeScanner(videoEl) {
     if (quaggaRunning) return;
@@ -4868,6 +4898,8 @@ async function startNativeScanner(videoEl) {
     let lastDetected = '';
     let detectCount = 0;
     let detectionHistory = {};
+    let quaggaParallelStarted = false;
+    const startTime = Date.now();
     
     scanLog('Native BarcodeDetector started');
     
@@ -4882,6 +4914,15 @@ async function startNativeScanner(videoEl) {
         frameCount++;
         
         if (frameCount === 1) updateFeedback('scanning');
+
+        // After 2s without detection, also start Quagga in parallel as backup
+        if (!quaggaParallelStarted && (Date.now() - startTime) > 2000) {
+            quaggaParallelStarted = true;
+            scanLog('Native: 2s elapsed, spawning Quagga in parallel');
+            quaggaRunning = false; // temporarily release so Quagga can start
+            startQuaggaScanner(videoEl);
+            quaggaRunning = true; // re-take ownership (Quagga will share)
+        }
         
         try {
             const barcodes = await detector.detect(videoEl);
@@ -4903,11 +4944,14 @@ async function startNativeScanner(videoEl) {
                     detectCount = 1;
                 }
                 
-                if (detectCount >= 2 || detectionHistory[code].count >= 2) {
+                // EAN/UPC have built-in checksum — confirm on first hit for speed.
+                // For other formats (code_128, code_39) require 2 to avoid false reads.
+                const highConfidence = ['ean_13','ean_8','upc_a','upc_e'].includes(format);
+                if (highConfidence || detectCount >= 2 || detectionHistory[code].count >= 2) {
                     scanning = false;
                     quaggaRunning = false;
                     updateFeedback(null);
-                    scanLog(`CONFIRMED: ${code} after ${frameCount} frames`);
+                    scanLog(`CONFIRMED: ${code} after ${frameCount} frames (${format})`);
                     onBarcodeDetected(code);
                     return;
                 }
@@ -4949,7 +4993,7 @@ function startQuaggaScanner(videoEl) {
     let detectionHistory = {};
     
     // Alternate between full frame and center-cropped for better detection
-    let scanPass = 0; // 0=full, 1=center-crop, 2=full-enhanced, 3=center-enhanced
+    let scanPass = 0; // 0=full, 1=center-crop
     
     function updateScannerFeedback(state) {
         if (!scannerLine) return;
@@ -4962,12 +5006,13 @@ function startQuaggaScanner(videoEl) {
         const vh = videoEl.videoHeight;
         
         if (pass % 2 === 0) {
-            // Full frame
-            canvas.width = vw;
-            canvas.height = vh;
-            ctx.drawImage(videoEl, 0, 0);
+            // Full frame (scaled down for speed)
+            const scale = 0.75;
+            canvas.width = Math.round(vw * scale);
+            canvas.height = Math.round(vh * scale);
+            ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
         } else {
-            // Center crop: 60% of frame, focused on barcode area
+            // Center crop: 70% wide, 40% tall — focused on barcode area
             const cropW = Math.round(vw * 0.7);
             const cropH = Math.round(vh * 0.4);
             const sx = Math.round((vw - cropW) / 2);
@@ -4977,18 +5022,18 @@ function startQuaggaScanner(videoEl) {
             ctx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
         }
         
-        // Apply enhancement on passes 2,3 or always for front cam
-        if (frontCam || pass >= 2) {
+        // Apply enhancement for front cam or low-light
+        if (frontCam) {
             enhanceCanvasForBarcode(ctx, canvas.width, canvas.height);
         }
         
-        return canvas.toDataURL('image/jpeg', 0.95);
+        return canvas.toDataURL('image/jpeg', 0.85);
     }
     
     function scanFrame() {
         if (!scanning || !scannerStream) return;
         frameCount++;
-        scanPass = (scanPass + 1) % 4;
+        scanPass = (scanPass + 1) % 2;
         
         const dataUrl = getFrameDataUrl(scanPass);
         
@@ -5001,29 +5046,29 @@ function startQuaggaScanner(videoEl) {
         const safetyTimer = setTimeout(() => {
             if (!callbackCalled && scanning) {
                 scanLog(`Quagga timeout on f${frameCount}, retrying...`);
-                setTimeout(scanFrame, 100);
+                setTimeout(scanFrame, 50);
             }
-        }, 5000);
+        }, 2000);
         
         try {
             const imgSize = Math.max(canvas.width, canvas.height);
             Quagga.decodeSingle({
                 src: dataUrl,
                 numOfWorkers: 0,
-                inputStream: { size: Math.min(imgSize, 800) },
+                inputStream: { size: Math.min(imgSize, 640) },
                 decoder: {
                     readers: [
                         'ean_reader',
                         'ean_8_reader',
-                        'code_128_reader',
-                        'code_39_reader',
                         'upc_reader',
-                        'upc_e_reader'
+                        'upc_e_reader',
+                        'code_128_reader',
+                        'code_39_reader'
                     ],
                     multiple: false
                 },
                 locate: true,
-                locator: { patchSize: 'large', halfSample: false }
+                locator: { patchSize: 'medium', halfSample: true }
             }, function(result) {
                 callbackCalled = true;
                 clearTimeout(safetyTimer);
@@ -5047,11 +5092,14 @@ function startQuaggaScanner(videoEl) {
                     }
                     
                     const dominated = detectionHistory[code];
-                    if (detectCount >= 2 || dominated.count >= 2) {
+                    const passName2 = ['full','crop'][scanPass];
+                    // EAN/UPC: confirm on first hit (checksum validated)
+                    const highConf = ['ean_reader','ean_8_reader','upc_reader','upc_e_reader'].includes(format);
+                    if (highConf || detectCount >= 2 || dominated.count >= 2) {
                         scanning = false;
                         quaggaRunning = false;
                         updateScannerFeedback(null);
-                        scanLog(`CONFIRMED: ${code} after ${frameCount} frames (consec:${detectCount}, total:${dominated.count})`);
+                        scanLog(`CONFIRMED: ${code} [${passName2}] f${frameCount} consec:${detectCount} total:${dominated.count}`);
                         onBarcodeDetected(code);
                         return;
                     }
@@ -5060,9 +5108,9 @@ function startQuaggaScanner(videoEl) {
                 }
                 if (scanning) {
                     if (frameCount % 20 === 0) {
-                        scanLog(`Scanning... f${frameCount}, partials: ${partialCount}, pass: ${scanPass}`);
+                        scanLog(`Scanning... f${frameCount}, partials: ${partialCount}`);
                     }
-                    setTimeout(scanFrame, 150);
+                    setTimeout(scanFrame, 60);
                 }
             });
         } catch (e) {
@@ -5073,7 +5121,7 @@ function startQuaggaScanner(videoEl) {
         }
     }
     
-    setTimeout(scanFrame, 500);
+    setTimeout(scanFrame, 200);
 }
 
 // Enhance low-quality camera frames for better barcode recognition
@@ -5244,19 +5292,31 @@ async function onBarcodeDetected(barcode) {
 
 function submitManualBarcode() {
     const input = document.getElementById('manual-barcode-input');
-    const barcode = (input.value || '').trim();
-    if (!barcode) {
-        showToast(t('error.barcode_empty'), 'error');
-        input.focus();
+    autoSubmitEAN(input, true);
+}
+
+// Auto-submit when user finishes typing a valid EAN-13 or EAN-8
+function autoSubmitEAN(inputEl, force = false) {
+    const raw = (inputEl.value || '').replace(/\D/g, '');
+    inputEl.value = raw; // strip non-digits live
+    if (!raw) return;
+    const isComplete = raw.length === 13 || raw.length === 8;
+    const isValid = isComplete && validateEANChecksum(raw);
+    if (isValid) {
+        // Auto-submit on valid EAN
+        stopScanner();
+        onBarcodeDetected(raw);
         return;
     }
-    if (!/^\d{4,14}$/.test(barcode)) {
-        showToast(t('error.barcode_format'), 'error');
-        input.focus();
-        return;
+    if (force) {
+        if (!raw) { showToast(t('error.barcode_empty'), 'error'); inputEl.focus(); return; }
+        if (!/^\d{4,14}$/.test(raw)) { showToast(t('error.barcode_format'), 'error'); inputEl.focus(); return; }
+        if (isComplete && !isValid) {
+            showToast('⚠️ Checksum EAN errato — verifica le cifre', 'warning');
+        }
+        stopScanner();
+        onBarcodeDetected(raw);
     }
-    stopScanner();
-    onBarcodeDetected(barcode);
 }
 
 // ===== QUICK NAME ENTRY (for loose/unpackaged products) =====
@@ -5628,10 +5688,19 @@ async function scanBarcodeForForm() {
         </div>
         <p style="text-align:center;margin-top:12px;color:var(--text-muted);font-size:0.88rem">${t('scanner.barcode_hint')}</p>
         <div style="margin-top:10px;text-align:center">
-            <input type="text" id="pf-bc-manual" class="form-input" placeholder="${t('scanner.barcode_manual_placeholder')}" inputmode="numeric" style="max-width:260px;display:inline-block">
+            <input type="text" id="pf-bc-manual" class="form-input" placeholder="${t('scanner.barcode_manual_placeholder')}" inputmode="numeric" maxlength="14" style="max-width:260px;display:inline-block" oninput="
+                const raw=(this.value||'').replace(/\\D/g,''); this.value=raw;
+                if((raw.length===13||raw.length===8)&&validateEANChecksum(raw)){
+                    stopStream();
+                    document.getElementById('pf-barcode').value=raw;
+                    _updateBarcodeHint();
+                    document.getElementById('modal-overlay').style.display='none';
+                    if(navigator.vibrate)navigator.vibrate(80);
+                }
+            ">
             <button class="btn btn-primary" style="margin-top:8px;width:100%" onclick="
-                const v = document.getElementById('pf-bc-manual').value.trim();
-                if(v){ document.getElementById('pf-barcode').value=v; _updateBarcodeHint(); document.getElementById('modal-overlay').style.display='none'; }
+                const v = (document.getElementById('pf-bc-manual').value||'').replace(/\\D/g,'');
+                if(v){ stopStream(); document.getElementById('pf-barcode').value=v; _updateBarcodeHint(); document.getElementById('modal-overlay').style.display='none'; }
             ">${t('scanner.barcode_use_btn')}</button>
         </div>
     `;
@@ -5660,8 +5729,11 @@ async function scanBarcodeForForm() {
                 const barcodes = await detector.detect(video);
                 if (barcodes.length > 0) {
                     const code = barcodes[0].rawValue;
+                    const fmt = barcodes[0].format;
                     detectionHistory[code] = (detectionHistory[code] || 0) + 1;
-                    if (detectionHistory[code] >= 2) {
+                    // EAN/UPC: confirm immediately (checksum-validated by detector)
+                    const highConf = ['ean_13','ean_8','upc_a','upc_e'].includes(fmt);
+                    if (highConf || detectionHistory[code] >= 2) {
                         scanning = false;
                         stopStream();
                         overlayEl.style.display = 'none';
@@ -7498,6 +7570,67 @@ function _matchBringToSmart(bringName, smartItems) {
     return null;
 }
 
+/**
+ * Show a small auto-dismissing bottom bar asking the user if the opened product
+ * was put under vacuum seal. Auto-confirms after DURATION ms with the default value
+ * (if it was already vacuum sealed → default yes, otherwise → default no).
+ * @param {number} openedId  - inventory row ID of the opened item
+ * @param {number|boolean} wasVacuumSealed - previous vacuum_sealed state (0/1)
+ */
+function _showVacuumPrompt(openedId, wasVacuumSealed) {
+    const DURATION = 8000;
+    const defaultYes = !!wasVacuumSealed;
+
+    const old = document.getElementById('_vacuum-prompt');
+    if (old) old.remove();
+
+    const bar = document.createElement('div');
+    bar.id = '_vacuum-prompt';
+    bar.style.cssText = [
+        'position:fixed', 'bottom:80px', 'left:50%', 'transform:translateX(-50%)',
+        'z-index:9999', 'background:#1e293b', 'color:#fff', 'border-radius:14px',
+        'padding:12px 16px', 'display:flex', 'align-items:center', 'gap:10px',
+        'box-shadow:0 4px 24px rgba(0,0,0,0.5)', 'max-width:360px',
+        'width:calc(100% - 32px)', 'box-sizing:border-box', 'overflow:hidden'
+    ].join(';');
+    bar.innerHTML = `
+        <span style="flex:1;font-size:0.9rem;line-height:1.3">🔒 Messo <b>sotto vuoto</b>?</span>
+        <button id="_vac-yes" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;white-space:nowrap">Sì</button>
+        <button id="_vac-no" style="background:#475569;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;white-space:nowrap">No</button>
+        <div id="_vac-bar" style="position:absolute;bottom:0;left:0;height:3px;background:#60a5fa;border-radius:0;width:100%"></div>
+    `;
+    document.body.appendChild(bar);
+
+    let dismissed = false;
+    let rafH = null;
+    let timerH = null;
+
+    function dismiss(vacuum) {
+        if (dismissed) return;
+        dismissed = true;
+        if (timerH) clearTimeout(timerH);
+        if (rafH) cancelAnimationFrame(rafH);
+        bar.remove();
+        api('inventory_update', {}, 'POST', { id: openedId, vacuum_sealed: vacuum ? 1 : 0 })
+            .then(() => { if (vacuum) showToast('🔒 Sotto vuoto registrato', 'success'); })
+            .catch(() => {});
+    }
+
+    bar.querySelector('#_vac-yes').addEventListener('click', () => dismiss(true));
+    bar.querySelector('#_vac-no').addEventListener('click', () => dismiss(false));
+
+    const barEl = bar.querySelector('#_vac-bar');
+    const start = performance.now();
+    function tick() {
+        if (dismissed) return;
+        const pct = Math.min(100, (performance.now() - start) / DURATION * 100);
+        if (barEl) barEl.style.width = (100 - pct) + '%';
+        if (pct < 100) rafH = requestAnimationFrame(tick);
+    }
+    rafH = requestAnimationFrame(tick);
+    timerH = setTimeout(() => dismiss(defaultYes), DURATION);
+}
+
 function showLowStockBringPrompt(result, afterCallback) {
     const name = result.product_name || currentProduct?.name || '';
     // Generic shopping name (e.g. "Affettato" for "Mortadella IGP"). Falls back to
@@ -7924,8 +8057,17 @@ async function submitUse(e) {
             const moveCallback = result.remaining > 0
                 ? () => showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id)
                 : () => showPage('dashboard');
-            // Check low stock → Bring! prompt
-            showLowStockBringPrompt(result, moveCallback);
+            // Check low stock → Bring! prompt, then vacuum seal prompt if product was opened
+            const afterLowStock = moveCallback;
+            showLowStockBringPrompt(result, afterLowStock);
+            // Show vacuum sealed prompt when some stock remains and it's a container type
+            // (conf/weighted units) or the item was previously vacuum sealed.
+            // Skip for pz "counting" items (e.g. 3 mele → 2 mele: no vacuum concept).
+            const _vacUnit = result.product_unit || currentProduct?.unit || '';
+            const _vacContainer = ['conf','g','kg','ml','l'].includes(_vacUnit) || !!(result.opened_vacuum_sealed);
+            if (result.opened_id && result.remaining > 0 && _vacContainer) {
+                setTimeout(() => _showVacuumPrompt(result.opened_id, result.opened_vacuum_sealed ?? 0), 600);
+            }
         } else if (result.duplicate) {
             // Silently ignore: this was a scale double-trigger, not a real error
         } else {
@@ -8995,90 +9137,100 @@ async function fetchAllPrices(forceRefresh = false) {
  * Items not matching any DB product are left untouched (likely manually added by user).
  */
 async function cleanupObsoleteBringItems() {
-    // Run at most once every 30 minutes
+    // Rate-limit: run at most once every 3 minutes
     const lastCleanup = parseInt(localStorage.getItem('_bringCleanupTs') || '0');
-    if (Date.now() - lastCleanup < 30 * 60 * 1000) return;
+    if (Date.now() - lastCleanup < 3 * 60 * 1000) return;
     localStorage.setItem('_bringCleanupTs', String(Date.now()));
     if (!shoppingItems.length || !smartShoppingItems.length) return;
 
-    // Load live inventory (has actual quantities unlike products_list)
+    // Detect items added by the app vs manually by the user.
+    // Items added by the app always have urgency markers in their spec (⚡ / 🟠 / 🛒).
+    // This detection works across ALL clients — no localStorage dependency.
+    const APP_SPEC_MARKERS = ['⚡', '🟠', '🛒'];
+    const isAppAdded = (item) => {
+        const spec = item.specification || '';
+        // Also trust the legacy localStorage list as secondary signal
+        const autoAdded = _getAutoAddedBring();
+        const nameLow = item.name.toLowerCase();
+        const hasMarker = APP_SPEC_MARKERS.some(m => spec.includes(m));
+        const inLegacyMap = !!(autoAdded[nameLow] ||
+            Object.keys(autoAdded).some(k => _nameTokens(k)[0] === (_nameTokens(item.name)[0] || '')));
+        return hasMarker || inLegacyMap;
+    };
+
+    // Build shopping_name family → total stock from smart_shopping (server already computed this)
+    // If smart says a family is NOT needed, it already excluded them.
+    const smartShoppingNames = new Set(
+        smartShoppingItems.flatMap(si => [
+            si.name?.toLowerCase(),
+            si.shopping_name?.toLowerCase()
+        ].filter(Boolean))
+    );
+    const smartShoppingFirstToks = new Map();
+    for (const si of smartShoppingItems) {
+        for (const tok of _nameTokens(si.name || '')) {
+            if (!smartShoppingFirstToks.has(tok)) smartShoppingFirstToks.set(tok, si);
+        }
+        if (si.shopping_name) {
+            for (const tok of _nameTokens(si.shopping_name)) {
+                if (!smartShoppingFirstToks.has(tok)) smartShoppingFirstToks.set(tok, si);
+            }
+        }
+    }
+
+    // Load live inventory from server for stock check
     let invItems = [];
     try {
         const res = await api('inventory_list');
         invItems = res.inventory || [];
     } catch (e) { return; }
 
-    // Build: every significant token of in-stock products → total qty
-    // Any-token matching groups product families:
-    // 'Passata di pomodoro' + 'Polpa di pomodoro' share 'pomodoro' → same need
-    const stockByAnyToken = new Map();
+    // stock by any token (name) + by shopping_name
+    const stockByTok = new Map();
+    const stockBySName = new Map();
     for (const inv of invItems) {
         const qty = parseFloat(inv.quantity || 0);
-        if (qty <= 0) continue;
+        const expiry = inv.expiry_date;
+        const expired = expiry && new Date(expiry) < new Date();
+        if (qty <= 0 || expired) continue;
         for (const tok of _nameTokens(inv.name || '')) {
-            stockByAnyToken.set(tok, (stockByAnyToken.get(tok) || 0) + qty);
+            stockByTok.set(tok, (stockByTok.get(tok) || 0) + qty);
         }
+        const sn = (inv.shopping_name || '').toLowerCase().trim();
+        if (sn) stockBySName.set(sn, (stockBySName.get(sn) || 0) + qty);
     }
-
-    // Build: first token of smart item name → smart item
-    const smartByFirstToken = new Map();
-    for (const si of smartShoppingItems) {
-        const first = _nameTokens(si.name)[0];
-        if (first && !smartByFirstToken.has(first)) smartByFirstToken.set(first, si);
-        // Also index shopping_name first token
-        if (si.shopping_name) {
-            const sFirst = _nameTokens(si.shopping_name)[0];
-            if (sFirst && !smartByFirstToken.has(sFirst)) smartByFirstToken.set(sFirst, si);
-        }
-    }
-
-    // User-pinned: items manually added via any path — never auto-remove
-    let userPinned;
-    try {
-        const raw = localStorage.getItem('_userPinnedBring');
-        const map = raw ? JSON.parse(raw) : {};
-        const now = Date.now();
-        let changed = false;
-        for (const k of Object.keys(map)) {
-            if (now - map[k] > 30 * 24 * 60 * 60 * 1000) { delete map[k]; changed = true; }
-        }
-        if (changed) localStorage.setItem('_userPinnedBring', JSON.stringify(map));
-        userPinned = map;
-    } catch(e) { userPinned = {}; }
-
-    // Auto-added set: only items the app itself auto-added are candidates for cleanup
-    const autoAdded = _getAutoAddedBring();
 
     const toRemove = [];
     for (const item of shoppingItems) {
         const nameLower = item.name.toLowerCase();
-        const itemFirst = _nameTokens(item.name)[0];
+        const itemToks = _nameTokens(item.name);
+        const itemFirst = itemToks[0];
 
-        // Safety: only clean up items the app auto-added — NEVER remove manually-added ones
-        const isAutoAdded = !!(autoAdded[nameLower] ||
-            (itemFirst && Object.keys(autoAdded).some(k => _nameTokens(k)[0] === itemFirst)));
-        if (!isAutoAdded) continue;
+        // Only remove items the app put there
+        if (!isAppAdded(item)) continue;
 
-        // User explicitly pinned this item → skip
-        if (userPinned[nameLower]) continue;
+        // Find matching smart item
+        const smartSi = itemFirst ? smartShoppingFirstToks.get(itemFirst) : undefined;
 
-        // Find smart item by first-token match (strict — avoids "latte" matching "latte di soia")
-        const smartSi = itemFirst ? smartByFirstToken.get(itemFirst) : undefined;
-
-        // Smart still considers this critical or high urgency → keep it on the list
+        // Smart still flags this as critical or high → keep it
         if (smartSi && (smartSi.urgency === 'critical' || smartSi.urgency === 'high')) continue;
-
-        // Out of stock → the user still needs to buy it, keep it
+        // Smart says medium AND low stock → keep it
+        if (smartSi && smartSi.urgency === 'medium' && (smartSi.pct_left ?? 100) < 60) continue;
+        // Smart has it with 0 qty → keep it (user genuinely needs it)
         if (smartSi && (smartSi.current_qty ?? 0) <= 0) continue;
 
-        // Smart predicts medium urgency AND stock < 60% → keep it
-        if (smartSi && smartSi.urgency === 'medium' && (smartSi.pct_left ?? 100) < 60) continue;
+        // If the item IS still in smart_shopping (but not urgent) AND has no local stock at all,
+        // give benefit of the doubt and keep it.
+        // If the item is NOT in smart_shopping at all → trust the server: it's covered → remove.
+        if (smartSi) {
+            // Still in smart_shopping (low urgency): verify some stock exists before removing
+            const hasStock = itemToks.some(tok => (stockByTok.get(tok) || 0) > 0)
+                || (stockBySName.get(nameLower) || 0) > 0;
+            if (!hasStock) continue;
+        }
+        // else: not in smart_shopping at all → server decided it's covered → safe to remove
 
-        // Check actual inventory stock for this exact item (first-token match)
-        const stockQty = itemFirst ? (stockByAnyToken.get(itemFirst) || 0) : 0;
-        if (stockQty <= 0) continue; // no related stock → don't remove
-
-        // All guards passed: item is auto-added, stock is sufficient, not urgently needed
+        // All guards passed: app-added and not urgently needed → remove from Bring!
         toRemove.push(item);
     }
 
@@ -9559,19 +9711,15 @@ async function loadShoppingCount() {
             el.classList.remove('stat-loading');
         }
     }
-    // Smart urgency badge: use cached data if fresh (< 2 min), else fetch
-    if (smartShoppingItems.length > 0 && (Date.now() - _smartShoppingLastFetch) < 2 * 60 * 1000) {
-        _updateSmartUrgencyBadge();
-    } else {
-        try {
-            const smart = await api('smart_shopping');
-            if (smart.success && smart.items) {
-                smartShoppingItems = smart.items;
-                _smartShoppingLastFetch = Date.now();
-                _updateSmartUrgencyBadge();
-            }
-        } catch { /* ignore */ }
-    }
+    // Smart urgency badge: always fetch fresh data from server (no browser-side gate)
+    try {
+        const smart = await api('smart_shopping');
+        if (smart.success && smart.items) {
+            smartShoppingItems = smart.items;
+            _smartShoppingLastFetch = Date.now();
+            _updateSmartUrgencyBadge();
+        }
+    } catch { /* ignore */ }
     _updateDashboardPriceTotal();
 }
 

@@ -39,7 +39,33 @@ try {
         throw new RuntimeException('Cannot write cache file: ' . CACHE_FILE);
     }
 
-    echo '[' . date('Y-m-d H:i:s') . '] OK — ' . count($decoded['items'] ?? []) . " items cached\n";
+    $itemCount = count($decoded['items'] ?? []);
+    echo '[' . date('Y-m-d H:i:s') . '] OK — ' . $itemCount . " items cached\n";
+
+    // ── Bring! server-side cleanup ────────────────────────────────────────
+    // After computing smart shopping, automatically remove stale Bring! items
+    // and add/update critical ones. This runs fully server-side every cron cycle.
+    try {
+        $cleanupResult = bringCleanupObsolete($db);
+        if (isset($cleanupResult['skipped'])) {
+            echo '[' . date('Y-m-d H:i:s') . '] Bring! cleanup skipped: ' . $cleanupResult['skipped'] . "\n";
+        } else {
+            echo '[' . date('Y-m-d H:i:s') . '] Bring! cleanup — removed: ' . ($cleanupResult['removed'] ?? 0)
+                . '/' . ($cleanupResult['candidates'] ?? 0) . ' candidates'
+                . ($cleanupResult['errors'] ? ', errors: ' . $cleanupResult['errors'] : '') . "\n";
+        }
+
+        $addResult = bringAutoAddCritical($db);
+        if (isset($addResult['skipped'])) {
+            echo '[' . date('Y-m-d H:i:s') . '] Bring! auto-add skipped: ' . $addResult['skipped'] . "\n";
+        } else {
+            echo '[' . date('Y-m-d H:i:s') . '] Bring! auto-add — added: ' . ($addResult['added'] ?? 0)
+                . ', updated specs: ' . ($addResult['updated'] ?? 0) . "\n";
+        }
+    } catch (Throwable $be) {
+        echo '[' . date('Y-m-d H:i:s') . '] Bring! sync warning: ' . $be->getMessage() . "\n";
+    }
+
 } catch (Throwable $e) {
     $msg = $e->getMessage();
     echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $msg . "\n";
