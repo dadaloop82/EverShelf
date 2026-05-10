@@ -12440,6 +12440,9 @@ async function chatTransferToRecipes(btn, replyText) {
             return;
         }
         const recipe = result.recipe;
+        // Normalize field names: renderRecipe expects `persons`, Gemini might return `servings`
+        if (!recipe.persons && recipe.servings) recipe.persons = recipe.servings;
+        if (!recipe.persons) recipe.persons = 2;
         await saveRecipeToArchive(recipe);
         _cachedRecipe = { meal: recipe.meal || 'pranzo', recipe };
         renderRecipe(recipe);

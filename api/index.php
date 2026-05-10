@@ -3631,7 +3631,7 @@ Convert the recipe text below to a JSON object. Return ONLY the JSON, no markdow
 Fields:
 - title: string
 - meal: one of "colazione","pranzo","cena","dolce","succo" (infer from context, default "pranzo")
-- servings: integer (default 2 if not mentioned)
+- persons: integer (number of servings/people, default 2 if not mentioned)
 - prep_time: string or null
 - cook_time: string or null
 - ingredients: array of {"name":"...","qty":"...","qty_number":0.0,"unit":"g|ml|pz|conf|kg|l","from_pantry":true}
