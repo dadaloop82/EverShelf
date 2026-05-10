@@ -471,7 +471,9 @@
         "suggestion_snack_text": "What can I make for a quick snack?",
         "suggestion_juice_text": "Make me a juice or smoothie with what I have",
         "suggestion_light_text": "I'm hungry but want something light",
-        "suggestion_expiry_text": "What's about to expire and how can I use it?"
+        "suggestion_expiry_text": "What's about to expire and how can I use it?",
+        "use_ingredients_btn": "Use ingredients",
+        "recipe_ingredients_from_pantry": "Ingredients found in pantry"
     },
     "cooking": {
         "close": "Close",

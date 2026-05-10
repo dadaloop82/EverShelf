@@ -471,7 +471,9 @@
         "suggestion_snack_text": "Was kann ich als schnellen Snack machen?",
         "suggestion_juice_text": "Mach mir einen Saft oder Smoothie mit dem was ich habe",
         "suggestion_light_text": "Ich habe Hunger, möchte aber etwas Leichtes",
-        "suggestion_expiry_text": "Was läuft bald ab und wie kann ich es verwenden?"
+        "suggestion_expiry_text": "Was läuft bald ab und wie kann ich es verwenden?",
+        "use_ingredients_btn": "Zutaten verwenden",
+        "recipe_ingredients_from_pantry": "Im Vorratsschrank gefundene Zutaten"
     },
     "cooking": {
         "close": "Schließen",

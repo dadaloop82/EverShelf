@@ -111,7 +111,7 @@ function checkRateLimit(string $action): void {
     }
 
     // Determine limit based on action
-    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping'];
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_extract_recipe'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
     $errorActions = ['report_error', 'check_update'];
@@ -333,6 +333,10 @@ try {
 
         case 'gemini_chat':
             geminiChat($db);
+            break;
+
+        case 'chat_extract_recipe':
+            chatExtractRecipe($db);
             break;
 
         // ===== BRING! SHOPPING LIST =====
@@ -3589,6 +3593,232 @@ PROMPT;
     } else {
         echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
     }
+}
+
+// ===== CHAT: EXTRACT RECIPE INGREDIENTS =====
+function chatExtractRecipe(PDO $db): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $replyText = trim($input['text'] ?? '');
+
+    if (empty($replyText)) {
+        echo json_encode(['success' => false, 'error' => 'empty_text']);
+        return;
+    }
+
+    // Fetch full inventory — same query as generateRecipe
+    $stmt = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+               CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // --- Gemini call: extract ingredient list only (no inventory in prompt → tiny output) ---
+    // The PHP fuzzy-matching below does all the inventory matching, exactly like generateRecipe.
+    $prompt = "Extract all ingredients from the recipe text below.\nReturn ONLY a compact JSON array — no markdown, no extra text.\nEach element: {\"name\":\"...\",\"qty\":\"...\",\"qty_number\":0.0,\"unit\":\"g|ml|pz|conf|kg|l\"}\n\nRECIPE:\n{$replyText}";
+
+    $payload = [
+        'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
+        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 2048]
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 30);
+
+    if ($result['http_code'] !== 200) {
+        echo json_encode(['success' => false, 'error' => $result['data']['error']['message'] ?? 'gemini_error']);
+        return;
+    }
+
+    $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    if (empty($text)) {
+        echo json_encode(['success' => false, 'error' => 'gemini_error']);
+        return;
+    }
+
+    // Strip markdown code fences if present
+    $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+    $text = preg_replace('/\s*```$/i', '', $text);
+    $text = trim($text);
+
+    $ingredients = json_decode($text, true);
+    if (!is_array($ingredients) || empty($ingredients)) {
+        echo json_encode(['success' => false, 'error' => 'parse_error', 'raw' => mb_substr($text, 0, 500)]);
+        return;
+    }
+
+    // Mark all extracted ingredients as from_pantry=true so the enrichment logic tries to match them all
+    foreach ($ingredients as &$ing) {
+        $ing['from_pantry'] = true;
+    }
+    unset($ing);
+
+    // PHP fuzzy-match against full inventory — same logic as generateRecipe
+    _enrichChatIngredients($ingredients, $items);
+
+    // Extract recipe title from the reply text (look for bold title at start)
+    $recipeTitle = '';
+    if (preg_match('/\*\*([^*\n]{3,60})\*\*/u', $replyText, $m)) {
+        $recipeTitle = trim($m[1]);
+    }
+
+    echo json_encode(['success' => true, 'ingredients' => $ingredients, 'title' => $recipeTitle]);
+}
+
+function _enrichChatIngredients(array &$ingredients, array $items): void {
+    if (empty($ingredients) || empty($items)) return;
+
+    // Build lookup
+    $itemsLookup = [];
+    foreach ($items as $item) {
+        $itemsLookup[] = [
+            'item' => $item,
+            'lower' => mb_strtolower(trim($item['name']), 'UTF-8'),
+            'words' => preg_split('/[\s,.\-\/]+/', mb_strtolower(trim($item['name']), 'UTF-8')),
+        ];
+    }
+
+    $aliases = [
+        'uovo' => ['uova','uovo','egg'],
+        'uova' => ['uovo','uova','egg'],
+        'latte' => ['latte','milk'],
+        'formaggio' => ['formaggio','cheese','philadelphia','mozzarella','parmigiano','grana','pecorino','ricotta','mascarpone','stracchino','gorgonzola'],
+        'pasta' => ['pasta','spaghetti','penne','fusilli','rigatoni','farfalle','tagliatelle','linguine','bucatini','orecchiette','paccheri','maccheroni'],
+        'pomodoro' => ['pomodoro','pomodori','tomato','passata','pelati','polpa'],
+        'cipolla' => ['cipolla','cipolle','onion'],
+        'aglio' => ['aglio','garlic'],
+        'burro' => ['burro','butter'],
+        'panna' => ['panna','cream','crema'],
+        'zucchero' => ['zucchero','sugar'],
+        'farina' => ['farina','flour'],
+        'olio' => ['olio','oil'],
+        'patata' => ['patata','patate','potato'],
+        'carota' => ['carota','carote','carrot'],
+        'sedano' => ['sedano','celery'],
+        'prezzemolo' => ['prezzemolo','parsley'],
+        'basilico' => ['basilico','basil'],
+    ];
+
+    foreach ($ingredients as &$ing) {
+        // Try to match ALL ingredients — from_pantry was set to true for all by chatExtractRecipe
+        // If no match is found, product_id stays unset → shown as 🛒 in frontend
+
+        $ingNameLower = mb_strtolower(trim($ing['name']), 'UTF-8');
+        $ingWords = preg_split('/[\s,.\-\/]+/', $ingNameLower);
+        $bestMatch = null;
+        $bestScore = 0;
+
+        foreach ($itemsLookup as $entry) {
+            $itemNameLower = $entry['lower'];
+            $itemWords = $entry['words'];
+            $score = 0;
+
+            if ($ingNameLower === $itemNameLower) {
+                $score = 100;
+            } elseif (mb_strpos($itemNameLower, $ingNameLower) !== false) {
+                $score = 80;
+            } elseif (mb_strpos($ingNameLower, $itemNameLower) !== false) {
+                $score = 70;
+            } else {
+                $expandedIngWords = $ingWords;
+                foreach ($ingWords as $w) {
+                    foreach ($aliases as $key => $group) {
+                        if (in_array($w, $group) || mb_strpos($w, $key) === 0 || mb_strpos($key, $w) === 0) {
+                            $expandedIngWords = array_merge($expandedIngWords, $group);
+                        }
+                    }
+                }
+                $expandedIngWords = array_unique($expandedIngWords);
+                $common = 0;
+                foreach ($expandedIngWords as $ew) {
+                    foreach ($itemWords as $iw) {
+                        $minLen = min(mb_strlen($ew), mb_strlen($iw));
+                        if ($minLen >= 3) {
+                            $prefixLen = 0;
+                            for ($c = 0; $c < $minLen; $c++) {
+                                if (mb_substr($ew, $c, 1) === mb_substr($iw, $c, 1)) $prefixLen++;
+                                else break;
+                            }
+                            if ($prefixLen >= min(4, $minLen)) { $common++; break; }
+                        }
+                        if ($ew === $iw) { $common++; break; }
+                    }
+                }
+                if ($common > 0) {
+                    $score = ($common / max(count($ingWords), 1)) * 65;
+                    if (count($ingWords) > 0) {
+                        foreach ($itemWords as $iw) {
+                            if (mb_strpos($iw, $ingWords[0]) === 0 || mb_strpos($ingWords[0], $iw) === 0) {
+                                $score += 10; break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestMatch = $entry['item'];
+            }
+        }
+
+        if ($bestMatch && $bestScore > 30) {
+            $ing['product_id'] = (int)$bestMatch['product_id'];
+            $ing['location'] = $bestMatch['location'];
+            $ing['inventory_unit'] = $bestMatch['unit'];
+            $ing['inventory_qty'] = (float)$bestMatch['quantity'];
+            $ing['default_quantity'] = (float)($bestMatch['default_quantity'] ?? 0);
+            $ing['package_unit'] = $bestMatch['package_unit'] ?? '';
+            $ing['available_qty'] = $bestMatch['quantity'] . ' ' . $bestMatch['unit'];
+            $ing['vacuum_sealed'] = !empty($bestMatch['vacuum_sealed']) ? 1 : 0;
+            if (!empty($bestMatch['brand'])) $ing['brand'] = $bestMatch['brand'];
+            if (!empty($bestMatch['expiry_date'])) $ing['expiry_date'] = $bestMatch['expiry_date'];
+
+            // Validate and convert qty_number to inventory unit
+            $qtyNum = (float)($ing['qty_number'] ?? 0);
+            $invUnit = $bestMatch['unit'] ?? 'pz';
+            $invQty = (float)$bestMatch['quantity'];
+
+            if ($qtyNum > 0) {
+                $recipeQty = $ing['qty'] ?? '';
+                $recipeUnit = '';
+                $recipeVal = 0;
+                if (preg_match('/(\d+[.,]?\d*)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i', $recipeQty, $qm)) {
+                    $recipeVal = (float)str_replace(',', '.', $qm[1]);
+                    $ru = strtolower($qm[2]);
+                    if (strpos($ru, 'g') === 0) $recipeUnit = 'g';
+                    elseif ($ru === 'kg') { $recipeUnit = 'g'; $recipeVal *= 1000; }
+                    elseif ($ru === 'ml') $recipeUnit = 'ml';
+                    elseif ($ru === 'cl') { $recipeUnit = 'ml'; $recipeVal *= 10; }
+                    elseif ($ru === 'l' || strpos($ru, 'litr') === 0) { $recipeUnit = 'ml'; $recipeVal *= 1000; }
+                    elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
+                    elseif (strpos($ru, 'conf') === 0) $recipeUnit = 'conf';
+                }
+                if ($recipeUnit && $recipeUnit !== $invUnit) {
+                    if ($recipeUnit === 'g' && $invUnit === 'g') $qtyNum = $recipeVal;
+                    elseif ($recipeUnit === 'g' && $invUnit === 'kg') $qtyNum = $recipeVal / 1000;
+                    elseif ($recipeUnit === 'ml' && $invUnit === 'ml') $qtyNum = $recipeVal;
+                    elseif ($recipeUnit === 'ml' && $invUnit === 'l') $qtyNum = $recipeVal / 1000;
+                    elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                        $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                        $qtyNum = $defQty > 0 ? max(0.25, round(($recipeVal / $defQty) * 4) / 4) : max(1, round($recipeVal / 100));
+                    }
+                }
+                if ($qtyNum > $invQty) $qtyNum = $invQty;
+                if ($recipeVal > 0 && $recipeUnit === $invUnit && $qtyNum < $recipeVal * 0.01) $qtyNum = $recipeVal;
+                $ing['qty_number'] = round($qtyNum, 3);
+            }
+        }
+    }
+    unset($ing);
 }
 
 // ===== RECIPE GENERATION — STREAMING AGENT =====
