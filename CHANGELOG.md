@@ -5,6 +5,11 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.8] - 2026-05-10
+
+### Added
+- **Usa ingredienti dalla chat** — Quando la chat con Gemini Chef genera una ricetta, compare il bottone "🥄 Usa ingredienti" sotto la risposta. Premendolo, il backend analizza la ricetta e abbina gli ingredienti all'inventario tramite fuzzy matching (stessa logica della sezione Ricette). Vengono mostrati i pulsanti "📦 Usa" per ogni ingrediente disponibile in dispensa, con posizione e scadenza. Il flusso di scalatura inventario è identico a quello della sezione Ricette.
+
 ## [1.7.7] - 2026-05-10
 
 ### Fixed

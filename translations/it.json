@@ -471,7 +471,9 @@
         "suggestion_snack_text": "Cosa posso preparare per uno spuntino veloce?",
         "suggestion_juice_text": "Fammi un succo o frullato con quello che ho",
         "suggestion_light_text": "Ho fame ma voglio qualcosa di leggero",
-        "suggestion_expiry_text": "Cosa sta per scadere e come posso usarlo?"
+        "suggestion_expiry_text": "Cosa sta per scadere e come posso usarlo?",
+        "use_ingredients_btn": "Usa ingredienti",
+        "recipe_ingredients_from_pantry": "Ingredienti trovati in dispensa"
     },
     "cooking": {
         "close": "Chiudi",

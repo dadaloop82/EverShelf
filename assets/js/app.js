@@ -11355,7 +11355,7 @@ async function submitRecipeUse(useAll) {
     btn.textContent = '⏳...';
     
     try {
-        const recipeTitle = _cachedRecipe?.recipe?.title || '';
+        const recipeTitle = _cachedRecipe?.recipe?.title || _chatRecipeTitle || '';
         const result = await api('inventory_use', {}, 'POST', {
             product_id: productId,
             quantity: qty,
@@ -12382,6 +12382,7 @@ async function generateRecipe() {
 let chatHistory = [];
 let chatInventoryContext = null;
 let _chatSavedCount = 0; // track how many messages already saved to DB
+let _chatRecipeTitle = ''; // title of last recipe extracted from chat (used in confirmRecipeUse notes)
 
 function initChat() {
     // Load chat history from DB
@@ -12413,6 +12414,89 @@ async function loadChatContext() {
 function sendChatSuggestion(text) {
     document.getElementById('chat-input').value = text;
     sendChatMessage();
+}
+
+/** Returns true if a chat reply looks like it contains a recipe with ingredients */
+function _looksLikeRecipe(text) {
+    // Must have an "Ingredienti" section header AND a step/preparation section
+    const hasIngredients = /ingredi[e|ë]nti/i.test(text);
+    const hasPreparation = /preparazi[o|ó]ne|procedimento|istruzioni|passaggi|how to|steps|zubereitung/i.test(text);
+    const hasStepNumbers = /^\d+[\.\)]/m.test(text);
+    return hasIngredients && (hasPreparation || hasStepNumbers);
+}
+
+async function chatExtractIngredients(btn, replyText) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Analisi in corso...';
+
+    const panel = btn.nextElementSibling;
+
+    try {
+        const settings = getSettings();
+        const result = await api('chat_extract_recipe', {}, 'POST', {
+            text: replyText,
+            lang: settings.lang || 'it'
+        });
+
+        if (!result.success || !result.ingredients) {
+            btn.textContent = '⚠️ ' + (result.error || t('error.generic'));
+            btn.disabled = false;
+            return;
+        }
+
+        const matchedIngredients = result.ingredients.filter(i => i.product_id);
+        if (matchedIngredients.length === 0) {
+            btn.textContent = '📦 Nessun ingrediente trovato in dispensa';
+            return;
+        }
+
+        _chatRecipeTitle = result.title || '';
+
+        // Render inline ingredient panel
+        btn.style.display = 'none';
+        panel.innerHTML = _buildChatIngredientPanelHTML(result.ingredients, result.title);
+        panel.style.display = 'block';
+
+    } catch(err) {
+        btn.textContent = '⚠️ ' + t('error.connection');
+        btn.disabled = false;
+    }
+}
+
+function _buildChatIngredientPanelHTML(ingredients, title) {
+    let html = `<div class="chat-recipe-panel">`;
+    if (title) html += `<div class="chat-recipe-panel-title">🍽️ <strong>${escapeHtml(title)}</strong></div>`;
+    html += `<div class="chat-recipe-panel-subtitle">${t('chat.recipe_ingredients_from_pantry') || 'Ingredienti in dispensa'}</div>`;
+    html += `<ul class="recipe-ingredients">`;
+
+    ingredients.forEach((ing, idx) => {
+        if (ing.product_id) {
+            const qtyNum = ing.qty_number || 0;
+            const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
+            html += `<li class="recipe-ingredient" id="recipe-ing-${idx}">`;
+            html += `<span class="recipe-ing-text"><strong>${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: ${escapeHtml(ing.qty || '')} ✅`;
+            let details = [];
+            const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
+            details.push(ingredientLocLabels[ing.location] || ('📍 ' + ing.location));
+            if (ing.expiry_date) {
+                const exp = new Date(ing.expiry_date);
+                const now = new Date(); now.setHours(0,0,0,0);
+                const diffDays = Math.round((exp - now) / 86400000);
+                if (diffDays < 0) details.push(t('expiry.badge_expired_ago').replace('{n}', Math.abs(diffDays)));
+                else if (diffDays <= 3) details.push(t('expiry.badge_expires_red').replace('{n}', diffDays));
+                else if (diffDays <= 7) details.push(t('expiry.badge_expires_yellow').replace('{n}', diffDays));
+            }
+            if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
+            html += `</span>`;
+            html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, '&apos;')}')" title="${t('cooking.ingredient_deduct_title') || 'Usa ingrediente'}">${t('cooking.ingredient_use_btn') || 'Usa'}</button>`;
+            html += `</li>`;
+        } else {
+            html += `<li class="recipe-ingredient"><span class="recipe-ing-text"><strong>${escapeHtml(ing.name)}</strong>: ${escapeHtml(ing.qty || '')} 🛒</span></li>`;
+        }
+    });
+
+    html += `</ul></div>`;
+    return html;
 }
 
 async function sendChatMessage() {
@@ -12453,7 +12537,20 @@ async function sendChatMessage() {
         
         if (result.success) {
             chatHistory.push({ role: 'gemini', text: result.reply });
-            appendChatBubble('gemini', formatChatReply(result.reply));
+            const bubble = appendChatBubble('gemini', formatChatReply(result.reply));
+            // If reply looks like a recipe, append "Usa ingredienti" button
+            if (_looksLikeRecipe(result.reply)) {
+                const replyText = result.reply;
+                const useBtn = document.createElement('button');
+                useBtn.className = 'btn-chat-use-recipe';
+                useBtn.textContent = '🥄 ' + (t('chat.use_ingredients_btn') || 'Usa ingredienti');
+                useBtn.onclick = () => chatExtractIngredients(useBtn, replyText);
+                const panelDiv = document.createElement('div');
+                panelDiv.className = 'chat-recipe-panel-container';
+                panelDiv.style.display = 'none';
+                bubble.appendChild(useBtn);
+                bubble.appendChild(panelDiv);
+            }
         } else {
             const errMsg = result.error === 'no_api_key' ? 'Configura la chiave API Gemini nelle impostazioni.' : (result.error || 'Errore nella risposta');
             appendChatBubble('gemini', `⚠️ ${escapeHtml(errMsg)}`);

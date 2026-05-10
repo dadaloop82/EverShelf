@@ -5630,6 +5630,51 @@ body.cooking-mode-active .app-header {
     30% { transform: translateY(-6px); opacity: 1; }
 }
 
+/* ====== Chat Recipe Ingredient Panel ====== */
+.btn-chat-use-recipe {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 7px 14px;
+    background: var(--card-bg, #1e293b);
+    border: 1px solid #6366f1;
+    color: #a5b4fc;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-chat-use-recipe:hover {
+    background: #312e81;
+    color: white;
+}
+.btn-chat-use-recipe:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.chat-recipe-panel-container {
+    margin-top: 8px;
+}
+
+.chat-recipe-panel {
+    background: var(--card-bg, #1e293b);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-top: 4px;
+}
+
+.chat-recipe-panel-title {
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.chat-recipe-panel-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+    margin-bottom: 10px;
+}
+
 /* ====== Recipe Archive ====== */
 .recipe-archive {
     display: flex;
