@@ -66,6 +66,19 @@ try {
         echo '[' . date('Y-m-d H:i:s') . '] Bring! sync warning: ' . $be->getMessage() . "\n";
     }
 
+    // ── Shelf life pre-warming ────────────────────────────────────────────
+    // Pre-warm the opened shelf life cache for opened items not yet cached.
+    // Capped at 5 items per cron cycle to avoid Gemini rate limits.
+    try {
+        $prewarmResult = prewarmShelfLifeCache($db, 5);
+        if ($prewarmResult['warmed'] > 0) {
+            echo '[' . date('Y-m-d H:i:s') . '] Shelf life pre-warm — warmed: ' . $prewarmResult['warmed']
+                . ', skipped: ' . $prewarmResult['skipped'] . "\n";
+        }
+    } catch (Throwable $pe) {
+        echo '[' . date('Y-m-d H:i:s') . '] Shelf life pre-warm warning: ' . $pe->getMessage() . "\n";
+    }
+
 } catch (Throwable $e) {
     $msg = $e->getMessage();
     echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $msg . "\n";

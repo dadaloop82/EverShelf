@@ -5,6 +5,12 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.7] - 2026-05-10
+
+### Fixed
+- **Smart shopping family suppression** — La logica `recentlyExhausted` (prodotti terminati < 14gg) bypassava erroneamente anche la suppression per `shopping_name` family, causando falsi positivi: prodotti come Yaourt Vanille apparivano come urgenti anche con 2kg di Yogurt in stock, Salame Paesano con 1kg di Affettato in stock, Gran bauletto rustico con più pani in stock. Ora `recentlyExhausted` bypassa solo il check token-based (match lasco), mentre la family suppression per `shopping_name` si applica sempre.
+- **Shelf life pre-warming nel cron** — Il cron ora chiama `prewarmShelfLifeCache()` ogni 5 minuti, precaricando via Gemini AI la shelf life degli item aperti in inventario (max 5 item per ciclo) prima che l'utente li visualizzi. Questo elimina il delay percepibile al primo click su "Aperto il...".
+
 ## [1.7.6] - 2026-05-10
 
 ### Fixed

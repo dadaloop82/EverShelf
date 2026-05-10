@@ -2387,6 +2387,42 @@ function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 3
 // ===== AI-POWERED OPENED SHELF LIFE =====
 
 /**
+ * Cron helper: pre-warm the opened shelf life cache for opened inventory items that
+ * have no cache entry yet. Called once per cron cycle; capped to $limit items to
+ * avoid blocking or hitting Gemini rate limits.
+ * Returns ['warmed' => int, 'skipped' => int].
+ */
+function prewarmShelfLifeCache(PDO $db, int $limit = 5): array {
+    $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
+    $cache = [];
+    if (file_exists($cacheFile)) {
+        $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
+    }
+
+    // Fetch opened items from inventory (only those still with quantity > 0)
+    $rows = $db->query("
+        SELECT p.name, p.category, i.location
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.opened_at IS NOT NULL AND i.quantity > 0
+        ORDER BY i.opened_at ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $warmed = 0;
+    $skipped = 0;
+    foreach ($rows as $row) {
+        if ($warmed >= $limit) { $skipped++; continue; }
+        $cacheKey = md5(mb_strtolower($row['name']) . '|' . mb_strtolower($row['location']));
+        if (isset($cache[$cacheKey])) { $skipped++; continue; }
+        // Call with AI enabled — this writes to cache internally
+        getOpenedShelfLifeDays($row['name'], $row['category'] ?? '', $row['location'], false, true);
+        $warmed++;
+    }
+
+    return ['warmed' => $warmed, 'skipped' => $skipped];
+}
+
+/**
  * Return the number of days a product remains safe after opening, depending on storage location.
  * Checks a local JSON cache first (keyed by product name+location); on cache miss, asks Gemini AI.
  * Falls back to the rule-based estimate if AI is unavailable or returns an unusable answer.
@@ -5655,8 +5691,9 @@ function smartShopping(PDO $db): void {
             // (e.g. "Formaggio") and there's stock of ANY product with the same generic name,
             // the need is covered. This catches "Bel Paese" → covered by "Formaggio Gouda" in stock,
             // "Biscotti Pastefrolle" → covered by "Frollini..." (both shopping_name="Biscotti"), etc.
-            // Exception: recently exhausted products (< 14 days) skip this suppression too.
-            if (!$coveredByEquivalent && !$recentlyExhausted) {
+            // NOTE: recentlyExhausted does NOT bypass this check — same-family stock always suppresses.
+            // recentlyExhausted only bypasses the loose token-based check above.
+            if (!$coveredByEquivalent) {
                 $sName = strtolower(trim($p['shopping_name'] ?? ''));
                 if ($sName !== '' && ($stockByShoppingName[$sName] ?? 0) > 0) {
                     $coveredByEquivalent = true;
