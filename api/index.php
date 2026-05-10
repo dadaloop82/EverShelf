@@ -3661,9 +3661,18 @@ PROMPT;
         return;
     }
 
-    $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
-    $text = preg_replace('/\s*```$/i', '', $text);
-    $text = trim($text);
+    // Strip markdown code fences (handles ```json ... ``` anywhere in the response)
+    $text = preg_replace('/```(?:json)?\s*/i', '', $text);
+    $text = str_replace('```', '', $text);
+
+    // Extract the first complete JSON object from the text (ignores any preamble text)
+    $start = strpos($text, '{');
+    $end   = strrpos($text, '}');
+    if ($start === false || $end === false || $end <= $start) {
+        echo json_encode(['success' => false, 'error' => 'parse_error', 'raw' => mb_substr($text, 0, 500)]);
+        return;
+    }
+    $text = substr($text, $start, $end - $start + 1);
 
     $recipe = json_decode($text, true);
     if (!is_array($recipe) || empty($recipe['title'])) {
