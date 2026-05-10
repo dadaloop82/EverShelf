@@ -3645,10 +3645,10 @@ PROMPT;
 
     $payload = [
         'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
-        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 2048]
+        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 8192]
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 30);
+    $result = callGeminiWithFallback($apiKey, $payload, 45);
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => $result['data']['error']['message'] ?? 'gemini_error']);

@@ -12449,11 +12449,20 @@ async function chatTransferToRecipes(btn, replyText) {
         await saveRecipeToArchive(recipe);
         _cachedRecipe = { meal: recipe.meal || 'pranzo', recipe };
         renderRecipe(recipe);
-        document.getElementById('recipe-overlay').style.display = 'flex';
-        document.getElementById('recipe-ask').style.display = 'none';
-        document.getElementById('recipe-loading').style.display = 'none';
-        document.getElementById('recipe-result').style.display = '';
         btn.textContent = '✅ ' + (t('chat.transferred') || 'Aggiunta alle Ricette!');
+        btn.disabled = true;
+        // Add "Apri la ricetta" button next to the transfer button
+        const openBtn = document.createElement('button');
+        openBtn.className = 'btn-chat-use-recipe';
+        openBtn.style.marginLeft = '8px';
+        openBtn.textContent = '📖 ' + (t('chat.open_recipe') || 'Apri la ricetta');
+        openBtn.onclick = () => {
+            document.getElementById('recipe-overlay').style.display = 'flex';
+            document.getElementById('recipe-ask').style.display = 'none';
+            document.getElementById('recipe-loading').style.display = 'none';
+            document.getElementById('recipe-result').style.display = '';
+        };
+        btn.parentNode.insertBefore(openBtn, btn.nextSibling);
         showToast('✅ ' + (t('chat.transferred') || 'Aggiunta alle Ricette!'), 'success');
     } catch (err) {
         console.error('[chatTransferToRecipes]', err);

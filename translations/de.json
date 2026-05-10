@@ -474,7 +474,8 @@
         "suggestion_expiry_text": "Was läuft bald ab und wie kann ich es verwenden?",
         "transfer_to_recipes": "Zu Rezepten hinzufügen",
         "transferring": "Übertrage...",
-        "transferred": "Zu Rezepten hinzugefügt!"
+        "transferred": "Zu Rezepten hinzugefügt!",
+        "open_recipe": "Rezept öffnen"
     },
     "cooking": {
         "close": "Schließen",

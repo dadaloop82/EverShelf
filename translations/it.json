@@ -474,7 +474,8 @@
         "suggestion_expiry_text": "Cosa sta per scadere e come posso usarlo?",
         "transfer_to_recipes": "Trasferisci a Ricette",
         "transferring": "Trasferimento in corso...",
-        "transferred": "Aggiunta alle Ricette!"
+        "transferred": "Aggiunta alle Ricette!",
+        "open_recipe": "Apri la ricetta"
     },
     "cooking": {
         "close": "Chiudi",
