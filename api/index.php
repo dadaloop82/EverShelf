@@ -1497,19 +1497,40 @@ function useFromInventory(PDO $db): void {
 function updateInventory(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? 0;
-    
+
+    // Read current state before update (needed for transaction reconciliation)
+    $prev = $db->prepare("SELECT quantity, location, product_id FROM inventory WHERE id = ?");
+    $prev->execute([$id]);
+    $prevRow = $prev->fetch(PDO::FETCH_ASSOC);
+
     $fields = [];
     $params = [];
     if (isset($input['quantity'])) { $fields[] = "quantity = ?"; $params[] = $input['quantity']; }
     if (isset($input['location'])) { $fields[] = "location = ?"; $params[] = $input['location']; }
-    if (isset($input['expiry_date'])) { $fields[] = "expiry_date = ?"; $params[] = $input['expiry_date']; }
+    if (isset($input['expiry_date'])) { $fields[] = "expiry_date = ?"; $params[] = $input['expiry_date'] ?: null; }
     if (isset($input['vacuum_sealed'])) { $fields[] = "vacuum_sealed = ?"; $params[] = (int)$input['vacuum_sealed']; }
+    if (isset($input['opened_at_clear']) && $input['opened_at_clear']) { $fields[] = "opened_at = NULL"; }
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
-    
+
     $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
     $stmt->execute($params);
-    
+
+    // Record a compensating transaction so anomaly detection stays accurate
+    if (isset($input['quantity']) && $prevRow) {
+        $oldQty = (float)$prevRow['quantity'];
+        $newQty = (float)$input['quantity'];
+        $diff   = round($newQty - $oldQty, 6);
+        $loc    = $input['location'] ?? $prevRow['location'];
+        $pid    = (int)$prevRow['product_id'];
+        if (abs($diff) > 0.001) {
+            $txType = $diff > 0 ? 'in' : 'out';
+            $txQty  = abs($diff);
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, '[Correzione manuale]')")
+               ->execute([$pid, $txType, $txQty, $loc]);
+        }
+    }
+
     // Update unit on the product if provided
     if (isset($input['unit']) && isset($input['product_id'])) {
         $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
