@@ -378,6 +378,51 @@ body {
 
 /* (scan active is defined above in .header-scan-btn:active) */
 
+/* ── Offline / server-unreachable banner ──────────────────────────────── */
+.offline-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: #dc2626;
+    color: #fff;
+    padding: 9px 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 950;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.35);
+}
+.offline-banner-icon { font-size: 1rem; line-height: 1; }
+.offline-banner-text { flex: 1; text-align: center; }
+.offline-banner-retry {
+    background: rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,255,255,0.55);
+    color: #fff;
+    border-radius: 6px;
+    padding: 3px 11px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.offline-banner-retry:hover { background: rgba(255,255,255,0.38); }
+
+/* When server is offline, block interactions with the main content */
+body.server-offline .app-content {
+    opacity: 0.4;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.3s;
+}
+body.server-offline .bottom-nav {
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
 /* Spesa mode banner */
 .spesa-mode-banner {
     display: flex;
@@ -1096,6 +1141,11 @@ body {
 .badge-location {
     background: #dbeafe;
     color: #1d4ed8;
+}
+
+.badge-category {
+    background: #f1f5f9;
+    color: #475569;
 }
 
 .badge-qty {

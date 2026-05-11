@@ -17,6 +17,7 @@ define('_GH_TK_ENC', '23580718460c2c444031290243627e7971622b29030a3e4d50001e4526
 define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
 define('GH_REPO',    'dadaloop82/EverShelf');
 define('PRICE_CACHE_PATH', __DIR__ . '/../data/shopping_price_cache.json');
+define('CATEGORY_CACHE_PATH', __DIR__ . '/../data/category_ai_cache.json');
 
 /** Decode the XOR-obfuscated GitHub token at runtime. */
 function _ghToken(): string {
@@ -96,6 +97,12 @@ header('Access-Control-Allow-Headers: Content-Type');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    exit;
+}
+
+// ── Ping / heartbeat — early response, no DB or rate-limit required ───────────
+if (($_GET['action'] ?? '') === 'ping') {
+    echo json_encode(['ok' => true, 'ts' => time()]);
     exit;
 }
 
@@ -453,6 +460,10 @@ try {
 
         case 'get_all_shopping_prices':
             getAllShoppingPrices($db);
+            break;
+
+        case 'guess_category':
+            guessCategoryFromAI();
             break;
 
         default:
@@ -7394,6 +7405,59 @@ PROMPT;
 }
 
 /**
+/**
+ * GET /api/?action=guess_category&name=...
+ * Returns the macro-category for a product name, using a file cache + Gemini AI fallback.
+ * Response: { category: string }
+ */
+function guessCategoryFromAI(): void {
+    $name = trim($_GET['name'] ?? '');
+    if ($name === '') { echo json_encode(['category' => 'altro']); return; }
+
+    // Load cache
+    $cache = [];
+    if (file_exists(CATEGORY_CACHE_PATH)) {
+        $cache = json_decode(file_get_contents(CATEGORY_CACHE_PATH), true) ?? [];
+    }
+    $key = md5(mb_strtolower($name));
+    if (isset($cache[$key])) { echo json_encode(['category' => $cache[$key]]); return; }
+
+    $apiKey = env('GEMINI_API_KEY', '');
+    if ($apiKey === '') { echo json_encode(['category' => 'altro']); return; }
+
+    $cats   = 'latticini, carne, pesce, frutta, verdura, pasta, pane, surgelati, bevande, condimenti, snack, conserve, cereali, igiene, pulizia, altro';
+    $prompt = "Sei un classificatore di prodotti alimentari e domestici italiani.\n"
+            . "Classifica il prodotto \"" . addslashes($name) . "\" in UNA di queste categorie esatte: $cats.\n"
+            . "Rispondi con SOLO la parola chiave della categoria, senza spiegazioni né punteggiatura aggiuntiva.";
+
+    $payload = [
+        'contents'           => [['parts' => [['text' => $prompt]]]],
+        'generationConfig'   => [
+            'temperature'   => 0,
+            'maxOutputTokens' => 20,
+            'thinkingConfig'  => ['thinkingBudget' => 0],
+        ],
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    $raw    = strtolower(trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? ''));
+    $raw    = preg_replace('/[^a-z_ ]/', '', $raw);
+    $raw    = trim($raw);
+
+    $valid  = ['latticini','carne','pesce','frutta','verdura','pasta','pane','surgelati',
+               'bevande','condimenti','snack','conserve','cereali','igiene','pulizia','altro'];
+    $cat    = in_array($raw, $valid, true) ? $raw : 'altro';
+
+    // Persist to cache
+    $cache[$key] = $cat;
+    @file_put_contents(CATEGORY_CACHE_PATH, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+    echo json_encode(['category' => $cat]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
  * GET /api/?action=get_shopping_price
  * POST body: { name, quantity, unit, default_quantity, package_unit, country, currency, lang, force_refresh }
  *
@@ -7414,6 +7478,12 @@ function getShoppingPrice(PDO $db): void {
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
+        return;
+    }
+
+    // Guard: price estimation requires Gemini API key
+    if (empty(env('GEMINI_API_KEY'))) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
 

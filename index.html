@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260508c">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260511a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -67,7 +67,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.6</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.9</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -93,6 +93,13 @@
         </div>
     </div>
 </header>
+
+<!-- Offline / server-unreachable banner -->
+<div id="offline-banner" class="offline-banner" style="display:none" role="alert" aria-live="assertive">
+    <span class="offline-banner-icon" aria-hidden="true">🔌</span>
+    <span class="offline-banner-text" data-i18n="error.server_offline">Connessione al server persa</span>
+    <button class="offline-banner-retry" onclick="_heartbeatRetry()" data-i18n="error.server_retry">Riprova</button>
+</div>
 
 <!-- Main Content Area -->
 <main class="app-content" id="app-content">
@@ -1462,6 +1469,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260510k"></script>
+<script src="assets/js/app.js?v=20260511a"></script>
 </body>
 </html>

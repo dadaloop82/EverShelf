@@ -775,7 +775,10 @@
         "appliance_exists": "Gerät bereits vorhanden",
         "already_exists": "Bereits vorhanden",
         "network_retry": "Verbindungsfehler. Erneut versuchen.",
-        "select_items": "Wähle mindestens ein Produkt aus"
+        "select_items": "Wähle mindestens ein Produkt aus",
+        "server_offline": "Serververbindung unterbrochen",
+        "server_restored": "Serververbindung wiederhergestellt",
+        "server_retry": "Erneut versuchen"
     },
     "confirm": {
         "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",

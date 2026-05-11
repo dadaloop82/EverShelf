@@ -30,6 +30,9 @@
 
 ## 🌍 Recent Updates
 
+- **Category badges on inventory items** — Every product now shows its macro-category badge (icon + label) inline. Items that can't be classified locally are automatically refined via Gemini AI after the page loads, with server-side caching so the AI call only happens once per product.
+- **Category search** — Typing a category name (e.g. "biscotti", "latticini") in the inventory search bar now returns all matching items across brands and exact names.
+- **AI function guards** — All Gemini-powered features (price estimation, category classification, recipe suggestions, etc.) now explicitly check whether a Gemini API key is configured before making any AI call. The UI gracefully skips or shows a friendly message instead of silently failing.
 - **AI price estimation for shopping list** — Each Bring! shopping item now shows an estimated retail price badge (unit price + total). Prices are fetched via Gemini AI, cached server-side for 3 months, and stored client-side in `sessionStorage` to survive navigation. The dashboard shopping stat card shows a live green `ca. €X.XX` badge that updates in real-time as prices are calculated — even in background when you're on another tab.
 - **Kiosk v1.7.0: OTA update system** — "Cerca aggiornamenti" button in Settings triggers a forced GitHub release check; new `installUpdate()` JS bridge calls Android `DownloadManager` directly (lockTask mode blocks external browser links); graceful degradation for older APKs with manual instructions. Automatic OTA check every 6 hours with native update banner.
 - **Kiosk: consistent APK signing** — Project keystore (`evershelf.jks`) committed to the repo; every build — local or CI — now produces an APK with the same signature, eliminating "APK incompatible / signature conflict" errors on OTA update.

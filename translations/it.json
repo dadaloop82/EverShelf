@@ -775,7 +775,10 @@
         "appliance_exists": "Elettrodomestico già presente",
         "already_exists": "Già presente",
         "network_retry": "Errore di connessione. Riprova.",
-        "select_items": "Seleziona almeno un prodotto"
+        "select_items": "Seleziona almeno un prodotto",
+        "server_offline": "Connessione al server persa",
+        "server_restored": "Connessione al server ripristinata",
+        "server_retry": "Riprova"
     },
     "confirm": {
         "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",

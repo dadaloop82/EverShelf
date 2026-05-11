@@ -5,6 +5,23 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.9] - 2026-05-11
+
+### Added
+- **Category badge on inventory items** — Every product in the inventory now displays a macro-category badge (icon + label) next to the location badge. Badges showing `altro` are asynchronously refined via the new `guess_category` AI endpoint (Gemini + `data/category_ai_cache.json` cache) so the correct category appears automatically after the page loads.
+- **Category search** — The inventory search bar now matches items by category. Typing "biscotti" returns every cookie/biscuit regardless of brand or exact name; the match uses both the direct category key and the translated label.
+- **Brand map in `guessCategoryFromName`** — A fast-path brand table (Oreo, Ringo, Uno, Barilla, De Cecco, Galbani, Mutti, Lavazza, etc.) provides instant category resolution before any regex evaluation.
+- **PHP `guess_category` endpoint** — New server-side action that calls Gemini to classify a product name into a local category key, with file-based caching (`data/category_ai_cache.json`). Returns `altro` immediately when no Gemini API key is configured.
+
+### Fixed
+- **Duplicate banner alerts** — `loadBannerAlerts()` was occasionally enqueuing the same item multiple times when called concurrently. Fixed with a `_bannerLoading` re-entrancy guard and a `_queuedItemIds` Set that prevents any item from being pushed more than once per refresh cycle.
+- **`mapToLocalCategory` with `en:dairies` / `en:dairies-and-eggs`** — The dairy regex was not matching OpenFoodFacts tags that use the `dairi` stem; extended to cover the full range of dairy tags.
+- **`mapToLocalCategory` always returning `altro`** — When the input category was already `altro`, the function exited the direct-match loop before attempting any fallback, losing all name-based guesses. The loop now skips the `altro` key for the early-return and falls back to `guessCategoryFromName(productName)` at the end.
+- **"Tonno all'olio" → condimenti** — `tonno\b` was matched after `olio\b` (condimenti) due to regex ordering. Moved the conserve block before the condimenti block so tuna products resolve correctly.
+
+### Security
+- **AI function guards** — All Gemini-powered functions now check `_geminiAvailable` (JS) or the presence of `GEMINI_API_KEY` (PHP) before executing. Affected functions: `_refineCategoryBadgesAsync`, `fetchAllPrices`, `getShoppingPrice`. The PHP endpoint returns `{"success":false,"error":"no_api_key"}` instead of silently returning empty results, making the missing-key state explicit and diagnosable.
+
 ## [1.7.8] - 2026-05-10
 
 ### Added

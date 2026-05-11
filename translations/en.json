@@ -775,7 +775,10 @@
         "appliance_exists": "Appliance already exists",
         "already_exists": "Already exists",
         "network_retry": "Connection error. Try again.",
-        "select_items": "Select at least one product"
+        "select_items": "Select at least one product",
+        "server_offline": "Server connection lost",
+        "server_restored": "Server connection restored",
+        "server_retry": "Retry"
     },
     "confirm": {
         "remove_item": "Do you really want to remove this product from inventory?",

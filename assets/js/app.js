@@ -1215,15 +1215,14 @@ const URGENCY_BG = {
 // Map Open Food Facts categories to local categories
 function mapToLocalCategory(ofCategory, productName) {
     if (!ofCategory) {
-        // No category tag — try to guess from product name
         return guessCategoryFromName(productName || '');
     }
     const cat = ofCategory.toLowerCase();
-    // Direct match with our local keys
+    // Direct match with our local keys — but NOT 'altro': fall through to name guess
     for (const key of Object.keys(CATEGORY_ICONS)) {
-        if (cat === key) return key;
+        if (cat === key && key !== 'altro') return key;
     }
-    
+
     // Handle specific Open Food Facts tags FIRST (before generic regex)
     // "plant-based-foods-and-beverages" is a catch-all — use product name to decide
     if (/plant-based-foods/.test(cat)) {
@@ -1233,9 +1232,15 @@ function mapToLocalCategory(ofCategory, productName) {
     if (/^en:beverages/.test(cat)) return 'bevande';
     // sweeteners = condimenti
     if (/sweetener|dolcific/.test(cat)) return 'condimenti';
-    
+    // food-additives, cooking-helpers, flavourings = condimenti
+    if (/food-additive|cooking-helper|aromi|flavour/.test(cat)) return 'condimenti';
+    // breakfasts = cereali
+    if (/breakfast/.test(cat)) return 'cereali';
+    // dried-products = conserve
+    if (/dried-product/.test(cat)) return 'conserve';
+
     // Specific tag patterns
-    if (/dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte|egg|uova|uovo|poultry-egg/.test(cat)) return 'latticini';
+    if (/dairi|dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte\b|egg\b|uova\b|uovo\b|poultry-egg/.test(cat)) return 'latticini';
     if (/meat|viande|carne|sausage|salum|prosciutt/.test(cat)) return 'carne';
     if (/fish|poisson|pesce|seafood|tuna|tonno|salmone/.test(cat)) return 'pesce';
     if (/fruit|frutta|juice|succo|apple|banana/.test(cat)) return 'frutta';
@@ -1245,12 +1250,15 @@ function mapToLocalCategory(ofCategory, productName) {
     if (/frozen|surgelé|surgel|gelat/.test(cat)) return 'surgelati';
     if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|zuccher/.test(cat)) return 'condimenti';
     if (/snack|chip|crisp|chocolate|cioccolat|candy|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
-    if (/conserve|canned|can|pelati|passata|preserve|jam|marmellat|miele|honey/.test(cat)) return 'conserve';
+    if (/preserve|jam|marmellat|miele|honey|canned|pelati|passata/.test(cat)) return 'conserve';
     if (/cereal|muesli|granola|oat|fiocchi/.test(cat)) return 'cereali';
     if (/hygiene|soap|shampoo|igien|dentifricio|deodorant/.test(cat)) return 'igiene';
     if (/clean|detergent|pulizia|detersiv/.test(cat)) return 'pulizia';
     // Beverage check LAST (to avoid false matches on compound tags)
     if (/^(?!.*plant-based).*(beverage|drink|boisson|bevand|water|acqua|beer|birra|wine|vino|coffee|caffè|tea\b)/.test(cat)) return 'bevande';
+    // Last resort: try product name before giving up
+    const nameGuess = guessCategoryFromName(productName || '');
+    if (nameGuess !== 'altro') return nameGuess;
     return 'altro';
 }
 
@@ -1258,36 +1266,47 @@ function mapToLocalCategory(ofCategory, productName) {
 function guessCategoryFromName(name) {
     if (!name) return 'altro';
     const n = name.toLowerCase();
+    // ── Known Italian brand names → direct category (fast-path before regex)
+    // "Uno" only if it starts the name (Bahlsen biscuits, not the Italian word)
+    if (/^uno\b/.test(n)) return 'snack';
+    const _brandRx = [
+        [/\b(baiocchi|macine|tarallucci|tegolini|pavesini|plasmon|loacker|manner|digestive|oreo|hanuta|ringo|abbracci|gocciole|pan di stelle|oro saiwa|kinder|ferrero rocher|raffaello|bounty|twix|snickers|pringles|fonzies|tuc\b|ritz\b|mulino bianco|gran cereale|gocciole|saiwa|togo|principe|oro ciok|kit ?kat)\b/, 'snack'],
+        [/\b(barilla|de cecco|garofalo|la molisana|rummo|voiello|divella|agnesi|buitoni)\b/, 'pasta'],
+        [/\b(galbani|granarolo|yomo|danone|muller|müller|pr[eé]sident|santa lucia|jocca|fiorfiore)\b/, 'latticini'],
+        [/\b(mutti|cirio)\b/, 'conserve'],
+        [/\b(san pellegrino|levissima|ferrarelle|lete|nestea|lipton|nescaf[eé]|lavazza|illy\b|kimbo|segafredo)\b/, 'bevande'],
+    ];
+    for (const [rx, cat] of _brandRx) { if (rx.test(n)) return cat; }
     // Pasta & Rice
-    if (/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio|gnocchi|lasagne|tagliatelle|maccheroni|bucatini|pennette/.test(n)) return 'pasta';
+    if (/spaghetti|penne|fusilli|rigatoni|linguine|orecchiette|farfalle|pasta\b|riso\b|basmati|carnaroli|arborio|gnocchi|lasagne|tagliatelle|maccheroni|bucatini|pennette|sedani|tortiglioni|calamarata|spaghettini|vermicelli/.test(n)) return 'pasta';
     // Pane & Forno
-    if (/pane\b|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini|sandwich|taralli|pancarrè|baguette|ciabatta|rosetta|tramezzino|tortilla|pita\b/.test(n)) return 'pane';
+    if (/pane\b|bauletto|fette biscottate|grissini|cracker|toast|piadina|piadelle|focaccia|panini\b|sandwich|taralli|pancarr[eè]|baguette|ciabatta|rosetta|tramezzino|tortilla|pita\b|pangrattato|pane grattugiato|pan.*carr[eè]/.test(n)) return 'pane';
     // Latticini (before bevande to avoid latte→bevande)
-    if (/latte\b|yogurt|yaourt|formaggio|mozzarella|burro|panna|ricotta|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie|camembert|emmental|asiago|feta\b|provola|caciotta|caprino/.test(n)) return 'latticini';
-    // Conserve
-    if (/passata|pelati|pomodoro|pomodori|pomodorini|ciliegino|sugo|polpa di pomod|marmellata|miele|legumi|ceci|fagioli|lenticchie|olive|tonno in scatola|sgombro in scatola|concentrato|brodo|dado|besciamella/.test(n)) return 'conserve';
-    // Condimenti (include spezie, farine, zucchero)
-    if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina|maionese|ketchup|senape|salsa|paprika|curry|cannella|noce moscata|origano|rosmarino|timo|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido|maizena|semola|pesto|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco/.test(n)) return 'condimenti';
+    if (/latte\b|yogurt|y[o]?gurt|yaourt|yougurt|yoghurt|formaggio|mozzarella|burro\b|panna\b|ricott|mascarpone|gorgonzola|parmigiano|grana\b|uova\b|uovo\b|egg\b|burrata|scamorza|provolone|pecorino|fontina|taleggio|stracchino|crescenza|brie\b|camembert|emmental|asiago|feta\b|provola|caciotta|caprino|philadelphia|skyr|kefir|labneh/.test(n)) return 'latticini';
+    // Conserve — controllo tonno\b PRIMA di condimenti (che ha olio\b)
+    if (/passata|pelati|pomodoro\b|pomodori|pomodorini|ciliegino|sugo\b|polpa di pomod|marmellata|miele\b|zagara|legumi|ceci\b|fagioli\b|lenticchie|olive\b|tonno\b|sgombro in scatola|concentrato|brodo\b|dado\b|besciamella|datterini|passato di/.test(n)) return 'conserve';
+    // Condimenti (include spezie, farine, zucchero, aromi, lieviti)
+    if (/olio\b|aceto|sale\b|pepe\b|zucchero|zuccher|farina\b|maionese|ketchup|senape|salsa\b|paprika|curry\b|cannella|noce moscata|origano|rosmarino|timo\b|basilico|prezzemolo|curcuma|cumino|cardamomo|vaniglia|lievito|bicarbonato|amido\b|maizena|semola|pesto\b|tahini|miso\b|colatura|soia.*salsa|worcester|tabasco|aroma\b|aromi\b|arome\b|estratto.*vaniglia|estratto.*limone|polenta\b|semolino\b|cacao amaro|cacao.*polvere|purea|pure\b|pur[ée]e/.test(n)) return 'condimenti';
     // Bevande (after latticini to avoid latte conflict)
-    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caffè|tè\b|tea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino/.test(n)) return 'bevande';
+    if (/acqua\b|birra\b|vino\b|succo|spremuta|coca.cola|aranciata|caff[eè]\b|kaffee|kafè|t[eè]\b|tea\b|tisana|camomilla|infuso|energy drink|bevanda|limonata|aranciate|sprite|pepsi|fanta|san pellegrino|ciobar|ovomaltine|zuppalatte|cioccolata.*calda|latte.*cioccolato/.test(n)) return 'bevande';
     // Carne (include salumi)
-    if (/pollo|manzo|maiale|vitello|tacchino|prosciutto|salame|bresaola|mortadella|wurstel|speck|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola/.test(n)) return 'carne';
+    if (/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/.test(n)) return 'carne';
     // Pesce
-    if (/tonno|salmone|merluzzo|pesce|sgombro|gamberi|acciughe|baccalà|vongole|cozze|calamari|surimi|alici|branzino|orata|sardine|trota|dentice|seppia|polpo/.test(n)) return 'pesce';
+    if (/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|orata\b|sardine|trota|dentice|seppia|polpo|filetto.*pesce|pesce.*filetto/.test(n)) return 'pesce';
     // Frutta
-    if (/mela|mele|banana|arancia|pera|fragola|uva\b|kiwi|limone|frutta|mandarino|clementina|pompelmo|avocado|mango|ananas|melone|anguria|susina|prugna|ciliegia|albicocca|pesca\b|nettarina|fico\b|melograno|papaya|maracuja|cocco\b|dattero|fico\b|lampone|mirtillo|ribes|more\b/.test(n)) return 'frutta';
+    if (/mela\b|mele\b|banana|arancia|pera\b|fragola|uva\b|kiwi\b|limone|frutta\b|mandarino|clementina|pompelmo|avocado|mango\b|ananas|melone|anguria|susina|prugna|ciliegia|albicocca|pesca\b|nettarina|fico\b|melograno|papaya|maracuja|cocco\b|dattero|lampone|mirtillo|ribes|more\b/.test(n)) return 'frutta';
     // Verdura
-    if (/insalata|zucchina|pomodor|cipolla|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata|finocchio|sedano|porro|scalogno|cavolo|cavolfiore|asparagi|funghi|courgette|lattuga|bietola|radicchio|carciofo|fagiolini|piselli|mais|zucca|aglio|cetriolo|rapa|barbabietola|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
+    if (/insalata|zucchina|zucchine|pomodor|cipolla|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata|finocchio|sedano|porro|scalogno|cavolo|cavolfiore|asparagi|funghi|courgette|lattuga|bietola|radicchio|carciofo|fagiolini|piselli|mais\b|zucca\b|aglio\b|cetriolo|rapa\b|barbabietola|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
     // Surgelati
-    if (/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato/.test(n)) return 'surgelati';
+    if (/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/.test(n)) return 'surgelati';
     // Snack & Dolci
-    if (/biscott|cioccolat|nutella|merendine|patatine|caramelle|wafer|sfornatini|torta|pandoro|panettone|colomba|cornetto|brioche|croissant|dolc|dessert|tiramisù/.test(n)) return 'snack';
+    if (/biscott|cioccolat|nutella|merendine\b|merendina|patatine|caramelle|wafer|cialda|cialdine|sfornatini|torta\b|pandoro|panettone|colomba|cornetto|brioche|croissant|dolc|dessert|tiramis[uù]|cantucci|amaretti|savoiardi|pralin|confetti dolci|chicchi.*cacao|cacao.*chicchi|risofrolle|sfogliatine|ossi di morto|canestrelli|snack/.test(n)) return 'snack';
     // Cereali
-    if (/cereali|muesli|fiocchi|granola|polenta|porridge|avena/.test(n)) return 'cereali';
+    if (/cereali|muesli|fiocchi|granola|porridge|avena|mix energia|misto cereal|farro\b|orzo\b|quinoa/.test(n)) return 'cereali';
     // Igiene personale
     if (/sapone|shampoo|dentifricio|deodorante|carta igienica|fazzoletti|cotton fioc|assorbente|rasoio|schiuma da barba|gel doccia|balsamo\b|lozione/.test(n)) return 'igiene';
     // Pulizia casa
-    if (/detersivo|pulito|sgrassatore|candeggina|ammorbidente|anticalcare|bucato|piatti|lavatrice|lavastoviglie|detergente/.test(n)) return 'pulizia';
+    if (/detersivo|pulito|sgrassatore|candeggina|ammorbidente|anticalcare|bucato|piatti\b|lavatrice|lavastoviglie|detergente/.test(n)) return 'pulizia';
     return 'altro';
 }
 
@@ -3492,6 +3511,7 @@ function _dismissNoExpiry(productId) {
 // === ALERT BANNER SYSTEM (replaces old review table) ===
 let _bannerQueue = [];   // array of { type, data } — 'review' or 'prediction'
 let _bannerIndex = 0;
+let _bannerLoading = false; // guard against concurrent calls
 let _bannerEditPending = false;  // true when editing from banner → dismiss after save
 let _bannerRefreshTimer = null;  // periodic refresh while on dashboard
 let _shoppingPollTimer  = null;  // periodic refresh while on shopping page (multi-client sync)
@@ -3501,10 +3521,12 @@ let _shoppingPollTimer  = null;  // periodic refresh while on shopping page (mul
  * merge into a single banner queue and show the first item.
  */
 async function loadBannerAlerts() {
+    if (_bannerLoading) return;
+    _bannerLoading = true;
     _bannerQueue = [];
     _bannerIndex = 0;
     const banner = document.getElementById('alert-banner');
-    if (!banner) { console.warn('[Banner] #alert-banner not found'); return; }
+    if (!banner) { _bannerLoading = false; console.warn('[Banner] #alert-banner not found'); return; }
 
     try {
         const [invData, predData, anomalyData, finishedData] = await Promise.all([
@@ -3515,6 +3537,8 @@ async function loadBannerAlerts() {
         ]);
         const items = invData.inventory || [];
         const confirmed = getReviewConfirmed();
+        // Track item IDs already queued to prevent the same item appearing in multiple types
+        const _queuedItemIds = new Set();
 
         // 1. Expired products (highest priority) - derived from inventory
         // Also considers opened_at: if item is opened and its opened-shelf-life has passed, it's expired too
@@ -3547,6 +3571,7 @@ async function loadBannerAlerts() {
             // Skip items the freezer bonus still considers safe — no need to alarm the user
             if (getExpiredSafety(item, daysExpired).level === 'ok') return;
             _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: daysExpired } });
+            _queuedItemIds.add(item.id);
         });
 
         // 2. Suspicious quantities ("expiring soon" shown only in dashboard sections, not in banner)
@@ -3562,6 +3587,7 @@ async function loadBannerAlerts() {
         });
 
         items.forEach(item => {
+            if (_queuedItemIds.has(item.id)) return; // already in expired
             if (confirmed[item.id]) return;
             const t_ = QTY_THRESHOLDS[item.unit] || QTY_THRESHOLDS['pz'];
             const qty = parseFloat(item.quantity);
@@ -3600,6 +3626,7 @@ async function loadBannerAlerts() {
             else if (isLow) warning = '⬇️ Troppo poco';
             else warning = '⬆️ Troppo';
             _bannerQueue.push({ type: 'review', data: { ...item, warning, _isLow: isLow } });
+            _queuedItemIds.add(item.id);
         });
 
         // 4. Consumption predictions that don't match actual quantity
@@ -3628,6 +3655,7 @@ async function loadBannerAlerts() {
         const PERISHABLE_CATS = ['latticini','carne','pesce','salumi','fresco','verdura','frutta','surgelati',
                                   'dairy','meat','fish','fresh','vegetables','fruit','frozen'];
         items.forEach(item => {
+            if (_queuedItemIds.has(item.id)) return; // already in expired or review
             if (item.expiry_date) return;               // already has expiry
             if (parseFloat(item.quantity) <= 0) return; // no stock
             const pid = String(item.product_id || item.id);
@@ -3651,6 +3679,8 @@ async function loadBannerAlerts() {
 
     } catch (e) {
         console.error('[Banner] loadBannerAlerts error:', e);
+    } finally {
+        _bannerLoading = false;
     }
 
     if (_bannerQueue.length > 0) {
@@ -4370,7 +4400,10 @@ async function loadInventory() {
 }
 
 function renderInventoryItem(item) {
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+    const catKey = mapToLocalCategory(item.category, item.name);
+    const catIcon = CATEGORY_ICONS[catKey] || '📦';
+    const catLabel = t('categories.' + catKey) || catKey;
+    const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${catIcon} ${catLabel}</span>`;
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
@@ -4401,6 +4434,7 @@ function renderInventoryItem(item) {
             ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
             <div class="inv-meta">
                 <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
+                ${catBadge}
                 ${expiryBadge}
                 ${openedBadge}
                 ${vacuumBadge}
@@ -4421,6 +4455,28 @@ function renderInventory(items) {
         return;
     }
     container.innerHTML = renderGroupedByCategory(items, false);
+    _refineCategoryBadgesAsync();
+}
+
+/**
+ * After rendering, find all badges still showing 'altro' and ask the server
+ * (Gemini-backed, cached) for a better category. Updates the DOM in place.
+ */
+async function _refineCategoryBadgesAsync() {
+    if (!_geminiAvailable) return; // AI not available — keep 'altro' label
+    const badges = Array.from(document.querySelectorAll('.badge-category[data-cat="altro"]'));
+    for (const badge of badges) {
+        const name = badge.dataset.itemname;
+        if (!name) continue;
+        try {
+            const res = await api('guess_category', { name });
+            const cat = res.category;
+            if (cat && cat !== 'altro') {
+                badge.dataset.cat = cat;
+                badge.textContent = (CATEGORY_ICONS[cat] || '📦') + ' ' + (t('categories.' + cat) || cat);
+            }
+        } catch (_) { /* network error — leave as 'altro' */ }
+    }
 }
 
 function filterLocation(loc) {
@@ -4440,11 +4496,21 @@ function filterInventory() {
         return;
     }
     if (qas) qas.style.display = 'none';
-    const filtered = currentInventory.filter(i =>
-        i.name.toLowerCase().includes(q) ||
-        (i.brand && i.brand.toLowerCase().includes(q)) ||
-        (i.barcode && i.barcode.includes(q))
-    );
+    // Category inferred from the search term itself (e.g. "biscotti" → "snack")
+    const queryCat = guessCategoryFromName(q);
+    const filtered = currentInventory.filter(i => {
+        if (i.name.toLowerCase().includes(q)) return true;
+        if (i.brand && i.brand.toLowerCase().includes(q)) return true;
+        if (i.barcode && i.barcode.includes(q)) return true;
+        const itemCat = mapToLocalCategory(i.category, i.name);
+        // Match category key directly (e.g. "snack", "latticini")
+        if (itemCat.includes(q)) return true;
+        // Match category label (e.g. "dolci" matches "Snack & Dolci", "riso" matches "Pasta & Riso")
+        if ((CATEGORY_LABELS[itemCat] || '').toLowerCase().includes(q)) return true;
+        // Match by inferred category: "biscotti" → queryCat="snack" → all snack items
+        if (queryCat !== 'altro' && itemCat === queryCat) return true;
+        return false;
+    });
     renderInventory(filtered);
 }
 
@@ -4572,6 +4638,7 @@ function showItemDetail(inventoryId, productId) {
         <div class="modal-actions">
             <button class="btn btn-danger flex-1" onclick="quickUse(${item.product_id}, '${item.location}')">📤 Usa</button>
             <button class="btn btn-primary flex-1" onclick="editInventoryItem(${inventoryId})">✏️ Modifica</button>
+            <button class="btn btn-accent flex-1" onclick="closeModal();generateRecipeForIngredient(${JSON.stringify(item.name)})">🍳 Ricetta</button>
             <button class="btn btn-secondary" onclick="deleteInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
         </div>
     `;
@@ -7810,12 +7877,12 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
     // Show vacuum checkbox for any container-type unit or if the item was previously vacuum sealed.
     // Pre-checked when it was already sealed (semi-automatic: if you sealed it last time, you likely will again).
     const wasVacuum = !!(openedVacuumSealed ?? product.vacuum_sealed);
-    const isContainer = ['conf','g','kg','ml','l'].includes(unit || product.unit || '') || wasVacuum;
-    const vacuumRow = isContainer ? `
+    // Always offer vacuum sealing: any leftover food can be vacuum sealed regardless of unit type.
+    const vacuumRow = `
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
             <input type="checkbox" id="move-vacuum-check" ${wasVacuum ? 'checked' : ''}>
             <span>🔒 Metti <b>sotto vuoto</b> il resto${wasVacuum ? ' (era già sigillato)' : ''}</span>
-        </label>` : '';
+        </label>`;
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
@@ -9044,6 +9111,12 @@ async function fetchAllPrices(forceRefresh = false) {
 
     const s = getSettings();
     if (!s.price_enabled) {
+        if (fetchBtn) fetchBtn.disabled = false;
+        if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄'; }
+        return;
+    }
+    if (!_geminiAvailable) {
+        // AI not configured — prices cannot be estimated without Gemini
         if (fetchBtn) fetchBtn.disabled = false;
         if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄'; }
         return;
@@ -11422,11 +11495,11 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
     ).join('');
-    const vacuumRow = wasVacuum ? `
+    const vacuumRow = `
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
-            <input type="checkbox" id="move-vacuum-check" checked>
-            <span>${t('move.vacuum_restore')}</span>
-        </label>` : '';
+            <input type="checkbox" id="move-vacuum-check" ${wasVacuum ? 'checked' : ''}>
+            <span>${wasVacuum ? t('move.vacuum_restore') : '🔒 Metti <b>sotto vuoto</b> il resto'}</span>
+        </label>`;
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
@@ -13598,6 +13671,65 @@ async function _finishSetup() {
     document.getElementById('setup-wizard').style.display = 'none';
 }
 
+// ===== SERVER HEARTBEAT =====
+// Polls the lightweight ?action=ping endpoint every 20 s (online) / 5 s (offline).
+// When the server is unreachable:  shows the #offline-banner, blocks the UI via
+// body.server-offline, and retries faster until the server responds again.
+
+let _serverOffline = false;
+let _heartbeatTimer = null;
+const _HB_INTERVAL_ONLINE  = 20_000; // ms — normal polling interval
+const _HB_INTERVAL_OFFLINE =  5_000; // ms — faster retry when unreachable
+
+async function _runHeartbeat() {
+    const ac = new AbortController();
+    const tid = setTimeout(() => ac.abort(), 7000); // 7 s hard timeout
+    try {
+        const res = await fetch(`${API_BASE}?action=ping`, {
+            cache: 'no-store',
+            signal: ac.signal,
+        });
+        clearTimeout(tid);
+        _setServerOffline(!res.ok);
+    } catch (e) {
+        clearTimeout(tid);
+        _setServerOffline(true);
+    }
+}
+
+function _setServerOffline(offline) {
+    if (offline === _serverOffline) {
+        // State unchanged — reschedule at the appropriate interval and return
+        _heartbeatTimer = setTimeout(_runHeartbeat,
+            offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+        return;
+    }
+    _serverOffline = offline;
+    document.body.classList.toggle('server-offline', offline);
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.style.display = offline ? '' : 'none';
+    if (offline) {
+        showToast(t('error.server_offline'), 'error');
+    } else {
+        showToast(t('error.server_restored'), 'success');
+        // Refresh the current page since updates may have been missed
+        refreshCurrentPage();
+    }
+    _heartbeatTimer = setTimeout(_runHeartbeat,
+        offline ? _HB_INTERVAL_OFFLINE : _HB_INTERVAL_ONLINE);
+}
+
+/** Called by the banner "Retry" button to trigger an immediate check. */
+function _heartbeatRetry() {
+    clearTimeout(_heartbeatTimer);
+    _runHeartbeat();
+}
+
+/** Start the heartbeat loop (called once from _initApp). */
+function startHeartbeat() {
+    _runHeartbeat(); // immediate first probe
+}
+
 async function _initApp() {
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('evershelf_setup_step');
@@ -13647,6 +13779,7 @@ async function _initApp() {
     initSpesaMode();
     initScreensaverShortcuts();
     startBgShoppingRefresh();
+    startHeartbeat();
     _injectKioskOverlay(); // kiosk X / refresh buttons (only when running inside Android WebView)
 
     // Hide preloader once the dashboard is rendered
