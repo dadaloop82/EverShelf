@@ -103,10 +103,10 @@ function _updateGeminiButtonState() {
     if (_geminiAvailable) {
         btn.classList.remove('header-btn-no-ai');
         btn.removeAttribute('title');
-        btn.setAttribute('title', 'Chat con Gemini');
+        btn.setAttribute('title', t('gemini.chat_title'));
     } else {
         btn.classList.add('header-btn-no-ai');
-        btn.setAttribute('title', '🤖 Gemini non configurato — imposta GEMINI_API_KEY nelle impostazioni');
+        btn.setAttribute('title', t('gemini.not_configured'));
     }
 }
 
@@ -168,8 +168,8 @@ function _checkWebappUpdate() {
             if (!badge) return;
 
             const versionLabel = deployChanged
-                ? (serverVer ? `v${serverVer}` : 'Nuova versione')
-                : (latestTag ? `v${latestTag}` : 'Nuova versione');
+                ? (serverVer ? `v${serverVer}` : t('update.new_version'))
+                : (latestTag ? `v${latestTag}` : t('update.new_version'));
 
             const hideBadge = () => {
                 badge.style.display = 'none';
@@ -179,7 +179,7 @@ function _checkWebappUpdate() {
 
             badge.innerHTML =
                 `<span class="header-update-badge-label">⬆️ ${versionLabel}</span>` +
-                `<button class="header-update-btn" onclick="window.location.reload()">Aggiorna</button>` +
+                `<button class="header-update-btn" onclick="window.location.reload()">${t('update.btn')}</button>` +
                 `<button class="header-update-close" id="_header_update_close">✕</button>`;
             badge.style.display = 'inline-flex';
 
@@ -2152,7 +2152,7 @@ window._kioskUpdateResult = function(result) {
     const verLabel   = document.getElementById('kiosk-update-version-label');
     if (!status) return;
 
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 Cerca aggiornamenti'; }
+    if (btn) { btn.disabled = false; btn.textContent = t('kiosk.check_btn'); }
 
     if (result.error && !result.has_update) {
         status.style.display = '';
@@ -2165,7 +2165,7 @@ window._kioskUpdateResult = function(result) {
 
     const current = result.current || '?';
     const latest  = result.latest  || '?';
-    if (verLabel) verLabel.textContent = `Installata: ${current}`;
+    if (verLabel) verLabel.textContent = t('kiosk.version_installed').replace('{v}', current);
 
     if (result.has_update) {
         _kioskPendingApkUrl = result.apk_url || '';
@@ -2173,7 +2173,7 @@ window._kioskUpdateResult = function(result) {
         status.style.background = 'rgba(245,158,11,0.1)';
         status.style.border = '1px solid rgba(245,158,11,0.35)';
         status.style.color = '';
-        status.innerHTML = `⬆️ Nuova versione disponibile: <strong>${latest}</strong> (installata: ${current})`;
+        status.innerHTML = t('kiosk.update_available').replace('{latest}', latest).replace('{current}', current);
         if (installBtn) installBtn.style.display = '';
     } else {
         _kioskPendingApkUrl = '';
@@ -2181,7 +2181,7 @@ window._kioskUpdateResult = function(result) {
         status.style.background = 'rgba(52,211,153,0.1)';
         status.style.border = '1px solid rgba(52,211,153,0.3)';
         status.style.color = '';
-        status.innerHTML = `✅ Sei già aggiornato — versione <strong>${current}</strong>`;
+        status.innerHTML = t('kiosk.up_to_date').replace('{v}', current);
         if (installBtn) installBtn.style.display = 'none';
     }
 };
@@ -2195,8 +2195,7 @@ function _kioskCheckForUpdates() {
             status.style.display = '';
             status.style.background = 'rgba(245,158,11,0.1)';
             status.style.border = '1px solid rgba(245,158,11,0.35)';
-            status.innerHTML = `⚠️ Il kiosk installato è troppo vecchio per il controllo automatico.<br>
-                Premi il pulsante qui sotto per scaricare e installare la v1.7.0 direttamente.`;
+            status.innerHTML = t('kiosk.too_old');
         }
         // Pre-set the pending URL and show the install button (installUpdate works in old APKs too)
         _kioskPendingApkUrl = 'https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk';
@@ -2206,13 +2205,13 @@ function _kioskCheckForUpdates() {
     const btn    = document.getElementById('btn-kiosk-check-update');
     const status = document.getElementById('kiosk-update-status');
     const installBtn = document.getElementById('btn-kiosk-install-update');
-    if (btn)        { btn.disabled = true; btn.textContent = '⏳ Controllo…'; }
+    if (btn)        { btn.disabled = true; btn.textContent = t('kiosk.checking'); }
     if (status)     { status.style.display = 'none'; }
     if (installBtn) { installBtn.style.display = 'none'; }
     _kioskPendingApkUrl = '';
     try { _kioskBridge.checkForUpdates(); } catch(e) {
-        if (btn) { btn.disabled = false; btn.textContent = '🔍 Cerca aggiornamenti'; }
-        showToast('❌ Errore durante il controllo', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = t('kiosk.check_btn'); }
+        showToast('❌ ' + t('kiosk.error_check'), 'error');
     }
 }
 
@@ -2226,22 +2225,18 @@ function _kioskInstallUpdate() {
             status.style.display = '';
             status.style.background = 'rgba(239,68,68,0.1)';
             status.style.border = '1px solid rgba(239,68,68,0.3)';
-            status.innerHTML = `⚠️ Questo kiosk non supporta l'installazione automatica.<br>
-                <strong>Procedura manuale:</strong><br>
-                1. Esci dal kiosk (tasto ✕ in alto a sinistra)<br>
-                2. Disinstalla l'app EverShelf Kiosk<br>
-                3. Scarica e installa la nuova APK da GitHub:<br>
-                <code style="font-size:0.75rem;word-break:break-all">
-                https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk
+            status.innerHTML = t('kiosk.manual_install') +
+                `<br><code style="font-size:0.75rem;word-break:break-all">
+https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk
                 </code>`;
         }
         return;
     }
     const installBtn = document.getElementById('btn-kiosk-install-update');
-    if (installBtn) { installBtn.disabled = true; installBtn.textContent = '⏳ Avvio download…'; }
+    if (installBtn) { installBtn.disabled = true; installBtn.textContent = t('kiosk.starting_download'); }
     try { _kioskBridge.installUpdate(_kioskPendingApkUrl); } catch(e) {
-        if (installBtn) { installBtn.disabled = false; installBtn.textContent = '⬇️ Installa aggiornamento'; }
-        showToast('❌ Errore avvio installazione', 'error');
+        if (installBtn) { installBtn.disabled = false; installBtn.textContent = t('kiosk.install_btn'); }
+        showToast('❌ ' + t('kiosk.error_start_install'), 'error');
     }
 }
 
@@ -2271,7 +2266,7 @@ function _injectKioskOverlay() {
     const exitBtn = document.createElement('button');
     exitBtn.id = '_kiosk_exit_btn';
     exitBtn.textContent = '\u2715';
-    exitBtn.title = 'Esci dal kiosk';
+    exitBtn.title = t('kiosk.exit_title');
     exitBtn.style.cssText = btnStyle;
     exitBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2282,7 +2277,7 @@ function _injectKioskOverlay() {
     const refBtn = document.createElement('button');
     refBtn.id = '_kiosk_refresh_btn';
     refBtn.textContent = '\u21bb';
-    refBtn.title = 'Aggiorna pagina';
+    refBtn.title = t('kiosk.refresh_title');
     refBtn.style.cssText = btnStyle.replace('font-size:15px', 'font-size:18px');
     refBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2297,7 +2292,7 @@ function _injectKioskOverlay() {
 function renderAppliances(appliances) {
     const container = document.getElementById('appliances-list');
     if (!appliances || appliances.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">Nessun elettrodomestico aggiunto</p>';
+        container.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">${t('appliances.empty')}</p>`;
         return;
     }
     container.innerHTML = appliances.map((a, i) => `
@@ -3101,14 +3096,14 @@ function _renderNutritionSection(inventory) {
 
     // Score colour
     const scoreColor = healthScore >= 70 ? '#4ade80' : healthScore >= 45 ? '#fbbf24' : '#f87171';
-    const scoreLabel = healthScore >= 70 ? '😄 Ottimo' : healthScore >= 45 ? '🙂 Discreto' : '😬 Migliorabile';
+    const scoreLabel = healthScore >= 70 ? t('nutrition.score_excellent') : healthScore >= 45 ? t('nutrition.score_good') : t('nutrition.score_improve');
 
     section.innerHTML = `
     <div class="nutr-card">
         <div class="aw-header">
             <div class="aw-title-row">
                 <span class="aw-live-dot aw-live-on"></span>
-                <h3 class="aw-title">🥗 Analisi Alimentare</h3>
+                <h3 class="aw-title">${t('nutrition.title')}</h3>
             </div>
             <span class="aw-grade" style="background:${scoreColor};font-size:.75rem;padding:4px 10px">${scoreLabel}</span>
         </div>
@@ -3119,7 +3114,7 @@ function _renderNutritionSection(inventory) {
                 <div class="nutr-pie-3d" id="nutr-pie" style="background:${gradient}"></div>
                 <div class="nutr-pie-center">
                     <span class="nutr-pie-total">${total}</span>
-                    <span class="nutr-pie-label">prodotti</span>
+                    <span class="nutr-pie-label">${t('nutrition.products_count')}</span>
                 </div>
             </div>
 
@@ -3137,12 +3132,12 @@ function _renderNutritionSection(inventory) {
 
         <!-- Score bar row -->
         <div class="nutr-scores">
-            ${_nutrScoreBar('🌿 Salute', healthScore, '#4ade80')}
-            ${_nutrScoreBar('🎨 Varietà', varietyScore, '#60a5fa')}
-            ${_nutrScoreBar('❄️ Freschi', fresh_pct, '#22d3ee')}
+            ${_nutrScoreBar(t('nutrition.label_health'), healthScore, '#4ade80')}
+            ${_nutrScoreBar(t('nutrition.label_variety'), varietyScore, '#60a5fa')}
+            ${_nutrScoreBar(t('nutrition.label_fresh'), fresh_pct, '#22d3ee')}
         </div>
 
-        <div class="aw-source">Basato su ${total} prodotti in dispensa · EverShelf</div>
+        <div class="aw-source">${t('nutrition.source').replace('{n}', total)}</div>
     </div>`;
 
     // Trigger pie animation after render
@@ -3889,7 +3884,7 @@ function renderBannerItem() {
         let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
         btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')} (${an.inv_qty} ${an.unit})</button>`;
         if (_geminiAvailable) {
-            btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="Chiedi a Gemini una spiegazione">\ud83e\udd16 Spiega</button>`;
+            btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
         }
         actionsEl.innerHTML = btns;
 
@@ -3981,7 +3976,7 @@ async function explainBannerAnomaly() {
     const detailEl = document.getElementById('alert-banner-detail');
     if (!detailEl) return;
     const originalHtml = detailEl.innerHTML;
-    detailEl.innerHTML = '<em style="opacity:0.7">\ud83e\udd16 Analizzo\u2026</em>';
+    detailEl.innerHTML = `<em style="opacity:0.7">${t('dashboard.banner_analyzing')}</em>`;
 
     // Disable the Spiega button to prevent double calls
     const explainBtn = document.querySelector('#alert-banner .btn-banner-ai');
@@ -5569,7 +5564,7 @@ function startManualEntry(barcode = '') {
     document.getElementById('pf-barcode').value = barcode || '';
     document.getElementById('pf-image').value = '';
     document.getElementById('pf-image-preview').style.display = 'none';
-    document.getElementById('product-form-title').textContent = 'Nuovo Prodotto';
+    document.getElementById('product-form-title').textContent = t('product.title_new');
     const pfAiRow = document.getElementById('pf-ai-fill-row');
     if (pfAiRow) pfAiRow.style.display = 'block';
 
@@ -6775,7 +6770,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
             const newDate = addDays(days);
             const newLabel = formatEstimatedExpiry(days);
-            const suffix = ` <span class="history-badge" title="Media da ${data.count} insertiment${data.count === 1 ? 'o' : 'i'} precedent${data.count === 1 ? 'e' : 'i'}">📊 storico</span>`;
+            const suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', data.count)}">📊 storico</span>`;
             const expiryInput = document.getElementById('add-expiry');
             const estimateEl = document.querySelector('.expiry-estimate-label');
             const dateEl = document.querySelector('.expiry-estimate-date');
@@ -6976,7 +6971,7 @@ function selectPurchaseType(btn, type) {
         const estimatedDate = addDays(days);
         const estimateLabel = formatEstimatedExpiry(days);
         let suffix = '';
-        if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="Media da ${window._historyExpiryCount} inserimento/i precedente/i">📊 storico</span>`;
+        if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', window._historyExpiryCount)}">📊 storico</span>`;
         else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
         else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
         else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
@@ -7572,7 +7567,7 @@ function setPzFraction(frac) {
 function isLowStock(totalRemaining, unit, defaultQty) {
     if (totalRemaining <= 0) return true; // fully depleted → definitely needs restocking
     if (unit === 'pz') return totalRemaining <= 1; // only 1 piece left
-    if (unit === 'conf') return totalRemaining < 1; // only warn when less than 1 full pack remains (opened/partial)
+    if (unit === 'conf') return totalRemaining < 0.25; // warn when less than 25% of a package remains
     // Weight/volume: use percentage of default_qty or fixed threshold
     if (defaultQty > 0) return totalRemaining <= defaultQty * 0.25;
     // Fallback fixed thresholds
@@ -8320,7 +8315,7 @@ async function analyzeWithAI() {
 
         // Option to save as-is without barcode
         html += `<div style="margin-top:16px; border-top: 1px solid var(--bg-light); padding-top: 12px">`;
-        html += `<button class="btn btn-secondary full-width" onclick="saveAIProductDirect()">🆕 Non è nessuno di questi — salva come nuovo</button>`;
+        html += `<button class="btn btn-secondary full-width" onclick="saveAIProductDirect()">${t('scanner.save_new_btn')}</button>`;
         html += `</div>`;
 
         resultDiv.innerHTML = html;
@@ -9488,7 +9483,7 @@ function _renderSmartLastUpdate() {
     const el = document.getElementById('smart-last-update');
     if (!el || !_smartShoppingLastFetch) return;
     const d = new Date(_smartShoppingLastFetch);
-    el.textContent = `Aggiornato ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    el.textContent = t('shopping.smart_last_update').replace('{time}', `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`);
 }
 
 function startBgShoppingRefresh() {
@@ -9708,7 +9703,7 @@ async function migrateBringNames(btn) {
                 showToast(`🔄 ${data.migrated} nomi generalizzati in Bring!`, 'success');
                 loadShoppingList(); // refresh the shopping list view
             } else {
-                showToast('Tutti i nomi sono già aggiornati', 'info');
+                showToast(t('shopping.names_already_updated'), 'info');
             }
         } else {
             if (statusEl) statusEl.textContent = '❌ ' + (data.error || 'Errore');
@@ -12931,21 +12926,21 @@ function _renderScreensaverNutrition() {
 
     el.innerHTML = `
     <div class="ss-nutr-wrap">
-        <div class="ss-nutr-title">🥗 La tua dispensa oggi</div>
+        <div class="ss-nutr-title">${t('nutrition.today_title')}</div>
         <div class="ss-nutr-charts">
             <!-- Main category pie -->
             <div class="ss-nutr-chart-block">
                 <div class="ss-pie3d" id="ss-pie-main" style="--pie-bg:${gradient}"></div>
-                <div class="ss-nutr-chart-label">${total} prodotti</div>
+                <div class="ss-nutr-chart-label">${t('nutrition.products_n').replace('{n}', total)}</div>
                 <div class="ss-nutr-legend">
                     ${top4.map(s => `<div class="ss-leg-row"><span style="background:${s.color}" class="ss-leg-dot"></span><span>${s.icon} ${s.cat}</span><span class="ss-leg-pct">${s.pct}%</span></div>`).join('')}
                 </div>
             </div>
             <!-- Score donuts -->
             <div class="ss-nutr-scores-col">
-                ${_ssDonut('❤️ Salute', healthScore, healthColor)}
-                ${_ssDonut('🎨 Varietà', varietyScore, varColor)}
-                ${_ssDonut('❄️ Freschi', fresh_pct, freshColor)}
+                ${_ssDonut(t('nutrition.label_health'), healthScore, healthColor)}
+                ${_ssDonut(t('nutrition.label_variety'), varietyScore, varColor)}
+                ${_ssDonut(t('nutrition.label_fresh'), fresh_pct, freshColor)}
             </div>
         </div>
     </div>`;
@@ -13050,7 +13045,7 @@ function generateScreensaverFact() {
     }
 
     // Greeting based on time
-    const greeting = hour < 12 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera';
+    const greeting = hour < 12 ? t('facts.greeting_morning') : hour < 18 ? t('facts.greeting_afternoon') : t('facts.greeting_evening');
 
     // Random item picker
     const rItem = (arr) => arr.length ? arr[Math.floor(Math.random() * arr.length)] : null;
@@ -13060,10 +13055,11 @@ function generateScreensaverFact() {
 
     // --- Expired items facts ---
     if (expired.length > 0) {
-        facts.push(() => `Hai ${expired.length} ${expired.length === 1 ? 'prodotto scaduto' : 'prodotti scaduti'} in dispensa. Controlla!`);
+        facts.push(() => expired.length === 1 ? t('facts.expired_one') : t('facts.expired_many').replace('{n}', expired.length));
         facts.push(() => {
             const names = expired.slice(0, 3).map(i => i.name);
-            return `Prodotti scaduti: ${names.join(', ')}${expired.length > 3 ? ` e altri ${expired.length - 3}` : ''}`;
+            const extra = expired.length > 3 ? ` ${t('facts.expired_list_more').replace('{n}', expired.length - 3)}` : '';
+            return t('facts.expired_list').replace('{names}', names.join(', ') + extra);
         });
         const freezerExpired = expired.filter(i => i.location === 'freezer');
         if (freezerExpired.length > 0) {
@@ -13071,14 +13067,14 @@ function generateScreensaverFact() {
                 const item = rItem(freezerExpired);
                 const safety = getExpiredSafety(item, Math.abs(daysUntilExpiry(item.expiry_date)));
                 if (safety.level === 'ok' || safety.level === 'warning') {
-                    return `${item.name} è scaduto, ma essendo in freezer potrebbe essere ancora buono! Controlla.`;
+                    return t('facts.freezer_expired_ok').replace('{name}', item.name);
                 }
-                return `${item.name} in freezer è scaduto da troppo tempo. Meglio buttarlo.`;
+                return t('facts.freezer_expired_old').replace('{name}', item.name);
             });
         }
         const frigoExpired = expired.filter(i => i.location === 'frigo');
         if (frigoExpired.length > 0) {
-            facts.push(() => `Hai ${frigoExpired.length} ${frigoExpired.length === 1 ? 'prodotto scaduto' : 'prodotti scaduti'} in frigo!`);
+            facts.push(() => frigoExpired.length === 1 ? t('facts.fridge_expired_one') : t('facts.fridge_expired_many').replace('{n}', frigoExpired.length));
         }
     }
 
@@ -13087,48 +13083,48 @@ function generateScreensaverFact() {
         facts.push(() => {
             const item = expiringSoon[0];
             const days = daysUntilExpiry(item.expiry_date);
-            if (days === 0) return `${item.name} scade oggi! Usalo subito.`;
-            if (days === 1) return `${item.name} scade domani. Pensaci!`;
-            return `${item.name} scade tra ${days} giorni.`;
+            if (days === 0) return t('facts.expiring_today').replace('{name}', item.name);
+            if (days === 1) return t('facts.expiring_tomorrow').replace('{name}', item.name);
+            return t('facts.expiring_days').replace('{name}', item.name).replace('{days}', days);
         });
         if (expiringSoon.length > 1) {
-            facts.push(() => `Hai ${expiringSoon.length} prodotti in scadenza ravvicinata.`);
+            facts.push(() => t('facts.expiring_many').replace('{n}', expiringSoon.length));
         }
     }
     if (expiringThisWeek.length > 0) {
-        facts.push(() => `Questa settimana scadono ${expiringThisWeek.length} prodotti. Pianifica i pasti di conseguenza!`);
+        facts.push(() => t('facts.expiring_this_week').replace('{n}', expiringThisWeek.length));
         facts.push(() => {
             const item = rItem(expiringThisWeek);
             const days = daysUntilExpiry(item.expiry_date);
             const locLabel = LOCATIONS[item.location]?.label || item.location;
-            return `${item.name} (${locLabel}) scade tra ${days} ${days === 1 ? 'giorno' : 'giorni'}.`;
+            return t('facts.expiring_item_loc').replace('{name}', item.name).replace('{loc}', locLabel).replace('{days}', days).replace('{dayslabel}', days === 1 ? t('facts.day') : t('facts.days'));
         });
     }
     if (expiringThisMonth.length > 0) {
-        facts.push(() => `In questo mese scadranno ${expiringThisMonth.length} prodotti.`);
+        facts.push(() => t('facts.expiring_this_month').replace('{n}', expiringThisMonth.length));
     }
 
     // --- Shopping list facts (skip count/names — already shown in the shopping panel) ---
     if (shop.length > 0) {
         const names = shop.slice(0, 3).map(i => i.name).join(', ');
-        const extra = shop.length > 3 ? ` e altri ${shop.length - 3}` : '';
-        facts.push(() => `Metti in lista: ${names}${extra} 🛒`);
+        const extra = shop.length > 3 ? ` ${t('facts.shopping_more').replace('{n}', shop.length - 3)}` : '';
+        facts.push(() => t('facts.shopping_add').replace('{names}', names + extra));
     }
     if (shop.length === 0) {
-        facts.push(() => `Lista della spesa vuota. Tutto rifornito! ✅`);
+        facts.push(() => t('facts.shopping_empty'));
     }
 
     // --- Location-based facts ---
     if (inFrigo.length > 0) {
         facts.push(() => {
             const item = rItem(inFrigo);
-            return `In frigo c'è: ${item.name}${item.brand ? ' (' + item.brand + ')' : ''}.`;
+            return t('facts.in_fridge').replace('{name}', item.name + (item.brand ? ' (' + item.brand + ')' : ''));
         });
     }
     if (inFreezer.length > 0) {
         facts.push(() => {
             const item = rItem(inFreezer);
-            return `Nel freezer c'è: ${item.name}. Non dimenticartelo!`;
+            return t('facts.in_freezer').replace('{name}', item.name);
         });
     }
 
@@ -13140,37 +13136,37 @@ function generateScreensaverFact() {
             const top = sorted[0];
             const catLabel = top[0];
             const icon = CATEGORY_ICONS[catLabel] || '📦';
-            return `La categoria più presente è ${icon} ${catLabel} con ${top[1].length} prodotti.`;
+            return t('facts.top_category').replace('{icon}', icon).replace('{cat}', t('categories.' + catLabel) || catLabel).replace('{n}', top[1].length);
         });
         if (byCategory['carne'] && byCategory['carne'].length > 0) {
-            facts.push(() => `Hai ${byCategory['carne'].length} prodotti di carne. 🥩`);
+            facts.push(() => t('facts.cat_meat').replace('{n}', byCategory['carne'].length));
         }
         if (byCategory['latticini'] && byCategory['latticini'].length > 0) {
-            facts.push(() => `Hai ${byCategory['latticini'].length} latticini in casa. 🥛`);
+            facts.push(() => t('facts.cat_dairy').replace('{n}', byCategory['latticini'].length));
         }
         if (byCategory['verdura'] && byCategory['verdura'].length > 0) {
-            facts.push(() => `Hai ${byCategory['verdura'].length} tipi di verdura. Ottimo per la salute! 🥬`);
+            facts.push(() => t('facts.cat_veggies').replace('{n}', byCategory['verdura'].length));
         }
         if (byCategory['frutta'] && byCategory['frutta'].length > 0) {
-            facts.push(() => `Hai ${byCategory['frutta'].length} tipi di frutta. 🍎`);
+            facts.push(() => t('facts.cat_fruit').replace('{n}', byCategory['frutta'].length));
         }
         if (byCategory['bevande'] && byCategory['bevande'].length > 0) {
-            facts.push(() => `Hai ${byCategory['bevande'].length} bevande disponibili. 🥤`);
+            facts.push(() => t('facts.cat_drinks').replace('{n}', byCategory['bevande'].length));
         }
         if (byCategory['surgelati'] && byCategory['surgelati'].length > 0) {
-            facts.push(() => `Hai ${byCategory['surgelati'].length} surgelati nel freezer. ❄️`);
+            facts.push(() => t('facts.cat_frozen').replace('{n}', byCategory['surgelati'].length));
         }
         if (byCategory['pasta'] && byCategory['pasta'].length > 0) {
-            facts.push(() => `Hai ${byCategory['pasta'].length} tipi di pasta. 🍝 Che ne dici di una carbonara?`);
+            facts.push(() => t('facts.cat_pasta').replace('{n}', byCategory['pasta'].length));
         }
         if (byCategory['conserve'] && byCategory['conserve'].length > 0) {
-            facts.push(() => `Hai ${byCategory['conserve'].length} conserve in dispensa. 🥫`);
+            facts.push(() => t('facts.cat_canned').replace('{n}', byCategory['conserve'].length));
         }
         if (byCategory['snack'] && byCategory['snack'].length > 0) {
-            facts.push(() => `Hai ${byCategory['snack'].length} snack. Resisti alla tentazione! 🍪`);
+            facts.push(() => t('facts.cat_snacks').replace('{n}', byCategory['snack'].length));
         }
         if (byCategory['condimenti'] && byCategory['condimenti'].length > 0) {
-            facts.push(() => `Hai ${byCategory['condimenti'].length} condimenti a disposizione. 🧂`);
+            facts.push(() => t('facts.cat_condiments').replace('{n}', byCategory['condimenti'].length));
         }
     }
 
@@ -13178,16 +13174,16 @@ function generateScreensaverFact() {
     if (inv.length > 0) {
         facts.push(() => {
             const item = rItem(inv);
-            return `Lo sapevi? Hai ${item.name} in ${LOCATIONS[item.location]?.label || item.location}.`;
+            return t('facts.item_random').replace('{name}', item.name).replace('{loc}', LOCATIONS[item.location]?.label || item.location);
         });
         facts.push(() => {
             const item = rItem(inv);
             const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-            return `${item.name}: ne hai ${qty}.`;
+            return t('facts.item_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
     if (noExpiry.length > 0) {
-        facts.push(() => `${noExpiry.length} prodotti non hanno una data di scadenza impostata.`);
+        facts.push(() => t('facts.no_expiry_count').replace('{n}', noExpiry.length));
     }
     if (withExpiry.length > 0) {
         // Find the one expiring furthest away
@@ -13196,7 +13192,7 @@ function generateScreensaverFact() {
             return d > (best.d || 0) ? { item, d } : best;
         }, { d: 0 });
         if (furthest.item && furthest.d > 30) {
-            facts.push(() => `Il prodotto con scadenza più lontana è ${furthest.item.name}: ${Math.round(furthest.d / 30)} mesi.`);
+            facts.push(() => t('facts.furthest_expiry').replace('{name}', furthest.item.name).replace('{months}', Math.round(furthest.d / 30)));
         }
     }
 
@@ -13206,56 +13202,56 @@ function generateScreensaverFact() {
         facts.push(() => {
             const item = rItem(highQtyItems);
             const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-            return `Hai una bella scorta di ${item.name}: ${qty}!`;
+            return t('facts.high_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
     const lowQtyItems = inv.filter(i => parseFloat(i.quantity) <= 1 && parseFloat(i.quantity) > 0);
     if (lowQtyItems.length > 0) {
         facts.push(() => {
             const item = rItem(lowQtyItems);
-            return `${item.name} sta per finire. Aggiungilo alla spesa?`;
+            return t('facts.low_qty_item').replace('{name}', item.name);
         });
-        facts.push(() => `Ci sono ${lowQtyItems.length} prodotti quasi finiti.`);
+        facts.push(() => t('facts.low_qty_count').replace('{n}', lowQtyItems.length));
     }
 
     // --- Time-of-day greetings & suggestions ---
     if (hour >= 6 && hour < 10) {
-        if (byCategory['pane']) facts.push(() => `Buongiorno! Hai del pane per la colazione. 🍞`);
-        if (byCategory['latticini']) facts.push(() => `C'è del latte in frigo per il cappuccino? ☕🥛`);
-        if (byCategory['frutta']) facts.push(() => `Buongiorno! Una bella frutta fresca per iniziare bene. 🍎`);
+        if (byCategory['pane']) facts.push(() => t('facts.morning_bread'));
+        if (byCategory['latticini']) facts.push(() => t('facts.morning_milk'));
+        if (byCategory['frutta']) facts.push(() => t('facts.morning_fruit'));
     }
     if (hour >= 11 && hour < 14) {
-        if (byCategory['pasta']) facts.push(() => `Ora di pranzo… Un bel piatto di pasta? 🍝`);
-        if (byCategory['verdura']) facts.push(() => `Un'insalata fresca per pranzo? Hai ${byCategory['verdura'].length} verdure! 🥗`);
+        if (byCategory['pasta']) facts.push(() => t('facts.noon_pasta'));
+        if (byCategory['verdura']) facts.push(() => t('facts.noon_salad').replace('{n}', byCategory['verdura'].length));
     }
     if (hour >= 17 && hour < 21) {
-        if (byCategory['carne']) facts.push(() => `Per cena potresti usare la carne che hai. 🥩`);
-        if (byCategory['pesce']) facts.push(() => `Che ne dici di pesce per cena? 🐟`);
-        if (expiringThisWeek.length > 0) facts.push(() => `Hai ${expiringThisWeek.length} prodotti in scadenza questa settimana — usali stasera!`);
+        if (byCategory['carne']) facts.push(() => t('facts.evening_meat'));
+        if (byCategory['pesce']) facts.push(() => t('facts.evening_fish'));
+        if (expiringThisWeek.length > 0) facts.push(() => t('facts.evening_expiring').replace('{n}', expiringThisWeek.length));
     }
     if (hour >= 21 || hour < 6) {
-        if (expiringSoon.length > 0) facts.push(() => `Buonanotte! Domani ricordati di usare: ${expiringSoon.slice(0,2).map(i=>i.name).join(', ')}.`);
+        if (expiringSoon.length > 0) facts.push(() => t('facts.night_reminder').replace('{names}', expiringSoon.slice(0,2).map(i=>i.name).join(', ')));
     }
 
     // --- Weekly stats ---
     const recentIn = stats.recent_in || 0;
     const recentOut = stats.recent_out || 0;
     if (recentIn > 0 && recentOut > 0) {
-        facts.push(() => `Bilancio settimana: +${recentIn} aggiunti, −${recentOut} consumati.`);
+        facts.push(() => t('facts.weekly_balance').replace('{in}', recentIn).replace('{out}', recentOut));
     } else if (recentIn > 0) {
-        facts.push(() => `Questa settimana hai aggiunto ${recentIn} prodotti.`);
+        facts.push(() => t('facts.weekly_added').replace('{n}', recentIn));
     } else if (recentOut > 0) {
-        facts.push(() => `Questa settimana hai consumato ${recentOut} prodotti. Ottimo!`);
+        facts.push(() => t('facts.weekly_consumed').replace('{n}', recentOut));
     }
 
     // --- Tips & curiosità (statici ma ruotano) ---
-    facts.push(() => `💡 I prodotti in freezer durano molto più a lungo della data di scadenza.`);
-    facts.push(() => `💡 Il pane congelato mantiene la fragranza per settimane.`);
-    facts.push(() => `💡 Per evitare sprechi, usa prima i prodotti con scadenza più vicina (FIFO).`);
-    facts.push(() => `💡 La carne in freezer può durare fino a 6 mesi senza problemi.`);
-    facts.push(() => `💡 Non ricongelare mai un alimento già scongelato. Cucinalo subito!`);
-    facts.push(() => `💡 Un frigo ordinato ti fa risparmiare tempo e denaro.`);
-    facts.push(() => `💡 Le conserve aperte vanno in frigo e consumate in pochi giorni.`);
+    facts.push(() => t('facts.tip_freezer'));
+    facts.push(() => t('facts.tip_bread'));
+    facts.push(() => t('facts.tip_fifo'));
+    facts.push(() => t('facts.tip_meat'));
+    facts.push(() => t('facts.tip_no_refreeze'));
+    facts.push(() => t('facts.tip_fridge'));
+    facts.push(() => t('facts.tip_canned'));
 
     // --- Brand-based facts ---
     const brands = inv.filter(i => i.brand).map(i => i.brand);
@@ -13263,24 +13259,24 @@ function generateScreensaverFact() {
         const brandCount = {};
         brands.forEach(b => { brandCount[b] = (brandCount[b] || 0) + 1; });
         const topBrand = Object.entries(brandCount).sort((a, b) => b[1] - a[1])[0];
-        facts.push(() => `Il marca più presente nella tua dispensa è ${topBrand[0]} con ${topBrand[1]} prodotti.`);
+        facts.push(() => t('facts.top_brand').replace('{brand}', topBrand[0]).replace('{n}', topBrand[1]));
     }
 
     // --- Specific food combo facts ---
     if (byCategory['pasta'] && byCategory['condimenti']) {
-        facts.push(() => `Hai pasta e condimenti: sei pronto per un primo piatto! 🍝`);
+        facts.push(() => t('facts.combo_pasta'));
     }
     if (byCategory['pane'] && byCategory['carne']) {
-        facts.push(() => `Pane e carne: un panino veloce è sempre una buona idea! 🥪`);
+        facts.push(() => t('facts.combo_sandwich'));
     }
     if (byCategory['verdura'] && byCategory['carne']) {
-        facts.push(() => `Verdura e carne: hai tutto per un piatto equilibrato! 🥗🥩`);
+        facts.push(() => t('facts.combo_balanced'));
     }
 
     // --- Empty states ---
     if (inv.length === 0) {
-        facts.push(() => `La dispensa è vuota! Fai una bella spesa. 🛒`);
-        facts.push(() => `Nessun prodotto registrato. Scansiona qualcosa per iniziare!`);
+        facts.push(() => t('facts.pantry_empty'));
+        facts.push(() => t('facts.pantry_empty_scan'));
     }
 
     // --- Location distribution ---
@@ -13290,7 +13286,7 @@ function generateScreensaverFact() {
             const parts = Object.entries(byLocation).map(([loc, items]) => 
                 `${LOCATIONS[loc]?.icon || '📦'} ${items.length}`
             );
-            return `Distribuzione: ${parts.join('  ·  ')}`;
+            return t('facts.location_distribution').replace('{parts}', parts.join('  ·  '));
         });
     }
 
@@ -13300,7 +13296,7 @@ function generateScreensaverFact() {
 
     // Pick a random fact
     if (facts.length === 0) {
-        return `${greeting}! La tua Dispensa ti aspetta.`;
+        return t('facts.pantry_waiting').replace('{greeting}', greeting);
     }
     return facts[Math.floor(Math.random() * facts.length)]();
 }

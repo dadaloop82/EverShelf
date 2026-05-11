@@ -1744,7 +1744,8 @@ function getInventoryAnomalies(PDO $db): void {
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit,
                p.default_quantity, p.package_unit,
-               i.id AS inventory_id, i.quantity AS inv_qty, i.location,
+               MIN(i.id) AS inventory_id,
+               SUM(i.quantity) AS inv_qty,
                COALESCE(tx_in.tot, 0)  AS total_in,
                COALESCE(tx_out.tot, 0) AS total_out
         FROM inventory i
@@ -1758,6 +1759,8 @@ function getInventoryAnomalies(PDO $db): void {
             FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
         ) tx_out ON tx_out.product_id = p.id
         WHERE i.quantity > 0
+        GROUP BY p.id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+                 tx_in.tot, tx_out.tot
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     // Anomaly dismissed keys stored in a simple JSON file
@@ -1783,14 +1786,13 @@ function getInventoryAnomalies(PDO $db): void {
         // so it stays dismissed until the user explicitly resets or the direction changes.
         // An inventory correction (bringing qty closer to expected) will flip the direction
         // or drop below threshold — naturally clearing the dismissed state.
-        $key = 'a_' . $r['product_id'] . '_' . $direction;
-        if (!empty($dismissed[$key])) continue;
-
         $direction = $diff > 0 ? 'phantom' : 'missing';
         // Special case: expected is negative — more consumption recorded than entries.
         // The real qty vs tx comparison is meaningless; what we actually know is that
         // "initial stock was never formally registered as an 'in' transaction".
         if ($expected <= 0) $direction = 'untracked';
+        $key = 'a_' . $r['product_id'] . '_' . $direction;
+        if (!empty($dismissed[$key])) continue;
         $anomalies[] = [
             'inventory_id' => (int)$r['inventory_id'],
             'product_id'   => (int)$r['product_id'],
@@ -3076,8 +3078,8 @@ function generateRecipe(PDO $db): void {
         if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
         if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
         if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
+        if ($isOpen) return 3; // opened items: same priority as expiring this week — must be used soon
         if (!empty($item['expiry_date'])) return 4;
-        if ($isOpen) return 5;
         return 6;
     };
 
@@ -3132,13 +3134,12 @@ function generateRecipe(PDO $db): void {
     $priorityHeaders = [
         1 => 'SCADUTI — usa subito',
         2 => 'SCADENZA ≤3gg — priorità alta',
-        3 => 'SCADENZA ≤7gg',
+        3 => 'SCADENZA ≤7gg / APERTI — usa presto',
         4 => 'ALTRI CON SCADENZA',
-        5 => 'APERTI',
         6 => 'DISPENSA',
     ];
     // Limit groups to keep prompt compact:
-    //  1-3 (urgent): all items; 4 (has expiry): max 40; 5 (opened): all; 6 (pantry): max 20
+    //  1-3 (urgent+opened): all items; 4 (has expiry): max 40; 6 (pantry): max 20
     foreach ($priorityHeaders as $g => $header) {
         if (empty($priorityGroups[$g])) continue;
         $groupItems = $priorityGroups[$g];
@@ -4014,8 +4015,8 @@ function generateRecipeStream(PDO $db): void {
         if (!empty($item['expiry_date']) && $daysLeft < 0) return 1;
         if (!empty($item['expiry_date']) && $daysLeft <= 3) return 2;
         if (!empty($item['expiry_date']) && $daysLeft <= 7) return 3;
+        if ($isOpen) return 3; // opened items: same priority as expiring this week — must be used soon
         if (!empty($item['expiry_date'])) return 4;
-        if ($isOpen) return 5;
         return 6;
     };
 
@@ -4050,7 +4051,7 @@ function generateRecipeStream(PDO $db): void {
     // Senza piano pasto: limiti moderati per ridurre token (ora safe grazie a thinkingBudget:0)
     $hasMealPlan = !empty($mealPlanType);
     $ingredientSections = [];
-    $priorityHeaders    = [1=>'SCADUTI — usa subito',2=>'SCADENZA ≤3gg — priorità alta',3=>'SCADENZA ≤7gg',4=>'ALTRI CON SCADENZA',5=>'APERTI',6=>'DISPENSA'];
+    $priorityHeaders    = [1=>'SCADUTI — usa subito',2=>'SCADENZA ≤3gg — priorità alta',3=>'SCADENZA ≤7gg / APERTI — usa presto',4=>'ALTRI CON SCADENZA',6=>'DISPENSA'];
     $totalIngredientsSent = 0;
     foreach ($priorityHeaders as $g => $header) {
         if (empty($priorityGroups[$g])) continue;
@@ -4854,7 +4855,12 @@ function italianToBring(string $italianName): string {
 
     $genericQualifiers = [
         'dolce','salato','light','bio','classico','original','naturale','fresco','fresca',
-        'intero','intera','magro','magra','piccolo','piccola','grande','rosso','bianco'
+        'intero','intera','magro','magra','piccolo','piccola','grande','rosso','bianco',
+        // Generic descriptors that appear inside multi-word product names (e.g. "succo e polpa frutta",
+        // "muesli frutta secca") but do NOT represent the item category on their own.
+        // Pass 1 (exact match on shopping_name) still works correctly for truly generic items
+        // like shopping_name='Frutta' → it2de['frutta'] = 'Früchte'.
+        'frutta','verdura','frutti',
     ];
     $candidates = [];
     foreach ($catalog['it2de'] as $itLower => $deKey) {
@@ -5292,14 +5298,16 @@ function bringCleanupObsolete(PDO $db): array {
         return array_values(array_unique(array_filter($toks, fn($t) => mb_strlen($t) > 2 && !in_array($t, $stopwords))));
     };
 
-    // Build smart map: ONLY shopping_name tokens → item.
-    // Deliberately NOT indexing by product name tokens — product names like
-    // "Pera Italiana Succo e polpa frutta" contain words ("succo", "frutta") that
-    // would wrongly keep unrelated Bring! items ("Succo", "Frutta") on the list.
-    // The shopping_name (e.g. "Pere") is the canonical generic name used in Bring!.
+    // Build smart map by shopping_name tokens AND by exact name.
+    // Exact match is tried first to prevent loose token collisions like
+    // 'Panna' (Bring! item, in stock) matching 'Panna da cucina' (depleted, critical)
+    // because they share the 'panna' token.
     $smartByTok = [];
+    $smartByExactName = [];
     foreach ($smartItems as $si) {
         $sName = !empty($si['shopping_name']) ? $si['shopping_name'] : $si['name'];
+        $sNameNorm = strtolower(trim($sName));
+        if ($sNameNorm !== '') $smartByExactName[$sNameNorm] = $si;
         foreach ($ntFn($sName) as $tok) {
             if (!isset($smartByTok[$tok])) $smartByTok[$tok] = $si;
         }
@@ -5321,10 +5329,15 @@ function bringCleanupObsolete(PDO $db): array {
         }
         if (!$isAppAdded) continue;
 
-        // Match against smart items using shopping_name-priority tokens
+        // Match against smart items: exact shopping_name first, then first-token fallback.
+        // Exact match prevents e.g. 'Panna' → 'Panna da cucina' via shared token 'panna'.
         $nameToks = $ntFn($name);
-        $firstTok = $nameToks[0] ?? '';
-        $smartSi  = $firstTok ? ($smartByTok[$firstTok] ?? null) : null;
+        $exactKey = strtolower(trim($name));
+        $smartSi  = $smartByExactName[$exactKey] ?? null;
+        if ($smartSi === null) {
+            $firstTok = $nameToks[0] ?? '';
+            $smartSi  = $firstTok ? ($smartByTok[$firstTok] ?? null) : null;
+        }
 
         if ($smartSi !== null) {
             // Still in smart_shopping with critical or high urgency → keep
@@ -5985,8 +5998,12 @@ function smartShopping(PDO $db): void {
         // first purchase → now, so idle periods after last use don't deflate the rate.
         // Example: Aglio bought 60 days ago but last used 34 days ago → use 34-day window.
         $lastActivity = max($lastIn ?? 0, $lastOut ?? 0);
-        $effectiveDays = ($firstIn && $lastActivity > $firstIn)
-            ? max(1, ($lastActivity - $firstIn) / 86400)
+        $activitySpan = ($firstIn && $lastActivity > $firstIn) ? ($lastActivity - $firstIn) : 0;
+        // Guard: if all activity fits within 24h (e.g. bought & consumed same day / seconds apart),
+        // effectiveDays would collapse to 1 → wildly inflated daily rate (e.g. Pizza: in+out 9s apart).
+        // Fall back to daysSinceFirst (first purchase → now) for a conservative estimate.
+        $effectiveDays = ($activitySpan >= 86400)
+            ? max(1, $activitySpan / 86400)
             : $daysSinceFirst;
         $dailyRate = $effectiveDays < 999 && $totalUsed > 0 ? $totalUsed / $effectiveDays : 0;
 
