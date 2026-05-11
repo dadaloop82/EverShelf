@@ -1227,7 +1227,7 @@ function useFromInventory(PDO $db): void {
         // Has both whole and fractional, and we're using less than or equal to the fractional part
         if ($wholeConfs >= 1 && $fraction > 0.001 && $quantity <= $fraction + 0.001) {
             // Split: keep whole confs in original row, create new row for opened part
-            $stmt3 = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt3 = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt3->execute([$wholeConfs, $existing['id']]);
             
             // Get expiry and vacuum_sealed from original row
@@ -1305,7 +1305,7 @@ function useFromInventory(PDO $db): void {
                 $newFrac  = round($newQty - $newWhole, 6);
                 if ($newFrac > 0.001 && $newWhole >= 1) {
                     // Keep whole confs in original row (no opened_at, sealed expiry unchanged)
-                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
                     $stmt->execute([$newWhole, $existing['id']]);
                     // New row for the opened fraction with short shelf-life expiry
                     $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
@@ -1321,7 +1321,7 @@ function useFromInventory(PDO $db): void {
                 $newRemainder  = round($newQty - $newWholePkgs * $defQty, 6);
                 if ($newRemainder > $defQty * 0.01 && $newWholePkgs >= 1) {
                     // Keep whole packages in original row (no opened_at, sealed expiry unchanged)
-                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                    $stmt = $db->prepare("UPDATE inventory SET quantity = ?, opened_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
                     $stmt->execute([$newWholePkgs * $defQty, $existing['id']]);
                     // New row for the opened partial package with short shelf-life expiry
                     $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, opened_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
