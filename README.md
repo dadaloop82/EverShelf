@@ -25,14 +25,18 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE-orange.svg)](translations/)
+[![Version](https://img.shields.io/badge/version-1.7.10-brightgreen.svg)](CHANGELOG.md)
 
 ---
 
-## 🌍 Recent Updates
+## 🌍 Recent Updates (v1.7.10)
 
-- **Category badges on inventory items** — Every product now shows its macro-category badge (icon + label) inline. Items that can't be classified locally are automatically refined via Gemini AI after the page loads, with server-side caching so the AI call only happens once per product.
-- **Category search** — Typing a category name (e.g. "biscotti", "latticini") in the inventory search bar now returns all matching items across brands and exact names.
-- **AI function guards** — All Gemini-powered features (price estimation, category classification, recipe suggestions, etc.) now explicitly check whether a Gemini API key is configured before making any AI call. The UI gracefully skips or shows a friendly message instead of silently failing.
+- **Banner "Imposta scadenza" ora funziona** — Il pulsante sul banner "nessuna scadenza" apriva una funzione inesistente. Corretto, ora apre correttamente la modal di modifica.
+- **Banner aperto vs scaduto** — I prodotti con `opened_at` mostrano "Aperto da N giorni in [posizione]" invece di "Scaduto!", con la posizione (frigo/dispensa/freezer) esplicitamente indicata.
+- **Shelf life latte UHT** — Il latte generico è ora trattato come UHT (7 giorni dopo apertura) invece che fresco (4 giorni).
+- **Niente più false anomalie di consumo** — Il rilevatore ora ignora i casi in cui `expected = 0` (prodotto probabilmente ricomprato) e alza la soglia "more than expected" al 400%. Le notifiche rimangono solo per consumi significativamente inferiori al previsto.
+- **Scaduti nascondono prodotti già buttati** — La sezione scaduti ora filtra correttamente i prodotti con `quantity = 0`.
+- **Docker: fix permessi DB al primo avvio** — `_ensureDataDir()` crea la directory `data/` se mancante e tenta `chmod(0775)` se non scrivibile, risolvendo `SQLSTATE[HY000][14]` su volumi Docker freschi.
 - **AI price estimation for shopping list** — Each Bring! shopping item now shows an estimated retail price badge (unit price + total). Prices are fetched via Gemini AI, cached server-side for 3 months, and stored client-side in `sessionStorage` to survive navigation. The dashboard shopping stat card shows a live green `ca. €X.XX` badge that updates in real-time as prices are calculated — even in background when you're on another tab.
 - **Kiosk v1.7.0: OTA update system** — "Cerca aggiornamenti" button in Settings triggers a forced GitHub release check; new `installUpdate()` JS bridge calls Android `DownloadManager` directly (lockTask mode blocks external browser links); graceful degradation for older APKs with manual instructions. Automatic OTA check every 6 hours with native update banner.
 - **Kiosk: consistent APK signing** — Project keystore (`evershelf.jks`) committed to the repo; every build — local or CI — now produces an APK with the same signature, eliminating "APK incompatible / signature conflict" errors on OTA update.

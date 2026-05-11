@@ -5,7 +5,26 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.9] - 2026-05-11
+## [1.7.10] - 2026-05-11
+
+### Fixed
+- **Banner "Imposta scadenza" non faceva nulla** — `editBannerNoExpiry()` chiamava `openEditInventoryModal()` che non esiste. Corretto in `editInventoryItem()` (la funzione corretta usata da tutti gli altri handler banner). Aggiunto anche il fetch preventivo di `inventory_list` perché `currentInventory` è vuoto sulla dashboard.
+- **"Prodotto non trovato" aprendo modal da banner** — `currentInventory` è sempre vuoto sulla dashboard; il fetch dell'inventario ora avviene prima di aprire la modal (stesso pattern di `editReviewItem` e `weighBannerItem`).
+- **Banner scaduto su latte UHT aperto** — Il testo mostrava "Scaduto!" invece di "Aperto da troppo tempo". Ora i prodotti con `opened_at` mostrano "Aperto da N giorni in [posizione]" sia nel titolo che nel dettaglio del banner.
+- **Shelf life latte generico 4 → 7 giorni** — Il latte senza qualificatori (es. "Latte") veniva trattato come fresco (4 giorni). Il latte fresco è già gestito esplicitamente (`latte fresco/intero/parzial/scremato` → 3gg); il generico ora vale 7 giorni (default UHT). Fix applicato sia in PHP (`database.php`) che in JS (`app.js`).
+- **`opened_at` stale sulle confezioni intere dopo split** — Quando un uso splitta la riga in "confezioni intere + frazione aperta", la riga delle intere non azzerava `opened_at`. Ora tutti e 3 i percorsi di split eseguono `opened_at = NULL` sulla riga sigillata.
+- **`inventory_update` non registrava transazioni** — La modal di modifica quantità aggiornava l'inventario senza creare transazioni. La differenza viene ora registrata automaticamente come `'in'` o `'out'` con nota `[Correzione manuale]`, evitando falsi positivi nel rilevatore di anomalie.
+- **False anomalie di consumo dopo la spesa** — La baseline della prediction usava solo la quantità del rifornimento (`restockQty`), ignorando le scorte preesistenti → `actual > expected` sistematicamente. Nuova baseline: `qty_attuale + consumato_da_ultimo_rifornimento`, che riflette correttamente la realtà indipendentemente dalle scorte pregresse.
+- **Banner "consumo anomalo" su quasi tutti i prodotti** — Due fix:
+  1. `expected = 0` non genera più anomalia "more" (il modello pensa che dovresti aver finito, ma hai ricomprato).
+  2. Soglia "more than expected" alzata al 400% (era 30%); "less than expected" rimane al 30%.
+- **Sezione scaduti mostra prodotti già buttati** — La query `expired` mancava di `AND i.quantity > 0`; i prodotti buttati (qty=0) con scadenza passata continuavano ad apparire. Corretta la query + pulizia righe orfane nel DB.
+- **Hardcoded `scade il` in banner** — Stringa italiana hardcodata nel dettaglio del banner scaduti rimossa.
+- **Docker: `SQLSTATE[HY000][14] unable to open database file`** — Aggiunta `_ensureDataDir()` in `database.php` che crea la directory se mancante e tenta `chmod(0775)` se non scrivibile.
+
+### Added
+- **i18n completa** — Aggiunti ~25 chiavi di traduzione mancanti per UI kiosk, gemini, banner, scanner, shopping, appliances in tutti e 3 i file (`it.json`, `en.json`, `de.json`). Totale: 934 chiavi per lingua.
+
 
 ### Added
 - **Category badge on inventory items** — Every product in the inventory now displays a macro-category badge (icon + label) next to the location badge. Badges showing `altro` are asynchronously refined via the new `guess_category` AI endpoint (Gemini + `data/category_ai_cache.json` cache) so the correct category appears automatically after the page loads.
