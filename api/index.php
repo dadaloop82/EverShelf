@@ -118,7 +118,7 @@ function checkRateLimit(string $action): void {
     }
 
     // Determine limit based on action
-    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient'];
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
     $errorActions = ['report_error', 'check_update'];
@@ -452,6 +452,10 @@ try {
 
         case 'gemini_anomaly_explain':
             geminiAnomalyExplain();
+            break;
+
+        case 'gemini_number_ocr':
+            geminiNumberOCR();
             break;
 
         case 'get_shopping_price':
@@ -1807,11 +1811,12 @@ function getInventoryAnomalies(PDO $db): void {
         // so it stays dismissed until the user explicitly resets or the direction changes.
         // An inventory correction (bringing qty closer to expected) will flip the direction
         // or drop below threshold — naturally clearing the dismissed state.
+        // If expected <= 0 it means more consumption recorded than purchases — the
+        // transaction history is simply incomplete (very common: users track consumption
+        // but not always purchases). Showing an anomaly here is just noise, skip it.
+        if ($expected <= 0) continue;
+
         $direction = $diff > 0 ? 'phantom' : 'missing';
-        // Special case: expected is negative — more consumption recorded than entries.
-        // The real qty vs tx comparison is meaningless; what we actually know is that
-        // "initial stock was never formally registered as an 'in' transaction".
-        if ($expected <= 0) $direction = 'untracked';
         $key = 'a_' . $r['product_id'] . '_' . $direction;
         if (!empty($dismissed[$key])) continue;
         $anomalies[] = [
@@ -2116,7 +2121,7 @@ function getConsumptionPredictions(PDO $db): void {
         $txns->execute([$pid, $loc]);
         $rows = $txns->fetchAll(PDO::FETCH_ASSOC);
 
-        if (count($rows) < 3) continue; // Need at least 3 data points
+        if (count($rows) < 5) continue; // Need at least 5 data points for a reliable rate
 
         // Calculate average daily consumption
         $totalUsed = 0;
@@ -2124,7 +2129,9 @@ function getConsumptionPredictions(PDO $db): void {
 
         $firstDate = strtotime($rows[0]['created_at']);
         $lastDate  = strtotime($rows[count($rows) - 1]['created_at']);
-        $daySpan   = max(1, ($lastDate - $firstDate) / 86400);
+        $daySpan   = ($lastDate - $firstDate) / 86400;
+        // If all transactions are clustered within a week, the rate is unreliable
+        if ($daySpan < 7) continue;
         $dailyRate = $totalUsed / $daySpan;
 
         if ($dailyRate < 0.01) continue; // negligible consumption
@@ -2158,6 +2165,12 @@ function getConsumptionPredictions(PDO $db): void {
 
         $baselineQty = floatval($item['quantity']) + $usedSinceRestock;
         $daysSinceRestock = max(1, (time() - $restockDate) / 86400);
+
+        // If the model predicts you should have consumed less than 15% of baseline
+        // in this period, the daily rate is too low to make reliable predictions:
+        // any single normal use will look like an anomaly. Skip it.
+        $predictedConsumption = $dailyRate * $daysSinceRestock;
+        if ($baselineQty > 0 && $predictedConsumption < $baselineQty * 0.15) continue;
 
         // Predicted remaining qty = baseline - (daily rate * days since restock)
         $expectedQty = max(0, $baselineQty - ($dailyRate * $daysSinceRestock));
@@ -7276,6 +7289,44 @@ function geminiShoppingEnrich(PDO $db): void {
     file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
     echo json_encode(['success' => true, 'items' => $enriched, 'source' => 'gemini']);
+}
+
+// =============================================================================
+// ===== GEMINI AI: NUMBER OCR (read barcode digits from image) ================
+// =============================================================================
+/**
+ * POST /api/?action=gemini_number_ocr
+ * Body: { image: base64-jpeg }
+ * Returns: { success, barcode } or { success: false, error }
+ * Uses Gemini vision to read the barcode number printed on a product label.
+ */
+function geminiNumberOCR(): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) { echo json_encode(['success' => false, 'error' => 'no_api_key']); return; }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $imageBase64 = $input['image'] ?? '';
+    if (!$imageBase64) { echo json_encode(['success' => false, 'error' => 'no_image']); return; }
+
+    $payload = [
+        'contents' => [[
+            'parts' => [
+                ['text' => 'Look at this product image. Find the barcode number (EAN-13 or EAN-8) printed on the label — it is usually a sequence of 8 or 13 digits printed below or near the barcode stripes. Return ONLY the digit sequence, nothing else. If you cannot find a valid barcode number, return exactly: none'],
+                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $imageBase64]]
+            ]
+        ]],
+        'generationConfig' => ['temperature' => 0, 'maxOutputTokens' => 20, 'thinkingConfig' => ['thinkingBudget' => 0]]
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    $text   = trim($result['text'] ?? '');
+    $digits = preg_replace('/\D/', '', $text);
+
+    if (strlen($digits) === 13 || strlen($digits) === 8) {
+        echo json_encode(['success' => true, 'barcode' => $digits]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+    }
 }
 
 // =============================================================================

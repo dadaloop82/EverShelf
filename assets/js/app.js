@@ -1774,28 +1774,176 @@ let currentLocation = '';
 let scannerStream = null;
 let quaggaRunning = false;
 let aiStream = null;
-let _scanZoomLevel = 1; // 1 or 2
+let _scanZoomLevel = 2; // always 2x
+let _torchActive = false;
 
-async function toggleScanZoom() {
-    _scanZoomLevel = _scanZoomLevel === 1 ? 2 : 1;
-    const btn = document.getElementById('scan-zoom-btn');
-    if (btn) btn.textContent = `x${_scanZoomLevel}`;
-    if (scannerStream) {
-        const track = scannerStream.getVideoTracks()[0];
-        if (track) {
-            const caps = track.getCapabilities ? track.getCapabilities() : {};
-            if (caps.zoom) {
-                // Hardware zoom (Android Chrome)
-                const z = _scanZoomLevel === 2
-                    ? Math.min(caps.zoom.max, caps.zoom.min * 2 || 2)
-                    : caps.zoom.min;
-                try { await track.applyConstraints({ advanced: [{ zoom: z }] }); } catch(e) {}
-            } else {
-                // Software zoom via CSS scale on the video element
-                const video = document.getElementById('scanner-video');
-                if (video) video.style.transform = _scanZoomLevel === 2 ? 'scale(2)' : 'scale(1)';
+// Apply fixed 2x zoom (hardware if available, CSS fallback)
+async function _applyFixedZoom() {
+    if (!scannerStream) return;
+    const track = scannerStream.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.zoom && caps.zoom.max >= 2) {
+        const z = Math.min(caps.zoom.max, caps.zoom.min * 2);
+        try { await track.applyConstraints({ advanced: [{ zoom: z }] }); scanLog(`HW zoom: ${z}`); } catch(e) {}
+    } else {
+        const video = document.getElementById('scanner-video');
+        if (video) video.style.transform = 'scale(2)';
+        scanLog('SW zoom: scale(2)');
+    }
+}
+
+async function toggleTorch() {
+    if (!scannerStream) return;
+    const track = scannerStream.getVideoTracks()[0];
+    if (!track) return;
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (!caps.torch) { showToast(t('scan.torch_unavailable'), 'info'); return; }
+    _torchActive = !_torchActive;
+    try {
+        await track.applyConstraints({ advanced: [{ torch: _torchActive }] });
+        const btn = document.getElementById('scan-torch-btn');
+        if (btn) btn.classList.toggle('torch-on', _torchActive);
+        showToast(_torchActive ? t('scan.torch_on') : t('scan.torch_off'), 'info');
+    } catch(e) { showToast(t('scan.torch_unavailable'), 'info'); _torchActive = false; }
+}
+
+async function flipCamera() {
+    const s = getSettings();
+    const current = s.camera_facing || 'environment';
+    const next = current === 'environment' ? 'user' : 'environment';
+    s.camera_facing = next;
+    try { localStorage.setItem('evershelf_settings', JSON.stringify(s)); } catch(_) {}
+    showToast(next === 'user' ? t('scan.flip_front') : t('scan.flip_back'), 'info');
+    stopScanner();
+    setTimeout(() => initScanner(), 150);
+}
+
+// ===== SCAN TAB SWITCHING =====
+function switchScanTab(tab) {
+    ['barcode','name','ai'].forEach(id => {
+        const btn = document.getElementById(`scan-tab-${id}`);
+        const content = document.getElementById(`scan-tabcontent-${id}`);
+        const active = id === tab;
+        if (btn) btn.classList.toggle('active', active);
+        if (content) content.style.display = active ? '' : 'none';
+    });
+    // Focus input on tab switch
+    if (tab === 'barcode') {
+        const el = document.getElementById('manual-barcode-input');
+        if (el) setTimeout(() => el.focus(), 80);
+    } else if (tab === 'name') {
+        const el = document.getElementById('quick-product-name');
+        if (el) setTimeout(() => el.focus(), 80);
+    }
+}
+
+// ===== SCAN RECENTS (localStorage) =====
+const _SCAN_RECENTS_KEY = 'evershelf_scan_recents';
+const _SCAN_RECENTS_MAX = 6;
+
+function _getScanRecents() {
+    try { return JSON.parse(localStorage.getItem(_SCAN_RECENTS_KEY) || '[]'); } catch(_) { return []; }
+}
+
+function addToScanRecents(product) {
+    if (!product || !product.id) return;
+    let list = _getScanRecents().filter(r => r.id !== product.id);
+    list.unshift({ id: product.id, name: product.name, brand: product.brand || '', category: product.category || '' });
+    if (list.length > _SCAN_RECENTS_MAX) list = list.slice(0, _SCAN_RECENTS_MAX);
+    try { localStorage.setItem(_SCAN_RECENTS_KEY, JSON.stringify(list)); } catch(_) {}
+}
+
+function updateScanRecents() {
+    const list = _getScanRecents();
+    const wrap = document.getElementById('scan-recents');
+    const chips = document.getElementById('scan-recents-chips');
+    if (!wrap || !chips) return;
+    if (list.length === 0) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    chips.innerHTML = list.map(r => {
+        const icon = CATEGORY_ICONS[mapToLocalCategory(r.category, r.name)] || '📦';
+        const label = escapeHtml(r.name) + (r.brand ? ` <span style="color:var(--text-muted);font-weight:400">${escapeHtml(r.brand)}</span>` : '');
+        return `<button class="scan-recent-chip" onclick="_selectRecentProduct(${r.id})" title="${escapeHtml(r.name)}">
+            <span class="scan-recent-chip-icon">${icon}</span>${label}
+        </button>`;
+    }).join('');
+}
+
+async function _selectRecentProduct(productId) {
+    showLoading(true);
+    try {
+        const data = await api('product_get', { id: productId });
+        if (data.product) {
+            currentProduct = data.product;
+            if (!currentProduct.weight_info && currentProduct.notes) {
+                const m = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                if (m) currentProduct.weight_info = m[1].trim();
             }
+            showLoading(false);
+            stopScanner();
+            showProductAction();
+        } else {
+            showLoading(false);
+            showToast(t('error.not_found'), 'error');
         }
+    } catch(e) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+// ===== SCAN LIVE CODE / CONFIRM OVERLAY =====
+let _liveCodeTimer = null;
+function _showScanLiveCode(code) {
+    const el = document.getElementById('scan-live-code');
+    if (!el) return;
+    el.textContent = code;
+    el.style.display = 'block';
+    clearTimeout(_liveCodeTimer);
+    _liveCodeTimer = setTimeout(() => { if (el) el.style.display = 'none'; }, 1500);
+}
+function _hideScanLiveCode() {
+    const el = document.getElementById('scan-live-code');
+    if (el) { el.style.display = 'none'; clearTimeout(_liveCodeTimer); }
+}
+
+function _showScanConfirm(name) {
+    const overlay = document.getElementById('scan-confirm-overlay');
+    const nameEl = document.getElementById('scan-confirm-name');
+    if (!overlay) return;
+    if (nameEl) nameEl.textContent = name || '';
+    overlay.style.display = 'flex';
+    setTimeout(() => { if (overlay) overlay.style.display = 'none'; }, 900);
+}
+
+// ===== AI NUMBER OCR (Gemini reads printed barcode digits) =====
+let _numOcrRunning = false;
+async function _tryGeminiNumberOCR() {
+    if (_numOcrRunning || !_requireGemini()) return;
+    const video = document.getElementById('scanner-video');
+    if (!video || !video.videoWidth) { showToast(t('error.camera'), 'error'); return; }
+    _numOcrRunning = true;
+    const btn = document.getElementById('scan-num-ocr-btn');
+    if (btn) { btn.disabled = true; btn.textContent = t('scan.num_ocr_searching'); }
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+        const result = await api('gemini_number_ocr', {}, 'POST', { image: imageBase64 });
+        if (result.barcode) {
+            showToast(t('scan.num_ocr_found').replace('{code}', result.barcode), 'success');
+            onBarcodeDetected(result.barcode);
+        } else {
+            showToast(t('scan.num_ocr_not_found'), 'warning');
+        }
+    } catch(e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        _numOcrRunning = false;
+        if (btn) { btn.disabled = false; btn.textContent = t('scan.num_ocr_btn'); }
     }
 }
 
@@ -2594,7 +2742,7 @@ function showPage(pageId, param = null) {
             }
             loadInventory();
             break;
-        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner();
+        case 'scan': initScanner(); clearQuickNameResults(); updateSpesaBanner(); updateScanRecents(); switchScanTab('barcode');
             // Pre-warm the embedding model the first time user visits scan page
             if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
                 window._getCategoryPipeline(); // fire-and-forget
@@ -3897,14 +4045,9 @@ function renderBannerItem() {
     } else if (entry.type === 'anomaly') {
         const an = entry.data;
         const isPhantom = an.direction === 'phantom';
-        const isUntracked = an.direction === 'untracked';
         banner.className = 'alert-banner banner-anomaly';
         iconEl.textContent = '🔍';
-        if (isUntracked) {
-            // More consumption recorded than entries — initial stock was never registered
-            titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_untracked_title')}`;
-            detailEl.innerHTML = t('dashboard.banner_anomaly_untracked_detail', { inv_qty: an.inv_qty, unit: an.unit });
-        } else if (isPhantom) {
+        if (isPhantom) {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_phantom_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_phantom_detail', { inv_qty: an.inv_qty, unit: an.unit, expected_qty: an.expected_qty });
         } else {
@@ -4947,11 +5090,24 @@ async function initScanner() {
         video.srcObject = stream;
         await video.play();
         scanLog(`Video playing — videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`);
-        
+
+        // Apply fixed 2x zoom
+        await _applyFixedZoom();
+
         if (_useBarcodeDetector) {
             startNativeScanner(video);
         } else {
             startQuaggaScanner(video);
+        }
+
+        // After 4s without a scan, reveal the AI number OCR fallback button
+        if (_geminiAvailable) {
+            setTimeout(() => {
+                if (scannerStream) { // still scanning
+                    const btn = document.getElementById('scan-num-ocr-btn');
+                    if (btn) btn.style.display = '';
+                }
+            }, 4000);
         }
         
     } catch (err) {
@@ -5029,6 +5185,7 @@ async function startNativeScanner(videoEl) {
                 partialCount++;
                 scanLog(`Native detect #${partialCount} [f${frameCount}]: ${code} (${format})`);
                 updateFeedback('detecting');
+                _showScanLiveCode(code);
                 
                 if (!detectionHistory[code]) detectionHistory[code] = { count: 0 };
                 detectionHistory[code].count++;
@@ -5196,9 +5353,11 @@ function startQuaggaScanner(videoEl) {
                         quaggaRunning = false;
                         updateScannerFeedback(null);
                         scanLog(`CONFIRMED: ${code} [${passName2}] f${frameCount} consec:${detectCount} total:${dominated.count}`);
+                        _hideScanLiveCode();
                         onBarcodeDetected(code);
                         return;
                     }
+                    _showScanLiveCode(code);
                 } else {
                     updateScannerFeedback('scanning');
                 }
@@ -5240,16 +5399,19 @@ function enhanceCanvasForBarcode(ctx, w, h) {
 
 function stopScanner() {
     quaggaRunning = false;
-    _scanZoomLevel = 1;
+    _scanZoomLevel = 2; // always 2x on next start
+    _torchActive = false;
     if (scannerStream) {
         scannerStream.getTracks().forEach(t => t.stop());
         scannerStream = null;
     }
     const video = document.getElementById('scanner-video');
-    if (video) video.srcObject = null;
-    const zoomBtn = document.getElementById('scan-zoom-btn');
-    if (zoomBtn) zoomBtn.textContent = 'x1';
-    
+    if (video) { video.srcObject = null; video.style.transform = ''; }
+    // Reset torch button
+    const tb = document.getElementById('scan-torch-btn');
+    if (tb) tb.classList.remove('torch-on');
+    // Hide live code
+    _hideScanLiveCode();
     // Also stop AI camera
     if (aiStream) {
         aiStream.getTracks().forEach(t => t.stop());
@@ -5309,8 +5471,10 @@ async function onBarcodeDetected(barcode) {
                 if (detected.confCount) currentProduct._confCount = detected.confCount;
             }
             showLoading(false);
+            addToScanRecents(currentProduct);
+            _showScanConfirm(currentProduct.name);
             stopScanner();
-            showProductAction();
+            setTimeout(() => showProductAction(), 300);
             return;
         }
         
@@ -5367,8 +5531,10 @@ async function onBarcodeDetected(barcode) {
                     stores: p.stores || '',
                 };
                 showLoading(false);
+                addToScanRecents(currentProduct);
+                _showScanConfirm(currentProduct.name);
                 stopScanner();
-                showProductAction();
+                setTimeout(() => showProductAction(), 300);
                 return;
             }
         }

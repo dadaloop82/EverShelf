@@ -25,11 +25,17 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.10-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.11-brightgreen.svg)](CHANGELOG.md)
 
 ---
 
-## 🌍 Recent Updates (v1.7.10)
+## 🌍 Recent Updates (v1.7.11)
+
+- **Scan page redesign** — La pagina di scansione è stata completamente ridisegnata: **2× zoom fisso** (hardware o CSS), **torcia** con feedback visivo, **flip fotocamera** (front/back), **3 tab input** (Barcode / Nome / AI), **prodotti recenti** (ultimi 6 in localStorage), **live code overlay** durante la scansione parziale, **confirm overlay** al successo, **angoli guida** nel viewport.
+- **AI Number OCR** — Dopo 4 secondi senza scansione compare il bottone "Leggi numeri con AI": Gemini analizza il frame video e restituisce le cifre del barcode anche quando lo scanner ottico non riesce a leggerlo.
+- **Fix falsi positivi anomalie** — Rimossa la direzione `untracked` dal rilevatore di anomalie; le predizioni di consumo richiedono ora min 5 transazioni e 7 giorni di storico.
+- **Fix menu suggerimenti scan** — Rimosso il datalist dal campo Nome nella pagina scansione (non più aperto su tablet).
+- **Fix falsi positivi anomalie consumo** — `getConsumptionPredictions` richiedeva solo 3 transazioni, potendo generare rate esplose su dati ravvicinati. Ora: min 5 txn, min 7gg span, skip se consumo predetto < 15% baseline.
 
 - **Banner "Imposta scadenza" ora funziona** — Il pulsante sul banner "nessuna scadenza" apriva una funzione inesistente. Corretto, ora apre correttamente la modal di modifica.
 - **Banner aperto vs scaduto** — I prodotti con `opened_at` mostrano "Aperto da N giorni in [posizione]" invece di "Scaduto!", con la posizione (frigo/dispensa/freezer) esplicitamente indicata.

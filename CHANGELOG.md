@@ -5,6 +5,26 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.11] - 2026-05-12
+
+### Added
+- **Scan page redesign** — La pagina di scansione è stata completamente ridisegnata per tablet e mobile:
+  - **2× zoom fisso** — zoom hardware se disponibile, altrimenti CSS `scale(2)` automatico.
+  - **Torcia** — bottone nel viewport con feedback toast e stato visivo.
+  - **Flip fotocamera** — switch front/back con persistenza in settings.
+  - **3 tab input** — Barcode / Nome / AI per un accesso rapido a ciascuna modalità.
+  - **Prodotti recenti** — chip degli ultimi 6 prodotti scansionati (localStorage), con icona categoria.
+  - **Live code overlay** — codice barcode rilevato parzialmente mostrato in sovrimpressione nel viewport.
+  - **Confirm overlay** — checkmark + nome prodotto per 900ms al riconoscimento avvenuto.
+  - **Angoli guida** — frame visivo per inquadrare il barcode.
+  - **AI Number OCR** — dopo 4s senza scansione, compare il bottone "Leggi numeri con AI": Gemini analizza l'immagine e legge le cifre del barcode anche se non viene letto otticamente.
+- **PHP `gemini_number_ocr`** — Nuovo endpoint POST; accetta un'immagine JPEG base64, chiede a Gemini di individuare il codice EAN-13 / EAN-8 stampato sul prodotto, e restituisce le cifre o `not_found`.
+
+### Fixed
+- **Falsi positivi anomalia consumo "Mozzarella 3 pezzi"** — Rimossa la direzione `untracked` (consumo maggiore degli acquisti registrati) che generava banner su ogni prodotto con acquisti non tracciati. Ora vengono segnalate solo le anomalie `phantom` e `missing`.
+- **Predizione "~0g/settimana"** — Il modello richiedeva ora min 5 transazioni (era 3) e un arco temporale di almeno 7 giorni; se il consumo predetto è < 15% della baseline viene saltato, eliminando i falsi positivi su prodotti con poche transazioni ravvicinate.
+- **Menu a tendina suggerimenti sul campo Nome (scan)** — Rimosso `list="common-products"` dal campo di input, il datalist non viene più aperto su tablet.
+
 ## [1.7.10] - 2026-05-11
 
 ### Fixed
