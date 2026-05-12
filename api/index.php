@@ -1807,11 +1807,12 @@ function getInventoryAnomalies(PDO $db): void {
         // so it stays dismissed until the user explicitly resets or the direction changes.
         // An inventory correction (bringing qty closer to expected) will flip the direction
         // or drop below threshold — naturally clearing the dismissed state.
+        // If expected <= 0 it means more consumption recorded than purchases — the
+        // transaction history is simply incomplete (very common: users track consumption
+        // but not always purchases). Showing an anomaly here is just noise, skip it.
+        if ($expected <= 0) continue;
+
         $direction = $diff > 0 ? 'phantom' : 'missing';
-        // Special case: expected is negative — more consumption recorded than entries.
-        // The real qty vs tx comparison is meaningless; what we actually know is that
-        // "initial stock was never formally registered as an 'in' transaction".
-        if ($expected <= 0) $direction = 'untracked';
         $key = 'a_' . $r['product_id'] . '_' . $direction;
         if (!empty($dismissed[$key])) continue;
         $anomalies[] = [
