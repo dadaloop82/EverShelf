@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260511j">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260512a">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -213,7 +213,8 @@
     <section class="page" id="page-scan">
         <div class="page-header">
             <button class="back-btn" onclick="stopScanner(); showPage('dashboard')" data-i18n="btn.back">← Indietro</button>
-            <h2 data-i18n="scan.title">Scansiona Prodotto</h2>
+            <h2 data-i18n="scan.title">Scansiona</h2>
+            <button class="scan-spesa-chip" id="scan-spesa-btn" onclick="startSpesaMode()" data-i18n="scan.spesa_btn">🛒 Spesa</button>
         </div>
         <div class="spesa-mode-banner" id="spesa-mode-banner" style="display:none">
             <div class="spesa-banner-left">
@@ -223,39 +224,91 @@
             <button class="btn btn-small" onclick="endSpesaMode()" data-i18n="scan.mode_shopping_end">✅ Fine spesa</button>
         </div>
         <div class="scan-container">
+            <!-- Camera viewport -->
             <div class="scanner-viewport" id="scanner-viewport">
+                <!-- Guide corners -->
+                <div class="scan-guide-frame">
+                    <div class="sgf-corner sgf-tl"></div>
+                    <div class="sgf-corner sgf-tr"></div>
+                    <div class="sgf-corner sgf-bl"></div>
+                    <div class="sgf-corner sgf-br"></div>
+                </div>
                 <div class="scanner-overlay">
                     <div class="scanner-line"></div>
                 </div>
-                <button class="scan-zoom-btn" id="scan-zoom-btn" onclick="toggleScanZoom()" title="Zoom">x1</button>
+                <!-- Live partial code preview -->
+                <div class="scan-live-code" id="scan-live-code" style="display:none"></div>
+                <!-- Success flash overlay -->
+                <div class="scan-confirm-overlay" id="scan-confirm-overlay" style="display:none">
+                    <div class="scan-confirm-check">✓</div>
+                    <div class="scan-confirm-name" id="scan-confirm-name"></div>
+                </div>
+                <!-- Viewport inline controls (torch / zoom badge / flip) -->
+                <div class="scan-viewport-controls">
+                    <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
+                    <span class="scan-zoom-badge">2×</span>
+                    <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
+                </div>
                 <video id="scanner-video" autoplay playsinline></video>
                 <canvas id="scanner-canvas" style="display:none"></canvas>
             </div>
+
+            <!-- Scan errors -->
             <div class="scan-result" id="scan-result" style="display:none"></div>
-            <div class="barcode-manual-entry">
-                <div class="barcode-input-row">
-                    <input type="text" id="manual-barcode-input" class="form-input" placeholder="Inserisci codice a barre..." inputmode="numeric" pattern="[0-9]*" maxlength="14" oninput="autoSubmitEAN(this)" onkeydown="if(event.key==='Enter')submitManualBarcode()" data-i18n-placeholder="scan.barcode_placeholder">
-                    <button class="btn btn-primary" onclick="submitManualBarcode()" data-i18n="btn.search">🔍 Cerca</button>
+
+            <!-- Recent scans -->
+            <div class="scan-recents" id="scan-recents" style="display:none">
+                <span class="scan-recents-label" data-i18n="scan.recents_label">Recenti</span>
+                <div class="scan-recents-chips" id="scan-recents-chips"></div>
+            </div>
+
+            <!-- Input panel with tabs -->
+            <div class="scan-input-panel">
+                <div class="scan-input-tabs">
+                    <button class="scan-input-tab active" id="scan-tab-barcode" onclick="switchScanTab('barcode')">
+                        <span>📊</span><span data-i18n="scan.tab_barcode">Barcode</span>
+                    </button>
+                    <button class="scan-input-tab" id="scan-tab-name" onclick="switchScanTab('name')">
+                        <span>✏️</span><span data-i18n="scan.tab_name">Nome</span>
+                    </button>
+                    <button class="scan-input-tab" id="scan-tab-ai" onclick="switchScanTab('ai')">
+                        <span>🤖</span><span data-i18n="scan.tab_ai">AI</span>
+                    </button>
+                </div>
+                <!-- Tab: Barcode manuale -->
+                <div class="scan-tab-content" id="scan-tabcontent-barcode">
+                    <div class="barcode-input-row">
+                        <input type="text" id="manual-barcode-input" class="form-input"
+                               inputmode="numeric" pattern="[0-9]*" maxlength="14"
+                               oninput="autoSubmitEAN(this)"
+                               onkeydown="if(event.key==='Enter')submitManualBarcode()"
+                               data-i18n-placeholder="scan.barcode_placeholder"
+                               placeholder="Inserisci codice a barre...">
+                        <button class="btn btn-primary" onclick="submitManualBarcode()">🔍</button>
+                    </div>
+                </div>
+                <!-- Tab: Cerca per nome -->
+                <div class="scan-tab-content quick-name-entry" id="scan-tabcontent-name" style="display:none">
+                    <div class="barcode-input-row">
+                        <input type="text" id="quick-product-name" class="form-input"
+                               list="common-products" autocomplete="off"
+                               onkeydown="if(event.key==='Enter')submitQuickName()"
+                               data-i18n-placeholder="scan.quick_name_placeholder"
+                               placeholder="Es: Mele, Zucchine, Pane...">
+                        <button class="btn btn-accent" onclick="submitQuickName()">✅</button>
+                    </div>
+                </div>
+                <!-- Tab: AI e Manuale -->
+                <div class="scan-tab-content" id="scan-tabcontent-ai" style="display:none">
+                    <div class="scan-ai-tab-btns">
+                        <button class="btn btn-accent" onclick="captureForAI()" data-i18n="scan.ai_identify">🤖 Identifica con AI</button>
+                        <button class="btn btn-secondary" onclick="startManualEntry()" data-i18n="scan.manual_entry">✏️ Inserimento Manuale</button>
+                    </div>
+                    <button class="btn scan-num-ocr-btn" id="scan-num-ocr-btn" style="display:none" onclick="_tryGeminiNumberOCR()" data-i18n="scan.num_ocr_btn">🔢 Leggi numeri con AI</button>
                 </div>
             </div>
-            <div class="quick-name-entry">
-                <div class="quick-name-divider"><span data-i18n="scan.quick_name_divider">oppure scrivi il nome</span></div>
-                <div class="barcode-input-row">
-                    <input type="text" id="quick-product-name" class="form-input" placeholder="Es: Mele, Zucchine, Pane..." list="common-products" autocomplete="off" onkeydown="if(event.key==='Enter')submitQuickName()" data-i18n-placeholder="scan.quick_name_placeholder">
-                    <button class="btn btn-accent" onclick="submitQuickName()" data-i18n="btn.go">✅ Vai</button>
-                </div>
-            </div>
-            <div class="scan-actions">
-                <button class="btn btn-large btn-secondary" onclick="startManualEntry()" data-i18n="scan.manual_entry">
-                    ✏️ Inserimento Manuale
-                </button>
-                <button class="btn btn-large btn-accent" onclick="captureForAI()" data-i18n="scan.ai_identify">
-                    🤖 Identifica con AI
-                </button>
-            </div>
-            <p class="scan-hint" data-i18n="scan.hint">Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo</p>
+            <!-- Hidden debug log (accessible via Settings) -->
             <div id="scan-debug-log" style="display:none;margin-top:12px;padding:10px;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:0.7rem;max-height:200px;overflow-y:auto;border-radius:8px;white-space:pre-wrap"></div>
-            <button class="btn btn-small btn-secondary" style="margin-top:8px;opacity:0.5" onclick="toggleScanDebug()">🐛 Debug Log</button>
         </div>
     </section>
 
@@ -1469,6 +1522,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260511j"></script>
+<script src="assets/js/app.js?v=20260512a"></script>
 </body>
 </html>

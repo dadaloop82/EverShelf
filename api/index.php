@@ -118,7 +118,7 @@ function checkRateLimit(string $action): void {
     }
 
     // Determine limit based on action
-    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient'];
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr'];
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
     $errorActions = ['report_error', 'check_update'];
@@ -452,6 +452,10 @@ try {
 
         case 'gemini_anomaly_explain':
             geminiAnomalyExplain();
+            break;
+
+        case 'gemini_number_ocr':
+            geminiNumberOCR();
             break;
 
         case 'get_shopping_price':
@@ -7285,6 +7289,44 @@ function geminiShoppingEnrich(PDO $db): void {
     file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
     echo json_encode(['success' => true, 'items' => $enriched, 'source' => 'gemini']);
+}
+
+// =============================================================================
+// ===== GEMINI AI: NUMBER OCR (read barcode digits from image) ================
+// =============================================================================
+/**
+ * POST /api/?action=gemini_number_ocr
+ * Body: { image: base64-jpeg }
+ * Returns: { success, barcode } or { success: false, error }
+ * Uses Gemini vision to read the barcode number printed on a product label.
+ */
+function geminiNumberOCR(): void {
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) { echo json_encode(['success' => false, 'error' => 'no_api_key']); return; }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $imageBase64 = $input['image'] ?? '';
+    if (!$imageBase64) { echo json_encode(['success' => false, 'error' => 'no_image']); return; }
+
+    $payload = [
+        'contents' => [[
+            'parts' => [
+                ['text' => 'Look at this product image. Find the barcode number (EAN-13 or EAN-8) printed on the label — it is usually a sequence of 8 or 13 digits printed below or near the barcode stripes. Return ONLY the digit sequence, nothing else. If you cannot find a valid barcode number, return exactly: none'],
+                ['inline_data' => ['mime_type' => 'image/jpeg', 'data' => $imageBase64]]
+            ]
+        ]],
+        'generationConfig' => ['temperature' => 0, 'maxOutputTokens' => 20, 'thinkingConfig' => ['thinkingBudget' => 0]]
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    $text   = trim($result['text'] ?? '');
+    $digits = preg_replace('/\D/', '', $text);
+
+    if (strlen($digits) === 13 || strlen($digits) === 8) {
+        echo json_encode(['success' => true, 'barcode' => $digits]);
+    } else {
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+    }
 }
 
 // =============================================================================
