@@ -303,14 +303,15 @@ function _scaleOnMessage(msg) {
         const rawValue = parseFloat(msg.value);
         if (rawValue < 0) return;
 
-        // Ignore sub-gram jitter for stability decisions: only integer-gram changes matter.
+        // Ignore sub-2g jitter for stability decisions: changes below 2g are considered noise.
+        const SCALE_NOISE_G = 2;
         let effectiveStable = !!msg.stable;
         const grams = _scaleToGrams(rawValue, msg.unit);
         if (grams !== null) {
             if (effectiveStable) {
                 _scaleLastStableGrams = grams;
             } else if (_scaleLastStableGrams !== null) {
-                if (Math.round(grams) === Math.round(_scaleLastStableGrams)) {
+                if (Math.abs(grams - _scaleLastStableGrams) < SCALE_NOISE_G) {
                     effectiveStable = true;
                 }
             }
@@ -402,7 +403,7 @@ function _scaleUpdateLiveBox(msg) {
 
     const raw     = parseFloat(msg.value);
     const rawUnit = (msg.unit || 'kg').toLowerCase();
-    // Convert to grams for the < 10 g threshold check
+    // Convert to grams for the < 2 g threshold check
     let gForCheck = isFinite(raw) ? raw : 0;
     if (rawUnit === 'kg')  gForCheck = raw * 1000;
     if (rawUnit === 'lbs' || rawUnit === 'lb') gForCheck = raw * 453.592;
@@ -410,7 +411,7 @@ function _scaleUpdateLiveBox(msg) {
     const valEl   = document.getElementById('scale-live-val');
     const lblEl   = document.getElementById('scale-live-label');
 
-    if (isFinite(raw) && gForCheck < 10 && gForCheck > 0) {
+    if (isFinite(raw) && gForCheck < 2 && gForCheck > 0) {
         // Weight too low — show red flashing warning
         box.classList.add('scale-low-weight');
         if (valEl) valEl.textContent = `${raw} ${msg.unit || 'kg'}`;
@@ -475,14 +476,14 @@ function _scaleAutoFillUse(msg) {
     else if (srcUnit === 'ml')  { grams = rawVal; scaleAlreadyMl = true; }
     else                                            grams = rawVal;
 
-    // Reject if raw grams < 10 (piatto vuoto / tara / rumore)
-    if (grams < 10) {
+    // Reject if raw grams < 2 (tara / rumore)
+    if (grams < 2) {
         _cancelScaleStabilityWait(); // stop bar only; keep sentinel & userDismissed
         return;
     }
 
     // Reject if weight hasn't changed enough from last confirmed reading (same product still on scale)
-    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 10) {
+    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 2) {
         return;
     }
 
@@ -507,15 +508,8 @@ function _scaleAutoFillUse(msg) {
         }
     }
 
-    // Reject if converted value < 10 (density edge case)
-    if (val < 10) {
-        _cancelScaleStabilityWait();
-        return;
-    }
-
-    if (val !== _scaleStabilityVal) {
-        // New (different) weight → clear dismissal, restart stability wait
-        _scaleStabilityVal = val;
+    // Reject if converted value < 2 (density edge case)
+    if (val < 2) {
         _scaleUserDismissed = false;
         _cancelScaleTimersOnly();
         _startScaleStabilityWait(() => {
@@ -618,15 +612,15 @@ function _scaleAutoFillRecipeUse(msg) {
         hint.style.display = '';
     }
 
-    if (val < 10) {
+    if (val < 2) {
         _cancelScaleStabilityWait(); // stop bar only; keep sentinel
         if (livLabel) livLabel.textContent = t('scale.weight_too_low');
         return;
     }
 
     // Reject if weight hasn't changed enough from last confirmed reading.
-    // Threshold: 5g — gives enough time to tare after opening the modal.
-    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 5) {
+    // Threshold: 2g — noise filter.
+    if (_scaleLastConfirmedGrams !== null && Math.abs(grams - _scaleLastConfirmedGrams) < 2) {
         return;
     }
 
