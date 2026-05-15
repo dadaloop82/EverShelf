@@ -2132,9 +2132,9 @@ function getConsumptionPredictions(PDO $db): void {
         $daySpan   = ($lastDate - $firstDate) / 86400;
         // If all transactions are clustered within a week, the rate is unreliable
         if ($daySpan < 7) continue;
-        $dailyRate = $totalUsed / $daySpan;
+        $historicalRate = $totalUsed / $daySpan;
 
-        if ($dailyRate < 0.01) continue; // negligible consumption
+        if ($historicalRate < 0.01) continue; // negligible consumption
 
         // Get the most recent restock (last 'in' transaction)
         $lastIn = $db->prepare("
@@ -2166,15 +2166,34 @@ function getConsumptionPredictions(PDO $db): void {
         $baselineQty = floatval($item['quantity']) + $usedSinceRestock;
         $daysSinceRestock = max(1, (time() - $restockDate) / 86400);
 
+        // Recalculate the expected consumption with an adaptive rate:
+        // blend long-term history with post-restock behavior when available.
+        $txSinceRestock = 0;
+        foreach ($rows as $r) {
+            if (strtotime($r['created_at']) >= $restockDate) $txSinceRestock++;
+        }
+        $observedRate = $daysSinceRestock > 0 ? ($usedSinceRestock / $daysSinceRestock) : 0;
+        $dailyRate = $historicalRate;
+        if ($observedRate > 0) {
+            if ($txSinceRestock >= 3) {
+                $dailyRate = ($historicalRate * 0.45) + ($observedRate * 0.55);
+            } elseif ($txSinceRestock >= 1) {
+                $dailyRate = ($historicalRate * 0.70) + ($observedRate * 0.30);
+            }
+        }
+
         // If the model predicts you should have consumed less than 15% of baseline
         // in this period, the daily rate is too low to make reliable predictions:
         // any single normal use will look like an anomaly. Skip it.
         $predictedConsumption = $dailyRate * $daysSinceRestock;
         if ($baselineQty > 0 && $predictedConsumption < $baselineQty * 0.15) continue;
 
-        // Predicted remaining qty = baseline - (daily rate * days since restock)
+        // Predicted remaining qty = baseline - (adaptive daily rate * days since restock)
         $expectedQty = max(0, $baselineQty - ($dailyRate * $daysSinceRestock));
         $actualQty   = floatval($item['quantity']);
+
+        // Need at least some post-restock usage observations before warning.
+        if ($txSinceRestock < 2) continue;
 
         // Flag if deviation > 30% and absolute diff > meaningful threshold
         $deviation = abs($actualQty - $expectedQty);
@@ -2188,10 +2207,12 @@ function getConsumptionPredictions(PDO $db): void {
 
         $pctDev = $expectedQty > 0 ? ($deviation / $expectedQty) : ($actualQty > 0 ? 1 : 0);
 
-        // "more than expected" is almost always a restock the model doesn't know about yet.
-        // Only flag it at very high deviation (>400%) to catch truly impossible values.
-        // "less than expected" is more actionable: user may have consumed without registering.
-        $flagThreshold = ($actualQty > $expectedQty) ? 4.0 : 0.30;
+        // "More than expected" usually means slower real consumption, not bad data.
+        // Suppress this direction to avoid noisy/accusatory banners.
+        if ($actualQty > $expectedQty) continue;
+
+        // Only keep meaningful "less than expected" deviations.
+        $flagThreshold = 0.45;
 
         if ($pctDev > $flagThreshold && $deviation > $threshold) {
             $unit = $item['unit'];
@@ -2220,7 +2241,7 @@ function getConsumptionPredictions(PDO $db): void {
                 'daily_rate'         => round($dailyRate, 3),
                 'deviation_pct'      => round($pctDev * 100),
                 'days_since_restock' => (int)round($daysSinceRestock),
-                'direction'          => $actualQty > $expectedQty ? 'more' : 'less',
+                'direction'          => 'less',
                 'tx_count'           => count($rows),
             ];
         }
