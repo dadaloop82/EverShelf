@@ -12494,7 +12494,10 @@ function _initBrowserTtsVoices(selectedVoice) {
     sel.innerHTML = '<option value="">— Caricamento voci… —</option>';
 
     const populate = () => {
-        const voices = (window.speechSynthesis.getVoices() || []).filter(v => v != null && v.lang);
+        let voices = [];
+        try {
+            voices = (window.speechSynthesis.getVoices() || []).filter(v => v != null && v.lang);
+        } catch (_) { return false; }
         if (!voices.length) return false;
         // Italian voices first, then others
         const it = voices.filter(v => v.lang.startsWith('it'));
