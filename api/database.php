@@ -138,11 +138,14 @@ function migrateDB(PDO $db): void {
                 quantity REAL NOT NULL,
                 location TEXT NOT NULL DEFAULT 'dispensa',
                 notes TEXT DEFAULT '',
+                undone INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
             )
         ");
-        $db->exec("INSERT INTO transactions SELECT * FROM transactions_old");
+        // Insert with explicit columns: transactions_old may lack 'undone' (pre-v1.7.x DB)
+        $db->exec("INSERT INTO transactions (id, product_id, type, quantity, location, notes, created_at)
+                   SELECT id, product_id, type, quantity, location, notes, created_at FROM transactions_old");
         $db->exec("DROP TABLE transactions_old");
         $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_product ON transactions(product_id)");
         $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at)");
