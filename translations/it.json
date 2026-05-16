@@ -681,7 +681,8 @@
       "native_title": "Configurazione Kiosk",
       "native_hint": "URL server, bilancia BLE, salvaschermo e setup wizard.",
       "native_btn": "Apri configurazione kiosk",
-      "native_tap_hint": "Tocca la rotella in alto a destra"
+      "native_tap_hint": "Tocca la rotella in alto a destra",
+      "native_update_hint": "Aggiorna l'app kiosk per usare questa funzione"
     },
     "saved": "✅ Configurazione salvata!",
     "saved_local": "✅ Configurazione salvata localmente",

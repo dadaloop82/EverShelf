@@ -681,7 +681,8 @@
       "native_title": "Kiosk Configuration",
       "native_hint": "Server URL, BLE scale, screensaver and setup wizard.",
       "native_btn": "Open kiosk configuration",
-      "native_tap_hint": "Tap the gear button at the top right"
+      "native_tap_hint": "Tap the gear button at the top right",
+      "native_update_hint": "Update the kiosk app to use this feature"
     },
     "saved": "✅ Configuration saved!",
     "saved_local": "✅ Configuration saved locally",

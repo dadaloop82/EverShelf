@@ -2362,13 +2362,13 @@ function _kioskReconfigureScale() {
 // ── Kiosk: open native SettingsActivity (server URL, BLE, screensaver) ──
 function _openKioskNativeSettings() {
     if (typeof _kioskBridge === 'undefined') return;
-    if (typeof _kioskBridge.openNativeSettings === 'function') {
-        try { _kioskBridge.openNativeSettings(); } catch(e) {}
-    } else {
-        // Older APK without openNativeSettings — make the native gear button
-        // temporarily visible with a hint to tap it.
-        try { _kioskBridge.setNativeSettingsVisible(true); } catch(_) {}
-        showToast(t('settings.kiosk.native_tap_hint') || 'Tocca la rotella ⚙️ in alto a destra', 'info', 4000);
+    // Use try/catch directly: Android @JavascriptInterface methods are not always
+    // detected as 'function' by typeof, so we just call and catch if unavailable.
+    try {
+        _kioskBridge.openNativeSettings();
+    } catch(e) {
+        // Older APK without openNativeSettings bridge — inform user to update
+        showToast(t('settings.kiosk.native_update_hint') || 'Aggiorna l\'app kiosk per usare questa funzione', 'warning', 4000);
     }
 }
 
