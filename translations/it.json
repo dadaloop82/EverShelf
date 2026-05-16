@@ -717,7 +717,8 @@
     "opened_suffix": "— Aperto da troppo tempo!",
     "opened_suffix_ok": "— Aperto (ancora ok)",
     "opened_suffix_warning": "— Aperto (controlla)",
-    "days_compact": "{n}gg"
+    "days_compact": "{n}gg",
+    "badge_check_soon": "Controlla presto"
   },
   "status": {
     "ok": "OK",

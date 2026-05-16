@@ -717,7 +717,8 @@
     "opened_suffix": "— Zu lange geöffnet!",
     "opened_suffix_ok": "— Geöffnet (noch ok)",
     "opened_suffix_warning": "— Geöffnet (erst prüfen)",
-    "days_compact": "{n}T"
+    "days_compact": "{n}T",
+    "badge_check_soon": "Bald prüfen"
   },
   "status": {
     "ok": "OK",
