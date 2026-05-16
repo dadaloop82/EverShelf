@@ -2038,11 +2038,24 @@ async function syncSettingsFromDB() {
         // Primary: load from server .env (only when not already done via _applySyncedSettings)
         const serverSettings = await api('get_settings');
         _applySyncedSettings(serverSettings);
-        // Also load review_confirmed from DB
+        // Also load review_confirmed, meal_plan, tts_voice from DB (cross-device shared)
         const res = await api('app_settings_get');
         if (res.success && res.settings) {
             if (res.settings.review_confirmed) {
                 _reviewConfirmedCache = res.settings.review_confirmed;
+            }
+            // meal_plan is stored in SQLite app_settings so all devices stay in sync
+            if (res.settings.meal_plan) {
+                const s = getSettings();
+                s.meal_plan = res.settings.meal_plan;
+                _settingsCache = s;
+                localStorage.setItem('evershelf_settings', JSON.stringify(s));
+                if (document.getElementById('meal-plan-grid')) renderMealPlanEditor();
+            }
+            // tts_voice preference (best-effort cross-device — falls back if voice unavailable)
+            if (res.settings.tts_voice) {
+                const s = getSettings();
+                if (!s.tts_voice) { s.tts_voice = res.settings.tts_voice; _settingsCache = s; localStorage.setItem('evershelf_settings', JSON.stringify(s)); }
             }
         }
     } catch(e) { /* offline, use local */ }
@@ -2064,6 +2077,7 @@ function _applySyncedSettings(serverSettings) {
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
+        'tts_engine','tts_rate','tts_pitch','tts_auth_header_name','tts_auth_header_value','tts_extra_fields',
         'screensaver_enabled','screensaver_timeout',
         'price_enabled','price_country','price_currency','price_update_months'];
     let changed = false;
@@ -2814,6 +2828,12 @@ async function saveSettings() {
             tts_auth_type: s.tts_auth_type,
             tts_content_type: s.tts_content_type,
             tts_payload_key: s.tts_payload_key,
+            tts_engine: s.tts_engine || '',
+            tts_rate: s.tts_rate || 1,
+            tts_pitch: s.tts_pitch || 1,
+            tts_auth_header_name: s.tts_auth_header_name || '',
+            tts_auth_header_value: s.tts_auth_header_value || '',
+            tts_extra_fields: s.tts_extra_fields || '',
             price_enabled: s.price_enabled,
             price_country: s.price_country,
             price_currency: s.price_currency,
@@ -2846,6 +2866,13 @@ async function saveSettings() {
             _geminiAvailable = !!(refreshed.gemini_key_set);
             _updateGeminiButtonState();
         }
+    } catch(e) {}
+    // Persist meal_plan and tts_voice to SQLite for cross-device sync
+    try {
+        const appData = {};
+        if (s.meal_plan) appData.meal_plan = s.meal_plan;
+        if (s.tts_voice)  appData.tts_voice  = s.tts_voice;
+        if (Object.keys(appData).length) await api('app_settings_save', {}, 'POST', { settings: appData });
     } catch(e) {}
     // Re-init screensaver watcher in case it was just enabled
     initInactivityWatcher();
@@ -11470,6 +11497,8 @@ function selectMealPlanType(dow, slot, typeId) {
     saveSettingsToStorage(s);
     closeMealPlanPicker();
     renderMealPlanEditor();
+    // Persist to server for cross-device sync
+    api('app_settings_save', {}, 'POST', { settings: { meal_plan: s.meal_plan } }).catch(() => {});
 }
 function resetMealPlan() {
     const s = getSettings();
@@ -11477,6 +11506,7 @@ function resetMealPlan() {
     saveSettingsToStorage(s);
     renderMealPlanEditor();
     showToast(t('meal_plan.reset_success'), 'success');
+    api('app_settings_save', {}, 'POST', { settings: { meal_plan: s.meal_plan } }).catch(() => {});
 }
 
 // ===== RECIPE GENERATION =====

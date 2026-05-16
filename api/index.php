@@ -2273,6 +2273,12 @@ function getServerSettings(): void {
         'tts_content_type' => env('TTS_CONTENT_TYPE', 'application/json'),
         'tts_payload_key' => env('TTS_PAYLOAD_KEY', 'message'),
         'tts_enabled' => env('TTS_ENABLED', 'false') === 'true',
+        'tts_engine' => env('TTS_ENGINE', ''),
+        'tts_rate' => (float)env('TTS_RATE', '1'),
+        'tts_pitch' => (float)env('TTS_PITCH', '1'),
+        'tts_auth_header_name' => env('TTS_AUTH_HEADER_NAME', ''),
+        'tts_auth_header_value' => env('TTS_AUTH_HEADER_VALUE', ''),
+        'tts_extra_fields' => env('TTS_EXTRA_FIELDS', ''),
         // User preferences (now server-side)
         'default_persons' => intval(env('DEFAULT_PERSONS', '1')),
         'pref_veloce' => env('PREF_VELOCE', 'false') === 'true',
@@ -2323,11 +2329,15 @@ function saveSettings(): void {
         'tts_auth_type'   => 'TTS_AUTH_TYPE',
         'tts_content_type'=> 'TTS_CONTENT_TYPE',
         'tts_payload_key' => 'TTS_PAYLOAD_KEY',
-        'camera_facing'   => 'CAMERA_FACING',
-        'dietary'         => 'DIETARY',
-        'scale_gateway_url' => 'SCALE_GATEWAY_URL',
-        'price_country'     => 'PRICE_COUNTRY',
-        'price_currency'    => 'PRICE_CURRENCY',
+        'camera_facing'         => 'CAMERA_FACING',
+        'dietary'               => 'DIETARY',
+        'scale_gateway_url'     => 'SCALE_GATEWAY_URL',
+        'price_country'         => 'PRICE_COUNTRY',
+        'price_currency'        => 'PRICE_CURRENCY',
+        'tts_engine'            => 'TTS_ENGINE',
+        'tts_auth_header_name'  => 'TTS_AUTH_HEADER_NAME',
+        'tts_auth_header_value' => 'TTS_AUTH_HEADER_VALUE',
+        'tts_extra_fields'      => 'TTS_EXTRA_FIELDS',
     ];
     // Boolean keys
     $boolMap = [
@@ -2349,6 +2359,11 @@ function saveSettings(): void {
         'screensaver_timeout' => 'SCREENSAVER_TIMEOUT',
         'price_update_months' => 'PRICE_UPDATE_MONTHS',
     ];
+    // Float keys
+    $floatMap = [
+        'tts_rate'  => 'TTS_RATE',
+        'tts_pitch' => 'TTS_PITCH',
+    ];
 
     foreach ($keyMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
@@ -2363,6 +2378,11 @@ function saveSettings(): void {
     foreach ($intMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
             $envVars[$envKey] = (string)intval($input[$inKey]);
+        }
+    }
+    foreach ($floatMap as $inKey => $envKey) {
+        if (array_key_exists($inKey, $input)) {
+            $envVars[$envKey] = (string)(float)$input[$inKey];
         }
     }
     // Arrays stored as comma-separated
