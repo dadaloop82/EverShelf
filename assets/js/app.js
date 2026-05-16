@@ -2499,9 +2499,24 @@ function _injectKioskOverlay() {
         _kioskBridge.hardReload();
     });
 
+    // Settings button — replaces the native Android settings button
+    const settBtn = document.createElement('button');
+    settBtn.id = '_kiosk_settings_btn';
+    settBtn.textContent = '\u2699\uFE0F';
+    settBtn.title = t('settings.title') || 'Settings';
+    settBtn.style.cssText = btnStyle.replace('font-size:15px', 'font-size:16px');
+    settBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPage('settings');
+    });
+
     wrap.appendChild(exitBtn);
     wrap.appendChild(refBtn);
+    wrap.appendChild(settBtn);
     headerLeft.appendChild(wrap);
+
+    // Permanently hide the native Android settings button — replaced by the web overlay button above.
+    try { _kioskBridge.setNativeSettingsVisible(false); } catch(_) {}
 }
 
 function renderAppliances(appliances) {
@@ -3604,8 +3619,16 @@ async function loadDashboard() {
                 if (days !== null && days !== undefined) {
                     let expiryClass, expiryText;
                     if (!isEdible) {
-                        expiryClass = 'opened-expiry-spoiled';
-                        expiryText = t('expiry.badge_expired');
+                        // Only show the red ⛔ badge for items that are genuinely dangerous.
+                        // For conserve/condiments classified as safe, use a gentler amber badge.
+                        const spoiledSafety = getExpiredSafety(item, Math.abs(item.days_to_expiry ?? 1));
+                        if (spoiledSafety.level === 'ok') {
+                            expiryClass = 'opened-expiry-soon';
+                            expiryText = '\u26A0\uFE0F ' + t('expiry.badge_check_soon');
+                        } else {
+                            expiryClass = 'opened-expiry-spoiled';
+                            expiryText = t('expiry.badge_expired');
+                        }
                     } else if (days > 365) {
                         expiryClass = 'opened-expiry-ok';
                         expiryText = t('expiry.badge_stable');
@@ -4887,8 +4910,8 @@ function showItemDetail(inventoryId, productId) {
 function closeModal() {
     document.getElementById('modal-overlay').style.display = 'none';
     clearMoveModalTimer();
-    // Restore native kiosk settings button visibility
-    try { if (typeof _kioskBridge !== 'undefined') _kioskBridge.setNativeSettingsVisible(true); } catch (_) {}
+    // Native kiosk settings button is permanently replaced by the web overlay button — keep hidden.
+    try { if (typeof _kioskBridge !== 'undefined') _kioskBridge.setNativeSettingsVisible(false); } catch (_) {}
     _cancelScaleAutoConfirm(false);
     _scaleRecipeAutoFillPaused = false;
     _scaleUserDismissed = false;
