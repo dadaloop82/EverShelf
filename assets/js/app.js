@@ -2599,6 +2599,53 @@ function _injectKioskOverlay() {
     headerLeft.appendChild(wrap);
 }
 
+const _APPLIANCE_KEY_MAP = {
+    'forno': 'settings.appliances.oven',
+    'oven': 'settings.appliances.oven',
+    'backofen': 'settings.appliances.oven',
+    'microonde': 'settings.appliances.microwave',
+    'microwave': 'settings.appliances.microwave',
+    'mikrowelle': 'settings.appliances.microwave',
+    'friggitrice ad aria': 'settings.appliances.air_fryer',
+    'air fryer': 'settings.appliances.air_fryer',
+    'heißluftfritteuse': 'settings.appliances.air_fryer',
+    'macchina del pane': 'settings.appliances.bread_maker',
+    'macchina pane': 'settings.appliances.bread_maker',
+    'bread maker': 'settings.appliances.bread_maker',
+    'bread machine': 'settings.appliances.bread_maker',
+    'brotbackmaschine': 'settings.appliances.bread_maker',
+    'brotbackautomat': 'settings.appliances.bread_maker',
+    'bimby/moulinex cookeo': 'settings.appliances.bimby',
+    'moulinex cookeo': 'settings.appliances.bimby',
+    'bimby/cookeo': 'settings.appliances.bimby',
+    'bimby': 'settings.appliances.bimby',
+    'thermomix': 'settings.appliances.bimby',
+    'thermomix/cookeo': 'settings.appliances.bimby',
+    'planetaria': 'settings.appliances.mixer',
+    'stand mixer': 'settings.appliances.mixer',
+    'küchenmaschine': 'settings.appliances.mixer',
+    'vaporiera': 'settings.appliances.steamer',
+    'steamer': 'settings.appliances.steamer',
+    'dampfgarer': 'settings.appliances.steamer',
+    'pentola a pressione': 'settings.appliances.pressure_cooker',
+    'pentola pressione': 'settings.appliances.pressure_cooker',
+    'pressure cooker': 'settings.appliances.pressure_cooker',
+    'schnellkochtopf': 'settings.appliances.pressure_cooker',
+    'tostapane': 'settings.appliances.toaster',
+    'toaster': 'settings.appliances.toaster',
+    'frullatore/mixer': 'settings.appliances.blender',
+    'frullatore': 'settings.appliances.blender',
+    'blender': 'settings.appliances.blender',
+    'mixer': 'settings.appliances.blender',
+};
+
+function _applianceDisplayName(name) {
+    const key = _APPLIANCE_KEY_MAP[name.toLowerCase().trim()];
+    if (!key) return name;
+    // Strip leading emoji/symbols from the translated button label (e.g. "🔥 Oven" → "Oven")
+    return t(key).replace(/^[^\p{L}]+/u, '').trim() || name;
+}
+
 function renderAppliances(appliances) {
     const container = document.getElementById('appliances-list');
     if (!appliances || appliances.length === 0) {
@@ -2607,8 +2654,8 @@ function renderAppliances(appliances) {
     }
     container.innerHTML = appliances.map((a, i) => `
         <div class="appliance-item">
-            <span>🔌 ${escapeHtml(a)}</span>
-            <button class="appliance-remove" onclick="removeAppliance(${i})" title="Rimuovi">✕</button>
+            <span>🔌 ${escapeHtml(_applianceDisplayName(a))}</span>
+            <button class="appliance-remove" onclick="removeAppliance(${i})" title="${t('btn.delete')}">✕</button>
         </div>
     `).join('');
 }
@@ -2657,7 +2704,7 @@ function addApplianceQuick(name) {
     s.appliances.push(name);
     saveSettingsToStorage(s);
     renderAppliances(s.appliances);
-    showToast(`${name} aggiunto`, 'success');
+    showToast(t('toast.appliance_added'), 'success');
 }
 
 function removeAppliance(idx) {
@@ -2670,7 +2717,9 @@ function removeAppliance(idx) {
 
 async function saveSettings() {
     const s = getSettings();
-    s.gemini_key = document.getElementById('setting-gemini-key').value.trim();
+    // Only update gemini_key if user actually typed something; preserve existing key otherwise
+    const _newGeminiKey = document.getElementById('setting-gemini-key').value.trim();
+    if (_newGeminiKey) s.gemini_key = _newGeminiKey;
     s.bring_email = document.getElementById('setting-bring-email').value.trim();
     s.bring_password = document.getElementById('setting-bring-password').value.trim();
     s.default_persons = parseInt(document.getElementById('setting-default-persons').value) || 1;
@@ -2790,6 +2839,14 @@ async function saveSettings() {
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
+    // Re-sync _geminiAvailable after save (key may have been set/confirmed on server)
+    try {
+        const refreshed = await api('get_settings');
+        if (refreshed && refreshed.gemini_key_set !== undefined) {
+            _geminiAvailable = !!(refreshed.gemini_key_set);
+            _updateGeminiButtonState();
+        }
+    } catch(e) {}
     // Re-init screensaver watcher in case it was just enabled
     initInactivityWatcher();
 }
