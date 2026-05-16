@@ -9,7 +9,8 @@
     "inventory": "Dispensa",
     "recipes": "Ricette",
     "shopping": "Spesa",
-    "log": "Storico"
+    "log": "Storico",
+    "settings": "Config"
   },
   "btn": {
     "back": "← Indietro",
@@ -572,8 +573,9 @@
       "title": "📅 Piano Pasti Settimanale",
       "hint": "Imposta la tipologia di pasto per ogni giorno. Sarà usata come guida nella generazione delle ricette.",
       "enabled": "✅ Attiva piano pasti settimanale",
-      "legend": "🌤️ = Pranzo · 🌙 = Cena · Tocca un badge per cambiarlo.",
-      "types_title": "📋 Tipologie disponibili"
+      "legend": "🌤️ = Pranzo &nbsp;·&nbsp; 🌙 = Cena &nbsp;·&nbsp; Tocca un badge per cambiarlo.",
+      "types_title": "📋 Tipologie disponibili",
+      "reset_btn": "↺ Ripristina default"
     },
     "appliances": {
       "title": "🔌 Elettrodomestici Disponibili",
@@ -627,12 +629,20 @@
     "security": {
       "title": "🔒 Certificato HTTPS",
       "hint": "Se il browser mostra l'errore \"La connessione non è privata\" (ERR_CERT_AUTHORITY_INVALID), devi installare il certificato CA nel dispositivo.",
-      "download_btn": "📥 Scarica Certificato CA"
+      "download_btn": "📥 Scarica Certificato CA",
+      "token_title": "🔑 Token Impostazioni",
+      "token_label": "Token di accesso"
     },
     "tts": {
       "title": "🔊 Voce & TTS",
       "hint": "Configura la sintesi vocale tramite qualsiasi API REST esterna. I passi della ricetta e i timer scaduti verranno inviati all'endpoint configurato.",
       "enabled": "✅ Attiva TTS",
+      "engine_label": "⚙️ Motore TTS",
+      "engine_browser": "🔇 Browser (offline, nessuna configurazione)",
+      "engine_server": "🌐 Server esterno (Home Assistant, API REST...)",
+      "voice_label": "🗣️ Voce",
+      "rate_label": "⚡ Velocità",
+      "pitch_label": "🎵 Tono",
       "url_label": "🌐 URL Endpoint",
       "method_label": "📡 Metodo HTTP",
       "auth_label": "🔐 Autenticazione",
@@ -659,7 +669,14 @@
     "screensaver": {
       "label": "Attiva salvaschermo",
       "card_title": "🌙 Salvaschermo",
-      "card_hint": "Mostra un orologio con fatti utili dopo 5 minuti di inattività. Di default è disattivato."
+      "card_hint": "Mostra un orologio con fatti utili dopo 5 minuti di inattività. Di default è disattivato.",
+      "timeout_1": "1 minuto",
+      "timeout_2": "2 minuti",
+      "timeout_5": "5 minuti",
+      "timeout_10": "10 minuti",
+      "timeout_15": "15 minuti",
+      "timeout_30": "30 minuti",
+      "timeout_60": "1 ora"
     },
     "scale": {
       "title": "⚖️ Bilancia Smart",
@@ -672,7 +689,9 @@
       "test_btn": "🔗 Testa connessione",
       "download_btn": "📥 Scarica Gateway Android (APK)",
       "download_hint": "App Android che fa da ponte tra la bilancia BLE e questo sito.",
-      "download_sub": "Sorgente: evershelf-scale-gateway/ nella root del progetto"
+      "download_sub": "Sorgente: evershelf-scale-gateway/ nella root del progetto",
+      "live_weight": "peso in tempo reale",
+      "auto_reconnect": "🔁 Riconnessione: automatica"
     },
     "kiosk": {
       "hint": "Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.",
@@ -682,7 +701,10 @@
       "native_hint": "URL server, bilancia BLE, salvaschermo e setup wizard.",
       "native_btn": "Apri configurazione kiosk",
       "native_tap_hint": "Tocca la rotella in alto a destra",
-      "native_update_hint": "Aggiorna l'app kiosk per usare questa funzione"
+      "native_update_hint": "Aggiorna l'app kiosk per usare questa funzione",
+      "update_title": "Aggiornamento Kiosk",
+      "check_updates_btn": "🔍 Cerca aggiornamenti",
+      "needs_update": "⚠️ Il kiosk installato non supporta questa funzione. Aggiorna l'app kiosk per abilitarla."
     },
     "saved": "✅ Configurazione salvata!",
     "saved_local": "✅ Configurazione salvata localmente",

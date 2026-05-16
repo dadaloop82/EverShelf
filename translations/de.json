@@ -9,7 +9,8 @@
     "inventory": "Vorrat",
     "recipes": "Rezepte",
     "shopping": "Einkauf",
-    "log": "Verlauf"
+    "log": "Verlauf",
+    "settings": "Einstellungen"
   },
   "btn": {
     "back": "← Zurück",
@@ -572,8 +573,9 @@
       "title": "📅 Wöchentlicher Essensplan",
       "hint": "Lege die Mahlzeitenart für jeden Tag fest. Wird als Leitfaden bei der Rezeptgenerierung verwendet.",
       "enabled": "✅ Wöchentlichen Essensplan aktivieren",
-      "legend": "🌤️ = Mittagessen · 🌙 = Abendessen · Tippe auf ein Badge, um es zu ändern.",
-      "types_title": "📋 Verfügbare Typen"
+      "legend": "🌤️ = Mittagessen &nbsp;·&nbsp; 🌙 = Abendessen &nbsp;·&nbsp; Tippe auf ein Badge, um es zu ändern.",
+      "types_title": "📋 Verfügbare Typen",
+      "reset_btn": "↺ Standard wiederherstellen"
     },
     "appliances": {
       "title": "🔌 Verfügbare Geräte",
@@ -627,12 +629,20 @@
     "security": {
       "title": "🔒 HTTPS-Zertifikat",
       "hint": "Wenn der Browser den Fehler \"Verbindung nicht sicher\" (ERR_CERT_AUTHORITY_INVALID) zeigt, installiere das CA-Zertifikat auf dem Gerät.",
-      "download_btn": "📥 CA-Zertifikat herunterladen"
+      "download_btn": "📥 CA-Zertifikat herunterladen",
+      "token_title": "🔑 Einstellungs-Token",
+      "token_label": "Zugriffstoken"
     },
     "tts": {
       "title": "🔊 Sprache & TTS",
       "hint": "Sprachsynthese über externe REST-API konfigurieren. Rezeptschritte und abgelaufene Timer werden an den Endpunkt gesendet.",
       "enabled": "✅ TTS aktivieren",
+      "engine_label": "⚙️ TTS-Engine",
+      "engine_browser": "🔇 Browser (offline, keine Konfiguration erforderlich)",
+      "engine_server": "🌐 Externer Server (Home Assistant, REST API...)",
+      "voice_label": "🗣️ Stimme",
+      "rate_label": "⚡ Geschwindigkeit",
+      "pitch_label": "🎵 Tonhöhe",
       "url_label": "🌐 Endpunkt-URL",
       "method_label": "📡 HTTP-Methode",
       "auth_label": "🔐 Authentifizierung",
@@ -659,7 +669,14 @@
     "screensaver": {
       "label": "Bildschirmschoner aktivieren",
       "card_title": "🌙 Bildschirmschoner",
-      "card_hint": "Zeigt nach 5 Minuten Inaktivität eine Uhr mit nützlichen Fakten. Standardmäßig deaktiviert."
+      "card_hint": "Zeigt nach 5 Minuten Inaktivität eine Uhr mit nützlichen Fakten. Standardmäßig deaktiviert.",
+      "timeout_1": "1 Minute",
+      "timeout_2": "2 Minuten",
+      "timeout_5": "5 Minuten",
+      "timeout_10": "10 Minuten",
+      "timeout_15": "15 Minuten",
+      "timeout_30": "30 Minuten",
+      "timeout_60": "1 Stunde"
     },
     "scale": {
       "title": "⚖️ Smart-Waage",
@@ -672,7 +689,9 @@
       "test_btn": "🔗 Verbindung testen",
       "download_btn": "📥 Android-Gateway herunterladen (APK)",
       "download_hint": "Android-App als Brücke zwischen BLE-Waage und EverShelf.",
-      "download_sub": "Quellcode: evershelf-scale-gateway/ im Projektstamm"
+      "download_sub": "Quellcode: evershelf-scale-gateway/ im Projektstamm",
+      "live_weight": "Echtzeit-Gewicht",
+      "auto_reconnect": "🔁 Verbindung: automatisch"
     },
     "kiosk": {
       "hint": "Verwandeln Sie ein Android-Tablet in ein EverShelf-Panel mit integriertem BLE-Waagen-Gateway.",
@@ -682,7 +701,10 @@
       "native_hint": "Server-URL, BLE-Waage, Bildschirmschoner und Einrichtungsassistent.",
       "native_btn": "Kiosk-Konfiguration öffnen",
       "native_tap_hint": "Zahnrad oben rechts antippen",
-      "native_update_hint": "Kiosk-App aktualisieren, um diese Funktion zu nutzen"
+      "native_update_hint": "Kiosk-App aktualisieren, um diese Funktion zu nutzen",
+      "update_title": "Kiosk-Aktualisierung",
+      "check_updates_btn": "🔍 Nach Updates suchen",
+      "needs_update": "⚠️ Das installierte Kiosk unterstützt diese Funktion nicht. Aktualisiere die Kiosk-App, um sie zu aktivieren."
     },
     "saved": "✅ Konfiguration gespeichert!",
     "saved_local": "✅ Konfiguration lokal gespeichert",

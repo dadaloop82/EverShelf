@@ -9,7 +9,8 @@
     "inventory": "Pantry",
     "recipes": "Recipes",
     "shopping": "Shopping",
-    "log": "Log"
+    "log": "Log",
+    "settings": "Settings"
   },
   "btn": {
     "back": "← Back",
@@ -572,8 +573,9 @@
       "title": "📅 Weekly Meal Plan",
       "hint": "Set the meal type for each day. It will be used as a guide in recipe generation.",
       "enabled": "✅ Enable weekly meal plan",
-      "legend": "🌤️ = Lunch · 🌙 = Dinner · Tap a badge to change it.",
-      "types_title": "📋 Available types"
+      "legend": "🌤️ = Lunch &nbsp;·&nbsp; 🌙 = Dinner &nbsp;·&nbsp; Tap a badge to change it.",
+      "types_title": "📋 Available types",
+      "reset_btn": "↺ Restore defaults"
     },
     "appliances": {
       "title": "🔌 Available Appliances",
@@ -627,12 +629,20 @@
     "security": {
       "title": "🔒 HTTPS Certificate",
       "hint": "If the browser shows the error \"Your connection is not private\" (ERR_CERT_AUTHORITY_INVALID), you need to install the CA certificate on the device.",
-      "download_btn": "📥 Download CA Certificate"
+      "download_btn": "📥 Download CA Certificate",
+      "token_title": "🔑 Settings Token",
+      "token_label": "Access token"
     },
     "tts": {
       "title": "🔊 Voice & TTS",
       "hint": "Configure text-to-speech via any external REST API. Recipe steps and expired timers will be sent to the configured endpoint.",
       "enabled": "✅ Enable TTS",
+      "engine_label": "⚙️ TTS Engine",
+      "engine_browser": "🔇 Browser (offline, no configuration required)",
+      "engine_server": "🌐 External server (Home Assistant, REST API...)",
+      "voice_label": "🗣️ Voice",
+      "rate_label": "⚡ Speed",
+      "pitch_label": "🎵 Pitch",
       "url_label": "🌐 Endpoint URL",
       "method_label": "📡 HTTP Method",
       "auth_label": "🔐 Authentication",
@@ -659,7 +669,14 @@
     "screensaver": {
       "label": "Enable screensaver",
       "card_title": "🌙 Screensaver",
-      "card_hint": "Shows a clock with useful facts after 5 minutes of inactivity. Disabled by default."
+      "card_hint": "Shows a clock with useful facts after 5 minutes of inactivity. Disabled by default.",
+      "timeout_1": "1 minute",
+      "timeout_2": "2 minutes",
+      "timeout_5": "5 minutes",
+      "timeout_10": "10 minutes",
+      "timeout_15": "15 minutes",
+      "timeout_30": "30 minutes",
+      "timeout_60": "1 hour"
     },
     "scale": {
       "title": "⚖️ Smart Scale",
@@ -672,7 +689,9 @@
       "test_btn": "🔗 Test connection",
       "download_btn": "📥 Download Android Gateway (APK)",
       "download_hint": "Android app that bridges your BLE scale and EverShelf.",
-      "download_sub": "Source: evershelf-scale-gateway/ in the project root"
+      "download_sub": "Source: evershelf-scale-gateway/ in the project root",
+      "live_weight": "real-time weight",
+      "auto_reconnect": "🔁 Reconnect: automatic"
     },
     "kiosk": {
       "hint": "Turn an Android tablet into an always-on EverShelf panel with built-in BLE scale gateway.",
@@ -682,7 +701,10 @@
       "native_hint": "Server URL, BLE scale, screensaver and setup wizard.",
       "native_btn": "Open kiosk configuration",
       "native_tap_hint": "Tap the gear button at the top right",
-      "native_update_hint": "Update the kiosk app to use this feature"
+      "native_update_hint": "Update the kiosk app to use this feature",
+      "update_title": "Kiosk Update",
+      "check_updates_btn": "🔍 Check for updates",
+      "needs_update": "⚠️ The installed kiosk does not support this feature. Update the kiosk app to enable it."
     },
     "saved": "✅ Configuration saved!",
     "saved_local": "✅ Configuration saved locally",
