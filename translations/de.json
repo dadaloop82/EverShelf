@@ -681,7 +681,8 @@
       "native_title": "Kiosk-Konfiguration",
       "native_hint": "Server-URL, BLE-Waage, Bildschirmschoner und Einrichtungsassistent.",
       "native_btn": "Kiosk-Konfiguration öffnen",
-      "native_tap_hint": "Zahnrad oben rechts antippen"
+      "native_tap_hint": "Zahnrad oben rechts antippen",
+      "native_update_hint": "Kiosk-App aktualisieren, um diese Funktion zu nutzen"
     },
     "saved": "✅ Konfiguration gespeichert!",
     "saved_local": "✅ Konfiguration lokal gespeichert",
