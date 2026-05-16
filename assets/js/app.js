@@ -1553,7 +1553,7 @@ function estimateExpiryDays(product, location) {
     else if (/carota|carote|zucchina|zucchine|peperoni|melanzane/.test(name)) days = 7;
     else if (/broccoli|cavolfiore|cavolo|spinaci|bietola/.test(name)) days = 5;
     else if (/cipolla|cipolle/.test(name)) days = 10;
-    else if (/patata|patate/.test(name)) days = 14;
+    else if (/patata|patate/.test(name)) days = 30; // whole tubers in a bag, pantry: 3-5 weeks
     else if (/biscott|cracker|grissini|fette\s+biscott/.test(name)) days = 180;
     else if (/nutella|marmellata|miele/.test(name)) days = 365;
     else if (/passata|pelati|pomodor/.test(name)) days = 730;
@@ -1573,7 +1573,7 @@ function estimateExpiryDays(product, location) {
         else if (/arancia|arance|agrumi|mandarini|limone|limoni/.test(name)) days = Math.max(days, 21);
         else if (/carota|carote/.test(name)) days = Math.max(days, 21);
         else if (/cipolla/.test(name)) days = Math.max(days, 14);
-        else if (/patata|patate/.test(name)) days = Math.max(days, 21);
+        else if (/patata|patate/.test(name)) days = Math.max(days, 30);
         else if (/pera|pere/.test(name)) days = Math.max(days, 21);
         else if (/kiwi/.test(name)) days = Math.max(days, 28);
         else if (/uva/.test(name)) days = Math.max(days, 14);

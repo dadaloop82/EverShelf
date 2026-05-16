@@ -363,6 +363,10 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
         if (preg_match('/\b(yogurt|yaourt|yoghurt)\b/', $n)) return 2;
         if (preg_match('/\blatte\b/', $n)) return 1;
         if (preg_match('/\bformaggio\b/', $n)) return 2;
+        // Root vegetables / tubers in pantry: sfusi in un sacchetto, durano 3-5 settimane
+        if (preg_match('/\b(patata|patate|tubero)\b/', $n)) return 30;
+        if (preg_match('/\b(cipolla|cipolle|aglio|scalogno|porro)\b/', $n)) return 30;
+        if (preg_match('/\b(carota|carote)\b/', $n)) return 14;
         return 60; // generic pantry fallback
     }
 
