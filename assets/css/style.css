@@ -4294,14 +4294,153 @@ body.cooking-mode-active .app-header {
     transform: scale(1.35);
 }
 
-.cooking-step-text {
-    font-size: clamp(1.4rem, 5vw, 2.2rem);
-    line-height: 1.5;
-    font-weight: 500;
-    color: #fff;
+.cooking-wheel {
+    position: relative;
+    --wheel-tilt-x: 0deg;
+    --wheel-tilt-y: 0deg;
+    --wheel-glow: 0.45;
+    width: min(90vw, 680px);
+    max-width: 680px;
+    min-height: clamp(240px, 36vh, 340px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 1100px;
+    overflow: hidden;
+    border-radius: 24px;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.07), rgba(255,255,255,0.02) 58%, transparent 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 0 48px rgba(0,0,0,0.35);
+    touch-action: pan-y;
+}
+
+.cooking-wheel::before,
+.cooking-wheel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.cooking-wheel::before {
+    background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.18), rgba(251, 191, 36, 0.08) 36%, transparent 72%);
+    opacity: var(--wheel-glow);
+    transition: opacity 0.2s ease;
+}
+
+.cooking-wheel::after {
+    background: linear-gradient(180deg, rgba(0,0,0,0.34) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.34) 100%);
+}
+
+.cooking-step-text,
+.cooking-step-ghost {
+    width: min(88vw, 620px);
     text-align: center;
-    max-width: 560px;
-    width: 100%;
+    line-height: 1.5;
+    padding: 18px 20px;
+    border-radius: 20px;
+    transform-style: preserve-3d;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.cooking-step-text {
+    position: relative;
+    z-index: 3;
+    font-size: clamp(1.35rem, 4.6vw, 2.1rem);
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+    border: 1px solid rgba(255,255,255,0.20);
+    box-shadow: 0 18px 35px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.24);
+    transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y));
+    animation: cookingCardFloat 4.2s ease-in-out infinite;
+}
+
+.cooking-step-ghost {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform-origin: center center;
+    font-size: clamp(1.08rem, 3.9vw, 1.52rem);
+    font-weight: 560;
+    color: rgba(255,255,255,0.95);
+    background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08));
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.22);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.34);
+    opacity: 0.66;
+    max-height: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cooking-step-prev {
+    color: rgba(255, 243, 210, 0.97);
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.24), rgba(251, 191, 36, 0.10));
+    border-color: rgba(251, 191, 36, 0.36);
+    transform: translateX(-50%) rotateX(56deg) rotateY(calc(var(--wheel-tilt-y) * 0.28)) scale(0.9);
+}
+
+.cooking-step-next {
+    color: rgba(220, 243, 255, 0.97);
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.24), rgba(56, 189, 248, 0.10));
+    border-color: rgba(56, 189, 248, 0.36);
+    transform: translateX(-50%) rotateX(-56deg) rotateY(calc(var(--wheel-tilt-y) * 0.28)) scale(0.9);
+}
+
+.cooking-step-ghost.is-empty {
+    opacity: 0;
+}
+
+.cooking-wheel.turn-next .cooking-step-text {
+    animation: cookingWheelCenterNext 0.34s ease;
+}
+
+.cooking-wheel.turn-prev .cooking-step-text {
+    animation: cookingWheelCenterPrev 0.34s ease;
+}
+
+.cooking-wheel.turn-next .cooking-step-prev {
+    animation: cookingWheelGhostNext 0.34s ease;
+}
+
+.cooking-wheel.turn-prev .cooking-step-next {
+    animation: cookingWheelGhostPrev 0.34s ease;
+}
+
+.cooking-wheel.snap .cooking-step-text {
+    animation: cookingWheelSnap 0.28s ease;
+}
+
+@keyframes cookingWheelCenterNext {
+    from { transform: translateY(20px) rotateX(-10deg); opacity: 0.75; }
+    to   { transform: translateY(0) rotateX(0); opacity: 1; }
+}
+
+@keyframes cookingWheelCenterPrev {
+    from { transform: translateY(-20px) rotateX(10deg); opacity: 0.75; }
+    to   { transform: translateY(0) rotateX(0); opacity: 1; }
+}
+
+@keyframes cookingWheelGhostNext {
+    from { opacity: 0.1; transform: translateX(-50%) rotateX(68deg) scale(0.84); }
+    to   { opacity: 0.66; transform: translateX(-50%) rotateX(56deg) scale(0.9); }
+}
+
+@keyframes cookingWheelGhostPrev {
+    from { opacity: 0.1; transform: translateX(-50%) rotateX(-68deg) scale(0.84); }
+    to   { opacity: 0.66; transform: translateX(-50%) rotateX(-56deg) scale(0.9); }
+}
+
+@keyframes cookingCardFloat {
+    0%, 100% { transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y)) translateY(0); }
+    50%      { transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y)) translateY(-3px); }
+}
+
+@keyframes cookingWheelSnap {
+    0%   { transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y)) scale(0.97); }
+    70%  { transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y)) scale(1.018); }
+    100% { transform: rotateX(var(--wheel-tilt-x)) rotateY(var(--wheel-tilt-y)) scale(1); }
 }
 
 .cooking-replay-btn {
@@ -4574,6 +4713,32 @@ body.cooking-mode-active .app-header {
 
 .cooking-nav-btn:not(:disabled):active {
     background: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 640px) {
+    .cooking-wheel {
+        min-height: clamp(210px, 34vh, 300px);
+        border-radius: 18px;
+    }
+
+    .cooking-step-text,
+    .cooking-step-ghost {
+        padding: 14px 14px;
+    }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cooking-step-text,
+    .cooking-step-ghost,
+    .cooking-wheel.turn-next .cooking-step-text,
+    .cooking-wheel.turn-prev .cooking-step-text,
+    .cooking-wheel.turn-next .cooking-step-prev,
+    .cooking-wheel.turn-prev .cooking-step-next,
+    .cooking-wheel.snap .cooking-step-text {
+        animation: none !important;
+        transition: none !important;
+    }
 }
 
 /* Cooking button in recipe dialog */

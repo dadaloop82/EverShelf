@@ -49,3 +49,4 @@ evershelf-kiosk/local.properties
 data/error_reports.log
 data/latest_release_cache.json
 data/food_facts_cache.json
+data/category_ai_cache.json
