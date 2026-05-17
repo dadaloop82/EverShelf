@@ -1201,5 +1201,17 @@
     "btn_csv": "CSV herunterladen",
     "btn_pdf": "PDF / Drucken",
     "btn_title": "Exportieren"
+  },
+  "startup": {
+    "check_php": "PHP",
+    "check_exts": "PHP-Erweiterungen",
+    "check_data_dir": "Datenverzeichnis",
+    "check_db": "Datenbank",
+    "check_env": "Konfiguration (.env)",
+    "check_gemini": "Gemini-AI-Schlüssel",
+    "check_bring": "Bring!-Token",
+    "critical_error": "Kritischer Fehler: Die App kann nicht gestartet werden. Prüfe die Serverlogs.",
+    "error_network": "Server nicht erreichbar. Bitte Verbindung prüfen.",
+    "retry": "Erneut versuchen"
   }
 }

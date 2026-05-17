@@ -14873,12 +14873,117 @@ function _heartbeatRetry() {
     _runHeartbeat();
 }
 
+// ── Startup / Splash health check ────────────────────────────────────────────
+/**
+ * Run a comprehensive server-side diagnostic during the splash screen.
+ * Returns true if the app can proceed, false if a critical check failed.
+ */
+async function _runStartupCheck() {
+    const checksEl  = document.getElementById('preloader-checks');
+    const errorEl   = document.getElementById('preloader-error-msg');
+    const retryBtn  = document.getElementById('preloader-retry-btn');
+    const spinnerEl = document.getElementById('preloader-spinner');
+
+    if (!checksEl) return true; // preloader already removed
+
+    // Label map  (populated again after translations are available)
+    const label = (key, fallback) => {
+        try { return t('startup.' + key); } catch(e) { return fallback; }
+    };
+
+    // Show check list container
+    checksEl.innerHTML = '';
+    checksEl.style.display = '';
+
+    // Helper: add / update a row
+    const addRow = (id, text, state) => {
+        const icon  = state === 'ok' ? '✅' : state === 'warn' ? '⚠️' : state === 'loading' ? '⏳' : '❌';
+        let row = document.getElementById('startup-row-' + id);
+        if (!row) {
+            row = document.createElement('div');
+            row.id = 'startup-row-' + id;
+            row.className = 'preloader-check-row';
+            checksEl.appendChild(row);
+        }
+        row.innerHTML = `<span class="pck-icon">${icon}</span><span class="pck-label">${text}</span>`;
+        row.dataset.state = state;
+    };
+
+    // Show loading rows immediately so the splash looks active
+    const checkDefs = [
+        { id: 'php',     key: 'check_php',      fallback: 'PHP' },
+        { id: 'exts',    key: 'check_exts',     fallback: 'Estensioni PHP' },
+        { id: 'data',    key: 'check_data_dir', fallback: 'Cartella dati' },
+        { id: 'db',      key: 'check_db',       fallback: 'Database' },
+        { id: 'env',     key: 'check_env',      fallback: 'Configurazione' },
+        { id: 'gemini',  key: 'check_gemini',   fallback: 'Chiave Gemini AI' },
+        { id: 'bring',   key: 'check_bring',    fallback: 'Bring! token' },
+    ];
+    checkDefs.forEach(c => addRow(c.id, label(c.key, c.fallback), 'loading'));
+
+    // Do the actual request
+    let result = null;
+    try {
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 8000);
+        const resp = await fetch('api/index.php?action=health_check', { signal: ctrl.signal });
+        clearTimeout(tid);
+        result = await resp.json();
+    } catch(e) {
+        // Network or timeout error — cannot reach server at all
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        checksEl.style.display = 'none';
+        const msg = label('error_network', 'Impossibile contattare il server. Controlla la connessione.');
+        errorEl.textContent = msg;
+        errorEl.style.display = '';
+        retryBtn.style.display = '';
+        return false;
+    }
+
+    const c = result.checks || {};
+
+    // Update each row
+    addRow('php',    label('check_php',      'PHP')               + (c.php?.value ? ` ${c.php.value}` : ''), c.php?.ok ? 'ok' : 'error');
+    addRow('exts',   label('check_exts',     'Estensioni PHP')    + (c.php_extensions?.missing?.length ? ` (mancanti: ${c.php_extensions.missing.join(', ')})` : ''), c.php_extensions?.ok ? 'ok' : 'error');
+    addRow('data',   label('check_data_dir', 'Cartella dati'),    c.data_dir?.ok ? 'ok' : 'error');
+    addRow('db',     label('check_db',       'Database')          + (c.database?.error ? ` (${c.database.error})` : ''), c.database?.ok ? 'ok' : 'error');
+    addRow('env',    label('check_env',      'Configurazione'),   c.env_file?.ok ? 'ok' : 'warn');
+    addRow('gemini', label('check_gemini',   'Chiave Gemini AI'), c.gemini_key?.ok ? 'ok' : 'warn');
+    addRow('bring',  label('check_bring',    'Bring! token'),     c.bring_token?.ok ? 'ok' : 'warn');
+
+    const allOk = result.ok === true;
+
+    if (allOk) {
+        // Brief pause so the user sees the green checkmarks, then hide checks
+        await new Promise(r => setTimeout(r, 1200));
+        checksEl.style.display = 'none';
+        return true;
+    } else {
+        // Critical failure — keep preloader visible, hide spinner, show error
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        const errMsg = label('critical_error', 'Errore critico: l\'app non può avviarsi. Controlla i log del server.');
+        errorEl.textContent = errMsg;
+        errorEl.style.display = '';
+        retryBtn.style.display = '';
+        return false;
+    }
+}
+
+/** Retry button handler in the startup error screen. */
+function _startupRetry() {
+    location.reload();
+}
+
 /** Start the heartbeat loop (called once from _initApp). */
 function startHeartbeat() {
     _runHeartbeat(); // immediate first probe
 }
 
 async function _initApp() {
+    // ── Startup health check (runs during splash, blocks app if critical) ──────
+    const _startupOk = await _runStartupCheck();
+    if (!_startupOk) return; // preloader stays visible with error; app does not start
+
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('evershelf_setup_step');
     const resumeData = localStorage.getItem('evershelf_setup_data');

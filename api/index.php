@@ -106,6 +106,70 @@ if (($_GET['action'] ?? '') === 'ping') {
     exit;
 }
 
+// ── Health check — startup diagnostic (no rate-limit, no auth required) ──────
+if (($_GET['action'] ?? '') === 'health_check') {
+    $checks = [];
+
+    // 1. PHP version
+    $phpOk = version_compare(PHP_VERSION, '8.0.0', '>=');
+    $checks['php'] = ['ok' => $phpOk, 'value' => PHP_VERSION];
+
+    // 2. Required PHP extensions
+    $requiredExts = ['pdo_sqlite', 'curl', 'mbstring', 'json'];
+    $missingExts  = array_filter($requiredExts, fn($e) => !extension_loaded($e));
+    $checks['php_extensions'] = ['ok' => empty($missingExts), 'missing' => array_values($missingExts)];
+
+    // 3. data/ directory writable
+    $dataDir = __DIR__ . '/../data';
+    $dataWritable = is_dir($dataDir) && is_writable($dataDir);
+    if (!$dataWritable && !is_dir($dataDir)) {
+        @mkdir($dataDir, 0775, true);
+        $dataWritable = is_dir($dataDir) && is_writable($dataDir);
+    }
+    $checks['data_dir'] = ['ok' => $dataWritable, 'path' => realpath($dataDir) ?: $dataDir];
+
+    // 4. SQLite DB accessible
+    $dbOk = false; $dbError = '';
+    try {
+        $dbPath = $dataDir . '/dispensa.db';
+        $pdo = new PDO('sqlite:' . $dbPath, null, null, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        $pdo->query('SELECT 1');
+        // Check at least inventory table exists
+        $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
+        $dbOk = in_array('inventory', $tables);
+        if (!$dbOk) $dbError = 'Missing tables (fresh install?)';
+    } catch (\Throwable $e) {
+        $dbError = $e->getMessage();
+    }
+    $checks['database'] = ['ok' => $dbOk, 'error' => $dbError ?: null];
+
+    // 5. .env loaded + Gemini key present
+    $envPath = __DIR__ . '/../.env';
+    $envLoaded = file_exists($envPath);
+    $geminiKey = env('GEMINI_API_KEY');
+    $checks['env_file']   = ['ok' => $envLoaded];
+    $checks['gemini_key'] = ['ok' => !empty($geminiKey)];
+
+    // 6. Bring! token (optional — warning only)
+    $bringToken = env('BRING_ACCESS_TOKEN');
+    $checks['bring_token'] = ['ok' => !empty($bringToken), 'optional' => true];
+
+    // 7. cURL available + internet reachable (light check, no actual call)
+    $curlOk = function_exists('curl_init');
+    $checks['curl'] = ['ok' => $curlOk];
+
+    // Overall: critical = php, php_extensions, data_dir, database
+    $critical = ['php', 'php_extensions', 'data_dir', 'database'];
+    $allOk    = array_reduce($critical, fn($c, $k) => $c && ($checks[$k]['ok'] ?? false), true);
+
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => $allOk, 'checks' => $checks], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ===== RATE LIMITING =====
 /**
  * Simple file-based rate limiter.

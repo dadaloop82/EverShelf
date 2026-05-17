@@ -1201,5 +1201,17 @@
     "btn_csv": "Descargar CSV",
     "btn_pdf": "PDF / Imprimir",
     "btn_title": "Exportar"
+  },
+  "startup": {
+    "check_php": "PHP",
+    "check_exts": "Extensiones PHP",
+    "check_data_dir": "Carpeta de datos",
+    "check_db": "Base de datos",
+    "check_env": "Configuración (.env)",
+    "check_gemini": "Clave Gemini AI",
+    "check_bring": "Token de Bring!",
+    "critical_error": "Error crítico: la aplicación no puede iniciarse. Revisa los registros del servidor.",
+    "error_network": "No se puede contactar con el servidor. Comprueba tu conexión.",
+    "retry": "Reintentar"
   }
 }

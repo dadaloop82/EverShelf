@@ -1201,5 +1201,17 @@
     "btn_csv": "Download CSV",
     "btn_pdf": "PDF / Print",
     "btn_title": "Export"
+  },
+  "startup": {
+    "check_php": "PHP",
+    "check_exts": "PHP extensions",
+    "check_data_dir": "Data directory",
+    "check_db": "Database",
+    "check_env": "Configuration (.env)",
+    "check_gemini": "Gemini AI key",
+    "check_bring": "Bring! token",
+    "critical_error": "Critical error: the app cannot start. Check your server logs.",
+    "error_network": "Cannot reach the server. Check your connection.",
+    "retry": "Retry"
   }
 }
