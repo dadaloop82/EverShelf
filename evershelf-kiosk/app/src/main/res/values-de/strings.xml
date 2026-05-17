@@ -1,29 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
-
-    <!-- Setup-Assistent Zeichenfolgen -->
     <string name="setup_enter_url">Bitte zuerst eine URL eingeben</string>
     <string name="setup_testing">Verbindung wird getestet…</string>
     <string name="setup_server_found">EverShelf-Server gefunden und API aktiv!</string>
     <string name="setup_api_not_found">Server erreichbar, aber EverShelf-API nicht gefunden. Pfad prüfen.</string>
     <string name="setup_unreachable">Server nicht erreichbar</string>
-    <string name="setup_discover_btn">🔍  Lokales Netzwerk durchsuchen</string>    <string name="setup_perms_granted_next">✅ Berechtigungen erteilt — Weiter →</string>    <string name="setup_discovering">Suche läuft…</string>
+    <string name="setup_discover_btn">🔍  Lokales Netzwerk durchsuchen</string>
+    <string name="setup_perms_granted_next">✅ Berechtigungen erteilt — Weiter →</string>
+    <string name="setup_discovering">Suche läuft…</string>
     <string name="setup_discovering_detail">Suche nach EverShelf-Servern im lokalen Netzwerk…</string>
     <string name="setup_discover_not_found">Kein EverShelf-Server automatisch gefunden. URL manuell eingeben.</string>
     <string name="setup_exit_title">Setup beenden?</string>
     <string name="setup_exit_message">Die Einrichtung kann später beim erneuten Öffnen der App abgeschlossen werden.</string>
     <string name="setup_exit_confirm">Beenden</string>
     <string name="setup_exit_cancel">Weiter</string>
-
-    <!-- Wizard Schritt 3: Smart-Waage -->
+    <string name="setup_step_back">← Zurück</string>
+    <string name="setup_step_next">Weiter →</string>
+    <string name="setup_skip_later">Später einrichten</string>
+    <string name="setup_confirm">Bestätigen →</string>
     <string name="wizard_step3_title">Smart-Waage (Optional)</string>
     <string name="wizard_step3_description">Um eine Bluetooth-Küchenwaage zu verwenden, musst du die EverShelf Scale Gateway App separat installieren.</string>
     <string name="wizard_step3_question">Hast du eine Bluetooth-Küchenwaage?</string>
     <string name="wizard_step3_yes">✅  Ja, ich habe eine Waage</string>
     <string name="wizard_step3_no">➡️  Nein, überspringen</string>
-
-    <!-- Gateway-Statusmeldungen -->
+    <string name="ble_scanning">🔍 Suche läuft…</string>
+    <string name="ble_connected">Verbunden! Gegenstand auf die Waage legen…</string>
+    <string name="ble_disconnected">Verbindung getrennt. Erneut versuchen.</string>
+    <string name="ble_no_scale_found">Keine Waage gefunden. Sicherstellen, dass sie eingeschaltet und in der Nähe ist, und erneut versuchen.</string>
+    <string name="ble_select_from_list">Waage aus der Liste auswählen.</string>
+    <string name="ble_not_confirmed">Waage nicht bestätigt. Erneut scannen.</string>
+    <string name="ble_scan_again">🔄  Erneut scannen</string>
+    <string name="ble_weight_received">Gewicht empfangen — Stimmt es mit der Anzeige überein?</string>
     <string name="wizard_gateway_installed">Scale Gateway installiert ✅</string>
     <string name="wizard_gateway_installed_detail">Wird beim Fortfahren im Hintergrund gestartet.</string>
     <string name="wizard_gateway_not_installed">Scale Gateway nicht installiert</string>
@@ -32,8 +40,6 @@
     <string name="wizard_gateway_up_to_date">Scale Gateway ist aktuell.</string>
     <string name="wizard_gateway_update_available">Update für Scale Gateway verfügbar</string>
     <string name="wizard_gateway_update_detail">Tippe auf den Button, um jetzt zu aktualisieren.</string>
-
-    <!-- Download- / Installationsfortschritt -->
     <string name="install_downloading">Download läuft…</string>
     <string name="install_downloading_detail">Bitte warten, die Datei wird heruntergeladen.</string>
     <string name="install_installing">Installation läuft…</string>
@@ -43,31 +49,56 @@
     <string name="install_error_download">Download fehlgeschlagen</string>
     <string name="install_error_download_detail">Verbindung prüfen und erneut versuchen.</string>
     <string name="install_error_install">Installation fehlgeschlagen</string>
-    <string name="install_perm_detail">Aktiviere \'Unbekannte Apps installieren\' in den Einstellungen, dann komm zurück.</string>
+    <string name="install_perm_detail">Aktiviere 'Unbekannte Apps installieren' in den Einstellungen, dann komm zurück.</string>
     <string name="install_btn_retry">↩  Nochmal versuchen</string>
-
-    <!-- Schaltflächen -->
     <string name="btn_back">Zurück</string>
     <string name="btn_launch">🚀  EverShelf starten</string>
     <string name="btn_launch_no_scale">🚀  Ohne Waage starten</string>
     <string name="btn_download_gateway">📥  Scale Gateway installieren</string>
     <string name="btn_update_gateway">📥  Scale Gateway aktualisieren</string>
-
-    <!-- Server-Erreichbarkeit prüfen (Wizard Schritt 3) -->
     <string name="wizard_server_checking">Server-Verbindung wird geprüft…</string>
     <string name="wizard_server_ok">Server erreichbar ✅</string>
     <string name="wizard_server_ok_detail">Fehlerberichterstattung aktiv — Installationsfehler werden automatisch an GitHub Issues gesendet.</string>
     <string name="wizard_server_error">Server nicht erreichbar ⚠️</string>
     <string name="wizard_server_error_detail">Fehler werden GitHub Issues nicht erreichen. URL in Schritt 2 prüfen.</string>
-    <!-- Bildschirmschoner-Schritt -->
-    <string name="setup_screensaver_title">Bildschirmschoner</string>
-    <string name="setup_screensaver_desc">Zeigt nach 5 Minuten Inaktivität eine Uhr mit nützlichen Fakten. Standardmäßig deaktiviert (Bildschirm bleibt immer an).</string>
-    <string name="setup_screensaver_toggle_label">Bildschirmschoner aktivieren</string>
-    <string name="setup_screensaver_toggle_hint">Wenn deaktiviert, bleibt der Bildschirm immer an.</string>
+    <string name="setup_features_title">Funktionen</string>
+    <string name="setup_features_desc">Aktiviere die gewünschten Funktionen. Du kannst sie später jederzeit in den Servereinstellungen ändern.</string>
+    <string name="setup_screensaver_toggle_label">Uhr-Bildschirmschoner</string>
+    <string name="setup_screensaver_toggle_hint">Zeigt eine Uhranzeige nach 5 Min. Inaktivität.</string>
+    <string name="setup_prices_toggle_label">Einkaufslisten-Preise</string>
+    <string name="setup_prices_toggle_hint">KI-gestützte automatische Kostensätzung für jeden Artikel.</string>
+    <string name="setup_mealplan_toggle_label">Mahlzeitenplan</string>
+    <string name="setup_mealplan_toggle_hint">Plane die Wöchentliche Mahlzeiten mit Rezepten aus deiner Vorratskammer.</string>
+    <string name="setup_zerowaste_toggle_label">Zero-Waste-Tipps</string>
+    <string name="setup_zerowaste_toggle_hint">Beim Kochen Tipps zur Wiederverwendung von Resten anzeigen (Schalen, Kochwasser usw.).</string>
+    <string name="setup_gemini_title">Google Gemini AI</string>
+    <string name="setup_gemini_desc">EverShelf nutzt Google Gemini AI für Rezeptvorschläge, smarte Einkaufsschätzungen und mehr.
 
-    <!-- Zusammenfassung -->
+Zum Aktivieren den kostenlosen Gemini API-Schlüssel eingeben.</string>
+    <string name="setup_gemini_how">Kostenlosen Schlüssel unter: aistudio.google.com → "API-Schlüssel erhalten"</string>
+    <string name="setup_gemini_hint">API-Schlüssel einfügen (beginnt mit AIza…)</string>
+    <string name="setup_bring_title">Bring! Einkaufsliste</string>
+    <string name="setup_bring_desc">EverShelf kann die Einkaufsliste mit der Bring!-App synchronisieren.
+
+Bring!-Zugangsdaten eingeben, um die Integration zu aktivieren.</string>
+    <string name="setup_bring_email_hint">Bring!-E-Mail-Adresse</string>
+    <string name="setup_bring_pass_hint">Bring!-Passwort</string>
+    <string name="setup_done_title">Alles bereit!</string>
+    <string name="setup_done_desc">Die Einrichtung ist abgeschlossen. Auf den Button tippen, um EverShelf im Kiosk-Modus zu starten.</string>
+    <string name="setup_done_summary_label">KONFIGURATIONSSÜBERSICHT</string>
     <string name="summary_lang">Sprache</string>
     <string name="summary_scale_skip">Waage: nicht konfiguriert</string>
     <string name="summary_screensaver_on">Bildschirmschoner: aktiv</string>
     <string name="summary_screensaver_off">Bildschirm immer an (Bildschirmschoner deaktiviert)</string>
+    <string name="summary_prices_on">Einkaufslisten-Preise: aktiviert</string>
+    <string name="summary_mealplan_on">Mahlzeitenplan: aktiviert</string>
+    <string name="summary_zerowaste_on">Zero-Waste-Tipps: aktiviert</string>
+    <string name="summary_gemini_set">Gemini AI: aktiviert</string>
+    <string name="summary_gemini_skip">Gemini AI: nicht konfiguriert</string>
+    <string name="summary_bring_set">Bring!: verbunden</string>
+    <string name="summary_bring_skip">Bring!: nicht konfiguriert</string>
+    <string name="ble_connecting_to">🔗 Verbinde mit %s…</string>
+    <string name="ble_connecting">🔗 Verbindung wird hergestellt…</string>
+    <string name="summary_scale_ok">Waage: %s</string>
+    <string name="summary_scale_warn">Waage: nicht bestätigt</string>
 </resources>

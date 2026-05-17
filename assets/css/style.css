@@ -72,12 +72,12 @@ body {
 #app-preloader {
     position: fixed;
     inset: 0;
-    background: var(--bg-dark, #0f172a);
+    background: #0c1222;
     z-index: 200000;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.45s ease;
 }
 #app-preloader.fade-out {
     opacity: 0;
@@ -87,75 +87,91 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px;
+    gap: 28px;
 }
 .app-preloader-spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(255,255,255,0.15);
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
     border-top-color: #4ade80;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.9s linear infinite;
 }
 .app-preloader-label {
     color: rgba(255,255,255,0.75);
-    font-size: 1.2rem;
-    font-weight: 600;
+    font-size: 1.1rem;
+    font-weight: 500;
     letter-spacing: 0.5px;
 }
 .app-preloader-logo {
-    height: 160px;
+    height: 150px;
     width: auto;
     object-fit: contain;
-    filter: drop-shadow(0 4px 16px rgba(74,222,128,0.2));
+    animation: logoPulse 3.2s ease-in-out infinite;
+}
+@keyframes logoPulse {
+    0%, 100% { filter: drop-shadow(0 4px 20px rgba(74,222,128,0.18)); }
+    50%       { filter: drop-shadow(0 4px 36px rgba(74,222,128,0.48)); }
 }
 .app-preloader-version {
-    color: rgba(255,255,255,0.35);
-    font-size: 0.72rem;
+    color: rgba(255,255,255,0.22);
+    font-size: 0.68rem;
     font-family: monospace;
-    letter-spacing: 0.5px;
-    margin-top: -8px;
+    letter-spacing: 0.6px;
+    margin-top: -16px;
 }
-/* ── Startup progress bar ───────────────────────────────────────────── */
+/* ── Startup progress section ────────────────────────────────────────── */
 .preloader-progress-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
-    width: 250px;
-    max-width: 88vw;
-    animation: zwFadeIn 0.2s ease;
+    gap: 14px;
+    width: min(92vw, 520px);
+    animation: zwFadeIn 0.25s ease;
 }
 .preloader-bar-track {
     width: 100%;
-    height: 6px;
-    background: rgba(255,255,255,0.12);
+    height: 3px;
+    background: rgba(255,255,255,0.08);
     border-radius: 99px;
-    overflow: hidden;
+    overflow: visible;
 }
 .preloader-bar {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #4ade80, #22c55e);
     border-radius: 99px;
-    transition: width 0.18s ease, background 0.3s ease;
+    transition: width 0.22s cubic-bezier(0.4,0,0.2,1), background 0.3s ease;
+    box-shadow: 0 0 8px rgba(74,222,128,0.55);
 }
-.preloader-bar.bar-error { background: linear-gradient(90deg, #f87171, #ef4444); }
-.preloader-bar.bar-warn  { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-.preloader-check-label {
-    color: rgba(255,255,255,0.60);
-    font-size: 0.74rem;
-    font-family: monospace;
-    text-align: center;
+.preloader-bar.bar-error { background: linear-gradient(90deg,#f87171,#ef4444); box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+.preloader-bar.bar-warn  { background: linear-gradient(90deg,#fbbf24,#f59e0b); box-shadow: 0 0 8px rgba(251,191,36,0.5); }
+.preloader-check-label { display: none; }
+
+/* ── Status line: single element, opacity crossfade via JS ─────────── */
+.check-ticker {
+    width: 100%;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.preloader-status-text {
+    font-size: clamp(0.78rem, 2vw, 0.9rem);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: rgba(255,255,255,0.45);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
-    min-height: 1.1em;
-    letter-spacing: 0.01em;
+    padding: 0 12px;
 }
+.preloader-status-text.state-ok    { color: #86efac; }
+.preloader-status-text.state-warn  { color: #fde68a; }
+.preloader-status-text.state-error { color: #fca5a5; }
 .preloader-warnings {
-    max-width: 310px;
+    max-width: min(92vw, 600px);
     width: 100%;
     animation: zwFadeIn 0.3s ease;
 }
@@ -4175,6 +4191,15 @@ body.server-offline .bottom-nav {
     min-width: 0;
     line-height: 1.4;
 }
+.recipe-ing-name {
+    cursor: pointer;
+    border-bottom: 1px dashed rgba(74,222,128,0.5);
+    transition: color 0.15s, border-color 0.15s;
+}
+.recipe-ing-name:hover {
+    color: #4ade80;
+    border-bottom-color: #4ade80;
+}
 
 .btn-use-ingredient {
     flex-shrink: 0;
@@ -7018,6 +7043,14 @@ body.cooking-mode-active .app-header {
     background: #f3f4f6;
     color: #9ca3af;
     font-size: 0.8em;
+}
+.btn-banner-vacuum {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+.btn-banner-edit2 {
+    background: #e0f2fe;
+    color: #0369a1;
 }
 
 /* ===== PAGE HEADER ACTION BUTTON (export etc.) ===== */

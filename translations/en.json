@@ -113,6 +113,8 @@
     "banner_expired_action_finished": "I finished it!",
     "banner_expired_action_throw": "I threw it away",
     "banner_expired_action_edit": "Fix date",
+    "banner_expired_action_modify": "Edit",
+    "banner_expired_action_vacuum": "Put in vacuum seal",
     "banner_anomaly_action_edit": "Fix inventory",
     "banner_anomaly_action_dismiss": "Quantity is correct",
     "banner_no_expiry_title": "Missing expiry: {name}",
@@ -217,7 +219,7 @@
     "title": "What do you want to do?",
     "add_btn": "📥 ADD",
     "add_sub": "to pantry/fridge",
-    "use_btn": "📤 USE / CONSUME",
+    "use_btn": "USE",
     "use_sub": "from pantry/fridge",
     "have_title": "📦 Already in stock!",
     "add_more_sub": "add more",
@@ -533,7 +535,7 @@
     "prev": "◀ Previous",
     "next": "Next ▶",
     "ingredient_used": "✔️ Deducted",
-    "ingredient_use_btn": "📦 Use",
+    "ingredient_use_btn": "Use",
     "ingredient_deduct_title": "Deduct from pantry",
     "timer_expired_tts": "Timer {label} expired!",
     "timer_warning_tts": "Heads up! {label}: 10 seconds left!",
@@ -831,6 +833,7 @@
     "thrown_away": "🗑️ {name} thrown away!",
     "thrown_away_partial": "🗑️ Thrown away {qty} {unit} of {name}",
     "finished_all": "📤 {name} finished!",
+    "vacuum_sealed": "{name} saved as vacuum sealed",
     "product_finished_confirmed": "✅ Removed — add it again when you restock",
     "appliance_added": "Appliance added",
     "item_added": "{name} added"
@@ -1007,8 +1010,8 @@
     "thing_rest": "rest",
     "stay_btn": "No, stay in {location}",
     "moved_toast": "📦 Opened package moved to {location}",
-    "vacuum_restore": "🫙 Restore vacuum sealed",
-    "vacuum_seal_rest": "🔒 Vacuum seal the rest"
+    "vacuum_restore": "Restore vacuum sealed",
+    "vacuum_seal_rest": "Vacuum seal the rest"
   },
   "nova": {
     "1": "Unprocessed",

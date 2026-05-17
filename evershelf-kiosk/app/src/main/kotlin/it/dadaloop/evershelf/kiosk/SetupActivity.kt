@@ -58,8 +58,10 @@ import javax.net.ssl.X509TrustManager
  *  2 — Permissions rationale + grant
  *  3 — Server URL + auto-discovery + connection test
  *  4 — Smart scale question → gateway info + install
- *  5 — Screensaver toggle (NEW)
- *  6 — Done
+ *  5 — Features (screensaver / prices / meal-plan / zero-waste)
+ *  6 — Gemini AI key  (optional, auto-skipped if already set)
+ *  7 — Bring! credentials (optional, auto-skipped if already set)
+ *  8 — Done
  */
 class SetupActivity : AppCompatActivity() {
 
@@ -73,6 +75,8 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var stepServer:      LinearLayout
     private lateinit var stepScale:       LinearLayout
     private lateinit var stepScreensaver: LinearLayout
+    private lateinit var stepGemini:      LinearLayout
+    private lateinit var stepBring:       LinearLayout
     private lateinit var stepDone:        LinearLayout
 
     // Progress dots
@@ -114,6 +118,11 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var setupSwitchMealPlan:    SwitchMaterial
     private lateinit var setupSwitchZeroWaste:   SwitchMaterial
 
+    // Gemini + Bring steps
+    private lateinit var setupGeminiKeyEdit:     EditText
+    private lateinit var setupBringEmailEdit:    EditText
+    private lateinit var setupBringPasswordEdit: EditText
+
     // Done step
     private lateinit var summaryText: TextView
 
@@ -134,6 +143,9 @@ class SetupActivity : AppCompatActivity() {
         private const val KEY_PRICE_ENABLED  = "price_enabled"
         private const val KEY_MEAL_PLAN      = "meal_plan_enabled"
         private const val KEY_ZEROWASTE_TIPS = "zerowaste_tips_enabled"
+        private const val KEY_GEMINI_KEY      = "gemini_api_key"
+        private const val KEY_BRING_EMAIL     = "bring_email"
+        private const val KEY_BRING_PASSWORD  = "bring_password"
         private const val PERMISSION_REQUEST_CODE = 2004
         private const val BLE_PERMISSION_REQUEST  = 2006
 
@@ -184,8 +196,11 @@ class SetupActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         when (currentStep) {
-            0 -> confirmExit()
-            1 -> showStep(0)  // back to language
+            0    -> confirmExit()
+            1    -> showStep(0)   // back to language
+            8    -> showStep(7)   // done → bring
+            7    -> showStep(6)   // bring → gemini
+            6    -> showStep(5)   // gemini → features
             else -> showStep(currentStep - 1)
         }
     }
@@ -221,7 +236,17 @@ class SetupActivity : AppCompatActivity() {
         stepServer       = findViewById(R.id.stepServer)
         stepScale        = findViewById(R.id.stepScale)
         stepScreensaver  = findViewById(R.id.stepScreensaver)
+        stepGemini       = findViewById(R.id.stepGemini)
+        stepBring        = findViewById(R.id.stepBring)
         stepDone         = findViewById(R.id.stepDone)
+
+        // Gemini + Bring fields
+        setupGeminiKeyEdit     = findViewById(R.id.setupGeminiKeyEdit)
+        setupBringEmailEdit    = findViewById(R.id.setupBringEmailEdit)
+        setupBringPasswordEdit = findViewById(R.id.setupBringPasswordEdit)
+        // Pre-fill from saved prefs
+        (prefs.getString(KEY_GEMINI_KEY, "") ?: "").takeIf { it.isNotEmpty() }?.let { setupGeminiKeyEdit.setText(it) }
+        (prefs.getString(KEY_BRING_EMAIL, "") ?: "").takeIf { it.isNotEmpty() }?.let { setupBringEmailEdit.setText(it) }
 
         // Server step
         urlEdit        = findViewById(R.id.setupUrlEdit)
@@ -273,6 +298,8 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnLangIt).setOnClickListener { selectLanguage("it") }
         findViewById<MaterialButton>(R.id.btnLangEn).setOnClickListener { selectLanguage("en") }
         findViewById<MaterialButton>(R.id.btnLangDe).setOnClickListener { selectLanguage("de") }
+        findViewById<MaterialButton>(R.id.btnLangEs).setOnClickListener { selectLanguage("es") }
+        findViewById<MaterialButton>(R.id.btnLangFr).setOnClickListener { selectLanguage("fr") }
 
         // ── Welcome ──────────────────────────────────────────────────────
         findViewById<MaterialButton>(R.id.btnSetupExit).setOnClickListener { confirmExit() }
@@ -375,10 +402,10 @@ class SetupActivity : AppCompatActivity() {
             bleSetupCard.visibility    = View.VISIBLE
             tvSelectedScale.text       = ""
             tvSelectedScale.visibility = View.GONE
-            tvScanStatus.text          = "Bilancia non confermata. Riprova la scansione."
+            tvScanStatus.text          = getString(R.string.ble_not_confirmed)
             tvScanStatus.setTextColor(0xFFfbbf24.toInt())
             btnScanBle.isEnabled       = true
-            btnScanBle.text            = "🔍  Cerca bilancia"
+            btnScanBle.text            = getString(R.string.ble_scan_again)
             findViewById<MaterialButton>(R.id.btnScaleNext).isEnabled = false
         }
         findViewById<MaterialButton>(R.id.btnTestSkip).setOnClickListener {
@@ -398,12 +425,32 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnScreensaverBack).setOnClickListener { showStep(4) }
         findViewById<MaterialButton>(R.id.btnScreensaverNext).setOnClickListener {
             prefs.edit()
-                .putBoolean(KEY_SCREENSAVER,  setupSwitchScreensaver.isChecked)
-                .putBoolean(KEY_PRICE_ENABLED, setupSwitchPrices.isChecked)
-                .putBoolean(KEY_MEAL_PLAN,     setupSwitchMealPlan.isChecked)
+                .putBoolean(KEY_SCREENSAVER,   setupSwitchScreensaver.isChecked)
+                .putBoolean(KEY_PRICE_ENABLED,  setupSwitchPrices.isChecked)
+                .putBoolean(KEY_MEAL_PLAN,      setupSwitchMealPlan.isChecked)
                 .putBoolean(KEY_ZEROWASTE_TIPS, setupSwitchZeroWaste.isChecked)
                 .apply()
             showStep(6)
+        }
+
+        // ── Gemini step ───────────────────────────────────────────────────
+        findViewById<MaterialButton>(R.id.btnGeminiBack).setOnClickListener { showStep(5) }
+        findViewById<MaterialButton>(R.id.btnGeminiSkip).setOnClickListener { showStep(7) }
+        findViewById<MaterialButton>(R.id.btnGeminiNext).setOnClickListener {
+            val key = setupGeminiKeyEdit.text.toString().trim()
+            if (key.isNotEmpty()) prefs.edit().putString(KEY_GEMINI_KEY, key).apply()
+            showStep(7)
+        }
+
+        // ── Bring step ────────────────────────────────────────────────────
+        findViewById<MaterialButton>(R.id.btnBringBack).setOnClickListener { showStep(6) }
+        findViewById<MaterialButton>(R.id.btnBringSkip).setOnClickListener { showStep(8) }
+        findViewById<MaterialButton>(R.id.btnBringNext).setOnClickListener {
+            val email = setupBringEmailEdit.text.toString().trim()
+            val pass  = setupBringPasswordEdit.text.toString().trim()
+            if (email.isNotEmpty()) prefs.edit().putString(KEY_BRING_EMAIL, email).apply()
+            if (pass.isNotEmpty())  prefs.edit().putString(KEY_BRING_PASSWORD, pass).apply()
+            showStep(8)
         }
 
         // ── Done ──────────────────────────────────────────────────────────
@@ -421,20 +468,27 @@ class SetupActivity : AppCompatActivity() {
 
     private fun highlightSelectedLang() {
         val saved = prefs.getString(KEY_LANGUAGE, null) ?: return
-        val (btnIt, btnEn, btnDe) = Triple(
-            findViewById<MaterialButton>(R.id.btnLangIt),
-            findViewById<MaterialButton>(R.id.btnLangEn),
-            findViewById<MaterialButton>(R.id.btnLangDe)
-        )
+        val btnIt = findViewById<MaterialButton>(R.id.btnLangIt)
+        val btnEn = findViewById<MaterialButton>(R.id.btnLangEn)
+        val btnDe = findViewById<MaterialButton>(R.id.btnLangDe)
+        val btnEs = findViewById<MaterialButton>(R.id.btnLangEs)
+        val btnFr = findViewById<MaterialButton>(R.id.btnLangFr)
         // Add checkmark to selected
         btnIt.text = if (saved == "it") "✅  🇮🇹   Italiano" else "🇮🇹   Italiano"
         btnEn.text = if (saved == "en") "✅  🇬🇧   English"  else "🇬🇧   English"
         btnDe.text = if (saved == "de") "✅  🇩🇪   Deutsch"  else "🇩🇪   Deutsch"
+        btnEs.text = if (saved == "es") "✅  🇪🇸   Español"  else "🇪🇸   Español"
+        btnFr.text = if (saved == "fr") "✅  🇫🇷   Français" else "🇫🇷   Français"
     }
 
     // ── Step navigation ───────────────────────────────────────────────────
 
     private fun showStep(step: Int) {
+        // Auto-skip Gemini step if already configured
+        if (step == 6 && !(prefs.getString(KEY_GEMINI_KEY, "") ?: "").isNullOrEmpty()) { showStep(7); return }
+        // Auto-skip Bring step if already configured
+        if (step == 7 && !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()) { showStep(8); return }
+
         currentStep = step
         stepLanguage.visibility    = if (step == 0) View.VISIBLE else View.GONE
         stepWelcome.visibility     = if (step == 1) View.VISIBLE else View.GONE
@@ -442,7 +496,9 @@ class SetupActivity : AppCompatActivity() {
         stepServer.visibility      = if (step == 3) View.VISIBLE else View.GONE
         stepScale.visibility       = if (step == 4) View.VISIBLE else View.GONE
         stepScreensaver.visibility = if (step == 5) View.VISIBLE else View.GONE
-        stepDone.visibility        = if (step == 6) View.VISIBLE else View.GONE
+        stepGemini.visibility      = if (step == 6) View.VISIBLE else View.GONE
+        stepBring.visibility       = if (step == 7) View.VISIBLE else View.GONE
+        stepDone.visibility        = if (step == 8) View.VISIBLE else View.GONE
 
         updateProgressDots()
 
@@ -478,7 +534,7 @@ class SetupActivity : AppCompatActivity() {
         }
 
         // Build summary when entering done step
-        if (step == 6) buildSummary()
+        if (step == 8) buildSummary()
 
         // Cancel auto-discover when leaving server step
         if (step != 3) discoverCancelled.set(true)
@@ -489,11 +545,11 @@ class SetupActivity : AppCompatActivity() {
 
     private fun updateProgressDots() {
         progressDots.removeAllViews()
-        // Show 5 dots for steps 1-5; step 0 (language) and step 6 (done) have no dots
-        if (currentStep == 0 || currentStep == 6) return
-        val active  = currentStep  // 1..5
+        // Show 7 dots for steps 1-7; step 0 (language) and step 8 (done) have no dots
+        if (currentStep == 0 || currentStep == 8) return
+        val active  = currentStep  // 1..7
         val density = resources.displayMetrics.density
-        for (i in 1..5) {
+        for (i in 1..7) {
             val dot = View(this)
             val sizeDp = if (i == active) 10 else 7
             val px = (sizeDp * density).toInt()
@@ -837,7 +893,7 @@ class SetupActivity : AppCompatActivity() {
         }
         discoveredDevices.clear()
         deviceAdapter?.notifyDataSetChanged()
-        tvScanStatus.text = "🔍 Scansione in corso…"
+        tvScanStatus.text = getString(R.string.ble_scanning)
         tvScanStatus.setTextColor(0xFF94a3b8.toInt())
         btnScanBle.isEnabled = false
         mgr.startScan()
@@ -850,7 +906,7 @@ class SetupActivity : AppCompatActivity() {
         tvSelectedScale.text       = "✅ ${info.name}"
         tvSelectedScale.visibility = View.VISIBLE
         btnScanBle.isEnabled = true
-        btnScanBle.text = "🔄  Scansiona di nuovo"
+        btnScanBle.text = getString(R.string.ble_scan_again)
         // Start connection test
         startScaleTest(info)
     }
@@ -863,7 +919,7 @@ class SetupActivity : AppCompatActivity() {
         scaleTestCard.visibility = View.VISIBLE
         testWeightBox.visibility = View.GONE
         step3NextButtons.visibility = View.GONE
-        tvTestStatus.text = "🔗 Connessione a ${info.name}…"
+        tvTestStatus.text = getString(R.string.ble_connecting_to).format(info.name)
         tvTestStatus.setTextColor(0xFF94a3b8.toInt())
         tvTestWeight.text = "— g"
         // Disable confirm/retry until we have data
@@ -887,19 +943,19 @@ class SetupActivity : AppCompatActivity() {
         }
         override fun onConnecting(device: BluetoothDevice) {
             if (!isInTestMode) return
-            tvTestStatus.text = "🔗 Connessione in corso…"
+            tvTestStatus.text = getString(R.string.ble_connecting)
             tvTestStatus.setTextColor(0xFF94a3b8.toInt())
         }
         override fun onConnected(deviceName: String) {
             if (!isInTestMode) return
-            tvTestStatus.text = "⚖️ Connesso! Posiziona un oggetto sulla bilancia…"
+            tvTestStatus.text = getString(R.string.ble_connected)
             tvTestStatus.setTextColor(0xFF34d399.toInt())
             testWeightBox.visibility = View.VISIBLE
             findViewById<MaterialButton>(R.id.btnTestRetry).isEnabled = true
         }
         override fun onDisconnected() {
             if (!isInTestMode) return
-            tvTestStatus.text = "⚠️ Connessione persa. Riprova."
+            tvTestStatus.text = getString(R.string.ble_disconnected)
             tvTestStatus.setTextColor(0xFFfbbf24.toInt())
             testWeightBox.visibility = View.GONE
             testHasWeight = false
@@ -914,7 +970,7 @@ class SetupActivity : AppCompatActivity() {
                 "%g ${reading.unit}".format(reading.value)
             tvTestWeight.text = display
             testWeightBox.visibility = View.VISIBLE
-            tvTestStatus.text = "Peso ricevuto — coincide con quello sulla bilancia?"
+            tvTestStatus.text = getString(R.string.ble_weight_received)
             tvTestStatus.setTextColor(0xFF94a3b8.toInt())
             findViewById<MaterialButton>(R.id.btnTestConfirm).isEnabled = true
             findViewById<MaterialButton>(R.id.btnTestRetry).isEnabled   = true
@@ -936,10 +992,10 @@ class SetupActivity : AppCompatActivity() {
         override fun onScanStopped() {
             btnScanBle.isEnabled = true
             if (discoveredDevices.isEmpty()) {
-                tvScanStatus.text = "Nessuna bilancia trovata. Assicurati che sia accesa e vicina, poi riprova."
+                tvScanStatus.text = getString(R.string.ble_no_scale_found)
                 tvScanStatus.setTextColor(0xFFfbbf24.toInt())
             } else {
-                tvScanStatus.text = "Seleziona la tua bilancia dall'elenco."
+                tvScanStatus.text = getString(R.string.ble_select_from_list)
                 tvScanStatus.setTextColor(0xFF94a3b8.toInt())
             }
         }
@@ -998,19 +1054,23 @@ class SetupActivity : AppCompatActivity() {
         val scaleName  = bleManager?.getSavedDeviceName()
         val scaleOk    = hasScale && scaleName != null
         val lang       = prefs.getString(KEY_LANGUAGE, "it") ?: "it"
-        val langLabel  = when (lang) { "en" -> "English 🇬🇧"; "de" -> "Deutsch 🇩🇪"; else -> "Italiano 🇮🇹" }
+        val langLabel  = when (lang) { "en" -> "English 🇬🇧"; "de" -> "Deutsch 🇩🇪"; "es" -> "Español 🇪🇸"; "fr" -> "Français 🇫🇷"; else -> "Italiano 🇮🇹" }
         val sb = StringBuilder()
         sb.appendLine("🌐 ${getString(R.string.summary_lang)}: $langLabel")
         if (url.isNotEmpty()) sb.appendLine("🖥️ Server: $url")
         sb.appendLine(when {
-            scaleOk  -> "✅ Bilancia: $scaleName"
-            hasScale -> "⚠️ Bilancia: da configurare"
+            scaleOk  -> getString(R.string.summary_scale_ok).format(scaleName)
+            hasScale -> "⚠️ ${getString(R.string.summary_scale_warn)}"
             else     -> "⏭ ${getString(R.string.summary_scale_skip)}"
         })
         sb.appendLine(if (screensOn)   getString(R.string.summary_screensaver_on)  else getString(R.string.summary_screensaver_off))
         if (pricesOn)    sb.appendLine(getString(R.string.summary_prices_on))
         if (mealPlanOn)  sb.appendLine(getString(R.string.summary_mealplan_on))
         if (zeroWasteOn) sb.appendLine(getString(R.string.summary_zerowaste_on))
+        val geminiSet = !(prefs.getString(KEY_GEMINI_KEY,  "") ?: "").isNullOrEmpty()
+        val bringSet  = !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()
+        sb.appendLine(if (geminiSet) getString(R.string.summary_gemini_set) else getString(R.string.summary_gemini_skip))
+        sb.appendLine(if (bringSet)  getString(R.string.summary_bring_set)  else getString(R.string.summary_bring_skip))
         summaryText.text = sb.toString().trimEnd()
     }
 
@@ -1026,6 +1086,9 @@ class SetupActivity : AppCompatActivity() {
             Thread {
                 try {
                     val url  = "$baseUrl/api/index.php?action=save_settings"
+                    val geminiKey    = prefs.getString(KEY_GEMINI_KEY,     "") ?: ""
+                    val bringEmail    = prefs.getString(KEY_BRING_EMAIL,    "") ?: ""
+                    val bringPassword = prefs.getString(KEY_BRING_PASSWORD, "") ?: ""
                     val body = buildString {
                         append("{\"screensaver_enabled\":$screensaver")
                         append(",\"price_enabled\":$priceEnabled")
@@ -1035,6 +1098,9 @@ class SetupActivity : AppCompatActivity() {
                             val lanIp = getDeviceLanIp() ?: "127.0.0.1"
                             append(",\"scale_enabled\":true,\"scale_gateway_url\":\"ws://$lanIp:8765\"")
                         }
+                        if (geminiKey.isNotEmpty())    append(",\"gemini_api_key\":\"${geminiKey.replace("\"", "\\\"\")}\"")
+                        if (bringEmail.isNotEmpty())   append(",\"bring_email\":\"${bringEmail.replace("\"", "\\\"\")}\"")
+                        if (bringPassword.isNotEmpty()) append(",\"bring_password\":\"${bringPassword.replace("\"", "\\\"\")}\"")
                         append("}")
                     }
                     val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {

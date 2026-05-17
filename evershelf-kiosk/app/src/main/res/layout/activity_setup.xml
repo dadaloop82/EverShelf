@@ -78,11 +78,11 @@
                     android:layout_marginBottom="24dp"
                     android:contentDescription="EverShelf" />
 
-                <!-- Title shown in all 3 languages so it's always readable -->
+                <!-- Title shown in all 5 languages so it's always readable -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Scegli la lingua\nChoose your language\nSprache wählen"
+                    android:text="Scegli la lingua · Choose your language\nSprache wählen · Elige el idioma\nChoisissez votre langue"
                     android:textColor="#f1f5f9"
                     android:textSize="22sp"
                     android:textStyle="bold"
@@ -117,7 +117,27 @@
                     android:text="🇩🇪   Deutsch"
                     android:textSize="18sp"
                     android:textAllCaps="false"
-                    android:backgroundTint="#b91c1c" />
+                    android:backgroundTint="#b91c1c"
+                    android:layout_marginBottom="16dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLangEs"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:text="🇪🇸   Español"
+                    android:textSize="18sp"
+                    android:textAllCaps="false"
+                    android:backgroundTint="#c2410c"
+                    android:layout_marginBottom="16dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLangFr"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:text="🇫🇷   Français"
+                    android:textSize="18sp"
+                    android:textAllCaps="false"
+                    android:backgroundTint="#1d4ed8" />
 
             </LinearLayout>
 
@@ -1241,7 +1261,7 @@
                         android:layout_width="0dp"
                         android:layout_height="48dp"
                         android:layout_weight="1"
-                        android:text="← Indietro"
+                        android:text="@string/setup_step_back"
                         android:textSize="14sp"
                         android:textAllCaps="false"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -1254,7 +1274,7 @@
                         android:layout_width="0dp"
                         android:layout_height="48dp"
                         android:layout_weight="2"
-                        android:text="Avanti →"
+                        android:text="@string/setup_step_next"
                         android:textSize="15sp"
                         android:textAllCaps="false"
                         android:backgroundTint="#7c3aed" />
@@ -1262,7 +1282,230 @@
             </LinearLayout>
 
             <!-- ════════════════════════════════════════════
-                 STEP 6 — Done
+                 STEP 6 — Gemini AI key
+                 ════════════════════════════════════════════ -->
+            <LinearLayout
+                android:id="@+id/stepGemini"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🤖"
+                    android:textSize="52sp"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_gemini_title"
+                    android:textColor="#f1f5f9"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_gemini_desc"
+                    android:textColor="#94a3b8"
+                    android:textSize="15sp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="4dp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- How-to card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/card_background"
+                    android:padding="14dp"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="💡"
+                        android:textSize="20sp"
+                        android:layout_marginEnd="10dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setup_gemini_how"
+                        android:textColor="#7dd3fc"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="3dp" />
+                </LinearLayout>
+
+                <EditText
+                    android:id="@+id/setupGeminiKeyEdit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/setup_gemini_hint"
+                    android:textColor="#f1f5f9"
+                    android:textColorHint="#475569"
+                    android:backgroundTint="#334155"
+                    android:inputType="textVisiblePassword"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginBottom="20dp" />
+
+                <!-- Navigation -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiBack"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_step_back"
+                        android:textSize="14sp"
+                        android:textAllCaps="false"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:strokeColor="#334155"
+                        android:textColor="#64748b"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiSkip"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_skip_later"
+                        android:textSize="13sp"
+                        android:textAllCaps="false"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:strokeColor="#475569"
+                        android:textColor="#94a3b8"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiNext"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_confirm"
+                        android:textSize="14sp"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#7c3aed" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ════════════════════════════════════════════
+                 STEP 7 — Bring! credentials
+                 ════════════════════════════════════════════ -->
+            <LinearLayout
+                android:id="@+id/stepBring"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🛒"
+                    android:textSize="52sp"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_bring_title"
+                    android:textColor="#f1f5f9"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/setup_bring_desc"
+                    android:textColor="#94a3b8"
+                    android:textSize="15sp"
+                    android:gravity="center"
+                    android:lineSpacingExtra="4dp"
+                    android:layout_marginBottom="16dp" />
+
+                <EditText
+                    android:id="@+id/setupBringEmailEdit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/setup_bring_email_hint"
+                    android:textColor="#f1f5f9"
+                    android:textColorHint="#475569"
+                    android:backgroundTint="#334155"
+                    android:inputType="textEmailAddress"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="10dp" />
+
+                <EditText
+                    android:id="@+id/setupBringPasswordEdit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/setup_bring_pass_hint"
+                    android:textColor="#f1f5f9"
+                    android:textColorHint="#475569"
+                    android:backgroundTint="#334155"
+                    android:inputType="textPassword"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="20dp" />
+
+                <!-- Navigation -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringBack"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_step_back"
+                        android:textSize="14sp"
+                        android:textAllCaps="false"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:strokeColor="#334155"
+                        android:textColor="#64748b"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringSkip"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_skip_later"
+                        android:textSize="13sp"
+                        android:textAllCaps="false"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:strokeColor="#475569"
+                        android:textColor="#94a3b8"
+                        android:layout_marginEnd="8dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringNext"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="@string/setup_confirm"
+                        android:textSize="14sp"
+                        android:textAllCaps="false"
+                        android:backgroundTint="#059669" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- ════════════════════════════════════════════
+                 STEP 8 — Done
                  ════════════════════════════════════════════ -->
             <LinearLayout
                 android:id="@+id/stepDone"
@@ -1282,7 +1525,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Tutto pronto!"
+                    android:text="@string/setup_done_title"
                     android:textColor="#f1f5f9"
                     android:textSize="28sp"
                     android:textStyle="bold"
@@ -1291,7 +1534,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="La configurazione è completa. Premi il pulsante per avviare EverShelf in modalità kiosk."
+                    android:text="@string/setup_done_desc"
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"
@@ -1310,10 +1553,10 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Riepilogo configurazione"
+                        android:text="@string/setup_done_summary_label"
                         android:textColor="#94a3b8"
                         android:textSize="13sp"
-                        android:textAllCaps="true"
+                        android:textAllCaps="false"
                         android:letterSpacing="0.08"
                         android:layout_marginBottom="12dp" />
 
@@ -1331,7 +1574,7 @@
                     android:id="@+id/btnLaunch"
                     android:layout_width="match_parent"
                     android:layout_height="60dp"
-                    android:text="🚀  Avvia EverShelf"
+                    android:text="@string/btn_launch"
                     android:textSize="18sp"
                     android:textAllCaps="false"
                     android:backgroundTint="#059669" />

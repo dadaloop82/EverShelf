@@ -279,8 +279,8 @@ if (($_GET['action'] ?? '') === 'health_check') {
         $checks['gemini_key'] = ['ok' => strlen($geminiKey) > 20, 'optional' => true,
             'hint' => strlen($geminiKey) <= 20 ? 'Chiave Gemini AI sembra troppo corta — verifica il valore in .env' : null];
     } else {
-        $checks['gemini_key'] = ['ok' => false, 'optional' => true,
-            'hint' => 'GEMINI_API_KEY non configurata — le funzioni AI non saranno disponibili'];
+        $checks['gemini_key'] = ['ok' => true, 'optional' => true,
+            'value' => 'non configurata', 'hint' => 'Configura GEMINI_API_KEY in .env per abilitare le funzioni AI'];
     }
 
     // ── 11. Bring! — solo se EMAIL+PASSWORD sono impostate ───────────────────
@@ -298,7 +298,8 @@ if (($_GET['action'] ?? '') === 'health_check') {
             $bringTokenOk = !empty($bringData['access_token'] ?? ($bringData['accessToken'] ?? ''));
             if (!$bringTokenOk) $bringTokenHint = 'Token Bring! presente ma non valido — verrà rinnovato automaticamente al prossimo accesso';
         } else {
-            $bringTokenHint = 'Token Bring! non ancora generato — verrà creato al primo accesso alla lista spesa';
+            $bringTokenOk   = true; // non ancora generato, si crea al primo accesso — non è un errore
+            $bringTokenHint = 'Verrà generato automaticamente al primo accesso alla lista spesa';
         }
         $checks['bring_token'] = ['ok' => $bringTokenOk, 'optional' => true, 'hint' => $bringTokenHint];
     }
@@ -3827,7 +3828,7 @@ You are an expert home chef. Generate ONE recipe for $mealLabel for $persons per
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
 2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
-3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 180g/pers, pesce 200g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 200g/pers, formaggio 80g/pers, latte 200ml/pers, farina per dolci 200g/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
+3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine) 1 pz/pers, formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0. IMPORTANTE: per ingredienti con unità "pz" scrivi qty_number come numero di PEZZI (es. 2, non 200g).
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
@@ -4195,6 +4196,7 @@ function recipeFromIngredient(PDO $db): void {
     }
     $lang = recipeNormalizeLang($input['lang'] ?? 'it');
     $langName = recipeLangName($lang);
+    $persons = max(1, intval($input['persons'] ?? 1));
 
     // Fetch inventory (same as generateRecipe)
     $stmt = $db->query("
@@ -4207,22 +4209,45 @@ function recipeFromIngredient(PDO $db): void {
     ");
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Build compact pantry text (same logic as generateRecipe)
+    $ingredientLines = [];
+    foreach ($items as $item) {
+        $line = "- {$item['name']}: {$item['quantity']} {$item['unit']}";
+        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+            $line .= " ({$item['default_quantity']}{$item['package_unit']}/conf)";
+        }
+        if ($item['unit'] === 'pz') $line .= ' [usa PEZZI interi]';
+        $dl = intval($item['days_left']);
+        if (!empty($item['expiry_date'])) {
+            if ($dl < 0) $line .= ' ⚠️SCADUTO';
+            elseif ($dl <= 3) $line .= " 🔴{$dl}gg";
+            elseif ($dl <= 7) $line .= " 🟠{$dl}gg";
+        }
+        if (!empty($item['opened_at'])) $line .= ' [APERTO]';
+        $ingredientLines[] = $line;
+    }
+    $ingredientsText = implode("\n", $ingredientLines);
+
     $safeName = htmlspecialchars($ingredientName, ENT_QUOTES, 'UTF-8');
 
     $prompt = <<<PROMPT
-Generate a recipe in {$langName} that uses "{$safeName}" as a main ingredient.
-Return ONLY a JSON object, no markdown.
+You are an expert home chef. Generate ONE recipe in {$langName} that uses "{$safeName}" as the main ingredient, for {$persons} person(s).
+Return ONLY a JSON object, no markdown fences.
 
-Fields:
-- title: string (recipe name in {$langName})
-- meal: null  (do NOT categorize)
-- persons: 2
-- prep_time: string or null
-- cook_time: string or null
-- ingredients: array of {"name":"...","qty":"...","qty_number":0.0,"unit":"g|ml|pz|conf|kg|l","from_pantry":true}
-  — "{$safeName}" MUST be the first ingredient; set from_pantry=true for ALL
-- steps: array of strings (step text only, no numbers, in {$langName})
-- nutrition_note: string or null
+REGOLE:
+1. Usa SOLO ingredienti dalla lista DISPENSA qui sotto + acqua/sale/pepe/olio (sempre disponibili).
+2. "{$safeName}" DEVE essere il primo ingrediente — è obbligatorio includerlo.
+3. Quantità MASSIME per {$persons} persona/e: pasta/riso 90g/pers, carne 150g/pers, affettati/salumi 70g/pers, pesce 180g/pers, legumi secchi 80g/pers, verdure 150g/pers, verdure intere grosse 1 pz/pers, formaggio 70g/pers, piadina/wrap 1-2 pz/pers.
+4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf). Per non-dispensa: 0.
+5. "name": usa ESATTAMENTE il nome dalla lista dispensa (il sistema lo usa per scalare l'inventario).
+6. "from_pantry": true se l'ingrediente è nella lista DISPENSA, false per acqua/sale/pepe/olio.
+7. Language: {$langName} for all text fields. Keep "meal" as English meal key (colazione/pranzo/cena/snack/dolce/libero).
+
+DISPENSA:
+{$ingredientsText}
+
+JSON schema:
+{"title":"…","meal":"libero","persons":{$persons},"prep_time":"…","cook_time":"…","tags":["…"],"ingredients":[{"name":"…","qty":"80 g","qty_number":80,"from_pantry":true}],"steps":["…"],"nutrition_note":"…"}
 PROMPT;
 
     $payload = [
@@ -4706,7 +4731,7 @@ You are an expert home chef. Generate ONE recipe for $mealLabel for $persons per
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto.
 2. Usa SOLO ingredienti dalla lista + acqua/sale/pepe/olio (sempre disponibili).
-3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 180g/pers, pesce 200g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 200g/pers, formaggio 80g/pers, latte 200ml/pers, farina per dolci 200g/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
+3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine) 1 pz/pers, formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). Per non-dispensa: 0. IMPORTANTE: per ingredienti con unità "pz" scrivi qty_number come numero di PEZZI (es. 2, non 200g).
 5. "name": usa ESATTAMENTE il nome dalla lista (il sistema lo usa per scalare l'inventario).
 6. Includi nella lista ingredienti TUTTI quelli citati nei passi (tranne acqua/sale/pepe/olio).
@@ -7121,11 +7146,11 @@ function recipesList(PDO $db): void {
 function recipesSave(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $date = $input['date'] ?? date('Y-m-d');
-    $meal = $input['meal'] ?? '';
+    $meal = trim($input['meal'] ?? '') ?: 'libero';
     $recipe = $input['recipe'] ?? null;
 
-    if (!$meal || !$recipe) {
-        echo json_encode(['error' => 'Missing meal or recipe']);
+    if (!$recipe) {
+        echo json_encode(['error' => 'Missing recipe']);
         return;
     }
 

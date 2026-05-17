@@ -113,6 +113,8 @@
     "banner_expired_action_finished": "Habe ich verbraucht!",
     "banner_expired_action_throw": "Habe ich weggeworfen",
     "banner_expired_action_edit": "Datum korrigieren",
+    "banner_expired_action_modify": "Bearbeiten",
+    "banner_expired_action_vacuum": "Vakuumieren",
     "banner_anomaly_action_edit": "Bestand korrigieren",
     "banner_anomaly_action_dismiss": "Menge ist korrekt",
     "banner_no_expiry_title": "Ablaufdatum fehlt: {name}",
@@ -217,7 +219,7 @@
     "title": "Was möchtest du tun?",
     "add_btn": "📥 HINZUFÜGEN",
     "add_sub": "in Vorrat/Kühlschrank",
-    "use_btn": "📤 VERWENDEN / VERBRAUCHEN",
+    "use_btn": "VERWENDEN",
     "use_sub": "aus Vorrat/Kühlschrank",
     "have_title": "📦 Schon auf Lager!",
     "add_more_sub": "weitere Menge",
@@ -533,7 +535,7 @@
     "prev": "◀ Zurück",
     "next": "Weiter ▶",
     "ingredient_used": "✔️ Abgezogen",
-    "ingredient_use_btn": "📦 Verwenden",
+    "ingredient_use_btn": "Usa",
     "ingredient_deduct_title": "Von Vorrat abziehen",
     "timer_expired_tts": "Timer {label} abgelaufen!",
     "timer_warning_tts": "Achtung! {label}: noch 10 Sekunden!",
@@ -831,6 +833,7 @@
     "thrown_away": "🗑️ {name} weggeworfen!",
     "thrown_away_partial": "🗑️ {qty} {unit} von {name} weggeworfen",
     "finished_all": "📤 {name} aufgebraucht!",
+    "vacuum_sealed": "{name} als vakuumversiegelt gespeichert",
     "product_finished_confirmed": "✅ Entfernt — wieder hinzufügen, wenn du nachkaufst",
     "appliance_added": "Gerät hinzugefügt",
     "item_added": "{name} hinzugefügt"
@@ -1007,8 +1010,8 @@
     "thing_rest": "den Rest",
     "stay_btn": "Nein, bleibt in {location}",
     "moved_toast": "📦 Offene Packung bewegt nach {location}",
-    "vacuum_restore": "🫙 Vakuum wiederherstellen",
-    "vacuum_seal_rest": "🔒 Rest vakuumieren"
+    "vacuum_restore": "Vakuum wiederherstellen",
+    "vacuum_seal_rest": "Rest vakuumieren"
   },
   "nova": {
     "1": "Unverarbeitet",

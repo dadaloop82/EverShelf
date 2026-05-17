@@ -1,73 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EverShelf Kiosk</string>
-
-    <!-- Stringhe setup wizard -->
     <string name="setup_enter_url">Inserisci prima un URL</string>
     <string name="setup_testing">Verifica connessione…</string>
     <string name="setup_server_found">Server EverShelf trovato e API attiva!</string>
     <string name="setup_api_not_found">Server raggiungibile ma API EverShelf non trovata. Verifica il percorso.</string>
     <string name="setup_unreachable">Impossibile raggiungere il server</string>
-    <string name="setup_discover_btn">🔍  Cerca nella rete locale</string>    <string name="setup_perms_granted_next">✅ Permessi concessi — Continua →</string>    <string name="setup_discovering">Scansione in corso…</string>
+    <string name="setup_discover_btn">🔍  Cerca nella rete locale</string>
+    <string name="setup_perms_granted_next">✅ Permessi concessi — Continua →</string>
+    <string name="setup_discovering">Scansione in corso…</string>
     <string name="setup_discovering_detail">Ricerca server EverShelf nella rete locale…</string>
-    <string name="setup_discover_not_found">Nessun server EverShelf trovato automaticamente. Inserisci l\'URL manualmente.</string>
+    <string name="setup_discover_not_found">Nessun server EverShelf trovato automaticamente. Inserisci l'URL manualmente.</string>
     <string name="setup_exit_title">Uscire dalla configurazione?</string>
-    <string name="setup_exit_message">Puoi completare la configurazione più tardi riaprendo l\'app.</string>
+    <string name="setup_exit_message">Puoi completare la configurazione più tardi riaprendo l'app.</string>
     <string name="setup_exit_confirm">Esci</string>
     <string name="setup_exit_cancel">Continua</string>
-
-    <!-- Wizard Step 3: Bilancia smart -->
+    <string name="setup_step_back">← Indietro</string>
+    <string name="setup_step_next">Avanti →</string>
+    <string name="setup_skip_later">Lo faccio dopo</string>
+    <string name="setup_confirm">Conferma →</string>
     <string name="wizard_step3_title">Bilancia Smart</string>
     <string name="wizard_step3_description">EverShelf Kiosk include un gateway Bluetooth integrato — nessuna app esterna necessaria. Seleziona la tua bilancia qui sotto.</string>
     <string name="wizard_step3_question">Hai una bilancia smart Bluetooth?</string>
     <string name="wizard_step3_yes">✅  Sì, ho una bilancia</string>
     <string name="wizard_step3_no">➡️  No, salta questo passaggio</string>
-
-    <!-- Messaggi stato gateway -->
+    <string name="ble_scanning">🔍 Scansione in corso…</string>
+    <string name="ble_connected">Connesso! Posiziona un oggetto sulla bilancia…</string>
+    <string name="ble_disconnected">Connessione persa. Riprova.</string>
+    <string name="ble_no_scale_found">Nessuna bilancia trovata. Assicurati che sia accesa e vicina, poi riprova.</string>
+    <string name="ble_select_from_list">Seleziona la tua bilancia dall'elenco.</string>
+    <string name="ble_not_confirmed">Bilancia non confermata. Riprova la scansione.</string>
+    <string name="ble_scan_again">🔄  Scansiona di nuovo</string>
+    <string name="ble_weight_received">Peso ricevuto — coincide con quello sulla bilancia?</string>
     <string name="wizard_gateway_installed">Bilancia salvata ✅</string>
-    <string name="wizard_gateway_installed_detail">Il gateway BLE integrato si collegherà automaticamente all\'avvio.</string>
+    <string name="wizard_gateway_installed_detail">Il gateway BLE integrato si collegherà automaticamente all'avvio.</string>
     <string name="wizard_gateway_not_installed">Nessuna bilancia selezionata</string>
     <string name="wizard_gateway_not_installed_detail">Scansiona le bilance BLE nelle vicinanze e tocca una per selezionarla.</string>
     <string name="wizard_gateway_checking">Scansione bilance BLE in corso…</string>
     <string name="wizard_gateway_up_to_date">Servizio BLE bilancia pronto.</string>
     <string name="wizard_gateway_update_available">Bilancia BLE trovata</string>
-    <string name="wizard_gateway_update_detail">Tocca la bilancia nell\'elenco per connettersi.</string>
-
-    <!-- Stati scaricamento / installazione -->
+    <string name="wizard_gateway_update_detail">Tocca la bilancia nell'elenco per connettersi.</string>
     <string name="install_downloading">Scaricamento in corso…</string>
     <string name="install_downloading_detail">Attendi, il file viene scaricato.</string>
     <string name="install_installing">Installazione in corso…</string>
-    <string name="install_confirm_detail">Conferma l\'installazione nel dialog che si è aperto.</string>
+    <string name="install_confirm_detail">Conferma l'installazione nel dialog che si è aperto.</string>
     <string name="install_success">Installato con successo!</string>
-    <string name="install_success_detail">L\'app è stata aggiornata.</string>
+    <string name="install_success_detail">L'app è stata aggiornata.</string>
     <string name="install_error_download">Download fallito</string>
     <string name="install_error_download_detail">Controlla la connessione e riprova.</string>
     <string name="install_error_install">Installazione fallita</string>
-    <string name="install_perm_detail">Abilita \'Installa app sconosciute\' nelle impostazioni, poi torna qui.</string>
+    <string name="install_perm_detail">Abilita 'Installa app sconosciute' nelle impostazioni, poi torna qui.</string>
     <string name="install_btn_retry">↩  Riprova</string>
-
-    <!-- Pulsanti -->
     <string name="btn_back">Indietro</string>
     <string name="btn_launch">🚀  Avvia EverShelf</string>
     <string name="btn_launch_no_scale">🚀  Avvia senza bilancia</string>
     <string name="btn_download_gateway">📥  Installa Scale Gateway</string>
     <string name="btn_update_gateway">📥  Aggiorna Scale Gateway</string>
-
-    <!-- Verifica raggiungibilità server (step 3 wizard) -->
     <string name="wizard_server_checking">Verifica connessione server…</string>
     <string name="wizard_server_ok">Server raggiungibile ✅</string>
     <string name="wizard_server_ok_detail">Segnalazione errori attiva — i problemi di installazione vengono inviati automaticamente alle GitHub Issues.</string>
     <string name="wizard_server_error">Server non raggiungibile ⚠️</string>
-    <string name="wizard_server_error_detail">Gli errori non raggiungeranno GitHub Issues. Verifica l\'URL inserito al passaggio 2.</string>
-    <!-- Passo salvaschermo -->
-    <string name="setup_screensaver_title">Salvaschermo</string>
-    <string name="setup_screensaver_desc">Mostra un orologio con fatti utili dopo 5 minuti di inattività. Di default è disattivato (lo schermo resta sempre acceso).</string>
-    <string name="setup_screensaver_toggle_label">Attiva salvaschermo</string>
-    <string name="setup_screensaver_toggle_hint">Se disattivo, lo schermo resta sempre acceso.</string>
+    <string name="wizard_server_error_detail">Gli errori non raggiungeranno GitHub Issues. Verifica l'URL inserito al passaggio 2.</string>
+    <string name="setup_features_title">Funzionalità</string>
+    <string name="setup_features_desc">Attiva le funzioni che vuoi usare. Puoi sempre cambiarle in seguito dalle impostazioni del server.</string>
+    <string name="setup_screensaver_toggle_label">Salvaschermo orologio</string>
+    <string name="setup_screensaver_toggle_hint">Mostra l'overlay orologio dopo 5 min di inattività.</string>
+    <string name="setup_prices_toggle_label">Prezzi lista spesa</string>
+    <string name="setup_prices_toggle_hint">Stima automatica del costo di ogni articolo in lista tramite AI.</string>
+    <string name="setup_mealplan_toggle_label">Piano pasti</string>
+    <string name="setup_mealplan_toggle_hint">Pianifica i pasti della settimana suggerendo ricette basate sulla dispensa.</string>
+    <string name="setup_zerowaste_toggle_label">Suggerimenti zero-waste</string>
+    <string name="setup_zerowaste_toggle_hint">Durante la cottura mostra consigli per riutilizzare scarti (bucce, acqua di cottura, ecc.).</string>
+    <string name="setup_gemini_title">Google Gemini AI</string>
+    <string name="setup_gemini_desc">EverShelf usa Google Gemini AI per suggerimenti di ricette, stime intelligenti della spesa e altro ancora.
 
-    <!-- Riepilogo -->
+Per abilitarla, inserisci la tua chiave API Gemini gratuita.</string>
+    <string name="setup_gemini_how">Ottieni la chiave gratuita su: aistudio.google.com → "Ottieni chiave API"</string>
+    <string name="setup_gemini_hint">Incolla la chiave API (inizia con AIza…)</string>
+    <string name="setup_bring_title">Bring! Lista della spesa</string>
+    <string name="setup_bring_desc">EverShelf può sincronizzare la lista della spesa con l'app Bring!.
+
+Inserisci le credenziali del tuo account Bring! per abilitare l'integrazione.</string>
+    <string name="setup_bring_email_hint">Email Bring!</string>
+    <string name="setup_bring_pass_hint">Password Bring!</string>
+    <string name="setup_done_title">Tutto pronto!</string>
+    <string name="setup_done_desc">La configurazione è completa. Premi il pulsante per avviare EverShelf in modalità kiosk.</string>
+    <string name="setup_done_summary_label">RIEPILOGO CONFIGURAZIONE</string>
     <string name="summary_lang">Lingua</string>
     <string name="summary_scale_skip">Bilancia: non configurata</string>
     <string name="summary_screensaver_on">Salvaschermo: attivo</string>
     <string name="summary_screensaver_off">Schermo sempre acceso (salvaschermo disattivato)</string>
+    <string name="summary_prices_on">Prezzi lista spesa: abilitati</string>
+    <string name="summary_mealplan_on">Piano pasti: abilitato</string>
+    <string name="summary_zerowaste_on">Suggerimenti zero-waste: abilitati</string>
+    <string name="summary_gemini_set">Gemini AI: abilitata</string>
+    <string name="summary_gemini_skip">Gemini AI: non configurata</string>
+    <string name="summary_bring_set">Bring!: connessa</string>
+    <string name="summary_bring_skip">Bring!: non configurata</string>
+    <string name="ble_connecting_to">🔗 Connessione a %s…</string>
+    <string name="ble_connecting">🔗 Connessione in corso…</string>
+    <string name="summary_scale_ok">Bilancia: %s</string>
+    <string name="summary_scale_warn">Bilancia: da configurare</string>
 </resources>

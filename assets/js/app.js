@@ -1601,7 +1601,7 @@ function estimateExpiryDays(product, location) {
     else if (/yogurt/.test(name)) days = 21;
     else if (/mozzarella|burrata|stracciatella/.test(name)) days = 5;
     else if (/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) days = 10;
-    else if (/parmigiano|grana|pecorino|provolone/.test(name)) days = 60;
+    else if (/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza|groviera/.test(name)) days = 60;
     else if (/burro/.test(name)) days = 60;
     else if (/panna/.test(name)) days = 14;
     else if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) days = 7;
@@ -1740,8 +1740,10 @@ function estimateOpenedExpiryDays(product, location) {
     if (/\b(yogurt|yaourt|yoghurt)\b/.test(name)) return 5;
     if (/mozzarella|burrata|stracciatella/.test(name)) return 3;
     if (/philadelphia|spalmabile/.test(name)) return 7;
+    // Specific hard cheeses that contain 'fresco' in their commercial name (e.g. Asiago fresco)
+    // must be matched BEFORE the generic 'formaggio fresco' catch-all
+    if (/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza|groviera/.test(name)) return 28;
     if (/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) return 5;
-    if (/parmigiano|grana|pecorino|provolone/.test(name)) return 21;
     if (/formaggio/.test(name)) return 10;
     if (/\bburro\b/.test(name)) return 30;
     if (/\bpanna\b/.test(name)) return 4;
@@ -4352,15 +4354,22 @@ function renderBannerItem() {
         detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
         let btns = '';
         btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
-        if (safety.level !== 'danger') {
+        if (!isOpenedExpiry && safety.level !== 'danger') {
             btns += `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
         }
         btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerExpiry()">${t('dashboard.banner_expired_action_edit')}</button>`;
-        if (safety.level === 'danger') {
+        // "Modifica" — opens full edit modal (includes date correction)
+        btns += `<button class="btn-banner btn-banner-edit2" onclick="editInventoryItem(${item.id})">${t('dashboard.banner_expired_action_modify')}</button>`;
+        if (isOpenedExpiry && !item.vacuum_sealed) {
+            // Offer to re-seal with vacuum — extends shelf life
+            btns += `<button class="btn-banner btn-banner-vacuum" onclick="bannerMarkVacuum()">${t('dashboard.banner_expired_action_vacuum')}</button>`;
+        }
+        if (!isOpenedExpiry && safety.level === 'danger') {
             btns += `<button class="btn-banner btn-banner-use btn-banner-use-danger" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
         }
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
+        if (!isOpenedExpiry) {
+            btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerExpired()">${t('dashboard.banner_review_dismiss')}</button>`;
+        }
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'review') {
@@ -4648,6 +4657,43 @@ function bannerThrowAway() {
         }
     }).catch(() => showToast(t('error.connection'), 'error'));
     dismissBannerItem();
+}
+
+async function bannerMarkVacuum() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'expired') return;
+    const item = entry.data;
+    if (item.vacuum_sealed) return; // already sealed
+
+    // Calculate new expiry: opened_at + opened_shelf_life_days_with_vacuum
+    let newExpiry = null;
+    if (item.opened_at) {
+        // estimateOpenedExpiryDays returns days without vacuum; add 50% for vacuum sealed
+        const baseDays = estimateOpenedExpiryDays(
+            { name: item.name, category: item.category || '' },
+            item.location
+        );
+        const vacuumDays = Math.round(baseDays * 1.5);
+        const d = new Date(item.opened_at);
+        d.setDate(d.getDate() + vacuumDays);
+        newExpiry = d.toISOString().slice(0, 10);
+    }
+
+    const body = { id: item.id, vacuum_sealed: 1 };
+    if (newExpiry) body.expiry_date = newExpiry;
+
+    try {
+        const res = await api('inventory_update', {}, 'POST', body);
+        if (res.success || res.ok) {
+            showToast(t('toast.vacuum_sealed', { name: item.name }), 'success');
+            dismissBannerItem();
+            loadDashboard();
+        } else {
+            showToast(res.error || t('error.generic'), 'error');
+        }
+    } catch(e) {
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 function bannerFinishAll() {
@@ -8547,7 +8593,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
     const vacuumRow = `
         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
             <input type="checkbox" id="move-vacuum-check" ${wasVacuum ? 'checked' : ''}>
-            <span>${t('move.vacuum_seal_rest')}${wasVacuum ? ' ' + t('move.was_sealed') : ''}</span>
+            <span>${wasVacuum ? t('move.vacuum_restore') : t('move.vacuum_seal_rest')}</span>
         </label>`;
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -12206,7 +12252,7 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
             <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">No, resta in ${LOCATIONS[fromLoc]?.label || fromLoc}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -12314,7 +12360,7 @@ function renderRecipe(r) {
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const alreadyUsed = ing.used === true;
             html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}">`;
-            html += `<span class="recipe-ing-text"><strong>${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
+            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${t('action.edit') || 'Modifica'}">${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: ${ing.qty} ✅`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -13692,6 +13738,21 @@ async function chatTransferToRecipes(btn, replyText) {
     }
 }
 
+async function openIngredientDetail(productId, location) {
+    try {
+        const res = await api('inventory_list');
+        const items = res.inventory || res;
+        // Find by product_id + location; fallback to any row with that product_id
+        let item = items.find(i => i.product_id === productId && i.location === location);
+        if (!item) item = items.find(i => i.product_id === productId);
+        if (!item) { showToast(t('error.not_found'), 'error'); return; }
+        currentInventory = items;
+        editInventoryItem(item.id);
+    } catch(e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
 async function generateRecipeForIngredient(ingredientName) {
     if (!_requireGemini()) return;
     document.getElementById('recipe-overlay').style.display = 'flex';
@@ -14897,7 +14958,7 @@ async function _runStartupCheck() {
     if (spinnerEl) spinnerEl.style.display = 'none';
     wrapEl.style.display = '';
 
-    // Helper: set progress bar + label
+    // Helper: set progress bar + crossfade status text
     let _curPct = 0;
     const setProgress = (pct, label, state) => {
         _curPct = pct;
@@ -14905,14 +14966,31 @@ async function _runStartupCheck() {
             barEl.style.width = pct + '%';
             barEl.className = 'preloader-bar' + (state === 'error' ? ' bar-error' : state === 'warn' ? ' bar-warn' : '');
         }
-        if (labelEl) labelEl.textContent = label || '';
+        if (!label) return;
+        const ticker = document.getElementById('check-ticker');
+        if (!ticker) return;
+        const sc = state === 'error' ? 'state-error' : state === 'warn' ? 'state-warn' : 'state-ok';
+        // Strip emoji from label — colors convey the state
+        const cleanLabel = label.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2700}-\u{27BF}✅❌⚠️🔄]/gu, '').trim().replace(/^[-–—\s]+/, '');
+        let el = ticker.querySelector('.preloader-status-text');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'preloader-status-text';
+            ticker.appendChild(el);
+        }
+        // Direct update — checks fire every 40ms, any fade would hide most labels
+        el.className = `preloader-status-text ${sc}`;
+        el.textContent = cleanLabel;
     };
 
     // Phase 1: animate 0→15% while fetching (so it never looks stuck)
     setProgress(0, tl('connecting', 'Connessione al server...'));
     let _fetchDone = false;
     const slowAnim = setInterval(() => {
-        if (!_fetchDone && _curPct < 13) setProgress(_curPct + 1, labelEl?.textContent);
+        if (!_fetchDone && _curPct < 13) {
+            _curPct++;
+            if (barEl) barEl.style.width = _curPct + '%';
+        }
     }, 100);
 
     // Make the request
@@ -14930,7 +15008,7 @@ async function _runStartupCheck() {
             tl('error_network_detail', 'Il browser non riesce a raggiungere il server PHP.\n\nPossibili cause:\n• Il server Apache/PHP non è in esecuzione\n• Problema di rete o firewall\n• URL dell\'app non corretta\n\nControlla che il server sia avviato e riprova.'),
             errorEl, retryBtn
         );
-        setProgress(100, `❌ ${tl('error_network', 'Server non raggiungibile')}`, 'error');
+        setProgress(100, tl('error_network', 'Server non raggiungibile'), 'error');
         return false;
     }
     clearInterval(slowAnim);
@@ -15001,8 +15079,7 @@ async function _runStartupCheck() {
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
         if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
 
-        const icon = isOk ? '✅' : isOpt ? '⚠️' : '❌';
-        setProgress(pct, `${icon} ${lbl}`);
+        setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
         if (!isOk && !isFresh) {
             (isOpt ? warnings : errors).push({ def, c });
@@ -15013,7 +15090,7 @@ async function _runStartupCheck() {
 
     // ── Errors → red bar + blocking popup ────────────────────────────────────
     if (errors.length > 0) {
-        setProgress(100, `❌ ${tl('critical_error_short', 'Errore critico')}`, 'error');
+        setProgress(100, tl('critical_error_short', 'Errore critico'), 'error');
         await new Promise(r => setTimeout(r, 300));
         const errLines = errors.map(e => {
             const hint = e.c.hint || (e.c.error ? e.c.error : null);
@@ -15029,7 +15106,7 @@ async function _runStartupCheck() {
 
     // ── Warnings → amber bar + warning popup auto-close 5s ───────────────────
     if (warnings.length > 0) {
-        setProgress(100, `⚠️ ${warnings.length} ${tl('warnings_found', 'avvisi')}`, 'warn');
+        setProgress(100, `${warnings.length} ${tl('warnings_found', 'avvisi')}`, 'warn');
         await new Promise(r => setTimeout(r, 200));
 
         // Build warning popup (auto-close 5s)
@@ -15041,7 +15118,7 @@ async function _runStartupCheck() {
         // Hide warning popup
         warningsEl.style.display = 'none';
     } else {
-        setProgress(100, `✅ ${tl('all_ok', 'Sistema OK')}`);
+        setProgress(100, tl('all_ok', 'Sistema OK'), 'ok');
         await new Promise(r => setTimeout(r, 600));
     }
 

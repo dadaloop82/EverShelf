@@ -113,6 +113,8 @@
     "banner_expired_action_finished": "L'ho finito!",
     "banner_expired_action_throw": "L'ho buttato",
     "banner_expired_action_edit": "Correggi data",
+    "banner_expired_action_modify": "Modifica",
+    "banner_expired_action_vacuum": "Metti sottovuoto",
     "banner_anomaly_action_edit": "Correggi inventario",
     "banner_anomaly_action_dismiss": "La quantità è giusta",
     "banner_no_expiry_title": "Scadenza mancante: {name}",
@@ -217,7 +219,7 @@
     "title": "Cosa vuoi fare?",
     "add_btn": "📥 AGGIUNGI",
     "add_sub": "in dispensa/frigo",
-    "use_btn": "📤 USA / CONSUMA",
+    "use_btn": "USA",
     "use_sub": "dalla dispensa/frigo",
     "have_title": "📦 Ce l'hai già!",
     "add_more_sub": "altra quantità",
@@ -533,7 +535,7 @@
     "prev": "◀ Precedente",
     "next": "Successivo ▶",
     "ingredient_used": "✔️ Scalato",
-    "ingredient_use_btn": "📦 Usa",
+    "ingredient_use_btn": "Usa",
     "ingredient_deduct_title": "Scala dalla dispensa",
     "timer_expired_tts": "Timer {label} scaduto!",
     "timer_warning_tts": "Attenzione! {label}: mancano 10 secondi!",
@@ -831,6 +833,7 @@
     "thrown_away": "🗑️ {name} buttato!",
     "thrown_away_partial": "🗑️ Buttato {qty} {unit} di {name}",
     "finished_all": "📤 {name} terminato!",
+    "vacuum_sealed": "{name} salvato come sottovuoto",
     "product_finished_confirmed": "✅ Rimosso — riaggiungi quando ne ricompri",
     "appliance_added": "Elettrodomestico aggiunto",
     "item_added": "{name} aggiunto"
@@ -1007,8 +1010,8 @@
     "thing_rest": "il resto",
     "stay_btn": "No, resta in {location}",
     "moved_toast": "📦 Confezione aperta spostata in {location}",
-    "vacuum_restore": "🫙 Torna sotto vuoto",
-    "vacuum_seal_rest": "🔒 Metti sotto vuoto il resto"
+    "vacuum_restore": "Torna sotto vuoto",
+    "vacuum_seal_rest": "Metti sotto vuoto il resto"
   },
   "nova": {
     "1": "Non trasformato",
