@@ -744,7 +744,15 @@
     },
     "saved": "✅ Configuration saved!",
     "saved_local": "✅ Configuration saved locally",
-    "saved_local_error": "⚠️ Saved locally, server error: {error}"
+    "saved_local_error": "⚠️ Saved locally, server error: {error}",
+    "theme": {
+      "title": "🌙 Appearance",
+      "hint": "Choose the interface theme.",
+      "label": "🌙 Theme",
+      "off": "☀️ Light",
+      "on": "🌙 Dark",
+      "auto": "🔄 Auto (system)"
+    }
   },
   "expiry": {
     "today": "TODAY",
@@ -1179,5 +1187,12 @@
     "report_bug_error": "Could not send the report. Check your connection.",
     "changelog": "Changelog",
     "github": "GitHub Repository"
+  },
+  "export": {
+    "title": "Export inventory",
+    "hint": "Download the current inventory as CSV or open a print-ready version (PDF).",
+    "btn_csv": "Download CSV",
+    "btn_pdf": "PDF / Print",
+    "btn_title": "Export"
   }
 }

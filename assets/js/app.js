@@ -1047,6 +1047,16 @@ let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español' };
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
 
+// Apply theme IMMEDIATELY to prevent flash of unstyled content
+(function _earlyTheme() {
+    try {
+        const s = JSON.parse(localStorage.getItem('evershelf_settings') || '{}');
+        const mode = s.dark_mode || 'auto';
+        const dark = mode === 'on' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    } catch(e) {}
+})();
+
 // Flatten nested JSON: { a: { b: "x" } } → { "a.b": "x" }
 function _flattenI18n(obj, prefix = '') {
     const result = {};
@@ -1154,6 +1164,69 @@ function changeLanguage(lang) {
     if (lang === _currentLang) return;
     localStorage.setItem('evershelf_lang', lang);
     location.reload();
+}
+
+// ===== DARK MODE =====
+function _applyTheme() {
+    const s = getSettings();
+    const mode = s.dark_mode || 'auto';
+    let isDark;
+    if (mode === 'on') {
+        isDark = true;
+    } else if (mode === 'off') {
+        isDark = false;
+    } else {
+        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+}
+
+function _setThemeMode(mode) {
+    const s = getSettings();
+    s.dark_mode = mode;
+    saveSettingsToStorage(s);
+    _applyTheme();
+}
+
+// Listen to system theme changes (for 'auto' mode)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const s = getSettings();
+    if ((s.dark_mode || 'auto') === 'auto') _applyTheme();
+});
+
+// ===== EXPORT INVENTORY =====
+function exportInventory(format) {
+    const url = `api/index.php?action=export_inventory&format=${encodeURIComponent(format)}&_t=${Date.now()}`;
+    if (format === 'csv') {
+        // Direct download via <a> trick
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `evershelf-inventory-${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } else {
+        // Open print-ready HTML in new tab
+        window.open(url, '_blank', 'noopener');
+    }
+}
+
+function _showExportModal() {
+    const html = `
+        <div class="modal-header">
+            <h3>📤 ${t('export.title')}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <p style="color:var(--text-light);font-size:0.9rem">${t('export.hint')}</p>
+            <button class="btn btn-primary full-width" onclick="exportInventory('csv');closeModal()">
+                📊 ${t('export.btn_csv')}
+            </button>
+            <button class="btn btn-outline full-width" onclick="exportInventory('html');closeModal()">
+                🖨️ ${t('export.btn_pdf')}
+            </button>
+        </div>`;
+    openModal(html);
 }
 
 const LOCATIONS = {
@@ -2462,6 +2535,10 @@ async function loadSettingsUI() {
         if (nativePanel) nativePanel.style.display = '';
     }
 
+    // Dark mode setting
+    const dmEl = document.getElementById('setting-dark-mode');
+    if (dmEl) dmEl.value = s.dark_mode || 'auto';
+
     // Populate About section version
     _loadAboutSection();
 }
@@ -2784,6 +2861,9 @@ async function saveSettings() {
     if (ssEl) s.screensaver_enabled = ssEl.checked;
     const ssTimeoutEl = document.getElementById('setting-screensaver-timeout');
     if (ssTimeoutEl) s.screensaver_timeout = parseInt(ssTimeoutEl.value, 10) || 5;
+    // Dark mode
+    const dmSaveEl = document.getElementById('setting-dark-mode');
+    if (dmSaveEl) { s.dark_mode = dmSaveEl.value; _applyTheme(); }
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;

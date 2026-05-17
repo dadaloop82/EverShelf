@@ -500,7 +500,8 @@
     "undo_success": "↩ Vorgang rückgängig gemacht für {name}",
     "already_undone": "Vorgang bereits rückgängig gemacht",
     "too_old": "Vorgänge älter als 24 Stunden können nicht rückgängig gemacht werden",
-    "undo_error": "Fehler beim Rückgängigmachen"
+    "undo_error": "Fehler beim Rückgängigmachen",
+    "recipe_prefix": "Rezept"
   },
   "chat": {
     "title": "Gemini Chef",
@@ -743,7 +744,15 @@
     },
     "saved": "✅ Konfiguration gespeichert!",
     "saved_local": "✅ Konfiguration lokal gespeichert",
-    "saved_local_error": "⚠️ Lokal gespeichert, Serverfehler: {error}"
+    "saved_local_error": "⚠️ Lokal gespeichert, Serverfehler: {error}",
+    "theme": {
+      "title": "🌙 Erscheinungsbild",
+      "hint": "Wähle das Interface-Design.",
+      "label": "🌙 Design",
+      "off": "☀️ Hell",
+      "on": "🌙 Dunkel",
+      "auto": "🔄 Automatisch (System)"
+    }
   },
   "expiry": {
     "today": "HEUTE",
@@ -1178,5 +1187,12 @@
     "report_bug_error": "Bericht konnte nicht gesendet werden. Verbindung prüfen.",
     "changelog": "Changelog",
     "github": "GitHub-Repository"
+  },
+  "export": {
+    "title": "Inventar exportieren",
+    "hint": "Lade das aktuelle Inventar als CSV herunter oder öffne die druckfertige Version (PDF).",
+    "btn_csv": "CSV herunterladen",
+    "btn_pdf": "PDF / Drucken",
+    "btn_title": "Exportieren"
   }
 }

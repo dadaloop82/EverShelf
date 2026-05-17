@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260519a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260519b">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -185,6 +185,7 @@
         <div class="page-header">
             <button class="back-btn" onclick="showPage('dashboard')" data-i18n="btn.back">← Indietro</button>
             <h2 id="inventory-title" data-i18n="inventory.title">Dispensa</h2>
+            <button class="page-header-action-btn" onclick="_showExportModal()" title="Export" data-i18n-title="export.btn_title">📤</button>
         </div>
         <div class="location-tabs" id="location-tabs">
             <button class="tab active" onclick="filterLocation('')" data-loc="" data-i18n="inventory.filter_all">Tutti</button>
@@ -1287,6 +1288,30 @@
                         </select>
                     </div>
                 </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.theme.title">🌙 Tema / Aspetto</h4>
+                    <p class="settings-hint" data-i18n="settings.theme.hint">Scegli il tema dell'interfaccia.</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.theme.label">🌙 Tema</label>
+                        <select id="setting-dark-mode" class="form-input" onchange="_setThemeMode(this.value)">
+                            <option value="off" data-i18n="settings.theme.off">☀️ Chiaro</option>
+                            <option value="auto" selected data-i18n="settings.theme.auto">🔄 Automatico (sistema)</option>
+                            <option value="on" data-i18n="settings.theme.on">🌙 Scuro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="export.title">📤 Esporta inventario</h4>
+                    <p class="settings-hint" data-i18n="export.hint">Scarica l'inventario corrente in CSV o apri una versione stampabile (PDF).</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-outline" onclick="exportInventory('csv')" style="flex:1;min-width:120px">
+                            📊 <span data-i18n="export.btn_csv">CSV</span>
+                        </button>
+                        <button class="btn btn-outline" onclick="exportInventory('html')" style="flex:1;min-width:120px">
+                            🖨️ <span data-i18n="export.btn_pdf">PDF / Stampa</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1560,6 +1585,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260519a"></script>
+<script src="assets/js/app.js?v=20260519b"></script>
 </body>
 </html>

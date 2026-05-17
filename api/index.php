@@ -474,6 +474,10 @@ try {
             guessCategoryFromAI();
             break;
 
+        case 'export_inventory':
+            exportInventory($db);
+            break;
+
         default:
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
@@ -484,6 +488,107 @@ try {
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
 }
 endif; // end !CRON_MODE
+
+// ===== EXPORT INVENTORY =====
+function exportInventory(PDO $db): void {
+    $format = strtolower($_GET['format'] ?? 'csv');
+
+    $stmt = $db->query("
+        SELECT p.name, p.brand, p.category, i.location, i.quantity, p.unit,
+               i.expiry_date, i.added_at, i.opened_at,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed,
+               p.barcode, p.notes
+        FROM inventory i
+        JOIN products p ON i.product_id = p.id
+        WHERE i.quantity > 0
+        ORDER BY p.name ASC
+    ");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $date = date('Y-m-d');
+
+    if ($format === 'html') {
+        // Print-ready HTML for browser PDF
+        header('Content-Type: text/html; charset=utf-8');
+        $rows_html = '';
+        foreach ($rows as $r) {
+            $loc_icon = ['dispensa'=>'🗄️','frigo'=>'🧊','freezer'=>'❄️','altro'=>'📦'][$r['location']] ?? '📦';
+            $expiry = $r['expiry_date'] ? htmlspecialchars($r['expiry_date']) : '—';
+            $brand  = $r['brand'] ? htmlspecialchars($r['brand']) : '';
+            $rows_html .= '<tr>'
+                . '<td>' . htmlspecialchars($r['name']) . ($brand ? '<br><small>' . $brand . '</small>' : '') . '</td>'
+                . '<td>' . htmlspecialchars(ucfirst($r['category'] ?? '')) . '</td>'
+                . '<td>' . $loc_icon . ' ' . htmlspecialchars(ucfirst($r['location'])) . '</td>'
+                . '<td style="text-align:right">' . htmlspecialchars($r['quantity']) . ' ' . htmlspecialchars($r['unit'] ?? 'pz') . '</td>'
+                . '<td>' . $expiry . '</td>'
+                . '<td>' . ($r['opened_at'] ? '📭 ' . htmlspecialchars($r['opened_at']) : '') . '</td>'
+                . '</tr>';
+        }
+        $count = count($rows);
+        echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EverShelf — Inventory Export {$date}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#1a1a1a}
+  h1{font-size:18px;margin-bottom:4px}
+  .subtitle{color:#6b7280;font-size:11px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#2d5016;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+  td{padding:6px 10px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+  tr:nth-child(even) td{background:#f8fafc}
+  small{color:#6b7280}
+  @media print{
+    body{margin:12px}
+    button{display:none}
+    @page{margin:15mm}
+  }
+</style>
+</head>
+<body>
+<button onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#2d5016;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+<h1>🏠 EverShelf — Inventory</h1>
+<div class="subtitle">Exported: {$date} &nbsp;·&nbsp; {$count} items</div>
+<table>
+<thead><tr>
+  <th>Name / Brand</th><th>Category</th><th>Location</th><th>Qty</th><th>Expiry</th><th>Opened</th>
+</tr></thead>
+<tbody>{$rows_html}</tbody>
+</table>
+<script>window.onload=function(){window.print();}</script>
+</body>
+</html>
+HTML;
+        exit;
+    }
+
+    // Default: CSV download
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="evershelf-inventory-' . $date . '.csv"');
+    // UTF-8 BOM for Excel compatibility
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name','Brand','Category','Location','Quantity','Unit','Expiry Date','Added','Opened At','Vacuum Sealed','Barcode','Notes']);
+    foreach ($rows as $r) {
+        fputcsv($out, [
+            $r['name'],
+            $r['brand'] ?? '',
+            $r['category'] ?? '',
+            $r['location'],
+            $r['quantity'],
+            $r['unit'] ?? 'pz',
+            $r['expiry_date'] ?? '',
+            $r['added_at'] ?? '',
+            $r['opened_at'] ?? '',
+            $r['vacuum_sealed'] ? 'Yes' : 'No',
+            $r['barcode'] ?? '',
+            $r['notes'] ?? '',
+        ]);
+    }
+    fclose($out);
+    exit;
+}
 
 // ===== TTS PROXY =====
 function ttsProxy() {

@@ -744,7 +744,15 @@
     },
     "saved": "✅ ¡Configuración guardada!",
     "saved_local": "✅ Configuración guardada localmente",
-    "saved_local_error": "⚠️ Guardado localmente, error del servidor: {error}"
+    "saved_local_error": "⚠️ Guardado localmente, error del servidor: {error}",
+    "theme": {
+      "title": "🌙 Apariencia",
+      "hint": "Elige el tema de la interfaz.",
+      "label": "🌙 Tema",
+      "off": "☀️ Claro",
+      "on": "🌙 Oscuro",
+      "auto": "🔄 Automático (sistema)"
+    }
   },
   "expiry": {
     "today": "HOY",
@@ -1179,5 +1187,12 @@
     "report_bug_error": "No se pudo enviar el informe. Comprueba tu conexión.",
     "changelog": "Registro de cambios",
     "github": "Repositorio GitHub"
+  },
+  "export": {
+    "title": "Exportar inventario",
+    "hint": "Descarga el inventario actual en CSV o abre la versión imprimible (PDF).",
+    "btn_csv": "Descargar CSV",
+    "btn_pdf": "PDF / Imprimir",
+    "btn_title": "Exportar"
   }
 }
