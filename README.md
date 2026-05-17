@@ -39,7 +39,7 @@
 ## ✨ Features
 
 ### 📦 Inventory Management
-- **Barcode scanning** — Scan products with your phone camera using QuaggaJS
+- **Barcode scanning** — Scan products with your phone camera using QuaggaJS; last 20 scanned products saved as tappable chips so you can re-select them without rescanning
 - **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
 - **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
@@ -93,7 +93,7 @@
 ### 📱 Progressive Web App
 - **Mobile-first design** — Optimized for phones, works on tablets and desktop
 - **Installable** — Add to home screen for a native app experience
-- **Multi-device** — Settings and data sync across devices on the same server
+- **Multi-device** — All user data (shopping tags, pinned items, location preferences, scan history) is stored server-side in SQLite and shared across every device on the same instance; no data is siloed in a single browser's localStorage
 
 ### ⚖️ Smart Scale Integration (Add-on)
 - **Bluetooth gateway** — Connects a BLE smart scale to EverShelf via local WebSocket
