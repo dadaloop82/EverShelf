@@ -380,7 +380,7 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
     if (preg_match('/mozzarella|burrata|stracciatella/', $n)) return 3;
     if (preg_match('/philadelphia|spalmabile/', $n)) return 7;
     if (preg_match('/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/', $n)) return 5;
-    if (preg_match('/parmigiano|grana|pecorino|provolone/', $n)) return 21;
+    if (preg_match('/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza/', $n)) return 28;
     if (preg_match('/formaggio/', $n)) return 10;
     if (preg_match('/\bburro\b/', $n)) return 30;
     if (preg_match('/\bpanna\b/', $n)) return 4;
@@ -449,7 +449,7 @@ function estimateSealedExpiryDaysPHP(string $name, string $category, string $loc
     elseif (preg_match('/yogurt/', $n)) $days = 21;
     elseif (preg_match('/mozzarella|burrata|stracciatella/', $n)) $days = 5;
     elseif (preg_match('/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/', $n)) $days = 10;
-    elseif (preg_match('/parmigiano|grana|pecorino|provolone/', $n)) $days = 60;
+    elseif (preg_match('/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza|groviera/', $n)) $days = 60;
     elseif (preg_match('/burro/', $n)) $days = 60;
     elseif (preg_match('/panna/', $n)) $days = 14;
     elseif (preg_match('/prosciutto\s+cotto|mortadella|wurstel/', $n)) $days = 7;

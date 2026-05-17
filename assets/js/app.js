@@ -1601,7 +1601,7 @@ function estimateExpiryDays(product, location) {
     else if (/yogurt/.test(name)) days = 21;
     else if (/mozzarella|burrata|stracciatella/.test(name)) days = 5;
     else if (/formaggio\s+(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) days = 10;
-    else if (/parmigiano|grana|pecorino|provolone/.test(name)) days = 60;
+    else if (/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza|groviera/.test(name)) days = 60;
     else if (/burro/.test(name)) days = 60;
     else if (/panna/.test(name)) days = 14;
     else if (/prosciutto\s+cotto|mortadella|wurstel/.test(name)) days = 7;
@@ -1741,7 +1741,7 @@ function estimateOpenedExpiryDays(product, location) {
     if (/mozzarella|burrata|stracciatella/.test(name)) return 3;
     if (/philadelphia|spalmabile/.test(name)) return 7;
     if (/formaggio.*(fresco|ricotta|mascarpone|stracchino|crescenza)/.test(name)) return 5;
-    if (/parmigiano|grana|pecorino|provolone/.test(name)) return 21;
+    if (/parmigiano|grana|pecorino|provolone|asiago|fontina|emmental|gruyere|scamorza/.test(name)) return 28;
     if (/formaggio/.test(name)) return 10;
     if (/\bburro\b/.test(name)) return 30;
     if (/\bpanna\b/.test(name)) return 4;
@@ -14899,24 +14899,25 @@ async function _runStartupCheck() {
     if (spinnerEl) spinnerEl.style.display = 'none';
     wrapEl.style.display = '';
 
-    // Helper: set progress bar + 3D check wheel
+    // Helper: set progress bar + fade ticker queue
     let _curPct = 0;
+    const _tickerHistory = [];
     const setProgress = (pct, label, state) => {
         _curPct = pct;
         if (barEl) {
             barEl.style.width = pct + '%';
             barEl.className = 'preloader-bar' + (state === 'error' ? ' bar-error' : state === 'warn' ? ' bar-warn' : '');
         }
-        const wheelPrev = document.getElementById('check-wheel-prev');
-        const wheelCurr = document.getElementById('check-wheel-current');
-        if (wheelCurr) {
-            const prevText = wheelCurr.textContent.trim();
-            if (wheelPrev && prevText && prevText !== '\u00a0') wheelPrev.textContent = prevText;
-            wheelCurr.textContent = label || '';
-            const sc = state === 'error' ? 'state-error' : state === 'warn' ? 'state-warn' : 'state-ok';
-            wheelCurr.className = 'check-wheel-current ' + sc;
-            void wheelCurr.offsetWidth; // re-trigger CSS animation
-        }
+        if (!label) return;
+        const ticker = document.getElementById('check-ticker');
+        if (!ticker) return;
+        _tickerHistory.unshift({ label, state: state || 'ok' });
+        if (_tickerHistory.length > 4) _tickerHistory.pop();
+        const posClass = ['ticker-current','ticker-prev-1','ticker-prev-2','ticker-prev-3'];
+        ticker.innerHTML = _tickerHistory.map((item, i) => {
+            const sc = item.state === 'error' ? 'state-error' : item.state === 'warn' ? 'state-warn' : 'state-ok';
+            return `<div class="ticker-item ${posClass[i]}${i === 0 ? ' ' + sc : ''}">${item.label}</div>`;
+        }).join('');
     };
 
     // Phase 1: animate 0→15% while fetching (so it never looks stuck)

@@ -122,8 +122,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    width: 310px;
-    max-width: 92vw;
+    width: min(92vw, 600px);
     animation: zwFadeIn 0.2s ease;
 }
 .preloader-bar-track {
@@ -144,60 +143,69 @@ body {
 .preloader-bar.bar-warn  { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
 .preloader-check-label { display: none; } /* replaced by check-wheel */
 
-/* ── Startup check wheel (3-D scroll) ──────────────────────────────── */
-.check-wheel {
+/* ── Startup check ticker (smooth fade queue) ───────────────────────── */
+.preloader-progress-wrap {
+    width: min(96vw, 860px) !important;
+}
+.check-ticker {
     position: relative;
     width: 100%;
-    height: 108px;
-    perspective: 640px;
+    height: 170px;
     overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin-top: 6px;
 }
-.check-wheel-current {
-    position: relative;
-    z-index: 3;
-    width: 100%;
-    text-align: center;
-    font-size: clamp(0.88rem, 2.6vw, 1.08rem);
-    font-weight: 700;
-    padding: 10px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(52,211,153,0.35);
-    background: rgba(52,211,153,0.08);
-    color: #34d399;
-    transform-style: preserve-3d;
-    animation: checkWheelIn 0.30s ease;
-    letter-spacing: 0.01em;
-    line-height: 1.4;
-}
-.check-wheel-current.state-ok    { color: #34d399; background: rgba(52,211,153,0.08);  border-color: rgba(52,211,153,0.35);  }
-.check-wheel-current.state-warn  { color: #fbbf24; background: rgba(251,191,36,0.08);  border-color: rgba(251,191,36,0.35);  }
-.check-wheel-current.state-error { color: #f87171; background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.35); }
-.check-wheel-prev {
+.ticker-item {
     position: absolute;
-    top: 3px;
-    left: 6%; right: 6%;
+    left: 0; right: 0;
     text-align: center;
-    font-size: clamp(0.67rem, 1.8vw, 0.82rem);
-    font-weight: 600;
-    color: rgba(203,213,225,0.45);
-    opacity: 0.52;
-    transform: rotateX(54deg) scale(0.85);
-    transform-origin: center bottom;
+    padding: 0 12px;
+    line-height: 1.45;
+    pointer-events: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    pointer-events: none;
-    font-family: monospace;
 }
-@keyframes checkWheelIn {
-    from { transform: translateY(24px) rotateX(-18deg); opacity: 0.35; }
-    to   { transform: translateY(0)    rotateX(0deg);   opacity: 1;    }
+/* Current — fades in from below, bright and large */
+.ticker-current {
+    bottom: 8px;
+    font-size: clamp(1.1rem, 3.2vw, 1.35rem);
+    font-weight: 700;
+    opacity: 1;
+    color: #4ade80;
+    letter-spacing: 0.01em;
+    animation: tickerFadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ticker-current.state-ok    { color: #4ade80; }
+.ticker-current.state-warn  { color: #fbbf24; }
+.ticker-current.state-error { color: #f87171; }
+/* Previous items — progressively dimmer and smaller, scrolling up */
+.ticker-prev-1 {
+    bottom: 54px;
+    font-size: clamp(0.92rem, 2.5vw, 1.1rem);
+    font-weight: 600;
+    opacity: 0.48;
+    color: #94a3b8;
+}
+.ticker-prev-2 {
+    bottom: 94px;
+    font-size: clamp(0.78rem, 2vw, 0.92rem);
+    font-weight: 500;
+    opacity: 0.22;
+    color: #64748b;
+}
+.ticker-prev-3 {
+    bottom: 128px;
+    font-size: clamp(0.66rem, 1.7vw, 0.78rem);
+    font-weight: 400;
+    opacity: 0.09;
+    color: #475569;
+}
+@keyframes tickerFadeIn {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0);    }
 }
 .preloader-warnings {
-    max-width: 310px;
+    max-width: min(92vw, 600px);
     width: 100%;
     animation: zwFadeIn 0.3s ease;
 }
