@@ -58,15 +58,26 @@
     <string name="wizard_server_ok_detail">Error reporting is active — install failures will be sent to GitHub Issues automatically.</string>
     <string name="wizard_server_error">Server not reachable ⚠️</string>
     <string name="wizard_server_error_detail">Install errors won\'t reach GitHub Issues. Check the URL entered in step 2.</string>
-    <!-- Screensaver step -->
+    <!-- Features step (step 5) -->
+    <string name="setup_features_title">Funzionalità</string>
+    <string name="setup_features_desc">Attiva le funzioni che vuoi usare. Puoi sempre cambiarle in seguito dalle impostazioni del server.</string>
     <string name="setup_screensaver_title">Salvaschermo in-app</string>
     <string name="setup_screensaver_desc">Shows a clock with useful facts after 5 minutes of inactivity. Off by default (screen stays always on).</string>
-    <string name="setup_screensaver_toggle_label">Abilita salvaschermo orologio</string>
-    <string name="setup_screensaver_toggle_hint">Mostra l\'overlay orologio dopo 5 min. Lo schermo resta sempre acceso.</string>
+    <string name="setup_screensaver_toggle_label">Salvaschermo orologio</string>
+    <string name="setup_screensaver_toggle_hint">Mostra l\'overlay orologio dopo 5 min di inattività.</string>
+    <string name="setup_prices_toggle_label">Prezzi lista spesa</string>
+    <string name="setup_prices_toggle_hint">Stima automatica del costo di ogni articolo in lista tramite AI.</string>
+    <string name="setup_mealplan_toggle_label">Piano pasti</string>
+    <string name="setup_mealplan_toggle_hint">Pianifica i pasti della settimana suggerendo ricette basate sulla dispensa.</string>
+    <string name="setup_zerowaste_toggle_label">Suggerimenti zero-waste</string>
+    <string name="setup_zerowaste_toggle_hint">Durante la cottura mostra consigli per riutilizzare scarti (bucce, acqua di cottura, ecc.).</string>
 
     <!-- Summary -->
     <string name="summary_lang">Language</string>
     <string name="summary_scale_skip">Scale: not configured</string>
-    <string name="summary_screensaver_on">Screensaver: enabled</string>
-    <string name="summary_screensaver_off">Screen always on (screensaver disabled)</string>
+    <string name="summary_screensaver_on">Screensaver: abilitato</string>
+    <string name="summary_screensaver_off">Screensaver: disabilitato</string>
+    <string name="summary_prices_on">Prezzi lista spesa: abilitati</string>
+    <string name="summary_mealplan_on">Piano pasti: abilitato</string>
+    <string name="summary_zerowaste_on">Suggerimenti zero-waste: abilitati</string>
 </resources>

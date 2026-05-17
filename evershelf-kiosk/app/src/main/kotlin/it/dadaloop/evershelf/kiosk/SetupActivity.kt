@@ -110,6 +110,9 @@ class SetupActivity : AppCompatActivity() {
 
     // Screensaver step
     private lateinit var setupSwitchScreensaver: SwitchMaterial
+    private lateinit var setupSwitchPrices:      SwitchMaterial
+    private lateinit var setupSwitchMealPlan:    SwitchMaterial
+    private lateinit var setupSwitchZeroWaste:   SwitchMaterial
 
     // Done step
     private lateinit var summaryText: TextView
@@ -128,6 +131,9 @@ class SetupActivity : AppCompatActivity() {
         private const val KEY_HAS_SCALE      = "has_scale"
         private const val KEY_LANGUAGE       = "kiosk_language"
         private const val KEY_SCREENSAVER    = "screensaver_enabled"
+        private const val KEY_PRICE_ENABLED  = "price_enabled"
+        private const val KEY_MEAL_PLAN      = "meal_plan_enabled"
+        private const val KEY_ZEROWASTE_TIPS = "zerowaste_tips_enabled"
         private const val PERMISSION_REQUEST_CODE = 2004
         private const val BLE_PERMISSION_REQUEST  = 2006
 
@@ -238,10 +244,17 @@ class SetupActivity : AppCompatActivity() {
         tvTestWeight       = findViewById(R.id.tvTestWeight)
         testWeightBox      = findViewById(R.id.testWeightBox)
 
-        // Screensaver step
+        // Features step — bind all four toggles
         setupSwitchScreensaver = findViewById(R.id.setupSwitchScreensaver)
-        // Pre-fill saved screensaver pref
-        setupSwitchScreensaver.isChecked = prefs.getBoolean(KEY_SCREENSAVER, false)
+        setupSwitchPrices      = findViewById(R.id.setupSwitchPrices)
+        setupSwitchMealPlan    = findViewById(R.id.setupSwitchMealPlan)
+        setupSwitchZeroWaste   = findViewById(R.id.setupSwitchZeroWaste)
+        // Pre-fill from saved prefs only if each key was previously configured
+        // ("se non sono impostati, chiedi!" — fresh install → all start at false)
+        setupSwitchScreensaver.isChecked = if (prefs.contains(KEY_SCREENSAVER))  prefs.getBoolean(KEY_SCREENSAVER,  false) else false
+        setupSwitchPrices.isChecked      = if (prefs.contains(KEY_PRICE_ENABLED)) prefs.getBoolean(KEY_PRICE_ENABLED, false) else false
+        setupSwitchMealPlan.isChecked    = if (prefs.contains(KEY_MEAL_PLAN))    prefs.getBoolean(KEY_MEAL_PLAN,    false) else false
+        setupSwitchZeroWaste.isChecked   = if (prefs.contains(KEY_ZEROWASTE_TIPS)) prefs.getBoolean(KEY_ZEROWASTE_TIPS, false) else false
 
         // Done step
         summaryText = findViewById(R.id.setupSummaryText)
@@ -381,10 +394,15 @@ class SetupActivity : AppCompatActivity() {
             findViewById<MaterialButton>(R.id.btnScaleNext).isEnabled = true
         }
 
-        // ── Screensaver ───────────────────────────────────────────────────
+        // ── Features step (screensaver / prices / meal plan / zero-waste) ────
         findViewById<MaterialButton>(R.id.btnScreensaverBack).setOnClickListener { showStep(4) }
         findViewById<MaterialButton>(R.id.btnScreensaverNext).setOnClickListener {
-            prefs.edit().putBoolean(KEY_SCREENSAVER, setupSwitchScreensaver.isChecked).apply()
+            prefs.edit()
+                .putBoolean(KEY_SCREENSAVER,  setupSwitchScreensaver.isChecked)
+                .putBoolean(KEY_PRICE_ENABLED, setupSwitchPrices.isChecked)
+                .putBoolean(KEY_MEAL_PLAN,     setupSwitchMealPlan.isChecked)
+                .putBoolean(KEY_ZEROWASTE_TIPS, setupSwitchZeroWaste.isChecked)
+                .apply()
             showStep(6)
         }
 
@@ -971,13 +989,16 @@ class SetupActivity : AppCompatActivity() {
     // ── Summary / Finish ─────────────────────────────────────────────────
 
     private fun buildSummary() {
-        val url       = prefs.getString(KEY_URL, "") ?: ""
-        val hasScale  = prefs.getBoolean(KEY_HAS_SCALE, false)
-        val screensOn = setupSwitchScreensaver.isChecked
-        val scaleName = bleManager?.getSavedDeviceName()
-        val scaleOk   = hasScale && scaleName != null
-        val lang      = prefs.getString(KEY_LANGUAGE, "it") ?: "it"
-        val langLabel = when (lang) { "en" -> "English 🇬🇧"; "de" -> "Deutsch 🇩🇪"; else -> "Italiano 🇮🇹" }
+        val url        = prefs.getString(KEY_URL, "") ?: ""
+        val hasScale   = prefs.getBoolean(KEY_HAS_SCALE, false)
+        val screensOn  = setupSwitchScreensaver.isChecked
+        val pricesOn   = setupSwitchPrices.isChecked
+        val mealPlanOn = setupSwitchMealPlan.isChecked
+        val zeroWasteOn = setupSwitchZeroWaste.isChecked
+        val scaleName  = bleManager?.getSavedDeviceName()
+        val scaleOk    = hasScale && scaleName != null
+        val lang       = prefs.getString(KEY_LANGUAGE, "it") ?: "it"
+        val langLabel  = when (lang) { "en" -> "English 🇬🇧"; "de" -> "Deutsch 🇩🇪"; else -> "Italiano 🇮🇹" }
         val sb = StringBuilder()
         sb.appendLine("🌐 ${getString(R.string.summary_lang)}: $langLabel")
         if (url.isNotEmpty()) sb.appendLine("🖥️ Server: $url")
@@ -986,7 +1007,10 @@ class SetupActivity : AppCompatActivity() {
             hasScale -> "⚠️ Bilancia: da configurare"
             else     -> "⏭ ${getString(R.string.summary_scale_skip)}"
         })
-        sb.appendLine(if (screensOn) "🌙 ${getString(R.string.summary_screensaver_on)}" else "💡 ${getString(R.string.summary_screensaver_off)}")
+        sb.appendLine(if (screensOn)   getString(R.string.summary_screensaver_on)  else getString(R.string.summary_screensaver_off))
+        if (pricesOn)    sb.appendLine(getString(R.string.summary_prices_on))
+        if (mealPlanOn)  sb.appendLine(getString(R.string.summary_mealplan_on))
+        if (zeroWasteOn) sb.appendLine(getString(R.string.summary_zerowaste_on))
         summaryText.text = sb.toString().trimEnd()
     }
 
@@ -994,16 +1018,20 @@ class SetupActivity : AppCompatActivity() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
         val baseUrl = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
         if (baseUrl.isNotEmpty()) {
-            val hasScale    = prefs.getBoolean(KEY_HAS_SCALE, false) && (bleManager?.getSavedDeviceAddress() != null)
-            val screensaver = prefs.getBoolean(KEY_SCREENSAVER, false)
+            val hasScale      = prefs.getBoolean(KEY_HAS_SCALE, false) && (bleManager?.getSavedDeviceAddress() != null)
+            val screensaver   = prefs.getBoolean(KEY_SCREENSAVER,   false)
+            val priceEnabled  = prefs.getBoolean(KEY_PRICE_ENABLED,  false)
+            val mealPlan      = prefs.getBoolean(KEY_MEAL_PLAN,      false)
+            val zeroWaste     = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
             Thread {
                 try {
                     val url  = "$baseUrl/api/index.php?action=save_settings"
                     val body = buildString {
                         append("{\"screensaver_enabled\":$screensaver")
+                        append(",\"price_enabled\":$priceEnabled")
+                        append(",\"meal_plan_enabled\":$mealPlan")
+                        append(",\"zerowaste_tips_enabled\":$zeroWaste")
                         if (hasScale) {
-                            // Use the tablet's actual LAN IP so the EverShelf server
-                            // (potentially on a different machine) can reach the gateway.
                             val lanIp = getDeviceLanIp() ?: "127.0.0.1"
                             append(",\"scale_enabled\":true,\"scale_gateway_url\":\"ws://$lanIp:8765\"")
                         }

@@ -2652,6 +2652,7 @@ function getServerSettings(): void {
         'meal_plan_enabled' => env('MEAL_PLAN_ENABLED', 'false') === 'true',
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
         'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
+        'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
         'price_enabled' => env('PRICE_ENABLED', 'false') === 'true',
         'price_country' => env('PRICE_COUNTRY', 'Italia'),
         'price_currency' => env('PRICE_CURRENCY', 'EUR'),
@@ -2709,6 +2710,7 @@ function saveSettings(): void {
         'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
         'price_enabled' => 'PRICE_ENABLED',
+        'zerowaste_tips_enabled' => 'ZEROWASTE_TIPS_ENABLED',
     ];
     // Integer keys
     $intMap = [

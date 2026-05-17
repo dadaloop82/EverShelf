@@ -1050,7 +1050,7 @@
             </LinearLayout>
 
             <!-- ════════════════════════════════════════════
-                 STEP 5 — Screensaver
+                 STEP 5 — Features
                  ════════════════════════════════════════════ -->
             <LinearLayout
                 android:id="@+id/stepScreensaver"
@@ -1063,68 +1063,168 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="🌙"
+                    android:text="⚡"
                     android:textSize="52sp"
                     android:layout_marginBottom="12dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:id="@+id/tvScreensaverTitle"
-                    android:text="@string/setup_screensaver_title"
+                    android:text="@string/setup_features_title"
                     android:textColor="#f1f5f9"
                     android:textSize="24sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp" />
 
                 <TextView
-                    android:id="@+id/tvScreensaverDesc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Dopo 5 minuti di inattività mostra un overlay con l&#39;orologio e informazioni utili (statistiche, piano pasti). Lo schermo rimane SEMPRE acceso — questa opzione riguarda solo l&#39;overlay visivo in-app."
+                    android:text="@string/setup_features_desc"
                     android:textColor="#94a3b8"
                     android:textSize="15sp"
                     android:gravity="center"
                     android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="28dp" />
+                    android:layout_marginBottom="20dp" />
 
-                <!-- Toggle card -->
+                <!-- Toggle: Screensaver -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:background="@drawable/card_background"
-                    android:padding="20dp"
+                    android:padding="16dp"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="32dp">
-
+                    android:layout_marginBottom="10dp">
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:orientation="vertical">
-
                         <TextView
-                            android:id="@+id/tvScreensaverToggleLabel"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/setup_screensaver_toggle_label"
                             android:textColor="#f1f5f9"
-                            android:textSize="16sp"
+                            android:textSize="15sp"
                             android:textStyle="bold"
-                            android:layout_marginBottom="4dp" />
-
+                            android:layout_marginBottom="3dp" />
                         <TextView
-                            android:id="@+id/tvScreensaverToggleHint"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="@string/setup_screensaver_toggle_hint"
                             android:textColor="#64748b"
-                            android:textSize="13sp" />
+                            android:textSize="12sp" />
                     </LinearLayout>
-
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/setupSwitchScreensaver"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false" />
+                </LinearLayout>
+
+                <!-- Toggle: Prezzi lista spesa -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_prices_toggle_label"
+                            android:textColor="#f1f5f9"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="3dp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_prices_toggle_hint"
+                            android:textColor="#64748b"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/setupSwitchPrices"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false" />
+                </LinearLayout>
+
+                <!-- Toggle: Piano pasti -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_mealplan_toggle_label"
+                            android:textColor="#f1f5f9"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="3dp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_mealplan_toggle_hint"
+                            android:textColor="#64748b"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/setupSwitchMealPlan"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false" />
+                </LinearLayout>
+
+                <!-- Toggle: Suggerimenti zero-waste -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_zerowaste_toggle_label"
+                            android:textColor="#f1f5f9"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="3dp" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_zerowaste_toggle_hint"
+                            android:textColor="#64748b"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/setupSwitchZeroWaste"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:checked="false" />
