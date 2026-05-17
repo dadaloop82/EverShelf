@@ -1043,9 +1043,9 @@ async function discoverScaleGateway() {
 // ===== i18n TRANSLATION SYSTEM =====
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
-let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'it';
-const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch' };
-if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'it';
+let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
+const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español' };
+if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
 
 // Flatten nested JSON: { a: { b: "x" } } → { "a.b": "x" }
 function _flattenI18n(obj, prefix = '') {
@@ -14566,9 +14566,11 @@ function _setupSteps() {
             `
         },
         {
-            title: '✅ ' + (_currentLang === 'it' ? 'Tutto pronto!' : _currentLang === 'de' ? 'Alles bereit!' : 'All set!'),
+            title: '✅ ' + (_currentLang === 'it' ? 'Tutto pronto!' : _currentLang === 'de' ? 'Alles bereit!' : _currentLang === 'fr' ? 'Tout est prêt !' : _currentLang === 'es' ? '¡Todo listo!' : 'All set!'),
             desc: _currentLang === 'it' ? 'La configurazione è completata. Puoi sempre modificare queste impostazioni dalla pagina Configurazione.'
                  : _currentLang === 'de' ? 'Die Konfiguration ist abgeschlossen. Du kannst diese Einstellungen jederzeit ändern.'
+                 : _currentLang === 'fr' ? 'La configuration est terminée. Vous pouvez toujours modifier ces paramètres depuis la page Paramètres.'
+                 : _currentLang === 'es' ? 'La configuración está completa. Puedes cambiar estos ajustes desde la página Ajustes.'
                  : 'Setup is complete. You can always change these settings from the Settings page.',
             render: () => {
                 let summary = '<div style="text-align:center;font-size:2.5rem;margin:12px 0">🎉</div>';
@@ -14618,9 +14620,9 @@ function _renderSetupStep() {
     prevBtn.textContent = t('btn.back');
 
     if (_setupStep === totalPending - 1) {
-        nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : '🚀 Start!';
+        nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : _currentLang === 'fr' ? '🚀 Allons-y !' : _currentLang === 'es' ? '🚀 ¡Empezar!' : '🚀 Start!';
     } else {
-        nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : 'Next →';
+        nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : _currentLang === 'fr' ? 'Suivant →' : _currentLang === 'es' ? 'Siguiente →' : 'Next →';
     }
 }
 
