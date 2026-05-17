@@ -1201,5 +1201,17 @@
     "btn_csv": "Télécharger CSV",
     "btn_pdf": "PDF / Imprimer",
     "btn_title": "Exporter"
+  },
+  "startup": {
+    "check_php": "PHP",
+    "check_exts": "Extensions PHP",
+    "check_data_dir": "Dossier de données",
+    "check_db": "Base de données",
+    "check_env": "Configuration (.env)",
+    "check_gemini": "Clé Gemini AI",
+    "check_bring": "Token Bring!",
+    "critical_error": "Erreur critique : l'application ne peut pas démarrer. Vérifiez les logs du serveur.",
+    "error_network": "Impossible de contacter le serveur. Vérifiez votre connexion.",
+    "retry": "Réessayer"
   }
 }

@@ -1201,5 +1201,17 @@
     "btn_csv": "Scarica CSV",
     "btn_pdf": "PDF / Stampa",
     "btn_title": "Esporta"
+  },
+  "startup": {
+    "check_php": "PHP",
+    "check_exts": "Estensioni PHP",
+    "check_data_dir": "Cartella dati",
+    "check_db": "Database",
+    "check_env": "Configurazione (.env)",
+    "check_gemini": "Chiave Gemini AI",
+    "check_bring": "Token Bring!",
+    "critical_error": "Errore critico: impossibile avviare l'app. Controlla i log del server.",
+    "error_network": "Impossibile contattare il server. Controlla la connessione.",
+    "retry": "Riprova"
   }
 }
