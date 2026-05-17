@@ -540,7 +540,9 @@
     "recipe_done_tts": "Recette terminée ! Bon appétit !",
     "expires_chip": "exp. {date}",
     "finish": "✅ Terminer",
-    "step_fallback": "Étape {n}"
+    "step_fallback": "Étape {n}",
+    "zerowaste_label": "♻️ Déchet",
+    "zerowaste_tip_title": "Conseil zéro déchet"
   },
   "settings": {
     "title": "⚙️ Paramètres",
@@ -752,6 +754,11 @@
       "off": "☀️ Clair",
       "on": "🌙 Sombre",
       "auto": "🔄 Automatique (système)"
+    },
+    "zerowaste": {
+      "card_title": "♻️ Conseils zéro déchet",
+      "card_hint": "Pendant la cuisson, affichez des conseils pour réutiliser les déchets produits à chaque étape (épluchures, eau de cuisson, etc.). Désactivé par défaut.",
+      "label": "Afficher les conseils pendant la cuisson"
     }
   },
   "expiry": {

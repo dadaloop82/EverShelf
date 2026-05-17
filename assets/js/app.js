@@ -2538,6 +2538,9 @@ async function loadSettingsUI() {
     // Dark mode setting
     const dmEl = document.getElementById('setting-dark-mode');
     if (dmEl) dmEl.value = s.dark_mode || 'auto';
+    // Zero-waste tips setting
+    const zwEl = document.getElementById('setting-zerowaste-tips');
+    if (zwEl) zwEl.checked = s.zerowaste_tips_enabled === true;
 
     // Populate About section version
     _loadAboutSection();
@@ -2864,6 +2867,9 @@ async function saveSettings() {
     // Dark mode
     const dmSaveEl = document.getElementById('setting-dark-mode');
     if (dmSaveEl) { s.dark_mode = dmSaveEl.value; _applyTheme(); }
+    // Zero-waste tips
+    const zwSaveEl = document.getElementById('setting-zerowaste-tips');
+    if (zwSaveEl) s.zerowaste_tips_enabled = zwSaveEl.checked;
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
@@ -12429,6 +12435,7 @@ function startCookingMode() {
         _cookingRecipe = JSON.parse(JSON.stringify(recipe));
         _cookingStep = 0;
         _cookingVisited = new Set();
+        _dismissedZeroWasteTips = new Set();
         clearAllCookingTimers();
     }
     _cookingTTS = true;
@@ -12478,6 +12485,7 @@ function restartCookingMode() {
     _cookingStep = 0;
     _cookingWheelLastDelta = 0;
     _cookingVisited = new Set();
+    _dismissedZeroWasteTips = new Set();
     clearAllCookingTimers();
     renderCookingStep();
 }
@@ -12699,8 +12707,40 @@ function renderCookingStep() {
     // Timer: detect duration in step text and show suggestion
     setupCookingTimerSuggestion(cleanStep);
 
+    // Zero-waste tip for this step
+    _renderZeroWasteTip(_cookingStep);
+
     // TTS: auto-speak is handled by navigateCookingStep() and startCookingMode() callers.
     // Use replayCookingTTS() to re-read the current step manually ("Rileggi" button).
+}
+
+// ===== ZERO-WASTE TIPS =====
+let _dismissedZeroWasteTips = new Set(); // dismissed tip indices for this cooking session
+
+function _renderZeroWasteTip(stepIdx) {
+    const tipEl = document.getElementById('cooking-zerowaste-tip');
+    if (!tipEl) return;
+    // Check setting
+    const s = getSettings();
+    if (!s.zerowaste_tips_enabled) { tipEl.style.display = 'none'; return; }
+    // Already dismissed for this step in this session
+    if (_dismissedZeroWasteTips.has(stepIdx)) { tipEl.style.display = 'none'; return; }
+    // Find tip for current step
+    const tips = (_cookingRecipe && _cookingRecipe.zero_waste_tips) || [];
+    const tip = tips.find(t => t.step === stepIdx);
+    if (!tip) { tipEl.style.display = 'none'; return; }
+    // Populate and show
+    const scrapEl = document.getElementById('cooking-zerowaste-scrap');
+    const textEl  = document.getElementById('cooking-zerowaste-text');
+    if (scrapEl) scrapEl.textContent = tip.scrap || '';
+    if (textEl)  textEl.textContent  = tip.tip  || '';
+    tipEl.style.display = 'flex';
+}
+
+function _dismissZeroWasteTip() {
+    _dismissedZeroWasteTips.add(_cookingStep);
+    const tipEl = document.getElementById('cooking-zerowaste-tip');
+    if (tipEl) tipEl.style.display = 'none';
 }
 
 function _buildTtsRequest(text, s) {

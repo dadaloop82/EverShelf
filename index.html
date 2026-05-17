@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260519b">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260519c">
     <!-- QuaggaJS for barcode scanning -->
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
@@ -1301,6 +1301,19 @@
                     </div>
                 </div>
                 <div class="settings-card">
+                    <h4 data-i18n="settings.zerowaste.card_title">♻️ Suggerimenti zero-waste</h4>
+                    <p class="settings-hint" data-i18n="settings.zerowaste.card_hint">Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-zerowaste-tips">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-card">
                     <h4 data-i18n="export.title">📤 Esporta inventario</h4>
                     <p class="settings-hint" data-i18n="export.hint">Scarica l'inventario corrente in CSV o apri una versione stampabile (PDF).</p>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1578,6 +1591,12 @@
             </button>
         </div>
         <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
+        <div id="cooking-zerowaste-tip" class="cooking-zerowaste-tip" style="display:none">
+            <span class="cooking-zerowaste-label" data-i18n="cooking.zerowaste_label">♻️ Scarto</span>
+            <span id="cooking-zerowaste-scrap" class="cooking-zerowaste-scrap"></span>
+            <p id="cooking-zerowaste-text" class="cooking-zerowaste-text"></p>
+            <button class="cooking-zerowaste-close" onclick="_dismissZeroWasteTip()" aria-label="Chiudi">✕</button>
+        </div>
     </div>
     <div class="cooking-nav">
         <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)">◀ Precedente</button>
@@ -1585,6 +1604,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260519b"></script>
+<script src="assets/js/app.js?v=20260519c"></script>
 </body>
 </html>

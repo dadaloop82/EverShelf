@@ -540,7 +540,9 @@
     "recipe_done_tts": "Ricetta completata! Buon appetito!",
     "expires_chip": "scade {date}",
     "finish": "✅ Fine",
-    "step_fallback": "Passo {n}"
+    "step_fallback": "Passo {n}",
+    "zerowaste_label": "♻️ Scarto",
+    "zerowaste_tip_title": "Consiglio anti-spreco"
   },
   "settings": {
     "title": "⚙️ Configurazione",
@@ -752,6 +754,11 @@
       "off": "☀️ Chiaro",
       "on": "🌙 Scuro",
       "auto": "🔄 Automatico (sistema)"
+    },
+    "zerowaste": {
+      "card_title": "♻️ Suggerimenti zero-waste",
+      "card_hint": "Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.",
+      "label": "Mostra suggerimenti durante la cottura"
     }
   },
   "expiry": {

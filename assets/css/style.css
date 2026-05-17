@@ -6875,6 +6875,64 @@ body.cooking-mode-active .app-header {
     opacity: 0.8;
 }
 
+/* ===== ZERO-WASTE TIP CARD (cooking mode) ===== */
+.cooking-zerowaste-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(16, 185, 129, 0.10);
+    border: 1.5px solid rgba(16, 185, 129, 0.35);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: 10px 16px 0;
+    position: relative;
+    animation: zwFadeIn 0.3s ease;
+    flex-direction: column;
+}
+@keyframes zwFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.cooking-zerowaste-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #059669;
+}
+.cooking-zerowaste-scrap {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #065f46;
+    margin-left: 4px;
+}
+.cooking-zerowaste-text {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin: 4px 0 0;
+    line-height: 1.45;
+}
+.cooking-zerowaste-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 2px 4px;
+    line-height: 1;
+}
+.cooking-zerowaste-close:hover { color: #374151; }
+[data-theme="dark"] .cooking-zerowaste-tip {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+[data-theme="dark"] .cooking-zerowaste-scrap { color: #6ee7b7; }
+[data-theme="dark"] .cooking-zerowaste-label { color: #34d399; }
+[data-theme="dark"] .cooking-zerowaste-close { color: #9ca3af; }
+
 /* ===== DARK MODE ===== */
 [data-theme="dark"] {
     --bg: #0f172a;

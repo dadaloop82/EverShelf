@@ -540,7 +540,9 @@
     "recipe_done_tts": "Recipe complete! Enjoy your meal!",
     "expires_chip": "exp. {date}",
     "finish": "✅ Finish",
-    "step_fallback": "Step {n}"
+    "step_fallback": "Step {n}",
+    "zerowaste_label": "♻️ Scrap",
+    "zerowaste_tip_title": "Zero-waste tip"
   },
   "settings": {
     "title": "⚙️ Settings",
@@ -752,6 +754,11 @@
       "off": "☀️ Light",
       "on": "🌙 Dark",
       "auto": "🔄 Auto (system)"
+    },
+    "zerowaste": {
+      "card_title": "♻️ Zero-waste tips",
+      "card_hint": "During cooking, show tips on how to reuse scraps generated in each step (peels, cooking water, etc.). Disabled by default.",
+      "label": "Show tips during cooking"
     }
   },
   "expiry": {

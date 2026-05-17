@@ -540,7 +540,9 @@
     "recipe_done_tts": "Rezept abgeschlossen! Guten Appetit!",
     "expires_chip": "läuft ab {date}",
     "finish": "✅ Fertig",
-    "step_fallback": "Schritt {n}"
+    "step_fallback": "Schritt {n}",
+    "zerowaste_label": "♻️ Abfall",
+    "zerowaste_tip_title": "Zero-Waste-Tipp"
   },
   "settings": {
     "title": "⚙️ Einstellungen",
@@ -752,6 +754,11 @@
       "off": "☀️ Hell",
       "on": "🌙 Dunkel",
       "auto": "🔄 Automatisch (System)"
+    },
+    "zerowaste": {
+      "card_title": "♻️ Zero-Waste-Tipps",
+      "card_hint": "Zeige während des Kochens Tipps zur Wiederverwendung von Abfällen (Schalen, Kochwasser usw.). Standardmäßig deaktiviert.",
+      "label": "Tipps beim Kochen anzeigen"
     }
   },
   "expiry": {

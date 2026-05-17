@@ -540,7 +540,9 @@
     "recipe_done_tts": "¡Receta completada! ¡Buen provecho!",
     "expires_chip": "cad. {date}",
     "finish": "✅ Finalizar",
-    "step_fallback": "Paso {n}"
+    "step_fallback": "Paso {n}",
+    "zerowaste_label": "♻️ Desperdicio",
+    "zerowaste_tip_title": "Consejo sin desperdicios"
   },
   "settings": {
     "title": "⚙️ Ajustes",
@@ -752,6 +754,11 @@
       "off": "☀️ Claro",
       "on": "🌙 Oscuro",
       "auto": "🔄 Automático (sistema)"
+    },
+    "zerowaste": {
+      "card_title": "♻️ Consejos sin desperdicios",
+      "card_hint": "Durante la cocción, muestra consejos sobre cómo reutilizar los restos generados en cada paso (peladuras, agua de cocción, etc.). Desactivado por defecto.",
+      "label": "Mostrar consejos durante la cocción"
     }
   },
   "expiry": {
