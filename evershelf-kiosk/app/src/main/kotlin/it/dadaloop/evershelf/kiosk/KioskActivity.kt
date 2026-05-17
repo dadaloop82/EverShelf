@@ -113,7 +113,9 @@ class KioskActivity : AppCompatActivity() {
         private const val KEY_SCREENSAVER = "screensaver_enabled"
         private const val KIOSK_DOWNLOAD_URL = "https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk"
         private const val SPLASH_DURATION = 1500L
-        private const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/latest"
+        // Use the kiosk-specific rolling release tag so version comparison is always
+        // against the KIOSK version, not the webapp version (they diverge).
+        private const val GITHUB_RELEASES_API = "https://api.github.com/repos/dadaloop82/EverShelf/releases/tags/kiosk-latest"
         // Keys for persisting a pending update across restarts
         private const val KEY_PENDING_UPDATE_VERSION = "pending_update_version"
         private const val KEY_PENDING_UPDATE_URL     = "pending_update_url"
@@ -627,10 +629,16 @@ class KioskActivity : AppCompatActivity() {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: ""
                 } catch (_: Exception) { "" }
 
-                // Strip any non-numeric prefix so "kiosk-1.7.0", "v1.7.0", "kiosk-v1.7.1"
-                // all normalise to "1.7.0" / "1.7.1" for comparison.
+                // The kiosk-latest release uses a non-semver tag ("kiosk-latest").
+                // Extract the actual kiosk version from the release body text.
+                // Body format: "Alias automatico → kiosk-X.Y.Z" or just "kiosk-X.Y.Z".
+                // Fall back to stripping the tag prefix if body parsing fails.
+                val bodyText = json.optString("body", "")
                 val norm = { v: String -> v.replace(Regex("^[^0-9]*"), "") }
-                val isSemver = norm(latestTag).matches(Regex("\\d+\\.\\d+.*"))
+                val remoteKioskVersion = Regex("""kiosk-v?(\d+\.\d+(?:\.\d+)?)""")
+                    .find(bodyText)?.groupValues?.get(1)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: norm(latestTag)
 
                 // Compare semver: returns true if `remote` is strictly greater than `local`
                 fun semverNewer(remote: String, local: String): Boolean {
@@ -645,29 +653,31 @@ class KioskActivity : AppCompatActivity() {
                     return false
                 }
 
+                val isSemver = remoteKioskVersion.matches(Regex("\\d+\\.\\d+.*"))
+
+                // Get APK URL from assets; fall back to the hardcoded KIOSK_DOWNLOAD_URL
                 val assets = json.optJSONArray("assets")
                 var kioskApkUrl = ""
                 if (assets != null) {
                     for (i in 0 until assets.length()) {
-                        val a    = assets.getJSONObject(i)
-                        val name = a.optString("name", "").lowercase()
-                        val url  = a.optString("browser_download_url", "")
-                        if (name.contains("kiosk") && url.isNotEmpty()) kioskApkUrl = url
+                        val a   = assets.getJSONObject(i)
+                        val url = a.optString("browser_download_url", "")
+                        if (url.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
+                            kioskApkUrl = url; break
+                        }
                     }
                 }
                 if (kioskApkUrl.isEmpty()) kioskApkUrl = KIOSK_DOWNLOAD_URL
 
-                // Only flag an update when the remote tag is parseable as semver AND
-                // the remote version is strictly greater than the installed version.
-                // Non-semver tags (e.g. "kiosk-latest", "rolling") cannot be compared
-                // numerically → treat as "no update" to avoid false positives.
-                val kioskNeedsUpdate = currentKiosk.isNotEmpty() &&
-                    isSemver && semverNewer(norm(latestTag), norm(currentKiosk))
+                // Only flag an update when the remote version is parseable as semver AND
+                // strictly greater than the installed version.
+                val kioskNeedsUpdate = currentKiosk.isNotEmpty() && isSemver &&
+                    semverNewer(remoteKioskVersion, currentKiosk)
 
                 val result = JSONObject()
                     .put("has_update", kioskNeedsUpdate)
                     .put("current",    currentKiosk)
-                    .put("latest",     latestTag)
+                    .put("latest",     remoteKioskVersion)
                     .put("apk_url",    kioskApkUrl)
 
                 notifyJs(result)
@@ -680,12 +690,11 @@ class KioskActivity : AppCompatActivity() {
 
                 // Persist the pending update so the banner reappears after a crash/restart
                 prefs.edit()
-                    .putString(KEY_PENDING_UPDATE_VERSION, latestTag)
+                    .putString(KEY_PENDING_UPDATE_VERSION, remoteKioskVersion)
                     .putString(KEY_PENDING_UPDATE_URL, kioskApkUrl)
                     .apply()
 
-                val label = if (isSemver) "$currentKiosk → $latestTag" else latestTag
-                runOnUiThread { showNativeUpdateBanner("🔄 Kiosk $label", kioskApkUrl) }
+                runOnUiThread { showNativeUpdateBanner("🔄 Kiosk $currentKiosk → $remoteKioskVersion", kioskApkUrl) }
             } catch (e: Exception) {
                 notifyJs(JSONObject().put("has_update", false).put("error", e.message ?: "network error"))
             }
@@ -801,6 +810,52 @@ class KioskActivity : AppCompatActivity() {
             ErrorReporter.reportMessage("install_invalid_apk", "Downloaded file is not a valid APK. URL=$pendingApkDownloadUrl size=${file.length()}")
             file.delete()
             return
+        }
+        // ── Pre-install validation via PackageManager ──────────────────────
+        // This catches version-downgrade or same-version attempts before PackageInstaller
+        // gets them (which would silently fail with STATUS_FAILURE=1 on many OEMs).
+        @Suppress("DEPRECATION")
+        val apkInfo = try { packageManager.getPackageArchiveInfo(file.absolutePath, 0) } catch (_: Exception) { null }
+        if (apkInfo != null) {
+            // Wrong package: would always fail with STATUS_FAILURE=1
+            if (apkInfo.packageName != packageName) {
+                val detail = "APK package=${apkInfo.packageName}, expected=$packageName"
+                setInstallUI("\u274C", "APK non valido", detail, 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
+                runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
+                ErrorReporter.reportMessage("install_wrong_package", detail, mapOf("apk_pkg" to apkInfo.packageName, "expected" to packageName), forceReport = true)
+                file.delete()
+                return
+            }
+            // Version downgrade or same versionCode: Android rejects it
+            @Suppress("DEPRECATION")
+            val apkVc: Long = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                apkInfo.longVersionCode
+            else
+                apkInfo.versionCode.toLong()
+            val installedVc: Long = try {
+                @Suppress("DEPRECATION")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    packageManager.getPackageInfo(packageName, 0).longVersionCode
+                else
+                    packageManager.getPackageInfo(packageName, 0).versionCode.toLong()
+            } catch (_: Exception) { -1L }
+
+            if (installedVc >= 0 && apkVc <= installedVc) {
+                // Same or older version — no real update, dismiss banner silently
+                runOnUiThread {
+                    updateBanner.visibility = View.GONE
+                    bannerProgressBar.visibility = View.GONE
+                    prefs.edit().remove(KEY_PENDING_UPDATE_VERSION).remove(KEY_PENDING_UPDATE_URL).apply()
+                }
+                ErrorReporter.reportMessage(
+                    "install_no_upgrade",
+                    "APK versionCode=$apkVc (${apkInfo.versionName}) ≤ installed=$installedVc — not an upgrade",
+                    mapOf("apk_vc" to apkVc, "apk_ver" to (apkInfo.versionName ?: ""), "installed_vc" to installedVc),
+                    forceReport = true
+                )
+                file.delete()
+                return
+            }
         }
         // Only kiosk self-update is handled; gateway is now integrated
         val targetPkg = packageName
