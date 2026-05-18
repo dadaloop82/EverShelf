@@ -13,7 +13,7 @@
  *   LOG_ROTATE_HOURS = 24      (new file every N hours; 1–168; default 24)
  *   LOG_MAX_FILES    = 14      (max rotated files to keep; default 14)
  *
- * Log files: data/logs/evershelf_YYYY-MM-DD_HH.log
+ * Log files: logs/evershelf_YYYY-MM-DD_HH.log
  * Each line:  [2026-05-18 14:23:11] [INFO ] [rid=a1b2c3d4] [action] Message {ctx}
  */
 class EverLog {
@@ -54,7 +54,7 @@ class EverLog {
         self::$requestId   = substr(bin2hex(random_bytes(4)), 0, 8);
 
         // Ensure log directory exists
-        $base         = dirname(__DIR__) . '/data/logs';
+        $base         = dirname(__DIR__) . '/logs';
         self::$logDir = $base;
         if (!is_dir($base)) {
             @mkdir($base, 0755, true);
