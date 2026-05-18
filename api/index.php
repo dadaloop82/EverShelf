@@ -114,6 +114,7 @@ if (($_GET['action'] ?? '') === 'get_logs') {
     $token   = loadEnv()['SETTINGS_TOKEN'] ?? '';
     $reqTok  = $_GET['token'] ?? $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
     if (!empty($token) && $reqTok !== $token) {
+        EverLog::warn('get_logs: unauthorized (403)');
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
         exit;
@@ -472,6 +473,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeA
     $csrfHeader  = $_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? '';
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     if ($csrfHeader !== '1' && stripos($contentType, 'application/json') === false) {
+        EverLog::warn('csrf_rejected (403)');
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'csrf_rejected']);
         exit;
@@ -504,6 +506,7 @@ try {
             'dismiss_anomaly', 'bring_add', 'bring_remove', 'bring_sync',
         ];
         if (in_array($action, $demoBlocked, true)) {
+            EverLog::warn('demo_mode blocked (403)');
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'demo_mode']);
             exit;
@@ -762,6 +765,7 @@ endif; // end !CRON_MODE
 
 // ===== EXPORT INVENTORY =====
 function exportInventory(PDO $db): void {
+    EverLog::info('exportInventory');
     $format = strtolower($_GET['format'] ?? 'csv');
 
     $stmt = $db->query("
@@ -863,6 +867,7 @@ HTML;
 
 // ===== TTS PROXY =====
 function ttsProxy() {
+    EverLog::info('ttsProxy');
     $body = json_decode(file_get_contents('php://input'), true);
     $url     = isset($body['url'])     ? trim($body['url'])     : '';
     $method  = isset($body['method'])  ? strtoupper(trim($body['method'])) : 'POST';
@@ -874,6 +879,7 @@ function ttsProxy() {
     }
 
     if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
+        EverLog::warn('ttsProxy: invalid URL (400)');
         http_response_code(400);
         echo json_encode(['error' => 'URL non valido']);
         return;
@@ -901,6 +907,7 @@ function ttsProxy() {
     curl_close($ch);
 
     if ($curlErr) {
+        EverLog::error('ttsProxy: curl error (502)');
         http_response_code(502);
         echo json_encode(['error' => 'cURL error: ' . $curlErr]);
         return;
@@ -914,6 +921,7 @@ function ttsProxy() {
 
 // ===== FOOD FACTS (cached daily) =====
 function getFoodFacts(): void {
+    EverLog::info('getFoodFacts');
     header('Content-Type: application/json; charset=utf-8');
     $cacheFile = __DIR__ . '/../data/food_facts_cache.json';
     $maxAgeSeconds = 86400; // 24 hours
@@ -1048,6 +1056,7 @@ function getExpiryHistory($db): void {
 }
 
 function clientLog(): void {
+    EverLog::debug('clientLog');
     $input = json_decode(file_get_contents('php://input'), true);
     $logFile = __DIR__ . '/../data/client_debug.log';
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
@@ -1313,6 +1322,7 @@ function getProduct(PDO $db): void {
 }
 
 function deleteProduct(PDO $db): void {
+    EverLog::info('deleteProduct');
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? 0;
     $stmt = $db->prepare("DELETE FROM products WHERE id = ?");
@@ -1337,6 +1347,7 @@ function searchProducts(PDO $db): void {
 // ===== INVENTORY FUNCTIONS =====
 
 function listInventory(PDO $db): void {
+    EverLog::debug('listInventory');
     $location = $_GET['location'] ?? '';
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
@@ -1359,6 +1370,7 @@ function listInventory(PDO $db): void {
 }
 
 function addToInventory(PDO $db): void {
+    EverLog::info('addToInventory');
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
@@ -1367,6 +1379,7 @@ function addToInventory(PDO $db): void {
     $unit = $input['unit'] ?? null;
     
     if (!$productId) {
+        EverLog::warn('addToInventory: product_id missing (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
         return;
@@ -1374,6 +1387,7 @@ function addToInventory(PDO $db): void {
 
     // Validate quantity bounds
     if ($quantity <= 0 || $quantity > 100000) {
+        EverLog::warn('addToInventory: invalid quantity (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid quantity']);
         return;
@@ -1382,6 +1396,7 @@ function addToInventory(PDO $db): void {
     // Validate location
     $validLocations = ['dispensa', 'frigo', 'freezer', 'altro'];
     if (!in_array($location, $validLocations)) {
+        EverLog::warn('addToInventory: invalid location (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid location']);
         return;
@@ -1538,6 +1553,7 @@ function useFromInventory(PDO $db): void {
     $notes = $input['notes'] ?? '';
     
     if (!$productId) {
+        EverLog::warn('useFromInventory: product_id missing (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
         return;
@@ -1599,6 +1615,7 @@ function useFromInventory(PDO $db): void {
     $existing = $stmt->fetch();
     
     if (!$existing) {
+        EverLog::warn('useFromInventory: product not found in inventory (404)');
         http_response_code(404);
         echo json_encode(['error' => 'Product not found in inventory at this location']);
         return;
@@ -1961,6 +1978,7 @@ function deleteInventory(PDO $db): void {
  * user; those rows are silently deleted here (no banner needed).
  */
 function getFinishedItems(PDO $db): void {
+    EverLog::debug('getFinishedItems');
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
                MIN(i.location) AS location,
@@ -2027,6 +2045,7 @@ function confirmFinished(PDO $db): void {
 }
 
 function inventorySummary(PDO $db): void {
+    EverLog::debug('inventorySummary');
     $stmt = $db->query("
         SELECT i.location, COUNT(DISTINCT i.product_id) as product_count, 
                SUM(i.quantity) as total_items
@@ -2039,6 +2058,7 @@ function inventorySummary(PDO $db): void {
 // ===== TRANSACTION FUNCTIONS =====
 
 function listTransactions(PDO $db): void {
+    EverLog::debug('listTransactions');
     $limit = (int)($_GET['limit'] ?? 50);
     $offset = (int)($_GET['offset'] ?? 0);
     $productId = $_GET['product_id'] ?? '';
@@ -2084,6 +2104,7 @@ function undoTransaction(PDO $db): void {
     $stmt->execute([$txId]);
     $tx = $stmt->fetch();
     if (!$tx) {
+        EverLog::warn('undoTransaction: transaction not found (404)');
         http_response_code(404);
         echo json_encode(['error' => 'Transaction not found']);
         return;
@@ -2143,6 +2164,7 @@ function undoTransaction(PDO $db): void {
         echo json_encode(['success' => true, 'name' => $tx['name']]);
     } catch (Exception $e) {
         $db->rollBack();
+        EverLog::error('undoTransaction: DB error (500)');
         http_response_code(500);
         echo json_encode(['error' => 'DB error: ' . $e->getMessage()]);
         _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
@@ -2450,6 +2472,7 @@ function getStats(PDO $db): void {
 
 // ===== RECENT & POPULAR PRODUCTS =====
 function recentPopularProducts(PDO $db): void {
+    EverLog::debug('recentPopularProducts');
     // Last 4 distinct products used (type='out'), most recent first
     $recentStmt = $db->query("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
@@ -2652,6 +2675,7 @@ function getConsumptionPredictions(PDO $db): void {
 // ===== SETTINGS =====
 
 function getServerSettings(): void {
+    EverLog::debug('getServerSettings');
     $geminiKey = env('GEMINI_API_KEY');
     $bringEmail = env('BRING_EMAIL');
     
@@ -2953,6 +2977,7 @@ function prewarmShelfLifeCache(PDO $db, int $limit = 5): array {
  * Cache has no expiry — shelf-life science doesn't change; the file can be manually deleted to refresh.
  */
 function getOpenedShelfLifeDays(string $name, string $category, string $location, bool $vacuumSealed = false, bool $allowAI = true): int {
+    EverLog::debug('getOpenedShelfLifeDays');
     $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
     $cacheKey  = md5(mb_strtolower($name) . '|' . mb_strtolower($location) . '|v2');
 
@@ -3059,6 +3084,7 @@ function getOpenedShelfLifeAction(): void {
  * Returns null if tesseract binary is not available or GD is not compiled in.
  */
 function tesseractReadExpiry(string $imageBase64): ?array {
+    EverLog::info('tesseractReadExpiry');
     // Require both the binary and the GD extension
     if (!function_exists('imagecreatefromstring')) return null;
     $tesseract = trim(shell_exec('which tesseract 2>/dev/null') ?? '');
@@ -4239,6 +4265,7 @@ PROMPT;
 
 // ===== RECIPE FROM INGREDIENT =====
 function recipeFromIngredient(PDO $db): void {
+    EverLog::info('recipeFromIngredient');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -4500,6 +4527,7 @@ function _enrichChatIngredients(array &$ingredients, array $items): void {
 
 // ===== RECIPE GENERATION — STREAMING AGENT =====
 function generateRecipeStream(PDO $db): void {
+    EverLog::info('generateRecipeStream');
     // Override content-type for SSE before any output is sent
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -5445,6 +5473,7 @@ function italianToBring(string $italianName): string {
  * Returns null on failure so the caller can fall back gracefully.
  */
 function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
+    EverLog::debug('_geminiClassifyProduct');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) return null;
 
@@ -7287,6 +7316,7 @@ function chatClear(PDO $db): void {
  * and scale inventory quantities accordingly.
  */
 function migrateUnitsToBase(PDO $db): void {
+    EverLog::info('migrateUnitsToBase');
     $changes = 0;
 
     // Get products with kg or l units
@@ -7413,6 +7443,7 @@ function reportError(): void {
  *   version     string? App version
  */
 function reportBugManual(): void {
+    EverLog::info('reportBugManual');
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
 
     $allowedTypes = ['bug', 'feature', 'question'];
@@ -7598,6 +7629,7 @@ function _createOrCommentGithubIssue(
     string $version, array $context
 ): void {
     $fp = _errorFingerprint($source, $type, $message);
+    EverLog::debug('_createOrCommentGithubIssue', ['fp' => $fp, 'type' => $type]);
 
     // ── 1. Search for an existing open issue with this fingerprint ─────────
     $searchQuery = urlencode("repo:$repo is:issue is:open label:auto-report \"fp:$fp\" in:body");
@@ -7675,6 +7707,7 @@ function _createOrCommentGithubIssue(
  * Returns ['http_code' => int, 'body' => array].
  */
 function _githubRequest(string $token, string $method, string $url, array $payload = []): array {
+    EverLog::debug('_githubRequest');
     $ch = curl_init($url);
     $headers = [
         'Authorization: token ' . $token,
@@ -7704,6 +7737,7 @@ function _githubRequest(string $token, string $method, string $url, array $paylo
  * Writes to local log + creates a GitHub issue.
  */
 function _phpErrorReport(string $message, string $file, int $line, string $trace, string $type): void {
+    EverLog::error('_phpErrorReport');
     // Prevent infinite loops if this function itself throws
     static $running = false;
     if ($running) return;
@@ -8051,6 +8085,7 @@ function _priceKey(string $name, string $country): string {
  * { price_per_unit, unit_label, currency, source_note } or null on failure.
  */
 function _fetchPriceFromAI(string $name, string $country, string $currency, string $lang): ?array {
+    EverLog::info('_fetchPriceFromAI');
     $result = _fetchPricesBatchFromAI([$name], $country, $currency, $lang);
     return $result[$name] ?? null;
 }
