@@ -439,6 +439,54 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed g
 
 ---
 
+## 🤝 Contributing
+
+EverShelf is a community project and contributions of any size are welcome!
+
+### Easiest way to start — translate EverShelf into your language
+
+Translations are just JSON files. No coding, no setup — fork → edit → PR.
+
+```
+translations/
+├── it.json   ✅ Italian (base)
+├── en.json   ✅ English
+├── de.json   ✅ German
+├── fr.json   ✅ French
+├── es.json   ✅ Spanish
+├── pt.json   ❌ Portuguese — wanted!
+├── nl.json   ❌ Dutch — wanted!
+└── ...       ❌ Your language here!
+```
+
+👉 See [issue #93](https://github.com/dadaloop82/EverShelf/issues/93) to claim a language.
+
+### Other ways to contribute
+
+| What | Skill needed |
+|---|---|
+| 🐛 Report a bug | None |
+| 📖 Improve the wiki | Markdown |
+| 🌍 Add a translation | JSON editing |
+| 🎨 Fix a CSS/UI issue | CSS / HTML |
+| ⚙️ Implement a feature | PHP / JS |
+| ⭐ Star the repo | Clicking |
+
+👉 Browse [`help wanted`](https://github.com/dadaloop82/EverShelf/labels/help%20wanted) issues for good starting points.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide (branch naming, code style, how to run locally).
+
+---
+
+## 💬 Community
+
+Join the conversation in [GitHub Discussions](https://github.com/dadaloop82/EverShelf/discussions):
+- **Vote on upcoming features** — tell us what to build next
+- **Show your setup** — share your kitchen kiosk
+- **Ask questions** — get help from the community
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
