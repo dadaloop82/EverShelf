@@ -2225,79 +2225,169 @@ async function _renderInfoTab() {
     try {
         const d = await api('gemini_usage');
         const s = getSettings();
-        const sym = s.price_currency === 'USD' ? '$' : (s.price_currency === 'GBP' ? '£' : '€');
+
+        // ── Locale & helpers ─────────────────────────────────────────────────
+        const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES'};
+        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'it-IT';
+        const [yr, mo] = (d.month || '').split('-');
+        const monthLabel = new Intl.DateTimeFormat(locale, {month:'long', year:'numeric'})
+            .format(new Date(parseInt(yr), parseInt(mo)-1, 1));
+
+        // Cost → display currency
+        const toCurr = (usd) => {
+            if (!usd) return '—';
+            const c = s.price_currency;
+            const v = c === 'EUR' ? usd * 0.92 : c === 'GBP' ? usd * 0.79 : usd;
+            const sym = c === 'EUR' ? '€' : c === 'GBP' ? '£' : '$';
+            return sym + v.toFixed(4);
+        };
+        const fmtTok = n => n >= 1_000_000 ? (n/1_000_000).toFixed(2)+'M'
+                          : n >= 1_000 ? Math.round(n/1_000)+'K' : String(n||0);
+        const fmtBytes = b => b > 1048576 ? (b/1048576).toFixed(1)+' MB'
+                            : b > 1024 ? Math.round(b/1024)+' KB' : (b||0)+' B';
+        const fmtDate  = ts => ts ? new Intl.DateTimeFormat(locale, {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}).format(new Date(ts*1000)) : '—';
+        const pill = (val, label, color='') =>
+            `<div style="background:var(--bg-secondary);border:1px solid var(--border-color,#e2e8f0);border-radius:10px;padding:8px 14px;min-width:70px;text-align:center${color ? ';border-color:'+color : ''}">
+                <div style="font-size:1.1rem;font-weight:700;color:${color||'var(--text-primary,#1e293b)'}">${val}</div>
+                <div style="font-size:0.7rem;color:var(--text-secondary,#64748b);margin-top:2px">${label}</div>
+            </div>`;
 
         // ── AI Usage card ────────────────────────────────────────────────────
         if (aiEl) {
-            const totalTok  = (d.input_tokens || 0) + (d.output_tokens || 0);
-            const costUsd   = d.cost_usd || 0;
+            const tr   = d.tracked || {};
+            const retro = d.retro;
+            const yr_t = d.year_tracked || {};
 
-            // Convert cost to display currency (rough fixed rates)
-            let costDisplay = '$' + costUsd.toFixed(4);
-            if (s.price_currency === 'EUR') costDisplay = '€' + (costUsd * 0.92).toFixed(4);
-            if (s.price_currency === 'GBP') costDisplay = '£' + (costUsd * 0.79).toFixed(4);
+            // Update card subtitle dynamically
+            const hintEl = aiEl.closest('.settings-card')?.querySelector('.info-ai-subtitle');
+            if (hintEl) hintEl.textContent = t('settings.info.ai_overview').replace('{month}', monthLabel);
 
-            // By-action breakdown
-            const actions = d.by_action || {};
-            const actionRows = Object.entries(actions)
-                .sort((a, b) => b[1] - a[1])
-                .map(([k, v]) => `<tr><td style="padding:2px 8px 2px 0;color:var(--text-secondary);font-size:0.82rem">${k}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem">${v} calls</td></tr>`)
-                .join('');
+            // Tracked section
+            let trackedHtml = '';
+            if (tr.calls > 0) {
+                const actionRows = Object.entries(tr.by_action || {})
+                    .sort((a,b) => b[1]-a[1]).slice(0, 8)
+                    .map(([k,v]) => `<tr><td style="padding:3px 12px 3px 0;color:var(--text-secondary);font-size:0.82rem">${k}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem"><strong>${v}</strong> ${t('settings.info.calls_unit')}</td></tr>`).join('');
+                const modelRows = Object.entries(tr.by_model || {})
+                    .map(([m,mv]) => `<tr><td style="padding:3px 12px 3px 0;color:var(--text-secondary);font-size:0.82rem">${m}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem"><strong>${fmtTok((mv.in||0)+(mv.out||0))}</strong></td></tr>`).join('');
+                trackedHtml = `
+                    <div style="margin-bottom:12px">
+                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">${t('settings.info.tracked_section')}</div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            ${pill(tr.calls, t('settings.info.ai_calls'))}
+                            ${pill(fmtTok((tr.input_tokens||0)+(tr.output_tokens||0)), t('settings.info.total_tokens'))}
+                            ${pill(toCurr(tr.cost_usd), t('settings.info.est_cost'), '#15803d')}
+                        </div>
+                        ${actionRows ? `<details style="margin-top:8px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_action')}</summary><table style="margin-top:6px;border-collapse:collapse">${actionRows}</table></details>` : ''}
+                        ${modelRows  ? `<details style="margin-top:4px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_model')}</summary><table style="margin-top:6px;border-collapse:collapse">${modelRows}</table></details>` : ''}
+                    </div>`;
+            }
 
-            // By-model breakdown
-            const models = d.by_model || {};
-            const modelRows = Object.entries(models)
-                .map(([m, mv]) => `<tr><td style="padding:2px 8px 2px 0;color:var(--text-secondary);font-size:0.82rem">${m}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem">${((mv.in||0)+(mv.out||0)).toLocaleString()} tok</td></tr>`)
-                .join('');
+            // Retroactive estimate section
+            let retroHtml = '';
+            if (retro && retro.calls_month > 0) {
+                retroHtml = `
+                    <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;margin-bottom:12px;border-left:3px solid #f59e0b">
+                        <div style="font-size:0.78rem;font-weight:600;color:#92400e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">
+                            ${t('settings.info.retro_section').replace('{month}', monthLabel)}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                            ${pill('~'+retro.calls_month, t('settings.info.ai_calls'))}
+                            ${pill('~'+fmtTok((retro.tok_in_month||0)+(retro.tok_out_month||0)), t('settings.info.total_tokens'))}
+                            ${pill('~'+toCurr(retro.cost_month), t('settings.info.est_cost'), '#92400e')}
+                        </div>
+                        <p style="font-size:0.75rem;color:#92400e;margin:0">${t('settings.info.retro_note')}</p>
+                    </div>`;
+            }
 
-            aiEl.innerHTML = `
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-                    <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center">
-                        <div style="font-size:1.4rem;font-weight:700;color:var(--accent)">${totalTok.toLocaleString()}</div>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">${t('settings.info.total_tokens')}</div>
+            // Yearly section
+            const yearTotCalls  = (yr_t.calls||0)  + (retro?.calls_year||0);
+            const yearTotTokIn  = (yr_t.input_tokens||0)  + (retro?.tok_in_year||0);
+            const yearTotTokOut = (yr_t.output_tokens||0) + (retro?.tok_out_year||0);
+            const yearTotCost   = (yr_t.cost_usd||0) + (retro?.cost_year||0);
+            const yearHtml = `
+                <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;margin-bottom:12px">
+                    <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">${t('settings.info.year_section').replace('{year}', d.year)}</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        ${pill('~'+yearTotCalls, t('settings.info.ai_calls'))}
+                        ${pill('~'+fmtTok(yearTotTokIn+yearTotTokOut), t('settings.info.total_tokens'))}
+                        ${pill('~'+toCurr(yearTotCost), t('settings.info.est_cost'), '#15803d')}
                     </div>
-                    <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center">
-                        <div style="font-size:1.4rem;font-weight:700;color:#15803d">${costDisplay}</div>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px">${t('settings.info.est_cost')} (${d.month})</div>
-                    </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;font-size:0.82rem;color:var(--text-secondary)">
-                    <span>↑ ${t('settings.info.input_tok')}: <strong>${(d.input_tokens||0).toLocaleString()}</strong></span>
-                    <span>↓ ${t('settings.info.output_tok')}: <strong>${(d.output_tokens||0).toLocaleString()}</strong></span>
-                    <span>${t('settings.info.ai_calls')}: <strong>${d.calls||0}</strong></span>
-                </div>
-                ${actionRows ? `<details style="margin-top:6px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_action')}</summary><table style="margin-top:6px;border-collapse:collapse">${actionRows}</table></details>` : ''}
-                ${modelRows  ? `<details style="margin-top:4px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_model')}</summary><table style="margin-top:6px;border-collapse:collapse">${modelRows}</table></details>` : ''}
-                <p class="settings-hint" style="margin-top:8px">${t('settings.info.pricing_note')}</p>
-            `;
+                </div>`;
+
+            aiEl.innerHTML = trackedHtml + retroHtml + yearHtml
+                + `<p class="settings-hint" style="margin-top:4px">${t('settings.info.pricing_note')}</p>`;
+        }
+
+        // ── Inventory card ───────────────────────────────────────────────────
+        const invEl = document.getElementById('info-inv-content');
+        if (invEl && d.db) {
+            const db = d.db;
+            const expColor   = db.expired > 0 ? '#dc2626' : '';
+            const soonColor  = db.expiring_soon > 0 ? '#d97706' : '';
+            invEl.innerHTML = `
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${pill(db.inventory_active, t('settings.info.inv_active'))}
+                    ${pill(db.products_total,   t('settings.info.inv_products'))}
+                    ${pill(db.expiring_soon,     t('settings.info.inv_expiring'), soonColor)}
+                    ${pill(db.expired,           t('settings.info.inv_expired'),  expColor)}
+                    ${pill(db.finished,          t('settings.info.inv_finished'))}
+                </div>`;
+        }
+
+        // ── Activity card ────────────────────────────────────────────────────
+        const actEl = document.getElementById('info-act-content');
+        if (actEl && d.db) {
+            const db = d.db;
+            actEl.innerHTML = `
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${pill(db.tx_month,        t('settings.info.act_tx_month'))}
+                    ${pill(db.restock_month,   t('settings.info.act_restock'))}
+                    ${pill(db.use_month,       t('settings.info.act_use'))}
+                    ${pill(db.products_month,  t('settings.info.act_new_products'))}
+                    ${pill(db.tx_year,         t('settings.info.act_tx_year'))}
+                </div>`;
         }
 
         // ── System card ──────────────────────────────────────────────────────
         if (sysEl) {
-            const logMb  = ((d.log_bytes || 0) / 1048576).toFixed(2);
-            const dbMb   = ((d.db_bytes  || 0) / 1048576).toFixed(2);
+            const db = d.db || {};
+            const nowTs = Math.floor(Date.now()/1000);
+            const bringDays = d.bring_expires_ts ? Math.round((d.bring_expires_ts - nowTs)/86400) : null;
+            const bringColor = bringDays !== null && bringDays <= 3 ? '#dc2626' : '';
+            const bringLabel = bringDays === null ? '—'
+                : bringDays <= 0 ? t('settings.info.bring_expired')
+                : t('settings.info.bring_days').replace('{n}', bringDays);
+
+            const lvlColors = {DEBUG:'#1e40af//#dbeafe', INFO:'#15803d//#dcfce7', WARN:'#854d0e//#fef9c3', ERROR:'#991b1b//#fee2e2'};
+            const [lvlFg, lvlBg] = (lvlColors[d.log_level] || '#64748b//#f1f5f9').split('//');
+
             sysEl.innerHTML = `
-                <table style="border-collapse:collapse;width:100%;font-size:0.88rem">
-                    <tr style="border-bottom:1px solid var(--border)">
-                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.db_size')}</td>
-                        <td style="padding:7px 0;font-weight:600;text-align:right">${dbMb} MB</td>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    ${pill(fmtBytes(db.bytes),  t('settings.info.db_size'))}
+                    ${pill(fmtBytes(d.log_bytes), t('settings.info.log_size'))}
+                    ${pill(`<span style="background:${lvlBg};color:${lvlFg};padding:2px 6px;border-radius:5px;font-size:0.78rem">${d.log_level||'INFO'}</span>`, t('settings.info.log_level'))}
+                </div>
+                <table style="border-collapse:collapse;width:100%;font-size:0.85rem">
+                    <tr style="border-top:1px solid var(--border-color,#e2e8f0)">
+                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.price_cache')}</td>
+                        <td style="padding:7px 0;font-weight:600;text-align:right">${(d.caches?.price||0)} ${t('settings.info.cache_entries')}</td>
                     </tr>
-                    <tr style="border-bottom:1px solid var(--border)">
-                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.log_size')}</td>
-                        <td style="padding:7px 0;font-weight:600;text-align:right">${logMb} MB (${d.log_files||0} files)</td>
+                    <tr style="border-top:1px solid var(--border-color,#e2e8f0)">
+                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.last_backup')}</td>
+                        <td style="padding:7px 0;font-weight:600;text-align:right">${d.last_backup_ts ? fmtDate(d.last_backup_ts)+' · '+fmtBytes(d.last_backup_bytes) : '—'}</td>
                     </tr>
-                    <tr>
-                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.log_level')}</td>
-                        <td style="padding:7px 0;font-weight:600;text-align:right">
-                            <span style="background:${d.log_level==='DEBUG'?'#dbeafe':d.log_level==='INFO'?'#dcfce7':d.log_level==='WARN'?'#fef9c3':'#fee2e2'};color:${d.log_level==='DEBUG'?'#1e40af':d.log_level==='INFO'?'#15803d':d.log_level==='WARN'?'#854d0e':'#991b1b'};padding:2px 8px;border-radius:6px;font-size:0.8rem">${d.log_level||'INFO'}</span>
-                        </td>
+                    <tr style="border-top:1px solid var(--border-color,#e2e8f0)">
+                        <td style="padding:7px 0;color:var(--text-secondary)">Bring!</td>
+                        <td style="padding:7px 0;font-weight:600;text-align:right;color:${bringColor||'inherit'}">${bringLabel}</td>
                     </tr>
-                </table>
-            `;
+                </table>`;
         }
     } catch(e) {
-        if (aiEl)  aiEl.innerHTML  = `<p class="settings-hint">${t('error.generic')}</p>`;
-        if (sysEl) sysEl.innerHTML = `<p class="settings-hint">${t('error.generic')}</p>`;
+        ['info-ai-content','info-inv-content','info-act-content','info-system-content'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = `<p class="settings-hint">${t('error.generic')}</p>`;
+        });
     }
 }
 

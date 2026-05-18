@@ -18,6 +18,9 @@ define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
 define('GH_REPO',    'dadaloop82/EverShelf');
 define('PRICE_CACHE_PATH', __DIR__ . '/../data/shopping_price_cache.json');
 define('CATEGORY_CACHE_PATH', __DIR__ . '/../data/category_ai_cache.json');
+define('SHELF_CACHE_PATH',    __DIR__ . '/../data/opened_shelf_cache.json');
+define('FOODFACTS_CACHE_PATH',__DIR__ . '/../data/food_facts_cache.json');
+define('BRING_TOKEN_PATH',    __DIR__ . '/../data/bring_token.json');
 define('AI_USAGE_PATH', __DIR__ . '/../data/ai_usage.json');
 // Gemini pricing (USD per 1M tokens) — overridable via .env
 // gemini-2.5-flash: $0.15 input / $0.60 output
@@ -146,49 +149,189 @@ if (($_GET['action'] ?? '') === 'get_logs') {
 // ── Gemini token usage + cost estimate ────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'gemini_usage') {
     header('Content-Type: application/json; charset=utf-8');
-    $data  = file_exists(AI_USAGE_PATH) ? (json_decode(file_get_contents(AI_USAGE_PATH), true) ?: []) : [];
-    $month = date('Y-m');
-    $cur   = $data[$month] ?? ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_action' => [], 'by_model' => []];
 
-    // Per-model cost calculation
-    $totalCost = 0.0;
-    foreach (($cur['by_model'] ?? []) as $mdl => $mu) {
-        $inRate  = str_contains($mdl, '2.5') ? (float)(env('GEMINI_COST_INPUT_PER_1M')  ?: GEMINI_COST_25F_IN)  : (float)(env('GEMINI_COST_INPUT_PER_1M')  ?: GEMINI_COST_20F_IN);
-        $outRate = str_contains($mdl, '2.5') ? (float)(env('GEMINI_COST_OUTPUT_PER_1M') ?: GEMINI_COST_25F_OUT) : (float)(env('GEMINI_COST_OUTPUT_PER_1M') ?: GEMINI_COST_20F_OUT);
-        $totalCost += ($mu['in'] / 1_000_000) * $inRate + ($mu['out'] / 1_000_000) * $outRate;
-    }
-    // Fallback if by_model not populated (old data)
-    if ($totalCost === 0.0 && ($cur['input_tokens'] > 0 || $cur['output_tokens'] > 0)) {
-        $inRate  = (float)(env('GEMINI_COST_INPUT_PER_1M')  ?: GEMINI_COST_25F_IN);
-        $outRate = (float)(env('GEMINI_COST_OUTPUT_PER_1M') ?: GEMINI_COST_25F_OUT);
-        $totalCost = ($cur['input_tokens'] / 1_000_000) * $inRate + ($cur['output_tokens'] / 1_000_000) * $outRate;
+    // ── Cost helper ───────────────────────────────────────────────────────────
+    $calcCost = function(array $bucket): float {
+        $cost = 0.0;
+        foreach (($bucket['by_model'] ?? []) as $mdl => $mu) {
+            $inRate  = str_contains($mdl, '2.5') ? GEMINI_COST_25F_IN  : GEMINI_COST_20F_IN;
+            $outRate = str_contains($mdl, '2.5') ? GEMINI_COST_25F_OUT : GEMINI_COST_20F_OUT;
+            $cost += ($mu['in'] / 1_000_000) * $inRate + ($mu['out'] / 1_000_000) * $outRate;
+        }
+        if ($cost === 0.0 && ($bucket['input_tokens'] ?? 0) > 0) {
+            $cost = ($bucket['input_tokens'] / 1_000_000) * GEMINI_COST_25F_IN
+                  + ($bucket['output_tokens'] ?? 0) / 1_000_000 * GEMINI_COST_25F_OUT;
+        }
+        return round($cost, 6);
+    };
+
+    // ── Tracked usage (ai_usage.json) ────────────────────────────────────────
+    $aiData  = file_exists(AI_USAGE_PATH) ? (json_decode(file_get_contents(AI_USAGE_PATH), true) ?: []) : [];
+    $month   = date('Y-m');
+    $year    = date('Y');
+    $cur     = $aiData[$month] ?? ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_action' => [], 'by_model' => []];
+
+    // Yearly totals (sum all months of current year)
+    $yearBucket = ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_model' => []];
+    foreach ($aiData as $k => $v) {
+        if (!str_starts_with($k, $year)) continue;
+        $yearBucket['input_tokens']  += (int)($v['input_tokens'] ?? 0);
+        $yearBucket['output_tokens'] += (int)($v['output_tokens'] ?? 0);
+        $yearBucket['calls']         += (int)($v['calls'] ?? 0);
+        foreach (($v['by_model'] ?? []) as $mdl => $mu) {
+            if (!isset($yearBucket['by_model'][$mdl])) {
+                $yearBucket['by_model'][$mdl] = ['in' => 0, 'out' => 0, 'calls' => 0];
+            }
+            $yearBucket['by_model'][$mdl]['in']    += $mu['in']    ?? 0;
+            $yearBucket['by_model'][$mdl]['out']   += $mu['out']   ?? 0;
+            $yearBucket['by_model'][$mdl]['calls'] += $mu['calls'] ?? 0;
+        }
     }
 
-    // Log sizes — EverLog::listFiles() returns [{file, size_kb, mtime}, ...]
+    // ── Retroactive estimate (from cache files — before tracking started) ────
+    // Token averages per action type (empirical estimates):
+    //   price lookup : ~350 in + ~125 out
+    //   category     : ~200 in + ~30 out
+    //   shelf life   : ~500 in + ~80 out
+    $monthStart = mktime(0, 0, 0, (int)date('m'), 1, (int)date('Y'));
+    $yearStart  = mktime(0, 0, 0, 1, 1, (int)date('Y'));
+
+    $retroMonthCalls = 0; $retroYearCalls = 0;
+    $retroMonthIn    = 0; $retroYearIn    = 0;
+    $retroMonthOut   = 0; $retroYearOut   = 0;
+
+    // Price cache
+    $priceCache = file_exists(PRICE_CACHE_PATH)
+        ? (json_decode(file_get_contents(PRICE_CACHE_PATH), true) ?: []) : [];
+    foreach ($priceCache as $v) {
+        if (!is_array($v) || !isset($v['cached_at'])) continue;
+        if ($v['cached_at'] >= $monthStart) { $retroMonthCalls++; $retroMonthIn += 350; $retroMonthOut += 125; }
+        if ($v['cached_at'] >= $yearStart)  { $retroYearCalls++;  $retroYearIn  += 350; $retroYearOut  += 125; }
+    }
+    // Shelf-life AI cache (source='ai' only)
+    $shelfCache = file_exists(SHELF_CACHE_PATH)
+        ? (json_decode(file_get_contents(SHELF_CACHE_PATH), true) ?: []) : [];
+    foreach ($shelfCache as $v) {
+        if (!is_array($v) || ($v['source'] ?? '') !== 'ai') continue;
+        if (($v['ts'] ?? 0) >= $monthStart) { $retroMonthCalls++; $retroMonthIn += 500; $retroMonthOut += 80; }
+        if (($v['ts'] ?? 0) >= $yearStart)  { $retroYearCalls++;  $retroYearIn  += 500; $retroYearOut  += 80; }
+    }
+    // Category AI cache (no timestamps — count as year only)
+    $catCache = file_exists(CATEGORY_CACHE_PATH)
+        ? (json_decode(file_get_contents(CATEGORY_CACHE_PATH), true) ?: []) : [];
+    $catTotal = count($catCache);
+    $retroYearCalls += $catTotal; $retroYearIn += $catTotal * 200; $retroYearOut += $catTotal * 30;
+
+    $retroMonthCostUsd = round(($retroMonthIn / 1_000_000) * GEMINI_COST_25F_IN
+                              + ($retroMonthOut / 1_000_000) * GEMINI_COST_25F_OUT, 6);
+    $retroYearCostUsd  = round(($retroYearIn  / 1_000_000) * GEMINI_COST_25F_IN
+                              + ($retroYearOut  / 1_000_000) * GEMINI_COST_25F_OUT, 6);
+
+    // Only expose retro if there is actual tracked data gap (calls tracked < retro estimate)
+    $hasRetro = ($retroMonthCalls > $cur['calls']);
+
+    // ── DB stats ──────────────────────────────────────────────────────────────
+    $dbStats = [];
+    try {
+        $db = getDB();
+        $row = $db->query("SELECT
+            (SELECT COUNT(*) FROM products) as products_total,
+            (SELECT COUNT(*) FROM inventory WHERE quantity > 0) as inventory_active,
+            (SELECT COUNT(*) FROM transactions WHERE undone=0 AND created_at >= date('now','start of month')) as tx_month,
+            (SELECT COUNT(*) FROM transactions WHERE undone=0 AND created_at >= date('now','start of year')) as tx_year,
+            (SELECT COUNT(*) FROM transactions WHERE type='in' AND undone=0 AND created_at >= date('now','start of month')) as restock_month,
+            (SELECT COUNT(*) FROM transactions WHERE type IN ('out','waste') AND undone=0 AND created_at >= date('now','start of month')) as use_month,
+            (SELECT COUNT(*) FROM products WHERE created_at >= date('now','start of month')) as products_month,
+            (SELECT COUNT(CASE WHEN expiry_date < date('now') AND quantity > 0 THEN 1 END) FROM inventory) as expired,
+            (SELECT COUNT(CASE WHEN expiry_date BETWEEN date('now') AND date('now','+7 days') AND quantity > 0 THEN 1 END) FROM inventory) as expiring_soon,
+            (SELECT COUNT(CASE WHEN quantity = 0 THEN 1 END) FROM inventory) as finished
+        ")->fetch(PDO::FETCH_ASSOC);
+        $dbStats = $row ?: [];
+    } catch (Throwable $e) { /* ignore */ }
+
+    // ── Log info ──────────────────────────────────────────────────────────────
     $logFilesInfo = EverLog::listFiles();
     $logBytes = 0;
     foreach ($logFilesInfo as $lf) {
         $logBytes += (int)(($lf['size_kb'] ?? 0) * 1024);
     }
 
+    // ── Backup info ───────────────────────────────────────────────────────────
+    $backupDir  = dirname(__DIR__) . '/data/backups';
+    $backupFiles = is_dir($backupDir) ? (glob($backupDir . '/*.db') ?: []) : [];
+    rsort($backupFiles);
+    $lastBackupTs    = $backupFiles ? (int)filemtime($backupFiles[0]) : 0;
+    $lastBackupBytes = $backupFiles ? (int)filesize($backupFiles[0]) : 0;
+
+    // ── Bring! token expiry ───────────────────────────────────────────────────
+    $bringToken = file_exists(BRING_TOKEN_PATH)
+        ? (json_decode(file_get_contents(BRING_TOKEN_PATH), true) ?: []) : [];    $bringExpiresTs = (int)($bringToken['expires'] ?? 0);
+
     echo json_encode([
-        'month'         => $month,
-        'input_tokens'  => (int)$cur['input_tokens'],
-        'output_tokens' => (int)$cur['output_tokens'],
-        'calls'         => (int)$cur['calls'],
-        'by_action'     => $cur['by_action'] ?? [],
-        'by_model'      => $cur['by_model']  ?? [],
-        'cost_usd'      => round($totalCost, 6),
-        'log_bytes'     => $logBytes,
-        'log_level'     => EverLog::levelName(),
-        'log_files'     => count($logFilesInfo),
-        'db_bytes'      => file_exists(DB_PATH) ? filesize(DB_PATH) : 0,
-        'history'       => array_map(fn($k, $v) => [
+        'month' => $month,
+        'year'  => $year,
+
+        // Tracked (ai_usage.json — since tracking start)
+        'tracked' => [
+            'calls'         => (int)$cur['calls'],
+            'input_tokens'  => (int)$cur['input_tokens'],
+            'output_tokens' => (int)$cur['output_tokens'],
+            'cost_usd'      => $calcCost($cur),
+            'by_action'     => $cur['by_action'] ?? [],
+            'by_model'      => $cur['by_model']  ?? [],
+        ],
+
+        // Yearly tracked totals
+        'year_tracked' => [
+            'calls'         => (int)$yearBucket['calls'],
+            'input_tokens'  => (int)$yearBucket['input_tokens'],
+            'output_tokens' => (int)$yearBucket['output_tokens'],
+            'cost_usd'      => $calcCost($yearBucket),
+        ],
+
+        // Retroactive estimate from cache files (before tracking started)
+        'retro' => $hasRetro ? [
+            'calls_month'  => $retroMonthCalls,
+            'calls_year'   => $retroYearCalls,
+            'tok_in_month' => $retroMonthIn,
+            'tok_out_month'=> $retroMonthOut,
+            'tok_in_year'  => $retroYearIn,
+            'tok_out_year' => $retroYearOut,
+            'cost_month'   => $retroMonthCostUsd,
+            'cost_year'    => $retroYearCostUsd,
+        ] : null,
+
+        // DB activity
+        'db' => array_merge(
+            array_map('intval', $dbStats),
+            ['bytes' => file_exists(DB_PATH) ? (int)filesize(DB_PATH) : 0]
+        ),
+
+        // Cache sizes
+        'caches' => [
+            'price'      => count($priceCache),
+            'shelf'      => count($shelfCache),
+            'category'   => $catTotal,
+            'foodfacts'  => count(file_exists(FOODFACTS_CACHE_PATH)
+                ? (json_decode(file_get_contents(FOODFACTS_CACHE_PATH), true) ?: []) : []),
+        ],
+
+        // System
+        'log_bytes'         => $logBytes,
+        'log_level'         => EverLog::levelName(),
+        'log_files'         => count($logFilesInfo),
+        'last_backup_ts'    => $lastBackupTs,
+        'last_backup_bytes' => $lastBackupBytes,
+        'bring_expires_ts'  => $bringExpiresTs,
+
+        // History (last 12 months)
+        'history' => array_map(fn($k, $v) => [
             'month'         => $k,
             'input_tokens'  => (int)($v['input_tokens'] ?? 0),
             'output_tokens' => (int)($v['output_tokens'] ?? 0),
             'calls'         => (int)($v['calls'] ?? 0),
-        ], array_keys($data), array_values($data)),
+            'cost_usd'      => $calcCost($v),
+        ], array_keys($aiData), array_values($aiData)),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
