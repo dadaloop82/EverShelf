@@ -79,6 +79,19 @@ try {
         echo '[' . date('Y-m-d H:i:s') . '] Shelf life pre-warm warning: ' . $pe->getMessage() . "\n";
     }
 
+    // ── DB cleanup (retention policy) ────────────────────────────────────
+    // Delete old recipes and transactions based on .env retention settings.
+    try {
+        ob_start();
+        dbCleanup($db);
+        ob_end_clean();
+        echo '[' . date('Y-m-d H:i:s') . '] DB cleanup done'
+            . ' (recipes >' . env('RECIPE_RETENTION_DAYS','7') . 'd'
+            . ', tx >' . env('TRANSACTION_RETENTION_DAYS','7') . 'd' . ")\n";
+    } catch (Throwable $ce) {
+        echo '[' . date('Y-m-d H:i:s') . '] DB cleanup warning: ' . $ce->getMessage() . "\n";
+    }
+
 } catch (Throwable $e) {
     $msg = $e->getMessage();
     echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $msg . "\n";

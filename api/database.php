@@ -40,8 +40,13 @@ function _ensureDataDir(): void {
 
 function getDB(): PDO {
     _ensureDataDir();
+    // logger.php is required by index.php before getDB() is called.
+    // In cron context it may not be loaded yet — guard with class_exists.
+    $useLogging = class_exists('LoggingPDO', false);
     $isNew = !file_exists(DB_PATH);
-    $db = new PDO('sqlite:' . DB_PATH);
+    $db = $useLogging
+        ? new LoggingPDO('sqlite:' . DB_PATH)
+        : new PDO('sqlite:' . DB_PATH);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec("PRAGMA journal_mode=WAL");

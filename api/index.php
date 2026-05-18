@@ -16,8 +16,19 @@
 define('_GH_TK_ENC', '23580718460c2c444031290243627e7971622b29030a3e4d50001e45261659420b6e110a423f30447133205b425a577971561f32762b0b034e0b3e56106d5945020406254a3a4647592a1a611c66687a0b672043700f34757900014004');
 define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
 define('GH_REPO',    'dadaloop82/EverShelf');
-define('PRICE_CACHE_PATH', __DIR__ . '/../data/shopping_price_cache.json');
-define('CATEGORY_CACHE_PATH', __DIR__ . '/../data/category_ai_cache.json');
+define('PRICE_CACHE_PATH',         __DIR__ . '/../data/shopping_price_cache.json');
+define('CATEGORY_CACHE_PATH',      __DIR__ . '/../data/category_ai_cache.json');
+define('SHELF_CACHE_PATH',         __DIR__ . '/../data/opened_shelf_cache.json');
+define('FOODFACTS_CACHE_PATH',     __DIR__ . '/../data/food_facts_cache.json');
+define('SHOPPING_NAME_CACHE_PATH', __DIR__ . '/../data/shopping_name_cache.json');
+define('BRING_TOKEN_PATH',         __DIR__ . '/../data/bring_token.json');
+define('AI_USAGE_PATH',            __DIR__ . '/../data/ai_usage.json');
+// Gemini pricing (USD per 1M tokens) — configurable in .env (GEMINI_COST_25F_IN etc.)
+// Defaults: gemini-2.5-flash $0.15/M in · $0.60/M out — gemini-2.0-flash $0.10/M in · $0.40/M out
+define('GEMINI_COST_25F_IN',  (float)(getenv('GEMINI_COST_25F_IN')  ?: 0.15));
+define('GEMINI_COST_25F_OUT', (float)(getenv('GEMINI_COST_25F_OUT') ?: 0.60));
+define('GEMINI_COST_20F_IN',  (float)(getenv('GEMINI_COST_20F_IN')  ?: 0.10));
+define('GEMINI_COST_20F_OUT', (float)(getenv('GEMINI_COST_20F_OUT') ?: 0.40));
 
 /** Decode the XOR-obfuscated GitHub token at runtime. */
 function _ghToken(): string {
@@ -34,6 +45,8 @@ function _ghToken(): string {
     return $token;
 }
 
+// logger.php must be loaded BEFORE database.php so LoggingPDO class exists when getDB() runs
+require_once __DIR__ . '/logger.php';
 // database.php must always be loaded (used both by HTTP router and cron)
 require_once __DIR__ . '/database.php';
 
@@ -105,6 +118,202 @@ if (($_GET['action'] ?? '') === 'ping') {
     echo json_encode(['ok' => true, 'ts' => time()]);
     exit;
 }
+
+// ── Log viewer — returns last N log lines (requires SETTINGS_TOKEN if set) ────
+if (($_GET['action'] ?? '') === 'get_logs') {
+    require_once __DIR__ . '/logger.php';
+    $token   = loadEnv()['SETTINGS_TOKEN'] ?? '';
+    $reqTok  = $_GET['token'] ?? $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
+    if (!empty($token) && $reqTok !== $token) {
+        EverLog::warn('get_logs: unauthorized (403)');
+        http_response_code(403);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    $lines   = min(2000, max(10, (int)($_GET['lines'] ?? 200)));
+    $filter  = strtoupper($_GET['level'] ?? '');
+    $raw     = EverLog::tail($lines);
+    if ($filter && in_array($filter, ['DEBUG','INFO','WARN','ERROR'], true)) {
+        $raw = array_values(array_filter($raw, fn($l) => str_contains($l, "[{$filter}")));
+    }
+    echo json_encode([
+        'lines'        => $raw,
+        'total'        => count($raw),
+        'current_file' => basename(EverLog::currentFile()),
+        'level'        => EverLog::levelName(),
+        'files'        => EverLog::listFiles(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ── Gemini token usage + cost estimate ────────────────────────────────────────
+if (($_GET['action'] ?? '') === 'gemini_usage') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    // ── Cost helper ───────────────────────────────────────────────────────────
+    $calcCost = function(int $tokIn, int $tokOut, string $modelHint = '2.5'): float {
+        $inRate  = str_contains($modelHint, '2.5') ? GEMINI_COST_25F_IN  : GEMINI_COST_20F_IN;
+        $outRate = str_contains($modelHint, '2.5') ? GEMINI_COST_25F_OUT : GEMINI_COST_20F_OUT;
+        return round(($tokIn / 1_000_000) * $inRate + ($tokOut / 1_000_000) * $outRate, 6);
+    };
+
+    // ── Tracked usage (ai_usage.json) ────────────────────────────────────────
+    $aiData = file_exists(AI_USAGE_PATH) ? (json_decode(file_get_contents(AI_USAGE_PATH), true) ?: []) : [];
+    $month  = date('Y-m');
+    $year   = date('Y');
+    $cur    = $aiData[$month] ?? ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_action' => [], 'by_model' => []];
+
+    // Yearly totals (sum all tracked months of current year)
+    $yearBucket = ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_model' => []];
+    foreach ($aiData as $k => $v) {
+        if (!str_starts_with($k, $year)) continue;
+        $yearBucket['input_tokens']  += (int)($v['input_tokens']  ?? 0);
+        $yearBucket['output_tokens'] += (int)($v['output_tokens'] ?? 0);
+        $yearBucket['calls']         += (int)($v['calls'] ?? 0);
+        foreach (($v['by_model'] ?? []) as $mdl => $mu) {
+            if (!isset($yearBucket['by_model'][$mdl])) $yearBucket['by_model'][$mdl] = ['in' => 0, 'out' => 0, 'calls' => 0];
+            $yearBucket['by_model'][$mdl]['in']    += $mu['in']    ?? 0;
+            $yearBucket['by_model'][$mdl]['out']   += $mu['out']   ?? 0;
+            $yearBucket['by_model'][$mdl]['calls'] += $mu['calls'] ?? 0;
+        }
+    }
+
+    // ── Cache item counts (for caches card) ──────────────────────────────────
+    $priceCache = file_exists(PRICE_CACHE_PATH)
+        ? (json_decode(file_get_contents(PRICE_CACHE_PATH), true) ?: []) : [];
+    $shelfCache = file_exists(SHELF_CACHE_PATH)
+        ? (json_decode(file_get_contents(SHELF_CACHE_PATH), true) ?: []) : [];
+    $catCache   = file_exists(CATEGORY_CACHE_PATH)
+        ? (json_decode(file_get_contents(CATEGORY_CACHE_PATH), true) ?: []) : [];
+    $nameCache  = file_exists(SHOPPING_NAME_CACHE_PATH)
+        ? (json_decode(file_get_contents(SHOPPING_NAME_CACHE_PATH), true) ?: []) : [];
+
+    // ── DB stats ──────────────────────────────────────────────────────────────
+    $dbStats = [];
+    try {
+        $db = getDB();
+        $row = $db->query("SELECT
+            (SELECT COUNT(*) FROM products) as products_total,
+            (SELECT COUNT(*) FROM inventory WHERE quantity > 0) as inventory_active,
+            (SELECT COUNT(*) FROM transactions WHERE undone=0 AND created_at >= date('now','start of month')) as tx_month,
+            (SELECT COUNT(*) FROM transactions WHERE undone=0 AND created_at >= date('now','start of year')) as tx_year,
+            (SELECT COUNT(*) FROM transactions WHERE type='in' AND undone=0 AND created_at >= date('now','start of month')) as restock_month,
+            (SELECT COUNT(*) FROM transactions WHERE type IN ('out','waste') AND undone=0 AND created_at >= date('now','start of month')) as use_month,
+            (SELECT COUNT(*) FROM products WHERE created_at >= date('now','start of month')) as products_month,
+            (SELECT COUNT(CASE WHEN expiry_date < date('now') AND quantity > 0 THEN 1 END) FROM inventory) as expired,
+            (SELECT COUNT(CASE WHEN expiry_date BETWEEN date('now') AND date('now','+7 days') AND quantity > 0 THEN 1 END) FROM inventory) as expiring_soon,
+            (SELECT COUNT(CASE WHEN quantity = 0 THEN 1 END) FROM inventory) as finished
+        ")->fetch(PDO::FETCH_ASSOC);
+        $dbStats = $row ?: [];
+    } catch (Throwable $e) { /* ignore */ }
+
+    // ── Log info ──────────────────────────────────────────────────────────────
+    $logFilesInfo = EverLog::listFiles();
+    $logBytes = 0;
+    foreach ($logFilesInfo as $lf) {
+        $logBytes += (int)(($lf['size_kb'] ?? 0) * 1024);
+    }
+
+    // ── Backup info ───────────────────────────────────────────────────────────
+    $backupDir   = dirname(__DIR__) . '/data/backups';
+    $backupFiles = is_dir($backupDir) ? (glob($backupDir . '/*.db') ?: []) : [];
+    rsort($backupFiles);
+    $lastBackupTs    = $backupFiles ? (int)filemtime($backupFiles[0]) : 0;
+    $lastBackupBytes = $backupFiles ? (int)filesize($backupFiles[0]) : 0;
+
+    // ── Bring! token expiry ───────────────────────────────────────────────────
+    $bringToken     = file_exists(BRING_TOKEN_PATH)
+        ? (json_decode(file_get_contents(BRING_TOKEN_PATH), true) ?: []) : [];
+    $bringExpiresTs = (int)($bringToken['expires'] ?? 0);
+
+    echo json_encode([
+        'month' => $month,
+        'year'  => $year,
+
+        // Current month (from ai_usage.json)
+        'month_stats' => [
+            'calls'        => (int)$cur['calls'],
+            'input_tokens' => (int)$cur['input_tokens'],
+            'output_tokens'=> (int)$cur['output_tokens'],
+            'cost_usd'     => $calcCost((int)$cur['input_tokens'], (int)$cur['output_tokens']),
+            'by_action'    => $cur['by_action'] ?? [],
+            'by_model'     => $cur['by_model']  ?? [],
+        ],
+
+        // Current year (from ai_usage.json — all months summed)
+        'year_stats' => [
+            'calls'        => (int)$yearBucket['calls'],
+            'input_tokens' => (int)$yearBucket['input_tokens'],
+            'output_tokens'=> (int)$yearBucket['output_tokens'],
+            'cost_usd'     => $calcCost((int)$yearBucket['input_tokens'], (int)$yearBucket['output_tokens']),
+        ],
+
+        // DB activity
+        'db' => array_merge(
+            array_map('intval', $dbStats),
+            ['bytes' => file_exists(DB_PATH) ? (int)filesize(DB_PATH) : 0]
+        ),
+
+        // Cache item counts
+        'caches' => [
+            'price'    => count($priceCache),
+            'shelf'    => count($shelfCache),
+            'category' => count($catCache),
+            'names'    => count($nameCache),
+            'foodfacts'=> count(file_exists(FOODFACTS_CACHE_PATH)
+                ? (json_decode(file_get_contents(FOODFACTS_CACHE_PATH), true) ?: []) : []),
+        ],
+
+        // Current Gemini pricing (from .env / defaults)
+        'pricing' => [
+            '2.5-flash' => ['in' => GEMINI_COST_25F_IN, 'out' => GEMINI_COST_25F_OUT],
+            '2.0-flash' => ['in' => GEMINI_COST_20F_IN, 'out' => GEMINI_COST_20F_OUT],
+        ],
+
+        // System
+        'log_bytes'         => $logBytes,
+        'log_level'         => EverLog::levelName(),
+        'log_files'         => count($logFilesInfo),
+        'last_backup_ts'    => $lastBackupTs,
+        'last_backup_bytes' => $lastBackupBytes,
+        'bring_expires_ts'  => $bringExpiresTs,
+
+        // History (last 13 months for trend)
+        'history' => array_map(fn($k, $v) => [
+            'month'        => $k,
+            'input_tokens' => (int)($v['input_tokens']  ?? 0),
+            'output_tokens'=> (int)($v['output_tokens'] ?? 0),
+            'calls'        => (int)($v['calls'] ?? 0),
+            'cost_usd'     => $calcCost((int)($v['input_tokens'] ?? 0), (int)($v['output_tokens'] ?? 0)),
+        ], array_keys($aiData), array_values($aiData)),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ── Health check — startup diagnostic (no rate-limit, no auth required) ──────
+
+    // ── Tracked usage (ai_usage.json) ────────────────────────────────────────
+    $aiData  = file_exists(AI_USAGE_PATH) ? (json_decode(file_get_contents(AI_USAGE_PATH), true) ?: []) : [];
+    $month   = date('Y-m');
+    $year    = date('Y');
+    $cur     = $aiData[$month] ?? ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_action' => [], 'by_model' => []];
+
+    // Yearly totals (sum all months of current year)
+    $yearBucket = ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_model' => []];
+    foreach ($aiData as $k => $v) {
+        if (!str_starts_with($k, $year)) continue;
+        $yearBucket['input_tokens']  += (int)($v['input_tokens'] ?? 0);
+        $yearBucket['output_tokens'] += (int)($v['output_tokens'] ?? 0);
+        $yearBucket['calls']         += (int)($v['calls'] ?? 0);
+        foreach (($v['by_model'] ?? []) as $mdl => $mu) {
+            if (!isset($yearBucket['by_model'][$mdl])) {
+                $yearBucket['by_model'][$mdl] = ['in' => 0, 'out' => 0, 'calls' => 0];
+            }
+            $yearBucket['by_model'][$mdl]['in']    += $mu['in']    ?? 0;
+            $yearBucket['by_model'][$mdl]['out']   += $mu['out']   ?? 0;
+            $yearBucket['by_model'][$mdl]['calls'] += $mu['calls'] ?? 0;
+        }
+    }
 
 // ── Health check — startup diagnostic (no rate-limit, no auth required) ──────
 if (($_GET['action'] ?? '') === 'health_check') {
@@ -200,7 +409,13 @@ if (($_GET['action'] ?? '') === 'health_check') {
         }
     }
 
-    // Legacy DB still present alongside evershelf.db → warn
+    // Auto-delete legacy dispensa.db if evershelf.db already exists (it's just an empty leftover)
+    if ($hasLegacy && file_exists($dbPath) && filesize($legacyDb) < 1024) {
+        @unlink($legacyDb);
+        $hasLegacy = false;
+    }
+
+    // Legacy DB still present alongside evershelf.db → warn (should be rare now)
     $checks['db_legacy'] = [
         'ok'       => !$hasLegacy,
         'optional' => true,
@@ -284,26 +499,11 @@ if (($_GET['action'] ?? '') === 'health_check') {
     }
 
     // ── 11. Bring! — solo se EMAIL+PASSWORD sono impostate ───────────────────
+    // Se non configurata, l'utente ha scelto di non usarla → nessun check, nessun warning.
     $bringEmail    = $envGet('BRING_EMAIL');
     $bringPassword = $envGet('BRING_PASSWORD');
     $bringEnabled  = !empty($bringEmail) && !empty($bringPassword);
-    if ($bringEnabled) {
-        $checks['bring_credentials'] = ['ok' => true, 'optional' => true];
-        // Token: stored in data/bring_token.json (not in .env)
-        $bringTokenFile = $dataDir . '/bring_token.json';
-        $bringTokenOk   = false;
-        $bringTokenHint = null;
-        if (file_exists($bringTokenFile)) {
-            $bringData    = @json_decode(@file_get_contents($bringTokenFile), true);
-            $bringTokenOk = !empty($bringData['access_token'] ?? ($bringData['accessToken'] ?? ''));
-            if (!$bringTokenOk) $bringTokenHint = 'Token Bring! presente ma non valido — verrà rinnovato automaticamente al prossimo accesso';
-        } else {
-            $bringTokenOk   = true; // non ancora generato, si crea al primo accesso — non è un errore
-            $bringTokenHint = 'Verrà generato automaticamente al primo accesso alla lista spesa';
-        }
-        $checks['bring_token'] = ['ok' => $bringTokenOk, 'optional' => true, 'hint' => $bringTokenHint];
-    }
-    // If Bring! not configured, skip entirely (no check at all)
+    // If Bring! not configured, skip entirely — not a warning, it's a user choice
 
     // ── 12. TTS — solo se TTS_ENABLED ────────────────────────────────────────
     if ($envGet('TTS_ENABLED') === 'true') {
@@ -427,6 +627,7 @@ function checkRateLimit(string $action): void {
     }));
 
     if (count($data) >= $limit) {
+        EverLog::warn('rate_limit hit', ['action' => $action, 'limit' => $limit, 'window_s' => $window]);
         http_response_code(429);
         header('Retry-After: ' . $window);
         echo json_encode(['error' => 'Too many requests. Please try again later.']);
@@ -458,6 +659,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeA
     $csrfHeader  = $_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? '';
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     if ($csrfHeader !== '1' && stripos($contentType, 'application/json') === false) {
+        EverLog::warn('csrf_rejected (403)');
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'csrf_rejected']);
         exit;
@@ -467,6 +669,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeA
 try {
     $db = getDB();
 } catch (Exception $e) {
+    EverLog::exception($e, 'db_connect');
     http_response_code(500);
     echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
@@ -475,6 +678,7 @@ try {
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
+EverLog::request($action, $method);
 
 } // end !CRON_MODE block for router bootstrap
 
@@ -488,6 +692,7 @@ try {
             'dismiss_anomaly', 'bring_add', 'bring_remove', 'bring_sync',
         ];
         if (in_array($action, $demoBlocked, true)) {
+            EverLog::warn('demo_mode blocked (403)');
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'demo_mode']);
             exit;
@@ -699,6 +904,10 @@ try {
             checkUpdate();
             break;
 
+        case 'db_cleanup':
+            dbCleanup(getDB());
+            break;
+
         case 'gemini_product_hint':
             geminiProductHint();
             break;
@@ -732,10 +941,12 @@ try {
             break;
 
         default:
+            EverLog::warn('unknown action', ['action' => $action]);
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
     }
 } catch (Exception $e) {
+    EverLog::exception($e, $action ?? '-');
     http_response_code(500);
     echo json_encode(['error' => $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
@@ -744,6 +955,7 @@ endif; // end !CRON_MODE
 
 // ===== EXPORT INVENTORY =====
 function exportInventory(PDO $db): void {
+    EverLog::info('exportInventory');
     $format = strtolower($_GET['format'] ?? 'csv');
 
     $stmt = $db->query("
@@ -845,6 +1057,7 @@ HTML;
 
 // ===== TTS PROXY =====
 function ttsProxy() {
+    EverLog::info('ttsProxy');
     $body = json_decode(file_get_contents('php://input'), true);
     $url     = isset($body['url'])     ? trim($body['url'])     : '';
     $method  = isset($body['method'])  ? strtoupper(trim($body['method'])) : 'POST';
@@ -856,6 +1069,7 @@ function ttsProxy() {
     }
 
     if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
+        EverLog::warn('ttsProxy: invalid URL (400)');
         http_response_code(400);
         echo json_encode(['error' => 'URL non valido']);
         return;
@@ -883,6 +1097,7 @@ function ttsProxy() {
     curl_close($ch);
 
     if ($curlErr) {
+        EverLog::error('ttsProxy: curl error (502)');
         http_response_code(502);
         echo json_encode(['error' => 'cURL error: ' . $curlErr]);
         return;
@@ -896,6 +1111,7 @@ function ttsProxy() {
 
 // ===== FOOD FACTS (cached daily) =====
 function getFoodFacts(): void {
+    EverLog::info('getFoodFacts');
     header('Content-Type: application/json; charset=utf-8');
     $cacheFile = __DIR__ . '/../data/food_facts_cache.json';
     $maxAgeSeconds = 86400; // 24 hours
@@ -1002,6 +1218,7 @@ function getFoodFacts(): void {
 function getExpiryHistory($db): void {
     $productId = (int)($_GET['product_id'] ?? $_POST['product_id'] ?? 0);
     if (!$productId) {
+        EverLog::debug('getExpiryHistory');
         echo json_encode(['avg_days' => null, 'count' => 0]);
         return;
     }
@@ -1029,6 +1246,7 @@ function getExpiryHistory($db): void {
 }
 
 function clientLog(): void {
+    EverLog::debug('clientLog');
     $input = json_decode(file_get_contents('php://input'), true);
     $logFile = __DIR__ . '/../data/client_debug.log';
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
@@ -1060,6 +1278,7 @@ function getClientLog(): void {
     $lines = 100;
     if (isset($_GET['lines'])) $lines = min(500, max(1, (int)$_GET['lines']));
     if (!file_exists($logFile)) {
+        EverLog::debug('getClientLog');
         echo json_encode(['log' => '(empty)', 'lines' => 0]);
         return;
     }
@@ -1073,6 +1292,7 @@ function getClientLog(): void {
 function searchBarcode(PDO $db): void {
     $barcode = $_GET['barcode'] ?? '';
     if (empty($barcode)) {
+        EverLog::info('searchBarcode');
         echo json_encode(['found' => false]);
         return;
     }
@@ -1089,6 +1309,7 @@ function searchBarcode(PDO $db): void {
 function lookupBarcode(): void {
     $barcode = $_GET['barcode'] ?? '';
     if (empty($barcode)) {
+        EverLog::info('lookupBarcode');
         echo json_encode(['found' => false, 'error' => 'No barcode provided']);
         return;
     }
@@ -1232,6 +1453,7 @@ function lookupBarcode(): void {
 function saveProduct(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || empty($input['name'])) {
+        EverLog::info('saveProduct');
         http_response_code(400);
         echo json_encode(['error' => 'Product name is required']);
         return;
@@ -1281,6 +1503,7 @@ function getProduct(PDO $db): void {
     $stmt->execute([$id]);
     $product = $stmt->fetch();
     if ($product) {
+        EverLog::debug('getProduct');
         echo json_encode(['success' => true, 'product' => $product]);
     } else {
         http_response_code(404);
@@ -1289,6 +1512,7 @@ function getProduct(PDO $db): void {
 }
 
 function deleteProduct(PDO $db): void {
+    EverLog::info('deleteProduct');
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? 0;
     $stmt = $db->prepare("DELETE FROM products WHERE id = ?");
@@ -1302,6 +1526,7 @@ function listProducts(PDO $db): void {
 }
 
 function searchProducts(PDO $db): void {
+    EverLog::debug('listProducts');
     $q = $_GET['q'] ?? '';
     $stmt = $db->prepare("SELECT * FROM products WHERE name LIKE ? OR brand LIKE ? OR barcode LIKE ? ORDER BY name ASC LIMIT 20");
     $like = "%{$q}%";
@@ -1312,6 +1537,7 @@ function searchProducts(PDO $db): void {
 // ===== INVENTORY FUNCTIONS =====
 
 function listInventory(PDO $db): void {
+    EverLog::debug('listInventory');
     $location = $_GET['location'] ?? '';
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
@@ -1328,10 +1554,13 @@ function listInventory(PDO $db): void {
     $query .= " ORDER BY p.name ASC";
     $stmt = $db->prepare($query);
     $stmt->execute($params);
-    echo json_encode(['inventory' => $stmt->fetchAll()]);
+    $rows = $stmt->fetchAll();
+    EverLog::debug('inventory_list fetched', ['rows' => count($rows), 'location' => $location ?: 'all']);
+    echo json_encode(['inventory' => $rows]);
 }
 
 function addToInventory(PDO $db): void {
+    EverLog::info('addToInventory');
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = (int)($input['product_id'] ?? 0);
     $quantity = (float)($input['quantity'] ?? 1);
@@ -1340,6 +1569,7 @@ function addToInventory(PDO $db): void {
     $unit = $input['unit'] ?? null;
     
     if (!$productId) {
+        EverLog::warn('addToInventory: product_id missing (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
         return;
@@ -1347,6 +1577,7 @@ function addToInventory(PDO $db): void {
 
     // Validate quantity bounds
     if ($quantity <= 0 || $quantity > 100000) {
+        EverLog::warn('addToInventory: invalid quantity (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid quantity']);
         return;
@@ -1355,6 +1586,7 @@ function addToInventory(PDO $db): void {
     // Validate location
     $validLocations = ['dispensa', 'frigo', 'freezer', 'altro'];
     if (!in_array($location, $validLocations)) {
+        EverLog::warn('addToInventory: invalid location (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid location']);
         return;
@@ -1496,11 +1728,13 @@ function addToInventory(PDO $db): void {
         'package_unit' => $prodInfo['package_unit'] ?? null,
         'removed_from_bring' => $removedFromBring,
     ]);
+    EverLog::info('inventory_add ok', ['product_id' => $productId, 'qty' => $quantity, 'location' => $location, 'removed_from_bring' => $removedFromBring]);
     // Inventory changed — force smart-shopping recompute on next request
     invalidateSmartShoppingCache();
 }
 
 function useFromInventory(PDO $db): void {
+    EverLog::info('useFromInventory');
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = $input['product_id'] ?? 0;
     $quantity = $input['quantity'] ?? 0;
@@ -1509,6 +1743,7 @@ function useFromInventory(PDO $db): void {
     $notes = $input['notes'] ?? '';
     
     if (!$productId) {
+        EverLog::warn('useFromInventory: product_id missing (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Product ID required']);
         return;
@@ -1570,6 +1805,7 @@ function useFromInventory(PDO $db): void {
     $existing = $stmt->fetch();
     
     if (!$existing) {
+        EverLog::warn('useFromInventory: product not found in inventory (404)');
         http_response_code(404);
         echo json_encode(['error' => 'Product not found in inventory at this location']);
         return;
@@ -1861,6 +2097,7 @@ function useFromInventory(PDO $db): void {
 }
 
 function updateInventory(PDO $db): void {
+    EverLog::info('updateInventory');
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? 0;
 
@@ -1913,6 +2150,7 @@ function updateInventory(PDO $db): void {
 }
 
 function deleteInventory(PDO $db): void {
+    EverLog::info('deleteInventory');
     $input = json_decode(file_get_contents('php://input'), true);
     $id = $input['id'] ?? 0;
     $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
@@ -1930,6 +2168,7 @@ function deleteInventory(PDO $db): void {
  * user; those rows are silently deleted here (no banner needed).
  */
 function getFinishedItems(PDO $db): void {
+    EverLog::debug('getFinishedItems');
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
                MIN(i.location) AS location,
@@ -1986,6 +2225,7 @@ function confirmFinished(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $productId = (int)($input['product_id'] ?? 0);
     if (!$productId) {
+        EverLog::info('confirmFinished');
         http_response_code(400);
         echo json_encode(['error' => 'product_id required']);
         return;
@@ -1995,6 +2235,7 @@ function confirmFinished(PDO $db): void {
 }
 
 function inventorySummary(PDO $db): void {
+    EverLog::debug('inventorySummary');
     $stmt = $db->query("
         SELECT i.location, COUNT(DISTINCT i.product_id) as product_count, 
                SUM(i.quantity) as total_items
@@ -2007,6 +2248,7 @@ function inventorySummary(PDO $db): void {
 // ===== TRANSACTION FUNCTIONS =====
 
 function listTransactions(PDO $db): void {
+    EverLog::debug('listTransactions');
     $limit = (int)($_GET['limit'] ?? 50);
     $offset = (int)($_GET['offset'] ?? 0);
     $productId = $_GET['product_id'] ?? '';
@@ -2041,6 +2283,7 @@ function undoTransaction(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $txId = (int)($input['id'] ?? 0);
     if (!$txId) {
+        EverLog::info('undoTransaction');
         http_response_code(400);
         echo json_encode(['error' => 'Transaction ID required']);
         return;
@@ -2051,6 +2294,7 @@ function undoTransaction(PDO $db): void {
     $stmt->execute([$txId]);
     $tx = $stmt->fetch();
     if (!$tx) {
+        EverLog::warn('undoTransaction: transaction not found (404)');
         http_response_code(404);
         echo json_encode(['error' => 'Transaction not found']);
         return;
@@ -2110,6 +2354,7 @@ function undoTransaction(PDO $db): void {
         echo json_encode(['success' => true, 'name' => $tx['name']]);
     } catch (Exception $e) {
         $db->rollBack();
+        EverLog::error('undoTransaction: DB error (500)');
         http_response_code(500);
         echo json_encode(['error' => 'DB error: ' . $e->getMessage()]);
         _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
@@ -2128,6 +2373,7 @@ function undoTransaction(PDO $db): void {
  *  - MISSING (-diff): inventory < tx balance → tx history says more should be here than stored
  */
 function getInventoryAnomalies(PDO $db): void {
+    EverLog::info('getInventoryAnomalies');
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit,
                p.default_quantity, p.package_unit,
@@ -2210,6 +2456,7 @@ function dismissInventoryAnomaly(): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $key   = $input['dismiss_key'] ?? '';
     if (empty($key) || !preg_match('/^a_\d+_-?\d+$/', $key)) {
+        EverLog::info('dismissInventoryAnomaly');
         echo json_encode(['success' => false, 'error' => 'Invalid key']);
         return;
     }
@@ -2226,6 +2473,7 @@ function dismissInventoryAnomaly(): void {
 }
 
 function getStats(PDO $db): void {
+    EverLog::info('getStats');
     // Consolidated summary query: totals + 7-day activity in a single round-trip
     $summary = $db->query("
         SELECT
@@ -2254,14 +2502,19 @@ function getStats(PDO $db): void {
         LIMIT 4
     ")->fetchAll();
     
-    // Expired
-    $expired = $db->query("
+    // Expired — vacuum-sealed items get extra days beyond printed expiry before being flagged
+    $vacExtDays = (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30');
+    $expiredStmt = $db->prepare("
         SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
         FROM inventory i JOIN products p ON i.product_id = p.id 
-        WHERE i.expiry_date IS NOT NULL AND i.expiry_date < date('now') AND i.quantity > 0
+        WHERE i.expiry_date IS NOT NULL
+          AND julianday('now') - julianday(i.expiry_date) > CASE WHEN COALESCE(i.vacuum_sealed,0)=1 THEN ? ELSE 0 END
+          AND i.quantity > 0
         ORDER BY i.expiry_date ASC
-    ")->fetchAll();
+    ");
+    $expiredStmt->execute([$vacExtDays]);
+    $expired = $expiredStmt->fetchAll();
     
     // Opened (items with opened_at set by the app, OR fractional-qty items as legacy fallback)
     // opened_at IS NOT NULL → already has recalculated expiry_date stored when first opened
@@ -2414,6 +2667,7 @@ function getStats(PDO $db): void {
 
 // ===== RECENT & POPULAR PRODUCTS =====
 function recentPopularProducts(PDO $db): void {
+    EverLog::debug('recentPopularProducts');
     // Last 4 distinct products used (type='out'), most recent first
     $recentStmt = $db->query("
         SELECT DISTINCT t.product_id, p.name, p.brand, p.category, p.image_url, p.unit,
@@ -2456,6 +2710,7 @@ function recentPopularProducts(PDO $db): void {
  * and flag items whose current quantity deviates significantly from the prediction.
  */
 function getConsumptionPredictions(PDO $db): void {
+    EverLog::info('getConsumptionPredictions');
     // Get all current inventory items with their consumption history
     $items = $db->query("
         SELECT i.id AS inventory_id, i.product_id, i.quantity, i.location,
@@ -2615,6 +2870,7 @@ function getConsumptionPredictions(PDO $db): void {
 // ===== SETTINGS =====
 
 function getServerSettings(): void {
+    EverLog::debug('getServerSettings');
     $geminiKey = env('GEMINI_API_KEY');
     $bringEmail = env('BRING_EMAIL');
     
@@ -2658,13 +2914,36 @@ function getServerSettings(): void {
         'price_country' => env('PRICE_COUNTRY', 'Italia'),
         'price_currency' => env('PRICE_CURRENCY', 'EUR'),
         'price_update_months' => (int)env('PRICE_UPDATE_MONTHS', '3'),
+        'recipe_retention_days' => (int)env('RECIPE_RETENTION_DAYS', '7'),
+        'transaction_retention_days' => (int)env('TRANSACTION_RETENTION_DAYS', '7'),
+        'vacuum_expiry_extension_days' => (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30'),
     ]);
+}
+
+function dbCleanup(?PDO $db = null): void {
+    $recipeDays = max(1, (int)env('RECIPE_RETENTION_DAYS', '7'));
+    $txDays     = max(1, (int)env('TRANSACTION_RETENTION_DAYS', '7'));
+    $pdo = $db ?? getDB();
+    try {
+        // Delete old recipes (generated recipe plans)
+        $pdo->prepare("DELETE FROM recipes WHERE date < date('now', ? || ' days')")
+            ->execute(["-$recipeDays"]);
+        // Delete old transactions (keep at least the last $txDays of history)
+        $pdo->prepare("DELETE FROM transactions WHERE created_at < datetime('now', ? || ' days') AND undone = 0")
+            ->execute(["-$txDays"]);
+        // Compact the database
+        $pdo->exec('VACUUM');
+        echo json_encode(['success' => true, 'recipe_retention_days' => $recipeDays, 'transaction_retention_days' => $txDays]);
+    } catch (Throwable $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
 }
 
 function saveSettings(): void {
     // Require SETTINGS_TOKEN if configured
     $requiredToken = env('SETTINGS_TOKEN');
     if (!empty($requiredToken)) {
+        EverLog::debug('saveSettings');
         $provided = $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
         if (!hash_equals($requiredToken, $provided)) {
             http_response_code(403);
@@ -2715,9 +2994,12 @@ function saveSettings(): void {
     ];
     // Integer keys
     $intMap = [
-        'default_persons'    => 'DEFAULT_PERSONS',
-        'screensaver_timeout' => 'SCREENSAVER_TIMEOUT',
-        'price_update_months' => 'PRICE_UPDATE_MONTHS',
+        'default_persons'             => 'DEFAULT_PERSONS',
+        'screensaver_timeout'         => 'SCREENSAVER_TIMEOUT',
+        'price_update_months'         => 'PRICE_UPDATE_MONTHS',
+        'recipe_retention_days'       => 'RECIPE_RETENTION_DAYS',
+        'transaction_retention_days'  => 'TRANSACTION_RETENTION_DAYS',
+        'vacuum_expiry_extension_days'=> 'VACUUM_EXPIRY_EXTENSION_DAYS',
     ];
     // Float keys
     $floatMap = [
@@ -2782,6 +3064,8 @@ function callGemini(string $url, array $payload, int $timeout = 60): array {
     $maxAttempts = 4;
     $lastCode    = 0;
     $lastBody    = '';
+    $promptLen   = strlen(json_encode($payload));
+    $t0          = microtime(true);
 
     for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
         $retryAfterHeader = null;
@@ -2829,29 +3113,85 @@ function callGemini(string $url, array $payload, int $timeout = 60): array {
             }
         }
 
+        EverLog::warn('AI rate-limited, retrying', ['attempt' => $attempt, 'wait_s' => $waitSec, 'code' => $lastCode]);
         sleep($waitSec);
     }
 
+    $elapsed = microtime(true) - $t0;
+    if ($lastCode === 200) {
+        EverLog::aiResponse('gemini', strlen($lastBody), $elapsed, true);
+    } else {
+        EverLog::aiResponse('gemini', strlen($lastBody), $elapsed, false, "HTTP {$lastCode}: " . substr($lastBody, 0, 300));
+    }
+
+    $data = $lastBody ? json_decode($lastBody, true) : null;
+    // Extract token counts from Gemini usageMetadata
+    $usage = $data['usageMetadata'] ?? [];
+    $tokIn  = (int)($usage['promptTokenCount']     ?? 0);
+    $tokOut = (int)($usage['candidatesTokenCount'] ?? 0);
+
     return [
-        'http_code' => $lastCode,
-        'body'      => $lastBody,
-        'data'      => $lastBody ? json_decode($lastBody, true) : null,
+        'http_code'  => $lastCode,
+        'body'       => $lastBody,
+        'data'       => $data,
+        'tokens_in'  => $tokIn,
+        'tokens_out' => $tokOut,
     ];
+}
+
+/**
+ * Record Gemini token usage to the monthly ai_usage.json file.
+ * Called by callGeminiWithFallback after each successful call.
+ */
+function _recordAiUsage(string $model, int $tokIn, int $tokOut, string $action = ''): void {
+    if ($tokIn === 0 && $tokOut === 0) return;
+    $month = date('Y-m');
+    $data  = [];
+    if (file_exists(AI_USAGE_PATH)) {
+        $data = json_decode(file_get_contents(AI_USAGE_PATH), true) ?: [];
+    }
+    if (!isset($data[$month])) {
+        $data[$month] = ['input_tokens' => 0, 'output_tokens' => 0, 'calls' => 0, 'by_action' => [], 'by_model' => []];
+    }
+    $m = &$data[$month];
+    $m['input_tokens']  += $tokIn;
+    $m['output_tokens'] += $tokOut;
+    $m['calls']++;
+    if ($action) {
+        $m['by_action'][$action] = ($m['by_action'][$action] ?? 0) + 1;
+    }
+    if ($model) {
+        if (!isset($m['by_model'][$model])) $m['by_model'][$model] = ['in' => 0, 'out' => 0, 'calls' => 0];
+        $m['by_model'][$model]['in']    += $tokIn;
+        $m['by_model'][$model]['out']   += $tokOut;
+        $m['by_model'][$model]['calls'] += 1;
+    }
+    // Keep only last 13 months
+    krsort($data);
+    $data = array_slice($data, 0, 13, true);
+    @file_put_contents(AI_USAGE_PATH, json_encode($data, JSON_PRETTY_PRINT));
+    EverLog::debug('ai_usage recorded', ['model' => $model, 'in' => $tokIn, 'out' => $tokOut, 'action' => $action]);
 }
 
 /**
  * Like callGemini() but tries gemini-2.5-flash first, falls back to gemini-2.0-flash
  * on quota/rate-limit errors (429/503). Builds the URL from model name + API key.
  */
-function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30): array {
-    $models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-    $last = ['http_code' => 0, 'body' => '', 'data' => null];
-    foreach ($models as $model) {
+function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = ''): array {
+    $models   = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    $last     = ['http_code' => 0, 'body' => '', 'data' => null, 'tokens_in' => 0, 'tokens_out' => 0];
+    $promptLen = strlen(json_encode($payload));
+    foreach ($models as $idx => $model) {
+        $isFallback = $idx > 0;
+        EverLog::aiCall($model, $promptLen, $isFallback);
         $url  = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
         $last = callGemini($url, $payload, $timeout);
-        if ($last['http_code'] === 200) return $last;
+        if ($last['http_code'] === 200) {
+            _recordAiUsage($model, $last['tokens_in'], $last['tokens_out'], $usageAction);
+            return $last;
+        }
         if ($last['http_code'] !== 429 && $last['http_code'] !== 503) return $last; // non-retryable
-        // 429/503 on this model → try next model
+        EverLog::warn('AI model exhausted, trying fallback', ['model' => $model, 'code' => $last['http_code']]);
     }
     return $last;
 }
@@ -2868,6 +3208,7 @@ function prewarmShelfLifeCache(PDO $db, int $limit = 5): array {
     $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
     $cache = [];
     if (file_exists($cacheFile)) {
+        EverLog::debug('prewarmShelfLifeCache');
         $cache = json_decode(file_get_contents($cacheFile), true) ?: [];
     }
 
@@ -2901,6 +3242,7 @@ function prewarmShelfLifeCache(PDO $db, int $limit = 5): array {
  * Cache has no expiry — shelf-life science doesn't change; the file can be manually deleted to refresh.
  */
 function getOpenedShelfLifeDays(string $name, string $category, string $location, bool $vacuumSealed = false, bool $allowAI = true): int {
+    EverLog::debug('getOpenedShelfLifeDays');
     $cacheFile = __DIR__ . '/../data/opened_shelf_cache.json';
     $cacheKey  = md5(mb_strtolower($name) . '|' . mb_strtolower($location) . '|v2');
 
@@ -2937,7 +3279,7 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
             'contents'         => [['parts' => [['text' => $prompt]]]],
             'generationConfig' => ['maxOutputTokens' => 8, 'temperature' => 0],
         ];
-        $result = callGeminiWithFallback($apiKey, $payload, 12);
+        $result = callGeminiWithFallback($apiKey, $payload, 12, 'shelf_life');
         if ($result['http_code'] === 200) {
             $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
             $parsed = (int)preg_replace('/\D/', '', $text);
@@ -2978,6 +3320,7 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
  * Returns: { days, source }
  */
 function getOpenedShelfLifeAction(): void {
+    EverLog::info('getOpenedShelfLifeAction');
     header('Content-Type: application/json; charset=utf-8');
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $name  = trim($input['name']     ?? '');
@@ -3006,6 +3349,7 @@ function getOpenedShelfLifeAction(): void {
  * Returns null if tesseract binary is not available or GD is not compiled in.
  */
 function tesseractReadExpiry(string $imageBase64): ?array {
+    EverLog::info('tesseractReadExpiry');
     // Require both the binary and the GD extension
     if (!function_exists('imagecreatefromstring')) return null;
     $tesseract = trim(shell_exec('which tesseract 2>/dev/null') ?? '');
@@ -3149,6 +3493,7 @@ function geminiReadExpiry(): void {
     $imageBase64 = $input['image'] ?? '';
 
     if (empty($imageBase64)) {
+        EverLog::info('geminiReadExpiry');
         echo json_encode(['success' => false, 'error' => 'No image provided']);
         return;
     }
@@ -3200,7 +3545,7 @@ function geminiReadExpiry(): void {
         ]
     ];
     
-    $result   = callGeminiWithFallback($apiKey, $payload, 30);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30, 'expiry_ocr');
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -3240,6 +3585,7 @@ function geminiReadExpiry(): void {
 function geminiChat(PDO $db): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::info('geminiChat');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -3353,7 +3699,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGeminiWithFallback($apiKey, $payload, 90);
+    $result   = callGeminiWithFallback($apiKey, $payload, 90, 'chat');
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -3466,6 +3812,7 @@ PROMPT;
 
 // ===== RECIPE GENERATION WITH GEMINI =====
 function generateRecipe(PDO $db): void {
+    EverLog::debug('generateRecipe start');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -3857,7 +4204,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGeminiWithFallback($apiKey, $payload, 60);
+    $result   = callGeminiWithFallback($apiKey, $payload, 60, 'recipe');
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -4081,16 +4428,17 @@ PROMPT;
             unset($ing);
         }
         
+        EverLog::info('recipe generated', ['title' => $recipe['title'] ?? '?', 'meal' => $mealType, 'persons' => $persons, 'ingredients' => count($recipe['ingredients'] ?? [])]);
         echo json_encode(['success' => true, 'recipe' => $recipe]);
     } else {
+        EverLog::warn('recipe generation failed, empty parse', ['raw_len' => strlen($text)]);
         echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
     }
 }
-
-// ===== CHAT: CONVERT CHAT RECIPE TO STRUCTURED RECIPE =====
 function chatToRecipe(PDO $db): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::debug('chatToRecipe');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -4140,7 +4488,7 @@ PROMPT;
         'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 8192]
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 45);
+    $result = callGeminiWithFallback($apiKey, $payload, 45, 'chat_recipe');
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => $result['data']['error']['message'] ?? 'gemini_error']);
@@ -4182,6 +4530,7 @@ PROMPT;
 
 // ===== RECIPE FROM INGREDIENT =====
 function recipeFromIngredient(PDO $db): void {
+    EverLog::info('recipeFromIngredient');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -4255,7 +4604,7 @@ PROMPT;
         'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 8192],
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 45);
+    $result = callGeminiWithFallback($apiKey, $payload, 45, 'recipe_ingredient');
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => $result['data']['error']['message'] ?? 'gemini_error']);
@@ -4288,6 +4637,7 @@ PROMPT;
         _enrichChatIngredients($recipe['ingredients'], $items);
     }
 
+    EverLog::info('recipe_from_ingredient ok', ['ingredient' => $ingredientName, 'title' => $recipe['title'] ?? '?', 'persons' => $persons]);
     echo json_encode(['success' => true, 'recipe' => $recipe]);
 }
 
@@ -4442,6 +4792,7 @@ function _enrichChatIngredients(array &$ingredients, array $items): void {
 
 // ===== RECIPE GENERATION — STREAMING AGENT =====
 function generateRecipeStream(PDO $db): void {
+    EverLog::info('generateRecipeStream');
     // Override content-type for SSE before any output is sent
     header('Content-Type: text/event-stream');
     header('Cache-Control: no-cache, no-store, must-revalidate');
@@ -4968,6 +5319,7 @@ PROMPT;
 function geminiIdentifyProduct(): void {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::info('geminiIdentifyProduct');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -5015,7 +5367,7 @@ PROMPT;
         ]
     ];
 
-    $result   = callGeminiWithFallback($apiKey, $payload, 30);
+    $result   = callGeminiWithFallback($apiKey, $payload, 30, 'identify_product');
     $httpCode = $result['http_code'];
 
     if ($httpCode !== 200) {
@@ -5055,6 +5407,7 @@ function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): 
     // Try multiple search strategies
     $queries = [];
     if (!empty($brand)) {
+        EverLog::debug('searchOpenFoodFacts');
         $queries[] = trim($brand . ' ' . $name);
     }
     $queries[] = $name;
@@ -5207,6 +5560,7 @@ function bringAuth(): ?array {
     $password = env('BRING_PASSWORD');
     
     if (empty($email) || empty($password)) {
+        EverLog::info('bringAuth');
         return null;
     }
     
@@ -5251,6 +5605,7 @@ function bringAuth(): ?array {
 function bringRequest(string $method, string $url, ?string $body = null): ?array {
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::debug('bringRequest');
         return null;
     }
     
@@ -5287,6 +5642,7 @@ function bringCatalog(): array {
     
     // Cache for 24 hours
     if (file_exists($cacheFile) && filemtime($cacheFile) > time() - 86400) {
+        EverLog::debug('bringCatalog');
         return json_decode(file_get_contents($cacheFile), true) ?: ['de2it' => [], 'it2de' => []];
     }
     
@@ -5382,6 +5738,7 @@ function italianToBring(string $italianName): string {
  * Returns null on failure so the caller can fall back gracefully.
  */
 function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
+    EverLog::debug('_geminiClassifyProduct');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) return null;
 
@@ -5423,7 +5780,7 @@ PROMPT;
         'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 15);
+    $result = callGeminiWithFallback($apiKey, $payload, 15, 'classify_category');
     if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) return null;
 
     $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
@@ -5758,6 +6115,7 @@ function computeShoppingName(string $name, string $category = '', string $brand 
  * Returns a summary array for logging.
  */
 function bringCleanupObsolete(PDO $db): array {
+    EverLog::debug('bringCleanupObsolete');
     // Load the freshly-computed smart shopping cache
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     if (!file_exists($cacheFile)) return ['skipped' => 'no_cache'];
@@ -5867,6 +6225,7 @@ function bringCleanupObsolete(PDO $db): array {
  * that are not already on the list. Called by the cron alongside cleanup.
  */
 function bringAutoAddCritical(PDO $db): array {
+    EverLog::debug('bringAutoAddCritical');
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     if (!file_exists($cacheFile)) return ['skipped' => 'no_cache'];
     $smartData = json_decode(file_get_contents($cacheFile), true);
@@ -5930,6 +6289,7 @@ function bringAutoAddCritical(PDO $db): array {
 function bringGetList(): void {
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::info('bringGetList');
         echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate. Aggiungi BRING_EMAIL e BRING_PASSWORD al file .env']);
         return;
     }
@@ -6007,6 +6367,7 @@ function bringGetList(): void {
 function bringAddItems(): void {
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::info('bringAddItems');
         echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
         return;
     }
@@ -6084,6 +6445,7 @@ function bringAddItems(): void {
 function bringRemoveItem(): void {
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::info('bringRemoveItem');
         echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
         return;
     }
@@ -6128,8 +6490,10 @@ function bringRemoveItem(): void {
 }
 
 function bringCleanSpecs(): void {
+    EverLog::debug('bringCleanSpecs');
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::info('bringCleanSpecs');
         echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
         return;
     }
@@ -6173,6 +6537,7 @@ function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUU
     $products = $db->query("SELECT name, brand, shopping_name FROM products WHERE shopping_name IS NOT NULL AND shopping_name != ''")->fetchAll();
     $lookup = [];
     foreach ($products as $p) {
+        EverLog::debug('bringMigrateNamesInternal');
         $lookup[mb_strtolower($p['name'])] = ['shopping_name' => $p['shopping_name'], 'brand' => $p['brand'] ?? ''];
     }
 
@@ -6236,8 +6601,10 @@ function bringMigrateNamesInternal(PDO $db, array $purchaseItems, string $listUU
 }
 
 function bringMigrateNames(PDO $db): void {
+    EverLog::info('bringMigrateNames');
     $auth = bringAuth();
     if (!$auth) {
+        EverLog::info('bringMigrateNames');
         echo json_encode(['success' => false, 'error' => 'Credenziali Bring! non configurate']);
         return;
     }
@@ -6268,6 +6635,7 @@ function invalidateSmartShoppingCache(): void {
 }
 
 function smartShoppingCached(PDO $db): void {
+    EverLog::info('smartShoppingCached');
     // Never let the browser or proxy cache this — urgency is time-sensitive
     header('Cache-Control: no-cache, no-store, must-revalidate');
     header('Pragma: no-cache');
@@ -6344,6 +6712,7 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
 }
 
 function smartShopping(PDO $db): void {
+    EverLog::info('smartShopping');
     $now = time();
     $today = date('Y-m-d');
 
@@ -6391,6 +6760,7 @@ function smartShopping(PDO $db): void {
     }
 
     // 3. Get transaction stats per product (exclude undone=1 corrections)
+    // Also compute rolling 90-day consumption for smarter quantity suggestions (#70)
     $txStmt = $db->query("
         SELECT product_id,
                COUNT(CASE WHEN type IN ('out','waste') AND undone=0 THEN 1 END) as use_count,
@@ -6399,7 +6769,9 @@ function smartShopping(PDO $db): void {
                SUM(CASE WHEN type = 'in' AND undone=0 THEN quantity ELSE 0 END) as total_bought,
                MIN(CASE WHEN type = 'in' AND undone=0 THEN created_at END) as first_in,
                MAX(CASE WHEN type = 'in' AND undone=0 THEN created_at END) as last_in,
-               MAX(CASE WHEN type IN ('out','waste') AND undone=0 THEN created_at END) as last_out
+               MAX(CASE WHEN type IN ('out','waste') AND undone=0 THEN created_at END) as last_out,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND created_at >= datetime('now','-90 days') THEN quantity ELSE 0 END) as used_90d,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND created_at >= datetime('now','-30 days') THEN quantity ELSE 0 END) as used_30d
         FROM transactions
         GROUP BY product_id
     ");
@@ -6477,19 +6849,40 @@ function smartShopping(PDO $db): void {
         $lastOut = $tx && $tx['last_out'] ? strtotime($tx['last_out']) : null;
         $daysSinceFirst = $firstIn ? max(1, ($now - $firstIn) / 86400) : 999;
 
-        // Average daily consumption rate.
-        // Use the "effective tracking period" (first purchase → last activity) rather than
-        // first purchase → now, so idle periods after last use don't deflate the rate.
-        // Example: Aglio bought 60 days ago but last used 34 days ago → use 34-day window.
-        $lastActivity = max($lastIn ?? 0, $lastOut ?? 0);
-        $activitySpan = ($firstIn && $lastActivity > $firstIn) ? ($lastActivity - $firstIn) : 0;
-        // Guard: if all activity fits within 24h (e.g. bought & consumed same day / seconds apart),
-        // effectiveDays would collapse to 1 → wildly inflated daily rate (e.g. Pizza: in+out 9s apart).
-        // Fall back to daysSinceFirst (first purchase → now) for a conservative estimate.
-        $effectiveDays = ($activitySpan >= 86400)
-            ? max(1, $activitySpan / 86400)
-            : $daysSinceFirst;
-        $dailyRate = $effectiveDays < 999 && $totalUsed > 0 ? $totalUsed / $effectiveDays : 0;
+        // Average daily consumption rate — rolling 90-day window with EWMA weighting (#70).
+        // Priority: if we have ≥3 use events in last 90 days, use weighted blend
+        //   70% weight on last 30 days, 30% on days 31-90 → reacts to habit changes.
+        // Fallback: all-time effective-period rate (original logic).
+        $used90d = (float)($tx['used_90d'] ?? 0);
+        $used30d = (float)($tx['used_30d'] ?? 0);
+        $used60_90d = max(0, $used90d - $used30d); // consumption in days 31-90
+
+        $dailyRate30 = $used30d > 0 ? $used30d / 30.0 : 0;
+        $dailyRate60 = $used60_90d > 0 ? $used60_90d / 60.0 : 0;
+
+        // Use EWMA only when we have enough recent data
+        $useEwma = ($used90d > 0 && $daysSinceFirst >= 14);
+        if ($useEwma) {
+            if ($dailyRate30 > 0 && $dailyRate60 > 0) {
+                // Both windows have data → blend 70/30
+                $dailyRate = 0.70 * $dailyRate30 + 0.30 * $dailyRate60;
+            } elseif ($dailyRate30 > 0) {
+                $dailyRate = $dailyRate30; // only recent data
+            } else {
+                $dailyRate = $dailyRate60; // only older data
+            }
+        } else {
+            // Fallback: all-time effective-period rate (original logic)
+            $lastActivity = max($lastIn ?? 0, $lastOut ?? 0);
+            $activitySpan = ($firstIn && $lastActivity > $firstIn) ? ($lastActivity - $firstIn) : 0;
+            // Guard: if all activity fits within 24h (e.g. bought & consumed same day / seconds apart),
+            // effectiveDays would collapse to 1 → wildly inflated daily rate (e.g. Pizza: in+out 9s apart).
+            // Fall back to daysSinceFirst (first purchase → now) for a conservative estimate.
+            $effectiveDays = ($activitySpan >= 86400)
+                ? max(1, $activitySpan / 86400)
+                : $daysSinceFirst;
+            $dailyRate = $effectiveDays < 999 && $totalUsed > 0 ? $totalUsed / $effectiveDays : 0;
+        }
 
         // Days of stock remaining
         $daysLeft = ($dailyRate > 0 && $qty > 0) ? $qty / $dailyRate : ($qty > 0 ? 999 : 0);
@@ -6933,6 +7326,7 @@ function smartShopping(PDO $db): void {
 }
 
 function bringSuggestItems(PDO $db): void {
+    EverLog::info('bringSuggestItems');
     $apiKey = env('GEMINI_API_KEY');
 
     // 1. Load smart shopping data from cache or compute fresh
@@ -7046,7 +7440,7 @@ function bringSuggestItems(PDO $db): void {
                 . "Name and reason must be in Italian. Reason max 8 words.";
 
             $payload   = ['contents' => [['parts' => [['text' => $prompt]]]]];
-            $gemResult = callGeminiWithFallback($apiKey, $payload, 20);
+            $gemResult = callGeminiWithFallback($apiKey, $payload, 20, 'bring_suggest');
 
             $aiResult = null;
             if ($gemResult['http_code'] === 200) {
@@ -7108,6 +7502,7 @@ function appSettingsGet(PDO $db): void {
     $rows = $db->query("SELECT key, value FROM app_settings")->fetchAll();
     $settings = [];
     foreach ($rows as $row) {
+        EverLog::debug('appSettingsGet');
         $settings[$row['key']] = json_decode($row['value'], true) ?? $row['value'];
     }
     echo json_encode(['success' => true, 'settings' => $settings]);
@@ -7116,6 +7511,7 @@ function appSettingsGet(PDO $db): void {
 function appSettingsSave(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     if (!$input || !is_array($input['settings'] ?? null)) {
+        EverLog::debug('appSettingsSave');
         echo json_encode(['error' => 'Missing settings object']);
         return;
     }
@@ -7130,6 +7526,7 @@ function appSettingsSave(PDO $db): void {
 function recipesList(PDO $db): void {
     $limit = min(intval($_GET['limit'] ?? 60), 200);
     $rows = $db->query("SELECT id, date, meal, recipe_json, created_at FROM recipes ORDER BY date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
+    EverLog::debug('recipesList');
     $recipes = [];
     foreach ($rows as $row) {
         $recipes[] = [
@@ -7144,6 +7541,7 @@ function recipesList(PDO $db): void {
 }
 
 function recipesSave(PDO $db): void {
+    EverLog::info('recipesSave');
     $input = json_decode(file_get_contents('php://input'), true);
     $date = $input['date'] ?? date('Y-m-d');
     $meal = trim($input['meal'] ?? '') ?: 'libero';
@@ -7166,6 +7564,7 @@ function recipesDelete(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $id = intval($input['id'] ?? 0);
     if ($id > 0) {
+        EverLog::info('recipesDelete');
         $db->prepare("DELETE FROM recipes WHERE id = ?")->execute([$id]);
     }
     echo json_encode(['success' => true]);
@@ -7177,6 +7576,7 @@ function chatList(PDO $db): void {
 }
 
 function chatSave(PDO $db): void {
+    EverLog::debug('chatList');
     $input = json_decode(file_get_contents('php://input'), true);
     $messages = $input['messages'] ?? [];
     if (empty($messages)) {
@@ -7195,6 +7595,7 @@ function chatSave(PDO $db): void {
 }
 
 function chatClear(PDO $db): void {
+    EverLog::info('chatClear');
     $db->exec("DELETE FROM chat_messages");
     echo json_encode(['success' => true]);
 }
@@ -7204,6 +7605,7 @@ function chatClear(PDO $db): void {
  * and scale inventory quantities accordingly.
  */
 function migrateUnitsToBase(PDO $db): void {
+    EverLog::info('migrateUnitsToBase');
     $changes = 0;
 
     // Get products with kg or l units
@@ -7274,6 +7676,7 @@ function migrateUnitsToBase(PDO $db): void {
  *   version     string? App version
  */
 function reportError(): void {
+    EverLog::info('reportError');
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
 
     $source    = preg_replace('/[^a-z0-9_\-]/', '', strtolower($input['source']    ?? 'unknown'));
@@ -7329,6 +7732,7 @@ function reportError(): void {
  *   version     string? App version
  */
 function reportBugManual(): void {
+    EverLog::info('reportBugManual');
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
 
     $allowedTypes = ['bug', 'feature', 'question'];
@@ -7475,6 +7879,7 @@ function checkUpdate(): void {
     $cacheFile = __DIR__ . '/../data/latest_release_cache.json';
     $release   = [];
     if (file_exists($cacheFile)) {
+        EverLog::info('checkUpdate');
         $c = json_decode(file_get_contents($cacheFile), true);
         if ($c && time() - ($c['ts'] ?? 0) < 21600) {
             $release = $c['release'] ?? [];
@@ -7513,6 +7918,7 @@ function _createOrCommentGithubIssue(
     string $version, array $context
 ): void {
     $fp = _errorFingerprint($source, $type, $message);
+    EverLog::debug('_createOrCommentGithubIssue', ['fp' => $fp, 'type' => $type]);
 
     // ── 1. Search for an existing open issue with this fingerprint ─────────
     $searchQuery = urlencode("repo:$repo is:issue is:open label:auto-report \"fp:$fp\" in:body");
@@ -7590,6 +7996,7 @@ function _createOrCommentGithubIssue(
  * Returns ['http_code' => int, 'body' => array].
  */
 function _githubRequest(string $token, string $method, string $url, array $payload = []): array {
+    EverLog::debug('_githubRequest');
     $ch = curl_init($url);
     $headers = [
         'Authorization: token ' . $token,
@@ -7619,6 +8026,7 @@ function _githubRequest(string $token, string $method, string $url, array $paylo
  * Writes to local log + creates a GitHub issue.
  */
 function _phpErrorReport(string $message, string $file, int $line, string $trace, string $type): void {
+    EverLog::error('_phpErrorReport');
     // Prevent infinite loops if this function itself throws
     static $running = false;
     if ($running) return;
@@ -7660,8 +8068,10 @@ function _phpErrorReport(string $message, string $file, int $line, string $trace
  * Uses a permanent cache keyed by (name, lang) — science doesn't change.
  */
 function geminiProductHint(): void {
+    EverLog::info('geminiProductHint');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::info('geminiProductHint');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -7701,7 +8111,7 @@ function geminiProductHint(): void {
         . "Output ONLY the JSON, no markdown, no extra text.";
 
     $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
-    $result  = callGeminiWithFallback($apiKey, $payload, 15);
+    $result  = callGeminiWithFallback($apiKey, $payload, 15, 'product_hint');
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => 'gemini_error', 'http_code' => $result['http_code']]);
@@ -7750,8 +8160,10 @@ function geminiProductHint(): void {
  * Batches all items in a single Gemini call. Cached by name+lang hash.
  */
 function geminiShoppingEnrich(PDO $db): void {
+    EverLog::info('geminiShoppingEnrich');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::info('geminiShoppingEnrich');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -7796,7 +8208,7 @@ function geminiShoppingEnrich(PDO $db): void {
         . "Keep the same order and count as the input. Output ONLY the JSON array, no markdown.";
 
     $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
-    $result  = callGeminiWithFallback($apiKey, $payload, 20);
+    $result  = callGeminiWithFallback($apiKey, $payload, 20, 'shopping_enrich');
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => 'gemini_error']);
@@ -7841,8 +8253,10 @@ function geminiShoppingEnrich(PDO $db): void {
  * Uses Gemini vision to read the barcode number printed on a product label.
  */
 function geminiNumberOCR(): void {
+    EverLog::info('geminiNumberOCR');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) { echo json_encode(['success' => false, 'error' => 'no_api_key']); return; }
+    EverLog::info('geminiNumberOCR');
 
     $input = json_decode(file_get_contents('php://input'), true);
     $imageBase64 = $input['image'] ?? '';
@@ -7858,7 +8272,7 @@ function geminiNumberOCR(): void {
         'generationConfig' => ['temperature' => 0, 'maxOutputTokens' => 20, 'thinkingConfig' => ['thinkingBudget' => 0]]
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    $result = callGeminiWithFallback($apiKey, $payload, 10, 'number_ocr');
     $text   = trim($result['text'] ?? '');
     $digits = preg_replace('/\D/', '', $text);
 
@@ -7879,8 +8293,10 @@ function geminiNumberOCR(): void {
  * Explains in plain language why the anomaly likely occurred and what to do.
  */
 function geminiAnomalyExplain(): void {
+    EverLog::info('geminiAnomalyExplain');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
+        EverLog::info('geminiAnomalyExplain');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }
@@ -7918,7 +8334,7 @@ function geminiAnomalyExplain(): void {
         . "Be conversational and practical.";
 
     $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
-    $result  = callGeminiWithFallback($apiKey, $payload, 15);
+    $result  = callGeminiWithFallback($apiKey, $payload, 15, 'anomaly_explain');
 
     if ($result['http_code'] !== 200) {
         echo json_encode(['success' => false, 'error' => 'gemini_error']);
@@ -7958,6 +8374,7 @@ function _priceKey(string $name, string $country): string {
  * { price_per_unit, unit_label, currency, source_note } or null on failure.
  */
 function _fetchPriceFromAI(string $name, string $country, string $currency, string $lang): ?array {
+    EverLog::info('_fetchPriceFromAI');
     $result = _fetchPricesBatchFromAI([$name], $country, $currency, $lang);
     return $result[$name] ?? null;
 }
@@ -7970,6 +8387,7 @@ function _fetchPriceFromAI(string $name, string $country, string $currency, stri
 function _fetchPricesBatchFromAI(array $names, string $country, string $currency, string $lang): array {
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey) || empty($names)) return [];
+    EverLog::info('price_batch_ai start', ['count' => count($names), 'country' => $country]);
 
     // Build a numbered list for the prompt
     $list = '';
@@ -8002,7 +8420,7 @@ PROMPT;
 
     $payload = ['contents' => [['parts' => [['text' => $prompt]]]]];
     // 55s timeout — generous for large batches (set_time_limit(120) in getAllShoppingPrices)
-    $result  = callGeminiWithFallback($apiKey, $payload, 55);
+    $result  = callGeminiWithFallback($apiKey, $payload, 55, 'price_batch');
 
     if ($result['http_code'] !== 200) return [];
 
@@ -8020,6 +8438,7 @@ PROMPT;
             $out[$name] = $entry;
         }
     }
+    EverLog::info('price_batch_ai done', ['requested' => count($names), 'returned' => count($out)]);
     return $out;
 }
 
@@ -8032,6 +8451,7 @@ PROMPT;
 function guessCategoryFromAI(): void {
     $name = trim($_GET['name'] ?? '');
     if ($name === '') { echo json_encode(['category' => 'altro']); return; }
+    EverLog::info('guessCategoryFromAI');
 
     // Load cache
     $cache = [];
@@ -8058,7 +8478,7 @@ function guessCategoryFromAI(): void {
         ],
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    $result = callGeminiWithFallback($apiKey, $payload, 10, 'guess_category');
     $raw    = strtolower(trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? ''));
     $raw    = preg_replace('/[^a-z_ ]/', '', $raw);
     $raw    = trim($raw);
@@ -8083,6 +8503,7 @@ function guessCategoryFromAI(): void {
  * Returns: { success, name, price_per_unit, unit_label, currency, estimated_total, estimated_total_label, cached_at, source_note }
  */
 function getShoppingPrice(PDO $db): void {
+    EverLog::info('getShoppingPrice');
     $input   = json_decode(file_get_contents('php://input'), true) ?? [];
     $name    = trim($input['name']             ?? '');
     $qty     = (float)($input['quantity']      ?? 1);
@@ -8158,6 +8579,7 @@ function getShoppingPrice(PDO $db): void {
  * Returns: { success, prices: { name → priceEntry }, total, total_label, from_total_cache }
  */
 function getAllShoppingPrices(PDO $db): void {
+    EverLog::info('getAllShoppingPrices');
     // This endpoint may call the AI for many items at once — extend timeout.
     set_time_limit(120);
 

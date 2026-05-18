@@ -64,7 +64,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.22</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.23</span>
     </div>
 </div>
 
@@ -77,7 +77,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.22</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.23</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -831,7 +831,8 @@
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
         <div class="settings-tabs">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys">🔑</button>
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" data-i18n-title="settings.tab_general" title="Generali">⚙️</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys">🔑</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Bring!">🛒</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale">📅</button>
@@ -839,12 +840,108 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts">🔊</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-language')" data-tab="tab-language" title="Lingua" data-i18n-title="settings.tab_language">🌐</button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab">⚖️</button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" data-i18n-title="settings.info.tab" title="Info">ℹ️</button>
         </div>
         <div class="settings-panels">
+            <!-- Generali Tab -->
+            <div class="settings-panel active" id="tab-general">
+                <div class="settings-card">
+                    <h4 data-i18n="settings.language.title">🌐 Lingua / Language</h4>
+                    <p class="settings-hint" data-i18n="settings.language.hint">Seleziona la lingua dell'interfaccia. Select the interface language.</p>
+                    <div class="form-group">
+                        <select id="setting-language" class="form-input" onchange="changeLanguage(this.value)">
+                        </select>
+                        <p class="settings-hint mt-2" data-i18n="settings.language.restart_notice">La pagina verrà ricaricata per applicare la nuova lingua.</p>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.info.currency_title">💱 Valuta</h4>
+                    <p class="settings-hint" data-i18n="settings.info.currency_hint">La valuta usata per tutti i costi e i prezzi nell'app.</p>
+                    <div class="form-group" style="margin-top:8px">
+                        <select id="setting-price-currency" class="form-input">
+                            <option value="EUR">€ Euro (EUR)</option>
+                            <option value="USD">$ Dollaro USA (USD)</option>
+                            <option value="GBP">£ Sterlina (GBP)</option>
+                            <option value="CHF">CHF Franco Svizzero</option>
+                            <option value="CAD">CA$ Dollaro Canadese</option>
+                            <option value="AUD">A$ Dollaro Australiano</option>
+                            <option value="BRL">R$ Real Brasiliano</option>
+                            <option value="JPY">¥ Yen Giapponese</option>
+                            <option value="SEK">kr Corona Svedese</option>
+                            <option value="NOK">kr Corona Norvegese</option>
+                            <option value="DKK">kr Corona Danese</option>
+                            <option value="PLN">zł Zloty Polacco</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-top:10px">
+                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.theme.title">🌙 Tema / Aspetto</h4>
+                    <p class="settings-hint" data-i18n="settings.theme.hint">Scegli il tema dell'interfaccia.</p>
+                    <div class="form-group">
+                        <select id="setting-dark-mode" class="form-input" onchange="_setThemeMode(this.value)">
+                            <option value="off" data-i18n="settings.theme.off">☀️ Chiaro</option>
+                            <option value="auto" selected data-i18n="settings.theme.auto">🔄 Automatico (orario)</option>
+                            <option value="on" data-i18n="settings.theme.on">🌙 Scuro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.screensaver.card_title">🌙 Salvaschermo</h4>
+                    <p class="settings-hint" data-i18n="settings.screensaver.card_hint">Mostra un orologio con fatti utili dopo un periodo di inattività. Di default è disattivato.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.screensaver.label">Attiva salvaschermo</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-screensaver-enabled">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group" id="screensaver-timeout-row" style="margin-top:10px">
+                        <label for="setting-screensaver-timeout" style="font-size:0.85rem;font-weight:600;color:var(--text-secondary)" data-i18n="settings.screensaver.start_after">⏱️ Avvia dopo</label>
+                        <select id="setting-screensaver-timeout" class="form-input" style="margin-top:6px;max-width:200px">
+                            <option value="1" data-i18n="settings.screensaver.timeout_1">1 minuto</option>
+                            <option value="2" data-i18n="settings.screensaver.timeout_2">2 minuti</option>
+                            <option value="5" selected data-i18n="settings.screensaver.timeout_5">5 minuti</option>
+                            <option value="10" data-i18n="settings.screensaver.timeout_10">10 minuti</option>
+                            <option value="15" data-i18n="settings.screensaver.timeout_15">15 minuti</option>
+                            <option value="30" data-i18n="settings.screensaver.timeout_30">30 minuti</option>
+                            <option value="60" data-i18n="settings.screensaver.timeout_60">1 ora</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.zerowaste.card_title">♻️ Suggerimenti zero-waste</h4>
+                    <p class="settings-hint" data-i18n="settings.zerowaste.card_hint">Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-zerowaste-tips">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="export.title">📤 Esporta inventario</h4>
+                    <p class="settings-hint" data-i18n="export.hint">Scarica l'inventario corrente in CSV o apri una versione stampabile (PDF).</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-outline" onclick="exportInventory('csv')" style="flex:1;min-width:120px">
+                            📊 <span data-i18n="export.btn_csv">CSV</span>
+                        </button>
+                        <button class="btn btn-outline" onclick="exportInventory('html')" style="flex:1;min-width:120px">
+                            🖨️ <span data-i18n="export.btn_pdf">PDF / Stampa</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
             <!-- API Keys Tab -->
-            <div class="settings-panel active" id="tab-api">
+            <div class="settings-panel" id="tab-api">
                 <div class="settings-card">
                     <h4 data-i18n="settings.gemini.title">🤖 Google Gemini AI</h4>
                     <p class="settings-hint" data-i18n="settings.gemini.hint">Chiave API per identificazione prodotti, scadenze e ricette.</p>
@@ -901,23 +998,6 @@
                                 <option value="Australia">🇦🇺 Australia</option>
                                 <option value="Brazil">🇧🇷 Brasile</option>
                                 <option value="Japan">🇯🇵 Giappone</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label data-i18n="settings.price.currency_label">💱 Valuta</label>
-                            <select id="setting-price-currency" class="form-input">
-                                <option value="EUR">€ Euro (EUR)</option>
-                                <option value="USD">$ Dollaro USA (USD)</option>
-                                <option value="GBP">£ Sterlina (GBP)</option>
-                                <option value="CHF">CHF Franco Svizzero</option>
-                                <option value="CAD">CA$ Dollaro Canadese</option>
-                                <option value="AUD">A$ Dollaro Australiano</option>
-                                <option value="BRL">R$ Real Brasiliano</option>
-                                <option value="JPY">¥ Yen Giapponese</option>
-                                <option value="SEK">kr Corona Svedese</option>
-                                <option value="NOK">kr Corona Norvegese</option>
-                                <option value="DKK">kr Corona Danese</option>
-                                <option value="PLN">zł Zloty Polacco</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1261,77 +1341,36 @@
                 </div>
             </div>
             <!-- Language Tab -->
-            <div class="settings-panel" id="tab-language">
+
+            <!-- Info Tab -->
+            <div class="settings-panel" id="tab-info">
+                <!-- Gemini AI Usage card -->
                 <div class="settings-card">
-                    <h4 data-i18n="settings.language.title">🌐 Lingua / Language</h4>
-                    <p class="settings-hint" data-i18n="settings.language.hint">Seleziona la lingua dell'interfaccia. Select the interface language.</p>
-                    <div class="form-group">
-                        <label data-i18n="settings.language.label">🌐 Lingua</label>
-                        <select id="setting-language" class="form-input" onchange="changeLanguage(this.value)">
-                        </select>
-                        <p class="settings-hint mt-2" data-i18n="settings.language.restart_notice">La pagina verrà ricaricata per applicare la nuova lingua.</p>
+                    <h4 data-i18n="settings.info.ai_title">Gemini AI — Token Usage</h4>
+                    <p class="settings-hint info-ai-subtitle" data-i18n="settings.info.ai_overview">Utilizzo AI, inventario e sistema</p>
+                    <div id="info-ai-content" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
+                <!-- Inventory card -->
                 <div class="settings-card">
-                    <h4 data-i18n="settings.screensaver.card_title">🌙 Salvaschermo</h4>
-                    <p class="settings-hint" data-i18n="settings.screensaver.card_hint">Mostra un orologio con fatti utili dopo un periodo di inattività. Di default è disattivato.</p>
-                    <div class="form-group">
-                        <label class="toggle-row">
-                            <span data-i18n="settings.screensaver.label">Attiva salvaschermo</span>
-                            <span class="toggle-switch">
-                                <input type="checkbox" id="setting-screensaver-enabled">
-                                <span class="toggle-slider"></span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="form-group" id="screensaver-timeout-row" style="margin-top:10px">
-                        <label for="setting-screensaver-timeout" style="font-size:0.85rem;font-weight:600;color:var(--text-secondary)" data-i18n="settings.screensaver.start_after">⏱️ Avvia dopo</label>
-                        <select id="setting-screensaver-timeout" class="form-control" style="margin-top:6px;max-width:200px">
-                            <option value="1" data-i18n="settings.screensaver.timeout_1">1 minuto</option>
-                            <option value="2" data-i18n="settings.screensaver.timeout_2">2 minuti</option>
-                            <option value="5" selected data-i18n="settings.screensaver.timeout_5">5 minuti</option>
-                            <option value="10" data-i18n="settings.screensaver.timeout_10">10 minuti</option>
-                            <option value="15" data-i18n="settings.screensaver.timeout_15">15 minuti</option>
-                            <option value="30" data-i18n="settings.screensaver.timeout_30">30 minuti</option>
-                            <option value="60" data-i18n="settings.screensaver.timeout_60">1 ora</option>
-                        </select>
+                    <h4 data-i18n="settings.info.inv_title">Inventario</h4>
+                    <div id="info-inv-content" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
+                <!-- Activity card -->
                 <div class="settings-card">
-                    <h4 data-i18n="settings.theme.title">🌙 Tema / Aspetto</h4>
-                    <p class="settings-hint" data-i18n="settings.theme.hint">Scegli il tema dell'interfaccia.</p>
-                    <div class="form-group">
-                        <label data-i18n="settings.theme.label">🌙 Tema</label>
-                        <select id="setting-dark-mode" class="form-input" onchange="_setThemeMode(this.value)">
-                            <option value="off" data-i18n="settings.theme.off">☀️ Chiaro</option>
-                            <option value="auto" selected data-i18n="settings.theme.auto">🔄 Automatico (sistema)</option>
-                            <option value="on" data-i18n="settings.theme.on">🌙 Scuro</option>
-                        </select>
+                    <h4 data-i18n="settings.info.act_title">Attività del mese</h4>
+                    <div id="info-act-content" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
+                <!-- System Info card -->
                 <div class="settings-card">
-                    <h4 data-i18n="settings.zerowaste.card_title">♻️ Suggerimenti zero-waste</h4>
-                    <p class="settings-hint" data-i18n="settings.zerowaste.card_hint">Durante la cottura, mostra consigli su come riutilizzare gli scarti prodotti in ogni passo (bucce, acqua di cottura, ecc.). Disattivo per impostazione predefinita.</p>
-                    <div class="form-group">
-                        <label class="toggle-row">
-                            <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
-                            <span class="toggle-switch">
-                                <input type="checkbox" id="setting-zerowaste-tips">
-                                <span class="toggle-slider"></span>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-                <div class="settings-card">
-                    <h4 data-i18n="export.title">📤 Esporta inventario</h4>
-                    <p class="settings-hint" data-i18n="export.hint">Scarica l'inventario corrente in CSV o apri una versione stampabile (PDF).</p>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button class="btn btn-outline" onclick="exportInventory('csv')" style="flex:1;min-width:120px">
-                            📊 <span data-i18n="export.btn_csv">CSV</span>
-                        </button>
-                        <button class="btn btn-outline" onclick="exportInventory('html')" style="flex:1;min-width:120px">
-                            🖨️ <span data-i18n="export.btn_pdf">PDF / Stampa</span>
-                        </button>
+                    <h4 data-i18n="settings.info.system_title">Sistema</h4>
+                    <div id="info-system-content" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
             </div>
@@ -1613,6 +1652,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260517a"></script>
+<script src="assets/js/app.js?v=20260518c"></script>
 </body>
 </html>

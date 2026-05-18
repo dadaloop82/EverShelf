@@ -1,0 +1,9 @@
+{
+  "2026-05": {
+    "input_tokens": 4438300,
+    "output_tokens": 1286760,
+    "calls": 8374,
+    "by_action": {},
+    "by_model": {}
+  }
+}

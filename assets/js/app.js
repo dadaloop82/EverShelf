@@ -1052,7 +1052,8 @@ if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
     try {
         const s = JSON.parse(localStorage.getItem('evershelf_settings') || '{}');
         const mode = s.dark_mode || 'auto';
-        const dark = mode === 'on' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        const h = new Date().getHours();
+        const dark = mode === 'on' || (mode === 'auto' && (h >= 20 || h < 7));
         document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     } catch(e) {}
 })();
@@ -1176,7 +1177,9 @@ function _applyTheme() {
     } else if (mode === 'off') {
         isDark = false;
     } else {
-        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // auto: dark from 20:00 to 07:00 (time-based, not system preference)
+        const h = new Date().getHours();
+        isDark = h >= 20 || h < 7;
     }
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
 }
@@ -1189,10 +1192,10 @@ function _setThemeMode(mode) {
 }
 
 // Listen to system theme changes (for 'auto' mode)
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    const s = getSettings();
-    if ((s.dark_mode || 'auto') === 'auto') _applyTheme();
-});
+// Re-evaluate auto theme every 5 minutes (catches 20:00 dark / 07:00 light transitions)
+setInterval(() => {
+    if ((getSettings().dark_mode || 'auto') === 'auto') _applyTheme();
+}, 5 * 60 * 1000);
 
 // ===== EXPORT INVENTORY =====
 function exportInventory(format) {
@@ -1226,7 +1229,8 @@ function _showExportModal() {
                 🖨️ ${t('export.btn_pdf')}
             </button>
         </div>`;
-    openModal(html);
+    document.getElementById('modal-content').innerHTML = html;
+    document.getElementById('modal-overlay').style.display = 'flex';
 }
 
 const LOCATIONS = {
@@ -2202,6 +2206,175 @@ function _applySyncedSettings(serverSettings) {
     }
 }
 
+let _infoTabTimer = null;
+
+/**
+ * Load the Info tab: Gemini token usage + cost, log size, DB size, log level.
+ * Called on tab click; auto-refreshes every 30s while the tab is open.
+ */
+async function _loadInfoTab() {
+    // Cancel any previous auto-refresh
+    if (_infoTabTimer) { clearInterval(_infoTabTimer); _infoTabTimer = null; }
+    await _renderInfoTab();
+    // Auto-refresh every 30s while Info tab is visible
+    _infoTabTimer = setInterval(_renderInfoTab, 30_000);
+}
+
+async function _renderInfoTab() {
+    const aiEl  = document.getElementById('info-ai-content');
+    const sysEl = document.getElementById('info-system-content');
+    if (!aiEl && !sysEl) return;
+
+    try {
+        const d = await api('gemini_usage');
+        const s = getSettings();
+
+        // ── Locale & helpers ─────────────────────────────────────────────────
+        const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES'};
+        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'it-IT';
+        const [yr, mo] = (d.month || '').split('-');
+        const monthLabel = new Intl.DateTimeFormat(locale, {month:'long', year:'numeric'})
+            .format(new Date(parseInt(yr), parseInt(mo)-1, 1));
+
+        // Cost → user currency
+        const toCurr = (usd) => {
+            if (!usd) return '—';
+            const c = s.price_currency || 'EUR';
+            let v = usd, sym = '$';
+            if      (c === 'EUR') { v = usd * 0.92; sym = '€'; }
+            else if (c === 'GBP') { v = usd * 0.79; sym = '£'; }
+            else if (c === 'CHF') { v = usd * 0.90; sym = 'CHF '; }
+            else if (c === 'CAD') { v = usd * 1.36; sym = 'CA$'; }
+            else if (c === 'AUD') { v = usd * 1.54; sym = 'A$'; }
+            else if (c === 'BRL') { v = usd * 5.20; sym = 'R$'; }
+            else if (c === 'JPY') { v = usd * 155;  sym = '¥'; }
+            else if (c === 'SEK') { v = usd * 10.4; sym = 'kr'; }
+            else if (c === 'NOK') { v = usd * 10.6; sym = 'kr'; }
+            else if (c === 'DKK') { v = usd * 6.85; sym = 'kr'; }
+            else if (c === 'PLN') { v = usd * 3.98; sym = 'zł'; }
+            const decimals = (c === 'JPY') ? 1 : 4;
+            return sym + v.toFixed(decimals);
+        };
+        const fmtTok   = n => n >= 1_000_000 ? (n/1_000_000).toFixed(2)+'M'
+                            : n >= 1_000 ? Math.round(n/1_000)+'K' : String(n||0);
+        const fmtBytes = b => b > 1048576 ? (b/1048576).toFixed(1)+' MB'
+                            : b > 1024 ? Math.round(b/1024)+' KB' : (b||0)+' B';
+        const fmtDate  = ts => ts ? new Intl.DateTimeFormat(locale, {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}).format(new Date(ts*1000)) : '—';
+        const pill = (val, label, color='') =>
+            `<div style="background:var(--bg-secondary);border:1px solid var(--border-color,#e2e8f0);border-radius:10px;padding:8px 14px;min-width:70px;text-align:center${color ? ';border-color:'+color : ''}">
+                <div style="font-size:1.1rem;font-weight:700;color:${color||'var(--text-primary,#1e293b)'}">${val}</div>
+                <div style="font-size:0.7rem;color:var(--text-secondary,#64748b);margin-top:2px">${label}</div>
+            </div>`;
+        const sectionHeader = (label) =>
+            `<div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">${label}</div>`;
+
+        // ── AI Usage card ────────────────────────────────────────────────────
+        if (aiEl) {
+            const ms = d.month_stats || {};
+            const ys = d.year_stats  || {};
+
+            const hintEl = aiEl.closest('.settings-card')?.querySelector('.info-ai-subtitle');
+            if (hintEl) hintEl.textContent = t('settings.info.ai_overview');
+
+            const msIn  = ms.input_tokens  || 0;
+            const msOut = ms.output_tokens || 0;
+            const ysIn  = ys.input_tokens  || 0;
+            const ysOut = ys.output_tokens || 0;
+
+            // Month section
+            const actionRows = Object.entries(ms.by_action || {})
+                .sort((a,b) => b[1]-a[1]).slice(0, 8)
+                .map(([k,v]) => `<tr><td style="padding:3px 12px 3px 0;color:var(--text-secondary);font-size:0.82rem">${k}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem"><strong>${v}</strong> ${t('settings.info.calls_unit')}</td></tr>`).join('');
+            const modelRows  = Object.entries(ms.by_model  || {})
+                .map(([m,mv]) => `<tr><td style="padding:3px 12px 3px 0;color:var(--text-secondary);font-size:0.82rem">${m}</td><td style="font-variant-numeric:tabular-nums;font-size:0.82rem"><strong>${fmtTok((mv.in||0)+(mv.out||0))}</strong></td></tr>`).join('');
+
+            const monthHtml = `
+                <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;margin-bottom:10px">
+                    ${sectionHeader(monthLabel)}
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        ${pill(ms.calls || 0, t('settings.info.ai_calls'))}
+                        ${pill('~'+fmtTok(msIn+msOut), t('settings.info.total_tokens'))}
+                        ${pill('~'+toCurr(ms.cost_usd), t('settings.info.est_cost'), '#15803d')}
+                    </div>
+                    ${actionRows ? `<details style="margin-top:8px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_action')}</summary><table style="margin-top:6px;border-collapse:collapse">${actionRows}</table></details>` : ''}
+                    ${modelRows  ? `<details style="margin-top:4px"><summary style="font-size:0.82rem;cursor:pointer;color:var(--text-secondary)">${t('settings.info.by_model')}</summary><table style="margin-top:6px;border-collapse:collapse">${modelRows}</table></details>` : ''}
+                </div>`;
+
+            // Year section
+            const yearHtml = `
+                <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;margin-bottom:10px">
+                    ${sectionHeader(t('settings.info.year_label').replace('{year}', d.year))}
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        ${pill('~'+(ys.calls || 0), t('settings.info.ai_calls'))}
+                        ${pill('~'+fmtTok(ysIn+ysOut), t('settings.info.total_tokens'))}
+                        ${pill('~'+toCurr(ys.cost_usd), t('settings.info.est_cost'), '#15803d')}
+                    </div>
+                </div>`;
+
+            aiEl.innerHTML = monthHtml + yearHtml
+                + `<p class="settings-hint" style="margin-top:4px">${t('settings.info.pricing_note')}</p>`;
+        }
+
+        // ── Inventory card ───────────────────────────────────────────────────
+        const invEl = document.getElementById('info-inv-content');
+        if (invEl && d.db) {
+            const db = d.db;
+            invEl.innerHTML = `
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${pill(db.inventory_active, t('settings.info.inv_active'))}
+                    ${pill(db.products_total,   t('settings.info.inv_products'))}
+                    ${pill(db.expiring_soon,     t('settings.info.inv_expiring'), db.expiring_soon > 0 ? '#d97706' : '')}
+                    ${pill(db.expired,           t('settings.info.inv_expired'),  db.expired > 0 ? '#dc2626' : '')}
+                    ${pill(db.finished,          t('settings.info.inv_finished'))}
+                </div>`;
+        }
+
+        // ── Activity card ────────────────────────────────────────────────────
+        const actEl = document.getElementById('info-act-content');
+        if (actEl && d.db) {
+            const db = d.db;
+            actEl.innerHTML = `
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${pill(db.tx_month,       t('settings.info.act_tx_month'))}
+                    ${pill(db.restock_month,  t('settings.info.act_restock'))}
+                    ${pill(db.use_month,      t('settings.info.act_use'))}
+                    ${pill(db.products_month, t('settings.info.act_new_products'))}
+                    ${pill(db.tx_year,        t('settings.info.act_tx_year'))}
+                </div>`;
+        }
+
+        // ── System card ──────────────────────────────────────────────────────
+        if (sysEl) {
+            const db = d.db || {};
+            const lvlColors = {DEBUG:'#1e40af//#dbeafe', INFO:'#15803d//#dcfce7', WARN:'#854d0e//#fef9c3', ERROR:'#991b1b//#fee2e2'};
+            const [lvlFg, lvlBg] = (lvlColors[d.log_level] || '#64748b//#f1f5f9').split('//');
+
+            sysEl.innerHTML = `
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    ${pill(fmtBytes(db.bytes),    t('settings.info.db_size'))}
+                    ${pill(fmtBytes(d.log_bytes), t('settings.info.log_size'))}
+                    ${pill(`<span style="background:${lvlBg};color:${lvlFg};padding:2px 6px;border-radius:5px;font-size:0.78rem">${d.log_level||'INFO'}</span>`, t('settings.info.log_level'))}
+                </div>
+                <table style="border-collapse:collapse;width:100%;font-size:0.85rem">
+                    <tr style="border-top:1px solid var(--border-color,#e2e8f0)">
+                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.price_cache')}</td>
+                        <td style="padding:7px 0;font-weight:600;text-align:right">${(d.caches?.price||0)} ${t('settings.info.cache_entries')}</td>
+                    </tr>
+                    <tr style="border-top:1px solid var(--border-color,#e2e8f0)">
+                        <td style="padding:7px 0;color:var(--text-secondary)">${t('settings.info.last_backup')}</td>
+                        <td style="padding:7px 0;font-weight:600;text-align:right">${d.last_backup_ts ? fmtDate(d.last_backup_ts)+' · '+fmtBytes(d.last_backup_bytes) : '—'}</td>
+                    </tr>
+                </table>`;
+        }
+    } catch(e) {
+        ['info-ai-content','info-inv-content','info-act-content','info-system-content'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = `<p class="settings-hint">${t('error.generic')}</p>`;
+        });
+    }
+}
+
+
 /**
  * Populate the About section with the current app version from the server.
  */
@@ -2943,6 +3116,8 @@ async function saveSettings() {
             scale_gateway_url: s.scale_gateway_url,
             meal_plan_enabled: s.meal_plan_enabled,
             screensaver_enabled: s.screensaver_enabled,
+            screensaver_timeout: s.screensaver_timeout || 5,
+            zerowaste_tips_enabled: s.zerowaste_tips_enabled,
             tts_enabled: s.tts_enabled,
             tts_url: s.tts_url,
             tts_token: s.tts_token,
@@ -2960,6 +3135,9 @@ async function saveSettings() {
             price_country: s.price_country,
             price_currency: s.price_currency,
             price_update_months: s.price_update_months,
+            recipe_retention_days: s.recipe_retention_days || 7,
+            transaction_retention_days: s.transaction_retention_days || 7,
+            vacuum_expiry_extension_days: s.vacuum_expiry_extension_days || 30,
         }, tokenHeader);
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
@@ -3001,6 +3179,11 @@ async function saveSettings() {
 }
 
 function switchSettingsTab(btn, tabId) {
+    // Stop info-tab auto-refresh when leaving that tab
+    if (tabId !== 'tab-info' && _infoTabTimer) {
+        clearInterval(_infoTabTimer);
+        _infoTabTimer = null;
+    }
     document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
