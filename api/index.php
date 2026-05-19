@@ -4519,6 +4519,7 @@ PROMPT;
                             }
                             
                             // Convert qty_number to inventory unit if mismatch detected
+                            $confAlreadyInSubUnit = false;
                             if ($recipeUnit && $recipeUnit !== $invUnit) {
                                 // Weight conversions (both should be 'g' now, but handle legacy 'kg')
                                 if ($recipeUnit === 'g' && $invUnit === 'kg') {
@@ -4530,22 +4531,31 @@ PROMPT;
                                     $qtyNum = $recipeVal / 1000;
                                 } elseif ($recipeUnit === 'ml' && $invUnit === 'ml') {
                                     $qtyNum = $recipeVal;
-                                // g/ml → pz/conf (approximate to nearest piece)
-                                } elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                                // g/ml → conf with weight/volume pkg_unit: keep in sub-units so JS modal works
+                                } elseif ($invUnit === 'conf') {
+                                    $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                                    $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                                    if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml')
+                                        && ($recipeUnit === 'g' || $recipeUnit === 'ml')) {
+                                        // Keep qty_number in sub-units; JS handles g↔conf conversion
+                                        $qtyNum = $recipeVal;
+                                        $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC;
+                                        $confAlreadyInSubUnit = true;
+                                    } else {
+                                        // conf without weight pkg_unit: fractional conf
+                                        $qtyNum = $defQty > 0 ? max(0.25, round(($recipeVal / $defQty) * 4) / 4) : 1;
+                                    }
+                                // g/ml → pz (approximate to nearest piece)
+                                } elseif ($invUnit === 'pz') {
                                     $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                                     if ($defQty > 0) {
-                                        // Convert recipe grams/ml to pieces using default_quantity
-                                        $qtyNum = $recipeVal / $defQty;
-                                        $qtyNum = max(0.25, round($qtyNum * 4) / 4); // round to nearest quarter
+                                        $qtyNum = max(0.25, round(($recipeVal / $defQty) * 4) / 4);
                                     } else {
-                                        // No default_quantity: AI was told to use pieces but sent grams.
-                                        // If the original qty_number looks like a piece count (≤ invQty and ≤ 100)
-                                        // keep it; otherwise fall back to 1.
                                         $origQtyNum = (float)($ing['qty_number'] ?? 0);
                                         if ($origQtyNum >= 1 && $origQtyNum <= $invQty && $origQtyNum <= 100) {
-                                            $qtyNum = $origQtyNum; // already a plausible piece count
+                                            $qtyNum = $origQtyNum;
                                         } else {
-                                            $qtyNum = 1; // safe minimum: 1 piece
+                                            $qtyNum = 1;
                                         }
                                     }
                                 }
@@ -4557,6 +4567,17 @@ PROMPT;
                                 }
                             }
                             
+                            // Conf+weight post-normalisation: if qty_number wasn't already set to
+                            // sub-units above, and it looks like a fractional conf value (≤ available
+                            // conf count), convert to grams so the JS modal shows correct grams.
+                            if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
+                                $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                                $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                                if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
+                                    $qtyNum = round($qtyNum * $defQty);
+                                    $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                                }
+                            }
                             // Sanity check: qty_number should not exceed available
                             if ($qtyNum > $invQty) {
                                 $qtyNum = $invQty; // cap to available
@@ -4919,14 +4940,29 @@ function _enrichChatIngredients(array &$ingredients, array $items): void {
                     elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
                     elseif (strpos($ru, 'conf') === 0) $recipeUnit = 'conf';
                 }
+                $confAlreadyInSubUnit = false;
                 if ($recipeUnit && $recipeUnit !== $invUnit) {
                     if ($recipeUnit === 'g' && $invUnit === 'g') $qtyNum = $recipeVal;
                     elseif ($recipeUnit === 'g' && $invUnit === 'kg') $qtyNum = $recipeVal / 1000;
                     elseif ($recipeUnit === 'ml' && $invUnit === 'ml') $qtyNum = $recipeVal;
                     elseif ($recipeUnit === 'ml' && $invUnit === 'l') $qtyNum = $recipeVal / 1000;
-                    elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                    elseif ($invUnit === 'conf') {
+                        $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                        $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                        if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && ($recipeUnit === 'g' || $recipeUnit === 'ml')) {
+                            $qtyNum = $recipeVal; $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC; $confAlreadyInSubUnit = true;
+                        } else { $qtyNum = $defQty > 0 ? max(0.25, round(($recipeVal / $defQty) * 4) / 4) : 1; }
+                    } elseif ($invUnit === 'pz') {
                         $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                         $qtyNum = $defQty > 0 ? max(0.25, round(($recipeVal / $defQty) * 4) / 4) : max(1, round($recipeVal / 100));
+                    }
+                }
+                // Conf+weight: normalise fractional conf to sub-units
+                if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
+                    $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                    $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                    if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
+                        $qtyNum = round($qtyNum * $defQty); $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
                     }
                 }
                 if ($qtyNum > $invQty) $qtyNum = $invQty;
@@ -5439,15 +5475,30 @@ PROMPT;
                         elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $recipeUnit = 'pz';
                         elseif (strpos($ru, 'conf') === 0)                $recipeUnit = 'conf';
                     }
+                    $confAlreadyInSubUnit = false;
                     if ($recipeUnit && $recipeUnit !== $invUnit) {
                         if ($recipeUnit === 'g'  && $invUnit === 'kg')  $qtyNum = $recipeVal / 1000;
                         elseif ($recipeUnit === 'g'  && $invUnit === 'g')   $qtyNum = $recipeVal;
                         elseif ($recipeUnit === 'ml' && $invUnit === 'l')   $qtyNum = $recipeVal / 1000;
                         elseif ($recipeUnit === 'ml' && $invUnit === 'ml')  $qtyNum = $recipeVal;
-                        elseif ($invUnit === 'pz' || $invUnit === 'conf') {
+                        elseif ($invUnit === 'conf') {
+                            $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                            $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                            if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && ($recipeUnit === 'g' || $recipeUnit === 'ml')) {
+                                $qtyNum = $recipeVal; $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC; $confAlreadyInSubUnit = true;
+                            } else { $qtyNum = $defQty > 0 ? max(0.25, round(($recipeVal / $defQty) * 4) / 4) : 1; }
+                        } elseif ($invUnit === 'pz') {
                             $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                             if ($defQty > 0) { $qtyNum = $recipeVal / $defQty; $qtyNum = max(0.25, round($qtyNum * 4) / 4); }
                             else $qtyNum = max(1, round($recipeVal / 100));
+                        }
+                    }
+                    // Conf+weight: normalise fractional conf to sub-units
+                    if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
+                        $defQty = (float)($bestMatch['default_quantity'] ?? 0);
+                        $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
+                        if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
+                            $qtyNum = round($qtyNum * $defQty); $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
                         }
                     }
                     if ($qtyNum > $invQty) $qtyNum = $invQty;

@@ -12734,11 +12734,13 @@ async function submitRecipeUse(useAll) {
                 setTimeout(() => showToast(t('recipes.finished_added_bring_toast'), 'info'), 1500);
             }
             
-            // Check low stock → Bring! prompt, then offer move
+            // Check low stock → shopping prompt, then offer move
             const moveCallback = result.remaining > 0
                 ? () => setTimeout(() => {
-                    const ingData = _cachedRecipe?.recipe?.ingredients?.[_recipeUseContext?.idx];
-                    const wasVacuum = !!(ingData?.vacuum_sealed);
+                    // Get vacuum state from the actual inventory item at this location
+                    const cachedItems = _recipeUseContext?.items || [];
+                    const itemAtLoc = cachedItems.find(i => i.location === location);
+                    const wasVacuum = !!(itemAtLoc?.vacuum_sealed);
                     showRecipeMoveModal(productId, location, result.remaining, result.opened_id, wasVacuum);
                   }, 300)
                 : null;
@@ -12758,6 +12760,21 @@ async function submitRecipeUse(useAll) {
 }
 
 function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum) {
+    // Set context for recording the choice
+    _pendingMoveCtx = { productId, fromLoc, openedId };
+
+    // If a preference exists, skip the modal entirely
+    const prefMoveLoc = _getPreferredMoveLoc(productId, fromLoc);
+    if (prefMoveLoc) {
+        if (prefMoveLoc === fromLoc) {
+            closeModal();
+        } else {
+            confirmRecipeMove(productId, fromLoc, prefMoveLoc, openedId, wasVacuum);
+        }
+        _pendingMoveCtx = null;
+        return;
+    }
+
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
@@ -12776,18 +12793,25 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
             <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
             <div class="location-selector">${locButtons}</div>
             ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();closeModal()">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
+            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0})">${t('move.stay_btn').replace('{location}', LOCATIONS[fromLoc]?.label || fromLoc)}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
-    // Hide the native kiosk settings button while the modal is open (prevents touch bleed-through)
     try { if (typeof _kioskBridge !== 'undefined') _kioskBridge.setNativeSettingsVisible(false); } catch (_) {}
-    startMoveModalCountdown('btn-move-stay', () => { closeModal(); });
+    startMoveModalCountdown('btn-move-stay', () => { _recipeMoveCancelStay(productId, fromLoc, openedId || 0); });
 }
 
-async function confirmRecipeMove(productId, fromLoc, toLoc, openedId) {
+function _recipeMoveCancelStay(productId, fromLoc, openedId) {
+    _recordMoveLocChoice(productId, fromLoc, fromLoc);
+    _pendingMoveCtx = null;
+    closeModal();
+}
+
+async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacuum) {
     clearMoveModalTimer();
-    const newVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
+    _recordMoveLocChoice(productId, fromLoc, toLoc);
+    _pendingMoveCtx = null;
+    const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
     closeModal();
     try {
         if (openedId) {
