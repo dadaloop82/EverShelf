@@ -13644,7 +13644,6 @@ function _playCookingTimerSound(type = 'done') {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
         const ctx = new Ctx();
-        const now = ctx.currentTime;
         const pattern = type === 'warning'
             ? [{ f: 880, d: 0.08, o: 0.00 }, { f: 1046, d: 0.10, o: 0.14 }]
             : [
@@ -13653,22 +13652,32 @@ function _playCookingTimerSound(type = 'done') {
                 { f: 1318, d: 0.14, o: 0.38 }
             ];
 
-        for (const p of pattern) {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = p.f;
-            gain.gain.setValueAtTime(0.0001, now + p.o);
-            gain.gain.exponentialRampToValueAtTime(0.12, now + p.o + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + p.o + p.d);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + p.o);
-            osc.stop(now + p.o + p.d + 0.02);
-        }
+        const doPlay = () => {
+            const now = ctx.currentTime;
+            for (const p of pattern) {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = p.f;
+                gain.gain.setValueAtTime(0.0001, now + p.o);
+                gain.gain.exponentialRampToValueAtTime(0.12, now + p.o + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + p.o + p.d);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + p.o);
+                osc.stop(now + p.o + p.d + 0.02);
+            }
+            const endAt = now + Math.max(...pattern.map(p => p.o + p.d)) + 0.08;
+            setTimeout(() => { try { ctx.close(); } catch (_) { /* ignore */ } }, Math.max(120, Math.round((endAt - now) * 1000)));
+        };
 
-        const endAt = now + Math.max(...pattern.map(p => p.o + p.d)) + 0.08;
-        setTimeout(() => { try { ctx.close(); } catch (_) { /* ignore */ } }, Math.max(120, Math.round((endAt - now) * 1000)));
+        // AudioContext starts suspended on mobile/Android after autoplay policy —
+        // must call resume() before scheduling nodes, even outside a user gesture.
+        if (ctx.state === 'suspended') {
+            ctx.resume().then(doPlay).catch(() => {});
+        } else {
+            doPlay();
+        }
     } catch (_) { /* ignore */ }
 }
 
@@ -13679,10 +13688,12 @@ function _notifyCookingTimer(type, label) {
     const hasBrowserTts = typeof window !== 'undefined' && 'speechSynthesis' in window;
     const hasCustomTts = (s.tts_engine === 'custom' && !!s.tts_url);
 
+    // Always play the beep — reliable even when speech synthesis fails silently
+    // (autoplay policy, no recent user gesture, Android WebView restrictions).
+    _playCookingTimerSound(type === 'warning' ? 'warning' : 'done');
+
     if (_cookingTTS && (hasBrowserTts || hasCustomTts)) {
         speakCookingStep(msg);
-    } else {
-        _playCookingTimerSound(type === 'warning' ? 'warning' : 'done');
     }
 }
 
@@ -13888,8 +13899,12 @@ function _cookingTimerDoneById(id) {
     timer.running = false;
     timer.seconds = 0;
 
+    // Show the done state in the card before removing it
+    _updateTimerCard(id);
+    _updateScreenFlash();
     _notifyCookingTimer('done', timer.label);
-    removeCookingTimer(id); // auto-cancel finished timer (do not continue past 00:00)
+    // Keep the done card visible for 3 s so the user sees which timer finished
+    setTimeout(() => removeCookingTimer(id), 3000);
 }
 
 function _updateTimerCard(id) {
