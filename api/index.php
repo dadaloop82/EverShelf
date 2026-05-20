@@ -2252,37 +2252,46 @@ function updateInventory(PDO $db): void {
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
 
-    $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
-    $stmt->execute($params);
+    // Wrap all writes in a single transaction to avoid concurrent lock failures.
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
+        $stmt->execute($params);
 
-    // Record a compensating transaction so anomaly detection stays accurate
-    if (isset($input['quantity']) && $prevRow) {
-        $oldQty = (float)$prevRow['quantity'];
-        $newQty = (float)$input['quantity'];
-        $diff   = round($newQty - $oldQty, 6);
-        $loc    = $input['location'] ?? $prevRow['location'];
-        $pid    = (int)$prevRow['product_id'];
-        if (abs($diff) > 0.001) {
-            $txType = $diff > 0 ? 'in' : 'out';
-            $txQty  = abs($diff);
-            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, '[Manual correction]')")
-               ->execute([$pid, $txType, $txQty, $loc]);
+        // Record a compensating transaction so anomaly detection stays accurate
+        if (isset($input['quantity']) && $prevRow) {
+            $oldQty = (float)$prevRow['quantity'];
+            $newQty = (float)$input['quantity'];
+            $diff   = round($newQty - $oldQty, 6);
+            $loc    = $input['location'] ?? $prevRow['location'];
+            $pid    = (int)$prevRow['product_id'];
+            if (abs($diff) > 0.001) {
+                $txType = $diff > 0 ? 'in' : 'out';
+                $txQty  = abs($diff);
+                $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, '[Manual correction]')")
+                   ->execute([$pid, $txType, $txQty, $loc]);
+            }
         }
+
+        // Update unit on the product if provided
+        if (isset($input['unit']) && isset($input['product_id'])) {
+            $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$input['unit'], $input['product_id']]);
+        }
+
+        // Update package info if provided
+        if (isset($input['package_unit']) && isset($input['product_id'])) {
+            $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$input['package_unit'], $input['package_size'] ?? 0, $input['product_id']]);
+        }
+
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
     }
 
-    // Update unit on the product if provided
-    if (isset($input['unit']) && isset($input['product_id'])) {
-        $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$input['unit'], $input['product_id']]);
-    }
-    
-    // Update package info if provided
-    if (isset($input['package_unit']) && isset($input['product_id'])) {
-        $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$input['package_unit'], $input['package_size'] ?? 0, $input['product_id']]);
-    }
-
-    // Real-time Bring! sync: if quantity changed, keep Bring! in sync immediately
+    // Real-time Bring! sync: done after commit so DB lock is not held during HTTP call
     if (isset($input['quantity']) && $prevRow && abs((float)$input['quantity'] - (float)$prevRow['quantity']) > 0.001) {
         try { bringQuickSyncProduct($db, (int)$prevRow['product_id']); } catch (Throwable $e) {}
     }
