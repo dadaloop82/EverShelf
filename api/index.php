@@ -7658,11 +7658,20 @@ function smartShopping(PDO $db): void {
                 $reasons[] = 'Esaurito';
                 $score += 30;
             } else {
-                // Product is depleted. Even without a proven usage pattern, always
-                // show at minimum 'low' so the user can restock it.
-                $urgency = 'low';
+                // Product is depleted. Use internal history variables to set urgency:
+                // bought ≥2 times → medium (proven restock item), once → low (might want it),
+                // never bought (manually added) → low.
                 $reasons[] = 'Esaurito';
-                $score += 15;
+                if ($buyCount >= 2) {
+                    $urgency = 'medium';
+                    $score += 45;
+                } elseif ($buyCount >= 1 || $useCount >= 2) {
+                    $urgency = 'low';
+                    $score += 25;
+                } else {
+                    $urgency = 'low';
+                    $score += 10;
+                }
             }
         }
 
