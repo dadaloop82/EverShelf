@@ -13095,6 +13095,8 @@ function startCookingMode() {
     _cookingTTS = true;
     document.getElementById('cooking-title').textContent = _cookingRecipe.title || '';
     document.getElementById('cooking-tts-btn').textContent = '🔊';
+    // Unlock the AudioContext now while we have a user gesture (the Start button tap)
+    _ensureAudioUnlocked();
     // Tools bar
     const toolsBar = document.getElementById('cooking-tools-bar');
     if (toolsBar) {
@@ -13646,6 +13648,7 @@ let _cookingTimers = [];          // { id, label, total, seconds, running, inter
 let _cookingTimerIdCounter = 0;
 let _cookingSuggestedSeconds = 0;
 let _cookingSuggestedLabel = '';
+let _sharedAudioCtx = null;       // pre-unlocked AudioContext (created on user gesture)
 
 function _playCookingTimerSound(type = 'done') {
     try {
@@ -13692,15 +13695,19 @@ function _playCookingTimerSound(type = 'done') {
 function _notifyCookingTimer(type, label) {
     const key = type === 'warning' ? 'cooking.timer_warning_tts' : 'cooking.timer_expired_tts';
     const msg = t(key).replace('{label}', label || t('cooking.timer'));
-    const s = getSettings();
-    const hasBrowserTts = typeof window !== 'undefined' && 'speechSynthesis' in window;
-    const hasCustomTts = (s.tts_engine === 'custom' && !!s.tts_url);
 
-    // Always play the beep — reliable even when speech synthesis fails silently
-    // (autoplay policy, no recent user gesture, Android WebView restrictions).
+    // Always play the beep (uses pre-unlocked shared AudioContext)
     _playCookingTimerSound(type === 'warning' ? 'warning' : 'done');
 
-    if (_cookingTTS && (hasBrowserTts || hasCustomTts)) {
+    // Timer alerts always speak — they are alarms, not step narration.
+    // Do NOT gate on _cookingTTS; that toggle is for step-by-step reading only.
+    // Also include the kiosk native TTS bridge which works even when
+    // window.speechSynthesis is absent on older Android WebView.
+    const s = getSettings();
+    const hasBrowserTts = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    const hasCustomTts  = s.tts_engine === 'custom' && !!s.tts_url;
+    const hasKioskTts   = typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function';
+    if (hasBrowserTts || hasCustomTts || hasKioskTts) {
         speakCookingStep(msg);
     }
 }
@@ -13846,6 +13853,7 @@ function addSuggestedCookingTimer() {
 }
 
 function addCookingTimer(seconds, label) {
+    _ensureAudioUnlocked(); // unlock AudioContext on this user gesture
     const id = ++_cookingTimerIdCounter;
     _cookingTimers.push({ id, label, total: seconds, seconds, running: false, interval: null });
     renderTimersBar();
