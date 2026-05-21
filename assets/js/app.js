@@ -455,7 +455,11 @@ function _scaleAutoFillUse(msg) {
 
     // Determine target unit
     let unit;
-    if (_useConfMode && _useConfMode._activeUnit === 'sub') {
+    if (_useConfMode) {
+        // Scale always reads weight (g/ml) — auto-switch to sub-unit mode if still in conf mode
+        if (_useConfMode._activeUnit !== 'sub') {
+            switchUseUnit('sub');
+        }
         unit = (_useConfMode.packageUnit || '').toLowerCase();
     } else {
         unit = _useNormalUnit;
@@ -944,7 +948,9 @@ function updateScaleReadButtons() {
     }
     const btnUse = document.getElementById('btn-scale-use');
     if (btnUse) {
-        btnUse.style.display = (ready && (_useNormalUnit === 'g' || _useNormalUnit === 'ml')) ? '' : 'none';
+        const canUseByWeight = _useNormalUnit === 'g' || _useNormalUnit === 'ml' ||
+                               (_useConfMode && (_useConfMode.packageUnit === 'g' || _useConfMode.packageUnit === 'ml'));
+        btnUse.style.display = (ready && canUseByWeight) ? '' : 'none';
     }
     // Live box: visible when scale enabled + connected + on use page + compatible unit
     const liveBox = document.getElementById('scale-live-box');
@@ -8590,8 +8596,10 @@ async function loadUseInventoryInfo() {
             unitSwitch.style.display = 'flex';
             document.getElementById('use-unit-sub').textContent = subLabel;
 
-            // Default to conf mode — users think in packages; scale auto-switches to sub
-            switchUseUnit('conf');
+            // If scale is active, start in sub-unit (g/ml) mode — scale always reads weight.
+            // Otherwise default to conf so the user thinks in packages.
+            const _scaleActiveNow = getSettings().scale_enabled && getSettings().scale_gateway_url && _scaleConnected;
+            switchUseUnit(_scaleActiveNow ? 'sub' : 'conf');
 
             // Fraction shortcut buttons for conf mode (½, 1, 2 packages)
             const existingConfFrac = document.getElementById('conf-fraction-btns');
