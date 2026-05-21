@@ -2073,9 +2073,7 @@ function getSettings() {
     if (!_settingsCache) {
         // Settings come from server — do NOT read from localStorage (per-device storage).
         // _settingsCache is populated by _applySyncedSettings() on app init.
-        // Exception: dark_mode is intentionally device-local (stored in localStorage).
         _settingsCache = {};
-        try { const dm = localStorage.getItem('evershelf_dark_mode'); if (dm) _settingsCache.dark_mode = dm; } catch(_) {}
     }
     const s = _settingsCache;
     // Build recipe_prefs array from individual booleans
@@ -2092,8 +2090,8 @@ function getSettings() {
 
 function saveSettingsToStorage(settings) {
     _settingsCache = settings;
-    // Store ONLY dark_mode locally for the pre-render early-theme IIFE.
-    // All other settings are server-side only (centralised, shared across clients).
+    // Cache dark_mode in localStorage ONLY as a hint for the pre-render _earlyTheme() IIFE
+    // (prevents flash before server fetch). Authoritative value is in server .env.
     try { localStorage.setItem('evershelf_dark_mode', settings.dark_mode || 'auto'); } catch(_) {}
     // Persist user-prefs subset to DB
     _settingsDirty = true;
@@ -2213,7 +2211,8 @@ function _applySyncedSettings(serverSettings) {
         'price_enabled','price_country','price_currency','price_update_months',
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
-        'shopping_forecast','shopping_auto_add_threshold'];
+        'shopping_forecast','shopping_auto_add_threshold',
+        'dark_mode'];
     let changed = false;
     for (const key of serverKeys) {
         if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
@@ -2223,7 +2222,7 @@ function _applySyncedSettings(serverSettings) {
     }
     if (changed) {
         _settingsCache = s;
-        // Persist dark_mode locally for early-theme only
+        // Update localStorage hint for _earlyTheme() IIFE on next load
         try { localStorage.setItem('evershelf_dark_mode', s.dark_mode || 'auto'); } catch(_) {}
     }
 }

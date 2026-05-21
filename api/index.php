@@ -3081,6 +3081,7 @@ function getServerSettings(): void {
         'shopping_smart_suggestions'  => env('SHOPPING_SMART_SUGGESTIONS', 'true') === 'true',
         'shopping_forecast'           => env('SHOPPING_FORECAST', 'true') === 'true',
         'shopping_auto_add_threshold' => (int)env('SHOPPING_AUTO_ADD_THRESHOLD', '0'),
+        'dark_mode'                   => env('DARK_MODE', 'auto'),
     ]);
 }
 
@@ -3146,6 +3147,7 @@ function saveSettings(): void {
         'gdrive_client_id'   => 'GDRIVE_CLIENT_ID',
         'gdrive_client_secret'          => 'GDRIVE_CLIENT_SECRET',
         'shopping_mode'      => 'SHOPPING_MODE',
+        'dark_mode'         => 'DARK_MODE',
     ];
     // Boolean keys
     $boolMap = [
