@@ -13657,11 +13657,31 @@ let _cookingSuggestedSeconds = 0;
 let _cookingSuggestedLabel = '';
 let _sharedAudioCtx = null;       // pre-unlocked AudioContext (created on user gesture)
 
+/**
+ * Pre-unlock the shared AudioContext during a user gesture.
+ * Call this from any click/touch handler so that the context is already
+ * in 'running' state when the timer fires (potentially outside a gesture).
+ */
+function _ensureAudioUnlocked() {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (!_sharedAudioCtx || _sharedAudioCtx.state === 'closed') {
+            _sharedAudioCtx = new Ctx();
+        }
+        if (_sharedAudioCtx.state === 'suspended') {
+            _sharedAudioCtx.resume().catch(() => {});
+        }
+    } catch (_) { /* ignore */ }
+}
+
 function _playCookingTimerSound(type = 'done') {
     try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
-        const ctx = new Ctx();
+        // Use the pre-unlocked shared context; fall back to a new one if closed
+        let ctx = (_sharedAudioCtx && _sharedAudioCtx.state !== 'closed') ? _sharedAudioCtx : null;
+        if (!ctx) { ctx = new Ctx(); }
         const pattern = type === 'warning'
             ? [{ f: 880, d: 0.08, o: 0.00 }, { f: 1046, d: 0.10, o: 0.14 }]
             : [
@@ -13685,12 +13705,8 @@ function _playCookingTimerSound(type = 'done') {
                 osc.start(now + p.o);
                 osc.stop(now + p.o + p.d + 0.02);
             }
-            const endAt = now + Math.max(...pattern.map(p => p.o + p.d)) + 0.08;
-            setTimeout(() => { try { ctx.close(); } catch (_) { /* ignore */ } }, Math.max(120, Math.round((endAt - now) * 1000)));
         };
 
-        // AudioContext starts suspended on mobile/Android after autoplay policy —
-        // must call resume() before scheduling nodes, even outside a user gesture.
         if (ctx.state === 'suspended') {
             ctx.resume().then(doPlay).catch(() => {});
         } else {
