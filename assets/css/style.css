@@ -3027,9 +3027,71 @@ body.server-offline .bottom-nav {
     gap: 14px;
 }
 
-.product-preview-small {
-    padding: 12px;
+/* Use-page hero card: larger, accent border, more breathing room */
+#page-use .product-preview-small {
+    padding: 14px 16px;
+    gap: 14px;
+    border-left: 4px solid var(--primary);
+    align-items: flex-start;
 }
+
+.use-hero-icon {
+    font-size: 2.4rem;
+    width: 52px;
+    text-align: center;
+    flex-shrink: 0;
+    line-height: 1;
+    padding-top: 2px;
+}
+
+.use-hero-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.use-hero-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.use-hero-brand {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.use-hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.use-meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 99px;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+/* Expiry pill colours */
+.use-pill-ok       { background: #dcfce7; color: #166534; }
+.use-pill-warn     { background: #fef9c3; color: #854d0e; }
+.use-pill-soon     { background: #fed7aa; color: #7c2d12; }
+.use-pill-expired  { background: #fee2e2; color: #991b1b; }
+/* Quantity pill */
+.use-pill-qty      { background: #e0f2fe; color: #0c4a6e; }
 
 .product-preview img, .product-preview-small img {
     width: 60px;
@@ -3040,8 +3102,11 @@ body.server-offline .bottom-nav {
 }
 
 .product-preview-small img {
-    width: 45px;
-    height: 45px;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    flex-shrink: 0;
 }
 
 .product-preview-emoji {
@@ -7510,6 +7575,12 @@ body.cooking-mode-active .app-header {
 /* ── Use inventory info ── */
 [data-theme="dark"] .use-inventory-info { background: #0c2a4e; color: #7dd3fc; }
 [data-theme="dark"] #use-expiry-hint    { background: #2a1e00; border-color: #78350f; color: #fde68a; }
+[data-theme="dark"] #page-use .product-preview-small { border-left-color: var(--primary); }
+[data-theme="dark"] .use-pill-ok       { background: #14532d; color: #86efac; }
+[data-theme="dark"] .use-pill-warn     { background: #422006; color: #fde68a; }
+[data-theme="dark"] .use-pill-soon     { background: #431407; color: #fdba74; }
+[data-theme="dark"] .use-pill-expired  { background: #450a0a; color: #fca5a5; }
+[data-theme="dark"] .use-pill-qty      { background: #0c2a4e; color: #7dd3fc; }
 
 /* ── Recipe components ── */
 [data-theme="dark"] .recipe-expiry-note  { background: #2a1e00; color: #fde68a; }

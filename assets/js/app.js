@@ -8408,16 +8408,59 @@ function showUseForm() {
 
 function renderUsePreview() {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct?.category, currentProduct?.name)] || '📦';
+    const imgHtml = currentProduct?.image_url
+        ? `<img src="${escapeHtml(currentProduct.image_url)}" alt="">`
+        : `<span class="use-hero-icon">${catIcon}</span>`;
     document.getElementById('use-product-preview').innerHTML = `
-        ${currentProduct?.image_url ?
-            `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
-            `<span style="font-size:2rem">${catIcon}</span>`
-        }
-        <div class="product-preview-info">
-            <h3>${escapeHtml(currentProduct?.name || '')}</h3>
-            <p>${currentProduct?.brand ? escapeHtml(currentProduct.brand) : ''}</p>
+        ${imgHtml}
+        <div class="use-hero-body">
+            <div class="use-hero-name">${escapeHtml(currentProduct?.name || '')}</div>
+            ${currentProduct?.brand ? `<div class="use-hero-brand">${escapeHtml(currentProduct.brand)}</div>` : ''}
+            <div class="use-hero-meta" id="use-hero-meta"></div>
         </div>
     `;
+}
+
+/**
+ * Fill the hero-card meta row with expiry badge + quantity pill.
+ * Called from loadUseInventoryInfo() once inventory data is available.
+ */
+function _updateUseHeroMeta(items) {
+    const metaEl = document.getElementById('use-hero-meta');
+    if (!metaEl) return;
+    const pills = [];
+
+    // ── Expiry badge ───────────────────────────────────────────────────
+    const withExpiry = items.filter(i => i.expiry_date && parseFloat(i.quantity) > 0.01);
+    if (withExpiry.length > 0) {
+        withExpiry.sort((a, b) => new Date(a.expiry_date + 'T12:00:00') - new Date(b.expiry_date + 'T12:00:00'));
+        const soonest = withExpiry[0];
+        const expDate = new Date(soonest.expiry_date + 'T12:00:00');
+        const today = new Date(); today.setHours(0,0,0,0);
+        const days = Math.round((expDate - today) / 86400000);
+        const locale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        const dateStr = expDate.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+        let cls, label;
+        if (days < 0)       { cls = 'use-pill-expired'; label = `${t('expiry.badge_expired_ago').replace('{n}', Math.abs(days))} (${dateStr})`; }
+        else if (days === 0){ cls = 'use-pill-soon';    label = t('expiry.badge_today'); }
+        else if (days <= 3) { cls = 'use-pill-soon';    label = `${t('expiry.badge_expiring_short').replace('{n}', days)} (${dateStr})`; }
+        else if (days <= 7) { cls = 'use-pill-warn';    label = `${t('expiry.badge_expiring_short').replace('{n}', days)} (${dateStr})`; }
+        else                { cls = 'use-pill-ok';      label = `📅 ${dateStr}`; }
+        pills.push(`<span class="use-meta-pill ${cls}">${label}</span>`);
+    }
+
+    // ── Quantity + location count pill ────────────────────────────────
+    if (items.length > 0) {
+        const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
+        const unit = items[0]?.unit;
+        const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
+        const locCount = new Set(items.map(i => i.location)).size;
+        const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short') || 'posti'}` : '';
+        pills.push(`<span class="use-meta-pill use-pill-qty">📦 ${escapeHtml(qtyStr)}${locSuffix}</span>`);
+    }
+
+    metaEl.innerHTML = pills.join('');
 }
 
 // Conf-mode tracking for USE form
@@ -8521,6 +8564,9 @@ async function loadUseInventoryInfo() {
             document.getElementById('use-expiry-hint').style.display = 'none';
             return;
         }
+
+        // ── Hero card meta: expiry badge + qty pill ──────────────────
+        _updateUseHeroMeta(items);
 
         // ── Suggerisci quale confezione usare per prima ──────────────────
         _renderUseExpiryHint(items);
