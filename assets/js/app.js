@@ -3505,6 +3505,7 @@ async function saveSettings() {
             shopping_smart_suggestions:  s.shopping_smart_suggestions !== false,
             shopping_forecast:           s.shopping_forecast !== false,
             shopping_auto_add_threshold: s.shopping_auto_add_threshold || 0,
+            dark_mode:                   s.dark_mode || 'auto',
         }, tokenHeader);
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
