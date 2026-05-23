@@ -13161,8 +13161,7 @@ function renderRecipe(r) {
     // Steps
     html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
     (r.steps || []).forEach(step => {
-        const cleanStep = step.replace(/^Passo\s*\d+\s*:\s*/i, '');
-        html += `<li>${cleanStep}</li>`;
+        html += `<li>${_stepStr(step)}</li>`;
     });
     html += '</ol>';
 
@@ -13179,6 +13178,11 @@ let _cookingRecipe = null;
 let _cookingStep = 0;
 let _cookingTTS = true;
 let _cookingVisited = new Set(); // indices of steps already seen
+
+// Safely extract step text regardless of whether it's a string or an object
+// (Gemini sometimes returns [{text:"..."}, ...] instead of ["...", ...])
+const _stepStr = s => String((s !== null && typeof s === 'object') ? (s.text ?? s.description ?? s.step ?? '') : (s ?? '')).replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+
 let _cookingWheelBound = false;
 let _cookingWheelTouchStartY = null;
 let _cookingWheelLastNavTs = 0;
@@ -13281,7 +13285,7 @@ function startCookingMode() {
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
     if (_cookingTTS) {
-        const text = ((_cookingRecipe.steps || [])[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        const text = _stepStr((_cookingRecipe.steps || [])[_cookingStep]);
         speakCookingStep(text);
     }
 }
@@ -13432,7 +13436,7 @@ function renderCookingStep() {
     if (!_cookingRecipe) return;
     const steps = _cookingRecipe.steps || [];
     const step = steps[_cookingStep] || '';
-    const cleanStep = step.replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+    const cleanStep = _stepStr(step);
     const total = steps.length;
 
     // Mark current step as visited
@@ -13445,7 +13449,7 @@ function renderCookingStep() {
     const nextEl = document.getElementById('cooking-step-next');
     if (prevEl) {
         if (_cookingStep > 0) {
-            prevEl.textContent = (steps[_cookingStep - 1] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+            prevEl.textContent = _stepStr(steps[_cookingStep - 1]);
             prevEl.classList.remove('is-empty');
         } else {
             prevEl.textContent = '';
@@ -13454,7 +13458,7 @@ function renderCookingStep() {
     }
     if (nextEl) {
         if (_cookingStep < total - 1) {
-            nextEl.textContent = (steps[_cookingStep + 1] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+            nextEl.textContent = _stepStr(steps[_cookingStep + 1]);
             nextEl.classList.remove('is-empty');
         } else {
             nextEl.textContent = '';
@@ -13617,7 +13621,7 @@ async function speakCookingStep(text) {
 function replayCookingTTS() {
     if (!_cookingRecipe) return;
     const steps = _cookingRecipe.steps || [];
-    const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+    const text = _stepStr(steps[_cookingStep]);
     if (text) speakCookingStep(text);
 }
 
@@ -14180,7 +14184,7 @@ function toggleCookingTTS() {
     btn.textContent = _cookingTTS ? '🔊' : '🔇';
     if (_cookingTTS) {
         const steps = _cookingRecipe?.steps || [];
-        const text = (steps[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        const text = _stepStr(steps[_cookingStep]);
         speakCookingStep(text);
     }
 }
@@ -14205,7 +14209,7 @@ function navigateCookingStep(delta) {
     renderCookingStep();
     _cookingStepFeedback();
     if (_cookingTTS) {
-        const text = ((_cookingRecipe.steps || [])[_cookingStep] || '').replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+        const text = _stepStr((_cookingRecipe.steps || [])[_cookingStep]);
         speakCookingStep(text);
     }
 }

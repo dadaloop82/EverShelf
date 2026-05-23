@@ -5571,7 +5571,14 @@ PROMPT;
         return;
     }
 
-    // ── Post-process: fuzzy-match ingredients → inventory (same as generateRecipe) ──
+    // Normalize steps: Gemini sometimes returns [{"text":"..."}, ...] instead of ["...", ...]
+    if (!empty($recipe['steps']) && is_array($recipe['steps'])) {
+        $recipe['steps'] = array_values(array_map(function($s) {
+            if (is_string($s)) return $s;
+            if (is_array($s))  return $s['text'] ?? $s['description'] ?? $s['step'] ?? json_encode($s, JSON_UNESCAPED_UNICODE);
+            return (string)$s;
+        }, $recipe['steps']));
+    }
     if (!empty($recipe['ingredients'])) {
         $itemsLookup = [];
         foreach ($items as $item) {
