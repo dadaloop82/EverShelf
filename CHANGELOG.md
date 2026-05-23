@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.25] - 2026-05-23
+
+### Fixed
+- **Bring! items re-appearing after manual purchase removal** — `removeBringItem` and `confirmShoppingItemFound` now call `_markBringPurchased` immediately after removing an item, so the purchased blocklist is populated before the next background refresh. `autoAddCriticalItems` now also respects the blocklist for depleted items (quantity = 0), preventing re-addition of just-bought products.
+- **Barcode lookup false "not found"** — Added `_offFetchProduct()` PHP helper that tries up to three barcode candidates (given code, UPC-A → EAN-13 by prepending `0`, EAN-13 → UPC-A by stripping leading `0`) against two Open Food Facts locales (`it` and default), with one automatic retry on network error. UPCItemDB fallback also iterates the same candidates. Reduces false negatives on 12-digit US barcodes and region-specific EAN codes.
+- **Partial throw from expired-items banner** — The "Butta" button in the dashboard banner previously discarded the entire inventory row with no confirmation. It now opens the existing throw modal (location picker + quantity input + "Butta tutto" option), consistent with the throw flow available from the scan → action page.
+
+### Added
+- **Related stock display when scanning branded products** — When scanning a product, the action page now shows a green card listing any inventory items from the same generic family (matching first name token or shopping name, different product ID) already at home, so you avoid double-buying.
+
 ## [1.7.24] - 2026-05-21
 
 ### Fixed

@@ -227,7 +227,8 @@
     "throw_btn": "🗑️ BUTTA",
     "throw_sub": "butta il prodotto",
     "edit_sub": "scadenza, luogo…",
-    "create_recipe_btn": "Ricetta"
+    "create_recipe_btn": "Ricetta",
+    "related_stock_title": "Hai anche in casa"
   },
   "add": {
     "title": "Aggiungi alla Dispensa",

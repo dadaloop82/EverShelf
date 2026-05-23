@@ -1442,6 +1442,87 @@ function searchBarcode(PDO $db): void {
     }
 }
 
+function _offFetchProduct(string $barcode): ?array {
+    $fields = 'product_name,product_name_it,generic_name,generic_name_it,brands,categories_tags,categories_hierarchy,categories,image_front_small_url,image_url,quantity,nutriscore_grade,ingredients_text_it,ingredients_text,allergens_tags,conservation_conditions_it,conservation_conditions,origins_it,origins,manufacturing_places,nova_group,ecoscore_grade,labels,stores';
+
+    // Try candidate barcodes: given barcode + EAN-13 (UPC-A → prepend 0)
+    $candidates = [$barcode];
+    if (strlen($barcode) === 12 && ctype_digit($barcode)) {
+        $candidates[] = '0' . $barcode;
+    }
+    // Also try without leading zero if 13 digits starting with 0
+    if (strlen($barcode) === 13 && $barcode[0] === '0') {
+        $candidates[] = substr($barcode, 1);
+    }
+
+    // Locale preference: Italian first (better names), then world-neutral
+    $locales = ['lc=it', ''];
+
+    foreach ($candidates as $bc) {
+        foreach ($locales as $lc) {
+            $lcParam = $lc ? "&{$lc}" : '';
+            $url = "https://world.openfoodfacts.org/api/v2/product/{$bc}.json?fields={$fields}{$lcParam}";
+            $ctx = stream_context_create(['http' => ['timeout' => 8, 'header' => "User-Agent: EverShelf/1.0\r\n"]]);
+
+            $response = @file_get_contents($url, false, $ctx);
+            if ($response === false) {
+                // Network error: retry once after short delay
+                usleep(300000); // 0.3s
+                $response = @file_get_contents($url, false, $ctx);
+            }
+            if ($response === false) continue;
+
+            $data = json_decode($response, true);
+            if (!isset($data['status']) || $data['status'] !== 1 || empty($data['product'])) continue;
+
+            $p = $data['product'];
+
+            // Prefer Italian name, fall back to generic / any locale
+            $name = '';
+            foreach (['product_name_it', 'generic_name_it', 'product_name', 'generic_name'] as $f) {
+                if (!empty($p[$f])) { $name = $p[$f]; break; }
+            }
+
+            // Non-Latin script fallback
+            if (!empty($name) && preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $name)) {
+                $latinName = '';
+                foreach (['generic_name_it', 'generic_name', 'product_name_it', 'product_name'] as $f) {
+                    if (!empty($p[$f]) && !preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $p[$f])) {
+                        $latinName = $p[$f]; break;
+                    }
+                }
+                if (empty($latinName)) $latinName = !empty($p['brands']) ? $p['brands'] : 'Prodotto sconosciuto';
+                $name = $latinName;
+            }
+
+            $ingredients = $p['ingredients_text_it'] ?? $p['ingredients_text'] ?? '';
+            $category = $p['categories_tags'][0] ?? end($p['categories_hierarchy'] ?? []) ?? $p['categories'] ?? '';
+            $allergens = '';
+            if (!empty($p['allergens_tags'])) {
+                $allergens = implode(', ', array_map(fn($a) => str_replace('en:', '', $a), $p['allergens_tags']));
+            }
+
+            return [
+                'name'          => $name,
+                'brand'         => $p['brands'] ?? '',
+                'category'      => $category,
+                'image_url'     => $p['image_front_small_url'] ?? $p['image_url'] ?? '',
+                'quantity_info' => $p['quantity'] ?? '',
+                'nutriscore'    => $p['nutriscore_grade'] ?? '',
+                'ingredients'   => $ingredients,
+                'allergens'     => $allergens,
+                'conservation'  => $p['conservation_conditions_it'] ?? $p['conservation_conditions'] ?? '',
+                'origin'        => $p['origins_it'] ?? $p['origins'] ?? $p['manufacturing_places'] ?? '',
+                'nova_group'    => $p['nova_group'] ?? '',
+                'ecoscore'      => $p['ecoscore_grade'] ?? '',
+                'labels'        => $p['labels'] ?? '',
+                'stores'        => $p['stores'] ?? '',
+            ];
+        }
+    }
+    return null;
+}
+
 function lookupBarcode(): void {
     $barcode = $_GET['barcode'] ?? '';
     if (empty($barcode)) {
@@ -1449,141 +1530,37 @@ function lookupBarcode(): void {
         echo json_encode(['found' => false, 'error' => 'No barcode provided']);
         return;
     }
-    
-    // Try Open Food Facts API (Italian version first for better localized data)
-    $url = "https://world.openfoodfacts.org/api/v2/product/{$barcode}.json?fields=product_name,product_name_it,generic_name,generic_name_it,brands,categories_tags,categories_hierarchy,categories,image_front_small_url,image_url,quantity,nutriscore_grade,ingredients_text_it,ingredients_text,allergens_tags,conservation_conditions_it,conservation_conditions,origins_it,origins,manufacturing_places,nova_group,ecoscore_grade,labels,stores&lc=it";
-    $ctx = stream_context_create([
-        'http' => [
-            'timeout' => 10,
-            'header' => "User-Agent: DispensaManager/1.0\r\n"
-        ]
-    ]);
-    
-    $response = @file_get_contents($url, false, $ctx);
-    if ($response === false) {
-        echo json_encode(['found' => false, 'source' => 'openfoodfacts', 'error' => 'API request failed']);
+
+    // 1. Try Open Food Facts (multi-barcode, multi-locale, with auto-retry on network errors)
+    $offProduct = _offFetchProduct($barcode);
+    if ($offProduct !== null) {
+        echo json_encode(['found' => true, 'source' => 'openfoodfacts', 'product' => $offProduct]);
         return;
     }
-    
-    $data = json_decode($response, true);
-    if (isset($data['status']) && $data['status'] === 1 && !empty($data['product'])) {
-        $p = $data['product'];
-        
-        // Prefer Italian name, fall back to generic
-        // Also request localized name via abbreviated_product_name
-        $name = '';
-        if (!empty($p['product_name_it'])) {
-            $name = $p['product_name_it'];
-        } elseif (!empty($p['generic_name_it'])) {
-            $name = $p['generic_name_it'];
-        } elseif (!empty($p['product_name'])) {
-            $name = $p['product_name'];
-        } elseif (!empty($p['generic_name'])) {
-            $name = $p['generic_name'];
-        }
-        
-        // If the name looks like it's in a non-Latin script (Arabic, Chinese, Thai, etc.)
-        // try to use a fallback from brands + generic category
-        if (!empty($name) && preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $name)) {
-            // Try other name fields that might be in Latin script
-            $latinName = '';
-            foreach (['generic_name_it', 'generic_name', 'product_name_it', 'product_name'] as $field) {
-                if (!empty($p[$field]) && !preg_match('/[\x{0600}-\x{06FF}\x{0E00}-\x{0E7F}\x{4E00}-\x{9FFF}\x{3040}-\x{30FF}\x{AC00}-\x{D7AF}\x{0400}-\x{04FF}]/u', $p[$field])) {
-                    $latinName = $p[$field];
-                    break;
-                }
-            }
-            // If still no Latin name, construct from brand + category
-            if (empty($latinName)) {
-                $brand = $p['brands'] ?? '';
-                $latinName = !empty($brand) ? $brand : 'Prodotto sconosciuto';
-            }
-            $name = $latinName;
-        }
-        
-        // Get Italian ingredients, fall back to generic
-        $ingredients = '';
-        if (!empty($p['ingredients_text_it'])) {
-            $ingredients = $p['ingredients_text_it'];
-        } elseif (!empty($p['ingredients_text'])) {
-            $ingredients = $p['ingredients_text'];
-        }
-        
-        // Category: prefer Italian categories_tags, fallback
-        $category = '';
-        if (!empty($p['categories_tags'])) {
-            // Try to find an Italian-friendly category
-            $category = $p['categories_tags'][0] ?? '';
-        } elseif (!empty($p['categories_hierarchy'])) {
-            $category = end($p['categories_hierarchy']);
-        } elseif (!empty($p['categories'])) {
-            $category = $p['categories'];
-        }
-        
-        // Allergens
-        $allergens = '';
-        if (!empty($p['allergens_tags'])) {
-            $allergens = implode(', ', array_map(function($a) {
-                return str_replace('en:', '', $a);
-            }, $p['allergens_tags']));
-        }
-        
-        // Conservation / storage
-        $conservation = $p['conservation_conditions_it'] ?? $p['conservation_conditions'] ?? '';
-        
-        // Origin
-        $origin = $p['origins_it'] ?? $p['origins'] ?? $p['manufacturing_places'] ?? '';
-        
-        $result = [
-            'found' => true,
-            'source' => 'openfoodfacts',
-            'product' => [
-                'name' => $name,
-                'brand' => $p['brands'] ?? '',
-                'category' => $category,
-                'image_url' => $p['image_front_small_url'] ?? $p['image_url'] ?? '',
-                'quantity_info' => $p['quantity'] ?? '',
-                'nutriscore' => $p['nutriscore_grade'] ?? '',
-                'ingredients' => $ingredients,
-                'allergens' => $allergens,
-                'conservation' => $conservation,
-                'origin' => $origin,
-                'nova_group' => $p['nova_group'] ?? '',
-                'ecoscore' => $p['ecoscore_grade'] ?? '',
-                'labels' => $p['labels'] ?? '',
-                'stores' => $p['stores'] ?? '',
-            ]
-        ];
-        echo json_encode($result);
-    } else {
-        // Try UPC Item DB as fallback
-        $url2 = "https://api.upcitemdb.com/prod/trial/lookup?upc={$barcode}";
-        $ctx2 = stream_context_create([
-            'http' => [
-                'timeout' => 10,
-                'header' => "User-Agent: DispensaManager/1.0\r\n"
-            ]
-        ]);
-        $response2 = @file_get_contents($url2, false, $ctx2);
-        if ($response2 !== false) {
-            $data2 = json_decode($response2, true);
-            if (!empty($data2['items'][0])) {
-                $item = $data2['items'][0];
-                echo json_encode([
-                    'found' => true,
-                    'source' => 'upcitemdb',
-                    'product' => [
-                        'name' => $item['title'] ?? '',
-                        'brand' => $item['brand'] ?? '',
-                        'category' => $item['category'] ?? '',
-                        'image_url' => $item['images'][0] ?? '',
-                    ]
-                ]);
+
+    // 2. Try UPC Item DB as fallback
+    $candidates = [$barcode];
+    if (strlen($barcode) === 12 && ctype_digit($barcode)) $candidates[] = '0' . $barcode;
+    foreach ($candidates as $bc) {
+        $url2 = "https://api.upcitemdb.com/prod/trial/lookup?upc={$bc}";
+        $ctx2 = stream_context_create(['http' => ['timeout' => 8, 'header' => "User-Agent: EverShelf/1.0\r\n"]]);
+        $r2 = @file_get_contents($url2, false, $ctx2);
+        if ($r2 !== false) {
+            $d2 = json_decode($r2, true);
+            if (!empty($d2['items'][0])) {
+                $item = $d2['items'][0];
+                echo json_encode(['found' => true, 'source' => 'upcitemdb', 'product' => [
+                    'name'      => $item['title'] ?? '',
+                    'brand'     => $item['brand'] ?? '',
+                    'category'  => $item['category'] ?? '',
+                    'image_url' => $item['images'][0] ?? '',
+                ]]);
                 return;
             }
         }
-        echo json_encode(['found' => false, 'source' => 'openfoodfacts']);
     }
+
+    echo json_encode(['found' => false, 'source' => 'openfoodfacts']);
 }
 
 function saveProduct(PDO $db): void {
@@ -9526,13 +9503,30 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
         } elseif (($unit === 'conf' || $unit === 'pz') && $defQty > 0 && empty($pkgUnit)) {
             // pkgUnit not recorded in DB — for /kg prices assume defQty is in grams
             // (vast majority of grocery packages: pancetta 80g, formaggio 200g, etc.)
-            $weightKg = $qty * $defQty / 1000.0;
+            // GUARD: if defQty < 20 it is almost certainly a piece/unit count (e.g. "1 pz
+            // per purchase"), not a gram weight.  Treating 1 as 1g would give a nonsense
+            // price (e.g. Peperoni defQty=1 → 0.001 kg → €0.003 displayed as €0.00).
+            // Skip the weight conversion for these; the item falls through to the
+            // countable path at the bottom (ppu × qty) which returns a rough estimate.
+            if ($defQty >= 20) {
+                $weightKg = $qty * $defQty / 1000.0;
+            }
         } elseif ($unit === 'g')  {
             $weightKg = $qty / 1000.0;
         } elseif ($unit === 'kg') {
             $weightKg = $qty;
         }
-        if ($weightKg <= 0) return null;
+        if ($weightKg <= 0) {
+            // Two cases:
+            // A) defQty was 0 (no weight data at all) → "–" is more honest than a fake price.
+            // B) defQty was 1-19 (suspicious: the value was stored as a piece count, not grams;
+            //    the assignment was intentionally skipped by the defQty<20 guard above).
+            //    In case B, fall back to ppu × qty so the badge shows something rather than €0.00.
+            if (in_array($unit, ['pz', 'conf']) && $defQty > 0) {
+                return round($pricePerUnit * max(1.0, $qty), 2);
+            }
+            return null;
+        }
         return round($pricePerUnit * $weightKg, 2);
     }
 

@@ -227,7 +227,8 @@
     "throw_btn": "🗑️ DISCARD",
     "throw_sub": "throw away",
     "edit_sub": "expiry, location…",
-    "create_recipe_btn": "Recipe"
+    "create_recipe_btn": "Recipe",
+    "related_stock_title": "Also at home"
   },
   "add": {
     "title": "Add to Pantry",

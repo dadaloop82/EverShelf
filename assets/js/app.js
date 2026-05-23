@@ -4551,7 +4551,7 @@ function isSuspiciousQty(qty, unit) {
 function isSuspiciousDefaultQty(defaultQty, unit, packageUnit) {
     const n = parseFloat(defaultQty);
     if (!n || n <= 0) return false;
-    const checkUnit = (unit === 'conf' && packageUnit) ? packageUnit : unit;
+    const checkUnit = ((unit === 'conf' || unit === 'pz') && packageUnit) ? packageUnit : unit;
     const th = QTY_THRESHOLDS[checkUnit] || QTY_THRESHOLDS['pz'];
     return n > th.max;
 }
@@ -4750,24 +4750,30 @@ async function loadBannerAlerts() {
         });
 
         // 7. Products with no expiry date set (and not permanently dismissed)
+        // Warn for ALL food/drink items — only skip igiene/pulizia (non-food).
+        // Items are capped at 8 per load (opened packages first) to avoid banner overflow.
         const noExpiryDismissed = _getNoExpiryDismissed();
-        const PERISHABLE_CATS = ['latticini','carne','pesce','salumi','fresco','verdura','frutta','surgelati',
-                                  'dairy','meat','fish','fresh','vegetables','fruit','frozen'];
+        const NON_FOOD_CATS = ['igiene', 'pulizia'];
+        const noExpiryItems = [];
         items.forEach(item => {
             if (_queuedItemIds.has(item.id)) return; // already in expired or review
             if (item.expiry_date) return;               // already has expiry
             if (parseFloat(item.quantity) <= 0) return; // no stock
             const pid = String(item.product_id || item.id);
             if (noExpiryDismissed[pid]) return;         // user said "no expiry needed"
-            // Only flag perishable-looking categories or items with opened_at
-            const cat = (item.category || '').toLowerCase();
-            // Also infer category from name for items with missing/generic category
             const guessedCat = guessCategoryFromName(item.name || '');
-            const perishableGuessed = ['latticini','carne','pesce','frutta','verdura','surgelati'].includes(guessedCat);
-            const likelyPerishable = item.opened_at ||
-                PERISHABLE_CATS.some(c => cat.includes(c)) ||
-                perishableGuessed;
-            if (!likelyPerishable) return;
+            const cat = (item.category || '').toLowerCase();
+            // Skip non-food categories
+            if (NON_FOOD_CATS.includes(guessedCat) ||
+                NON_FOOD_CATS.some(c => cat.includes(c))) return;
+            noExpiryItems.push(item);
+        });
+        // Sort: opened packages first (more urgent), then alphabetically
+        noExpiryItems.sort((a, b) => {
+            if (!!a.opened_at !== !!b.opened_at) return a.opened_at ? -1 : 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+        noExpiryItems.slice(0, 8).forEach(item => {
             _bannerQueue.push({ type: 'no_expiry', data: item });
         });
 
@@ -5196,19 +5202,18 @@ function bannerThrowAway() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry) return;
     const item = entry.data;
-    api('inventory_use', {}, 'POST', {
-        product_id: item.product_id,
-        quantity: item.quantity,
-        location: item.location,
-        use_all: true,
-        notes: 'Buttato'
-    }).then(res => {
-        if (res.success) {
-            showToast(t('toast.thrown_away', { name: item.name }), 'success');
-            loadDashboard();
-        }
-    }).catch(() => showToast(t('error.connection'), 'error'));
-    dismissBannerItem();
+    // Populate currentProduct so the shared showThrowForm / throwAll / throwPartial work
+    currentProduct = {
+        id: item.product_id,
+        name: item.name,
+        brand: item.brand || '',
+        image_url: item.image_url || null,
+        category: item.category || '',
+        unit: item.unit || 'pz',
+        default_quantity: item.default_quantity || 0,
+        package_unit: item.package_unit || ''
+    };
+    showThrowForm();
 }
 
 async function bannerMarkVacuum() {
@@ -7214,7 +7219,7 @@ function showProductAction() {
     }
     
     // === CHECK INVENTORY FOR THIS PRODUCT ===
-    checkInventoryForProduct(currentProduct.id).then(inventoryItems => {
+    checkInventoryForProduct(currentProduct.id, currentProduct.name).then(({ items: inventoryItems, related: relatedItems }) => {
         _actionInventoryItems = inventoryItems;
         const statusBar = document.getElementById('action-inventory-status');
         const btnsContainer = document.getElementById('action-buttons-container');
@@ -7302,6 +7307,31 @@ function showProductAction() {
             const orphan = document.getElementById('catalog-edit-link');
             if (orphan) orphan.remove();
         }
+
+        // === RELATED STOCK (same generic family, different product/brand) ===
+        const relatedEl = document.getElementById('action-related-stock');
+        if (relatedEl) {
+            if (relatedItems.length > 0) {
+                // Group by product name+brand and sum quantities
+                const grouped = {};
+                for (const ri of relatedItems) {
+                    const key = ri.product_id;
+                    if (!grouped[key]) grouped[key] = { item: ri, qty: 0 };
+                    grouped[key].qty += parseFloat(ri.quantity) || 0;
+                }
+                const parts = Object.values(grouped).map(({ item, qty }) => {
+                    const qtyStr = formatQuantity(qty, item.unit, item.default_quantity, item.package_unit);
+                    const locIcon = (LOCATIONS[item.location] || { icon: '📦' }).icon;
+                    const label = item.name + (item.brand ? ` (${item.brand})` : '');
+                    return `<span class="related-stock-item">${escapeHtml(label)}: <strong>${qtyStr}</strong> ${locIcon}</span>`;
+                }).join('');
+                relatedEl.innerHTML = `<div class="action-related-stock-card">🔍 ${t('action.related_stock_title')}: ${parts}</div>`;
+                relatedEl.style.display = 'block';
+            } else {
+                relatedEl.style.display = 'none';
+                relatedEl.innerHTML = '';
+            }
+        }
     });
     
     // Update back button: go back to shopping if came from shopping list scan
@@ -7331,12 +7361,27 @@ function showProductAction() {
 }
 
 // Check if product exists in inventory
-async function checkInventoryForProduct(productId) {
+async function checkInventoryForProduct(productId, productName) {
     try {
         const data = await api('inventory_list');
-        return (data.inventory || []).filter(i => i.product_id == productId);
+        const all = data.inventory || [];
+        const exact = all.filter(i => i.product_id == productId);
+
+        // Find inventory items from the same generic family (same shopping_name or first token)
+        const firstToken = (_nameTokens(productName || '')[0] || '').toLowerCase();
+        const sNameFromExact = exact.length > 0 ? (exact[0].shopping_name || '').toLowerCase() : '';
+        const matchToken = firstToken || sNameFromExact;
+        const related = matchToken ? all.filter(i => {
+            if (i.product_id == productId) return false;
+            const iFirst = (_nameTokens(i.name || '')[0] || '').toLowerCase();
+            const iSName = (i.shopping_name || '').toLowerCase();
+            return iFirst === matchToken || iSName === matchToken ||
+                   (sNameFromExact && (iFirst === sNameFromExact || iSName === sNameFromExact));
+        }) : [];
+
+        return { items: exact, related };
     } catch(e) {
-        return [];
+        return { items: [], related: [] };
     }
 }
 
@@ -8815,12 +8860,12 @@ function selectUseLocation(btn, loc) {
 // ── PREFERRED USE LOCATION ───────────────────────────────────────────────
 // After 3+ consistent choices from the same location for a product,
 // auto-selects it and hides the location picker (user can still tap "cambia").
-const _PREF_LOC_NEEDED = 2; // choices needed to confirm a preference
+const _PREF_LOC_NEEDED = 1; // choices needed to confirm a preference
 
 // ── PREFERRED MOVE-AFTER-USE LOCATION ────────────────────────────────────
 // Tracks where the user puts the remainder after using a product.
 // After _PREF_MOVE_NEEDED consistent choices, the modal is skipped entirely.
-const _PREF_MOVE_NEEDED = 2;
+const _PREF_MOVE_NEEDED = 1;
 let _pendingMoveCtx = null; // { productId, fromLoc, openedId } — set before showing modal
 
 function _getMoveLocHistory(productId, fromLoc) {
@@ -9215,6 +9260,14 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
         return;
     }
 
+    // If the product only exists at fromLoc (no other active locations), there is
+    // nothing to move — auto-stay silently without showing the modal.
+    const hasOtherLocs = (_useCurrentItems || []).some(i => i.location !== fromLoc);
+    if (!hasOtherLocs) {
+        _saveVacuumAndStay(openedId || 0);
+        return;
+    }
+
     const otherLocs = Object.entries(LOCATIONS).filter(([k]) => k !== fromLoc);
     const locButtons = otherLocs.map(([k, v]) =>
         `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
@@ -9231,7 +9284,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
-            <button class="modal-close" onclick="clearMoveModalTimer();closeModal();showPage('dashboard')">✕</button>
+            <button class="modal-close" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0})">✕</button>
         </div>
         <div style="padding:0 16px 16px">
             <p style="margin-bottom:12px">${t('move.question').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')).replace('{name}', `<strong>${escapeHtml(product.name)}</strong>`)}</p>
@@ -10175,6 +10228,7 @@ async function confirmShoppingItemFound() {
     try {
         const r = await api('shopping_remove', {}, 'POST', { name, rawName, listUUID: shoppingListUUID });
         if (r.success) {
+            _markBringPurchased([name]); // prevent background sync from re-adding before barcode scan
             const idx = shoppingItems.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
             if (idx >= 0) shoppingItems.splice(idx, 1);
             showToast(t('shopping.item_removed').replace('{name}', name), 'success');
@@ -10283,8 +10337,9 @@ async function autoAddCriticalItems() {
         if (i.on_bring) return false;
         // For imminent items, do not honor local "purchased" blocklist too aggressively.
         // If they are predicted to finish within a week, keep Bring aligned automatically.
-        // Bypass blocklist for depleted items (current_qty=0) — they ran out and must be re-added
-        if (!imminentWeek && (i.current_qty ?? 0) > 0 && _isBringPurchased(i.name, i.urgency)) return false;
+        // Always honour the purchased blocklist so that items the user just removed from Bring!
+        // (i.e. bought them at the store) are not immediately re-added before they are scanned.
+        if (!imminentWeek && _isBringPurchased(i.name, i.urgency)) return false;
         if (i.urgency === 'critical') return true;
         if (i.urgency === 'high') return true;
         if (i.urgency === 'medium' && (i.days_left ?? 999) <= 7 && (i.uses_per_month || 0) >= 3) return true;
@@ -10591,20 +10646,13 @@ async function cleanupObsoleteBringItems() {
     localStorage.setItem('_bringCleanupTs', String(Date.now()));
     if (!shoppingItems.length || !smartShoppingItems.length) return;
 
-    // Detect items added by the app vs manually by the user.
-    // Items added by the app always have urgency markers in their spec (⚡ / 🟠 / 🛒).
-    // This detection works across ALL clients — no localStorage dependency.
-    const APP_SPEC_MARKERS = ['⚡', '🟠', '🛒'];
-    const isAppAdded = (item) => {
-        const spec = item.specification || '';
-        // Also trust the legacy localStorage list as secondary signal
-        const autoAdded = _getAutoAddedBring();
-        const nameLow = item.name.toLowerCase();
-        const hasMarker = APP_SPEC_MARKERS.some(m => spec.includes(m));
-        const inLegacyMap = !!(autoAdded[nameLow] ||
-            Object.keys(autoAdded).some(k => _nameTokens(k)[0] === (_nameTokens(item.name)[0] || '')));
-        return hasMarker || inLegacyMap;
-    };
+    // Detect items added automatically by the app (via autoAddCriticalItems).
+    // We rely ONLY on the explicit _autoAddedBring registry (exact name match).
+    // Do NOT use spec markers: autoSyncUrgencySpecs stamps urgency markers (⚡/🟠/🛒)
+    // on ALL matched items regardless of who added them, making marker-based detection
+    // unreliable and causing accidental removal of user-added items.
+    const _autoAdded = _getAutoAddedBring();
+    const isAppAdded = (item) => !!(_autoAdded[item.name.toLowerCase()]);
 
     // Build shopping_name family → total stock from smart_shopping (server already computed this)
     // If smart says a family is NOT needed, it already excluded them.
@@ -10649,10 +10697,14 @@ async function cleanupObsoleteBringItems() {
     }
 
     const toRemove = [];
+    const _pinned = _pinnedBringCache || {};
     for (const item of shoppingItems) {
         const nameLower = item.name.toLowerCase();
         const itemToks = _nameTokens(item.name);
         const itemFirst = itemToks[0];
+
+        // Never remove items explicitly pinned by the user
+        if (_pinned[nameLower]) continue;
 
         // Only remove items the app put there
         if (!isAppAdded(item)) continue;
@@ -11587,6 +11639,7 @@ async function removeBringItem(idx) {
             listUUID: shoppingListUUID 
         });
         if (data.success) {
+            _markBringPurchased([item.name]); // prevent background sync from re-adding before barcode scan
             shoppingItems.splice(idx, 1);
             renderShoppingItems();
             showToast(t('toast.removed_from_list_short'), 'success');
@@ -14646,6 +14699,29 @@ function saveChatHistory() {
 // ===== SCREENSAVER & INACTIVITY AUTO-REFRESH =====
 let _inactivityTimer = null;
 let _screensaverActive = false;
+
+// ── Auto-home: always-on 2-minute idle return to dashboard ──
+let _autoHomeTimer = null;
+const AUTO_HOME_MS = 2 * 60 * 1000; // 2 minutes
+
+function _resetAutoHomeTimer() {
+    clearTimeout(_autoHomeTimer);
+    _autoHomeTimer = setTimeout(_triggerAutoHome, AUTO_HOME_MS);
+}
+
+function _cancelAutoHomeTimer() {
+    clearTimeout(_autoHomeTimer);
+    _autoHomeTimer = null;
+}
+
+function _triggerAutoHome() {
+    if (_screensaverActive) return;
+    if (document.body.classList.contains('cooking-mode-active')) return;
+    if (_currentPageId === 'dashboard') return;
+    const modal = document.getElementById('modal-overlay');
+    if (modal && modal.style.display === 'flex') return;
+    showPage('dashboard');
+}
 let _screensaverClockInterval = null;
 let _screensaverFactInterval = null;
 let _screensaverData = null; // cached data for fact generation
@@ -14665,6 +14741,7 @@ function resetInactivityTimer() {
 function activateScreensaver() {
     if (_screensaverActive) return;
     if (document.body.classList.contains('cooking-mode-active')) return;
+    _cancelAutoHomeTimer();
     _screensaverActive = true;
     const overlay = document.getElementById('screensaver');
     overlay.style.display = 'flex';
@@ -14756,6 +14833,7 @@ function dismissScreensaver(targetPage) {
             refreshCurrentPage();
         }
         resetInactivityTimer();
+        _resetAutoHomeTimer();
     }, 400);
 }
 
@@ -15347,16 +15425,22 @@ function initInactivityWatcher() {
         const events = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'];
         events.forEach(evt => {
             document.addEventListener(evt, () => {
-                if (!getSettings().screensaver_enabled) return;
                 if (_screensaverActive) {
                     dismissScreensaver();
-                } else {
+                    return;
+                }
+                // Auto-home: always reset regardless of screensaver setting
+                _resetAutoHomeTimer();
+                // Screensaver: only if enabled
+                if (getSettings().screensaver_enabled) {
                     resetInactivityTimer();
                 }
             }, { passive: true });
         });
         _inactivityListenersAttached = true;
     }
+    // Always start auto-home timer; screensaver only if enabled
+    _resetAutoHomeTimer();
     if (getSettings().screensaver_enabled) {
         resetInactivityTimer();
     }

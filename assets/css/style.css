@@ -5658,6 +5658,26 @@ body.cooking-mode-active .app-header {
     background: rgba(59, 130, 246, 0.15);
 }
 
+/* Related stock hint (same generic family, different brand/product) */
+.action-related-stock-card {
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #166534;
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+.action-related-stock-card strong { color: #15803d; }
+.related-stock-item { display: inline-block; margin-right: 8px; }
+[data-theme="dark"] .action-related-stock-card {
+    background: rgba(21, 128, 61, 0.12);
+    border-color: #166534;
+    color: #86efac;
+}
+[data-theme="dark"] .action-related-stock-card strong { color: #4ade80; }
+
 /* ===== ACTION BUTTONS GRID ===== */
 .action-buttons-3col {
     display: grid;

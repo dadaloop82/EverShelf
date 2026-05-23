@@ -227,7 +227,8 @@
     "throw_btn": "🗑️ ENTSORGEN",
     "throw_sub": "wegwerfen",
     "edit_sub": "Ablauf, Ort…",
-    "create_recipe_btn": "Rezept"
+    "create_recipe_btn": "Rezept",
+    "related_stock_title": "Auch zuhause"
   },
   "add": {
     "title": "Zum Vorrat hinzufügen",
