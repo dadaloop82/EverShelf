@@ -738,6 +738,9 @@ try {
         case 'lookup_barcode':
             lookupBarcode();
             break;
+        case 'stock_for_name':
+            stockForName($db);
+            break;
         case 'product_save':
             saveProduct($db);
             break;
@@ -1442,6 +1445,66 @@ function searchBarcode(PDO $db): void {
     }
 }
 
+/**
+ * Returns all in-stock inventory items whose product name shares the same first
+ * significant token as the given name (e.g. "Carote" matches "Carote Bio", "Carote DOP").
+ * Used by the scan UI to show "you already have X in pantry" before adding a product.
+ */
+function stockForName(PDO $db): void {
+    $name = trim($_GET['name'] ?? '');
+    if (empty($name)) {
+        echo json_encode(['items' => []]);
+        return;
+    }
+
+    $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
+             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
+
+    $tokenize = function(string $s) use ($stop): array {
+        $clean = mb_strtolower(preg_replace('/[^\p{L}0-9\s]/u', ' ', $s));
+        return array_values(array_filter(
+            preg_split('/\s+/', trim($clean)),
+            fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
+        ));
+    };
+
+    $searchTokens = $tokenize($name);
+    if (empty($searchTokens)) {
+        echo json_encode(['items' => []]);
+        return;
+    }
+    $firstToken = $searchTokens[0];
+
+    $rows = $db->query(
+        "SELECT i.quantity, i.unit, i.location,
+                p.name AS product_name, p.brand,
+                p.default_quantity, p.package_unit
+         FROM inventory i
+         JOIN products p ON p.id = i.product_id
+         WHERE i.quantity > 0
+         ORDER BY p.name"
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    $matches = [];
+    foreach ($rows as $row) {
+        $rowTokens = $tokenize($row['product_name']);
+        if (empty($rowTokens)) continue;
+        if ($rowTokens[0] === $firstToken) {
+            $matches[] = [
+                'name'             => $row['product_name'],
+                'brand'            => $row['brand'] ?? '',
+                'quantity'         => (float)$row['quantity'],
+                'unit'             => $row['unit'],
+                'location'         => $row['location'] ?? '',
+                'default_quantity' => (int)($row['default_quantity'] ?? 0),
+                'package_unit'     => $row['package_unit'] ?? '',
+            ];
+        }
+    }
+
+    echo json_encode(['items' => $matches], JSON_UNESCAPED_UNICODE);
+}
+
 function _offFetchProduct(string $barcode): ?array {
     $fields = 'product_name,product_name_it,generic_name,generic_name_it,brands,categories_tags,categories_hierarchy,categories,image_front_small_url,image_url,quantity,nutriscore_grade,ingredients_text_it,ingredients_text,allergens_tags,conservation_conditions_it,conservation_conditions,origins_it,origins,manufacturing_places,nova_group,ecoscore_grade,labels,stores';
 
@@ -1560,7 +1623,106 @@ function lookupBarcode(): void {
         }
     }
 
+    // 3. Try Open Products Facts (non-food household items) and Open Beauty Facts (cosmetics)
+    $altBases = [
+        'https://world.openproductsfacts.org',
+        'https://world.openbeautyfacts.org',
+    ];
+    $altFields = 'product_name,product_name_it,brands,categories_tags,categories_hierarchy,image_front_small_url,image_url,quantity';
+    $altCandidates = [$barcode];
+    if (strlen($barcode) === 12 && ctype_digit($barcode)) $altCandidates[] = '0' . $barcode;
+    foreach ($altBases as $altBase) {
+        foreach ($altCandidates as $bc) {
+            $altUrl = "{$altBase}/api/v2/product/{$bc}.json?fields={$altFields}";
+            $altCtx = stream_context_create(['http' => ['timeout' => 6, 'header' => "User-Agent: EverShelf/1.0\r\n"]]);
+            $altR = @file_get_contents($altUrl, false, $altCtx);
+            if ($altR === false) continue;
+            $altD = json_decode($altR, true);
+            if (!isset($altD['status']) || $altD['status'] !== 1 || empty($altD['product'])) continue;
+            $p = $altD['product'];
+            $altName = $p['product_name_it'] ?? $p['product_name'] ?? '';
+            if (empty($altName)) continue;
+            $altCat = $p['categories_tags'][0] ?? end($p['categories_hierarchy'] ?? []) ?? '';
+            echo json_encode(['found' => true, 'source' => $altBase, 'product' => [
+                'name'          => $altName,
+                'brand'         => $p['brands'] ?? '',
+                'category'      => $altCat,
+                'image_url'     => $p['image_front_small_url'] ?? $p['image_url'] ?? '',
+                'quantity_info' => $p['quantity'] ?? '',
+                'nutriscore' => '', 'ingredients' => '', 'allergens' => '',
+                'conservation' => '', 'origin' => '', 'nova_group' => '',
+                'ecoscore' => '', 'labels' => '', 'stores' => '',
+            ]]);
+            return;
+        }
+    }
+
+    // 4. Gemini AI as last resort — works for well-known products not in any open DB
+    $apiKey = env('GEMINI_API_KEY');
+    if ($apiKey) {
+        $geminiProduct = _barcodeLookupGemini($barcode, $apiKey);
+        if ($geminiProduct !== null) {
+            echo json_encode(['found' => true, 'source' => 'gemini', 'product' => $geminiProduct]);
+            return;
+        }
+    }
+
     echo json_encode(['found' => false, 'source' => 'openfoodfacts']);
+}
+
+/**
+ * Ask Gemini to identify a product by barcode number.
+ * Only used as a last resort when all open databases fail.
+ * Returns null if Gemini doesn't know the product.
+ */
+function _barcodeLookupGemini(string $barcode, string $apiKey): ?array {
+    $payload = [
+        'contents' => [[
+            'role'  => 'user',
+            'parts' => [[
+                'text' => "You are a product database. A user scanned barcode: {$barcode}\n" .
+                          "Identify this product. If you know it, respond with ONLY valid JSON (no markdown, no explanation):\n" .
+                          "{\"name\":\"...\",\"brand\":\"...\",\"category\":\"...\"}\n" .
+                          "Use the Italian product name if the product is sold in Italy.\n" .
+                          "If you do not know this specific barcode, respond with: {\"unknown\":true}"
+            ]],
+        ]],
+        'generationConfig' => [
+            'temperature'        => 0,
+            'maxOutputTokens'    => 150,
+            'responseMimeType'   => 'application/json',
+        ],
+    ];
+
+    $result = callGeminiWithFallback($apiKey, $payload, 10);
+    if (!$result) return null;
+
+    $text = '';
+    foreach ($result['candidates'][0]['content']['parts'] ?? [] as $part) {
+        $text .= ($part['text'] ?? '');
+    }
+    $text = trim($text);
+    if (empty($text)) return null;
+
+    $data = json_decode($text, true);
+    if (!$data || !empty($data['unknown']) || empty($data['name'])) return null;
+
+    return [
+        'name'          => $data['name'],
+        'brand'         => $data['brand'] ?? '',
+        'category'      => $data['category'] ?? '',
+        'image_url'     => '',
+        'quantity_info' => '',
+        'nutriscore'    => '',
+        'ingredients'   => '',
+        'allergens'     => '',
+        'conservation'  => '',
+        'origin'        => '',
+        'nova_group'    => '',
+        'ecoscore'      => '',
+        'labels'        => '',
+        'stores'        => '',
+    ];
 }
 
 function saveProduct(PDO $db): void {

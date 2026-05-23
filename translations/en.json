@@ -213,7 +213,8 @@
     "barcode_acquired": "🔖 Barcode scanned: {code}",
     "scan_barcode": "🔖 Scan Barcode",
     "create_named": "Create {name}",
-    "new_without_barcode": "New product without barcode"
+    "new_without_barcode": "New product without barcode",
+    "stock_in_pantry": "Already in pantry:"
   },
   "action": {
     "title": "What do you want to do?",
@@ -474,7 +475,8 @@
     "priority_medium": "Medium",
     "priority_low": "Low",
     "smart_last_update": "Updated {time}",
-    "names_already_updated": "All names are already up to date"
+    "names_already_updated": "All names are already up to date",
+    "pantry_hint": "Already at home: {qty}"
   },
   "ai": {
     "title": "🤖 AI Identification",

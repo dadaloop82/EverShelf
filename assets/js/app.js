@@ -3669,7 +3669,10 @@ function showPage(pageId, param = null) {
             }
             break;
         case 'products': loadAllProducts(); break;
-        case 'shopping': loadShoppingList(); break;
+        case 'shopping':
+            _shoppingInventoryCache = null; // invalidate so hints use fresh data
+            loadShoppingList();
+            break;
         case 'recipe': loadRecipeArchive(); break;
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
@@ -10155,6 +10158,20 @@ let shoppingItems = [];
 let suggestionItems = [];
 let _spesaScanTarget = null; // { name, rawName, idx } when tapping item to scan
 
+// Inventory cache for "already at home" hints in the shopping list.
+// Loaded once per shopping page visit and reused for all item hints.
+let _shoppingInventoryCache = null;
+async function _getShoppingInventoryCache() {
+    if (_shoppingInventoryCache !== null) return _shoppingInventoryCache;
+    try {
+        const data = await api('inventory_list');
+        _shoppingInventoryCache = data.inventory || [];
+    } catch(e) {
+        _shoppingInventoryCache = [];
+    }
+    return _shoppingInventoryCache;
+}
+
 // ===== SHOPPING TABS =====
 function switchShoppingTab(tab) {
     document.querySelectorAll('.shopping-tab').forEach(b => b.classList.remove('active'));
@@ -11593,6 +11610,39 @@ async function renderShoppingItems() {
     }
 
     container.innerHTML = html;
+
+    // ── PANTRY HINTS: show "already at home: X" for each shopping item ──────
+    // Load inventory once, then decorate all items asynchronously.
+    _getShoppingInventoryCache().then(invItems => {
+        for (const { item, idx } of enriched) {
+            const firstTok = (_nameTokens(item.name)[0] || '').toLowerCase();
+            if (!firstTok) continue;
+            const matches = invItems.filter(i => {
+                const iFirst = (_nameTokens(i.name || '')[0] || '').toLowerCase();
+                return iFirst === firstTok && parseFloat(i.quantity) > 0;
+            });
+            if (matches.length === 0) continue;
+            // Group by unit and sum
+            const byUnit = {};
+            for (const m of matches) {
+                const u = m.unit || 'pz';
+                byUnit[u] = (byUnit[u] || 0) + parseFloat(m.quantity);
+            }
+            const hintText = Object.entries(byUnit)
+                .map(([u, q]) => `${Math.round(q * 10) / 10} ${u}`)
+                .join(', ');
+            const itemEl = document.getElementById(`shop-item-${idx}`);
+            if (!itemEl) continue;
+            const infoEl = itemEl.querySelector('.shopping-item-info');
+            if (!infoEl) continue;
+            // Don't duplicate
+            if (infoEl.querySelector('.shopping-pantry-hint')) continue;
+            const hintEl = document.createElement('div');
+            hintEl.className = 'shopping-pantry-hint';
+            hintEl.textContent = t('shopping.pantry_hint').replace('{qty}', hintText);
+            infoEl.appendChild(hintEl);
+        }
+    });
 
     // Trigger async price loading if enabled
     const s2 = getSettings();

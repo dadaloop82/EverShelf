@@ -2567,6 +2567,17 @@ body.server-offline .bottom-nav {
     color: var(--text-muted);
 }
 
+.shopping-pantry-hint {
+    font-size: 0.72rem;
+    color: #15803d;
+    font-weight: 500;
+    margin-top: 2px;
+    opacity: 0.85;
+}
+[data-theme="dark"] .shopping-pantry-hint {
+    color: #4ade80;
+}
+
 .shopping-item-right {
     display: flex;
     flex-direction: column;

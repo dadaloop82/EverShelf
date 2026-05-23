@@ -213,7 +213,8 @@
     "barcode_acquired": "🔖 Barcode gescannt: {code}",
     "scan_barcode": "🔖 Barcode scannen",
     "create_named": "{name} erstellen",
-    "new_without_barcode": "Neues Produkt ohne Barcode"
+    "new_without_barcode": "Neues Produkt ohne Barcode",
+    "stock_in_pantry": "Bereits im Vorrat:"
   },
   "action": {
     "title": "Was möchtest du tun?",
@@ -474,7 +475,8 @@
     "priority_medium": "Mittel",
     "priority_low": "Niedrig",
     "smart_last_update": "Aktualisiert {time}",
-    "names_already_updated": "Alle Namen sind bereits aktuell"
+    "names_already_updated": "Alle Namen sind bereits aktuell",
+    "pantry_hint": "Bereits zuhause: {qty}"
   },
   "ai": {
     "title": "🤖 KI-Identifikation",
