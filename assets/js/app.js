@@ -14443,7 +14443,8 @@ async function generateRecipe() {
                     showToast((errorEvent.error || t('recipes.generate_error')) + detail, 'error');
                 }
             } else {
-                showToast(t('error.connection'), 'error');
+                // Stream closed without recipe or error event — likely a server crash mid-stream
+                showToast(t('recipes.stream_interrupted'), 'error');
             }
         }
 
@@ -14451,7 +14452,9 @@ async function generateRecipe() {
         console.error('Recipe error:', err);
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-ask').style.display = '';
-        showToast(t('error.connection'), 'error');
+        // Show the actual JS error (e.g. NetworkError, AbortError, TypeError)
+        const errMsg = err?.message || String(err);
+        showToast(`${t('error.connection')}: ${errMsg}`, 'error');
     }
 }
 

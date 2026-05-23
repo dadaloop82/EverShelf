@@ -367,6 +367,7 @@
     "steps_title": "👨‍🍳 Procedimento",
     "no_steps": "Nessun procedimento disponibile",
     "generate_error": "Errore nella generazione",
+    "stream_interrupted": "Generazione interrotta (risposta incompleta dal server). Controlla i log o riprova.",
     "persons_short": "pers.",
     "use_ingredient_title": "Usa ingrediente",
     "recipe_qty_label": "Ricetta",

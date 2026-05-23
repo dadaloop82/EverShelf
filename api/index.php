@@ -5162,6 +5162,8 @@ function generateRecipeStream(PDO $db): void {
         flush();
     };
 
+    try {
+
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
 
@@ -5477,13 +5479,15 @@ PROMPT;
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             $retryAfterHeader = null;
 
+            $curlErrno = 0;
+            $curlErrMsg = '';
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => json_encode($payload),
                 CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_TIMEOUT        => 90,
                 CURLOPT_HEADERFUNCTION => function ($ch, $header) use (&$retryAfterHeader) {
                     if (stripos($header, 'retry-after:') === 0) {
                         $val = intval(trim(substr($header, strlen('retry-after:'))));
@@ -5495,8 +5499,12 @@ PROMPT;
 
             $body     = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($body === false) {
+                $curlErrno  = curl_errno($ch);
+                $curlErrMsg = curl_error($ch);
+                $body = '';
+            }
             curl_close($ch);
-            if ($body === false) $body = '';
 
             $result = [
                 'http_code' => $httpCode,
@@ -5539,8 +5547,16 @@ PROMPT;
     }
 
     if ($httpCode !== 200) {
-        $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-        $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => $errDetail]);
+        if ($httpCode === 0) {
+            // cURL-level failure: timeout, DNS, network down
+            $curlLabel = $curlErrMsg ?: "cURL errno {$curlErrno}";
+            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => 0, 'detail' => "Nessuna risposta da Gemini ({$curlLabel}) — verifica la connessione del server o riprova tra qualche istante."]);
+        } else {
+            $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
+            $statusLabels = [429 => 'Quota API esaurita (429)', 503 => 'Servizio Gemini non disponibile (503)', 401 => 'API key non valida (401)', 403 => 'API key non autorizzata (403)', 500 => 'Errore interno Gemini (500)'];
+            $statusLabel  = $statusLabels[$httpCode] ?? "HTTP {$httpCode}";
+            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => "{$statusLabel}" . ($errDetail ? ": {$errDetail}" : '')]);
+        }
         return;
     }
 
@@ -5683,6 +5699,14 @@ PROMPT;
 
     $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
     $send('recipe', ['recipe' => $recipe]);
+
+    } catch (\Throwable $e) {
+        EverLog::error('generateRecipeStream fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        $send('error', [
+            'error'  => 'Errore interno del server',
+            'detail' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
+        ]);
+    }
 }
 
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====

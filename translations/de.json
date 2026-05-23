@@ -367,6 +367,7 @@
     "steps_title": "👨‍🍳 Zubereitung",
     "no_steps": "Keine Zubereitungsschritte verfügbar",
     "generate_error": "Fehler bei der Generierung",
+    "stream_interrupted": "Generierung unterbrochen (unvollstaendige Antwort vom Server). Protokolle pruefen oder erneut versuchen.",
     "persons_short": "Pers.",
     "use_ingredient_title": "Zutat verwenden",
     "recipe_qty_label": "Rezept",

@@ -367,6 +367,7 @@
     "steps_title": "👨‍🍳 Steps",
     "no_steps": "No steps available",
     "generate_error": "Generation error",
+    "stream_interrupted": "Generation interrupted (incomplete server response). Check logs or try again.",
     "persons_short": "serv.",
     "use_ingredient_title": "Use ingredient",
     "recipe_qty_label": "Recipe",
