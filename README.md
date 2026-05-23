@@ -42,15 +42,33 @@
 
 ## ✨ Features
 
-> 🏠 **New — Native Home Assistant Integration**
-> Connect EverShelf to your smart home: expose pantry counts as **REST sensors**, fire **webhook automations** on expiry/shopping/stock events, receive **push notifications** via any `notify.*` service, and read recipe steps aloud on **smart speakers** with full TTS support.
-> Configure everything from the new **Settings → 🏠** tab — no YAML editing required. See the [Home Assistant wiki page](docs/wiki/Home-Assistant.md) for details.
+### 🏠 NEW — Home Assistant Integration
 
-> ⚙️ **New in v1.7.23 — Global settings tab, DB auto-cleanup, vacuum-sealed expiry**
-> A new **General** tab groups all global settings (language, currency, theme, screensaver, zero-waste, export) in one place.
-> Recipes older than `RECIPE_RETENTION_DAYS` and transactions older than `TRANSACTION_RETENTION_DAYS` are deleted automatically every cron cycle, followed by a SQLite `VACUUM` to keep the database small.
-> Vacuum-sealed products get an extended grace period (`VACUUM_EXPIRY_EXTENSION_DAYS`, default 30 days) before being flagged as expired.
-> Auto theme now follows **time of day** (dark 20:00–07:00) instead of the OS setting, making it server-friendly.
+EverShelf has a **native Home Assistant integration** available on HACS.  
+Connect your pantry to your smart home in minutes — no YAML, no manual sensor setup.
+
+[![Install via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dadaloop82&repository=ha-evershelf&category=integration)
+&nbsp;
+[![Add Integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=evershelf)
+
+**What you get:**
+
+| | |
+|---|---|
+| **16 sensors** | Expiry counts, stock levels by location (pantry / fridge / freezer), shopping list total, AI API usage, last backup timestamp, days to next expiry |
+| **6 binary sensors** | Expired items, expiring items, expiring today, shopping list active, backup overdue, Bring! connected |
+| **5 action buttons** | Refresh data, Refresh prices, **Suggest Recipe** (AI — result as HA notification), Sync smart shopping, Clear expired rows |
+| **Shopping list todo** | Bidirectional sync — add, remove, check off items directly from HA |
+| **Expiry calendar** | Every product's expiry date as a native HA calendar event — works with the calendar card and any calendar automation |
+| **Quick-add text entity** | Type a product name in HA to instantly add it to the shopping list (great for voice assistants / Assist) |
+| **6 services** | `add_to_shopping`, `mark_used`, `refresh`, `suggest_recipe`, `refresh_prices`, `clear_expired` |
+| **Auto-discovery** | Detected automatically via Zeroconf/mDNS when `avahi-daemon` runs on the EverShelf host |
+| **5 languages** | English, Italian, German, French, Spanish |
+
+> **Requires a self-hosted EverShelf instance.** The integration talks directly to your server — no cloud involved.  
+> Full documentation: [ha-evershelf on GitHub](https://github.com/dadaloop82/ha-evershelf)
+
+---
 
 ### 📦 Inventory Management
 - **Export inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; export button always visible in the inventory page header

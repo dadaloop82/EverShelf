@@ -1199,6 +1199,12 @@ function _setThemeMode(mode) {
     s.dark_mode = mode;
     saveSettingsToStorage(s);
     _applyTheme();
+    // Persist dark_mode to server .env immediately (no need to send the full
+    // settings payload — save_settings only updates keys present in the body
+    // and keeps all other .env values intact).
+    const token = document.getElementById('setting-settings-token')?.value.trim() || '';
+    const headers = token ? { 'X-Settings-Token': token } : {};
+    api('save_settings', {}, 'POST', { dark_mode: mode }, headers).catch(() => {});
 }
 
 // Listen to system theme changes (for 'auto' mode)
