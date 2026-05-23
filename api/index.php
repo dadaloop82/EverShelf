@@ -1409,6 +1409,12 @@ function haInventorySensor(PDO $db): void {
                  AND expiry_date BETWEEN date('now') AND date('now', '+3 days')"
             )->fetchColumn();
 
+        // Items expiring today or tomorrow (max urgency)
+        $expiringToday = (int)$db->query(
+            "SELECT COUNT(*) FROM inventory WHERE quantity > 0 AND expiry_date IS NOT NULL
+             AND expiry_date <= date('now', '+1 days')"
+        )->fetchColumn();
+
         // Shopping total from server-side total cache (max 1 hour old)
         $priceEnabled  = env('PRICE_ENABLED', 'false') === 'true';
         $priceCurrency = env('PRICE_CURRENCY', 'EUR');
@@ -1444,6 +1450,7 @@ function haInventorySensor(PDO $db): void {
             'attributes' => [
                 'expiring_soon'          => $expiring,
                 'expiring_3d'            => $expiring3d,
+                'expiring_today'         => $expiringToday,
                 'expired_items'          => $expired,
                 'total_items'            => $total,
                 'opened_items'           => $openedItems,
@@ -1452,11 +1459,14 @@ function haInventorySensor(PDO $db): void {
                 'price_tracking_enabled' => $priceEnabled,
                 'price_currency'         => $priceCurrency,
                 'expiring_list'          => array_map(fn($r) => [
-                    'name'       => $r['name'],
-                    'quantity'   => (float)$r['quantity'],
-                    'unit'       => $r['unit'],
-                    'expiry_date'=> $r['expiry_date'],
+                    'name'        => $r['name'],
+                    'quantity'    => (float)$r['quantity'],
+                    'unit'        => $r['unit'],
+                    'expiry_date' => $r['expiry_date'],
+                    'expires_today' => $r['expiry_date'] <= date('Y-m-d', strtotime('+1 days')),
                 ], $expiringItems),
+                'next_expiry_name'       => !empty($expiringItems) ? $expiringItems[0]['name'] : null,
+                'next_expiry_date'       => !empty($expiringItems) ? $expiringItems[0]['expiry_date'] : null,
                 'unit_of_measurement'    => 'items',
                 'friendly_name'          => 'EverShelf Pantry',
                 'icon'                   => 'mdi:fridge',
