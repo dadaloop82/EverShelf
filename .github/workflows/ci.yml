@@ -97,7 +97,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      workflows: write
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
