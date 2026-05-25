@@ -14100,19 +14100,54 @@ function _speakBrowser(text) {
 
     // ── Web Speech API (desktop / mobile browser) ──────────────────────
     if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate  = rate;
-    utt.pitch = pitch;
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.name === s.tts_voice);
-    if (preferred) {
-        utt.voice = preferred;
-        utt.lang  = preferred.lang;
+
+    const _doSpeak = () => {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.rate  = rate;
+        utt.pitch = pitch;
+        const voices = window.speechSynthesis.getVoices();
+        // 1. User-selected voice by name
+        const preferred = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
+        if (preferred) {
+            utt.voice = preferred;
+            utt.lang  = preferred.lang;
+        } else {
+            // 2. First Italian voice as fallback (avoids silent-failure on browsers with no 'it-IT' default)
+            const itVoice = voices.find(v => v.lang && v.lang.startsWith('it'));
+            if (itVoice) {
+                utt.voice = itVoice;
+                utt.lang  = itVoice.lang;
+            } else if (voices.length > 0) {
+                // 3. Any available voice
+                utt.voice = voices[0];
+                utt.lang  = voices[0].lang || 'it-IT';
+            } else {
+                // 4. No voices loaded yet — set lang and let the browser decide
+                utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
+            }
+        }
+        // Chrome quirk: cancel() + immediate speak() is silently dropped — 50 ms gap fixes it
+        setTimeout(() => window.speechSynthesis.speak(utt), 50);
+    };
+
+    // If voices haven't loaded yet (async in Chrome/Android), wait once then speak
+    if (!window.speechSynthesis.getVoices().length) {
+        const _onReady = () => {
+            window.speechSynthesis.onvoiceschanged = null;
+            _doSpeak();
+        };
+        window.speechSynthesis.onvoiceschanged = _onReady;
+        // Safety timeout: fire anyway after 500 ms if onvoiceschanged never fires
+        setTimeout(() => {
+            if (window.speechSynthesis.onvoiceschanged === _onReady) {
+                window.speechSynthesis.onvoiceschanged = null;
+                _doSpeak();
+            }
+        }, 500);
     } else {
-        utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
+        _doSpeak();
     }
-    window.speechSynthesis.speak(utt);
 }
 
 async function testTTS() {
