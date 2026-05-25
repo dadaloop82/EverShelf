@@ -13206,6 +13206,12 @@ function _extractToolsFromSteps(steps) {
 }
 
 function renderRecipe(r) {
+    // Reset regen choice panel (hide choice, show button)
+    const regenChoice = document.getElementById('recipe-regen-choice');
+    const regenBtn = document.getElementById('recipe-regen-btn');
+    if (regenChoice) regenChoice.style.display = 'none';
+    if (regenBtn) regenBtn.style.display = '';
+
     let html = `<h2>${r.title}</h2>`;
 
     // Meta tags
@@ -14692,7 +14698,30 @@ function _renderMealPlanHint(mealSlot) {
     }).catch(() => {/* ignore */});
 }
 
-function regenerateRecipe() {
+function showRegenChoice() {
+    document.getElementById('recipe-regen-btn').style.display = 'none';
+    document.getElementById('recipe-regen-choice').style.display = '';
+}
+
+function cancelRegenChoice() {
+    document.getElementById('recipe-regen-choice').style.display = 'none';
+    document.getElementById('recipe-regen-btn').style.display = '';
+}
+
+function doRegenerateReplace() {
+    cancelRegenChoice();
+    _doRegenerate();
+}
+
+async function doRegenerateSave() {
+    if (_cachedRecipe && _cachedRecipe.recipe) {
+        await saveRecipeToArchive(_cachedRecipe.recipe);
+    }
+    cancelRegenChoice();
+    _doRegenerate();
+}
+
+function _doRegenerate() {
     // Collect main ingredients from the rejected recipe to exclude them
     if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients) {
         const mainIngs = _cachedRecipe.recipe.ingredients
@@ -14706,6 +14735,10 @@ function regenerateRecipe() {
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
     document.getElementById('recipe-ask').style.display = '';
+}
+
+function regenerateRecipe() {
+    showRegenChoice();
 }
 
 async function generateRecipe() {

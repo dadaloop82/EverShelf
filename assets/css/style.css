@@ -4290,6 +4290,22 @@ body.server-offline .bottom-nav {
     white-space: nowrap;
 }
 
+/* Regen choice panel */
+.recipe-regen-choice {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 10px;
+}
+.recipe-regen-choice-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 10px 0;
+    text-align: center;
+}
+
 /* Recipe ingredient use buttons */
 .recipe-ingredients {
     list-style: none;
@@ -7667,6 +7683,8 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .recipe-tools-banner { background: #1a1040; border-color: #3730a3; color: #c4b5fd; }
 [data-theme="dark"] .recipe-tool-chip    { background: #2e1a4a; color: #c4b5fd; }
 [data-theme="dark"] .recipe-step-appliance { background: #052e16; border-color: #166534; color: #4ade80; }
+[data-theme="dark"] .recipe-regen-choice { background: #1e293b; border-color: #334155; }
+[data-theme="dark"] .recipe-regen-choice-title { color: #94a3b8; }
 [data-theme="dark"] .recipe-subtype-chip { background: #1c1300; border-color: #78350f; color: var(--text); }
 [data-theme="dark"] .recipe-subtype-chip:has(input:checked) { background: #2a1e00; border-color: #d97706; }
 

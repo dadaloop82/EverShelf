@@ -1816,9 +1816,15 @@
         </div>
         <div id="recipe-result" style="display:none" class="recipe-result">
             <div id="recipe-content"></div>
-            <button class="btn btn-large btn-secondary full-width mt-2" onclick="regenerateRecipe()" data-i18n="recipes.regenerate">
+            <button id="recipe-regen-btn" class="btn btn-large btn-secondary full-width mt-2" onclick="showRegenChoice()" data-i18n="recipes.regenerate">
                 🔄 Generane un'altra
             </button>
+            <div id="recipe-regen-choice" style="display:none" class="recipe-regen-choice">
+                <p class="recipe-regen-choice-title" data-i18n="recipes.regen_choice_title">Cosa vuoi fare con questa ricetta?</p>
+                <button class="btn btn-large btn-warning full-width" onclick="doRegenerateReplace()" data-i18n="recipes.regen_replace">🔄 Genera un'altra (scarta questa)</button>
+                <button class="btn btn-large btn-success full-width mt-2" onclick="doRegenerateSave()" data-i18n="recipes.regen_save_new">💾 Salva nell'archivio e genera nuova</button>
+                <button class="btn btn-large btn-ghost full-width mt-2" onclick="cancelRegenChoice()" data-i18n="action.cancel">Annulla</button>
+            </div>
             <button class="btn btn-large btn-primary full-width mt-2" onclick="closeRecipeDialog()" data-i18n="recipes.close_btn">
                 ✅ Chiudi
             </button>
