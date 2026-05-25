@@ -13733,17 +13733,26 @@ async function _ttsViaProxy(req) {
 async function speakCookingStep(text) {
     if (!text) return;
     const s = getSettings();
-    // Use custom TTS endpoint only when explicitly configured; otherwise always use browser TTS.
+    // Respect the user's explicit engine choice.
     // Do NOT gate on s.tts_enabled — the _cookingTTS toggle in cooking mode is the only gate.
+    // If the preferred engine fails, always fall back to browser TTS.
+    const fallback = () => _speakBrowser(text);
     try {
-        // 1. HA TTS — if HA is enabled and a media player entity is configured
-        if (s.ha_enabled && s.ha_tts_entity && s.ha_url) {
-            const req = _buildHaTtsRequest(text, s);
-            await _ttsViaProxy(req);
-        // 2. Generic external endpoint ('server' or legacy 'custom' engine)
+        // 1. Browser engine — always use Web Speech API / kiosk bridge directly
+        if (!s.tts_engine || s.tts_engine === 'browser') {
+            _speakBrowser(text);
+        // 2. HA TTS — if HA is enabled and a media player entity is configured
+        } else if (s.ha_enabled && s.ha_tts_entity && s.ha_url) {
+            try {
+                const req = _buildHaTtsRequest(text, s);
+                await _ttsViaProxy(req);
+            } catch(e) { fallback(); }
+        // 3. Generic external endpoint ('server' or legacy 'custom' engine)
         } else if ((s.tts_engine === 'server' || s.tts_engine === 'custom') && s.tts_url) {
-            const req = _buildTtsRequest(text, s);
-            await _ttsViaProxy(req);
+            try {
+                const req = _buildTtsRequest(text, s);
+                await _ttsViaProxy(req);
+            } catch(e) { fallback(); }
         } else {
             _speakBrowser(text);
         }
