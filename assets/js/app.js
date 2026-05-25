@@ -13206,6 +13206,12 @@ function _extractToolsFromSteps(steps) {
 }
 
 function renderRecipe(r) {
+    // Reset regen choice panel (hide choice, show button)
+    const regenChoice = document.getElementById('recipe-regen-choice');
+    const regenBtn = document.getElementById('recipe-regen-btn');
+    if (regenChoice) regenChoice.style.display = 'none';
+    if (regenBtn) regenBtn.style.display = '';
+
     let html = `<h2>${r.title}</h2>`;
 
     // Meta tags
@@ -13273,7 +13279,8 @@ function renderRecipe(r) {
     // Steps
     html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
     (r.steps || []).forEach(step => {
-        html += `<li>${_stepStr(step)}</li>`;
+        const appliance = _stepAppliance(step);
+        html += `<li>${_stepStr(step)}${appliance ? ` <span class="recipe-step-appliance">${appliance}</span>` : ''}</li>`;
     });
     html += '</ol>';
 
@@ -13291,9 +13298,29 @@ let _cookingStep = 0;
 let _cookingTTS = true;
 let _cookingVisited = new Set(); // indices of steps already seen
 
-// Safely extract step text regardless of whether it's a string or an object
-// (Gemini sometimes returns [{text:"..."}, ...] instead of ["...", ...])
-const _stepStr = s => String((s !== null && typeof s === 'object') ? (s.text ?? s.description ?? s.step ?? '') : (s ?? '')).replace(/^Passo\s*\d+\s*[:.]\s*/i, '');
+// Safely extract step text regardless of whether it's a string or an object.
+// Also handles JSON-encoded step objects emitted by older AI generations
+// (e.g. {"instruction":"…","appliance_function":"…"}).
+const _stepStr = s => {
+    if (typeof s === 'string' && s.trimStart().startsWith('{')) {
+        try { s = JSON.parse(s); } catch(e) {}
+    }
+    const text = (s !== null && typeof s === 'object')
+        ? (s.instruction ?? s.text ?? s.description ?? s.step ?? '')
+        : (s ?? '');
+    return String(text).replace(/^Passo\s*\d+\s*[:.]\s*/i, '').replace(/^Step\s*\d+\s*[:.]\s*/i, '');
+};
+// Returns the appliance/function hint for a step, or null if absent/Nessuno.
+const _stepAppliance = s => {
+    if (typeof s === 'string' && s.trimStart().startsWith('{')) {
+        try { s = JSON.parse(s); } catch(e) {}
+    }
+    if (s !== null && typeof s === 'object' && s.appliance_function) {
+        const a = s.appliance_function.trim();
+        if (a && a.toLowerCase() !== 'nessuno' && a.toLowerCase() !== 'none') return a;
+    }
+    return null;
+};
 
 let _cookingWheelBound = false;
 let _cookingWheelTouchStartY = null;
@@ -14671,7 +14698,30 @@ function _renderMealPlanHint(mealSlot) {
     }).catch(() => {/* ignore */});
 }
 
-function regenerateRecipe() {
+function showRegenChoice() {
+    document.getElementById('recipe-regen-btn').style.display = 'none';
+    document.getElementById('recipe-regen-choice').style.display = '';
+}
+
+function cancelRegenChoice() {
+    document.getElementById('recipe-regen-choice').style.display = 'none';
+    document.getElementById('recipe-regen-btn').style.display = '';
+}
+
+function doRegenerateReplace() {
+    cancelRegenChoice();
+    _doRegenerate();
+}
+
+async function doRegenerateSave() {
+    if (_cachedRecipe && _cachedRecipe.recipe) {
+        await saveRecipeToArchive(_cachedRecipe.recipe);
+    }
+    cancelRegenChoice();
+    _doRegenerate();
+}
+
+function _doRegenerate() {
     // Collect main ingredients from the rejected recipe to exclude them
     if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients) {
         const mainIngs = _cachedRecipe.recipe.ingredients
@@ -14685,6 +14735,10 @@ function regenerateRecipe() {
     document.getElementById('recipe-result').style.display = 'none';
     document.getElementById('recipe-loading').style.display = 'none';
     document.getElementById('recipe-ask').style.display = '';
+}
+
+function regenerateRecipe() {
+    showRegenChoice();
 }
 
 async function generateRecipe() {
