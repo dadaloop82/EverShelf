@@ -8622,6 +8622,24 @@ function smartShopping(PDO $db): void {
             }
         }
 
+        // Extended predictive horizon for staple items (high-frequency products).
+        // The default predictive block triggers at daysLeft <= 14 for isFrequent (≥1.5/month).
+        // Very frequent items (daily-ish: ≥4/month) or weekly items (≥2/month) should appear
+        // in the shopping list earlier, so the user always has them on their radar when shopping.
+        //   ≥ 4/month → 28-day horizon (daily staples: latte, pane, uova…)
+        //   ≥ 2/month → 21-day horizon (weekly staples: yogurt, frutta, carne…)
+        if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked) {
+            if ($usesPerMonth >= 4 && $daysLeft <= 28) {
+                $urgency = 'low';
+                $reasons[] = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
+                $score += 20;
+            } elseif ($usesPerMonth >= 2 && $daysLeft <= 21) {
+                $urgency = 'low';
+                $reasons[] = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
+                $score += 15;
+            }
+        }
+
         if ($urgency === 'none') continue;
 
         // Family stock coverage: suppress items covered by other products in the same generic family.
