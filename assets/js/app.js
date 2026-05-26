@@ -4457,15 +4457,15 @@ const _INSIGHT_PHASES = ['waste', 'nutrition', 'monthly'];
 
 function _startInsightAlternation() {
     clearInterval(_insightFlipTimer);
-    // Pick initial panel cycling through 3 phases based on current 30-second slot
-    const idx = Math.floor(Date.now() / 30_000) % _INSIGHT_PHASES.length;
+    // Pick initial panel cycling through 3 phases based on current 60-second slot
+    const idx = Math.floor(Date.now() / 60_000) % _INSIGHT_PHASES.length;
     _insightPhase = _INSIGHT_PHASES[idx];
     _applyInsightPhase();
-    // Advance every 30 seconds so the rotation is actually visible
+    // Advance every 60 seconds (1 minute per panel)
     _insightFlipTimer = setInterval(() => {
         _insightPhase = _INSIGHT_PHASES[(_INSIGHT_PHASES.indexOf(_insightPhase) + 1) % _INSIGHT_PHASES.length];
         _applyInsightPhase();
-    }, 30_000);
+    }, 60_000);
 }
 
 function _applyInsightPhase() {
