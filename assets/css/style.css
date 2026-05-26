@@ -6575,8 +6575,8 @@ body.cooking-mode-active .app-header {
 }
 
 .btn-persons-adj {
-    background: var(--bg-secondary, #1e2a3a);
-    border: 1px solid var(--border-color, #2a3a50);
+    background: none;
+    border: none;
     color: var(--text-primary);
     border-radius: 50%;
     width: 18px;
