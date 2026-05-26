@@ -14127,8 +14127,14 @@ function _speakBrowser(text) {
                 utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
             }
         }
-        // Chrome quirk: cancel() + immediate speak() is silently dropped — 50 ms gap fixes it
-        setTimeout(() => window.speechSynthesis.speak(utt), 50);
+        // Chrome quirks:
+        // 1. cancel() + immediate speak() is silently dropped → 50 ms gap fixes it
+        // 2. speechSynthesis gets paused after tab backgrounding; cancel() does NOT
+        //    clear the paused state — need an explicit resume() before speak()
+        setTimeout(() => {
+            if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+            window.speechSynthesis.speak(utt);
+        }, 50);
     };
 
     // If voices haven't loaded yet (async in Chrome/Android), wait once then speak
@@ -14161,6 +14167,12 @@ async function testTTS() {
     if (engine === 'browser') {
         // Kiosk native TTS bridge takes priority over Web Speech API
         if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
+            // Diagnostic: check if Android TTS engine is ready
+            const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
+            if (ready === 'false') {
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
+                return;
+            }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
@@ -14180,6 +14192,12 @@ async function testTTS() {
         s.tts_rate = parseFloat(document.getElementById('setting-tts-rate')?.value) || 1;
         s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
         saveSettingsToStorage(s);
+        // Diagnostic: surface paused/no-voices state to user
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) {
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Nessuna voce disponibile nel browser. Installa un pacchetto vocale nelle impostazioni del sistema operativo.'; }
+            return;
+        }
         _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
         if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Riproduzione in corso — controlla l\'audio del dispositivo.'; }
         return;
