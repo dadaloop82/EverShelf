@@ -214,7 +214,13 @@
         "scan_barcode": "🔖 Scansiona Barcode",
         "create_named": "Crea {name}",
         "new_without_barcode": "Nuovo prodotto senza barcode",
-        "stock_in_pantry": "Hai gia in dispensa:"
+        "stock_in_pantry": "Hai gia in dispensa:",
+        "status_ready": "Inquadra il codice a barre",
+        "status_scanning": "Scansione in corso...",
+        "status_partial": "Letto: {code} — verifico...",
+        "status_invalid": "Non valido: {code} — riprovo",
+        "status_confirmed": "Confermato!",
+        "status_parallel": "Doppia scansione attiva..."
     },
     "action": {
         "title": "Cosa vuoi fare?",

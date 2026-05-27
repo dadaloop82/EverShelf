@@ -6420,6 +6420,9 @@ async function initScanner() {
         // Apply fixed 2x zoom
         await _applyFixedZoom();
 
+        _invalidBarcodeCount = 0;
+        _setScanStatus(t('scan.status_ready'), '', '');
+
         if (_useBarcodeDetector) {
             startNativeScanner(video);
         } else {
@@ -6460,6 +6463,19 @@ function validateEANChecksum(code) {
     return check === last;
 }
 
+// ===== SCAN STATUS BAR =====
+let _invalidBarcodeCount = 0;
+
+function _setScanStatus(msg, state, method) {
+    const msgEl = document.getElementById('scan-status-msg');
+    const methodEl = document.getElementById('scan-status-method');
+    if (msgEl) {
+        msgEl.textContent = msg || '';
+        msgEl.className = 'scan-status-msg' + (state ? ' state-' + state : '');
+    }
+    if (methodEl && method !== undefined) methodEl.textContent = method || '';
+}
+
 // ===== NATIVE BarcodeDetector SCANNER =====
 async function startNativeScanner(videoEl) {
     if (quaggaRunning) return;
@@ -6491,14 +6507,18 @@ async function startNativeScanner(videoEl) {
         if (!scanning || !scannerStream) return;
         frameCount++;
         
-        if (frameCount === 1) updateFeedback('scanning');
+        if (frameCount === 1) {
+            updateFeedback('scanning');
+            _setScanStatus(t('scan.status_scanning'), '', 'Native API');
+        }
 
         // After 2s without detection, also start Quagga in parallel as backup
         if (!quaggaParallelStarted && (Date.now() - startTime) > 2000) {
             quaggaParallelStarted = true;
             scanLog('Native: 2s elapsed, spawning Quagga in parallel');
+            _setScanStatus(t('scan.status_parallel'), 'retry', 'Native + Quagga');
             quaggaRunning = false; // temporarily release so Quagga can start
-            startQuaggaScanner(videoEl);
+            startQuaggaScanner(videoEl, false);
             quaggaRunning = true; // re-take ownership (Quagga will share)
         }
         
@@ -6512,6 +6532,7 @@ async function startNativeScanner(videoEl) {
                 scanLog(`Native detect #${partialCount} [f${frameCount}]: ${code} (${format})`);
                 updateFeedback('detecting');
                 _showScanLiveCode(code);
+                _setScanStatus(t('scan.status_partial').replace('{code}', code), 'partial');
                 
                 if (!detectionHistory[code]) detectionHistory[code] = { count: 0 };
                 detectionHistory[code].count++;
@@ -6531,6 +6552,7 @@ async function startNativeScanner(videoEl) {
                     quaggaRunning = false;
                     updateFeedback(null);
                     scanLog(`CONFIRMED: ${code} after ${frameCount} frames (${format})`);
+                    _setScanStatus(t('scan.status_confirmed'), 'confirmed');
                     onBarcodeDetected(code);
                     return;
                 }
@@ -6553,7 +6575,7 @@ async function startNativeScanner(videoEl) {
 }
 
 // ===== QUAGGA FALLBACK SCANNER =====
-function startQuaggaScanner(videoEl) {
+function startQuaggaScanner(videoEl, isPrimary = true) {
     if (quaggaRunning) return;
     
     const canvas = document.getElementById('scanner-canvas');
@@ -6619,6 +6641,7 @@ function startQuaggaScanner(videoEl) {
         if (frameCount === 1) {
             scanLog(`Frame #1 — video: ${videoEl.videoWidth}x${videoEl.videoHeight}`);
             updateScannerFeedback('scanning');
+            if (isPrimary) _setScanStatus(t('scan.status_scanning'), '', 'Quagga');
         }
         
         let callbackCalled = false;
@@ -6675,15 +6698,26 @@ function startQuaggaScanner(videoEl) {
                     // EAN/UPC: confirm on first hit (checksum validated)
                     const highConf = ['ean_reader','ean_8_reader','upc_reader','upc_e_reader'].includes(format);
                     if (highConf || detectCount >= 2 || dominated.count >= 2) {
+                        // Validate EAN/UPC checksum — Quagga can occasionally return false positives
+                        if (highConf && !validateEANChecksum(code)) {
+                            _invalidBarcodeCount++;
+                            scanLog(`Invalid EAN checksum: ${code} (retry #${_invalidBarcodeCount})`);
+                            _setScanStatus(t('scan.status_invalid').replace('{code}', code), 'invalid', 'Quagga');
+                            lastDetected = ''; detectCount = 0; // reset confidence
+                            if (scanning) setTimeout(scanFrame, 60);
+                            return;
+                        }
                         scanning = false;
                         quaggaRunning = false;
                         updateScannerFeedback(null);
                         scanLog(`CONFIRMED: ${code} [${passName2}] f${frameCount} consec:${detectCount} total:${dominated.count}`);
                         _hideScanLiveCode();
+                        _setScanStatus(t('scan.status_confirmed'), 'confirmed');
                         onBarcodeDetected(code);
                         return;
                     }
                     _showScanLiveCode(code);
+                    _setScanStatus(t('scan.status_partial').replace('{code}', code), 'partial');
                 } else {
                     updateScannerFeedback('scanning');
                 }

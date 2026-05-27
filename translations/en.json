@@ -214,7 +214,13 @@
         "scan_barcode": "🔖 Scan Barcode",
         "create_named": "Create {name}",
         "new_without_barcode": "New product without barcode",
-        "stock_in_pantry": "Already in pantry:"
+        "stock_in_pantry": "Already in pantry:",
+        "status_ready": "Point camera at barcode",
+        "status_scanning": "Scanning...",
+        "status_partial": "Detected: {code} — verifying...",
+        "status_invalid": "Invalid: {code} — retrying",
+        "status_confirmed": "Confirmed!",
+        "status_parallel": "Using combined scan methods..."
     },
     "action": {
         "title": "What do you want to do?",

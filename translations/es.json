@@ -211,7 +211,13 @@
         "barcode_acquired": "🔖 Código de barras escaneado: {code}",
         "scan_barcode": "🔖 Escanear código de barras",
         "create_named": "Crear {name}",
-        "new_without_barcode": "Nuevo producto sin código de barras"
+        "new_without_barcode": "Nuevo producto sin código de barras",
+        "status_ready": "Apunta la cámara al código de barras",
+        "status_scanning": "Escaneando...",
+        "status_partial": "Detectado: {code} — verificando...",
+        "status_invalid": "Inválido: {code} — reintentando",
+        "status_confirmed": "Confirmado!",
+        "status_parallel": "Escaneo combinado activo..."
     },
     "action": {
         "title": "¿Qué quieres hacer?",

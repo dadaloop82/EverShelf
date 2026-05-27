@@ -214,7 +214,13 @@
         "scan_barcode": "🔖 Barcode scannen",
         "create_named": "{name} erstellen",
         "new_without_barcode": "Neues Produkt ohne Barcode",
-        "stock_in_pantry": "Bereits im Vorrat:"
+        "stock_in_pantry": "Bereits im Vorrat:",
+        "status_ready": "Kamera auf Barcode richten",
+        "status_scanning": "Scanne...",
+        "status_partial": "Erkannt: {code} — prüfe...",
+        "status_invalid": "Ungültig: {code} — versuche erneut",
+        "status_confirmed": "Bestätigt!",
+        "status_parallel": "Kombinierter Scan aktiv..."
     },
     "action": {
         "title": "Was möchtest du tun?",
