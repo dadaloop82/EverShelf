@@ -6578,7 +6578,9 @@ async function initScanner() {
     
     const constraints = getCameraConstraints();
     scanLog(`Camera mode: ${getSettings().camera_facing || 'environment'}`);
-    scanLog(`BarcodeDetector: ${_useBarcodeDetector ? 'YES (native)' : 'NO (Quagga fallback)'}`);
+    scanLog(`BarcodeDetector: ${_useBarcodeDetector ? 'YES (native)' : 'NO (fallback)'}`);
+    scanLog(`Gemini available: ${_geminiAvailable}`);
+    scanLog(`AI fallback enabled: ${getSettings().barcode_ai_fallback === true}`);
     scanLog(`Constraints: ${JSON.stringify(constraints.video)}`);
     
     try {
@@ -6698,14 +6700,14 @@ async function startNativeScanner(videoEl) {
         
         if (frameCount === 1) {
             updateFeedback('scanning');
-            _setScanStatus(t('scan.status_scanning'), '', 'Native API');
+            _setScanStatus(t('scan.status_scanning'), '', '');
         }
 
         // After 2s without detection, also start Quagga in parallel as backup
         if (!quaggaParallelStarted && (Date.now() - startTime) > 2000) {
             quaggaParallelStarted = true;
-            scanLog('Native: 2s elapsed, spawning Quagga in parallel');
-            _setScanStatus(t('scan.status_parallel'), 'retry', 'Native + Quagga');
+            scanLog('Native: 2s elapsed, spawning fallback scanner in parallel');
+            _setScanStatus(t('scan.status_parallel'), 'retry', '');
             quaggaRunning = false; // temporarily release so Quagga can start
             startQuaggaScanner(videoEl, false);
             quaggaRunning = true; // re-take ownership (Quagga will share)
@@ -6774,7 +6776,7 @@ function startQuaggaScanner(videoEl, isPrimary = true) {
     let frameCount = 0;
     let partialCount = 0;
     
-    scanLog(`Quagga starting — frontCam: ${frontCam}`);
+    scanLog(`Fallback scanner starting — frontCam: ${frontCam}`);
     
     let scanning = true;
     quaggaRunning = true;
