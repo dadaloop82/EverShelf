@@ -2634,19 +2634,26 @@ function addToInventory(PDO $db): void {
     
     $vacuumSealed = (int)($input['vacuum_sealed'] ?? 0);
     
-    // Check if product already exists in this location
-    $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ?");
+    // Check if a SEALED (not yet opened) row exists for this product+location.
+    // We merge new stock into a sealed row only — never into an already-opened
+    // pack, because that would conflate two physically distinct containers and
+    // corrupt the opened_at timestamp tracking.
+    $stmt = $db->prepare("
+        SELECT id, quantity FROM inventory
+        WHERE product_id = ? AND location = ? AND opened_at IS NULL
+        ORDER BY added_at ASC LIMIT 1
+    ");
     $stmt->execute([$productId, $location]);
     $existing = $stmt->fetch();
-    
+
     if ($existing) {
-        // Update quantity
+        // Merge into the existing sealed row
         $newQty = $existing['quantity'] + $quantity;
         $stmt = $db->prepare("UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), vacuum_sealed = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$newQty, $expiry, $vacuumSealed, $existing['id']]);
     } else {
         $newQty = $quantity;
-        // Insert new inventory entry
+        // All existing rows (if any) are opened packs — insert a new sealed row
         $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$productId, $location, $quantity, $expiry, $vacuumSealed]);
     }
