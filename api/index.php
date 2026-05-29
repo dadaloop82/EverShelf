@@ -1570,7 +1570,9 @@ function haInventorySensor(PDO $db): void {
             $daysToNextExpiry = (int)$diff->format('%r%a');
         }
 
-        // Shopping total from server-side total cache (max 1 hour old)
+        // Shopping total from server-side total cache (max 24 hours old).
+        // The cache is populated by the JS frontend or by the ha_refresh_prices action.
+        // 24h TTL is sufficient: the total changes slowly and HA polls frequently.
         $priceEnabled  = env('PRICE_ENABLED', 'false') === 'true';
         $priceCurrency = env('PRICE_CURRENCY', 'EUR');
         $shoppingTotal = null;
@@ -1578,17 +1580,56 @@ function haInventorySensor(PDO $db): void {
             $totalCachePath = __DIR__ . '/../data/shopping_total_cache.json';
             if (file_exists($totalCachePath)) {
                 $tc = json_decode(file_get_contents($totalCachePath), true) ?? [];
-                // Find the most recent entry not older than 1 hour
-                $best = null;
-                $bestTs = 0;
+                $best = null; $bestTs = 0;
                 foreach ($tc as $entry) {
                     if (isset($entry['ts']) && $entry['ts'] > $bestTs) {
                         $bestTs = $entry['ts'];
                         $best   = $entry;
                     }
                 }
-                if ($best && (time() - $bestTs) < 3600) {
+                if ($best && (time() - $bestTs) < 86400) {
                     $shoppingTotal = round((float)($best['result']['total'] ?? 0), 2);
+                }
+            }
+            // If cache is absent or older than 24h, compute inline from the existing
+            // per-item price cache (no AI calls — fast, uses already-stored prices).
+            if ($shoppingTotal === null) {
+                $country  = env('PRICE_COUNTRY', 'Italia');
+                $priceCache = _loadPriceCache();
+                if (!empty($priceCache)) {
+                    $shopRows = $db->query("
+                        SELECT sl.name, COALESCE(p.shopping_name, sl.name) AS sname
+                        FROM shopping_list sl
+                        LEFT JOIN products p ON lower(p.name) = lower(sl.name)
+                    ")->fetchAll(PDO::FETCH_ASSOC);
+                    $inlineTotal = 0.0;
+                    $inlinePriced = 0;
+                    $seenNames = [];
+                    foreach ($shopRows as $r) {
+                        $sname = $r['sname'] ?? $r['name'];
+                        if (isset($seenNames[$sname])) continue; // deduplicate
+                        $seenNames[$sname] = true;
+                        $pk  = _priceKey($sname, $country);
+                        $pk0 = md5(mb_strtolower(trim($sname)) . '|' . mb_strtolower(trim($country)));
+                        $e   = $priceCache[$pk] ?? $priceCache[$pk0] ?? null;
+                        if ($e !== null) {
+                            $est = _calcEstimatedTotal(
+                                $e['price_per_unit'], $e['unit_label'] ?? '',
+                                1, 'pz', 0, ''
+                            );
+                            $inlineTotal += $est ?? 0;
+                            $inlinePriced++;
+                        }
+                    }
+                    if ($inlinePriced > 0) {
+                        $shoppingTotal = round($inlineTotal, 2);
+                        // Persist so next call is instant
+                        $tc2   = file_exists($totalCachePath) ? (json_decode(file_get_contents($totalCachePath), true) ?? []) : [];
+                        $ckey2 = 'ha_inline_' . date('Ymd_His');
+                        $tc2[$ckey2] = ['ts' => time(), 'result' => ['total' => $shoppingTotal, 'priced_items' => $inlinePriced]];
+                        if (count($tc2) >= 10) $tc2 = array_slice($tc2, -9, null, true);
+                        file_put_contents($totalCachePath, json_encode($tc2, JSON_UNESCAPED_UNICODE));
+                    }
                 }
             }
         }
@@ -1786,9 +1827,17 @@ function haRefreshPrices(PDO $db): void {
                 }
             }
         } else {
-            $rows = $db->query("SELECT name, quantity, unit FROM shopping_list WHERE checked = 0")->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $db->query("
+                SELECT sl.name, COALESCE(p.shopping_name, sl.name) AS sname
+                FROM shopping_list sl
+                LEFT JOIN products p ON lower(p.name) = lower(sl.name)
+            ")->fetchAll(PDO::FETCH_ASSOC);
+            $seenSnamesHa = [];
             foreach ($rows as $r) {
-                $shoppingItems[] = ['name' => $r['name'], 'quantity' => (float)($r['quantity'] ?? 1), 'unit' => $r['unit'] ?? 'pz', 'default_quantity' => 0, 'package_unit' => ''];
+                $sname = $r['sname'] ?? $r['name'];
+                if (isset($seenSnamesHa[$sname])) continue;
+                $seenSnamesHa[$sname] = true;
+                $shoppingItems[] = ['name' => $sname, 'quantity' => 1, 'unit' => 'pz', 'default_quantity' => 0, 'package_unit' => ''];
             }
         }
 
@@ -1798,9 +1847,10 @@ function haRefreshPrices(PDO $db): void {
         $missing = [];
 
         foreach ($shoppingItems as $item) {
-            $key = _priceKey($item['name'], $country);
-            if (isset($priceCache[$key])) {
-                $entry = $priceCache[$key];
+            $key  = _priceKey($item['name'], $country);
+            $key0 = md5(mb_strtolower(trim($item['name'])) . '|' . mb_strtolower(trim($country)));
+            $entry = $priceCache[$key] ?? $priceCache[$key0] ?? null;
+            if ($entry !== null) {
                 $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']);
                 $total += $est ?? 0;
                 $priced++;
