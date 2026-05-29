@@ -1086,11 +1086,13 @@
         "offline_ai_disabled": "Not available offline",
         "offline_cache_ready": "Offline — {n} items cached"
     },
+    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Do you really want to remove this product from inventory?",
         "kiosk_exit": "Exit kiosk mode?",
         "cancel": "Cancel",
-        "proceed": "Confirm"
+        "proceed": "Confirm",
+        "discard_one": "Discard 1 piece"
     },
     "location": {
         "dispensa": "Pantry",
@@ -1102,7 +1104,8 @@
         "unknown_hint": "Enter the product name and information",
         "label_name": "🏷️ Product name",
         "choose_location_title": "Which location?",
-        "choose_location_hint": "Choose the location to edit:"
+        "choose_location_hint": "Choose the location to edit:",
+        "confirm_large_qty": "You are setting the quantity to {qty} {unit}. This seems unusually high. Confirm?"
     },
     "screensaver": {
         "recipe_btn": "Recipes",

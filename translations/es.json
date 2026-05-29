@@ -1037,11 +1037,13 @@
         "offline_ai_disabled": "No disponible sin conexión",
         "offline_cache_ready": "Offline — {n} productos en caché"
     },
+    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "¿Realmente quieres eliminar este producto del inventario?",
         "kiosk_exit": "¿Salir del modo kiosco?",
         "cancel": "Cancelar",
-        "proceed": "Confirmar"
+        "proceed": "Confirmar",
+        "discard_one": "Tirar 1 unidad"
     },
     "location": {
         "dispensa": "Despensa",
@@ -1053,7 +1055,8 @@
         "unknown_hint": "Introduce el nombre del producto y la información",
         "label_name": "🏷️ Nombre del producto",
         "choose_location_title": "¿Qué ubicación?",
-        "choose_location_hint": "Elige la ubicación a editar:"
+        "choose_location_hint": "Elige la ubicación a editar:",
+        "confirm_large_qty": "Estás configurando la cantidad a {qty} {unit}. Esto parece inusualmente alto. ¿Confirmar?"
     },
     "screensaver": {
         "recipe_btn": "Recetas",

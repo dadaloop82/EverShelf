@@ -142,7 +142,9 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
         if (!file_exists($haFlagFile)) {
             $expiryDays = max(1, (int)env('HA_EXPIRY_DAYS', '3'));
             $expiringItems = $db->query(
-                "SELECT p.name, i.quantity, i.unit, i.expiry_date, i.location
+                "SELECT p.id AS product_id, i.id AS inventory_id,
+                        p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+                        i.quantity, i.location, i.expiry_date, i.opened_at, i.vacuum_sealed
                  FROM inventory i JOIN products p ON i.product_id = p.id
                  WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
                    AND i.expiry_date BETWEEN date('now') AND date('now', '+{$expiryDays} days')
@@ -150,12 +152,43 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
             )->fetchAll(PDO::FETCH_ASSOC);
 
             $expiredItems = $db->query(
-                "SELECT p.name, i.quantity, i.unit, i.expiry_date, i.location
+                "SELECT p.id AS product_id, i.id AS inventory_id,
+                        p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+                        i.quantity, i.location, i.expiry_date, i.opened_at, i.vacuum_sealed
                  FROM inventory i JOIN products p ON i.product_id = p.id
                  WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
                    AND i.expiry_date < date('now')
                  ORDER BY i.expiry_date ASC LIMIT 10"
             )->fetchAll(PDO::FETCH_ASSOC);
+
+            // Normalise rows to full product format
+            if (!function_exists('_haFormatProduct')) {
+                function _haFormatProduct(array $row): array {
+                    $daysRemaining = null;
+                    if (!empty($row['expiry_date'])) {
+                        $diff = (new DateTime(date('Y-m-d')))->diff(new DateTime($row['expiry_date']));
+                        $daysRemaining = (int)$diff->format('%r%a');
+                    }
+                    return [
+                        'product_id'       => (int)($row['product_id'] ?? 0),
+                        'inventory_id'     => (int)($row['inventory_id'] ?? 0),
+                        'name'             => $row['name'],
+                        'brand'            => $row['brand'] ?? null,
+                        'category'         => $row['category'] ?? null,
+                        'quantity'         => (float)($row['quantity'] ?? 0),
+                        'unit'             => $row['unit'] ?? '',
+                        'default_quantity' => (float)($row['default_quantity'] ?? 0),
+                        'package_unit'     => $row['package_unit'] ?? null,
+                        'location'         => $row['location'] ?? null,
+                        'expiry_date'      => $row['expiry_date'] ?? null,
+                        'days_remaining'   => $daysRemaining,
+                        'opened_at'        => $row['opened_at'] ?? null,
+                        'vacuum_sealed'    => !empty($row['vacuum_sealed']),
+                    ];
+                }
+            }
+            $expiringItems = array_map('_haFormatProduct', $expiringItems);
+            $expiredItems  = array_map('_haFormatProduct', $expiredItems);
 
             if (!empty($expiringItems)) {
                 $names = implode(', ', array_column($expiringItems, 'name'));

@@ -1377,11 +1377,46 @@ function _sendHaNotify(string $message, array $data = []): void {
 }
 
 /**
+ * Normalise a DB inventory+product row into a full product info array
+ * used consistently across all HA sensor attributes and webhook payloads.
+ */
+function _haFormatProduct(array $row): array {
+    $daysRemaining = null;
+    if (!empty($row['expiry_date'])) {
+        $diff = (new DateTime(date('Y-m-d')))->diff(new DateTime($row['expiry_date']));
+        $daysRemaining = (int)$diff->format('%r%a');
+    }
+    return [
+        'product_id'       => (int)($row['product_id'] ?? 0),
+        'inventory_id'     => (int)($row['inventory_id'] ?? 0),
+        'name'             => $row['name'],
+        'brand'            => $row['brand'] ?? null,
+        'category'         => $row['category'] ?? null,
+        'quantity'         => (float)($row['quantity'] ?? 0),
+        'unit'             => $row['unit'] ?? '',
+        'default_quantity' => (float)($row['default_quantity'] ?? 0),
+        'package_unit'     => $row['package_unit'] ?? null,
+        'location'         => $row['location'] ?? null,
+        'expiry_date'      => $row['expiry_date'] ?? null,
+        'days_remaining'   => $daysRemaining,
+        'opened_at'        => $row['opened_at'] ?? null,
+        'vacuum_sealed'    => !empty($row['vacuum_sealed']),
+    ];
+}
+
+/** Full product detail SQL fragment reused in all HA queries. */
+function _haProductSelect(): string {
+    return "p.id AS product_id, i.id AS inventory_id,
+            p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
+            i.quantity, i.location, i.expiry_date, i.opened_at, i.vacuum_sealed";
+}
+
+/**
  * HA REST sensor endpoint — returns pantry state in Home Assistant-compatible format.
  * Use with platform: rest in configuration.yaml.
  *
  * GET /api/?action=ha_sensor[&sensor=NAME]
- * Available sensor names: expiring, expired, total, shopping
+ * Available sensor names: expiring, expired, total, shopping, product
  */
 function haInventorySensor(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
@@ -1389,6 +1424,38 @@ function haInventorySensor(PDO $db): void {
 
     $sensor     = strtolower(trim($_GET['sensor'] ?? 'overview'));
     $expiryDays = max(1, min(90, (int)($_GET['expiry_days'] ?? env('HA_EXPIRY_DAYS', 3))));
+
+    // ── sensor=product: full inventory details, optionally filtered ──────────
+    if ($sensor === 'product') {
+        try {
+            $invId  = (int)($_GET['id']   ?? 0);
+            $search = trim($_GET['name']  ?? '');
+            $loc    = trim($_GET['location'] ?? '');
+            $where  = "WHERE i.quantity > 0";
+            $params = [];
+            if ($invId > 0)      { $where .= " AND i.id = ?";                  $params[] = $invId; }
+            elseif ($search !== '') { $where .= " AND LOWER(p.name) LIKE ?";   $params[] = '%' . mb_strtolower($search, 'UTF-8') . '%'; }
+            if ($loc !== '')     { $where .= " AND i.location = ?";             $params[] = $loc; }
+            $stmt = $db->prepare(
+                "SELECT " . _haProductSelect() . "
+                 FROM inventory i JOIN products p ON p.id = i.product_id
+                 $where ORDER BY p.name ASC"
+            );
+            $stmt->execute($params);
+            $items = array_map('_haFormatProduct', $stmt->fetchAll(PDO::FETCH_ASSOC));
+            header('Content-Type: application/json; charset=utf-8');
+            header('Access-Control-Allow-Origin: *');
+            echo json_encode([
+                'state'        => count($items),
+                'items'        => $items,
+                'last_updated' => date('c'),
+            ], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        return;
+    }
 
     try {
         $expiring = (int)$db->query(
@@ -1416,14 +1483,30 @@ function haInventorySensor(PDO $db): void {
             $shoppingCount = (int)$db->query("SELECT COUNT(*) FROM shopping_list")->fetchColumn();
         }
 
-        // Expiring items details
+        // Expiring items details (full product info, all within $expiryDays window)
         $expiringItems = $db->query(
-            "SELECT p.name, i.quantity, p.unit, i.expiry_date
-             FROM inventory i
-             JOIN products p ON p.id = i.product_id
+            "SELECT " . _haProductSelect() . "
+             FROM inventory i JOIN products p ON p.id = i.product_id
              WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
-               AND i.expiry_date BETWEEN date('now') AND date('now', '+7 days')
-             ORDER BY i.expiry_date ASC LIMIT 10"
+               AND i.expiry_date BETWEEN date('now') AND date('now', '+{$expiryDays} days')
+             ORDER BY i.expiry_date ASC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        // Expired items (full product info)
+        $expiredItemsList = $db->query(
+            "SELECT " . _haProductSelect() . "
+             FROM inventory i JOIN products p ON p.id = i.product_id
+             WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
+               AND i.expiry_date < date('now')
+             ORDER BY i.expiry_date ASC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        // Low-stock items (quantity <= 1 but > 0, full product info)
+        $lowStockItemsList = $db->query(
+            "SELECT " . _haProductSelect() . "
+             FROM inventory i JOIN products p ON p.id = i.product_id
+             WHERE i.quantity > 0 AND i.quantity <= 1
+             ORDER BY i.quantity ASC, p.name ASC"
         )->fetchAll(PDO::FETCH_ASSOC);
 
         // Opened items
@@ -1540,13 +1623,9 @@ function haInventorySensor(PDO $db): void {
                 'shopping_total'         => $shoppingTotal,
                 'price_tracking_enabled' => $priceEnabled,
                 'price_currency'         => $priceCurrency,
-                'expiring_list'          => array_map(fn($r) => [
-                    'name'        => $r['name'],
-                    'quantity'    => (float)$r['quantity'],
-                    'unit'        => $r['unit'],
-                    'expiry_date' => $r['expiry_date'],
-                    'expires_today' => $r['expiry_date'] <= date('Y-m-d', strtotime('+1 days')),
-                ], $expiringItems),
+                'expiring_list'          => array_map('_haFormatProduct', $expiringItems),
+                'expired_list'           => array_map('_haFormatProduct', $expiredItemsList),
+                'low_stock_list'         => array_map('_haFormatProduct', $lowStockItemsList),
                 'next_expiry_name'       => !empty($expiringItems) ? $expiringItems[0]['name'] : null,
                 'next_expiry_date'       => !empty($expiringItems) ? $expiringItems[0]['expiry_date'] : null,
                 'unit_of_measurement'    => 'items',
@@ -2528,10 +2607,12 @@ function addToInventory(PDO $db): void {
         return;
     }
     
-    // If a different unit was specified, update the product's unit
+    // If a different unit was specified, update the product's unit.
+    // NOTE: default_quantity is the PACKAGE SIZE, not the quantity being added —
+    // do NOT overwrite it here. It is managed via product_save / the edit form.
     if ($unit) {
-        $stmt = $db->prepare("UPDATE products SET unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$unit, $quantity, $productId]);
+        $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$unit, $productId]);
     } else {
         // Auto-set default_quantity if product has none (first add sets package size)
         $stmt = $db->prepare("SELECT default_quantity, unit FROM products WHERE id = ?");
@@ -2995,7 +3076,7 @@ function useFromInventory(PDO $db): void {
         }
     }
     
-    // Calculate total remaining across ALL locations
+    // Calculate total remaining across ALL locations (this product only)
     $stmt = $db->prepare("SELECT SUM(quantity) as total FROM inventory WHERE product_id = ? AND quantity > 0");
     $stmt->execute([$productId]);
     $totalRemaining = round((float)($stmt->fetchColumn() ?: 0), 6);
@@ -3005,8 +3086,26 @@ function useFromInventory(PDO $db): void {
     $stmt->execute([$productId]);
     $prodInfo = $stmt->fetch();
     
+    // Also sum related products in the same shopping_name family (same unit) so that
+    // e.g. "Uova Sfoglia Gialla" + "Uova biologiche" are evaluated together for low stock.
+    $totalFamilyRemaining = $totalRemaining;
+    if ($prodInfo) {
+        $sNameKey = strtolower(trim($prodInfo['shopping_name'] ?? ''));
+        $prodUnit  = $prodInfo['unit'] ?? '';
+        if ($sNameKey !== '' && $prodUnit !== '') {
+            $famStmt = $db->prepare("
+                SELECT SUM(i.quantity)
+                FROM inventory i
+                JOIN products p ON i.product_id = p.id
+                WHERE LOWER(TRIM(p.shopping_name)) = ? AND i.product_id != ? AND p.unit = ? AND i.quantity > 0
+            ");
+            $famStmt->execute([$sNameKey, $productId, $prodUnit]);
+            $totalFamilyRemaining = round($totalRemaining + (float)($famStmt->fetchColumn() ?: 0), 6);
+        }
+    }
+    
     $response = ['success' => true, 'remaining' => $remaining, 'added_to_bring' => $addedToBring,
-                  'total_remaining' => $totalRemaining];
+                  'total_remaining' => $totalRemaining, 'total_family_remaining' => $totalFamilyRemaining];
     if ($prodInfo) {
         $response['product_name'] = $prodInfo['name'];
         $response['product_brand'] = $prodInfo['brand'] ?: '';
@@ -3073,10 +3172,18 @@ function updateInventory(PDO $db): void {
             }
         }
 
-        // Update unit on the product if provided
+        // Update unit on the product if provided.
+        // When setting unit back to 'pz', also ensure default_quantity >= 1 so the
+        // barcode-scan auto-detect (which only fires on default_quantity === 0) won't
+        // silently revert the user's correction on the next scan.
         if (isset($input['unit']) && isset($input['product_id'])) {
-            $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-            $stmt->execute([$input['unit'], $input['product_id']]);
+            $newUnit = $input['unit'];
+            if ($newUnit === 'pz') {
+                $stmt = $db->prepare("UPDATE products SET unit = ?, default_quantity = CASE WHEN default_quantity < 1 THEN 1 ELSE default_quantity END, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            } else {
+                $stmt = $db->prepare("UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            }
+            $stmt->execute([$newUnit, $input['product_id']]);
         }
 
         // Update package info if provided
@@ -5471,6 +5578,7 @@ REGOLE:
 7. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `tools_needed`). Keep `meal` unchanged.
 8. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullateur"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 9. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
+10. NON confondere forme diverse dello stesso ingrediente di base: 'Pomodori'/'Pomodoro Piccadilly' (freschi, pz/g) ≠ 'Passata di pomodoro'/'Polpa di pomodoro'/'Sugo al pomodoro' (elaborato, conf/g); 'Latte fresco' ≠ 'Latte UHT' ≠ 'Panna'; 'Farina 00' ≠ 'Farina integrale'. Se la ricetta richiede un tipo di ingrediente che NON è disponibile nella forma giusta in lista, NON sostituirlo con una forma diversa: scegli una ricetta che usa gli ingredienti esattamente nella forma disponibile.
 
 DISPENSA:
 $ingredientsText
@@ -6418,6 +6526,7 @@ REGOLE:
 8. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullatore"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 9. `zero_waste_tips`: array of zero-waste tips for steps that generate reusable scraps (peels, leftover cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.). Each entry: {"step": 0-based_step_index, "scrap": "scrap name", "tip": "short practical reuse tip (max 20 words)"}. Use the same language as other text fields. Empty array [] if no reusable scraps are generated.
 10. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
+11. NON confondere forme diverse dello stesso ingrediente di base: 'Pomodori'/'Pomodoro Piccadilly' (freschi, pz/g) ≠ 'Passata di pomodoro'/'Polpa di pomodoro'/'Sugo al pomodoro' (elaborato, conf/g); 'Latte fresco' ≠ 'Latte UHT' ≠ 'Panna'; 'Farina 00' ≠ 'Farina integrale'. Se la ricetta richiede un tipo di ingrediente che NON è disponibile nella forma giusta in lista, NON sostituirlo con una forma diversa: scegli una ricetta che usa gli ingredienti esattamente nella forma disponibile.
 
 DISPENSA:
 $ingredientsText

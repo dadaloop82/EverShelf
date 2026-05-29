@@ -1086,11 +1086,13 @@
         "offline_ai_disabled": "Offline nicht verfügbar",
         "offline_cache_ready": "Offline — {n} Produkte im Cache"
     },
+    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",
         "kiosk_exit": "Kioskmodus verlassen?",
         "cancel": "Abbrechen",
-        "proceed": "Bestätigen"
+        "proceed": "Bestätigen",
+        "discard_one": "1 Stück wegwerfen"
     },
     "location": {
         "dispensa": "Vorratskammer",
@@ -1102,7 +1104,8 @@
         "unknown_hint": "Produktname und Informationen eingeben",
         "label_name": "🏷️ Produktname",
         "choose_location_title": "Welchen Ort?",
-        "choose_location_hint": "Wähle den zu bearbeitenden Ort:"
+        "choose_location_hint": "Wähle den zu bearbeitenden Ort:",
+        "confirm_large_qty": "Du setzt die Menge auf {qty} {unit}. Das scheint ungewöhnlich hoch zu sein. Bestätigen?"
     },
     "screensaver": {
         "recipe_btn": "Rezepte",

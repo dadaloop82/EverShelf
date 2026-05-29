@@ -1862,6 +1862,14 @@ function estimateOpenedExpiryDays(product, location) {
     if (/\b(patata|patate|tubero)\b/.test(name)) return 4;
     if (/\baglio\b/.test(name)) return 14;
 
+    // ── F.extra: Bread in fridge (opened) ────────────────────────────────
+    // Thin flatbreads (piadina, crescia, tigella) get mold very quickly
+    if (/\b(piadina|piadelle?|crescia|tigella)\b/.test(name)) return 2;
+    // Packaged sliced bread — preservatives help a bit
+    if (/\b(bauletto|pancarr[eè]|pan\s+carr[eè]?|tramezzin)\b/.test(name)) return 4;
+    // Generic bread in fridge
+    if (/\bpane\b/.test(cat)) return 3;
+
     // ── G: Fridge condiments ─────────────────────────────────────────────
     if (/maionese|mayo|mayon/.test(name)) return 90;
     if (/\bketchup\b/.test(name)) return 90;
@@ -6197,11 +6205,84 @@ async function quickUse(productId, location) {
 }
 
 async function deleteInventoryItem(id) {
-    if (confirm(t('confirm.remove_item'))) {
-        await api('inventory_delete', {}, 'POST', { id });
-        closeModal();
-        showToast(t('toast.product_removed'), 'success');
+    const item = currentInventory.find(i => i.id === id);
+    const unit = item ? (item.unit || 'pz') : 'pz';
+    const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
+    const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
+
+    if (!canDiscardOne) {
+        // Simple case: confirm → delete the whole row
+        if (confirm(t('confirm.remove_item'))) {
+            await api('inventory_delete', {}, 'POST', { id });
+            closeModal();
+            showToast(t('toast.product_removed'), 'success');
+            refreshCurrentPage();
+        }
+        return;
+    }
+
+    // Show a choice modal: 1 piece vs everything
+    const qtyDisplay = formatQuantity(qty, unit, item.default_quantity, item.package_unit);
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>${t('use.throw_title')}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
+                ${t('confirm.discard_one')}
+            </button>
+            <button class="btn btn-large btn-danger full-width" onclick="_discardAllFromModal(${id})">
+                ${t('use.throw_all', { qty: qtyDisplay })}
+            </button>
+            <button class="btn btn-secondary full-width" onclick="closeModal()">
+                ${t('confirm.cancel')}
+            </button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function _discardOnePiece(inventoryId) {
+    const item = currentInventory.find(i => i.id === inventoryId);
+    if (!item) { closeModal(); return; }
+    closeModal();
+    showLoading(true);
+    try {
+        await api('inventory_use', {}, 'POST', {
+            product_id: item.product_id,
+            quantity: 1,
+            location: item.location,
+            notes: 'Buttato'
+        });
+        showLoading(false);
+        showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
         refreshCurrentPage();
+    } catch(e) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+async function _discardAllFromModal(inventoryId) {
+    const item = currentInventory.find(i => i.id === inventoryId);
+    if (!item) { closeModal(); return; }
+    closeModal();
+    showLoading(true);
+    try {
+        await api('inventory_use', {}, 'POST', {
+            product_id: item.product_id,
+            use_all: true,
+            location: item.location,
+            notes: 'Buttato'
+        });
+        showLoading(false);
+        showToast(t('toast.thrown_away', { name: item.name }), 'success');
+        refreshCurrentPage();
+    } catch(e) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -6319,7 +6400,15 @@ async function submitEditInventory(e, id, productId) {
     const loc = document.getElementById('edit-loc').value;
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
-    
+
+    // Safety guard: warn if quantity is unreasonably large to prevent unit-confusion errors
+    // (e.g. user types "183" thinking it's ml, but the field expects conf units)
+    const _largeQtyLimits = { conf: 50, pz: 200, g: 10000, ml: 10000 };
+    const _largeQtyLimit = _largeQtyLimits[unit] ?? 500;
+    if (qty > _largeQtyLimit) {
+        if (!confirm(t('edit.confirm_large_qty').replace('{qty}', qty).replace('{unit}', unit))) return;
+    }
+
     const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId,
         vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0 };
     
@@ -6792,8 +6881,11 @@ async function onBarcodeDetected(barcode) {
         const localResult = await api('search_barcode', { barcode });
         if (localResult.found) {
             currentProduct = localResult.product;
-            // If product was saved with 'pz' but has weight info in notes, fix defaults
-            if (currentProduct.unit === 'pz' && currentProduct.default_quantity <= 1 && currentProduct.notes) {
+            // If product was saved with 'pz' but has weight info in notes, fix defaults.
+            // Only run if default_quantity === 0 (strictly unset): a value of 1 or higher
+            // means the user (or a previous auto-detect pass) already confirmed the unit,
+            // and re-running here would undo manual corrections.
+            if (currentProduct.unit === 'pz' && currentProduct.default_quantity === 0 && currentProduct.notes) {
                 const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
                 if (pesoMatch) {
                     const weightStr = pesoMatch[1].trim();
@@ -9429,6 +9521,13 @@ function showLowStockBringPrompt(result, afterCallback) {
     const unit = result.product_unit || currentProduct?.unit || 'pz';
     const defaultQty = result.product_default_qty || parseFloat(currentProduct?.default_quantity) || 0;
     const totalRemaining = result.total_remaining;
+    // If the backend provided a family-wide total (all products sharing the same
+    // shopping_name and unit, e.g. "Uova Sfoglia Gialla" + "Uova biologiche"),
+    // use that for the low-stock check so that a second scanned package of eggs
+    // prevents a false "running out" warning.
+    const familyTotal = (result.total_family_remaining !== undefined)
+        ? result.total_family_remaining
+        : totalRemaining;
     
     // ── Fully depleted: no need to ask — backend already added to Bring! ──
     // Skip the modal entirely and proceed to the next step (e.g. move modal).
@@ -9454,7 +9553,7 @@ function showLowStockBringPrompt(result, afterCallback) {
         return;
     }
     
-    if (!isLowStock(totalRemaining, unit, defaultQty)) {
+    if (!isLowStock(familyTotal, unit, defaultQty)) {
         if (afterCallback) afterCallback();
         return;
     }
@@ -14136,6 +14235,11 @@ sensor:
       - total_items
       - shopping_items
       - expiring_list
+      - expired_list
+      - low_stock_list
+      - next_expiry_name
+      - next_expiry_date
+      - days_to_next_expiry
       - last_updated
     unit_of_measurement: "items"
     device_class: null
@@ -14154,6 +14258,18 @@ sensor:
     resource: "${base}/api/?action=ha_sensor&sensor=shopping"
     scan_interval: 180
     value_template: "{{ value_json.state }}"
+    unit_of_measurement: "items"
+
+  # Full product inventory — all items with complete details
+  - platform: rest
+    name: "EverShelf Products"
+    unique_id: evershelf_products
+    resource: "${base}/api/?action=ha_sensor&sensor=product"
+    scan_interval: 600
+    value_template: "{{ value_json.state }}"
+    json_attributes:
+      - items
+      - last_updated
     unit_of_measurement: "items"`;
 }
 
@@ -16157,19 +16273,57 @@ function _ssDonut(label, val, color) {
 // Load all data needed for screensaver facts
 async function loadScreensaverData() {
     try {
-        const [statsRes, invRes, bringRes] = await Promise.all([
+        const [statsRes, invRes, bringRes, smartRes] = await Promise.all([
             api('stats'),
             api('inventory_list'),
-            api('shopping_list').catch(() => null)
+            api('shopping_list').catch(() => null),
+            api('smart_shopping').catch(() => null)
         ]);
         _screensaverData = {
             stats: statsRes,
             inventory: invRes.inventory || [],
             shopping: bringRes && bringRes.success ? (bringRes.purchase || []) : []
         };
+        // Keep smartShoppingItems fresh so _screensaverAutoAddItems has current data
+        if (smartRes && Array.isArray(smartRes.items)) {
+            smartShoppingItems = smartRes.items;
+        }
     } catch (e) {
         _screensaverData = { stats: {}, inventory: [], shopping: [] };
     }
+    // Silently add critical/high-urgency items to Bring! while screensaver is showing
+    _screensaverAutoAddItems();
+}
+
+/**
+ * Silently adds critical and high-urgency shopping items to Bring! when the
+ * screensaver activates. No toast shown — the shopping panel count updates
+ * automatically after the add. Rate-limited to once per 30 minutes per session.
+ */
+async function _screensaverAutoAddItems() {
+    const RATE_MS = 30 * 60 * 1000;
+    const lastRun = parseInt(sessionStorage.getItem('_ssAutoAddTs') || '0');
+    if (Date.now() - lastRun < RATE_MS) return;
+
+    const toAdd = smartShoppingItems.filter(i => {
+        if (i.on_bring) return false;
+        if (_isBringPurchased(i.name, i.urgency)) return false;
+        return i.urgency === 'critical' || i.urgency === 'high';
+    });
+    if (toAdd.length === 0) return;
+
+    sessionStorage.setItem('_ssAutoAddTs', String(Date.now()));
+    const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
+    try {
+        const result = await api('shopping_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
+        if (result.success && result.added > 0) {
+            _markAutoAddedBring(itemsToAdd.map(i => i.name));
+            logOperation('bring_auto_add_screensaver', { added: itemsToAdd.map(i => i.name) });
+            // Refresh bring list silently then update screensaver counter
+            loadShoppingList._bgCall = true;
+            loadShoppingList().then(() => updateScreensaverShopping());
+        }
+    } catch (e) { /* ignore */ }
 }
 
 // Show next random fact with fade in/out
@@ -16293,12 +16447,8 @@ function generateScreensaverFact() {
         facts.push(() => t('facts.expiring_this_month').replace('{n}', expiringThisMonth.length));
     }
 
-    // --- Shopping list facts (skip count/names — already shown in the shopping panel) ---
-    if (shop.length > 0) {
-        const names = shop.slice(0, 3).map(i => i.name).join(', ');
-        const extra = shop.length > 3 ? ` ${t('facts.shopping_more').replace('{n}', shop.length - 3)}` : '';
-        facts.push(() => t('facts.shopping_add').replace('{names}', names + extra));
-    }
+    // Shopping list count/items are already visible in the shopping panel on the screensaver.
+    // Items are added automatically by _screensaverAutoAddItems — no manual-action text needed.
     if (shop.length === 0) {
         facts.push(() => t('facts.shopping_empty'));
     }

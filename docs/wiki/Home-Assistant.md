@@ -35,10 +35,14 @@ Add EverShelf pantry data as native HA sensor entities that update automatically
 
 | URL | Returns | Sensor |
 |-----|---------|--------|
-| `/api/?action=ha_sensor` | Items expiring soon (≤3 days) | `sensor.evershelf_overview` |
+| `/api/?action=ha_sensor` | Items expiring soon (≤`HA_EXPIRY_DAYS` days) | `sensor.evershelf_overview` |
 | `/api/?action=ha_sensor&sensor=expired` | Expired items count | `sensor.evershelf_expired` |
 | `/api/?action=ha_sensor&sensor=shopping` | Shopping list item count | `sensor.evershelf_shopping` |
 | `/api/?action=ha_sensor&sensor=total` | Total pantry items | `sensor.evershelf_total` |
+| `/api/?action=ha_sensor&sensor=product` | Full inventory — all items with complete details | `sensor.evershelf_products` |
+| `/api/?action=ha_sensor&sensor=product&id=42` | Full details for inventory row `id=42` | — |
+| `/api/?action=ha_sensor&sensor=product&name=milk` | Full details for items whose name contains "milk" | — |
+| `/api/?action=ha_sensor&sensor=product&location=frigo` | All items in a specific location | — |
 
 ### Generate & Copy YAML
 
@@ -61,7 +65,12 @@ sensor:
       - expired_items
       - total_items
       - shopping_items
-      - expiring_list
+      - expiring_list      # full product details for expiring items
+      - expired_list       # full product details for expired items
+      - low_stock_list     # full product details for items with quantity ≤ 1
+      - next_expiry_name
+      - next_expiry_date
+      - days_to_next_expiry
       - last_updated
     unit_of_measurement: "items"
 
@@ -72,9 +81,61 @@ sensor:
     scan_interval: 180
     value_template: "{{ value_json.state }}"
     unit_of_measurement: "items"
+
+  # Full product inventory — each item includes all details (location, brand, category, …)
+  - platform: rest
+    name: "EverShelf Products"
+    unique_id: evershelf_products
+    resource: "http://YOUR_EVERSHELF_URL/api/?action=ha_sensor&sensor=product"
+    scan_interval: 600
+    value_template: "{{ value_json.state }}"
+    json_attributes:
+      - items
+      - last_updated
+    unit_of_measurement: "items"
 ```
 
 Restart Home Assistant after editing `configuration.yaml`.
+
+Every product entry inside `expiring_list`, `expired_list`, `low_stock_list`, and `sensor=product` responses follows the same schema:
+
+```json
+{
+  "product_id":       42,
+  "inventory_id":     7,
+  "name":             "Latte intero",
+  "brand":            "Parmalat",
+  "category":         "Lattiero-caseari",
+  "quantity":         2.0,
+  "unit":             "conf",
+  "default_quantity": 1000.0,
+  "package_unit":     "ml",
+  "location":         "frigo",
+  "expiry_date":      "2025-06-15",
+  "days_remaining":   3,
+  "opened_at":        "2025-06-10",
+  "vacuum_sealed":    false
+}
+```
+
+Field details:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `product_id` | int | Products table ID |
+| `inventory_id` | int | Inventory row ID |
+| `name` | string | Product name |
+| `brand` | string\|null | Brand (if set) |
+| `category` | string\|null | Category (if set) |
+| `quantity` | float | Current quantity in inventory |
+| `unit` | string | Unit (`conf`, `g`, `ml`, `pz`, …) |
+| `default_quantity` | float | Default package size (e.g. 1000 for 1-litre carton) |
+| `package_unit` | string\|null | Unit of the default package (`g`, `ml`) |
+| `location` | string\|null | Storage location (`frigo`, `freezer`, `dispensa`, …) |
+| `expiry_date` | string\|null | ISO date `YYYY-MM-DD` |
+| `days_remaining` | int\|null | Days until expiry (negative = already expired) |
+| `opened_at` | string\|null | ISO date when the package was opened |
+| `vacuum_sealed` | bool | Whether the item is vacuum-sealed |
 
 ---
 
@@ -109,9 +170,24 @@ EverShelf fires an HTTP POST to your HA webhook URL when pantry events occur.
     "type": "expiring_soon",
     "count": 3,
     "days": 3,
-    "summary": "3 products expiring within 3 days",
+    "summary": "Milk, Yogurt, Butter",
     "items": [
-      { "name": "Milk", "expiry_date": "2025-06-14", "quantity": 1, "unit": "l" }
+      {
+        "product_id": 42,
+        "inventory_id": 7,
+        "name": "Milk",
+        "brand": "Parmalat",
+        "category": "Dairy",
+        "quantity": 2.0,
+        "unit": "conf",
+        "default_quantity": 1000.0,
+        "package_unit": "ml",
+        "location": "frigo",
+        "expiry_date": "2025-06-14",
+        "days_remaining": 2,
+        "opened_at": "2025-06-10",
+        "vacuum_sealed": false
+      }
     ]
   }
 }
@@ -128,10 +204,23 @@ action:
   - service: notify.telegram_bot
     data:
       message: >
-        🥫 EverShelf: {{ trigger.json.data.summary }}
+        🥫 EverShelf: {{ trigger.json.data.count }} product(s) expiring soon
         {% for item in trigger.json.data.items %}
-        — {{ item.name }} (expires {{ item.expiry_date }})
+        — {{ item.name }}{% if item.brand %} ({{ item.brand }}){% endif %} ·
+          {{ item.quantity }} {{ item.unit }} · 📍 {{ item.location }} ·
+          expires {{ item.expiry_date }} ({{ item.days_remaining }} days)
         {% endfor %}
+```
+
+### Example: Automation on location
+
+You can filter by location in the automation template to only alert for fridge items:
+
+```yaml
+condition:
+  - condition: template
+    value_template: >
+      {{ trigger.json.data.items | selectattr('location','eq','frigo') | list | length > 0 }}
 ```
 
 ---

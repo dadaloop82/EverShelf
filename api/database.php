@@ -464,6 +464,14 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
     if (preg_match('/\b(patata|patate|tubero)\b/', $n)) return 4;
     if (preg_match('/\baglio\b/', $n)) return 14;
 
+    // ── F.extra: Bread in fridge (opened) ──────────────────────────────────
+    // Thin flatbreads (piadina, crescia, tigella) get mold very quickly
+    if (preg_match('/\b(piadina|piadelle?|crescia|tigella)\b/', $n)) return 2;
+    // Packaged sliced bread — preservatives help a bit
+    if (preg_match('/\b(bauletto|pancarrè|pan\s+carr|tramezzin)\b/', $n)) return 4;
+    // Generic bread / sandwich bread in fridge
+    if (preg_match('/\bpane\b/', $cat)) return 3;
+
     // ── G: Fridge condiments — medium shelf-life ─────────────────────────
     if (preg_match('/maionese|mayo|mayon/', $n)) return 90;
     if (preg_match('/\bketchup\b/', $n)) return 90;

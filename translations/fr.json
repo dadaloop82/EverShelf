@@ -1037,11 +1037,13 @@
         "offline_ai_disabled": "Indisponible hors ligne",
         "offline_cache_ready": "Offline — {n} produits en cache"
     },
+    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",
         "kiosk_exit": "Quitter le mode kiosque ?",
         "cancel": "Annuler",
-        "proceed": "Confirmer"
+        "proceed": "Confirmer",
+        "discard_one": "Jeter 1 pièce"
     },
     "location": {
         "dispensa": "Garde-manger",
@@ -1053,7 +1055,8 @@
         "unknown_hint": "Entrez le nom du produit et les informations",
         "label_name": "🏷️ Nom du produit",
         "choose_location_title": "Quel emplacement ?",
-        "choose_location_hint": "Choisissez l'emplacement à modifier :"
+        "choose_location_hint": "Choisissez l'emplacement à modifier :",
+        "confirm_large_qty": "Vous définissez la quantité à {qty} {unit}. Cela semble inhabituellement élevé. Confirmer ?"
     },
     "screensaver": {
         "recipe_btn": "Recettes",

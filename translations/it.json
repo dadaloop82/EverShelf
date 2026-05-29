@@ -1090,7 +1090,8 @@
         "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
         "kiosk_exit": "Uscire dalla modalità kiosk?",
         "cancel": "Annulla",
-        "proceed": "Conferma"
+        "proceed": "Conferma",
+        "discard_one": "Butta 1 pezzo"
     },
     "location": {
         "dispensa": "Dispensa",
@@ -1102,7 +1103,8 @@
         "unknown_hint": "Inserisci il nome e le informazioni del prodotto",
         "label_name": "🏷️ Nome prodotto",
         "choose_location_title": "Quale modifica?",
-        "choose_location_hint": "Scegli la posizione da modificare:"
+        "choose_location_hint": "Scegli la posizione da modificare:",
+        "confirm_large_qty": "Stai impostando la quantità a {qty} {unit}. Questo sembra un valore insolitamente alto. Confermare?"
     },
     "screensaver": {
         "recipe_btn": "Ricette",
