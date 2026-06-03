@@ -28,6 +28,13 @@ function evershelfGetProvidedApiToken(): string {
     if (isset($_GET['api_token'])) {
         return (string)$_GET['api_token'];
     }
+    // Home Assistant ha-evershelf sends Authorization: Bearer (legacy)
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+        ?? '';
+    if (preg_match('/^Bearer\s+(\S+)/i', $authHeader, $m)) {
+        return $m[1];
+    }
     return evershelfGetProvidedApiTokenFromHeaders();
 }
 

@@ -61,6 +61,23 @@ if (($_GET['action'] ?? '') === 'app_bootstrap') {
     exit;
 }
 
+// ── HA discovery (no token) — lets HACS config flow find the server ───────────
+if (($_GET['action'] ?? '') === 'ha_info' && evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
+    header('Content-Type: application/json; charset=utf-8');
+    $uniqueId = 'evershelf_' . substr(md5(__DIR__ . php_uname('n')), 0, 12);
+    echo json_encode([
+        'name'               => 'EverShelf',
+        'instance'           => env('INSTANCE_NAME', php_uname('n')),
+        'version'            => _appVersion(),
+        'unique_id'          => $uniqueId,
+        'has_token'          => true,
+        'api_token_required' => true,
+        'api_version'        => 1,
+        'items_count'        => null,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ── Google Drive OAuth callback — returns HTML, not JSON ──────────────────────
 if (($_GET['action'] ?? '') === 'gdrive_oauth_callback') {
     _gdriveHandleOAuthCallback();
@@ -1939,7 +1956,8 @@ function haGetInfo(PDO $db): void {
         'instance'    => env('INSTANCE_NAME', php_uname('n')),
         'version'     => _appVersion(),
         'unique_id'   => $uniqueId,
-        'has_token'   => !empty(env('SETTINGS_TOKEN', '')),
+        'has_token'   => evershelfApiTokenRequired(),
+        'api_token_required' => evershelfApiTokenRequired(),
         'api_version' => 1,
         'items_count' => $itemsCount,
     ], JSON_UNESCAPED_UNICODE);
