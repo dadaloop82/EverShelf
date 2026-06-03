@@ -8,49 +8,8 @@
  * @license MIT
  */
 
-// ── GitHub error-reporting credentials ───────────────────────────────────────
-// The token is XOR-obfuscated so the literal secret string never appears in
-// source or git history (prevents GitHub secret scanning from revoking it).
-// Scoped only to Issues (R+W) on this single repository.
-// Defined at the very top so the global exception handler can use it.
-define('_GH_TK_ENC', '23580718460c2c444031290243627e7971622b29030a3e4d50001e45261659420b6e110a423f30447133205b425a577971561f32762b0b034e0b3e56106d5945020406254a3a4647592a1a611c66687a0b672043700f34757900014004');
-define('_GH_TK_KEY', 'D1sp3ns4!Ev3r#26');
-define('GH_REPO',    'dadaloop82/EverShelf');
-define('PRICE_CACHE_PATH',         __DIR__ . '/../data/shopping_price_cache.json');
-define('CATEGORY_CACHE_PATH',      __DIR__ . '/../data/category_ai_cache.json');
-define('SHELF_CACHE_PATH',         __DIR__ . '/../data/opened_shelf_cache.json');
-define('FOODFACTS_CACHE_PATH',     __DIR__ . '/../data/food_facts_cache.json');
-define('SHOPPING_NAME_CACHE_PATH', __DIR__ . '/../data/shopping_name_cache.json');
-define('BRING_TOKEN_PATH',         __DIR__ . '/../data/bring_token.json');
-define('AI_USAGE_PATH',            __DIR__ . '/../data/ai_usage.json');
-define('BACKUP_DIR',               __DIR__ . '/../data/backups');
-define('BACKUP_LAST_TS_PATH',      __DIR__ . '/../data/backup_last_ts.json');
-// Gemini pricing (USD per 1M tokens) — configurable in .env (GEMINI_COST_25F_IN etc.)
-// Defaults: gemini-2.5-flash $0.15/M in · $0.60/M out — gemini-2.0-flash $0.10/M in · $0.40/M out
-define('GEMINI_COST_25F_IN',  (float)(getenv('GEMINI_COST_25F_IN')  ?: 0.15));
-define('GEMINI_COST_25F_OUT', (float)(getenv('GEMINI_COST_25F_OUT') ?: 0.60));
-define('GEMINI_COST_20F_IN',  (float)(getenv('GEMINI_COST_20F_IN')  ?: 0.10));
-define('GEMINI_COST_20F_OUT', (float)(getenv('GEMINI_COST_20F_OUT') ?: 0.40));
-
-/** Decode the XOR-obfuscated GitHub token at runtime. */
-function _ghToken(): string {
-    static $token = null;
-    if ($token !== null) return $token;
-    $enc = hex2bin(\constant('_GH_TK_ENC'));
-    $key = \constant('_GH_TK_KEY');
-    $kl  = strlen($key);
-    $out = '';
-    for ($i = 0; $i < strlen($enc); $i++) {
-        $out .= chr(ord($enc[$i]) ^ ord($key[$i % $kl]));
-    }
-    $token = $out;
-    return $token;
-}
-
-// logger.php must be loaded BEFORE database.php so LoggingPDO class exists when getDB() runs
-require_once __DIR__ . '/logger.php';
-// database.php must always be loaded (used both by HTTP router and cron)
-require_once __DIR__ . '/database.php';
+// ── Core bootstrap (env, security, database, logger) ─────────────────────────
+require_once __DIR__ . '/bootstrap.php';
 
 // ── Global PHP error/exception reporters ─────────────────────────────────────
 // These are registered immediately so any crash anywhere in this file is caught.
@@ -74,41 +33,11 @@ if (!defined('CRON_MODE')) {
     });
 }
 
-/**
- * Load environment variables from .env file.
- * Returns associative array of key => value pairs.
- */
-function loadEnv(): array {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-    $envFile = __DIR__ . '/../.env';
-    $cache = [];
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
-            list($key, $val) = explode('=', $line, 2);
-            $cache[trim($key)] = trim($val);
-        }
-    }
-    return $cache;
-}
-
-/**
- * Get a single environment variable, with optional default.
- */
-function env(string $key, string $default = ''): string {
-    $vars = loadEnv();
-    return $vars[$key] ?? $default;
-}
-
 // When included by the cron script, skip HTTP headers and routing entirely
 if (!defined('CRON_MODE')) {
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+evershelfSendCorsHeaders();
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -121,6 +50,17 @@ if (($_GET['action'] ?? '') === 'ping') {
     exit;
 }
 
+// ── App bootstrap — same-origin browsers receive API token automatically ───────
+if (($_GET['action'] ?? '') === 'app_bootstrap') {
+    $required = evershelfApiTokenRequired();
+    $out = ['api_token_required' => $required];
+    if ($required && evershelfIsSameOriginBrowser()) {
+        $out['api_token'] = evershelfEffectiveApiToken();
+    }
+    echo json_encode($out);
+    exit;
+}
+
 // ── Google Drive OAuth callback — returns HTML, not JSON ──────────────────────
 if (($_GET['action'] ?? '') === 'gdrive_oauth_callback') {
     _gdriveHandleOAuthCallback();
@@ -130,9 +70,9 @@ if (($_GET['action'] ?? '') === 'gdrive_oauth_callback') {
 // ── Log viewer — returns last N log lines (requires SETTINGS_TOKEN if set) ────
 if (($_GET['action'] ?? '') === 'get_logs') {
     require_once __DIR__ . '/logger.php';
-    $token   = loadEnv()['SETTINGS_TOKEN'] ?? '';
-    $reqTok  = $_GET['token'] ?? $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
-    if (!empty($token) && $reqTok !== $token) {
+    $token   = evershelfEffectiveApiToken();
+    $reqTok  = evershelfGetProvidedApiTokenFromHeaders() ?: (string)($_GET['token'] ?? '');
+    if ($token !== '' && ($reqTok === '' || !hash_equals($token, $reqTok))) {
         EverLog::warn('get_logs: unauthorized (403)');
         http_response_code(403);
         echo json_encode(['error' => 'Unauthorized']);
@@ -323,8 +263,17 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
         }
     }
 
-// ── Health check — startup diagnostic (no rate-limit, no auth required) ──────
+// ── Health check — minimal public probe; full diagnostics require API token ──
 if (($_GET['action'] ?? '') === 'health_check') {
+    if (evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok'                 => true,
+            'public'             => true,
+            'api_token_required' => true,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $checks = [];
 
     // ── Helper: read .env values without triggering app init ─────────────────
@@ -363,7 +312,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     $dataDir = __DIR__ . '/../data';
     if (!is_dir($dataDir)) @mkdir($dataDir, 0775, true);
     $dataDirOk = is_dir($dataDir) && is_writable($dataDir);
-    $checks['data_dir'] = ['ok' => $dataDirOk, 'path' => realpath($dataDir) ?: $dataDir];
+    $checks['data_dir'] = ['ok' => $dataDirOk];
 
     // data/rate_limits/
     $rlDir = $dataDir . '/rate_limits';
@@ -714,24 +663,19 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 EverLog::request($action, $method);
 
+// API token auth (when API_TOKEN or SETTINGS_TOKEN is configured)
+evershelfRequireApiAuth($action, $method);
+
 } // end !CRON_MODE block for router bootstrap
 
 if (!defined('CRON_MODE')):
 try {
-    // DEMO_MODE guard
-    if (env('DEMO_MODE') === 'true') {
-        $demoBlocked = [
-            'save_settings', 'product_save', 'product_delete', 'product_merge',
-            'inventory_add', 'inventory_use', 'inventory_update', 'inventory_remove',
-            'dismiss_anomaly', 'bring_add', 'bring_remove', 'bring_sync',
-            'backup_delete', 'backup_restore',
-        ];
-        if (in_array($action, $demoBlocked, true)) {
-            EverLog::warn('demo_mode blocked (403)');
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'demo_mode']);
-            exit;
-        }
+    // DEMO_MODE — block all writes and AI generation
+    if (evershelfDemoBlocksAction($action, $method)) {
+        EverLog::warn('demo_mode blocked (403)', ['action' => $action]);
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'demo_mode']);
+        exit;
     }
 
     switch ($action) {
@@ -759,6 +703,9 @@ try {
             break;
         case 'products_search':
             searchProducts($db);
+            break;
+        case 'inventory_search':
+            searchInventoryProducts($db);
             break;
 
         // ===== INVENTORY =====
@@ -811,6 +758,10 @@ try {
 
         case 'inventory_anomalies':
             getInventoryAnomalies($db);
+            break;
+
+        case 'inventory_duplicate_loss_checks':
+            getDuplicateLossChecks($db);
             break;
 
         case 'dismiss_anomaly':
@@ -1252,9 +1203,33 @@ function ttsProxy() {
     $method  = isset($body['method'])  ? strtoupper(trim($body['method'])) : 'POST';
     $headers = isset($body['headers']) && is_array($body['headers']) ? $body['headers'] : [];
     $payload = isset($body['payload']) ? $body['payload'] : '';
-    $contentType = '';
-    foreach ($headers as $k => $v) {
-        if (strtolower($k) === 'content-type') { $contentType = $v; break; }
+
+    // Never trust client-supplied auth headers — inject from server .env
+    $headers = array_filter($headers, static function ($k) {
+        $lk = strtolower((string)$k);
+        return !in_array($lk, ['authorization', 'x-api-key', 'x-auth-token'], true);
+    }, ARRAY_FILTER_USE_KEY);
+
+    $haBase = rtrim(env('HA_URL', ''), '/');
+    if ($haBase !== '' && str_starts_with($url, $haBase)) {
+        $haTok = env('HA_TOKEN');
+        if ($haTok !== '') {
+            $headers['Authorization'] = 'Bearer ' . $haTok;
+        }
+    } elseif ($url !== '' && $url === env('TTS_URL', '')) {
+        $authType = env('TTS_AUTH_TYPE', 'bearer');
+        if ($authType === 'bearer') {
+            $tok = env('TTS_TOKEN');
+            if ($tok !== '') {
+                $headers['Authorization'] = 'Bearer ' . $tok;
+            }
+        } elseif ($authType === 'header') {
+            $hn = env('TTS_AUTH_HEADER_NAME');
+            $hv = env('TTS_AUTH_HEADER_VALUE');
+            if ($hn !== '') {
+                $headers[$hn] = $hv;
+            }
+        }
     }
 
     if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
@@ -1424,8 +1399,6 @@ function _haProductSelect(): string {
  */
 function haInventorySensor(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
-
     $sensor     = strtolower(trim($_GET['sensor'] ?? 'overview'));
     $expiryDays = max(1, min(90, (int)($_GET['expiry_days'] ?? env('HA_EXPIRY_DAYS', 3))));
 
@@ -1448,7 +1421,6 @@ function haInventorySensor(PDO $db): void {
             $stmt->execute($params);
             $items = array_map('_haFormatProduct', $stmt->fetchAll(PDO::FETCH_ASSOC));
             header('Content-Type: application/json; charset=utf-8');
-            header('Access-Control-Allow-Origin: *');
             echo json_encode([
                 'state'        => count($items),
                 'items'        => $items,
@@ -1693,7 +1665,6 @@ function haInventorySensor(PDO $db): void {
  */
 function haCalendar(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
     try {
         $rows = $db->query(
             "SELECT p.name, i.quantity, p.unit, i.location, i.expiry_date
@@ -1728,8 +1699,6 @@ function haCalendar(PDO $db): void {
  */
 function haSuggestRecipe(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
-
     $apiKey = env('GEMINI_API_KEY', '');
     if (!$apiKey) {
         http_response_code(503);
@@ -1814,8 +1783,6 @@ function haSuggestRecipe(PDO $db): void {
  */
 function haRefreshPrices(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
-
     try {
         $country  = env('PRICE_COUNTRY', 'Italia');
         $currency = env('PRICE_CURRENCY', 'EUR');
@@ -1889,8 +1856,6 @@ function haRefreshPrices(PDO $db): void {
  */
 function haClearExpired(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
-
     try {
         $stmt = $db->prepare(
             "DELETE FROM inventory WHERE expiry_date < date('now') AND quantity <= 0"
@@ -1966,7 +1931,6 @@ function haTestConnection(): void {
  */
 function haGetInfo(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
     // Stable unique_id derived from server identity (survives restarts)
     $uniqueId    = 'evershelf_' . substr(md5(__DIR__ . php_uname('n')), 0, 12);
     $itemsCount  = (int)$db->query("SELECT COUNT(*) FROM inventory WHERE quantity > 0")->fetchColumn();
@@ -1988,7 +1952,6 @@ function haGetInfo(PDO $db): void {
  */
 function haGetShoppingItems(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    header('Access-Control-Allow-Origin: *');
     try {
         if (isShoppingBringMode()) {
             $auth = bringAuth();
@@ -2603,6 +2566,57 @@ function searchProducts(PDO $db): void {
     echo json_encode(['products' => $stmt->fetchAll()]);
 }
 
+function searchInventoryProducts(PDO $db): void {
+    EverLog::debug('searchInventoryProducts');
+    $q = trim((string)($_GET['q'] ?? ''));
+    $limit = (int)($_GET['limit'] ?? 3);
+    if ($limit < 1) $limit = 1;
+    if ($limit > 10) $limit = 10;
+
+    if ($q === '' || mb_strlen($q) < 2) {
+        echo json_encode(['items' => []]);
+        return;
+    }
+
+    $like = "%{$q}%";
+    $prefix = mb_strtolower($q) . '%';
+    $exact = mb_strtolower($q);
+
+    $sql = "
+        SELECT
+            p.id,
+            p.name,
+            p.brand,
+            p.category,
+            p.barcode,
+            p.image_url,
+            p.unit,
+            p.default_quantity,
+            p.package_unit,
+            p.notes,
+            SUM(i.quantity) AS total_qty,
+            GROUP_CONCAT(DISTINCT i.location) AS locations
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+          AND (p.name LIKE ? OR p.brand LIKE ?)
+        GROUP BY p.id
+        ORDER BY
+            CASE
+                WHEN lower(p.name) = ? THEN 0
+                WHEN lower(p.name) LIKE ? THEN 1
+                ELSE 2
+            END,
+            total_qty DESC,
+            p.name ASC
+        LIMIT {$limit}
+    ";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$like, $like, $exact, $prefix]);
+    echo json_encode(['items' => $stmt->fetchAll()]);
+}
+
 // ===== INVENTORY FUNCTIONS =====
 
 function listInventory(PDO $db): void {
@@ -2828,22 +2842,38 @@ function useFromInventory(PDO $db): void {
     }
 
     // ── Server-side deduplication ─────────────────────────────────────────
-    // Reject if the same product already has an 'out' transaction in the last
-    // 12 seconds. This guards against scale double-triggers (the scale can fire
-    // a second stable reading ~10 s after the first auto-confirm, while the
-    // product is still on the plate), regardless of the client-side guard.
+    // Guard against accidental double-consume triggers (scale jitter, double tap,
+    // delayed/offline replay burst). We only apply this stricter gate to manual
+    // uses with empty notes, so recipe uses (notes="Ricetta: ...") remain unaffected.
     if (!$useAll) {
+        $dedupWindow = ($notes === '') ? 120 : 12;
         $dedup = $db->prepare(
-            "SELECT id FROM transactions
-             WHERE product_id = ? AND type IN ('out','waste') AND undone = 0
-               AND created_at >= datetime('now', '-12 seconds')
+            "SELECT id, quantity, created_at FROM transactions
+             WHERE product_id = ?
+               AND location = ?
+               AND type IN ('out','waste')
+               AND undone = 0
+               AND COALESCE(notes, '') = ?
+               AND created_at >= datetime('now', '-' || ? || ' seconds')
+             ORDER BY id DESC
              LIMIT 1"
         );
-        $dedup->execute([$productId]);
-        if ($dedup->fetch()) {
+        $dedup->execute([$productId, $location, $notes, $dedupWindow]);
+        $recent = $dedup->fetch();
+        if ($recent) {
+            EverLog::warn('useFromInventory duplicate blocked', [
+                'product_id' => $productId,
+                'location' => $location,
+                'window_s' => $dedupWindow,
+                'recent_tx_id' => $recent['id'] ?? null,
+                'recent_qty' => $recent['quantity'] ?? null,
+                'recent_created_at' => $recent['created_at'] ?? null,
+                'requested_qty' => $quantity,
+                'notes' => $notes,
+            ]);
             echo json_encode([
                 'success' => false,
-                'error'   => 'Operazione già registrata di recente — attendi qualche secondo.',
+                'error'   => 'Operazione già registrata di recente — verifica prima la quantità rimasta.',
                 'duplicate' => true,
             ]);
             return;
@@ -3575,6 +3605,122 @@ function getInventoryAnomalies(PDO $db): void {
 }
 
 /**
+ * Detect likely "double consume" losses:
+ * latest pair of out transactions for same product+location within 120s,
+ * empty notes, current inventory at 0, and last tx at that location is out.
+ */
+function getDuplicateLossChecks(PDO $db): void {
+    EverLog::info('getDuplicateLossChecks');
+
+    $sql = "
+        WITH out_tx AS (
+            SELECT
+                id,
+                product_id,
+                IFNULL(location, '') AS location,
+                quantity,
+                created_at,
+                COALESCE(notes, '') AS notes
+            FROM transactions
+            WHERE type = 'out' AND undone = 0
+        ),
+        pairs AS (
+            SELECT
+                t1.product_id,
+                t1.location,
+                t1.id AS tx1,
+                t2.id AS tx2,
+                t1.quantity AS q1,
+                t2.quantity AS q2,
+                t2.created_at AS c2,
+                ROUND((julianday(t2.created_at) - julianday(t1.created_at)) * 86400.0, 1) AS dt_sec
+            FROM out_tx t1
+            JOIN out_tx t2
+                ON t2.product_id = t1.product_id
+               AND t2.location = t1.location
+               AND t2.id > t1.id
+               AND (julianday(t2.created_at) - julianday(t1.created_at)) * 86400.0 BETWEEN 0 AND 120
+            WHERE TRIM(t1.notes) = '' AND TRIM(t2.notes) = ''
+        ),
+        latest_pair AS (
+            SELECT
+                p.*,
+                ROW_NUMBER() OVER (PARTITION BY p.product_id, p.location ORDER BY p.c2 DESC) AS rn
+            FROM pairs p
+        ),
+        inv AS (
+            SELECT
+                product_id,
+                IFNULL(location, '') AS location,
+                MIN(id) AS inventory_id,
+                SUM(quantity) AS quantity
+            FROM inventory
+            GROUP BY product_id, IFNULL(location, '')
+        ),
+        last_tx AS (
+            SELECT
+                product_id,
+                IFNULL(location, '') AS location,
+                type,
+                created_at,
+                ROW_NUMBER() OVER (PARTITION BY product_id, IFNULL(location, '') ORDER BY id DESC) AS rn
+            FROM transactions
+            WHERE undone = 0
+        )
+        SELECT
+            p.id AS product_id,
+            p.name,
+            p.brand,
+            p.unit,
+            p.default_quantity,
+            p.package_unit,
+            lp.location,
+            lp.tx1,
+            lp.q1,
+            lp.tx2,
+            lp.q2,
+            lp.dt_sec,
+            lp.c2 AS latest_pair_at,
+            IFNULL(inv.inventory_id, 0) AS inventory_id,
+            IFNULL(inv.quantity, 0) AS inv_qty_now
+        FROM latest_pair lp
+        JOIN products p ON p.id = lp.product_id
+        LEFT JOIN inv ON inv.product_id = lp.product_id AND inv.location = lp.location
+        LEFT JOIN last_tx lt ON lt.product_id = lp.product_id AND lt.location = lp.location AND lt.rn = 1
+        WHERE lp.rn = 1
+          AND IFNULL(inv.quantity, 0) = 0
+          AND lt.type = 'out'
+        ORDER BY lp.c2 DESC
+        LIMIT 30
+    ";
+
+    $rows = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $checks = array_map(function(array $r): array {
+        return [
+            'product_id' => (int)$r['product_id'],
+            'name' => (string)$r['name'],
+            'brand' => (string)($r['brand'] ?? ''),
+            'unit' => (string)($r['unit'] ?? 'pz'),
+            'default_quantity' => isset($r['default_quantity']) ? (float)$r['default_quantity'] : 0.0,
+            'package_unit' => (string)($r['package_unit'] ?? ''),
+            'location' => (string)($r['location'] ?? ''),
+            'tx1' => (int)$r['tx1'],
+            'q1' => (float)$r['q1'],
+            'tx2' => (int)$r['tx2'],
+            'q2' => (float)$r['q2'],
+            'dt_sec' => (float)$r['dt_sec'],
+            'latest_pair_at' => (string)$r['latest_pair_at'],
+            'inventory_id' => (int)$r['inventory_id'],
+            'inv_qty_now' => (float)$r['inv_qty_now'],
+            'dismiss_key' => 'dup_' . ((int)$r['product_id']) . '_' . md5((string)($r['location'] ?? '')),
+        ];
+    }, $rows);
+
+    echo json_encode(['success' => true, 'checks' => $checks], JSON_UNESCAPED_UNICODE);
+}
+
+/**
  * Dismiss a specific anomaly so it no longer appears in the banner.
  */
 function dismissInventoryAnomaly(): void {
@@ -4301,12 +4447,13 @@ function getServerSettings(): void {
     
     echo json_encode([
         'gemini_key_set' => !empty($geminiKey),
+        'api_token_required' => evershelfApiTokenRequired(),
         'bring_email' => $bringEmail,
-        'settings_token_set' => !empty(env('SETTINGS_TOKEN')),
+        'settings_token_set' => evershelfApiTokenRequired(),
         'demo_mode' => env('DEMO_MODE') === 'true',
         'bring_password_set' => !empty(env('BRING_PASSWORD')),
         'tts_url' => env('TTS_URL'),
-        'tts_token' => env('TTS_TOKEN'),
+        'tts_token_set' => !empty(env('TTS_TOKEN')),
         'tts_method' => env('TTS_METHOD', 'POST'),
         'tts_auth_type' => env('TTS_AUTH_TYPE', 'bearer'),
         'tts_content_type' => env('TTS_CONTENT_TYPE', 'application/json'),
@@ -4316,7 +4463,7 @@ function getServerSettings(): void {
         'tts_rate' => (float)env('TTS_RATE', '1'),
         'tts_pitch' => (float)env('TTS_PITCH', '1'),
         'tts_auth_header_name' => env('TTS_AUTH_HEADER_NAME', ''),
-        'tts_auth_header_value' => env('TTS_AUTH_HEADER_VALUE', ''),
+        'tts_auth_header_value_set' => !empty(env('TTS_AUTH_HEADER_VALUE', '')),
         'tts_extra_fields' => env('TTS_EXTRA_FIELDS', ''),
         // User preferences (now server-side)
         'default_persons' => intval(env('DEFAULT_PERSONS', '1')),
@@ -4361,7 +4508,7 @@ function getServerSettings(): void {
         // Home Assistant Integration
         'ha_enabled'                  => env('HA_ENABLED', 'false') === 'true',
         'ha_url'                      => env('HA_URL', ''),
-        'ha_token'                    => env('HA_TOKEN', ''),
+        'ha_token_set'                => !empty(env('HA_TOKEN', '')),
         'ha_tts_entity'               => env('HA_TTS_ENTITY', ''),
         'ha_webhook_id'               => env('HA_WEBHOOK_ID', ''),
         'ha_webhook_events'           => env('HA_WEBHOOK_EVENTS', 'expiry,shopping_add,stock_update,barcode_scan'),
@@ -4392,11 +4539,11 @@ function dbCleanup(?PDO $db = null): void {
 }
 
 function saveSettings(): void {
-    // Require SETTINGS_TOKEN if configured
-    $requiredToken = env('SETTINGS_TOKEN');
-    if (!empty($requiredToken)) {
+    // Require API token if configured
+    $requiredToken = evershelfEffectiveApiToken();
+    if ($requiredToken !== '') {
         EverLog::debug('saveSettings');
-        $provided = $_SERVER['HTTP_X_SETTINGS_TOKEN'] ?? '';
+        $provided = evershelfGetProvidedApiToken();
         if (!hash_equals($requiredToken, $provided)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'unauthorized']);
@@ -5660,13 +5807,15 @@ REGOLE:
 8. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullateur"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 9. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
 10. NON confondere forme diverse dello stesso ingrediente di base: 'Pomodori'/'Pomodoro Piccadilly' (freschi, pz/g) ≠ 'Passata di pomodoro'/'Polpa di pomodoro'/'Sugo al pomodoro' (elaborato, conf/g); 'Latte fresco' ≠ 'Latte UHT' ≠ 'Panna'; 'Farina 00' ≠ 'Farina integrale'. Se la ricetta richiede un tipo di ingrediente che NON è disponibile nella forma giusta in lista, NON sostituirlo con una forma diversa: scegli una ricetta che usa gli ingredienti esattamente nella forma disponibile.
+11. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers. Estimate realistically based on the ingredients and quantities used.
+12. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
 {$promptLanguageRule}
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…"}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
 
     $payload = [
@@ -6091,12 +6240,14 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista dispensa (il sistema lo usa per scalare l'inventario).
 6. "from_pantry": true se l'ingrediente è nella lista DISPENSA, false per acqua/sale/pepe/olio.
 7. Language: {$langName} for all text fields. Keep "meal" as English meal key (colazione/pranzo/cena/snack/dolce/libero).
+8. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers.
+9. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` in target language (frigo / freezer / dispensa / temperatura ambiente). `days` = integer. `tips` = one concise sentence.
 
 DISPENSA:
 {$ingredientsText}
 
 JSON schema:
-{"title":"…","meal":"libero","persons":{$persons},"prep_time":"…","cook_time":"…","tags":["…"],"ingredients":[{"name":"…","qty":"80 g","qty_number":80,"from_pantry":true}],"steps":["…"],"nutrition_note":"…"}
+{"title":"…","meal":"libero","persons":{$persons},"prep_time":"…","cook_time":"…","tags":["…"],"ingredients":[{"name":"…","qty":"80 g","qty_number":80,"from_pantry":true}],"steps":["…"],"nutrition_note":"…","nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
 
     $payload = [
@@ -6608,13 +6759,15 @@ REGOLE:
 9. `zero_waste_tips`: array of zero-waste tips for steps that generate reusable scraps (peels, leftover cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.). Each entry: {"step": 0-based_step_index, "scrap": "scrap name", "tip": "short practical reuse tip (max 20 words)"}. Use the same language as other text fields. Empty array [] if no reusable scraps are generated.
 10. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
 11. NON confondere forme diverse dello stesso ingrediente di base: 'Pomodori'/'Pomodoro Piccadilly' (freschi, pz/g) ≠ 'Passata di pomodoro'/'Polpa di pomodoro'/'Sugo al pomodoro' (elaborato, conf/g); 'Latte fresco' ≠ 'Latte UHT' ≠ 'Panna'; 'Farina 00' ≠ 'Farina integrale'. Se la ricetta richiede un tipo di ingrediente che NON è disponibile nella forma giusta in lista, NON sostituirlo con una forma diversa: scegli una ricetta che usa gli ingredienti esattamente nella forma disponibile.
+12. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers. Estimate realistically based on the ingredients and quantities used.
+13. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
 {$promptLanguageRule}
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","zero_waste_tips":[{"step":0,"scrap":"…","tip":"…"}]}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","zero_waste_tips":[{"step":0,"scrap":"…","tip":"…"}],"nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
 
     $genConfig = [

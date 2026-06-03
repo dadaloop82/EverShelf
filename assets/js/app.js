@@ -317,12 +317,17 @@ function scaleInit() {
     _scaleConnect(s.scale_gateway_url);
 }
 
+function _scaleAuthQuery() {
+    const tok = typeof getApiToken === 'function' ? getApiToken() : '';
+    return tok ? '&api_token=' + encodeURIComponent(tok) : '';
+}
+
 function _scaleConnect(url) {
     if (_scaleEs) { try { _scaleEs.close(); } catch(e) {} _scaleEs = null; }
     if (_scaleReconnectTimer) { clearTimeout(_scaleReconnectTimer); _scaleReconnectTimer = null; }
     try {
-        // Connect via the PHP SSE relay so the HTTPS page is not blocked by mixed-content
-        _scaleEs = new EventSource('api/scale_relay.php?url=' + encodeURIComponent(url));
+        // EventSource cannot send custom headers — pass api_token in query string
+        _scaleEs = new EventSource('api/scale_relay.php?url=' + encodeURIComponent(url) + _scaleAuthQuery());
         _scaleEs.onopen  = () => _scaleUpdateStatus('searching');
         _scaleEs.onmessage = (evt) => {
             try { _scaleOnMessage(JSON.parse(evt.data)); } catch(e) {}
@@ -1041,7 +1046,7 @@ function testScaleConnection() {
         statusEl.textContent = '❌ ' + t('scale.timeout');
         statusEl.className = 'settings-status error';
     }, 8000);
-    fetch('api/scale_ping.php?url=' + encodeURIComponent(url), { signal: ac.signal })
+    fetch('api/scale_ping.php?url=' + encodeURIComponent(url) + _scaleAuthQuery(), { signal: ac.signal })
         .then(r => r.json())
         .then(data => {
             clearTimeout(timeout);
@@ -1073,7 +1078,7 @@ async function discoverScaleGateway() {
     status.textContent = '🔍 Scanning local network for scale gateway…';
 
     try {
-        const res  = await fetch('api/scale_discover.php', { signal: AbortSignal.timeout(8000) });
+        const res  = await fetch('api/scale_discover.php', { signal: AbortSignal.timeout(8000), headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) } });
         const data = await res.json();
 
         if (data.error) {
@@ -1271,8 +1276,8 @@ function _setThemeMode(mode) {
     // Persist dark_mode to server .env immediately (no need to send the full
     // settings payload — save_settings only updates keys present in the body
     // and keeps all other .env values intact).
-    const token = document.getElementById('setting-settings-token')?.value.trim() || '';
-    const headers = token ? { 'X-Settings-Token': token } : {};
+    const token = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
+    const headers = token ? { 'X-API-Token': token } : {};
     api('save_settings', {}, 'POST', { dark_mode: mode }, headers).catch(() => {});
 }
 
@@ -1284,7 +1289,9 @@ setInterval(() => {
 
 // ===== EXPORT INVENTORY =====
 function exportInventory(format) {
-    const url = `api/index.php?action=export_inventory&format=${encodeURIComponent(format)}&_t=${Date.now()}`;
+    const tok = typeof getApiToken === 'function' ? getApiToken() : '';
+    const tokParam = tok ? `&api_token=${encodeURIComponent(tok)}` : '';
+    const url = `api/index.php?action=export_inventory&format=${encodeURIComponent(format)}&_t=${Date.now()}${tokParam}`;
     if (format === 'csv') {
         // Direct download via <a> trick
         const a = document.createElement('a');
@@ -3219,9 +3226,13 @@ async function loadSettingsUI() {
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
         // Note: gemini_key is never sent from server; settings_token_set is metadata only
-        const settingsTokenRequired = !!serverSettings.settings_token_set;
+        const settingsTokenRequired = !!(serverSettings.api_token_required || serverSettings.settings_token_set);
         const tokenHintEl = document.getElementById('settings-token-status-hint');
         if (tokenHintEl) tokenHintEl.style.display = settingsTokenRequired ? 'block' : 'none';
+        if (settingsTokenRequired && typeof setApiToken === 'function') {
+            const fieldTok = document.getElementById('setting-settings-token')?.value.trim();
+            if (fieldTok) setApiToken(fieldTok);
+        }
         let changed = false;
         for (const key of serverKeys) {
             if (serverSettings[key] !== undefined && serverSettings[key] !== null && serverSettings[key] !== '') {
@@ -3797,8 +3808,9 @@ async function saveSettings() {
     
     // Save ALL settings to server .env
     try {
-        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || '';
-        const tokenHeader = settingsToken ? { 'X-Settings-Token': settingsToken } : {};
+        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
+        if (settingsToken && typeof setApiToken === 'function') setApiToken(settingsToken);
+        const tokenHeader = settingsToken ? { 'X-API-Token': settingsToken } : (typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {});
         const result = await api('save_settings', {}, 'POST', {
             ...(s.gemini_key ? { gemini_key: s.gemini_key } : {}),
             bring_email: s.bring_email,
@@ -3944,11 +3956,12 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         });
     }
     const opts = { method, cache: 'no-store' };
+    const authHdrs = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
     if (body) {
-        opts.headers = { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1', ...extraHeaders };
+        opts.headers = { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1', ...authHdrs, ...extraHeaders };
         opts.body = JSON.stringify(body);
-    } else if (Object.keys(extraHeaders).length > 0) {
-        opts.headers = { ...extraHeaders };
+    } else {
+        opts.headers = { ...authHdrs, ...extraHeaders };
     }
     let res;
     try {
@@ -3966,6 +3979,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     }
     if (!res.ok) {
         remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
+        if (res.status === 401) {
+            window._apiTokenRequired = true;
+            if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
+        }
         // Report HTTP 5xx as server errors (not 4xx which are usually user errors)
         if (res.status >= 500) {
             reportError({
@@ -3981,6 +3998,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         _offlineCacheSet(data.inventory);
     }
     if (action === 'get_settings' && data && data.success !== false) {
+        window._apiTokenRequired = !!data.api_token_required;
+        if (data.api_token_required && typeof _promptApiTokenIfNeeded === 'function') {
+            _promptApiTokenIfNeeded();
+        }
         _offlineCacheSetSettings(data);
     }
     if (data && data.error) {
@@ -12821,13 +12842,6 @@ async function analyzeExpiryImage(dataUrl) {
     }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
 function stripHtml(str) {
     if (!str) return '';
     return str.replace(/<[^>]*>/g, '');
@@ -13952,7 +13966,7 @@ function renderRecipe(r) {
 
     const isFav = !!(_cachedRecipe && _cachedRecipe.is_favorite);
 
-    let html = `<h2>${r.title}</h2>`;
+    let html = `<h2>${escapeHtml(r.title)}</h2>`;
 
     // Meta tags + star (#124) + persons rescaler (#123)
     html += '<div class="recipe-meta">';
@@ -13964,7 +13978,7 @@ function renderRecipe(r) {
     </span>`;
     if (r.prep_time) html += `<span class="recipe-tag">🔪 ${r.prep_time}</span>`;
     if (r.cook_time) html += `<span class="recipe-tag">🔥 ${r.cook_time}</span>`;
-    if (r.tags) r.tags.forEach(t => { html += `<span class="recipe-tag">${t}</span>`; });
+    if (r.tags) r.tags.forEach(tag => { html += `<span class="recipe-tag">${escapeHtml(tag)}</span>`; });
     // Favorite star button (#124) — visible only for archived recipes (have an id)
     if (_cachedRecipe && _cachedRecipe.id) {
         html += `<button class="btn-recipe-fav${isFav ? ' active' : ''}" onclick="toggleRecipeFavorite(this)" title="${isFav ? t('recipes.unfavorite') : t('recipes.favorite')}">${isFav ? '★' : '☆'}</button>`;
@@ -13973,7 +13987,7 @@ function renderRecipe(r) {
 
     // Expiry note
     if (r.expiry_note) {
-        html += `<div class="recipe-expiry-note">⚠️ ${r.expiry_note}</div>`;
+        html += `<div class="recipe-expiry-note">⚠️ ${escapeHtml(r.expiry_note)}</div>`;
     }
 
     // Tools/appliances banner (shown only when specific equipment is needed)
@@ -13981,7 +13995,7 @@ function renderRecipe(r) {
         ? r.tools_needed.filter(t => t && t.trim())
         : _extractToolsFromSteps(r.steps);
     if (tools.length > 0) {
-        html += `<div class="recipe-tools-banner">🔧 <strong>${t('recipes.tools_title')}:</strong> ${tools.map(t => `<span class="recipe-tool-chip">${t}</span>`).join('')}</div>`;
+        html += `<div class="recipe-tools-banner">🔧 <strong>${escapeHtml(t('recipes.tools_title'))}:</strong> ${tools.map(tool => `<span class="recipe-tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>`;
     }
 
     // Ingredients
@@ -13991,8 +14005,8 @@ function renderRecipe(r) {
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const alreadyUsed = ing.used === true;
-            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${(ing.qty || '').replace(/"/g, '&quot;')}">`;
-            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${t('action.edit') || 'Modifica'}">${ing.name}</strong>${ing.brand ? ' <em>(' + ing.brand + ')</em>' : ''}: <span class="recipe-ing-qty">${ing.qty}</span> ✅`;
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${escapeHtml(t('action.edit') || 'Modifica')}">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span> ✅`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -14016,7 +14030,7 @@ function renderRecipe(r) {
             html += `</li>`;
         } else {
             const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
-            html += `<li class="recipe-ingredient" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${(ing.qty || '').replace(/"/g, '&quot;')}"><span class="recipe-ing-text"><strong>${ing.name}</strong>: <span class="recipe-ing-qty">${ing.qty}</span>${pantryIcon}</span></li>`;
+            html += `<li class="recipe-ingredient" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}"><span class="recipe-ing-text"><strong>${escapeHtml(ing.name)}</strong>: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${pantryIcon}</span></li>`;
         }
     });
     html += '</ul>';
@@ -14028,13 +14042,60 @@ function renderRecipe(r) {
     html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
     (r.steps || []).forEach(step => {
         const appliance = _stepAppliance(step);
-        html += `<li>${_stepStr(step)}${appliance ? ` <span class="recipe-step-appliance">${appliance}</span>` : ''}</li>`;
+        html += `<li>${escapeHtml(_stepStr(step))}${appliance ? ` <span class="recipe-step-appliance">${escapeHtml(appliance)}</span>` : ''}</li>`;
     });
     html += '</ol>';
 
-    // Nutrition note
+    // Nutritional values grid
+    if (r.nutrition && (r.nutrition.kcal || r.nutrition.protein_g || r.nutrition.carbs_g || r.nutrition.fat_g)) {
+        const n = r.nutrition;
+        html += `<div class="recipe-nutrition-block">
+            <h4 class="recipe-section-heading">📊 ${t('recipes.nutrition_title')}</h4>
+            <div class="recipe-nutrition-grid">
+                <div class="recipe-nutrition-item">
+                    <span class="recipe-nutrition-icon">🔥</span>
+                    <span class="recipe-nutrition-value">${n.kcal ?? '—'}</span>
+                    <span class="recipe-nutrition-label">${t('recipes.nutrition_kcal')}</span>
+                </div>
+                <div class="recipe-nutrition-item">
+                    <span class="recipe-nutrition-icon">🥩</span>
+                    <span class="recipe-nutrition-value">${n.protein_g ?? '—'} g</span>
+                    <span class="recipe-nutrition-label">${t('recipes.nutrition_protein')}</span>
+                </div>
+                <div class="recipe-nutrition-item">
+                    <span class="recipe-nutrition-icon">🍞</span>
+                    <span class="recipe-nutrition-value">${n.carbs_g ?? '—'} g</span>
+                    <span class="recipe-nutrition-label">${t('recipes.nutrition_carbs')}</span>
+                </div>
+                <div class="recipe-nutrition-item">
+                    <span class="recipe-nutrition-icon">🫒</span>
+                    <span class="recipe-nutrition-value">${n.fat_g ?? '—'} g</span>
+                    <span class="recipe-nutrition-label">${t('recipes.nutrition_fat')}</span>
+                </div>
+            </div>
+            <p class="recipe-nutrition-note">${t('recipes.nutrition_per_serving')}</p>
+        </div>`;
+    }
+
+    // Storage info
+    if (r.storage && (r.storage.where || r.storage.tips)) {
+        const s = r.storage;
+        const daysLabel = s.days > 0
+            ? t('recipes.storage_days').replace('{n}', s.days)
+            : t('recipes.storage_immediately');
+        html += `<div class="recipe-storage-card">
+            <h4 class="recipe-section-heading">📦 ${t('recipes.storage_title')}</h4>
+            <div class="recipe-storage-row">
+                ${s.where ? `<span class="recipe-storage-badge">${escapeHtml(s.where)}</span>` : ''}
+                ${s.days > 0 ? `<span class="recipe-storage-badge recipe-storage-days">${escapeHtml(daysLabel)}</span>` : `<span class="recipe-storage-badge recipe-storage-now">${escapeHtml(daysLabel)}</span>`}
+            </div>
+            ${s.tips ? `<p class="recipe-storage-tips">${escapeHtml(s.tips)}</p>` : ''}
+        </div>`;
+    }
+
+    // Nutrition note (legacy / AI extra note)
     if (r.nutrition_note) {
-        html += `<p style="color:var(--text-muted);font-size:0.85rem;margin-top:12px">💡 ${r.nutrition_note}</p>`;
+        html += `<p class="recipe-nutrition-footnote">💡 ${escapeHtml(r.nutrition_note)}</p>`;
     }
 
     document.getElementById('recipe-content').innerHTML = html;
@@ -14453,10 +14514,7 @@ function _buildTtsRequest(text, s) {
 function _buildHaTtsRequest(text, s) {
     const haUrl = (s.ha_url || '').replace(/\/$/, '');
     const url     = haUrl + '/api/services/tts/speak';
-    const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (s.ha_token || ''),
-    };
+    const headers = { 'Content-Type': 'application/json' };
     const body = JSON.stringify({
         entity_id: s.ha_tts_entity || '',
         message: text,
@@ -14739,8 +14797,9 @@ async function saveHaSettings() {
 
     const statusEl = document.getElementById('ha-save-status');
     try {
-        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || '';
-        const tokenHeader = settingsToken ? { 'X-Settings-Token': settingsToken } : {};
+        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
+        if (settingsToken && typeof setApiToken === 'function') setApiToken(settingsToken);
+        const tokenHeader = settingsToken ? { 'X-API-Token': settingsToken } : (typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {});
         const result = await api('save_settings', {}, 'POST', {
             ha_enabled: haEnabled,
             ha_url: haUrl,
@@ -17522,7 +17581,11 @@ async function _runStartupCheck() {
 
     if (!wrapEl) return true; // preloader already removed
 
-    const tl = (key, fallback) => { try { return t('startup.' + key); } catch(e) { return fallback; } };
+    const tl = (key, fallback) => {
+        const full = 'startup.' + key;
+        const v = typeof t === 'function' ? t(full) : full;
+        return (v === full) ? fallback : v;
+    };
 
     // Switch from spinner to progress bar
     if (spinnerEl) spinnerEl.style.display = 'none';
@@ -17553,6 +17616,12 @@ async function _runStartupCheck() {
         el.textContent = cleanLabel;
     };
 
+    // Auto-provision API token for same-origin browser sessions
+    if (typeof ensureApiToken === 'function') {
+        setProgress(5, tl('token_autoconfig', 'Configurazione accesso...'), 'ok');
+        await ensureApiToken();
+    }
+
     // Phase 1: animate 0→15% while fetching (so it never looks stuck)
     setProgress(0, tl('connecting', 'Connessione al server...'));
     let _fetchDone = false;
@@ -17568,9 +17637,22 @@ async function _runStartupCheck() {
     try {
         const ctrl = new AbortController();
         const tid  = setTimeout(() => ctrl.abort(), 12000);
-        const resp = await fetch('api/index.php?action=health_check', { signal: ctrl.signal });
+        const resp = await fetch('api/index.php?action=health_check', {
+            signal: ctrl.signal,
+            headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
+        });
         clearTimeout(tid);
         result = await resp.json();
+        if (result.public && result.api_token_required && typeof getApiToken === 'function' && !getApiToken()) {
+            window._apiTokenRequired = true;
+            if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
+            setProgress(100, tl('token_required', 'Token API richiesto'), 'warn');
+            return false;
+        }
+        if (result.public && result.api_token_required && typeof getApiToken === 'function' && getApiToken()) {
+            const resp2 = await fetch('api/index.php?action=health_check', { headers: apiAuthHeaders() });
+            result = await resp2.json();
+        }
     } catch(e) {
         clearInterval(slowAnim);
         _showStartupErrorPopup(
@@ -17697,9 +17779,10 @@ async function _runStartupCheck() {
     // The bar already shows 100%; we just update the label for a moment.
     try {
         setProgress(100, tl('syncing_local', 'Sincronizzazione dati locali...'), 'ok');
+        const authH = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
         const [invData, settingsData] = await Promise.all([
-            fetch('api/index.php?action=inventory_list').then(r => r.json()).catch(() => null),
-            fetch('api/index.php?action=get_settings').then(r => r.json()).catch(() => null),
+            fetch('api/index.php?action=inventory_list', { headers: authH }).then(r => r.json()).catch(() => null),
+            fetch('api/index.php?action=get_settings', { headers: authH }).then(r => r.json()).catch(() => null),
         ]);
         if (invData && Array.isArray(invData.inventory)) _offlineCacheSet(invData.inventory);
         if (settingsData && settingsData.success !== false) _offlineCacheSetSettings(settingsData);

@@ -1,0 +1,9 @@
+{
+  "name": "evershelf",
+  "private": true,
+  "scripts": {
+    "build:js": "npx --yes terser assets/js/app.js -c -m -o assets/js/app.min.js",
+    "build:css": "npx --yes clean-css-cli -o assets/css/style.min.css assets/css/style.css",
+    "build": "npm run build:js && npm run build:css"
+  }
+}

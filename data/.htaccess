@@ -1,0 +1,2 @@
+# Deny all direct HTTP access to runtime data (DB, tokens, caches, logs)
+Require all denied

@@ -416,7 +416,16 @@
     "load_error": "Errore nel caricamento",
     "favorite": "Aggiungi ai preferiti",
     "unfavorite": "Rimuovi dai preferiti",
-    "adjust_persons": "Persone"
+    "adjust_persons": "Persone",
+    "nutrition_title": "Valori nutrizionali (per porzione)",
+    "nutrition_kcal": "Calorie",
+    "nutrition_protein": "Proteine",
+    "nutrition_carbs": "Carboidrati",
+    "nutrition_fat": "Grassi",
+    "nutrition_per_serving": "Valori stimati per porzione",
+    "storage_title": "Come conservare gli avanzi",
+    "storage_days": "{n} giorni",
+    "storage_immediately": "Da consumare subito"
   },
   "shopping": {
     "title": "🛒 Lista della Spesa",
@@ -1466,7 +1475,12 @@
     "error_network_detail": "Il browser non riesce a raggiungere il server PHP.\n\nPossibili cause:\n• Il server Apache/PHP non è in esecuzione\n• Problema di rete o firewall\n• URL dell'app non corretta\n\nControlla che il server sia avviato e riprova.",
     "retry": "Riprova",
     "syncing_local": "Sincronizzazione dati locali...",
-    "sync_done": "Dati locali aggiornati"
+    "sync_done": "Dati locali aggiornati",
+    "token_required": "Token API richiesto",
+    "token_autoconfig": "Configurazione accesso...",
+    "token_prompt_title": "🔒 Token API",
+    "token_prompt_hint": "Inserisci il valore API_TOKEN dal file .env del server.",
+    "token_prompt_btn": "Continua"
   },
   "stats_monthly": {
     "title": "Statistiche Mensili",

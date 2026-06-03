@@ -236,7 +236,7 @@ TTS_ENABLED=true
 
 # Optional: DB retention and cleanup (applied automatically each cron cycle)
 RECIPE_RETENTION_DAYS=7        # delete recipe plans older than N days
-TRANSACTION_RETENTION_DAYS=7   # delete stock transactions older than N days
+TRANSACTION_RETENTION_DAYS=90   # delete stock transactions older than N days (min 30 enforced)
 
 # Optional: Vacuum-sealed expiry grace period
 VACUUM_EXPIRY_EXTENSION_DAYS=30 # extra days before vacuum-sealed items are flagged expired
@@ -247,8 +247,11 @@ GEMINI_COST_25F_OUT=0.60
 GEMINI_COST_20F_IN=0.10
 GEMINI_COST_20F_OUT=0.40
 
-# Optional: Security — protect the save_settings endpoint
-# Set a strong random string; the Settings UI will ask for it before saving
+# Optional: Security — protect all API endpoints
+# Set a strong random string; clients send it as X-API-Token header (or ?api_token= for HA)
+API_TOKEN=
+
+# Optional: Legacy alias for API_TOKEN (settings save only)
 SETTINGS_TOKEN=
 
 # Optional: Demo mode — block all write operations at the router level
@@ -416,8 +419,11 @@ evershelf-kiosk/            # 📺 Android kiosk app (add-on)
 
 - **Credentials** are stored in `.env` (server-side, never committed to Git)
 - **Database** stays local — never pushed to remote repositories
-- **API keys are never exposed to the browser** — `get_settings` returns only boolean flags (`gemini_key_set`, `settings_token_set`), never raw key values
-- **Settings write protection** — set `SETTINGS_TOKEN` in `.env` to require a secret token (`X-Settings-Token` header) for all `save_settings` calls; validated with `hash_equals` to prevent timing attacks
+- **Apache/Nginx hardening** — `.env`, `data/`, and `logs/` are blocked from direct HTTP access
+- **API token** — set `API_TOKEN` in `.env` to require `X-API-Token` on all API calls (Home Assistant: `?api_token=`)
+- **API keys are never exposed to the browser** — `get_settings` returns only boolean flags (`gemini_key_set`, `ha_token_set`, …)
+- **GitHub Issues token** — stored encrypted as `GH_ISSUE_TOKEN_ENC` + `GH_ISSUE_TOKEN_KEY` (see `scripts/encrypt-gh-token.php`)
+- **Settings write protection** — `save_settings` requires the same API token when configured; validated with `hash_equals`
 - **Demo / public mode** — set `DEMO_MODE=true` to block all write operations at the PHP router level before any business logic runs
 - The API uses **parameterized SQL queries** (PDO prepared statements) against injection
 - **Input validation** on all inventory operations (quantity bounds, location whitelist)
@@ -471,12 +477,6 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed g
 3. Commit your changes (`git commit -m 'Add my feature'`)
 4. Push to the branch (`git push origin feature/my-feature`)
 5. Open a Pull Request
-
----
-
-## 🤝 Contributing
-
-EverShelf is a community project and contributions of any size are welcome!
 
 ### Easiest way to start — translate EverShelf into your language
 

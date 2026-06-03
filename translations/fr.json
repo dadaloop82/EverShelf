@@ -411,7 +411,16 @@
     "load_error": "Erreur de chargement",
     "favorite": "Ajouter aux favoris",
     "unfavorite": "Retirer des favoris",
-    "adjust_persons": "Personnes"
+    "adjust_persons": "Personnes",
+    "nutrition_title": "Valeurs nutritionnelles (par portion)",
+    "nutrition_kcal": "Calories",
+    "nutrition_protein": "Protéines",
+    "nutrition_carbs": "Glucides",
+    "nutrition_fat": "Lipides",
+    "nutrition_per_serving": "Valeurs estimées par portion",
+    "storage_title": "Comment conserver les restes",
+    "storage_days": "{n} jours",
+    "storage_immediately": "À consommer immédiatement"
   },
   "shopping": {
     "title": "🛒 Liste de courses",
@@ -1410,7 +1419,12 @@
     "error_network": "Impossible de contacter le serveur. Vérifiez votre connexion réseau.",
     "retry": "Réessayer",
     "syncing_local": "Synchronisation des données locales...",
-    "sync_done": "Données locales synchronisées"
+    "sync_done": "Données locales synchronisées",
+    "token_required": "Jeton API requis",
+    "token_autoconfig": "Configuration de l'accès...",
+    "token_prompt_title": "🔒 Jeton API",
+    "token_prompt_hint": "Saisissez la valeur API_TOKEN du fichier .env du serveur.",
+    "token_prompt_btn": "Continuer"
   },
   "stats_monthly": {
     "title": "Statistiques Mensuelles",

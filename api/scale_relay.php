@@ -8,6 +8,16 @@
  * Usage: GET /api/scale_relay.php?url=ws%3A%2F%2F192.168.1.100%3A8765
  */
 
+require_once __DIR__ . '/lib/env.php';
+require_once __DIR__ . '/lib/security.php';
+
+if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code(401);
+    echo json_encode(['error' => 'unauthorized', 'api_token_required' => true]);
+    exit;
+}
+
 // ── Input validation ──────────────────────────────────────────────────────────
 $rawUrl = $_GET['url'] ?? '';
 
@@ -19,13 +29,19 @@ if (!preg_match('#^ws://[0-9a-zA-Z][\w.\-]*(:\d{1,5})?(/.*)?$#', $rawUrl)) {
 }
 
 $parsed = parse_url($rawUrl);
-$wsHost = $parsed['host'] ?? '';
+$wsHost = strtolower($parsed['host'] ?? '');
 $wsPort = (int)($parsed['port'] ?? 8765);
 $wsPath = ($parsed['path'] ?? '') ?: '/';
 
 if (!$wsHost || $wsPort < 1 || $wsPort > 65535) {
     header('Content-Type: text/event-stream');
     echo 'data: ' . json_encode(['type' => 'error', 'message' => 'Invalid host or port']) . "\n\n";
+    exit;
+}
+
+if (!evershelfScaleHostAllowed($wsHost)) {
+    header('Content-Type: text/event-stream');
+    echo 'data: ' . json_encode(['type' => 'error', 'message' => 'Gateway host not allowed']) . "\n\n";
     exit;
 }
 

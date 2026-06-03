@@ -101,6 +101,20 @@ class KioskActivity : AppCompatActivity() {
     // Pending WebView permission request
     private var pendingWebPermission: PermissionRequest? = null
 
+    private fun safeEvalJs(script: String) {
+        if (!::webView.isInitialized) return
+        if (isFinishing || isDestroyed) return
+        if (webView.visibility != View.VISIBLE) return
+        runCatching { webView.evaluateJavascript(script, null) }
+            .onFailure {
+                ErrorReporter.reportMessage(
+                    type = "webview-js-bridge-error",
+                    message = "Failed to deliver JS callback to WebView",
+                    extra = mapOf("error" to (it.message ?: "unknown"))
+                )
+            }
+    }
+
     companion object {
         private const val FILE_CHOOSER_REQUEST    = 1002
         private const val PERMISSION_REQUEST_CODE = 1003
@@ -150,18 +164,18 @@ class KioskActivity : AppCompatActivity() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) {
                         runOnUiThread {
-                            webView.evaluateJavascript("if(window._kioskTtsDone)window._kioskTtsDone('$utteranceId')", null)
+                            safeEvalJs("if(window._kioskTtsDone)window._kioskTtsDone('$utteranceId')")
                         }
                     }
                     @Deprecated("Deprecated in API 21")
                     override fun onError(utteranceId: String?) {
                         runOnUiThread {
-                            webView.evaluateJavascript("if(window._kioskTtsError)window._kioskTtsError('$utteranceId','error')", null)
+                            safeEvalJs("if(window._kioskTtsError)window._kioskTtsError('$utteranceId','error')")
                         }
                     }
                     override fun onError(utteranceId: String?, errorCode: Int) {
                         runOnUiThread {
-                            webView.evaluateJavascript("if(window._kioskTtsError)window._kioskTtsError('$utteranceId',$errorCode)", null)
+                            safeEvalJs("if(window._kioskTtsError)window._kioskTtsError('$utteranceId',$errorCode)")
                         }
                     }
                 })

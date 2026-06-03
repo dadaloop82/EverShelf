@@ -11,13 +11,15 @@ if (PHP_SAPI !== 'cli') {
     exit('Forbidden');
 }
 
-// Define CRON_MODE before loading index.php so the router is skipped
+// Define CRON_MODE before loading bootstrap so the HTTP router is skipped
 define('CRON_MODE', true);
 
-// Load all API functions without running the HTTP router
+require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/index.php';
 
 const CACHE_FILE = __DIR__ . '/../data/smart_shopping_cache.json';
+
+evershelfRotateCronLog();
 
 try {
     $db = getDB();

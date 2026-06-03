@@ -11,9 +11,13 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260517a">
-    <!-- QuaggaJS for barcode scanning -->
-    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css?v=20260603a">
+    <!-- Core modules (auth, DOM helpers) -->
+    <script src="assets/js/core/dom.js?v=20260603a"></script>
+    <script src="assets/js/core/auth.js?v=20260603b"></script>
+    <!-- QuaggaJS — local vendor with CDN fallback -->
+    <script src="assets/vendor/quagga/quagga.min.js?v=20260603a"></script>
+    <script>if(typeof Quagga==='undefined'){document.write('<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"><\\/script>');}</script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -25,11 +29,15 @@
             if (window._categoryPipelinePromise) return window._categoryPipelinePromise;
             window._categoryPipelinePromise = (async () => {
                 try {
-                    const { pipeline, env } = await import(
-                        'https://cdn.jsdelivr.net/npm/@xenova/transformers@2/src/transformers.min.js'
-                    );
-                    // Keep WASM/model files in the browser cache; disable remote model check
-                    // to avoid CORS issues with the self-hosted instance.
+                    const localBase = 'assets/vendor/transformers/';
+                    const cdnBase = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/';
+                    let pipeline, env;
+                    try {
+                        ({ pipeline, env } = await import(localBase + 'transformers.min.js'));
+                    } catch (_) {
+                        ({ pipeline, env } = await import(cdnBase + 'transformers.min.js'));
+                    }
+                    env.localModelPath = localBase;
                     env.allowRemoteModels = true;
                     env.useBrowserCache   = true;
                     const pipe = await pipeline(
@@ -1213,10 +1221,10 @@
                     <p class="settings-hint" data-i18n="settings.security.token_hint">Se <code>SETTINGS_TOKEN</code> è configurato nel <code>.env</code> server, inserisci qui il token prima di salvare le impostazioni. Lascia vuoto se non configurato.</p>
                     <div class="form-group">
                         <label data-i18n="settings.security.token_label">Token di accesso</label>
-                        <input type="password" id="setting-settings-token" class="form-input" placeholder="(vuoto = nessuna protezione)" data-i18n-placeholder="settings.security.token_placeholder">
+                        <input type="password" id="setting-settings-token" class="form-input" placeholder="API_TOKEN da .env" data-i18n-placeholder="settings.security.token_placeholder">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-settings-token')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
                     </div>
-                    <p class="settings-hint" id="settings-token-status-hint" style="display:none;color:var(--accent)" data-i18n="settings.security.token_required_hint">🔒 Questo server richiede un token per salvare le impostazioni.</p>
+                    <p class="settings-hint" id="settings-token-status-hint" style="display:none;color:var(--accent)" data-i18n="settings.security.token_required_hint">🔒 Questo server richiede un token API (API_TOKEN nel file .env). Il token viene salvato nel browser.</p>
                 </div>
                 <div class="settings-card">
                     <h4 data-i18n="settings.security.title">🔒 Certificato HTTPS</h4>
@@ -1962,6 +1970,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260518c"></script>
+<script src="assets/js/app.js?v=20260603c"></script>
 </body>
 </html>

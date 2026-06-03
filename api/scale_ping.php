@@ -1,15 +1,19 @@
 <?php
 /**
- * EverShelf Scale Gateway — Connection ping / test
- *
- * Performs a WebSocket handshake with the gateway and returns
- * {"ok":true} on success, {"ok":false,"error":"..."} on failure.
- *
- * Usage: GET /api/scale_ping.php?url=ws%3A%2F%2F192.168.1.100%3A8765
+ * EverShelf Scale Gateway — Connection ping / test (SSRF-hardened)
  */
+
+require_once __DIR__ . '/lib/env.php';
+require_once __DIR__ . '/lib/security.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
+
+if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
+    http_response_code(401);
+    echo json_encode(['ok' => false, 'error' => 'unauthorized', 'api_token_required' => true]);
+    exit;
+}
 
 $rawUrl = $_GET['url'] ?? '';
 
@@ -19,12 +23,17 @@ if (!preg_match('#^ws://[0-9a-zA-Z][\w.\-]*(:\d{1,5})?(/.*)?$#', $rawUrl)) {
 }
 
 $parsed = parse_url($rawUrl);
-$host   = $parsed['host'] ?? '';
+$host   = strtolower($parsed['host'] ?? '');
 $port   = (int)($parsed['port'] ?? 8765);
 $path   = ($parsed['path'] ?? '') ?: '/';
 
 if (!$host || $port < 1 || $port > 65535) {
     echo json_encode(['ok' => false, 'error' => 'Invalid host or port']);
+    exit;
+}
+
+if (!evershelfScaleHostAllowed($host)) {
+    echo json_encode(['ok' => false, 'error' => 'Gateway host not allowed']);
     exit;
 }
 

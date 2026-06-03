@@ -411,7 +411,16 @@
     "load_error": "Error de carga",
     "favorite": "Añadir a favoritos",
     "unfavorite": "Quitar de favoritos",
-    "adjust_persons": "Personas"
+    "adjust_persons": "Personas",
+    "nutrition_title": "Valores nutricionales (por ración)",
+    "nutrition_kcal": "Calorías",
+    "nutrition_protein": "Proteínas",
+    "nutrition_carbs": "Carbohidratos",
+    "nutrition_fat": "Grasas",
+    "nutrition_per_serving": "Valores estimados por ración",
+    "storage_title": "Cómo conservar las sobras",
+    "storage_days": "{n} días",
+    "storage_immediately": "Mejor consumir de inmediato"
   },
   "shopping": {
     "title": "🛒 Lista de la compra",
@@ -1410,7 +1419,12 @@
     "error_network": "No se puede contactar con el servidor. Comprueba tu conexión de red.",
     "retry": "Reintentar",
     "syncing_local": "Sincronizando datos locales...",
-    "sync_done": "Datos locales sincronizados"
+    "sync_done": "Datos locales sincronizados",
+    "token_required": "Token API requerido",
+    "token_autoconfig": "Configurando acceso...",
+    "token_prompt_title": "🔒 Token API",
+    "token_prompt_hint": "Introduce el valor API_TOKEN del archivo .env del servidor.",
+    "token_prompt_btn": "Continuar"
   },
   "stats_monthly": {
     "title": "Estadísticas Mensuales",

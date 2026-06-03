@@ -1,56 +1,52 @@
 <?php
 /**
- * EverShelf Scale Gateway — Auto-discovery
- *
- * Scans the server's local /24 subnet for any host responding on the gateway
- * port (default 8765) and confirms it with a WebSocket handshake.
- *
- * Returns: {"found": ["ws://192.168.1.100:8765", ...]}
+ * EverShelf Scale Gateway — Auto-discovery (auth + rate limit + LAN only).
  */
+
+require_once __DIR__ . '/lib/env.php';
+require_once __DIR__ . '/lib/security.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
+evershelfSendCorsHeaders();
 
-$port = (int)($_GET['port'] ?? 8765);
-if ($port < 1 || $port > 65535) $port = 8765;
-
-// ── Determine server LAN IP ────────────────────────────────────────────────
-// SERVER_ADDR may be 127.0.0.1 when accessed via internal vhost — fall back
-// to a UDP trick (no actual packet sent) to find the default-route interface IP.
-function localLanIp(): string {
-    $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-    if ($sock) {
-        @socket_connect($sock, '8.8.8.8', 53);
-        @socket_getsockname($sock, $ip);
-        socket_close($sock);
-        if (isset($ip) && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return $ip;
-    }
-    // Fallback: parse /proc/net/route for default gateway interface then ip neigh
-    $ifaces = @net_get_interfaces();
-    if ($ifaces) {
-        foreach ($ifaces as $name => $info) {
-            if ($name === 'lo') continue;
-            foreach ($info['unicast'] ?? [] as $u) {
-                $ip = $u['address'] ?? '';
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE)) continue;
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return $ip;
-            }
-        }
-    }
-    return '';
+if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
+    http_response_code(401);
+    echo json_encode(['error' => 'unauthorized', 'api_token_required' => true]);
+    exit;
 }
 
-$serverIp = localLanIp();
+// Simple rate limit: max 6 scans per minute per IP
+$rlDir = dirname(__DIR__) . '/data/rate_limits';
+if (!is_dir($rlDir)) {
+    @mkdir($rlDir, 0755, true);
+}
+$rlFile = $rlDir . '/scale_discover_' . md5($_SERVER['REMOTE_ADDR'] ?? 'cli') . '.json';
+$now = time();
+$hits = [];
+if (file_exists($rlFile)) {
+    $hits = array_filter(json_decode(file_get_contents($rlFile), true) ?: [], fn($t) => $t > $now - 60);
+}
+if (count($hits) >= 6) {
+    http_response_code(429);
+    echo json_encode(['error' => 'Too many discovery scans']);
+    exit;
+}
+$hits[] = $now;
+@file_put_contents($rlFile, json_encode($hits), LOCK_EX);
+
+$port = (int)($_GET['port'] ?? 8765);
+if ($port < 1 || $port > 65535) {
+    $port = 8765;
+}
+
+$serverIp = evershelfLocalLanIp();
 $parts = explode('.', $serverIp);
 if (count($parts) !== 4) {
-    echo json_encode(['error' => 'Cannot determine local subnet', 'server_ip' => $serverIp]);
+    echo json_encode(['error' => 'Cannot determine local subnet', 'found' => []]);
     exit;
 }
 $subnet = $parts[0] . '.' . $parts[1] . '.' . $parts[2] . '.';
-
-// ── Phase 1: Async TCP connect to all 254 hosts ────────────────────────────
-// Non-blocking stream_socket_client + stream_select to detect open ports quickly.
-// Total scan budget: 1.5 seconds.
 
 $candidates = [];
 for ($i = 1; $i <= 254; $i++) {
@@ -74,25 +70,28 @@ while (!empty($candidates) && microtime(true) < $deadline) {
     $read   = null;
     $usec   = (int)(max(0, $deadline - microtime(true)) * 1_000_000);
     $n = @stream_select($read, $write, $except, 0, $usec);
-    if ($n === false || $n === 0) break;
+    if ($n === false || $n === 0) {
+        break;
+    }
 
-    // Sockets in $except = connection refused/error
     $failed = [];
     foreach ($except as $s) {
         $ip = array_search($s, $candidates, true);
-        if ($ip !== false) $failed[$ip] = true;
+        if ($ip !== false) {
+            $failed[$ip] = true;
+        }
     }
-    // Sockets in $write = connection complete (may overlap with $except on error)
     foreach ($write as $s) {
         $ip = array_search($s, $candidates, true);
-        if ($ip === false) continue;
+        if ($ip === false) {
+            continue;
+        }
         if (!isset($failed[$ip])) {
             $found_tcp[] = $ip;
         }
         @fclose($s);
         unset($candidates[$ip]);
     }
-    // Close failed sockets too
     foreach ($failed as $ip => $_) {
         if (isset($candidates[$ip])) {
             @fclose($candidates[$ip]);
@@ -100,13 +99,16 @@ while (!empty($candidates) && microtime(true) < $deadline) {
         }
     }
 }
-foreach ($candidates as $s) @fclose($s); // close remaining (timeout)
+foreach ($candidates as $s) {
+    @fclose($s);
+}
 
-// ── Phase 2: WebSocket handshake to confirm each TCP responder ─────────────
 $gateways = [];
 foreach ($found_tcp as $ip) {
     $sock = @stream_socket_client("tcp://{$ip}:{$port}", $errno, $errstr, 2);
-    if (!$sock) continue;
+    if (!$sock) {
+        continue;
+    }
     stream_set_timeout($sock, 2);
 
     $key = base64_encode(random_bytes(16));
@@ -124,9 +126,13 @@ foreach ($found_tcp as $ip) {
     $dl = microtime(true) + 2;
     while (microtime(true) < $dl && !feof($sock)) {
         $line = fgets($sock, 256);
-        if ($line === false) break;
+        if ($line === false) {
+            break;
+        }
         $resp .= $line;
-        if ($line === "\r\n") break;
+        if ($line === "\r\n") {
+            break;
+        }
     }
     fclose($sock);
 
@@ -138,5 +144,4 @@ foreach ($found_tcp as $ip) {
 echo json_encode([
     'found'  => $gateways,
     'subnet' => rtrim($subnet, '.') . '.0/24',
-    'server_ip' => $serverIp,
 ]);

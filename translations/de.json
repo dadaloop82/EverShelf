@@ -416,7 +416,16 @@
     "load_error": "Fehler beim Laden",
     "favorite": "Zu Favoriten hinzufügen",
     "unfavorite": "Aus Favoriten entfernen",
-    "adjust_persons": "Personen"
+    "adjust_persons": "Personen",
+    "nutrition_title": "Nährwerte (pro Portion)",
+    "nutrition_kcal": "Kalorien",
+    "nutrition_protein": "Protein",
+    "nutrition_carbs": "Kohlenhydrate",
+    "nutrition_fat": "Fett",
+    "nutrition_per_serving": "Geschätzte Werte pro Portion",
+    "storage_title": "Aufbewahrung von Resten",
+    "storage_days": "{n} Tage",
+    "storage_immediately": "Am besten sofort verzehren"
   },
   "shopping": {
     "title": "🛒 Einkaufsliste",
@@ -1467,7 +1476,12 @@
     "error_network_detail": "Der Browser kann den PHP-Server nicht erreichen.\n\nMögliche Ursachen:\n• Apache/PHP-Server läuft nicht\n• Netzwerk- oder Firewall-Problem\n• Falsche App-URL\n\nBitte Server starten und erneut versuchen.",
     "retry": "Erneut versuchen",
     "syncing_local": "Lokale Daten synchronisieren...",
-    "sync_done": "Lokale Daten aktualisiert"
+    "sync_done": "Lokale Daten aktualisiert",
+    "token_required": "API-Token erforderlich",
+    "token_autoconfig": "Zugriff wird konfiguriert...",
+    "token_prompt_title": "🔒 API-Token",
+    "token_prompt_hint": "Geben Sie den API_TOKEN-Wert aus der .env-Datei des Servers ein.",
+    "token_prompt_btn": "Weiter"
   },
   "stats_monthly": {
     "title": "Monatsstatistik",

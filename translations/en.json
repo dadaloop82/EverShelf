@@ -416,7 +416,16 @@
     "load_error": "Loading error",
     "favorite": "Add to favourites",
     "unfavorite": "Remove from favourites",
-    "adjust_persons": "Persons"
+    "adjust_persons": "Persons",
+    "nutrition_title": "Nutritional values (per serving)",
+    "nutrition_kcal": "Calories",
+    "nutrition_protein": "Protein",
+    "nutrition_carbs": "Carbs",
+    "nutrition_fat": "Fat",
+    "nutrition_per_serving": "Estimated values per serving",
+    "storage_title": "How to store leftovers",
+    "storage_days": "{n} days",
+    "storage_immediately": "Best eaten immediately"
   },
   "shopping": {
     "title": "🛒 Shopping List",
@@ -1467,7 +1476,12 @@
     "error_network_detail": "The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nMake sure the server is started and try again.",
     "retry": "Retry",
     "syncing_local": "Syncing local data...",
-    "sync_done": "Local data synced"
+    "sync_done": "Local data synced",
+    "token_required": "API token required",
+    "token_autoconfig": "Configuring access...",
+    "token_prompt_title": "🔒 API Token",
+    "token_prompt_hint": "Enter the API_TOKEN value from the server .env file.",
+    "token_prompt_btn": "Continue"
   },
   "stats_monthly": {
     "title": "Monthly Stats",

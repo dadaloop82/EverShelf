@@ -1,5 +1,19 @@
 RewriteEngine On
 
+# Block sensitive files (Apache 2.4+)
+<Files ".env">
+    Require all denied
+</Files>
+<Files ".env.example">
+    Require all denied
+</Files>
+<Files "backup.sh">
+    Require all denied
+</Files>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
 # Force HTTPS
 RewriteCond %{HTTPS} !=on
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
