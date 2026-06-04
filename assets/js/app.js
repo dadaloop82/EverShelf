@@ -8827,7 +8827,9 @@ function recalculateAddExpiry() {
 
 async function _fetchExpiryHistoryAndUpdate(productId) {
     try {
-        const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}`);
+        const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}`, {
+            headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
+        });
         const data = await res.json();
         if (data.avg_days && data.avg_days > 0 && data.count >= 1) {
             window._historyExpiryDays = data.avg_days;
@@ -14526,7 +14528,11 @@ async function _ttsViaProxy(req) {
     // Route through server-side proxy to avoid mixed-content / CORS issues
     return fetch('api/index.php?action=tts_proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-EverShelf-Request': '1',
+            ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}),
+        },
         body: JSON.stringify({
             url: req.url,
             method: req.method,
@@ -15738,7 +15744,11 @@ async function generateRecipe() {
 
         const response = await fetch('api/index.php?action=generate_recipe_stream', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-EverShelf-Request': '1',
+                ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}),
+            },
             body: JSON.stringify(payload)
         });
 
@@ -15746,7 +15756,11 @@ async function generateRecipe() {
             const data = await response.json().catch(() => ({}));
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-ask').style.display = '';
-            if (data.error === 'no_api_key') {
+            if (response.status === 401) {
+                window._apiTokenRequired = true;
+                if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
+                showToast(t('startup.token_required') || 'Token API richiesto', 'warning');
+            } else if (data.error === 'no_api_key') {
                 showToast(t('error.no_api_key'), 'warning');
             } else {
                 showToast(data.error || t('recipes.generate_error'), 'error');
