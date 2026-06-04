@@ -4671,6 +4671,13 @@ body.server-offline .bottom-nav {
     line-height: 1.3;
 }
 
+.recipe-ing-stock {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.35;
+    opacity: 0.9;
+}
+
 /* ===== SHOPPING SECTION (REPARTO) HEADERS ===== */
 .shopping-section-divider {
     display: flex;

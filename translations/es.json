@@ -141,8 +141,10 @@
     "banner_prediction_more": "estimación anterior: {expected} {unit}{time}; cantidad actual: {actual} {unit}.",
     "banner_prediction_less": "estimación: {expected} {unit}{time}; cantidad actual: {actual} {unit}. Si tu ritmo de uso cambió, la previsión se actualiza automáticamente.",
     "banner_finished_zero": "El inventario muestra cero, pero los movimientos registrados sugieren que no debería estar vacío.",
+    "banner_finished_vanished": "Este producto ya no aparece en el inventario, pero los movimientos registrados sugieren que no debería estar vacío.",
     "banner_finished_expected": "Según los registros deberías tener todavía {qty} {unit}.",
     "banner_finished_check": "¿Puedes comprobarlo?",
+    "banner_finished_action_restore": "Restaurar {qty} {unit}",
     "banner_anomaly_phantom_title": "tienes más stock del esperado",
     "banner_anomaly_phantom_detail": "El inventario indica {inv_qty} {unit}, pero según los registros solo deberías tener {expected_qty} {unit}. ¿Añadiste stock sin registrarlo?",
     "banner_anomaly_untracked_title": "stock no registrado como entrada",
@@ -162,7 +164,13 @@
     "banner_opened_detail": "{when} en {location} · aún tienes <strong>{qty}</strong>.",
     "banner_explain_title": "Pedir explicación a Gemini",
     "banner_explain_btn": "Explicar",
-    "banner_analyzing": "🤖 Analizando…"
+    "banner_analyzing": "🤖 Analizando…",
+    "banner_expired_action_modify": "Editar",
+    "banner_expired_action_vacuum": "Poner al vacío",
+    "banner_prediction_confirmed": "✅ Confirmado — las previsiones se recalcularán con tus próximos registros",
+    "banner_anomaly_explain_fail": "No se pudo obtener la explicación de IA",
+    "banner_anomaly_dismissed": "Anomalía descartada",
+    "banner_finished_restore_prompt": "¿Cuántas {unit} de {name} te quedan? (estimación del sistema: {qty})"
   },
   "inventory": {
     "title": "Despensa",
@@ -240,7 +248,9 @@
     "ai_match_none": "No se encontraron productos similares en despensa.",
     "ai_match_use_btn": "Usar este",
     "ai_match_add_btn": "Agregar \"{name}\"",
-    "ai_detected_label": "IA detecto"
+    "ai_detected_label": "IA detecto",
+    "stock_in_pantry": "Ya en despensa:",
+    "mode_shopping_activated": "🛒 ¡Modo compras activado!"
   },
   "action": {
     "title": "¿Qué quieres hacer?",
@@ -254,7 +264,8 @@
     "throw_btn": "🗑️ DESECHAR",
     "throw_sub": "tirar",
     "edit_sub": "caducidad, ubicación…",
-    "create_recipe_btn": "Receta"
+    "create_recipe_btn": "Receta",
+    "related_stock_title": "También en casa"
   },
   "add": {
     "title": "Añadir a la despensa",
@@ -312,14 +323,17 @@
     "toast_bring": "🛒 Producto terminado → añadido a Bring!",
     "toast_opened_finished": "🔓 ¡Paquete abierto de {name} terminado!",
     "disambiguation_hint": "¿Qué quieres decir con «todo terminado»?",
+    "disambiguation_one_conf": "Terminado <strong>1 envase</strong> ({qty})",
     "disambiguation_all": "🗑️ Terminar TODO ({qty})",
+    "toast_one_conf_finished": "📦 1 envase de {name} terminado!",
     "error_exceeds_stock": "⚠️ ¡No puedes usar más de lo que tienes disponible!",
     "use_all_confirm_title": "✅ Terminar todo",
     "use_all_confirm_msg": "Confirma que has terminado el producto:",
     "use_all_confirm_btn": "✅ Sí, terminado",
     "throw_all_confirm_title": "🗑️ Desechar todo",
     "throw_all_confirm_msg": "¿Realmente quieres tirar todo el producto?",
-    "throw_all_confirm_btn": "🗑️ Sí, desechar"
+    "throw_all_confirm_btn": "🗑️ Sí, desechar",
+    "locations_short": "ubicaciones"
   },
   "product": {
     "title_new": "Nuevo producto",
@@ -359,7 +373,9 @@
     "weight_label": "Peso",
     "origin_label": "Origen",
     "labels_label": "Etiquetas",
-    "select_variant": "Selecciona la variante exacta o usa los datos de IA:"
+    "select_variant": "Selecciona la variante exacta o usa los datos de IA:",
+    "history_badge": "📊 historial",
+    "from_history": " (del historial)"
   },
   "products": {
     "title": "📦 Todos los productos",
@@ -420,7 +436,10 @@
     "nutrition_per_serving": "Valores estimados por ración",
     "storage_title": "Cómo conservar las sobras",
     "storage_days": "{n} días",
-    "storage_immediately": "Mejor consumir de inmediato"
+    "storage_immediately": "Mejor consumir de inmediato",
+    "stream_interrupted": "Generación interrumpida (respuesta del servidor incompleta). Revisa los logs o inténtalo de nuevo.",
+    "ing_stock_line": "Tienes {have} · quedan {remain} después del uso",
+    "ing_use_all_note": "usar todo (<5% del envase completo)"
   },
   "shopping": {
     "title": "🛒 Lista de la compra",
@@ -507,6 +526,7 @@
     "remove_error": "Error al eliminar",
     "btn_fetch_prices": "Buscar precios",
     "price_total_label": "💰 Total estimado:",
+    "price_total_short": "total estimado",
     "price_loading": "Buscando precios…",
     "price_not_found": "precio n/d",
     "suggest_loading": "Analizando...",
@@ -515,7 +535,9 @@
     "priority_medium": "Media",
     "priority_low": "Baja",
     "smart_last_update": "Actualizado {time}",
-    "names_already_updated": "Todos los nombres ya están actualizados"
+    "names_already_updated": "Todos los nombres ya están actualizados",
+    "pantry_hint": "Ya en casa: {qty}",
+    "bring_names_migrated": "🔄 {n} nombres generalizados en Bring!"
   },
   "ai": {
     "title": "🤖 Identificación IA",
@@ -526,7 +548,8 @@
     "no_api_key": "⚠️ Clave API de Gemini no configurada.\n<small>Añade GEMINI_API_KEY al archivo .env en el servidor.</small>",
     "fields_filled": "✅ Campos rellenados por IA",
     "use_data": "✅ Usar datos de IA",
-    "use_data_no_barcode": "✅ Usar datos de IA (sin código de barras)"
+    "use_data_no_barcode": "✅ Usar datos de IA (sin código de barras)",
+    "conservation_hint": "🤖 IA: conserva en {location}"
   },
   "log": {
     "title": "📒 Registro de operaciones",
@@ -742,7 +765,8 @@
       "heard_yes": "Sí, la escuché",
       "heard_no": "No, no escuché nada",
       "test_ok_kiosk": "TTS funcionando.",
-      "test_fail_steps": "Comprueba: 1) el volumen del multimedia no es 0; 2) Google Text-to-Speech está instalado y actualizado; 3) el paquete de voz español está descargado en la configuración TTS de Android."
+      "test_fail_steps": "Comprueba: 1) el volumen del multimedia no es 0; 2) Google Text-to-Speech está instalado y actualizado; 3) el paquete de voz español está descargado en la configuración TTS de Android.",
+      "test_sound_btn": "🔔 Prueba de sonido"
     },
     "language": {
       "title": "🌐 Idioma",
@@ -780,7 +804,13 @@
       "kiosk_title": "📡 Báscula BLE integrada en el kiosco",
       "kiosk_hint": "La báscula está gestionada directamente por la pasarela BLE interna del kiosco. Para vincular un nuevo dispositivo, usa el asistente de configuración.",
       "kiosk_reconfigure": "🔄 Reconfigurar báscula BLE",
-      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocolos BLE soportados:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; peso, grasa, IMC</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Genérico &mdash; heurística automática para 100+ modelos</li></ul>"
+      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocolos BLE soportados:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; peso, grasa, IMC</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Genérico &mdash; heurística automática para 100+ modelos</li></ul>",
+      "discover_scanning": "🔍 Buscando pasarela de báscula en la red local…",
+      "discover_found": "✅ Pasarela encontrada: {url}{more}",
+      "discover_not_found": "❌ Ninguna pasarela en {subnet}. Inicia la app Android en la misma Wi-Fi.",
+      "discover_failed": "❌ Búsqueda fallida: {error}",
+      "discover_auto": "🔍 Auto",
+      "unknown_device": "Dispositivo desconocido"
     },
     "kiosk": {
       "hint": "Convierte una tableta Android en un panel EverShelf permanente con pasarela BLE integrada.",
@@ -926,7 +956,49 @@
       "sensor_copied": "¡YAML copiado al portapapeles!",
       "save_btn": "Guardar ajustes HA",
       "ha_hint": "Si usas Home Assistant, utiliza la pestaña Home Assistant para configurar TTS, webhooks y sensores."
-    }
+    },
+    "info": {
+      "tab": "Info",
+      "ai_title": "Gemini AI — Uso de tokens",
+      "ai_hint": "Consumo mensual y coste estimado para la clave API actual.",
+      "loading": "Cargando…",
+      "total_tokens": "Tokens totales",
+      "est_cost": "Coste est.",
+      "input_tok": "Tokens de entrada",
+      "output_tok": "Tokens de salida",
+      "ai_calls": "Llamadas",
+      "by_action": "Desglose por función",
+      "by_model": "Desglose por modelo",
+      "pricing_note": "Precios Gemini: 2.5-flash $0.15/M in · $0.60/M out — 2.0-flash $0.10/M in · $0.40/M out.",
+      "system_title": "Sistema",
+      "db_size": "Base de datos",
+      "log_size": "Logs",
+      "log_level": "Nivel de log",
+      "ai_overview": "Resumen de IA, inventario y estado del sistema",
+      "calls_unit": "llamadas",
+      "inv_title": "Inventario",
+      "inv_active": "Activos",
+      "inv_products": "Productos totales",
+      "inv_expiring": "Caducan (7d)",
+      "inv_expired": "Caducados",
+      "inv_finished": "Agotados",
+      "act_title": "Actividad mensual",
+      "act_tx_month": "Movimientos",
+      "act_restock": "Reabastecimientos",
+      "act_use": "Usos",
+      "act_new_products": "Productos nuevos",
+      "act_tx_year": "Movimientos anuales",
+      "price_cache": "Caché de precios",
+      "cache_entries": "productos",
+      "last_backup": "Última copia",
+      "bring_days": "token expira en {n} días",
+      "bring_expired": "token expirado",
+      "year_label": "Año {year}",
+      "currency_title": "Moneda",
+      "currency_hint": "Moneda usada para todos los costes y precios en la app."
+    },
+    "tab_general": "General",
+    "kiosk_update_required": "⚠️ Actualiza la app kiosk para usar esta función"
   },
   "expiry": {
     "today": "HOY",
@@ -999,8 +1071,10 @@
     "thrown_away_partial": "🗑️ {qty} {unit} de {name} tirado(s)",
     "finished_all": "📤 ¡{name} terminado!",
     "product_finished_confirmed": "✅ Eliminado — añádelo de nuevo cuando reabastezcas",
+    "ghost_restored": "✅ {name}: restaurados {qty} {unit} en el inventario",
     "appliance_added": "Electrodoméstico añadido",
-    "item_added": "{name} añadido"
+    "item_added": "{name} añadido",
+    "vacuum_sealed": "{name} guardado al vacío"
   },
   "antiwaste": {
     "title": "🌱 Informe anti-desperdicio",
@@ -1070,7 +1144,9 @@
     "offline_ops_pending": "{n} operaciones pendientes",
     "offline_synced": "{n} operaciones sincronizadas",
     "offline_ai_disabled": "No disponible sin conexión",
-    "offline_cache_ready": "Offline — {n} productos en caché"
+    "offline_cache_ready": "Offline — {n} productos en caché",
+    "copy_failed": "Error al copiar al portapapeles",
+    "invalid_quantity": "Cantidad no válida"
   },
   "confirm_placeholder_search": null,
   "confirm": {
@@ -1171,7 +1247,10 @@
     "retake_btn": "🔄 Repetir",
     "camera_error_hint": "Asegúrate de usar HTTPS y haber concedido los permisos de cámara.<br>Puedes introducir el código de barras manualmente o usar la identificación IA.",
     "no_barcode": "Sin código de barras",
-    "save_new_btn": "🆕 Ninguno de estos — guardar como nuevo"
+    "save_new_btn": "🆕 Ninguno de estos — guardar como nuevo",
+    "expiry_found": "Fecha encontrada",
+    "expiry_read_fail": "No se puede leer la fecha.",
+    "expiry_raw_label": "Leído"
   },
   "lowstock": {
     "title": "⚠️ ¡Stock bajo!",
@@ -1189,7 +1268,8 @@
     "stay_btn": "No, quedarse en {location}",
     "moved_toast": "📦 Paquete abierto movido a {location}",
     "vacuum_restore": "🫙 Restaurar al vacío",
-    "vacuum_seal_rest": "🔒 Sellar el resto al vacío"
+    "vacuum_seal_rest": "🔒 Sellar el resto al vacío",
+    "moved_simple": "📦 Movido a {location}"
   },
   "nova": {
     "1": "Sin procesar",
@@ -1424,7 +1504,12 @@
     "token_autoconfig": "Configurando acceso...",
     "token_prompt_title": "🔒 Token API",
     "token_prompt_hint": "Introduce el valor API_TOKEN del archivo .env del servidor.",
-    "token_prompt_btn": "Continuar"
+    "token_prompt_btn": "Continuar",
+    "check_db_legacy": "BD antigua (dispensa.db)",
+    "check_tts": "URL texto a voz",
+    "check_scale": "Pasarela báscula",
+    "critical_error_intro": "La app no puede iniciarse por los siguientes problemas:",
+    "error_network_detail": "El navegador no puede conectar con el servidor PHP.\n\nPosibles causas:\n• Apache/PHP no está en ejecución\n• Problema de red o firewall\n• URL incorrecta\n\nInicia el servidor e inténtalo de nuevo."
   },
   "stats_monthly": {
     "title": "Estadísticas Mensuales",
@@ -1437,5 +1522,12 @@
     "top_used": "más usado",
     "top_cats": "Categorías principales",
     "source": "Historial de transacciones · mes actual"
+  },
+  "time": {
+    "just_now": "ahora",
+    "seconds_ago": "hace {n}s",
+    "minutes_ago": "hace {n} min",
+    "hours_ago": "hace {n} h",
+    "days_ago": "hace {n} d"
   }
 }

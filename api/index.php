@@ -650,6 +650,7 @@ if ($rateLimitAction) {
 // the explicit header is an additional defence-in-depth check for POST writes.
 $_writeActions = [
     'inventory_add','inventory_use','inventory_update','inventory_remove',
+    'inventory_confirm_finished','inventory_restore_ghost',
     'product_save','product_delete','product_merge',
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
@@ -715,6 +716,9 @@ try {
         case 'product_delete':
             deleteProduct($db);
             break;
+        case 'product_merge':
+            mergeProduct($db);
+            break;
         case 'products_list':
             listProducts($db);
             break;
@@ -746,6 +750,9 @@ try {
             break;
         case 'inventory_confirm_finished':
             confirmFinished($db);
+            break;
+        case 'inventory_restore_ghost':
+            restoreGhostInventory($db);
             break;
         case 'inventory_summary':
             inventorySummary($db);
@@ -2512,8 +2519,18 @@ function saveProduct(PDO $db): void {
         ? $input['shopping_name']
         : computeShoppingName($input['name'], $input['category'] ?? '', $input['brand'] ?? '');
 
-    if (!empty($input['id'])) {
-        // Update existing
+    $id = !empty($input['id']) ? (int)$input['id'] : 0;
+    $merged = false;
+    if (!$id) {
+        $dupId = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $input['barcode'] ?? null, null);
+        if ($dupId) {
+            $id = $dupId;
+            $merged = true;
+        }
+    }
+
+    if ($id) {
+        // Update existing (or matched duplicate)
         $stmt = $db->prepare("
             UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
             default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
@@ -2526,9 +2543,9 @@ function saveProduct(PDO $db): void {
             $input['image_url'] ?? '', $input['unit'] ?? 'pz',
             $input['default_quantity'] ?? 1, $input['notes'] ?? '',
             $input['barcode'] ?? null, $input['package_unit'] ?? '',
-            $shoppingName, $nutriJson, $input['id']
+            $shoppingName, $nutriJson, $id
         ]);
-        echo json_encode(['success' => true, 'id' => $input['id']]);
+        echo json_encode(['success' => true, 'id' => $id, 'merged' => $merged]);
     } else {
         // Insert new
         $stmt = $db->prepare("
@@ -2863,8 +2880,19 @@ function useFromInventory(PDO $db): void {
     // Guard against accidental double-consume triggers (scale jitter, double tap,
     // delayed/offline replay burst). We only apply this stricter gate to manual
     // uses with empty notes, so recipe uses (notes="Ricetta: ...") remain unaffected.
-    if (!$useAll) {
-        $dedupWindow = ($notes === '') ? 120 : 12;
+    $dedupWindow = $useAll ? 60 : (($notes === '') ? 120 : 12);
+    if ($useAll) {
+        $dedup = $db->prepare(
+            "SELECT id, quantity, created_at FROM transactions
+             WHERE product_id = ?
+               AND type IN ('out','waste')
+               AND undone = 0
+               AND created_at >= datetime('now', '-' || ? || ' seconds')
+             ORDER BY id DESC
+             LIMIT 1"
+        );
+        $dedup->execute([$productId, $dedupWindow]);
+    } else {
         $dedup = $db->prepare(
             "SELECT id, quantity, created_at FROM transactions
              WHERE product_id = ?
@@ -2877,25 +2905,26 @@ function useFromInventory(PDO $db): void {
              LIMIT 1"
         );
         $dedup->execute([$productId, $location, $notes, $dedupWindow]);
-        $recent = $dedup->fetch();
-        if ($recent) {
-            EverLog::warn('useFromInventory duplicate blocked', [
-                'product_id' => $productId,
-                'location' => $location,
-                'window_s' => $dedupWindow,
-                'recent_tx_id' => $recent['id'] ?? null,
-                'recent_qty' => $recent['quantity'] ?? null,
-                'recent_created_at' => $recent['created_at'] ?? null,
-                'requested_qty' => $quantity,
-                'notes' => $notes,
-            ]);
-            echo json_encode([
-                'success' => false,
-                'error'   => 'Operazione già registrata di recente — verifica prima la quantità rimasta.',
-                'duplicate' => true,
-            ]);
-            return;
-        }
+    }
+    $recent = $dedup->fetch();
+    if ($recent) {
+        EverLog::warn('useFromInventory duplicate blocked', [
+            'product_id' => $productId,
+            'location' => $location,
+            'use_all' => $useAll,
+            'window_s' => $dedupWindow,
+            'recent_tx_id' => $recent['id'] ?? null,
+            'recent_qty' => $recent['quantity'] ?? null,
+            'recent_created_at' => $recent['created_at'] ?? null,
+            'requested_qty' => $quantity,
+            'notes' => $notes,
+        ]);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Operazione già registrata di recente — verifica prima la quantità rimasta.',
+            'duplicate' => true,
+        ]);
+        return;
     }
     // ─────────────────────────────────────────────────────────────────────
     
@@ -3325,17 +3354,168 @@ function updateInventory(PDO $db): void {
 function deleteInventory(PDO $db): void {
     EverLog::info('deleteInventory');
     $input = json_decode(file_get_contents('php://input'), true);
-    $id = $input['id'] ?? 0;
-    $stmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+    $id = (int)($input['id'] ?? 0);
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Inventory ID required']);
+        return;
+    }
+
+    $stmt = $db->prepare("SELECT id, product_id, quantity, location FROM inventory WHERE id = ?");
     $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Inventory row not found']);
+        return;
+    }
+
+    $qty = (float)$row['quantity'];
+    if ($qty > 0.0001) {
+        $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
+           ->execute([(int)$row['product_id'], $qty, $row['location'], '[Eliminazione inventario]']);
+    }
+
+    $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$id]);
     echo json_encode(['success' => true]);
 }
 
+function productQtyThreshold(string $unit): float {
+    static $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.5];
+    return $thresholds[$unit] ?? 0.5;
+}
+
+function normalizeProductName(string $name): string {
+    return mb_strtolower(trim($name));
+}
+
+function normalizeProductBrand(string $brand): string {
+    return mb_strtolower(trim($brand));
+}
+
+function brandsCompatible(string $a, string $b): bool {
+    $na = normalizeProductBrand($a);
+    $nb = normalizeProductBrand($b);
+    return $na === $nb || $na === '' || $nb === '';
+}
+
+function findDuplicateProductId(PDO $db, string $name, string $brand, ?string $barcode, ?int $excludeId = null): ?int {
+    if ($barcode !== null && trim($barcode) !== '') {
+        $sql = "SELECT id FROM products WHERE barcode = ? AND barcode IS NOT NULL AND TRIM(barcode) != ''";
+        $params = [$barcode];
+        if ($excludeId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeId;
+        }
+        $sql .= " ORDER BY id ASC LIMIT 1";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $id = $stmt->fetchColumn();
+        if ($id) {
+            return (int)$id;
+        }
+    }
+
+    $nName = normalizeProductName($name);
+    if ($nName === '') {
+        return null;
+    }
+
+    $sql = "SELECT id, brand FROM products WHERE lower(trim(name)) = ?";
+    $params = [$nName];
+    if ($excludeId) {
+        $sql .= " AND id != ?";
+        $params[] = $excludeId;
+    }
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$candidates) {
+        return null;
+    }
+
+    $targetBrand = normalizeProductBrand($brand);
+    $compatible = null;
+    foreach ($candidates as $c) {
+        $cBrand = normalizeProductBrand($c['brand'] ?? '');
+        if ($cBrand === $targetBrand) {
+            return (int)$c['id'];
+        }
+        if ($compatible === null && brandsCompatible($brand, $c['brand'] ?? '')) {
+            $compatible = (int)$c['id'];
+        }
+    }
+    return $compatible;
+}
+
+function getProductLedgerBalance(PDO $db, int $productId): array {
+    $stmt = $db->prepare("
+        SELECT
+            COALESCE(SUM(CASE WHEN type = 'in' AND undone = 0 THEN quantity ELSE 0 END), 0) AS total_in,
+            COALESCE(SUM(CASE WHEN type IN ('out','waste') AND undone = 0 THEN quantity ELSE 0 END), 0) AS total_out
+        FROM transactions
+        WHERE product_id = ?
+    ");
+    $stmt->execute([$productId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_in' => 0, 'total_out' => 0];
+    $stockStmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ?");
+    $stockStmt->execute([$productId]);
+    return [
+        'total_in'  => (float)$row['total_in'],
+        'total_out' => (float)$row['total_out'],
+        'stock'     => (float)$stockStmt->fetchColumn(),
+    ];
+}
+
+function mergeProducts(PDO $db, int $keepId, int $dropId): void {
+    if ($keepId === $dropId) {
+        return;
+    }
+    $check = $db->prepare("SELECT id FROM products WHERE id IN (?, ?)");
+    $check->execute([$keepId, $dropId]);
+    if ($check->rowCount() < 2) {
+        throw new RuntimeException('One or both products not found');
+    }
+
+    $db->beginTransaction();
+    try {
+        $db->prepare("UPDATE inventory SET product_id = ? WHERE product_id = ?")->execute([$keepId, $dropId]);
+        $db->prepare("UPDATE transactions SET product_id = ? WHERE product_id = ?")->execute([$keepId, $dropId]);
+        $db->prepare("DELETE FROM products WHERE id = ?")->execute([$dropId]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function mergeProduct(PDO $db): void {
+    EverLog::info('mergeProduct');
+    $input = json_decode(file_get_contents('php://input'), true);
+    $keepId = (int)($input['keep_id'] ?? $input['canonical_id'] ?? 0);
+    $dropId = (int)($input['drop_id'] ?? $input['duplicate_id'] ?? 0);
+    if (!$keepId || !$dropId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'keep_id and drop_id required']);
+        return;
+    }
+
+    try {
+        mergeProducts($db, $keepId, $dropId);
+        echo json_encode(['success' => true, 'keep_id' => $keepId, 'drop_id' => $dropId]);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+}
+
 /**
- * Returns products whose entire inventory is at quantity = 0 AND whose
+ * Returns products whose ledger balance exceeds stock (including vanished rows).
  * transaction balance (total_in - total_out) is still significantly positive —
  * meaning the system suspects the product ran out prematurely (scale drift,
- * missed registration, etc.).
+ * missed registration, deleted inventory row, etc.).
  *
  * Products where the balance is at/near zero are legitimately finished by the
  * user; those rows are silently deleted here (no banner needed).
@@ -3344,30 +3524,27 @@ function getFinishedItems(PDO $db): void {
     EverLog::debug('getFinishedItems');
     $rows = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
-               MIN(i.location) AS location,
-               MAX(i.updated_at) AS updated_at,
                COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
-               COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out
+               COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out,
+               COALESCE((SELECT SUM(i2.quantity) FROM inventory i2 WHERE i2.product_id = p.id), 0) AS stock_qty,
+               (SELECT COUNT(*) FROM inventory i3 WHERE i3.product_id = p.id) AS inv_rows,
+               (SELECT i4.location FROM inventory i4 WHERE i4.product_id = p.id ORDER BY i4.updated_at DESC LIMIT 1) AS inv_location,
+               (SELECT i4.updated_at FROM inventory i4 WHERE i4.product_id = p.id ORDER BY i4.updated_at DESC LIMIT 1) AS inv_updated,
+               (SELECT t2.location FROM transactions t2 WHERE t2.product_id = p.id AND t2.undone = 0 ORDER BY t2.created_at DESC LIMIT 1) AS tx_location
         FROM products p
-        JOIN inventory i ON i.product_id = p.id
         LEFT JOIN transactions t ON t.product_id = p.id
-        WHERE NOT EXISTS (
-            SELECT 1 FROM inventory i2 WHERE i2.product_id = p.id AND i2.quantity > 0
-        )
         GROUP BY p.id
-        ORDER BY MAX(i.updated_at) DESC
+        HAVING stock_qty <= 0.001 AND total_in > 0
+        ORDER BY (total_in - total_out) DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-
-    // Per-unit threshold: residue below this is considered normal rounding/finish
-    $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.5];
 
     $suspicious = [];
     foreach ($rows as $r) {
         $expected = (float)$r['total_in'] - (float)$r['total_out'];
-        $threshold = $thresholds[$r['unit']] ?? 0.5;
+        $threshold = productQtyThreshold($r['unit']);
 
         if ($expected > $threshold) {
-            // Transaction balance says stock should remain — show banner
+            $location = $r['inv_location'] ?: $r['tx_location'] ?: 'dispensa';
             $suspicious[] = [
                 'product_id'       => (int)$r['product_id'],
                 'name'             => $r['name'],
@@ -3377,13 +3554,14 @@ function getFinishedItems(PDO $db): void {
                 'package_unit'     => $r['package_unit'],
                 'image_url'        => $r['image_url'],
                 'barcode'          => $r['barcode'],
-                'location'         => $r['location'],
-                'updated_at'       => $r['updated_at'],
+                'location'         => $location,
+                'updated_at'       => $r['inv_updated'],
                 'expected_qty'     => round($expected, 3),
+                'ghost'            => true,
+                'vanished'         => ((int)$r['inv_rows']) === 0,
             ];
         } else {
-            // Legitimately finished — delete silently, no banner
-            $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")
+            $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")
                ->execute([$r['product_id']]);
         }
     }
@@ -3392,7 +3570,8 @@ function getFinishedItems(PDO $db): void {
 }
 
 /**
- * Permanently delete all qty=0 inventory rows for a product after user confirms it is finished.
+ * Permanently reconcile a finished/ghost product: log the missing quantity as
+ * an explicit out transaction, then delete any zero-qty inventory rows.
  */
 function confirmFinished(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -3403,8 +3582,87 @@ function confirmFinished(PDO $db): void {
         echo json_encode(['error' => 'product_id required']);
         return;
     }
-    $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity = 0")->execute([$productId]);
+
+    $prod = $db->prepare("SELECT unit FROM products WHERE id = ?");
+    $prod->execute([$productId]);
+    $unit = $prod->fetchColumn();
+    if (!$unit) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Product not found']);
+        return;
+    }
+
+    $bal = getProductLedgerBalance($db, $productId);
+    $expected = $bal['total_in'] - $bal['total_out'];
+    $threshold = productQtyThreshold((string)$unit);
+
+    if ($expected > $threshold) {
+        $locStmt = $db->prepare("SELECT location FROM inventory WHERE product_id = ? ORDER BY updated_at DESC LIMIT 1");
+        $locStmt->execute([$productId]);
+        $location = $locStmt->fetchColumn();
+        if (!$location) {
+            $locStmt = $db->prepare("SELECT location FROM transactions WHERE product_id = ? AND undone = 0 ORDER BY created_at DESC LIMIT 1");
+            $locStmt->execute([$productId]);
+            $location = $locStmt->fetchColumn();
+        }
+        $location = $location ?: 'dispensa';
+        $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
+           ->execute([$productId, round($expected, 3), $location, '[Riconciliazione] Confermato esaurito']);
+    }
+
+    $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")->execute([$productId]);
     echo json_encode(['success' => true]);
+}
+
+/**
+ * Restore stock for a ghost product without adding a new purchase (in) transaction.
+ */
+function restoreGhostInventory(PDO $db): void {
+    EverLog::info('restoreGhostInventory');
+    $input = json_decode(file_get_contents('php://input'), true);
+    $productId = (int)($input['product_id'] ?? 0);
+    $quantity = (float)($input['quantity'] ?? 0);
+    $location = trim((string)($input['location'] ?? 'dispensa')) ?: 'dispensa';
+
+    if (!$productId || $quantity <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'product_id and quantity required']);
+        return;
+    }
+
+    $prod = $db->prepare("SELECT id FROM products WHERE id = ?");
+    $prod->execute([$productId]);
+    if (!$prod->fetchColumn()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Product not found']);
+        return;
+    }
+
+    $stmt = $db->prepare("
+        SELECT id, quantity FROM inventory
+        WHERE product_id = ? AND location = ? AND opened_at IS NULL
+        ORDER BY CASE WHEN quantity > 0 THEN 0 ELSE 1 END, updated_at DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$productId, $location]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($row) {
+        $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+           ->execute([$quantity, (int)$row['id']]);
+        $invId = (int)$row['id'];
+    } else {
+        $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")
+           ->execute([$productId, $location, $quantity]);
+        $invId = (int)$db->lastInsertId();
+    }
+
+    echo json_encode([
+        'success'      => true,
+        'inventory_id' => $invId,
+        'quantity'     => $quantity,
+        'location'     => $location,
+    ]);
 }
 
 function inventorySummary(PDO $db): void {
@@ -5452,6 +5710,142 @@ PROMPT;
         return $text;
     }
 
+/** Parse "200 g" / "2 pz" style recipe qty strings. */
+function recipeParseQtyString(string $qty): array {
+    $val = 0.0;
+    $unit = '';
+    if (preg_match('/(\d+[.,]?\d*)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i', $qty, $qm)) {
+        $val = (float)str_replace(',', '.', $qm[1]);
+        $ru = strtolower($qm[2]);
+        if (strpos($ru, 'g') === 0) $unit = 'g';
+        elseif ($ru === 'kg') { $unit = 'g'; $val *= 1000; }
+        elseif ($ru === 'ml') $unit = 'ml';
+        elseif ($ru === 'cl') { $unit = 'ml'; $val *= 10; }
+        elseif ($ru === 'l' || strpos($ru, 'litr') === 0) { $unit = 'ml'; $val *= 1000; }
+        elseif (strpos($ru, 'pz') === 0 || strpos($ru, 'pezz') === 0) $unit = 'pz';
+        elseif (strpos($ru, 'conf') === 0) $unit = 'conf';
+    }
+    return ['val' => $val, 'unit' => $unit];
+}
+
+function recipeGetProductTotalStock(PDO $db, int $productId): float {
+    $stmt = $db->prepare('SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    return (float)$stmt->fetchColumn();
+}
+
+/** Full sealed unit size for % remainder (conf → default_quantity in g/ml per conf). */
+function recipeGetClosedProductBaseQty(array $ing): float {
+    $unit = $ing['inventory_unit'] ?? 'pz';
+    $pkgSize = (float)($ing['default_quantity'] ?? 0);
+    $pkgUnit = strtolower($ing['package_unit'] ?? '');
+
+    if ($unit === 'conf' && $pkgSize > 0 && in_array($pkgUnit, ['g', 'ml'], true)) {
+        return $pkgSize;
+    }
+    if ($unit === 'conf' && $pkgSize > 0) {
+        return $pkgSize;
+    }
+    if ($pkgSize > 0 && in_array($unit, ['g', 'ml', 'pz'], true)) {
+        return $pkgSize;
+    }
+    if ($unit === 'conf') {
+        return 1.0;
+    }
+    return 0.0;
+}
+
+/** Use-all when leftover is < 5% of the sealed package (not current stock). */
+function recipeShouldUseAllRemainder(float $remainDisp, array $ing, float $stockDisp = 0): bool {
+    if ($remainDisp <= 0) {
+        return false;
+    }
+    $packageBase = recipeGetClosedProductBaseQty($ing);
+    if ($packageBase <= 0) {
+        return false;
+    }
+    $pct = $remainDisp / $packageBase;
+    if ($pct < 0.05) {
+        return true;
+    }
+    // Opened/partial: less than one full sealed unit on hand — allow up to 10% tail waste
+    if ($stockDisp > 0 && $stockDisp < $packageBase && $pct < 0.10) {
+        return true;
+    }
+    return false;
+}
+
+/** Normalize use qty, apply <5% remainder → use-all, set stock_have/stock_remain hints. */
+function recipeFinalizeIngQty(array &$ing, float $totalStockQty): void {
+    $parsed = recipeParseQtyString($ing['qty'] ?? '');
+    $recipeVal = $parsed['val'];
+    $recipeUnit = $parsed['unit'];
+    $unit = $ing['inventory_unit'] ?? 'pz';
+    $pkgSize = (float)($ing['default_quantity'] ?? 0);
+    $pkgUnit = strtolower($ing['package_unit'] ?? '');
+    $isConfSub = ($unit === 'conf' && $pkgSize > 0 && in_array($pkgUnit, ['g', 'ml'], true));
+
+    $useQty = (float)($ing['qty_number'] ?? 0);
+
+    // conf+weight: always prefer the recipe amount from the qty string (not inventory conf count)
+    if ($isConfSub && $recipeVal > 0 && $recipeUnit === $pkgUnit) {
+        $useQty = $recipeVal;
+        $ing['qty_number'] = round($useQty, 3);
+        $ing['qty'] = round($useQty) . ' ' . $pkgUnit;
+    }
+
+    if ($isConfSub) {
+        $stockDisp = $totalStockQty * $pkgSize;
+        $useDisp = $useQty;
+        $dispUnit = $pkgUnit;
+    } else {
+        $stockDisp = $totalStockQty;
+        $useDisp = $useQty;
+        $dispUnit = $unit;
+    }
+
+    if ($stockDisp <= 0 || $useDisp <= 0) {
+        $ing['stock_have'] = round($stockDisp, 2);
+        $ing['stock_remain'] = max(0, round($stockDisp - $useDisp, 2));
+        $ing['stock_unit'] = $dispUnit;
+        return;
+    }
+
+    $remainDisp = $stockDisp - $useDisp;
+    if (recipeShouldUseAllRemainder($remainDisp, $ing, $stockDisp)) {
+        $ing['use_all_suggested'] = true;
+        $useDisp = $stockDisp;
+        $remainDisp = 0;
+        if ($isConfSub) {
+            $ing['qty_number'] = round($useDisp, 1);
+            $ing['qty'] = round($useDisp) . ' ' . $pkgUnit;
+        } else {
+            $ing['qty_number'] = round($totalStockQty, 3);
+            if ($unit === 'pz') {
+                $ing['qty'] = round($totalStockQty, 2) . ' pz';
+            } else {
+                $ing['qty'] = round($totalStockQty, ($unit === 'g' || $unit === 'ml') ? 0 : 2) . ' ' . $unit;
+            }
+        }
+    }
+
+    $ing['stock_have'] = round($stockDisp, 2);
+    $ing['stock_remain'] = round($remainDisp, 2);
+    $ing['stock_unit'] = $dispUnit;
+}
+
+function recipeApplyStockHintsToRecipe(PDO $db, array &$recipe): void {
+    if (empty($recipe['ingredients']) || !is_array($recipe['ingredients'])) return;
+    foreach ($recipe['ingredients'] as &$ing) {
+        if (empty($ing['from_pantry']) || empty($ing['product_id'])) continue;
+        $totalStock = recipeGetProductTotalStock($db, (int)$ing['product_id']);
+        if ($totalStock <= 0) continue;
+        $ing['inventory_qty_total'] = $totalStock;
+        recipeFinalizeIngQty($ing, $totalStock);
+    }
+    unset($ing);
+}
+
 // ===== RECIPE GENERATION WITH GEMINI =====
 function generateRecipe(PDO $db): void {
     EverLog::debug('generateRecipe start');
@@ -6071,9 +6465,14 @@ PROMPT;
                             if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
                                 $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                                 $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
-                                if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
-                                    $qtyNum = round($qtyNum * $defQty);
-                                    $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                                if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml')) {
+                                    if ($recipeVal > 0 && $recipeUnit === $pkgUnitLC) {
+                                        $qtyNum = $recipeVal;
+                                        $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC;
+                                    } elseif ($qtyNum <= $invQty) {
+                                        $qtyNum = round($qtyNum * $defQty);
+                                        $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                                    }
                                 }
                             }
                             // Sanity check: qty_number should not exceed available
@@ -6093,6 +6492,7 @@ PROMPT;
                 }
             }
             unset($ing);
+            recipeApplyStockHintsToRecipe($db, $recipe);
         }
         
         EverLog::info('recipe generated', ['title' => $recipe['title'] ?? '?', 'meal' => $mealType, 'persons' => $persons, 'ingredients' => count($recipe['ingredients'] ?? [])]);
@@ -6191,6 +6591,7 @@ PROMPT;
     if (!empty($recipe['ingredients'])) {
         _enrichChatIngredients($recipe['ingredients'], $items);
     }
+    recipeApplyStockHintsToRecipe($db, $recipe);
 
     echo json_encode(['success' => true, 'recipe' => $recipe]);
 }
@@ -6305,6 +6706,7 @@ PROMPT;
     if (!empty($recipe['ingredients'])) {
         _enrichChatIngredients($recipe['ingredients'], $items);
     }
+    recipeApplyStockHintsToRecipe($db, $recipe);
 
     EverLog::info('recipe_from_ingredient ok', ['ingredient' => $ingredientName, 'title' => $recipe['title'] ?? '?', 'persons' => $persons]);
     echo json_encode(['success' => true, 'recipe' => $recipe]);
@@ -6461,8 +6863,14 @@ function _enrichChatIngredients(array &$ingredients, array $items): void {
                 if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
                     $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                     $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
-                    if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
-                        $qtyNum = round($qtyNum * $defQty); $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                    if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml')) {
+                        if ($recipeVal > 0 && $recipeUnit === $pkgUnitLC) {
+                            $qtyNum = $recipeVal;
+                            $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC;
+                        } elseif ($qtyNum <= $invQty) {
+                            $qtyNum = round($qtyNum * $defQty);
+                            $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                        }
                     }
                 }
                 if ($qtyNum > $invQty) $qtyNum = $invQty;
@@ -7024,8 +7432,14 @@ PROMPT;
                     if (!$confAlreadyInSubUnit && $invUnit === 'conf' && $qtyNum > 0) {
                         $defQty = (float)($bestMatch['default_quantity'] ?? 0);
                         $pkgUnitLC = strtolower($bestMatch['package_unit'] ?? '');
-                        if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml') && $qtyNum <= $invQty) {
-                            $qtyNum = round($qtyNum * $defQty); $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                        if ($defQty > 0 && ($pkgUnitLC === 'g' || $pkgUnitLC === 'ml')) {
+                            if ($recipeVal > 0 && $recipeUnit === $pkgUnitLC) {
+                                $qtyNum = $recipeVal;
+                                $ing['qty'] = round($qtyNum) . ' ' . $pkgUnitLC;
+                            } elseif ($qtyNum <= $invQty) {
+                                $qtyNum = round($qtyNum * $defQty);
+                                $ing['qty'] = $qtyNum . ' ' . $pkgUnitLC;
+                            }
                         }
                     }
                     if ($qtyNum > $invQty) $qtyNum = $invQty;
@@ -7035,6 +7449,7 @@ PROMPT;
             }
         }
         unset($ing);
+        recipeApplyStockHintsToRecipe($db, $recipe);
     }
 
     $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);

@@ -515,10 +515,9 @@ function _scaleAutoFillUse(msg) {
     // Determine target unit
     let unit;
     if (_useConfMode) {
-        // Scale always reads weight (g/ml) — auto-switch to sub-unit mode if still in conf mode
-        if (_useConfMode._activeUnit !== 'sub') {
-            switchUseUnit('sub');
-        }
+        // Scale reads weight (g/ml) — only auto-fill in sub-unit mode.
+        // If the user chose "Confezioni", respect that (fraction buttons / manual qty).
+        if (_useConfMode._activeUnit === 'conf') return;
         unit = (_useConfMode.packageUnit || '').toLowerCase();
     } else {
         unit = _useNormalUnit;
@@ -876,7 +875,7 @@ function _scaleUpdateStatus(state) {
     if (state === 'connected') {
         const devEl = document.getElementById('scale-diag-device');
         const batEl = document.getElementById('scale-diag-battery');
-        if (devEl) devEl.textContent = _scaleDevice || 'Dispositivo sconosciuto';
+        if (devEl) devEl.textContent = _scaleDevice || t('settings.scale.unknown_device');
         if (batEl) batEl.textContent = _scaleBattery != null ? `🔋 ${_scaleBattery}%` : '';
         const weightEl = document.getElementById('scale-diag-weight');
         if (weightEl && _scaleLatestWeight) {
@@ -1075,7 +1074,7 @@ async function discoverScaleGateway() {
     btn.disabled = true;
     btn.textContent = '⏳';
     status.style.display = 'block';
-    status.textContent = '🔍 Scanning local network for scale gateway…';
+    status.textContent = t('settings.scale.discover_scanning');
 
     try {
         const res  = await fetch('api/scale_discover.php', { signal: AbortSignal.timeout(8000), headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) } });
@@ -1087,7 +1086,10 @@ async function discoverScaleGateway() {
             const url = data.found[0];
             const urlEl = document.getElementById('setting-scale-url');
             if (urlEl) urlEl.value = url;
-            status.textContent = '✅ Gateway found: ' + url + (data.found.length > 1 ? ' (+' + (data.found.length - 1) + ' more)' : '');
+            status.textContent = t('settings.scale.discover_found', {
+                url,
+                more: data.found.length > 1 ? ' (+' + (data.found.length - 1) + ' more)' : '',
+            });
             status.style.color = 'var(--color-success, #059669)';
             // Auto-save
             const s = getSettings();
@@ -1095,19 +1097,21 @@ async function discoverScaleGateway() {
             saveSettingsToStorage(s);
             scaleInit();
         } else {
-            status.textContent = '❌ No gateway found on ' + (data.subnet || 'local network') + '. Make sure the Android app is running and on the same Wi-Fi.';
+            status.textContent = t('settings.scale.discover_not_found', { subnet: data.subnet || 'local network' });
         }
     } catch(e) {
-        status.textContent = '❌ Discovery failed: ' + (e.message || 'timeout');
+        status.textContent = t('settings.scale.discover_failed', { error: e.message || 'timeout' });
     }
 
     btn.disabled = false;
-    btn.textContent = '🔍 Auto';
+    btn.textContent = t('settings.scale.discover_auto');
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
+const _I18N_VERSION = '20260604c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
+let _i18nLoadedVersion = null;
 let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español' };
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
@@ -1156,15 +1160,17 @@ function t(key, params) {
 async function loadTranslations(lang) {
     lang = lang || _currentLang;
     try {
-        // Always load Italian as fallback
-        if (!_i18nFallback) {
-            const fbRes = await fetch(`translations/it.json?v=${Date.now()}`);
+        const bust = _I18N_VERSION;
+        // Reload fallback when version changes (avoids stale cached keys)
+        if (!_i18nFallback || _i18nLoadedVersion !== bust) {
+            const fbRes = await fetch(`translations/it.json?v=${bust}`);
             if (fbRes.ok) _i18nFallback = _flattenI18n(await fbRes.json());
+            _i18nLoadedVersion = bust;
         }
         if (lang === 'it') {
             _i18nStrings = _i18nFallback;
         } else {
-            const res = await fetch(`translations/${encodeURIComponent(lang)}.json?v=${Date.now()}`);
+            const res = await fetch(`translations/${encodeURIComponent(lang)}.json?v=${bust}`);
             if (res.ok) _i18nStrings = _flattenI18n(await res.json());
             else _i18nStrings = _i18nFallback;
         }
@@ -2619,10 +2625,10 @@ async function _renderBackupTab() {
             if (data.last_backup_ts) {
                 const secsAgo = Math.floor(Date.now() / 1000) - data.last_backup_ts;
                 let ago;
-                if (secsAgo < 120)           ago = secsAgo < 5 ? t('time.just_now') || 'adesso' : `${secsAgo}s fa`;
-                else if (secsAgo < 3600)     ago = `${Math.floor(secsAgo / 60)} min fa`;
-                else if (secsAgo < 86400)    ago = `${Math.floor(secsAgo / 3600)}h fa`;
-                else                         ago = `${Math.floor(secsAgo / 86400)}gg fa`;
+                if (secsAgo < 120)           ago = secsAgo < 5 ? t('time.just_now') : t('time.seconds_ago', { n: secsAgo });
+                else if (secsAgo < 3600)     ago = t('time.minutes_ago', { n: Math.floor(secsAgo / 60) });
+                else if (secsAgo < 86400)    ago = t('time.hours_ago', { n: Math.floor(secsAgo / 3600) });
+                else                         ago = t('time.days_ago', { n: Math.floor(secsAgo / 86400) });
                 const name = data.last_backup_file || '';
                 lastInfoEl.innerHTML = `<strong>${t('settings.backup.last_backup') || 'Ultimo backup'}</strong>: ${ago} <span style="color:#94a3b8;font-size:0.78rem">(${name})</span>`;
             } else {
@@ -3363,7 +3369,7 @@ function _kioskReconfigureScale() {
         // Kiosk APK is outdated — show update notice
         const notice = document.getElementById('kiosk-needs-update-notice');
         if (notice) notice.style.display = '';
-        showToast('⚠️ Aggiorna il kiosk per usare questa funzione', 'warning');
+        showToast(t('settings.kiosk_update_required'), 'warning');
     }
 }
 
@@ -4909,8 +4915,9 @@ async function loadDashboard() {
         });
         // Load shopping list count from Bring!
         loadShoppingCount();
-        // Show last known price total immediately from sessionStorage (before next background fetch)
-        _updateDashboardPriceTotal();
+        // Show last known total instantly, then refresh from server
+        _loadCanonicalTotalFromSession();
+        _applyShoppingTotalDisplay();
         
         // Quick recipe button - show when there are expiring products
         const recipeBar = document.getElementById('quick-recipe-bar');
@@ -5365,10 +5372,9 @@ async function loadBannerAlerts() {
             _bannerQueue.push({ type: 'dup_loss_check', data: ch });
         });
 
-        // 7. Finished products: inventory hit 0, waiting for user confirmation
+        // 7. Unresolved ghosts: always show while server reports ledger/stock mismatch
         const finished = finishedData.finished || [];
         finished.forEach(fin => {
-            if (confirmed['fin_' + fin.product_id]) return;
             _bannerQueue.push({ type: 'finished', data: fin });
         });
 
@@ -5626,15 +5632,16 @@ function renderBannerItem() {
     } else if (entry.type === 'finished') {
         const fin = entry.data;
         banner.className = 'alert-banner banner-finished';
-        iconEl.textContent = '📦';
+        iconEl.textContent = fin.vanished ? '👻' : '📦';
         const barcodeSuffix = fin.barcode && fin.barcode.length >= 3
             ? ` <span style="font-family:monospace;font-size:0.7em;opacity:0.6">…${escapeHtml(fin.barcode.slice(-3))}</span>`
             : '';
         titleEl.innerHTML = `${escapeHtml(fin.name)}${fin.brand ? ' (' + escapeHtml(fin.brand) + ')' : ''}${barcodeSuffix} — ${escapeHtml(t('dashboard.banner_finished_title'))}`;
         const expectedText = fin.expected_qty ? ' ' + t('dashboard.banner_finished_expected', { qty: fin.expected_qty, unit: fin.unit }) : '';
-        detailEl.innerHTML = t('dashboard.banner_finished_zero') + expectedText + ' ' + t('dashboard.banner_finished_check');
+        const baseText = fin.vanished ? t('dashboard.banner_finished_vanished') : t('dashboard.banner_finished_zero');
+        detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check');
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_no')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_restore', { qty: fin.expected_qty, unit: fin.unit })}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
@@ -5750,7 +5757,7 @@ function confirmBannerPrediction() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'prediction') return;
     setReviewConfirmed('pred_' + entry.data.inventory_id);
-    showToast('✅ Confermato — il sistema ricalcolerà le previsioni dalle prossime registrazioni', 'success');
+    showToast(t('dashboard.banner_prediction_confirmed'), 'success');
     dismissBannerItem();
 }
 
@@ -5792,7 +5799,7 @@ async function explainBannerAnomaly() {
             detailEl.innerHTML = `<span style="font-size:0.85rem">\ud83e\udd16 ${escapeHtml(result.explanation)}</span>`;
         } else {
             detailEl.innerHTML = originalHtml;
-            showToast('Impossibile ottenere spiegazione AI', 'error');
+            showToast(t('dashboard.banner_anomaly_explain_fail'), 'error');
         }
     } catch (e) {
         detailEl.innerHTML = originalHtml;
@@ -5813,7 +5820,7 @@ function dismissBannerAnomaly() {
     const key = entry.data.dismiss_key;
     setReviewConfirmed('an_' + key);
     api('dismiss_anomaly', {}, 'POST', { dismiss_key: key }).catch(() => {});
-    showToast('Anomalia ignorata', 'info');
+    showToast(t('dashboard.banner_anomaly_dismissed'), 'info');
     dismissBannerItem();
 }
 
@@ -5975,30 +5982,40 @@ async function confirmBannerFinished() {
     try {
         await api('inventory_confirm_finished', {}, 'POST', { product_id: productId });
     } catch(e) {}
-    setReviewConfirmed('fin_' + productId);
     showToast(t('toast.product_finished_confirmed'), 'success');
     dismissBannerItem();
+    if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 async function notFinishedBannerAction() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'finished') return;
-    const productId = entry.data.product_id;
-    // Remove from this session's queue (will re-appear next load if still at qty=0)
-    dismissBannerItem();
+    const fin = entry.data;
+    const qty = fin.expected_qty;
+    const customQty = prompt(
+        t('dashboard.banner_finished_restore_prompt', { name: fin.name, qty, unit: fin.unit }),
+        String(qty)
+    );
+    if (customQty === null) return;
+    const parsed = parseFloat(String(customQty).replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) {
+        showToast(t('error.invalid_quantity'), 'error');
+        return;
+    }
     showLoading(true);
     try {
-        const data = await api('product_get', { id: productId });
-        showLoading(false);
-        if (data.product) {
-            currentProduct = data.product;
-            showAddForm();
-        } else {
-            showToast(t('error.not_found'), 'error');
-        }
-    } catch(e) {
-        showLoading(false);
+        await api('inventory_restore_ghost', {}, 'POST', {
+            product_id: fin.product_id,
+            quantity: parsed,
+            location: fin.location || 'dispensa',
+        });
+        showToast(t('toast.ghost_restored', { name: fin.name, qty: parsed, unit: fin.unit }), 'success');
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+    } catch (e) {
         showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -6667,7 +6684,14 @@ function editInventoryItem(id) {
     const scaleEditReady = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
         (effectiveUnit === 'g' || effectiveUnit === 'ml');
     
-    window._editingProduct = { name: item.name, category: item.category || '', _isOpened: !!item.opened_at };
+    window._editingProduct = {
+        name: item.name,
+        category: item.category || '',
+        _isOpened: !!item.opened_at,
+        _prevUnit: item.unit || 'pz',
+        default_quantity: item.default_quantity,
+        package_unit: item.package_unit || '',
+    };
     
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
@@ -6740,6 +6764,23 @@ function onEditUnitChange() {
     const unit = document.getElementById('edit-unit').value;
     const confGroup = document.getElementById('edit-conf-size-group');
     if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
+    if (unit === 'conf') {
+        const sizeInput = document.getElementById('edit-conf-size');
+        const confUnitSel = document.getElementById('edit-conf-unit');
+        if (sizeInput && !parseFloat(sizeInput.value)) {
+            const ep = window._editingProduct || {};
+            const defQty = parseFloat(ep.default_quantity) || 0;
+            const pkgUnit = ep.package_unit || '';
+            const prevUnit = ep._prevUnit || '';
+            if (defQty > 0 && pkgUnit) {
+                sizeInput.value = defQty;
+                if (confUnitSel) confUnitSel.value = pkgUnit;
+            } else if (defQty > 0 && ['g', 'ml'].includes(prevUnit)) {
+                sizeInput.value = defQty;
+                if (confUnitSel) confUnitSel.value = prevUnit;
+            }
+        }
+    }
 }
 
 async function submitEditInventory(e, id, productId) {
@@ -6748,6 +6789,15 @@ async function submitEditInventory(e, id, productId) {
     const loc = document.getElementById('edit-loc').value;
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
+
+    if (unit === 'conf') {
+        const confSize = parseFloat(document.getElementById('edit-conf-size')?.value);
+        if (!confSize || confSize <= 0) {
+            showToast(t('product.conf_size_required'), 'error');
+            document.getElementById('edit-conf-size')?.focus();
+            return;
+        }
+    }
 
     // Safety guard: warn if quantity is unreasonably large to prevent unit-confusion errors
     // (e.g. user types "183" thinking it's ml, but the field expects conf units)
@@ -7533,7 +7583,7 @@ async function createQuickProduct(name) {
             };
             showLoading(false);
             clearQuickNameResults();
-            showToast('Prodotto creato!', 'success');
+            showToast(t('toast.product_created'), 'success');
 
             // If regex gave 'altro', try embedding in background and silently update
             if (category === 'altro' && typeof classifyCategoryByEmbedding === 'function') {
@@ -7725,15 +7775,20 @@ function onCategoryChange(fromAutoDetect = false) {
     
     if (catDefaults[cat]) {
         // Only auto-fill unit/qty if user hasn't manually touched them
-        if (qtyInput.dataset.manuallySet !== 'true') {
+        const unitManuallySet = unitSelect.dataset.manuallySet === 'true';
+        if (qtyInput.dataset.manuallySet !== 'true' && !unitManuallySet) {
             unitSelect.value = catDefaults[cat].unit;
+            qtyInput.value = catDefaults[cat].qty;
+        } else if (qtyInput.dataset.manuallySet !== 'true' && unitManuallySet) {
             qtyInput.value = catDefaults[cat].qty;
         }
     }
 }
 
 function onPfUnitChange() {
-    const unit = document.getElementById('pf-unit').value;
+    const unitEl = document.getElementById('pf-unit');
+    if (unitEl) unitEl.dataset.manuallySet = 'true';
+    const unit = unitEl?.value;
     const confRow = document.getElementById('pf-conf-size-row');
     if (confRow) confRow.style.display = unit === 'conf' ? 'block' : 'none';
 }
@@ -7830,7 +7885,7 @@ async function scanBarcodeForForm() {
                         document.getElementById('pf-barcode').value = code;
                         _updateBarcodeHint();
                         if (navigator.vibrate) navigator.vibrate(80);
-                        showToast(`🔖 Barcode acquisito: ${code}`, 'success');
+                        showToast(t('scan.barcode_acquired', { code }), 'success');
                         return;
                     }
                 }
@@ -7869,7 +7924,7 @@ async function submitProduct(e) {
         if (result.success) {
             currentProduct = { ...productData, id: result.id };
             showLoading(false);
-            showToast('Prodotto salvato!', 'success');
+            showToast(t('toast.product_saved'), 'success');
             showProductAction();
         } else {
             showLoading(false);
@@ -8409,7 +8464,7 @@ function showThrowForm() {
     api('inventory_list').then(data => {
         const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
         if (items.length === 0) {
-            showToast('Prodotto non nell\'inventario', 'error');
+            showToast(t('error.not_in_inventory'), 'error');
             return;
         }
         
@@ -8812,7 +8867,7 @@ function recalculateAddExpiry() {
     const newLabel = formatEstimatedExpiry(days);
     
     let suffix = '';
-    if (window._historyExpiryDays) suffix = ' (da storico)';
+    if (window._historyExpiryDays) suffix = t('product.from_history');
     else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
     else if (loc === 'freezer') suffix = ' (freezer)';
     else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
@@ -8840,7 +8895,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
             const newDate = addDays(days);
             const newLabel = formatEstimatedExpiry(days);
-            const suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', data.count)}">📊 storico</span>`;
+            const suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', data.count)}">${t('product.history_badge')}</span>`;
             const expiryInput = document.getElementById('add-expiry');
             const estimateEl = document.querySelector('.expiry-estimate-label');
             const dateEl = document.querySelector('.expiry-estimate-date');
@@ -8917,7 +8972,7 @@ async function _applyAIProductHint() {
         // Show a toast only if location changed
         if (locChanged) {
             const locLabels = { dispensa: t('location.dispensa') || 'Dispensa', frigo: t('location.frigo') || 'Frigo', freezer: t('location.freezer') || 'Freezer' };
-            showToast(`🤖 AI: conserva in ${locLabels[data.location] || data.location}`, 'info', 4000);
+            showToast(t('ai.conservation_hint', { location: locLabels[data.location] || data.location }), 'info', 4000);
         }
     } catch (e) {
         document.getElementById('ai-hint-loading')?.remove();
@@ -9041,7 +9096,7 @@ function selectPurchaseType(btn, type) {
         const estimatedDate = addDays(days);
         const estimateLabel = formatEstimatedExpiry(days);
         let suffix = '';
-        if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', window._historyExpiryCount)}">📊 storico</span>`;
+        if (window._historyExpiryDays) suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', window._historyExpiryCount)}">${t('product.history_badge')}</span>`;
         else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
         else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
         else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
@@ -9070,7 +9125,7 @@ function selectPurchaseType(btn, type) {
                     <input type="date" id="add-expiry" class="form-input" value="">
                     <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
                 </div>
-                <p class="form-hint">${t('add.expiry_hint')}</p>
+                <p class="form-hint">${t('product.expiry_hint')}</p>
             </div>
             <div class="form-group">
                 <label>${t('add.remaining_label')}</label>
@@ -9168,7 +9223,7 @@ async function submitAdd(e) {
             const confSize = parseFloat(document.getElementById('add-conf-size')?.value);
             if (!confSize || confSize <= 0) {
                 showLoading(false);
-                showToast('Specifica il contenuto di ogni confezione', 'error');
+                showToast(t('product.conf_size_required'), 'error');
                 document.getElementById('add-conf-size')?.focus();
                 return;
             }
@@ -9326,7 +9381,7 @@ function _updateUseHeroMeta(items) {
         const unit = items[0]?.unit;
         const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
         const locCount = new Set(items.map(i => i.location)).size;
-        const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short') || 'posti'}` : '';
+        const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short')}` : '';
         pills.push(`<span class="use-meta-pill use-pill-qty">📦 ${escapeHtml(qtyStr)}${locSuffix}</span>`);
     }
 
@@ -9408,11 +9463,16 @@ function _renderUseExpiryHint(items) {
 }
 
 function _isOpenedInventoryItem(item) {
+    if (item.opened_at) return true;
     const q = parseFloat(item.quantity);
     const dq = parseFloat(item.default_quantity) || 0;
     if (item.unit === 'conf' && dq > 0) return q !== Math.floor(q);
     if (dq > 0) return Math.abs(q - Math.round(q / dq) * dq) > dq * 0.02;
     return false;
+}
+
+function _useAllTotalQty(items) {
+    return items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
 }
 
 function _locationHasOpenedPackage(items, location) {
@@ -9513,10 +9573,10 @@ async function loadUseInventoryInfo() {
             unitSwitch.style.display = 'flex';
             document.getElementById('use-unit-sub').textContent = subLabel;
 
-            // If scale is active, start in sub-unit (g/ml) mode — scale always reads weight.
-            // Otherwise default to conf so the user thinks in packages.
+            // If scale is active, prefer grams for weighing — unless user explicitly chose conf.
             const _scaleActiveNow = getSettings().scale_enabled && getSettings().scale_gateway_url && _scaleConnected;
-            switchUseUnit(_scaleActiveNow ? 'sub' : 'conf');
+            const _pref = _useConfMode._userPref;
+            switchUseUnit(_pref === 'conf' ? 'conf' : (_scaleActiveNow ? 'sub' : 'conf'));
 
             // Fraction shortcut buttons for conf mode (½, 1, 2 packages)
             const existingConfFrac = document.getElementById('conf-fraction-btns');
@@ -9585,6 +9645,8 @@ function switchUseUnit(mode) {
     const confBtn = document.getElementById('use-unit-conf');
     const qtyInput = document.getElementById('use-quantity');
     const hint = document.getElementById('use-partial-hint');
+
+    if (_useConfMode) _useConfMode._userPref = mode;
 
     // Show/hide fraction buttons depending on mode
     const confFracBtns = document.getElementById('conf-fraction-btns');
@@ -9921,7 +9983,7 @@ function showLowStockBringPrompt(result, afterCallback) {
                     if (shoppingListUUID) payload.listUUID = shoppingListUUID;
                     const data = await api('shopping_add', {}, 'POST', payload);
                     if (data.success && data.added > 0) {
-                        showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info');
+                        showToast(t('toast.finished_to_bring'), 'info');
                     }
                 } catch(_e) { /* silent */ }
             })();
@@ -10174,7 +10236,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
                     product_id: productId,
                     vacuum_sealed: newVacuum,
                 });
-                showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+                showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
             }
         }
     } catch (e) {
@@ -10187,11 +10249,16 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
 async function submitUseAll() {
     const name = currentProduct ? currentProduct.name : '';
     const items0 = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
+    if (items0.length === 0) return;
 
-    // If there are opened packages, show the disambiguation FIRST (before the destructive confirm)
+    const unit = items0[0]?.unit || 'pz';
+    const totalQty = _useAllTotalQty(items0);
+    const isConfMulti = unit === 'conf' && totalQty > 1.001;
+
+    // Opened packages and/or conf disambiguation (one conf vs all)
     const allOpened = items0.filter(_isOpenedInventoryItem);
-    if (allOpened.length >= 1) {
-        _showUseAllDisambiguation(allOpened, items0);
+    if (allOpened.length >= 1 || isConfMulti) {
+        _showUseAllDisambiguation(allOpened, items0, { showOneConf: isConfMulti });
         return;
     }
 
@@ -10202,8 +10269,6 @@ async function submitUseAll() {
     }
 
     // Multiple rows, no opened packages → standard destructive confirm
-    const totalQty = items0.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
-    const unit = items0[0]?.unit || 'pz';
     const qtyStr = stripHtml(formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit));
     _showDestructiveConfirm(
         t('use.use_all_confirm_title') || '✅ Finisci tutto',
@@ -10224,7 +10289,7 @@ async function _doSubmitUseAll() {
         });
         showLoading(false);
         if (result.success) {
-            showToast(`📤 ${currentProduct.name} terminato!`, 'success');
+            showToast(t('toast.finished_all', { name: currentProduct.name }), 'success');
             if (result.added_to_bring) {
                 setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
             }
@@ -10239,12 +10304,16 @@ async function _doSubmitUseAll() {
 }
 
 /**
- * Show a modal asking which opened package to mark as finished.
- * Called when multiple opened packages exist across different locations.
+ * Ask whether the user finished one package or everything.
+ * Shown for opened packages and/or conf products with qty > 1.
  */
-function _showUseAllDisambiguation(openedItems, allItems) {
+function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
+    const { showOneConf = false } = options;
     const contentEl = document.getElementById('modal-content');
-    const name = currentProduct ? currentProduct.name : '';
+    const preferLoc = document.getElementById('use-location')?.value
+        || openedItems[0]?.location
+        || allItems[0]?.location
+        || 'dispensa';
 
     const locButtons = openedItems.map(item => {
         const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
@@ -10257,10 +10326,17 @@ function _showUseAllDisambiguation(openedItems, allItems) {
         </button>`;
     }).join('');
 
-    // Option to finish everything
-    const totalQty = allItems.reduce((s, i) => s + parseFloat(i.quantity), 0);
+    const totalQty = _useAllTotalQty(allItems);
     const unit = allItems[0]?.unit || 'pz';
     const totalStr = stripHtml(formatQuantity(totalQty, unit, allItems[0]?.default_quantity, allItems[0]?.package_unit));
+    const oneStr = stripHtml(formatQuantity(1, unit, allItems[0]?.default_quantity, allItems[0]?.package_unit));
+
+    const oneConfBtn = showOneConf ? `
+        <button class="btn btn-primary full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
+            onclick="closeModal(); _submitUseOneConf('${preferLoc}')">
+            <span style="font-size:1.3rem">📦</span>
+            <span>${t('use.disambiguation_one_conf').replace('{qty}', escapeHtml(oneStr))}</span>
+        </button>` : '';
 
     contentEl.innerHTML = `
         <div class="modal-header">
@@ -10269,12 +10345,43 @@ function _showUseAllDisambiguation(openedItems, allItems) {
         </div>
         <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${t('use.disambiguation_hint')}</p>
         ${locButtons}
+        ${oneConfBtn}
         <button class="btn btn-danger full-width" style="margin-top:4px"
             onclick="closeModal(); _confirmThenSubmitUseAllAt('__all__', false)">
             🗑️ ${t('use.disambiguation_all').replace('{qty}', escapeHtml(totalStr))}
         </button>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function _submitUseOneConf(location) {
+    showLoading(true);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: currentProduct.id,
+            quantity: 1,
+            location,
+            use_all: false,
+        });
+        showLoading(false);
+        if (result.success) {
+            showToast(t('use.toast_one_conf_finished').replace('{name}', currentProduct.name), 'success');
+            if (result.added_to_bring) {
+                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            }
+            _recordUseLocationChoice(currentProduct.id, location);
+            const _vacUnit = result.product_unit || currentProduct?.unit || '';
+            const moveCallback = result.remaining > 0
+                ? () => showMoveAfterUseModal(currentProduct, location, result.remaining, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
+                : () => showPage('dashboard');
+            showLowStockBringPrompt(result, moveCallback);
+        } else if (!result.duplicate) {
+            showToast(result.error || t('error.generic'), 'error');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 function _confirmThenSubmitUseAllAt(location, isOpenedOnly) {
@@ -10371,7 +10478,7 @@ async function submitUse(e) {
             const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
             showToast(t('use.toast_used').replace('{qty}', usedText).replace('{name}', currentProduct.name), 'success');
             if (result.added_to_bring) {
-                setTimeout(() => showToast('🛒 Prodotto finito → aggiunto a Bring!', 'info'), 1500);
+                setTimeout(() => showToast(t('toast.finished_to_bring'), 'info'), 1500);
             }
             // If there's remaining quantity, offer to move to another location
             const usedFrom = document.getElementById('use-location').value;
@@ -10424,7 +10531,7 @@ async function initAICamera() {
         await video.play();
     } catch (err) {
         console.error('AI Camera error:', err);
-        showToast('Impossibile accedere alla fotocamera', 'error');
+        showToast(t('error.camera'), 'error');
     }
 }
 
@@ -10690,7 +10797,7 @@ async function saveAIProductDirect() {
         if (result.success || result.id) {
             currentProduct = { id: result.id, name: id.name, brand: id.brand || '', category: id.category || '', unit: 'pz', default_quantity: 1 };
             showLoading(false);
-            showToast('Prodotto salvato!', 'success');
+            showToast(t('toast.product_saved'), 'success');
             showProductAction();
         } else {
             showLoading(false);
@@ -10875,7 +10982,7 @@ function _pfAiFillFields(name, brand, category, barcode, imageUrl, quantityInfo)
     // Trigger auto-detect for remaining empty fields
     if (name && !category) autoDetectCategory();
     closePfAiScanner();
-    showToast('✅ Campi compilati dall\'AI', 'success');
+    showToast(t('ai.fields_filled'), 'success');
 }
 
 function _pfAiFillFromAI() {
@@ -11211,6 +11318,7 @@ async function forceSyncBring() {
     logOperation('force_sync_bring', {});
     // Reload everything from scratch
     await loadShoppingList();
+    await syncShoppingPriceTotal(true);
     if (btn) { btn.disabled = false; btn.textContent = `🔄 ${t('shopping.force_sync')}`; }
     showToast(`🔄 ${t('shopping.sync_done')}`, 'success');
 }
@@ -11220,10 +11328,115 @@ async function forceSyncBring() {
 // ─────────────────────────────────────────────────────────────────
 let _pricesFetching = false;
 /** In-memory price cache: survives list re-renders in the same session */
-// Price cache — populated by fetchAllPrices() from the server response.
-// Intentionally NOT pre-loaded from sessionStorage: the server is the single
-// source of truth so every client (phone, tablet, browser) sees the same prices.
 let _cachedPrices = {};
+/** Canonical shopping total — same figure on dashboard, Spesa page and screensaver */
+let _canonicalShoppingTotal = null;
+let _priceTotalFetchPromise = null;
+
+function _formatShoppingTotalLabel(total, currency) {
+    const sym = _currencySymbol(currency || getSettings().price_currency || 'EUR');
+    return `ca. ${sym}${Number(total).toFixed(2)}`;
+}
+
+function _setCanonicalShoppingTotal(total, currency, meta = {}) {
+    if (total == null || isNaN(Number(total))) return;
+    const cur = currency || getSettings().price_currency || 'EUR';
+    const label = dataTotalLabelOrFormat(meta.totalLabel, total, cur);
+    _canonicalShoppingTotal = {
+        total: Number(total),
+        label,
+        currency: cur,
+        ts: Date.now(),
+        itemCount: meta.itemCount ?? shoppingItems.length,
+        pricedCount: meta.pricedCount ?? 0,
+    };
+    try {
+        sessionStorage.setItem('_pricetotal', label);
+        sessionStorage.setItem('_pricetotal_ts', String(_canonicalShoppingTotal.ts));
+        sessionStorage.setItem('_pricetotal_items', String(_canonicalShoppingTotal.itemCount));
+    } catch { /* quota */ }
+    _applyShoppingTotalDisplay();
+}
+
+function dataTotalLabelOrFormat(totalLabel, total, currency) {
+    if (totalLabel && typeof totalLabel === 'string') {
+        return totalLabel.startsWith('ca.') ? totalLabel : `ca. ${totalLabel}`;
+    }
+    return _formatShoppingTotalLabel(total, currency);
+}
+
+function _loadCanonicalTotalFromSession() {
+    if (_canonicalShoppingTotal) return;
+    try {
+        const label = sessionStorage.getItem('_pricetotal');
+        const ts = parseInt(sessionStorage.getItem('_pricetotal_ts') || '0', 10);
+        if (!label || !ts) return;
+        const num = parseFloat(label.replace(/[^\d.,]/g, '').replace(',', '.'));
+        _canonicalShoppingTotal = {
+            total: isNaN(num) ? 0 : num,
+            label,
+            ts,
+            itemCount: parseInt(sessionStorage.getItem('_pricetotal_items') || '0', 10),
+            currency: getSettings().price_currency || 'EUR',
+            pricedCount: 0,
+        };
+    } catch { /* ignore */ }
+}
+
+/** Push canonical total to dashboard, shopping bar and screensaver. */
+function _applyShoppingTotalDisplay() {
+    const s = getSettings();
+    const dash = document.getElementById('stat-price-total');
+    const shop = document.getElementById('price-total-value');
+    if (!s.price_enabled || !_canonicalShoppingTotal) {
+        if (dash) dash.style.display = 'none';
+        return;
+    }
+    const { label } = _canonicalShoppingTotal;
+    if (dash) { dash.textContent = label; dash.style.display = ''; }
+    if (shop) shop.textContent = label;
+    if (_screensaverActive) updateScreensaverShopping();
+}
+
+function _clearCanonicalShoppingTotal() {
+    _canonicalShoppingTotal = null;
+    try {
+        sessionStorage.removeItem('_pricetotal');
+        sessionStorage.removeItem('_pricetotal_ts');
+        sessionStorage.removeItem('_pricetotal_items');
+    } catch { /* quota */ }
+    const dash = document.getElementById('stat-price-total');
+    if (dash) dash.style.display = 'none';
+    const shop = document.getElementById('price-total-value');
+    if (shop) shop.textContent = '–';
+    if (_screensaverActive) updateScreensaverShopping();
+}
+
+/**
+ * Fetch server-side shopping total and refresh every UI surface.
+ * Ensures shoppingItems is loaded first when needed.
+ */
+async function syncShoppingPriceTotal(forceRefresh = false) {
+    const s = getSettings();
+    if (!s.price_enabled || !_geminiAvailable) return;
+    if (_priceTotalFetchPromise && !forceRefresh) return _priceTotalFetchPromise;
+
+    _priceTotalFetchPromise = (async () => {
+        if (!shoppingItems.length) {
+            try {
+                const data = await api('shopping_list');
+                if (data.success) shoppingItems = data.purchase || [];
+            } catch { /* offline */ }
+        }
+        if (!shoppingItems.length) {
+            _clearCanonicalShoppingTotal();
+            return;
+        }
+        await fetchAllPrices(forceRefresh);
+    })().finally(() => { _priceTotalFetchPromise = null; });
+
+    return _priceTotalFetchPromise;
+}
 
 /**
  * Build the items payload for the price API from the current shoppingItems array.
@@ -11359,6 +11572,7 @@ async function fetchAllPrices(forceRefresh = false) {
     if (!shoppingItems.length) {
         if (fetchBtn) fetchBtn.disabled = false;
         if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄'; }
+        _clearCanonicalShoppingTotal();
         return;
     }
 
@@ -11429,16 +11643,24 @@ async function fetchAllPrices(forceRefresh = false) {
                 }
             });
 
-            // Server is the source of truth for the total
+            // Server is the single source of truth for the total (all UI surfaces)
             serverTotal = data.total ?? null;
-            if (serverTotal != null && totalEl) {
-                totalEl.textContent = `ca. ${sym}${Number(serverTotal).toFixed(2)}`;
+            const pricedCount = Object.values(prices).filter(e => e && !e.error && e.price_per_unit != null).length;
+            if (serverTotal != null) {
+                _setCanonicalShoppingTotal(serverTotal, currency, {
+                    totalLabel: data.total_label,
+                    itemCount: shoppingItems.length,
+                    pricedCount,
+                });
             }
         }
     } catch (_err) {
-        // On network error fall back to whatever we have in cache
-        const { total: ct, count: cc } = _applyPriceBadgesFromCache();
-        if (cc > 0 && totalEl) totalEl.textContent = `ca. ${sym}${ct.toFixed(2)}`;
+        if (_canonicalShoppingTotal && totalEl) {
+            totalEl.textContent = _canonicalShoppingTotal.label;
+        } else {
+            const { total: ct, count: cc } = _applyPriceBadgesFromCache();
+            if (cc > 0 && totalEl) totalEl.textContent = `ca. ${sym}${ct.toFixed(2)}`;
+        }
     } finally {
         _pricesFetching = false;
         try {
@@ -11448,24 +11670,8 @@ async function fetchAllPrices(forceRefresh = false) {
         if (loadingBar) { if (loadingInner) loadingInner.style.width = '100%'; setTimeout(() => { loadingBar.style.display = 'none'; }, 300); }
         if (fetchBtn) fetchBtn.disabled = false;
         if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄'; }
-        _updateDashboardPriceTotal();
+        _applyShoppingTotalDisplay();
     }
-}
-
-/**
-    const btn = document.getElementById('btn-force-sync');
-    if (btn) { btn.disabled = true; btn.textContent = `⏳ ${t('shopping.syncing')}`; }
-    // Clear auto-add/cleanup guards so the next run is unconditional.
-    // Do NOT clear _userPinnedBring — items the user manually added must stay protected.
-    _bringBlocklistCache = {}; _saveToServer('bring_blocklist', {});
-    localStorage.removeItem('_autoAddedCriticalTs');
-    localStorage.removeItem('_bringCleanupTs');
-    _autoAddedBringCache = {}; _saveToServer('auto_added_bring', {});
-    logOperation('force_sync_bring', {});
-    // Reload everything from scratch
-    await loadShoppingList();
-    if (btn) { btn.disabled = false; btn.textContent = `🔄 ${t('shopping.force_sync')}`; }
-    showToast(`🔄 ${t('shopping.sync_done')}`, 'success');
 }
 
 /**
@@ -11687,28 +11893,8 @@ function _updateSmartUrgencyBadge() {
 }
 
 function _updateDashboardPriceTotal() {
-    const el = document.getElementById('stat-price-total');
-    if (!el) return;
-    const s = getSettings();
-    if (!s.price_enabled) { el.style.display = 'none'; return; }
-
-    // Compute total only from prices just received from the server (in _cachedPrices).
-    // No sessionStorage fallback — the server is the single source of truth.
-    const sym = _currencySymbol(s.price_currency || 'EUR');
-    let total = 0, count = 0;
-    for (const item of shoppingItems) {
-        const e = _cachedPrices[item.name];
-        if (e && e.estimated_total != null) { total += e.estimated_total; count++; }
-    }
-    if (count > 0) {
-        const text = `ca. ${sym}${total.toFixed(2)}`;
-        el.textContent = text;
-        el.style.display = '';
-        // Persist only so the screensaver can show it (ephemeral — never used as cache)
-        try { sessionStorage.setItem('_pricetotal', text); } catch { /* quota */ }
-    } else {
-        el.style.display = 'none';
-    }
+    _loadCanonicalTotalFromSession();
+    _applyShoppingTotalDisplay();
 }
 
 /**
@@ -11955,7 +12141,7 @@ async function migrateBringNames(btn) {
             const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} errori` : '');
             if (statusEl) statusEl.textContent = msg;
             if (data.migrated > 0) {
-                showToast(`🔄 ${data.migrated} nomi generalizzati in Bring!`, 'success');
+                showToast(t('shopping.bring_names_migrated', { n: data.migrated }), 'success');
                 loadShoppingList(); // refresh the shopping list view
             } else {
                 showToast(t('shopping.names_already_updated'), 'info');
@@ -12059,7 +12245,7 @@ async function loadShoppingCount() {
             _updateSmartUrgencyBadge();
         }
     } catch { /* ignore */ }
-    _updateDashboardPriceTotal();
+    syncShoppingPriceTotal(false);
 }
 
 /**
@@ -12196,8 +12382,10 @@ async function loadShoppingList() {
                     }
                     _syncTagsFromBringSpec();
                     renderShoppingItems();
+                    syncShoppingPriceTotal(false);
+                } else {
+                    loadShoppingCount();
                 }
-                loadShoppingCount();
             }
         } catch(_e) {}
         return;
@@ -12899,7 +13087,7 @@ const LOG_PAGE_SIZE = 50;
 async function loadLog(more = false) {
     if (!more) {
         _logOffset = 0;
-        document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--text-muted)">' + t('loading') + '</p>';
+        document.getElementById('log-list').innerHTML = '<p style="text-align:center;color:var(--text-muted)">' + t('app.loading') + '</p>';
     }
 
     try {
@@ -13422,14 +13610,19 @@ async function loadRecipeArchive() {
 }
 
 function viewArchivedRecipe(idx) {
-    const entry = _recipeArchiveEntries[idx];
-    if (!entry) return;
-    _cachedRecipe = { meal: _normalizeMealId(entry.meal), recipe: entry.recipe, id: entry.id, is_favorite: !!entry.is_favorite };
-    renderRecipe(entry.recipe);
-    document.getElementById('recipe-overlay').style.display = 'flex';
-    document.getElementById('recipe-ask').style.display = 'none';
-    document.getElementById('recipe-loading').style.display = 'none';
-    document.getElementById('recipe-result').style.display = '';
+    const pick = _recipeArchiveEntries[idx];
+    if (!pick) return;
+    _recipeArchiveCache = null;
+    getRecipeArchive().then(archive => {
+        const entry = archive.find(e => e.id === pick.id) || pick;
+        _cachedRecipe = { meal: _normalizeMealId(entry.meal), recipe: entry.recipe, id: entry.id, is_favorite: !!entry.is_favorite };
+        return renderRecipe(entry.recipe);
+    }).then(() => {
+        document.getElementById('recipe-overlay').style.display = 'flex';
+        document.getElementById('recipe-ask').style.display = 'none';
+        document.getElementById('recipe-loading').style.display = 'none';
+        document.getElementById('recipe-result').style.display = '';
+    });
 }
 
 let _cachedRecipe = null;
@@ -13506,6 +13699,195 @@ function adjustRecipePersons(delta) {
 let _recipeUseContext = null; // { idx, productId, btn, qtyNumber, items }
 let _recipeUseConfMode = null;
 let _recipeUseNormalUnit = 'pz';
+
+function _parseRecipeQtyString(qtyStr) {
+    const m = (qtyStr || '').match(/(\d+(?:[.,]\d+)?)\s*(g|gr|gramm|kg|ml|l|litri|cl|pz|pezz|conf)/i);
+    if (!m) return { val: 0, unit: '' };
+    let val = parseFloat(m[1].replace(',', '.'));
+    const ru = m[2].toLowerCase();
+    let unit = '';
+    if (ru.startsWith('g')) unit = 'g';
+    else if (ru === 'kg') { unit = 'g'; val *= 1000; }
+    else if (ru === 'ml') unit = 'ml';
+    else if (ru === 'cl') { unit = 'ml'; val *= 10; }
+    else if (ru === 'l' || ru.startsWith('litr')) { unit = 'ml'; val *= 1000; }
+    else if (ru.startsWith('pz') || ru.startsWith('pezz')) unit = 'pz';
+    else if (ru.startsWith('conf')) unit = 'conf';
+    return { val, unit };
+}
+
+function _normalizeRecipeIngQtyNumber(ing) {
+    const parsed = _parseRecipeQtyString(ing.qty || '');
+    const recipeVal = parsed.val;
+    const recipeUnit = parsed.unit;
+    const unit = ing.inventory_unit || 'pz';
+    const pkgSize = parseFloat(ing.default_quantity) || 0;
+    const pkgUnit = (ing.package_unit || '').toLowerCase();
+    const isConfSub = unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml');
+    let useQty = parseFloat(ing.qty_number) || 0;
+
+    if (isConfSub && recipeVal > 0 && recipeUnit === pkgUnit) {
+        useQty = recipeVal;
+        ing.qty_number = Math.round(useQty * 1000) / 1000;
+        ing.qty = Math.round(useQty) + ' ' + pkgUnit;
+    } else if (isConfSub && useQty > 0 && useQty <= (parseFloat(ing.inventory_qty_total ?? ing.inventory_qty) || 0)) {
+        // Legacy: qty_number stored as conf count — convert to sub-units only if not matching recipe string
+        if (!(recipeVal > 0 && recipeUnit === pkgUnit)) {
+            useQty = Math.round(useQty * pkgSize);
+            ing.qty_number = useQty;
+            ing.qty = useQty + ' ' + pkgUnit;
+        }
+    }
+    return useQty;
+}
+
+function _recipeGetClosedProductBaseQty(ing) {
+    const unit = ing.inventory_unit || 'pz';
+    const pkgSize = parseFloat(ing.default_quantity) || 0;
+    const pkgUnit = (ing.package_unit || '').toLowerCase();
+    if (unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml')) {
+        return pkgSize;
+    }
+    if (unit === 'conf' && pkgSize > 0) {
+        return pkgSize;
+    }
+    if (pkgSize > 0 && (unit === 'g' || unit === 'ml' || unit === 'pz')) {
+        return pkgSize;
+    }
+    if (unit === 'conf') {
+        return 1;
+    }
+    return 0;
+}
+
+function _recipeShouldUseAllRemainder(remainDisp, ing, stockDisp = 0) {
+    if (remainDisp <= 0) return false;
+    const packageBase = _recipeGetClosedProductBaseQty(ing);
+    if (packageBase <= 0) return false;
+    const pct = remainDisp / packageBase;
+    if (pct < 0.05) return true;
+    if (stockDisp > 0 && stockDisp < packageBase && pct < 0.10) return true;
+    return false;
+}
+
+function _computeRecipeIngStockHint(ing, totalStockQty) {
+    _normalizeRecipeIngQtyNumber(ing);
+    const unit = ing.inventory_unit || 'pz';
+    const pkgSize = parseFloat(ing.default_quantity) || 0;
+    const pkgUnit = (ing.package_unit || '').toLowerCase();
+    const isConfSub = unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml');
+    let useQty = parseFloat(ing.qty_number) || 0;
+    let stockDisp, useDisp, dispUnit;
+
+    if (isConfSub) {
+        stockDisp = totalStockQty * pkgSize;
+        useDisp = useQty;
+        dispUnit = pkgUnit;
+    } else {
+        stockDisp = totalStockQty;
+        useDisp = useQty;
+        dispUnit = unit;
+    }
+
+    let remainDisp = Math.max(0, stockDisp - useDisp);
+    let useAll = false;
+    if (stockDisp > 0 && useDisp > 0 && _recipeShouldUseAllRemainder(remainDisp, ing, stockDisp)) {
+        useAll = true;
+        useDisp = stockDisp;
+        remainDisp = 0;
+        ing.use_all_suggested = true;
+        if (isConfSub) {
+            ing.qty_number = Math.round(useDisp * 10) / 10;
+            ing.qty = Math.round(useDisp) + ' ' + pkgUnit;
+        } else {
+            ing.qty_number = Math.round(totalStockQty * 1000) / 1000;
+            ing.qty = (unit === 'pz' ? (Math.round(totalStockQty * 100) / 100) : Math.round(totalStockQty)) + ' ' + (unit === 'pz' ? t('units.pz') : unit);
+        }
+    } else {
+        delete ing.use_all_suggested;
+    }
+
+    ing.stock_have = Math.round(stockDisp * 100) / 100;
+    ing.stock_remain = Math.round(remainDisp * 100) / 100;
+    ing.stock_unit = dispUnit;
+    ing.package_base = _recipeGetClosedProductBaseQty(ing);
+    return { stockDisp, remainDisp, dispUnit, useAll };
+}
+
+function _formatRecipeStockQty(n, dispUnit, ing) {
+    if (dispUnit === 'g' || dispUnit === 'ml') {
+        const rounded = n < 10 ? Math.round(n * 10) / 10 : Math.round(n);
+        return rounded + ' ' + dispUnit;
+    }
+    return stripHtml(formatQuantity(n, ing.inventory_unit || 'pz', ing.default_quantity, ing.package_unit));
+}
+
+function _recipeIngStockHintHtml(ing) {
+    if (!ing.from_pantry || ing.stock_have == null) return '';
+    const have = _formatRecipeStockQty(ing.stock_have, ing.stock_unit || ing.inventory_unit, ing);
+    const remain = _formatRecipeStockQty(ing.stock_remain, ing.stock_unit || ing.inventory_unit, ing);
+    let line = t('recipes.ing_stock_line').replace('{have}', have).replace('{remain}', remain);
+    if (ing.use_all_suggested) line += ' · ' + t('recipes.ing_use_all_note');
+    return line;
+}
+
+async function enrichRecipeIngredientsStock(recipe) {
+    if (!recipe || !recipe.ingredients) return recipe;
+    try {
+        const data = await api('inventory_list');
+        const inv = data.inventory || [];
+        for (const ing of recipe.ingredients) {
+            if (!ing.from_pantry || !ing.product_id) continue;
+            const rows = inv.filter(i => i.product_id == ing.product_id);
+            const activeRows = rows.filter(i => parseFloat(i.quantity) > 0);
+            if (!activeRows.length) continue;
+            const totalStock = activeRows.reduce((s, i) => s + parseFloat(i.quantity), 0);
+            ing.inventory_qty_total = totalStock;
+            const opened = activeRows.find(_isOpenedInventoryItem);
+            const pick = opened || activeRows.find(r => r.location === ing.location) || activeRows[0];
+            if (pick) {
+                ing.inventory_unit = pick.unit;
+                ing.default_quantity = pick.default_quantity;
+                ing.package_unit = pick.package_unit;
+            }
+            _computeRecipeIngStockHint(ing, totalStock);
+        }
+    } catch (e) {
+        console.warn('enrichRecipeIngredientsStock:', e);
+    }
+    return recipe;
+}
+
+function _updateRecipeStockHintsAfterScale(ratio) {
+    const ings = _cachedRecipe?.recipe?.ingredients || [];
+    document.querySelectorAll('#recipe-content .recipe-ingredient[data-ing-idx]').forEach(li => {
+        const idx = parseInt(li.dataset.ingIdx, 10);
+        const ing = ings[idx];
+        if (!ing || ing.stock_have == null) return;
+        const baseUse = parseFloat(li.dataset.baseQty || '0');
+        if (baseUse <= 0) return;
+        const unit = ing.inventory_unit || 'pz';
+        const pkgSize = parseFloat(ing.default_quantity) || 0;
+        const pkgUnit = (ing.package_unit || '').toLowerCase();
+        const isConfSub = unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml');
+        const stockDisp = ing.stock_have;
+        let useDisp = baseUse * ratio;
+        let remainDisp = Math.max(0, stockDisp - useDisp);
+        let useAll = false;
+        if (stockDisp > 0 && useDisp > 0 && _recipeShouldUseAllRemainder(remainDisp, ing, stockDisp)) {
+            useAll = true;
+            useDisp = stockDisp;
+            remainDisp = 0;
+        }
+        const stockEl = li.querySelector('.recipe-ing-stock');
+        if (!stockEl) return;
+        const have = _formatRecipeStockQty(stockDisp, ing.stock_unit || unit, ing);
+        const remain = _formatRecipeStockQty(remainDisp, ing.stock_unit || unit, ing);
+        let line = t('recipes.ing_stock_line').replace('{have}', have).replace('{remain}', remain);
+        if (useAll) line += ' · ' + t('recipes.ing_use_all_note');
+        stockEl.textContent = line;
+    });
+}
 
 async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, recipeQty) {
     if (btn.disabled) return;
@@ -13870,7 +14252,7 @@ async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacu
                 });
             }
         }
-        showToast(`📦 Spostato in ${LOCATIONS[toLoc]?.label || toLoc}`, 'success');
+        showToast(t('move.moved_simple', { location: LOCATIONS[toLoc]?.label || toLoc }), 'success');
     } catch (e) {
         console.error('Recipe move error:', e);
     }
@@ -13953,9 +14335,11 @@ function scaleRecipePersons(delta) {
             qtySpan.textContent = unitSuffix ? `${rounded} ${unitSuffix}` : String(rounded);
         }
     });
+    _updateRecipeStockHintsAfterScale(ratio);
 }
 
-function renderRecipe(r) {
+async function renderRecipe(r) {
+    await enrichRecipeIngredientsStock(r);
     // Reset regen choice panel (hide choice, show button)
     const regenChoice = document.getElementById('recipe-regen-choice');
     const regenBtn = document.getElementById('recipe-regen-btn');
@@ -14007,8 +14391,8 @@ function renderRecipe(r) {
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
             const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
             const alreadyUsed = ing.used === true;
-            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
-            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${escapeHtml(t('action.edit') || 'Modifica')}">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span> ✅`;
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${escapeHtml(t('btn.edit'))}">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -14023,6 +14407,8 @@ function renderRecipe(r) {
                 else details.push('📅 ' + exp.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT'));
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
+            const stockLine = _recipeIngStockHintHtml(ing);
+            if (stockLine) html += `<br><small class="recipe-ing-stock">${escapeHtml(stockLine)}</small>`;
             html += `</span>`;
             if (alreadyUsed) {
                 html += `<button class="btn-use-ingredient btn-used" disabled>${t('cooking.ingredient_used')}</button>`;
@@ -15796,7 +16182,7 @@ async function generateRecipe() {
         }
 
         if (recipe) {
-            renderRecipe(recipe);
+            await renderRecipe(recipe);
             if (recipe.title) _generatedTodayTitles.push(recipe.title);
             await saveRecipeToArchive(recipe);
             _cachedRecipe = { meal, recipe };
@@ -15898,7 +16284,7 @@ async function chatTransferToRecipes(btn, replyText) {
         if (!recipe.persons) recipe.persons = 2;
         await saveRecipeToArchive(recipe);
         _cachedRecipe = { meal: recipe.meal || '', recipe };
-        renderRecipe(recipe);
+        await renderRecipe(recipe);
         // Transform the transfer button into "Apri la ricetta"
         btn.disabled = false;
         btn.textContent = '📖 ' + (t('chat.open_recipe') || 'Apri la ricetta');
@@ -15951,7 +16337,7 @@ async function generateRecipeForIngredient(ingredientName) {
         if (!recipe.persons) recipe.persons = 2;
         await saveRecipeToArchive(recipe);
         _cachedRecipe = { meal: recipe.meal || '', recipe };
-        renderRecipe(recipe);
+        await renderRecipe(recipe);
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-result').style.display = '';
     } catch (err) {
@@ -16230,7 +16616,7 @@ function _handleOfflineApi(action, params, body) {
 
     // ─── Writes: queue and apply optimistic update to cache ──────────────────
     const QUEUEABLE = ['inventory_update', 'inventory_use', 'inventory_delete',
-                       'inventory_add', 'inventory_confirm_finished'];
+                       'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost'];
     if (QUEUEABLE.includes(action)) {
         _offlineQueuePush(action, body);
         _applyOptimisticUpdate(action, body);
@@ -16495,6 +16881,7 @@ function activateScreensaver() {
     updateScreensaverClock();
     _screensaverClockInterval = setInterval(updateScreensaverClock, 1000);
     updateScreensaverShopping();
+    syncShoppingPriceTotal(false);
     // Load data and start fact/nutrition rotation
     loadScreensaverData().then(() => {
         _startScreensaverRotation();
@@ -16526,12 +16913,13 @@ function updateScreensaverShopping() {
 
     let priceCol = '';
     if (s.price_enabled) {
-        const saved = sessionStorage.getItem('_pricetotal');
-        if (saved) {
+        _loadCanonicalTotalFromSession();
+        const label = _canonicalShoppingTotal?.label;
+        if (label) {
             priceCol = `<div class="ss-shop-sep"></div>
             <div class="ss-shop-col">
-                <div class="ss-shop-value">${saved.replace('ca. ', '')}</div>
-                <div class="ss-shop-label">💰 spesa stimata</div>
+                <div class="ss-shop-value">${escapeHtml(label.replace(/^ca\.\s*/, ''))}</div>
+                <div class="ss-shop-label">💰 ${escapeHtml(t('shopping.price_total_short') || 'spesa stimata')}</div>
             </div>`;
         }
     }
@@ -16748,7 +17136,7 @@ async function _screensaverAutoAddItems() {
             logOperation('bring_auto_add_screensaver', { added: itemsToAdd.map(i => i.name) });
             // Refresh bring list silently then update screensaver counter
             loadShoppingList._bgCall = true;
-            loadShoppingList().then(() => updateScreensaverShopping());
+            loadShoppingList().then(() => syncShoppingPriceTotal(false));
         }
     } catch (e) { /* ignore */ }
 }
@@ -17105,7 +17493,7 @@ function initSpesaMode() {
 function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
-    showToast('🛒 Modalità Spesa attivata!', 'success');
+    showToast(t('scan.mode_shopping_activated'), 'success');
     showPage('scan');
     updateSpesaBanner();
 }
@@ -17975,18 +18363,16 @@ async function _initApp() {
         if (!_screensaverActive) refreshCurrentPage();
     }, 5 * 60 * 1000);
 
-    // 2) Ogni 2 min: aggiorna contatore lista spesa nel badge dashboard e prezzi in background
+    // 2) Ogni 2 min: aggiorna contatore lista spesa e totale unificato
     setInterval(() => {
-        if (_screensaverActive) return;
         if (_currentPageId === 'shopping') {
             loadShoppingList._bgCall = true;
             loadShoppingList();
         } else {
             loadShoppingCount();
-            // Fetch prices silently in background so dashboard stat stays fresh
             const _s = getSettings();
-            if (_s.price_enabled && shoppingItems.length > 0 && !_pricesFetching) {
-                fetchAllPrices(false);
+            if (_s.price_enabled && !_pricesFetching) {
+                syncShoppingPriceTotal(false);
             }
         }
     }, 2 * 60 * 1000);

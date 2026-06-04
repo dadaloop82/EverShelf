@@ -143,8 +143,10 @@
     "banner_prediction_more": "frühere Schätzung: {expected} {unit}{time}; aktuelle Menge: {actual} {unit}.",
     "banner_prediction_less": "Schätzung: {expected} {unit}{time}; aktuelle Menge: {actual} {unit}. Wenn sich dein Verbrauch geändert hat, aktualisiert sich die Prognose automatisch.",
     "banner_finished_zero": "Bestand zeigt null, aber gespeicherte Buchungen deuten an, dass es nicht leer sein sollte.",
+    "banner_finished_vanished": "Das Produkt erscheint nicht mehr im Bestand, aber die Buchungen deuten an, dass es nicht leer sein sollte.",
     "banner_finished_expected": "Laut Aufzeichnungen solltest du noch {qty} {unit} haben.",
     "banner_finished_check": "Kannst du nachschauen?",
+    "banner_finished_action_restore": "{qty} {unit} wiederherstellen",
     "banner_anomaly_phantom_title": "mehr Bestand als erwartet",
     "banner_anomaly_phantom_detail": "Bestand zeigt {inv_qty} {unit}, aber laut Buchungen solltest du nur {expected_qty} {unit} haben. Hast du Bestand ohne Buchung hinzugefügt?",
     "banner_anomaly_untracked_title": "Anfangsbestand nicht als Eingang gebucht",
@@ -164,7 +166,11 @@
     "banner_opened_detail": "{when} in {location} · du hast noch <strong>{qty}</strong>.",
     "banner_explain_title": "Gemini um eine Erklärung bitten",
     "banner_explain_btn": "Erklären",
-    "banner_analyzing": "🤖 Analysiere…"
+    "banner_analyzing": "🤖 Analysiere…",
+    "banner_prediction_confirmed": "✅ Bestätigt — Prognosen werden aus den nächsten Einträgen neu berechnet",
+    "banner_anomaly_explain_fail": "KI-Erklärung konnte nicht abgerufen werden",
+    "banner_anomaly_dismissed": "Anomalie ignoriert",
+    "banner_finished_restore_prompt": "Wie viele {unit} {name} hast du noch? (Systemschätzung: {qty})"
   },
   "inventory": {
     "title": "Vorrat",
@@ -243,7 +249,8 @@
     "ai_match_none": "Keine ahnlichen Produkte in der Vorratskammer gefunden.",
     "ai_match_use_btn": "Dieses nutzen",
     "ai_match_add_btn": "\"{name}\" hinzufugen",
-    "ai_detected_label": "KI erkannt"
+    "ai_detected_label": "KI erkannt",
+    "mode_shopping_activated": "🛒 Einkaufsmodus aktiviert!"
   },
   "action": {
     "title": "Was möchtest du tun?",
@@ -316,14 +323,17 @@
     "toast_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt",
     "toast_opened_finished": "🔓 Geöffnete Packung von {name} aufgebraucht!",
     "disambiguation_hint": "Was meinst du mit \"alles aufgebraucht\"?",
+    "disambiguation_one_conf": "<strong>1 Packung</strong> aufgebraucht ({qty})",
     "disambiguation_all": "🗑️ ALLES verbraucht ({qty})",
+    "toast_one_conf_finished": "📦 1 Packung von {name} verbraucht!",
     "error_exceeds_stock": "⚠️ Du kannst nicht mehr verwenden als du verfügbar hast!",
     "use_all_confirm_title": "✅ Alles aufbrauchen",
     "use_all_confirm_msg": "Bestätige, dass du das Produkt vollständig aufgebraucht hast:",
     "use_all_confirm_btn": "✅ Ja, aufgebraucht",
     "throw_all_confirm_title": "🗑️ Alles entsorgen",
     "throw_all_confirm_msg": "Möchtest du wirklich das gesamte Produkt entsorgen?",
-    "throw_all_confirm_btn": "🗑️ Ja, entsorgen"
+    "throw_all_confirm_btn": "🗑️ Ja, entsorgen",
+    "locations_short": "Orte"
   },
   "product": {
     "title_new": "Neues Produkt",
@@ -363,7 +373,9 @@
     "weight_label": "Gewicht",
     "origin_label": "Herkunft",
     "labels_label": "Etiketten",
-    "select_variant": "Genaue Variante auswählen oder KI-Daten nutzen:"
+    "select_variant": "Genaue Variante auswählen oder KI-Daten nutzen:",
+    "history_badge": "📊 Verlauf",
+    "from_history": " (aus Verlauf)"
   },
   "products": {
     "title": "📦 Alle Produkte",
@@ -425,7 +437,9 @@
     "nutrition_per_serving": "Geschätzte Werte pro Portion",
     "storage_title": "Aufbewahrung von Resten",
     "storage_days": "{n} Tage",
-    "storage_immediately": "Am besten sofort verzehren"
+    "storage_immediately": "Am besten sofort verzehren",
+    "ing_stock_line": "Du hast {have} · {remain} bleiben nach Gebrauch",
+    "ing_use_all_note": "alles verwenden (<5% der Vollpackung)"
   },
   "shopping": {
     "title": "🛒 Einkaufsliste",
@@ -512,6 +526,7 @@
     "remove_error": "Fehler beim Entfernen",
     "btn_fetch_prices": "Preise suchen",
     "price_total_label": "💰 Geschätzter Gesamtpreis:",
+    "price_total_short": "geschätzte Ausgaben",
     "price_loading": "Preise werden gesucht…",
     "price_not_found": "Preis n/v",
     "suggest_loading": "Analyse läuft...",
@@ -521,7 +536,8 @@
     "priority_low": "Niedrig",
     "smart_last_update": "Aktualisiert {time}",
     "names_already_updated": "Alle Namen sind bereits aktuell",
-    "pantry_hint": "Bereits zuhause: {qty}"
+    "pantry_hint": "Bereits zuhause: {qty}",
+    "bring_names_migrated": "🔄 {n} Namen in Bring! verallgemeinert"
   },
   "ai": {
     "title": "🤖 KI-Identifikation",
@@ -532,7 +548,8 @@
     "no_api_key": "⚠️ Gemini API-Schlüssel nicht konfiguriert.\n<small>Füge GEMINI_API_KEY in der .env Datei auf dem Server hinzu.</small>",
     "fields_filled": "✅ Felder von KI ausgefüllt",
     "use_data": "✅ KI-Daten verwenden",
-    "use_data_no_barcode": "✅ KI-Daten verwenden (ohne Barcode)"
+    "use_data_no_barcode": "✅ KI-Daten verwenden (ohne Barcode)",
+    "conservation_hint": "🤖 KI: lagere in {location}"
   },
   "log": {
     "title": "📒 Verlauf",
@@ -787,7 +804,13 @@
       "kiosk_title": "📡 BLE-Waage im Kiosk integriert",
       "kiosk_hint": "Die Waage wird direkt vom internen BLE-Gateway des Kiosks verwaltet. Um ein neues Gerät zu koppeln, verwende den Konfigurationsassistenten.",
       "kiosk_reconfigure": "🔄 BLE-Waage neu konfigurieren",
-      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Unterstützte BLE-Protokolle:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; Gewicht, Fett, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generisch &mdash; automatische Heuristik für 100+ Modelle</li></ul>"
+      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Unterstützte BLE-Protokolle:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; Gewicht, Fett, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generisch &mdash; automatische Heuristik für 100+ Modelle</li></ul>",
+      "discover_scanning": "🔍 Lokales Netz wird nach Waagen-Gateway durchsucht…",
+      "discover_found": "✅ Gateway gefunden: {url}{more}",
+      "discover_not_found": "❌ Kein Gateway in {subnet}. Android-App auf demselben WLAN starten.",
+      "discover_failed": "❌ Suche fehlgeschlagen: {error}",
+      "discover_auto": "🔍 Auto",
+      "unknown_device": "Unbekanntes Gerät"
     },
     "kiosk": {
       "hint": "Verwandeln Sie ein Android-Tablet in ein EverShelf-Panel mit integriertem BLE-Waagen-Gateway.",
@@ -974,7 +997,8 @@
       "sensor_copied": "YAML in die Zwischenablage kopiert!",
       "save_btn": "HA-Einstellungen speichern",
       "ha_hint": "Wenn du Home Assistant verwendest, nutze den Home Assistant-Tab für TTS, Webhooks und Sensoren."
-    }
+    },
+    "kiosk_update_required": "⚠️ Aktualisiere die Kiosk-App, um diese Funktion zu nutzen"
   },
   "expiry": {
     "today": "HEUTE",
@@ -1048,6 +1072,7 @@
     "finished_all": "📤 {name} aufgebraucht!",
     "vacuum_sealed": "{name} als vakuumversiegelt gespeichert",
     "product_finished_confirmed": "✅ Entfernt — wieder hinzufügen, wenn du nachkaufst",
+    "ghost_restored": "✅ {name}: {qty} {unit} im Bestand wiederhergestellt",
     "appliance_added": "Gerät hinzugefügt",
     "item_added": "{name} hinzugefügt"
   },
@@ -1119,7 +1144,9 @@
     "offline_ops_pending": "{n} Aktionen ausstehend",
     "offline_synced": "{n} Aktionen synchronisiert",
     "offline_ai_disabled": "Offline nicht verfügbar",
-    "offline_cache_ready": "Offline — {n} Produkte im Cache"
+    "offline_cache_ready": "Offline — {n} Produkte im Cache",
+    "copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
+    "invalid_quantity": "Ungültige Menge"
   },
   "confirm_placeholder_search": null,
   "confirm": {
@@ -1241,7 +1268,8 @@
     "stay_btn": "Nein, bleibt in {location}",
     "moved_toast": "📦 Offene Packung bewegt nach {location}",
     "vacuum_restore": "Vakuum wiederherstellen",
-    "vacuum_seal_rest": "Rest vakuumieren"
+    "vacuum_seal_rest": "Rest vakuumieren",
+    "moved_simple": "📦 Nach {location} verschoben"
   },
   "nova": {
     "1": "Unverarbeitet",
@@ -1494,5 +1522,12 @@
     "top_used": "meistbenutzt",
     "top_cats": "Hauptkategorien",
     "source": "Transaktionsverlauf · aktueller Monat"
+  },
+  "time": {
+    "just_now": "gerade eben",
+    "seconds_ago": "vor {n}s",
+    "minutes_ago": "vor {n} min",
+    "hours_ago": "vor {n} h",
+    "days_ago": "vor {n} T"
   }
 }

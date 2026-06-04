@@ -143,8 +143,10 @@
     "banner_prediction_more": "previous estimate: {expected} {unit}{time}; current quantity: {actual} {unit}.",
     "banner_prediction_less": "estimate: {expected} {unit}{time}; current quantity: {actual} {unit}. If your usage pace changed, the forecast updates automatically.",
     "banner_finished_zero": "Inventory shows zero, but recorded movements suggest it shouldn't be empty.",
+    "banner_finished_vanished": "This product no longer appears in inventory, but recorded movements suggest it shouldn't be empty.",
     "banner_finished_expected": "According to records you should still have {qty} {unit}.",
     "banner_finished_check": "Can you check?",
+    "banner_finished_action_restore": "Restore {qty} {unit}",
     "banner_anomaly_phantom_title": "you have more stock than expected",
     "banner_anomaly_phantom_detail": "Inventory shows {inv_qty} {unit}, but based on records you should only have {expected_qty} {unit}. Did you add stock without recording it?",
     "banner_anomaly_untracked_title": "stock not recorded as an entry",
@@ -164,7 +166,11 @@
     "banner_opened_detail": "{when} in {location} · you still have <strong>{qty}</strong>.",
     "banner_explain_title": "Ask Gemini for an explanation",
     "banner_explain_btn": "Explain",
-    "banner_analyzing": "🤖 Analyzing…"
+    "banner_analyzing": "🤖 Analyzing…",
+    "banner_prediction_confirmed": "✅ Confirmed — forecasts will recalculate from your next entries",
+    "banner_anomaly_explain_fail": "Could not get AI explanation",
+    "banner_anomaly_dismissed": "Anomaly dismissed",
+    "banner_finished_restore_prompt": "How many {unit} of {name} do you still have? (system estimate: {qty})"
   },
   "inventory": {
     "title": "Pantry",
@@ -243,7 +249,8 @@
     "ai_match_none": "No similar pantry products found.",
     "ai_match_use_btn": "Use this",
     "ai_match_add_btn": "Add \"{name}\"",
-    "ai_detected_label": "AI detected"
+    "ai_detected_label": "AI detected",
+    "mode_shopping_activated": "🛒 Shopping mode activated!"
   },
   "action": {
     "title": "What do you want to do?",
@@ -316,14 +323,17 @@
     "toast_bring": "🛒 Product finished → added to Bring!",
     "toast_opened_finished": "🔓 Opened package of {name} finished!",
     "disambiguation_hint": "What do you mean by \"all done\"?",
+    "disambiguation_one_conf": "Finished <strong>1 package</strong> ({qty})",
     "disambiguation_all": "🗑️ Finish EVERYTHING ({qty})",
+    "toast_one_conf_finished": "📦 1 package of {name} finished!",
     "error_exceeds_stock": "⚠️ You cannot use more than you have available!",
     "use_all_confirm_title": "✅ Finish everything",
     "use_all_confirm_msg": "Confirm that you have finished the product:",
     "use_all_confirm_btn": "✅ Yes, finished",
     "throw_all_confirm_title": "🗑️ Discard everything",
     "throw_all_confirm_msg": "Do you really want to throw away the whole product?",
-    "throw_all_confirm_btn": "🗑️ Yes, discard"
+    "throw_all_confirm_btn": "🗑️ Yes, discard",
+    "locations_short": "places"
   },
   "product": {
     "title_new": "New Product",
@@ -363,7 +373,9 @@
     "weight_label": "Weight",
     "origin_label": "Origin",
     "labels_label": "Labels",
-    "select_variant": "Select the exact variant or use AI data:"
+    "select_variant": "Select the exact variant or use AI data:",
+    "history_badge": "📊 history",
+    "from_history": " (from history)"
   },
   "products": {
     "title": "📦 All Products",
@@ -425,7 +437,9 @@
     "nutrition_per_serving": "Estimated values per serving",
     "storage_title": "How to store leftovers",
     "storage_days": "{n} days",
-    "storage_immediately": "Best eaten immediately"
+    "storage_immediately": "Best eaten immediately",
+    "ing_stock_line": "You have {have} · {remain} left after use",
+    "ing_use_all_note": "use all (<5% of full package left)"
   },
   "shopping": {
     "title": "🛒 Shopping List",
@@ -512,6 +526,7 @@
     "remove_error": "Removal error",
     "btn_fetch_prices": "Find prices",
     "price_total_label": "💰 Estimated total:",
+    "price_total_short": "estimated total",
     "price_loading": "Looking up prices…",
     "price_not_found": "price n/a",
     "suggest_loading": "Analyzing...",
@@ -521,7 +536,8 @@
     "priority_low": "Low",
     "smart_last_update": "Updated {time}",
     "names_already_updated": "All names are already up to date",
-    "pantry_hint": "Already at home: {qty}"
+    "pantry_hint": "Already at home: {qty}",
+    "bring_names_migrated": "🔄 {n} names generalized in Bring!"
   },
   "ai": {
     "title": "🤖 AI Identification",
@@ -532,7 +548,8 @@
     "no_api_key": "⚠️ Gemini API key not configured.\n<small>Add GEMINI_API_KEY to the .env file on the server.</small>",
     "fields_filled": "✅ Fields filled by AI",
     "use_data": "✅ Use AI data",
-    "use_data_no_barcode": "✅ Use AI data (no barcode)"
+    "use_data_no_barcode": "✅ Use AI data (no barcode)",
+    "conservation_hint": "🤖 AI: store in {location}"
   },
   "log": {
     "title": "📒 Operations Log",
@@ -787,7 +804,13 @@
       "kiosk_title": "📡 BLE Scale integrated in Kiosk",
       "kiosk_hint": "The scale is directly managed by the internal BLE Gateway of the kiosk. To pair a new device, use the configuration wizard.",
       "kiosk_reconfigure": "🔄 Reconfigure BLE Scale",
-      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Supported BLE protocols:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; weight, fat, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generic &mdash; automatic heuristic for 100+ models</li></ul>"
+      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Supported BLE protocols:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; weight, fat, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generic &mdash; automatic heuristic for 100+ models</li></ul>",
+      "discover_scanning": "🔍 Scanning local network for scale gateway…",
+      "discover_found": "✅ Gateway found: {url}{more}",
+      "discover_not_found": "❌ No gateway found on {subnet}. Make sure the Android app is running and on the same Wi-Fi.",
+      "discover_failed": "❌ Discovery failed: {error}",
+      "discover_auto": "🔍 Auto",
+      "unknown_device": "Unknown device"
     },
     "kiosk": {
       "hint": "Turn an Android tablet into an always-on EverShelf panel with built-in BLE scale gateway.",
@@ -974,7 +997,8 @@
       "sensor_copied": "YAML copied to clipboard!",
       "save_btn": "Save HA settings",
       "ha_hint": "If you use Home Assistant, use the Home Assistant tab to configure TTS, webhooks and sensors."
-    }
+    },
+    "kiosk_update_required": "⚠️ Update the kiosk app to use this feature"
   },
   "expiry": {
     "today": "TODAY",
@@ -1048,6 +1072,7 @@
     "finished_all": "📤 {name} finished!",
     "vacuum_sealed": "{name} saved as vacuum sealed",
     "product_finished_confirmed": "✅ Removed — add it again when you restock",
+    "ghost_restored": "✅ {name}: restored {qty} {unit} to inventory",
     "appliance_added": "Appliance added",
     "item_added": "{name} added"
   },
@@ -1119,7 +1144,9 @@
     "offline_ops_pending": "{n} operations pending",
     "offline_synced": "{n} operations synced",
     "offline_ai_disabled": "Not available offline",
-    "offline_cache_ready": "Offline — {n} items cached"
+    "offline_cache_ready": "Offline — {n} items cached",
+    "copy_failed": "Copy to clipboard failed",
+    "invalid_quantity": "Invalid quantity"
   },
   "confirm_placeholder_search": null,
   "confirm": {
@@ -1241,7 +1268,8 @@
     "stay_btn": "No, stay in {location}",
     "moved_toast": "📦 Opened package moved to {location}",
     "vacuum_restore": "Restore vacuum sealed",
-    "vacuum_seal_rest": "Vacuum seal the rest"
+    "vacuum_seal_rest": "Vacuum seal the rest",
+    "moved_simple": "📦 Moved to {location}"
   },
   "nova": {
     "1": "Unprocessed",
@@ -1494,5 +1522,12 @@
     "top_used": "top used",
     "top_cats": "Top categories",
     "source": "Transaction history · current month"
+  },
+  "time": {
+    "just_now": "just now",
+    "seconds_ago": "{n}s ago",
+    "minutes_ago": "{n} min ago",
+    "hours_ago": "{n} h ago",
+    "days_ago": "{n} d ago"
   }
 }

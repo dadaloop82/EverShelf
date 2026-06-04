@@ -141,8 +141,10 @@
     "banner_prediction_more": "estimation précédente : {expected} {unit}{time} ; quantité actuelle : {actual} {unit}.",
     "banner_prediction_less": "estimation : {expected} {unit}{time} ; quantité actuelle : {actual} {unit}. Si votre rythme d'utilisation a changé, la prévision se met à jour automatiquement.",
     "banner_finished_zero": "L'inventaire indique zéro, mais les mouvements enregistrés suggèrent qu'il ne devrait pas être vide.",
+    "banner_finished_vanished": "Ce produit n'apparaît plus dans l'inventaire, mais les mouvements enregistrés suggèrent qu'il ne devrait pas être vide.",
     "banner_finished_expected": "D'après les enregistrements vous devriez avoir encore {qty} {unit}.",
     "banner_finished_check": "Pouvez-vous vérifier ?",
+    "banner_finished_action_restore": "Restaurer {qty} {unit}",
     "banner_anomaly_phantom_title": "vous avez plus de stock que prévu",
     "banner_anomaly_phantom_detail": "L'inventaire indique {inv_qty} {unit}, mais selon les enregistrements vous ne devriez avoir que {expected_qty} {unit}. Avez-vous ajouté du stock sans l'enregistrer ?",
     "banner_anomaly_untracked_title": "stock non enregistré comme entrée",
@@ -162,7 +164,13 @@
     "banner_opened_detail": "{when} dans {location} · il vous reste encore <strong>{qty}</strong>.",
     "banner_explain_title": "Demander une explication à Gemini",
     "banner_explain_btn": "Expliquer",
-    "banner_analyzing": "🤖 Analyse en cours…"
+    "banner_analyzing": "🤖 Analyse en cours…",
+    "banner_expired_action_modify": "Modifier",
+    "banner_expired_action_vacuum": "Mettre sous vide",
+    "banner_prediction_confirmed": "✅ Confirmé — les prévisions seront recalculées à partir de vos prochains enregistrements",
+    "banner_anomaly_explain_fail": "Impossible d'obtenir l'explication IA",
+    "banner_anomaly_dismissed": "Anomalie ignorée",
+    "banner_finished_restore_prompt": "Combien de {unit} de {name} vous reste-t-il ? (estimation : {qty})"
   },
   "inventory": {
     "title": "Garde-manger",
@@ -240,7 +248,9 @@
     "ai_match_none": "Aucun produit similaire trouve dans le stock.",
     "ai_match_use_btn": "Utiliser celui-ci",
     "ai_match_add_btn": "Ajouter \"{name}\"",
-    "ai_detected_label": "IA a detecte"
+    "ai_detected_label": "IA a detecte",
+    "stock_in_pantry": "Déjà à la maison :",
+    "mode_shopping_activated": "🛒 Mode courses activé !"
   },
   "action": {
     "title": "Que voulez-vous faire ?",
@@ -254,7 +264,8 @@
     "throw_btn": "🗑️ JETER",
     "throw_sub": "jeter",
     "edit_sub": "péremption, emplacement…",
-    "create_recipe_btn": "Recette"
+    "create_recipe_btn": "Recette",
+    "related_stock_title": "Aussi à la maison"
   },
   "add": {
     "title": "Ajouter au garde-manger",
@@ -312,14 +323,17 @@
     "toast_bring": "🛒 Produit terminé → ajouté à Bring !",
     "toast_opened_finished": "🔓 Emballage ouvert de {name} terminé !",
     "disambiguation_hint": "Que voulez-vous dire par « tout fini » ?",
+    "disambiguation_one_conf": "Terminer <strong>1 emballage</strong> ({qty})",
     "disambiguation_all": "🗑️ Tout finir ({qty})",
+    "toast_one_conf_finished": "📦 1 emballage de {name} terminé !",
     "error_exceeds_stock": "⚠️ Vous ne pouvez pas utiliser plus que ce que vous avez disponible !",
     "use_all_confirm_title": "✅ Tout terminer",
     "use_all_confirm_msg": "Confirmez que vous avez terminé le produit :",
     "use_all_confirm_btn": "✅ Oui, terminé",
     "throw_all_confirm_title": "🗑️ Tout jeter",
     "throw_all_confirm_msg": "Voulez-vous vraiment jeter tout le produit ?",
-    "throw_all_confirm_btn": "🗑️ Oui, jeter"
+    "throw_all_confirm_btn": "🗑️ Oui, jeter",
+    "locations_short": "emplacements"
   },
   "product": {
     "title_new": "Nouveau produit",
@@ -359,7 +373,9 @@
     "weight_label": "Poids",
     "origin_label": "Origine",
     "labels_label": "Labels",
-    "select_variant": "Sélectionnez la variante exacte ou utilisez les données IA :"
+    "select_variant": "Sélectionnez la variante exacte ou utilisez les données IA :",
+    "history_badge": "📊 historique",
+    "from_history": " (historique)"
   },
   "products": {
     "title": "📦 Tous les produits",
@@ -420,7 +436,10 @@
     "nutrition_per_serving": "Valeurs estimées par portion",
     "storage_title": "Comment conserver les restes",
     "storage_days": "{n} jours",
-    "storage_immediately": "À consommer immédiatement"
+    "storage_immediately": "À consommer immédiatement",
+    "stream_interrupted": "Génération interrompue (réponse serveur incomplète). Vérifiez les logs ou réessayez.",
+    "ing_stock_line": "Vous avez {have} · il reste {remain} après usage",
+    "ing_use_all_note": "tout utiliser (<5% du conditionnement entier)"
   },
   "shopping": {
     "title": "🛒 Liste de courses",
@@ -507,6 +526,7 @@
     "remove_error": "Erreur de suppression",
     "btn_fetch_prices": "Trouver les prix",
     "price_total_label": "💰 Total estimé :",
+    "price_total_short": "total estimé",
     "price_loading": "Recherche des prix…",
     "price_not_found": "prix n/d",
     "suggest_loading": "Analyse en cours...",
@@ -515,7 +535,9 @@
     "priority_medium": "Moyenne",
     "priority_low": "Faible",
     "smart_last_update": "Mis à jour {time}",
-    "names_already_updated": "Tous les noms sont déjà à jour"
+    "names_already_updated": "Tous les noms sont déjà à jour",
+    "pantry_hint": "Déjà à la maison : {qty}",
+    "bring_names_migrated": "🔄 {n} noms généralisés dans Bring !"
   },
   "ai": {
     "title": "🤖 Identification IA",
@@ -526,7 +548,8 @@
     "no_api_key": "⚠️ Clé API Gemini non configurée.\n<small>Ajoutez GEMINI_API_KEY au fichier .env sur le serveur.</small>",
     "fields_filled": "✅ Champs remplis par l'IA",
     "use_data": "✅ Utiliser les données IA",
-    "use_data_no_barcode": "✅ Utiliser les données IA (sans code-barres)"
+    "use_data_no_barcode": "✅ Utiliser les données IA (sans code-barres)",
+    "conservation_hint": "🤖 IA : conserve dans {location}"
   },
   "log": {
     "title": "📒 Journal des opérations",
@@ -742,7 +765,8 @@
       "heard_yes": "Oui, je l'ai entendu",
       "heard_no": "Non, je n'ai rien entendu",
       "test_ok_kiosk": "TTS fonctionne.",
-      "test_fail_steps": "Vérifiez : 1) le volume média n'est pas 0 ; 2) Google Text-to-Speech est installé et mis à jour ; 3) le pack vocal français est téléchargé dans les paramètres TTS Android."
+      "test_fail_steps": "Vérifiez : 1) le volume média n'est pas 0 ; 2) Google Text-to-Speech est installé et mis à jour ; 3) le pack vocal français est téléchargé dans les paramètres TTS Android.",
+      "test_sound_btn": "🔔 Test sonore"
     },
     "language": {
       "title": "🌐 Langue",
@@ -780,7 +804,13 @@
       "kiosk_title": "📡 Balance BLE intégrée dans le kiosque",
       "kiosk_hint": "La balance est directement gérée par la passerelle BLE interne du kiosque. Pour associer un nouvel appareil, utilisez l'assistant de configuration.",
       "kiosk_reconfigure": "🔄 Reconfigurer la balance BLE",
-      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocoles BLE supportés :</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; poids, graisse, IMC</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Générique &mdash; heuristique automatique pour 100+ modèles</li></ul>"
+      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocoles BLE supportés :</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; poids, graisse, IMC</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Générique &mdash; heuristique automatique pour 100+ modèles</li></ul>",
+      "discover_scanning": "🔍 Recherche du gateway balance sur le réseau local…",
+      "discover_found": "✅ Gateway trouvé : {url}{more}",
+      "discover_not_found": "❌ Aucun gateway sur {subnet}. Lancez l'app Android sur le même Wi-Fi.",
+      "discover_failed": "❌ Échec de la recherche : {error}",
+      "discover_auto": "🔍 Auto",
+      "unknown_device": "Appareil inconnu"
     },
     "kiosk": {
       "hint": "Transformez une tablette Android en panneau EverShelf permanent avec passerelle BLE intégrée.",
@@ -926,7 +956,49 @@
       "sensor_copied": "YAML copié dans le presse-papiers !",
       "save_btn": "Enregistrer les paramètres HA",
       "ha_hint": "Si vous utilisez Home Assistant, utilisez l'onglet Home Assistant pour configurer TTS, webhooks et capteurs."
-    }
+    },
+    "info": {
+      "tab": "Info",
+      "ai_title": "Gemini AI — Utilisation des tokens",
+      "ai_hint": "Consommation mensuelle et coût estimé pour la clé API actuelle.",
+      "loading": "Chargement…",
+      "total_tokens": "Tokens totaux",
+      "est_cost": "Coût est.",
+      "input_tok": "Tokens entrée",
+      "output_tok": "Tokens sortie",
+      "ai_calls": "Appels",
+      "by_action": "Répartition par fonction",
+      "by_model": "Répartition par modèle",
+      "pricing_note": "Tarifs Gemini : 2.5-flash $0.15/M in · $0.60/M out — 2.0-flash $0.10/M in · $0.40/M out.",
+      "system_title": "Système",
+      "db_size": "Base de données",
+      "log_size": "Logs",
+      "log_level": "Niveau de log",
+      "ai_overview": "Aperçu IA, inventaire et état du système",
+      "calls_unit": "appels",
+      "inv_title": "Inventaire",
+      "inv_active": "Actifs",
+      "inv_products": "Produits totaux",
+      "inv_expiring": "Expirent (7j)",
+      "inv_expired": "Expirés",
+      "inv_finished": "Terminés",
+      "act_title": "Activité mensuelle",
+      "act_tx_month": "Mouvements",
+      "act_restock": "Réapprovisionnements",
+      "act_use": "Utilisations",
+      "act_new_products": "Nouveaux produits",
+      "act_tx_year": "Mouvements annuels",
+      "price_cache": "Cache prix",
+      "cache_entries": "produits",
+      "last_backup": "Dernière sauvegarde",
+      "bring_days": "jeton expire dans {n} jours",
+      "bring_expired": "jeton expiré",
+      "year_label": "Année {year}",
+      "currency_title": "Devise",
+      "currency_hint": "Devise utilisée pour tous les coûts et prix dans l'app."
+    },
+    "tab_general": "Général",
+    "kiosk_update_required": "⚠️ Mettez à jour l'application kiosk pour utiliser cette fonction"
   },
   "expiry": {
     "today": "AUJOURD'HUI",
@@ -999,8 +1071,10 @@
     "thrown_away_partial": "🗑️ {qty} {unit} de {name} jeté(s)",
     "finished_all": "📤 {name} terminé !",
     "product_finished_confirmed": "✅ Supprimé — ajoutez-le à nouveau lors du réapprovisionnement",
+    "ghost_restored": "✅ {name} : {qty} {unit} restaurés dans l'inventaire",
     "appliance_added": "Appareil ajouté",
-    "item_added": "{name} ajouté"
+    "item_added": "{name} ajouté",
+    "vacuum_sealed": "{name} enregistré sous vide"
   },
   "antiwaste": {
     "title": "🌱 Rapport anti-gaspi",
@@ -1070,7 +1144,9 @@
     "offline_ops_pending": "{n} opérations en attente",
     "offline_synced": "{n} opérations synchronisées",
     "offline_ai_disabled": "Indisponible hors ligne",
-    "offline_cache_ready": "Offline — {n} produits en cache"
+    "offline_cache_ready": "Offline — {n} produits en cache",
+    "copy_failed": "Échec de la copie dans le presse-papiers",
+    "invalid_quantity": "Quantité invalide"
   },
   "confirm_placeholder_search": null,
   "confirm": {
@@ -1171,7 +1247,10 @@
     "retake_btn": "🔄 Reprendre",
     "camera_error_hint": "Assurez-vous d'utiliser HTTPS et d'avoir accordé les permissions caméra.<br>Vous pouvez entrer le code-barres manuellement ou utiliser l'identification IA.",
     "no_barcode": "Pas de code-barres",
-    "save_new_btn": "🆕 Aucun de ceux-ci — enregistrer comme nouveau"
+    "save_new_btn": "🆕 Aucun de ceux-ci — enregistrer comme nouveau",
+    "expiry_found": "Date trouvée",
+    "expiry_read_fail": "Impossible de lire la date.",
+    "expiry_raw_label": "Lu"
   },
   "lowstock": {
     "title": "⚠️ Stock faible !",
@@ -1189,7 +1268,8 @@
     "stay_btn": "Non, rester dans {location}",
     "moved_toast": "📦 Emballage ouvert déplacé vers {location}",
     "vacuum_restore": "🫙 Restaurer sous vide",
-    "vacuum_seal_rest": "🔒 Mettre le reste sous vide"
+    "vacuum_seal_rest": "🔒 Mettre le reste sous vide",
+    "moved_simple": "📦 Déplacé vers {location}"
   },
   "nova": {
     "1": "Non transformé",
@@ -1424,7 +1504,12 @@
     "token_autoconfig": "Configuration de l'accès...",
     "token_prompt_title": "🔒 Jeton API",
     "token_prompt_hint": "Saisissez la valeur API_TOKEN du fichier .env du serveur.",
-    "token_prompt_btn": "Continuer"
+    "token_prompt_btn": "Continuer",
+    "check_db_legacy": "Ancienne BD (dispensa.db)",
+    "check_tts": "URL synthèse vocale",
+    "check_scale": "Passerelle balance",
+    "critical_error_intro": "L'application ne peut pas démarrer en raison des problèmes suivants :",
+    "error_network_detail": "Le navigateur ne peut pas joindre le serveur PHP.\n\nCauses possibles :\n• Apache/PHP n'est pas démarré\n• Problème réseau ou pare-feu\n• URL incorrecte\n\nDémarrez le serveur et réessayez."
   },
   "stats_monthly": {
     "title": "Statistiques Mensuelles",
@@ -1437,5 +1522,12 @@
     "top_used": "le plus utilisé",
     "top_cats": "Catégories principales",
     "source": "Historique des transactions · mois en cours"
+  },
+  "time": {
+    "just_now": "à l'instant",
+    "seconds_ago": "il y a {n}s",
+    "minutes_ago": "il y a {n} min",
+    "hours_ago": "il y a {n} h",
+    "days_ago": "il y a {n} j"
   }
 }

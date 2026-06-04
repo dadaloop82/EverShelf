@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.33-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.36-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -86,6 +86,7 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
 - **Storage & shelf-life hint** — When adding a new product, Gemini suggests the optimal storage location and shelf-life in the background; shown as an inline AI badge next to the expiry estimate
 - **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
+- **Recipe stock hints** — Each pantry ingredient shows how much you have and what remains after use; when the leftover would be less than 5% of the full sealed package (10% for an already-opened partial pack), the recipe automatically uses everything on hand to avoid waste
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip
 - **Anomaly explanation** — "Explain" button on anomaly banners explains in plain language why a discrepancy likely occurred and what to do

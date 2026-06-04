@@ -143,8 +143,10 @@
     "banner_prediction_more": "stima precedente: {expected} {unit}{time}; quantità attuale: {actual} {unit}.",
     "banner_prediction_less": "stima: {expected} {unit}{time}; quantità attuale: {actual} {unit}. Se hai cambiato ritmo d'uso, la previsione si aggiorna automaticamente.",
     "banner_finished_zero": "L'inventario segna zero, ma i movimenti registrati dicono che non dovrebbe essere finito.",
+    "banner_finished_vanished": "Il prodotto non compare più in inventario, ma i movimenti registrati dicono che non dovrebbe essere finito.",
     "banner_finished_expected": "Secondo le registrazioni dovresti averne ancora {qty} {unit}.",
     "banner_finished_check": "Puoi controllare?",
+    "banner_finished_action_restore": "Ripristina {qty} {unit}",
     "banner_anomaly_phantom_title": "hai più scorte del previsto",
     "banner_anomaly_phantom_detail": "L'inventario segna {inv_qty} {unit}, ma in base alle registrazioni ne dovresti avere solo {expected_qty} {unit}. Hai aggiunto scorte senza registrarle?",
     "banner_anomaly_untracked_title": "scorte non registrate come entrata",
@@ -164,7 +166,11 @@
     "banner_opened_detail": "{when} in {location} · hai ancora <strong>{qty}</strong>.",
     "banner_explain_title": "Chiedi a Gemini una spiegazione",
     "banner_explain_btn": "Spiega",
-    "banner_analyzing": "🤖 Analizzo…"
+    "banner_analyzing": "🤖 Analizzo…",
+    "banner_prediction_confirmed": "✅ Confermato — il sistema ricalcolerà le previsioni dalle prossime registrazioni",
+    "banner_anomaly_explain_fail": "Impossibile ottenere spiegazione AI",
+    "banner_anomaly_dismissed": "Anomalia ignorata",
+    "banner_finished_restore_prompt": "Quante {unit} di {name} hai ancora? (stima sistema: {qty})"
   },
   "inventory": {
     "title": "Dispensa",
@@ -243,7 +249,8 @@
     "ai_match_none": "Nessun prodotto simile trovato in dispensa.",
     "ai_match_use_btn": "Usa questo",
     "ai_match_add_btn": "Aggiungi \"{name}\"",
-    "ai_detected_label": "AI ha trovato"
+    "ai_detected_label": "AI ha trovato",
+    "mode_shopping_activated": "🛒 Modalità Spesa attivata!"
   },
   "action": {
     "title": "Cosa vuoi fare?",
@@ -316,14 +323,17 @@
     "toast_bring": "🛒 Prodotto finito → aggiunto a Bring!",
     "toast_opened_finished": "🔓 Confezione aperta di {name} finita!",
     "disambiguation_hint": "Cosa intendi con \"finito tutto\"?",
+    "disambiguation_one_conf": "Finita <strong>1 confezione</strong> ({qty})",
     "disambiguation_all": "🗑️ Finito TUTTO ({qty})",
+    "toast_one_conf_finished": "📦 1 confezione di {name} terminata!",
     "error_exceeds_stock": "⚠️ Non puoi usare più di quanto hai disponibile!",
     "use_all_confirm_title": "✅ Finisci tutto",
     "use_all_confirm_msg": "Conferma che hai finito tutto il prodotto:",
     "use_all_confirm_btn": "✅ Sì, finito",
     "throw_all_confirm_title": "🗑️ Butta tutto",
     "throw_all_confirm_msg": "Vuoi davvero buttare via tutto il prodotto?",
-    "throw_all_confirm_btn": "🗑️ Sì, butta"
+    "throw_all_confirm_btn": "🗑️ Sì, butta",
+    "locations_short": "posti"
   },
   "product": {
     "title_new": "Nuovo Prodotto",
@@ -363,7 +373,9 @@
     "weight_label": "Peso",
     "origin_label": "Origine",
     "labels_label": "Etichette",
-    "select_variant": "Seleziona la variante esatta o usa i dati AI:"
+    "select_variant": "Seleziona la variante esatta o usa i dati AI:",
+    "history_badge": "📊 storico",
+    "from_history": " (da storico)"
   },
   "products": {
     "title": "📦 Tutti i Prodotti",
@@ -425,7 +437,9 @@
     "nutrition_per_serving": "Valori stimati per porzione",
     "storage_title": "Come conservare gli avanzi",
     "storage_days": "{n} giorni",
-    "storage_immediately": "Da consumare subito"
+    "storage_immediately": "Da consumare subito",
+    "ing_stock_line": "Hai {have} · restano {remain} dopo l'uso",
+    "ing_use_all_note": "uso totale (<5% della confezione intera)"
   },
   "shopping": {
     "title": "🛒 Lista della Spesa",
@@ -512,6 +526,7 @@
     "remove_error": "Errore nella rimozione",
     "btn_fetch_prices": "Cerca i prezzi",
     "price_total_label": "💰 Spesa stimata:",
+    "price_total_short": "spesa stimata",
     "price_loading": "Ricerca prezzi…",
     "price_not_found": "prezzo n/d",
     "suggest_loading": "Analisi in corso...",
@@ -521,7 +536,8 @@
     "priority_low": "Bassa",
     "smart_last_update": "Aggiornato {time}",
     "names_already_updated": "Tutti i nomi sono già aggiornati",
-    "pantry_hint": "Hai gia {qty} in dispensa"
+    "pantry_hint": "Hai gia {qty} in dispensa",
+    "bring_names_migrated": "🔄 {n} nomi generalizzati in Bring!"
   },
   "ai": {
     "title": "🤖 Identificazione AI",
@@ -532,7 +548,8 @@
     "no_api_key": "⚠️ Chiave API Gemini non configurata.\n<small>Aggiungi GEMINI_API_KEY nel file .env sul server.</small>",
     "fields_filled": "✅ Campi compilati dall'AI",
     "use_data": "✅ Usa dati AI",
-    "use_data_no_barcode": "✅ Usa dati AI (senza barcode)"
+    "use_data_no_barcode": "✅ Usa dati AI (senza barcode)",
+    "conservation_hint": "🤖 AI: conserva in {location}"
   },
   "log": {
     "title": "📒 Storico",
@@ -787,7 +804,13 @@
       "kiosk_title": "📡 Bilancia BLE integrata nel Kiosk",
       "kiosk_hint": "La bilancia è gestita direttamente dal Gateway BLE interno al kiosk. Per abbinare un nuovo dispositivo usa il wizard di configurazione.",
       "kiosk_reconfigure": "🔄 Riconfigura bilancia BLE",
-      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocolli BLE supportati:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; peso, grasso, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generico &mdash; heuristica automatica su 100+ modelli</li></ul>"
+      "ble_protocols": "<p style=\"margin:0 0 6px;font-weight:600\">🔌 Protocolli BLE supportati:</p><ul style=\"margin:0 0 0 16px;padding:0;font-size:0.8rem\"><li>Bluetooth SIG Weight Scale (0x181D)</li><li>Bluetooth SIG Body Composition (0x181B) &mdash; peso, grasso, BMI</li><li>Xiaomi Mi Body Composition Scale 2</li><li>Generico &mdash; heuristica automatica su 100+ modelli</li></ul>",
+      "discover_scanning": "🔍 Scansione rete locale per gateway bilancia…",
+      "discover_found": "✅ Gateway trovato: {url}{more}",
+      "discover_not_found": "❌ Nessun gateway su {subnet}. Avvia l'app Android sulla stessa Wi-Fi.",
+      "discover_failed": "❌ Ricerca fallita: {error}",
+      "discover_auto": "🔍 Auto",
+      "unknown_device": "Dispositivo sconosciuto"
     },
     "kiosk": {
       "hint": "Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.",
@@ -974,7 +997,8 @@
       "sensor_copied": "YAML copiato negli appunti!",
       "save_btn": "Salva impostazioni HA",
       "ha_hint": "Se usi Home Assistant, usa il tab Home Assistant per configurare TTS, webhook e sensori."
-    }
+    },
+    "kiosk_update_required": "⚠️ Aggiorna il kiosk per usare questa funzione"
   },
   "expiry": {
     "today": "OGGI",
@@ -1048,6 +1072,7 @@
     "finished_all": "📤 {name} terminato!",
     "vacuum_sealed": "{name} salvato come sottovuoto",
     "product_finished_confirmed": "✅ Rimosso — riaggiungi quando ne ricompri",
+    "ghost_restored": "✅ {name}: ripristinati {qty} {unit} in inventario",
     "appliance_added": "Elettrodomestico aggiunto",
     "item_added": "{name} aggiunto"
   },
@@ -1119,7 +1144,9 @@
     "offline_ops_pending": "{n} operazioni in attesa",
     "offline_synced": "{n} operazioni sincronizzate",
     "offline_ai_disabled": "Non disponibile offline",
-    "offline_cache_ready": "Offline — {n} prodotti in cache"
+    "offline_cache_ready": "Offline — {n} prodotti in cache",
+    "copy_failed": "Copia negli appunti non riuscita",
+    "invalid_quantity": "Quantità non valida"
   },
   "confirm": {
     "remove_item": "Vuoi davvero rimuovere questo prodotto dall'inventario?",
@@ -1240,7 +1267,8 @@
     "stay_btn": "No, resta in {location}",
     "moved_toast": "📦 Confezione aperta spostata in {location}",
     "vacuum_restore": "Torna sotto vuoto",
-    "vacuum_seal_rest": "Metti sotto vuoto il resto"
+    "vacuum_seal_rest": "Metti sotto vuoto il resto",
+    "moved_simple": "📦 Spostato in {location}"
   },
   "nova": {
     "1": "Non trasformato",
@@ -1493,5 +1521,12 @@
     "top_used": "più usato",
     "top_cats": "Categorie principali",
     "source": "Storico transazioni · mese corrente"
+  },
+  "time": {
+    "just_now": "adesso",
+    "seconds_ago": "{n}s fa",
+    "minutes_ago": "{n} min fa",
+    "hours_ago": "{n} h fa",
+    "days_ago": "{n} gg fa"
   }
 }
