@@ -52,3 +52,4 @@ data/food_facts_cache.json
 data/category_ai_cache.json
 assets/img/logo/*_backup.*
 logs/*.log
+assets/vendor/transformers/Xenova/
