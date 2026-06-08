@@ -33,7 +33,9 @@ RUN [ ! -f /var/www/html/.env ] && cp /var/www/html/.env.example /var/www/html/.
 RUN echo '<Directory /var/www/html>\n\
     AllowOverride All\n\
     Require all granted\n\
-</Directory>' > /etc/apache2/conf-available/evershelf.conf \
+</Directory>\n\
+# Traefik / reverse-proxy: treat forwarded HTTPS as on so .htaccess does not redirect-loop\n\
+SetEnvIf X-Forwarded-Proto "https" HTTPS=on' > /etc/apache2/conf-available/evershelf.conf \
     && a2enconf evershelf
 
 # Expose port 80

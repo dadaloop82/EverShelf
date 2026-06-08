@@ -1847,6 +1847,41 @@ body.server-offline .bottom-nav {
     border-color: var(--primary);
 }
 
+.qty-control-with-unit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.qty-control-with-unit .qty-control {
+    flex: 0 0 auto;
+}
+
+.qty-unit-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    height: 50px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: lowercase;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.qty-unit-badge.qty-unit-muted {
+    background: var(--bg-card);
+    color: var(--primary);
+    border: 2px solid var(--primary);
+}
+
 /* ===== USE OPTIONS ===== */
 .use-options {
     display: flex;

@@ -497,7 +497,8 @@ function _scaleUpdateLiveBox(msg) {
         }
         if (valEl) valEl.textContent = displayVal + stIcon;
         if (lblEl) {
-            lblEl.textContent = '';
+            const targetLbl = getUnitDisplayLabel(getActiveUseUnitLabel());
+            lblEl.textContent = targetLbl ? ((t('qty.enter_in') || 'Inserimento in') + ' ' + targetLbl) : '';
         }
     }
 }
@@ -985,6 +986,7 @@ function _scaleShowReadingModal(targetInputId, unit) {
         <div style="padding:16px;text-align:center">
             <p style="margin-bottom:16px">${t('scale.place_on_scale')}</p>
             <div id="scale-reading-live" class="scale-reading-live">— — —</div>
+            <p style="margin-top:8px;font-weight:700;color:var(--primary)">${escapeHtml((t('qty.enter_in') || 'Inserimento in') + ' ' + getUnitDisplayLabel(unit))}</p>
             <p class="settings-hint" style="margin-top:12px">${t('scale.waiting_stable')}</p>
         </div>
     `;
@@ -6357,6 +6359,76 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
     return result;
 }
 
+/** Human-readable unit label for quantity inputs (pz, g, ml, conf…). */
+function getUnitDisplayLabel(unit) {
+    const u = (unit || 'pz').toLowerCase();
+    const map = {
+        pz: t('units.pz') || 'pz',
+        g: 'g',
+        ml: 'ml',
+        conf: t('units.conf') || 'conf',
+        kg: 'kg',
+        l: 'l',
+    };
+    return map[u] || u;
+}
+
+/** Wrap qty input with a visible unit badge if missing. */
+function ensureQtyUnitBadge(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return null;
+    let badge = document.getElementById(inputId + '-unit');
+    if (badge) return badge;
+    const control = input.closest('.qty-control');
+    if (!control) return null;
+    let wrap = control.closest('.qty-control-with-unit');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'qty-control-with-unit';
+        control.parentNode.insertBefore(wrap, control);
+        wrap.appendChild(control);
+    }
+    badge = document.createElement('span');
+    badge.className = 'qty-unit-badge';
+    badge.id = inputId + '-unit';
+    badge.setAttribute('aria-live', 'polite');
+    badge.textContent = '—';
+    wrap.appendChild(badge);
+    return badge;
+}
+
+function setQtyInputUnitLabel(inputId, unit, muted = false) {
+    const badge = ensureQtyUnitBadge(inputId) || document.getElementById(inputId + '-unit');
+    if (!badge) return;
+    badge.textContent = getUnitDisplayLabel(unit);
+    badge.classList.toggle('qty-unit-muted', !!muted);
+    badge.title = (t('qty.unit_for_input') || 'Unità di misura') + ': ' + badge.textContent;
+}
+
+function getActiveUseUnitLabel() {
+    if (_useConfMode) {
+        if (_useConfMode._activeUnit === 'conf') return 'conf';
+        return _useConfMode.subLabel || _useConfMode.packageUnit || 'g';
+    }
+    return _useNormalUnit || 'pz';
+}
+
+function getActiveRecipeUseUnitLabel() {
+    if (_recipeUseConfMode) {
+        if (_recipeUseConfMode._activeUnit === 'conf') return 'conf';
+        return _recipeUseConfMode.subLabel || _recipeUseConfMode.packageUnit || 'g';
+    }
+    return _recipeUseNormalUnit || 'pz';
+}
+
+function syncUseQtyUnitBadge() {
+    setQtyInputUnitLabel('use-quantity', getActiveUseUnitLabel());
+}
+
+function syncRecipeUseQtyUnitBadge() {
+    setQtyInputUnitLabel('ruse-quantity', getActiveRecipeUseUnitLabel());
+}
+
 // Structured quantity display for inventory cards.
 // Returns { mainQty: '10', unitLabel: 'conf', packageDetail: 'da 36g', fraction: '¼' }
 function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
@@ -6387,7 +6459,8 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     
     let packageDetail = '';
     let fraction = '';
-    if (unit !== 'conf' && defaultQty && defaultQty > 1) {
+    // pz = piece count only; default_quantity may hold legacy avg weight — ignore for display
+    if (unit !== 'conf' && unit !== 'pz' && defaultQty && defaultQty > 1) {
         const d = parseFloat(defaultQty);
         const ratio = n / d;
         const remainder = ratio - Math.floor(ratio);
@@ -6894,10 +6967,13 @@ function editInventoryItem(id) {
         <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
             <div class="form-group">
                 <label>📦 ${t('inventory.label_quantity').replace('📦 ', '')}</label>
-                <div class="qty-control">
-                    <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
-                    <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
-                    <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
+                <div class="qty-control-with-unit">
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
+                        <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
+                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
+                    </div>
+                    <span class="qty-unit-badge" id="edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
                 </div>
                 ${scaleEditReady ? `
                 <div id="edit-scale-section" style="display:none;text-align:center;padding:10px;background:linear-gradient(135deg,#f3e8ff,#ede9fe);border-radius:10px;margin-top:8px">
@@ -6951,10 +7027,12 @@ function editInventoryItem(id) {
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('edit-expiry', item);
+    setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
 }
 
 function onEditUnitChange() {
     const unit = document.getElementById('edit-unit').value;
+    setQtyInputUnitLabel('edit-qty', unit);
     const confGroup = document.getElementById('edit-conf-size-group');
     if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
     if (unit === 'conf') {
@@ -8847,10 +8925,13 @@ function editActionInventoryItem(inventoryId) {
         <form class="form" onsubmit="submitActionEditInventory(event, ${inventoryId}, ${item.product_id})">
             <div class="form-group">
                 <label>${t('add.quantity_label')}</label>
-                <div class="qty-control">
-                    <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', -1)">−</button>
-                    <input type="number" id="action-edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
-                    <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', 1)">+</button>
+                <div class="qty-control-with-unit">
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', -1)">−</button>
+                        <input type="number" id="action-edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
+                        <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', 1)">+</button>
+                    </div>
+                    <span class="qty-unit-badge" id="action-edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
                 </div>
             </div>
             <div class="form-group">
@@ -8899,10 +8980,12 @@ function editActionInventoryItem(inventoryId) {
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('action-edit-expiry', item);
+    setQtyInputUnitLabel('action-edit-qty', item.unit || 'pz');
 }
 
 function onActionEditUnitChange() {
     const unit = document.getElementById('action-edit-unit').value;
+    setQtyInputUnitLabel('action-edit-qty', unit);
     const confGroup = document.getElementById('action-edit-conf-group');
     if (confGroup) confGroup.style.display = unit === 'conf' ? 'block' : 'none';
 }
@@ -8997,10 +9080,13 @@ function showThrowForm() {
                 </div>
                 <div class="form-group">
                     <label>${t('use.throw_qty_label')}</label>
-                    <div class="qty-control">
-                        <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
-                        <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
-                        <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
+                    <div class="qty-control-with-unit">
+                        <div class="qty-control">
+                            <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
+                            <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
+                            <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
+                        </div>
+                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz'))}</span>
                     </div>
                 </div>
                 <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
@@ -9541,6 +9627,7 @@ function onAddUnitChange() {
 
     // Show/hide scale read button based on new unit
     updateScaleReadButtons();
+    setQtyInputUnitLabel('add-quantity', unit, true);
 }
 
 function updateAddQtyStep() {
@@ -9552,6 +9639,7 @@ function updateAddQtyStep() {
     } else {
         qtyInput.min = '1';
     }
+    setQtyInputUnitLabel('add-quantity', unit, true);
 }
 
 function markAddQtyManuallySet() {
@@ -9838,26 +9926,28 @@ async function submitAdd(e) {
                 }
             }
             showToast(t('add.product_added').replace('{name}', currentProduct.name).replace('{qty}', qtyInfo), 'success');
-            if (result.removed_from_bring) {
-                setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
-            } else if (shoppingItems.length > 0 && shoppingListUUID) {
-                // PHP matching may have missed the item (custom name / no catalog match) —
-                // try a client-side fuzzy remove using the already-loaded shoppingItems
-                const match = _findSimilarItem(currentProduct.name, shoppingItems);
-                if (match) {
+            if (!(await spesaModeAfterAdd(result))) {
+                if (result.removed_from_bring) {
+                    _applyShoppingListRemovals(result.removed_names || []);
+                    setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
+                } else if (shoppingListUUID) {
+                    const generic = currentProduct.shopping_name || currentProduct.name;
+                    const match = _findSimilarItem(generic, shoppingItems) || _findSimilarItem(currentProduct.name, shoppingItems);
                     api('shopping_remove', {}, 'POST', {
-                        name: match.name,
-                        rawName: match.rawName || '',
-                        listUUID: shoppingListUUID
+                        name: match?.name || generic,
+                        rawName: match?.rawName || '',
+                        listUUID: shoppingListUUID,
                     }).then(r => {
-                        if (r && r.success) {
-                            shoppingItems = shoppingItems.filter(i => i !== match);
+                        if (r?.success) {
+                            _applyShoppingListRemovals([match?.name || generic, match?.rawName].filter(Boolean));
                             setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
                         }
                     }).catch(() => {});
                 }
+                showPage('dashboard');
+            } else if (result.removed_from_bring) {
+                setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
             }
-            if (!(await spesaModeAfterAdd())) showPage('dashboard');
 
             // Submit extra batches (different expiry dates) in the background, silently
             if ((window._addExtraBatches || []).length > 0) {
@@ -9911,6 +10001,7 @@ function showUseForm() {
     loadUseInventoryInfo();
     showPage('use');
     updateScaleReadButtons();
+    syncUseQtyUnitBadge();
 }
 
 function renderUsePreview() {
@@ -10179,6 +10270,7 @@ async function loadUseInventoryInfo() {
 
             // Trigger a live-box refresh with the latest reading if on scale
             if (_scaleLatestWeight) _scaleAutoFillUse(_scaleLatestWeight);
+            syncUseQtyUnitBadge();
         } else {
             // --- NORMAL MODE ---
             _useConfMode = null;
@@ -10216,6 +10308,7 @@ async function loadUseInventoryInfo() {
                     </div>`;
                 document.querySelector('#page-use .use-partial').appendChild(fracDiv);
             }
+            syncUseQtyUnitBadge();
         }
     } catch(e) {
         console.error(e);
@@ -10254,6 +10347,7 @@ function switchUseUnit(mode) {
         hint.textContent = t('recipes.packs_of_have', { size: `${_useConfMode.packageSize}${_useConfMode.subLabel}`, count: _useConfMode.totalConf.toFixed(1) });
         if (confFracBtns) confFracBtns.style.display = '';
     }
+    syncUseQtyUnitBadge();
 }
 
 function setConfFraction(f) {
@@ -11857,6 +11951,15 @@ function _isBringPurchased(name, urgency) {
     });
 }
 
+/** Drop smart-shopping rows the user already bought (blocklist from spesa). */
+function _filterPurchasedSmartItems(items) {
+    if (!Array.isArray(items) || !items.length) return items || [];
+    return items.filter(item => {
+        const names = [item.shopping_name, item.name].filter(Boolean);
+        return !names.some(n => _isBringPurchased(n, item.urgency));
+    });
+}
+
 async function autoAddCriticalItems() {
     // Time-based guard: run at most once every 5 minutes
     const lastRun = parseInt(localStorage.getItem('_autoAddedCriticalTs') || '0');
@@ -12605,7 +12708,7 @@ async function loadSmartShopping() {
             const prevCriticalNames = new Set(
                 smartShoppingItems.filter(i => i.urgency === 'critical').map(i => i.name)
             );
-            smartShoppingItems = data.items;
+            smartShoppingItems = _filterPurchasedSmartItems(data.items);
             _smartShoppingLastFetch = Date.now();
             // NOTE: do NOT clear _cachedPrices here — qty validation (_qty/_unit metadata)
             // handles stale entries automatically item by item.
@@ -13197,6 +13300,7 @@ async function renderShoppingItems() {
         return { item, idx, smartData, urgency, sec };
     });
     const enriched = _dedupeShoppingByGeneric(enrichedRaw);
+    const pantryRows = enriched;
 
     countEl.textContent = enriched.length;
     const tabCount = document.getElementById('tab-count-acquisto');
@@ -13313,7 +13417,7 @@ async function renderShoppingItems() {
     // ── PANTRY HINTS: show "already at home: X" for each shopping item ──────
     // Load inventory once, then decorate all items asynchronously.
     _getShoppingInventoryCache().then(invItems => {
-        for (const { item, idx, smartData, urgency } of enriched) {
+        for (const { item, idx, smartData, urgency } of pantryRows) {
             const matches = _shoppingFamilyInventoryRows(item, smartData, invItems);
             if (matches.length === 0) continue;
             // Don't show "already at home" when the item is flagged urgent — stock is clearly insufficient.
@@ -14320,6 +14424,7 @@ function viewArchivedRecipe(idx) {
 }
 
 let _cachedRecipe = null;
+let _recipeShoppingSuggestions = [];
 let _generatedTodayTitles = []; // client-side list, robust vs race conditions
 let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
 let _rejectedRecipeIngredients = []; // ingredient names from previously rejected recipes
@@ -14419,6 +14524,14 @@ function _normalizeRecipeIngQtyNumber(ing) {
     const pkgUnit = (ing.package_unit || '').toLowerCase();
     const isConfSub = unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml');
     let useQty = parseFloat(ing.qty_number) || 0;
+    const stockPieces = parseFloat(ing.inventory_qty_total ?? ing.inventory_qty) || 0;
+
+    if (unit === 'pz') {
+        useQty = _recipeResolvePieceQty(useQty, recipeVal, recipeUnit, stockPieces);
+        ing.qty_number = Math.round(useQty * 1000) / 1000;
+        ing.qty = _recipeFormatPieceQtyLabel(useQty);
+        return useQty;
+    }
 
     if (isConfSub && recipeVal > 0 && recipeUnit === pkgUnit) {
         useQty = recipeVal;
@@ -14435,17 +14548,84 @@ function _normalizeRecipeIngQtyNumber(ing) {
     return useQty;
 }
 
+function _recipeRoundPieceQty(n) {
+    return Math.max(0.25, Math.round(n * 4) / 4);
+}
+
+function _recipeFormatPieceQtyLabel(n) {
+    const whole = Math.floor(n);
+    const frac = Math.round((n - whole) * 4) / 4;
+    const fracMap = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
+    const fracStr = fracMap[frac] || '';
+    if (whole === 0) return (fracStr || '0') + ' pz';
+    return whole + fracStr + ' pz';
+}
+
+/** Piece inventory only — never derive count from default_quantity / grams. */
+function _recipeResolvePieceQty(rawQty, recipeVal, recipeUnit, stockPieces) {
+    stockPieces = Math.max(0, stockPieces);
+    if (recipeUnit === 'pz' && recipeVal > 0) {
+        return _recipeRoundPieceQty(Math.min(recipeVal, stockPieces > 0 ? stockPieces : recipeVal));
+    }
+    if (rawQty >= 0.25 && rawQty <= Math.min(stockPieces > 0 ? stockPieces : 50, 50)) {
+        return _recipeRoundPieceQty(rawQty);
+    }
+    if (rawQty >= 20 && (stockPieces <= 0 || rawQty > stockPieces)) {
+        return _recipeRoundPieceQty(Math.min(1, stockPieces > 0 ? stockPieces : 1));
+    }
+    if (recipeVal >= 0.25 && recipeVal <= 50 && !['g', 'ml', 'kg', 'l'].includes(recipeUnit)) {
+        return _recipeRoundPieceQty(Math.min(recipeVal, stockPieces > 0 ? stockPieces : recipeVal));
+    }
+    return _recipeRoundPieceQty(Math.min(1, stockPieces > 0 ? stockPieces : 1));
+}
+
+function _recipeGetServingCapForIngredient(name, unit, persons) {
+    if (!persons || persons <= 0) return null;
+    const n = (name || '').toLowerCase().replace(/\s+/g, ' ');
+    if (unit === 'pz') {
+        if (/\b(cipoll\w*|porr\w*|scalog\w*)\b/.test(n)) return persons;
+        if (/\b(peperon\w*|melanzan\w*|zucchin\w*|finocchi\w*|melone)\b/.test(n)) return persons;
+        if (/\b(limon\w*|aranc\w*|limett\w*)\b/.test(n)) return Math.max(1, Math.ceil(0.5 * persons));
+        if (/\b(dado|brodo)\b/.test(n)) return Math.min(persons, 1);
+        if (/\b(baulett\w*|panin\w*|toast|piadin\w*|grissin\w*)\b/.test(n)) return Math.min(2, persons);
+        return null;
+    }
+    if (unit === 'g' || unit === 'ml') {
+        if (/\b(spinac\w*|bietol\w*|rucol\w*|lattug\w*|valerian\w*|songin\w*|misticanz\w*|indivi\w*|radicchi\w*|cicori\w*)\b/.test(n)) return 150 * persons;
+        if (/\b(minestr\w*|verdure)\b/.test(n)) return 200 * persons;
+        if (/\b(pane\s*gratt|grattugi\w*|pangratt)\b/.test(n)) return 30 * persons;
+        if (/\b(zucchin\w*|melanzan\w*|peperon\w*|carot\w*|sedan\w*|finocchi\w*|cavolf\w*|broccol\w*|zucc\w*|pomodor\w*|verdur\w*)\b/.test(n)) return 150 * persons;
+    }
+    return null;
+}
+
+function _recipeClampQtyForServings(ing, persons) {
+    if (!persons || persons <= 0) return;
+    const unit = ing.inventory_unit || 'pz';
+    let qty = parseFloat(ing.qty_number) || 0;
+    if (qty <= 0) return;
+    const cap = _recipeGetServingCapForIngredient(ing.name, unit, persons);
+    if (cap === null || qty <= cap) return;
+    ing.qty_number = Math.round(cap * 100) / 100;
+    if (unit === 'pz') ing.qty = _recipeFormatPieceQtyLabel(cap);
+    else if (unit === 'g' || unit === 'ml') ing.qty = Math.round(cap) + ' ' + unit;
+    delete ing.use_all_suggested;
+    if (ing.stock_have != null) ing.stock_remain = Math.max(0, Math.round((ing.stock_have - cap) * 100) / 100);
+}
+
 function _recipeGetClosedProductBaseQty(ing) {
     const unit = ing.inventory_unit || 'pz';
     const pkgSize = parseFloat(ing.default_quantity) || 0;
     const pkgUnit = (ing.package_unit || '').toLowerCase();
+    // Countable items: one piece = one unit — ignore default_quantity weight in grams
+    if (unit === 'pz') return 1;
     if (unit === 'conf' && pkgSize > 0 && (pkgUnit === 'g' || pkgUnit === 'ml')) {
         return pkgSize;
     }
     if (unit === 'conf' && pkgSize > 0) {
         return pkgSize;
     }
-    if (pkgSize > 0 && (unit === 'g' || unit === 'ml' || unit === 'pz')) {
+    if (pkgSize > 0 && (unit === 'g' || unit === 'ml')) {
         return pkgSize;
     }
     if (unit === 'conf') {
@@ -14495,7 +14675,9 @@ function _computeRecipeIngStockHint(ing, totalStockQty) {
             ing.qty = Math.round(useDisp) + ' ' + pkgUnit;
         } else {
             ing.qty_number = Math.round(totalStockQty * 1000) / 1000;
-            ing.qty = (unit === 'pz' ? (Math.round(totalStockQty * 100) / 100) : Math.round(totalStockQty)) + ' ' + (unit === 'pz' ? t('units.pz') : unit);
+            ing.qty = unit === 'pz'
+                ? _recipeFormatPieceQtyLabel(totalStockQty)
+                : Math.round(totalStockQty) + ' ' + unit;
         }
     } else {
         delete ing.use_all_suggested;
@@ -14551,6 +14733,7 @@ async function enrichRecipeIngredientsStock(recipe) {
                 ing.package_unit = pick.package_unit;
             }
             _computeRecipeIngStockHint(ing, totalStock);
+            _recipeClampQtyForServings(ing, Math.max(1, parseInt(recipe.persons, 10) || 1));
         }
     } catch (e) {
         console.warn('enrichRecipeIngredientsStock:', e);
@@ -14659,11 +14842,14 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     <button type="button" class="use-unit-btn" id="ruse-unit-conf" onclick="switchRecipeUseUnit('conf')">${t('recipes.packs_label')}</button>
                 </div>
                 <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.quantity_in_total').replace('{unit}', subLabel).replace('{total}', Math.round(totalSub) + subLabel)}</p>
-                <div class="qty-control">
-                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
-                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input"
-                           oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
-                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                <div class="qty-control-with-unit">
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
+                        <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input"
+                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
+                        <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                    </div>
+                    <span class="qty-unit-badge" id="ruse-quantity-unit" aria-live="polite">${escapeHtml(subLabel)}</span>
                 </div>`;
         } else {
             _recipeUseNormalUnit = unit;
@@ -14671,12 +14857,15 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             const unitLabel = unitLabels[unit] || unit;
             const inputMin = '0.1';
             qtySection = `
-                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.amount_label')} (${unitLabel}):</p>
-                <div class="qty-control">
-                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
-                    <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input"
-                           oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
-                    <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.amount_label')}:</p>
+                <div class="qty-control-with-unit">
+                    <div class="qty-control">
+                        <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
+                        <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input"
+                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
+                        <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
+                    </div>
+                    <span class="qty-unit-badge" id="ruse-quantity-unit" aria-live="polite">${escapeHtml(unitLabel)}</span>
                 </div>`;
         }
         
@@ -14733,6 +14922,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             </div>
         `;
         document.getElementById('modal-overlay').style.display = 'flex';
+        syncRecipeUseQtyUnitBadge();
         
     } catch (err) {
         console.error('useRecipeIngredient error:', err);
@@ -14771,6 +14961,7 @@ function switchRecipeUseUnit(mode) {
         qtyInput.min = 0.5;
         hint.textContent = t('recipes.packs_of_have').replace('{size}', `${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel}`).replace('{count}', _recipeUseConfMode.totalConf.toFixed(1));
     }
+    syncRecipeUseQtyUnitBadge();
 }
 
 function adjustRecipeUseQty(direction) {
@@ -15047,6 +15238,30 @@ function scaleRecipePersons(delta) {
     _updateRecipeStockHintsAfterScale(ratio);
 }
 
+async function addRecipeShoppingSuggestions() {
+    const items = (_recipeShoppingSuggestions || []).filter(s => s && s.name);
+    if (!items.length) return;
+    try {
+        const payload = {
+            items: items.map(s => ({
+                name: s.name,
+                specification: s.qty ? `Da ricetta · ${s.qty}` : 'Da ricetta',
+            })),
+            listUUID: typeof shoppingListUUID !== 'undefined' ? shoppingListUUID : undefined,
+        };
+        const data = await api('shopping_add', {}, 'POST', payload);
+        if (data.success) {
+            showToast(t('recipes.shopping_suggestions_added'), 'success');
+            if (typeof loadShoppingCount === 'function') loadShoppingCount();
+        } else {
+            showToast(data.error || t('error.bring_add'), 'error');
+        }
+    } catch (e) {
+        console.error('addRecipeShoppingSuggestions:', e);
+        showToast(t('error.bring_add'), 'error');
+    }
+}
+
 async function renderRecipe(r) {
     await enrichRecipeIngredientsStock(r);
     // Reset regen choice panel (hide choice, show button)
@@ -15093,6 +15308,20 @@ async function renderRecipe(r) {
         html += `<div class="recipe-tools-banner">🔧 <strong>${escapeHtml(t('recipes.tools_title'))}:</strong> ${tools.map(tool => `<span class="recipe-tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>`;
     }
 
+    // Optional shopping suggestions (ingredients removed because not in pantry)
+    const shopSug = r.shopping_suggestions || [];
+    if (shopSug.length > 0) {
+        const items = shopSug.map(s => `<li><strong>${escapeHtml(s.name)}</strong>${s.qty ? ': ' + escapeHtml(s.qty) : ''}</li>`).join('');
+        html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-suggestions">
+            <p>🛒 ${escapeHtml(t('recipes.shopping_suggestions_intro'))}</p>
+            <ul>${items}</ul>
+            <button type="button" class="btn btn-sm btn-success" onclick="addRecipeShoppingSuggestions()">${escapeHtml(t('recipes.shopping_suggestions_add'))}</button>
+        </div>`;
+        _recipeShoppingSuggestions = shopSug;
+    } else {
+        _recipeShoppingSuggestions = [];
+    }
+
     // Ingredients
     html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
@@ -15106,6 +15335,9 @@ async function renderRecipe(r) {
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
             details.push(ingredientLocLabels[ing.location] || ('📍 ' + ing.location));
+            if (ing.location === 'freezer') {
+                details.push(t('recipes.frozen_badge') || '❄️ Surgelato');
+            }
             if (ing.expiry_date) {
                 const exp = new Date(ing.expiry_date);
                 const now = new Date(); now.setHours(0,0,0,0);
@@ -15125,10 +15357,8 @@ async function renderRecipe(r) {
                 html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="${t('cooking.ingredient_deduct_title')}">${t('cooking.ingredient_use_btn')}</button>`;
             }
             html += `</li>`;
-        } else {
-            const pantryIcon = ing.from_pantry ? ' ✅' : ' 🛒';
-            html += `<li class="recipe-ingredient" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}"><span class="recipe-ing-text"><strong>${escapeHtml(ing.name)}</strong>: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${pantryIcon}</span></li>`;
         }
+        // Non-pantry ingredients are stripped server-side; nothing to render here.
     });
     html += '</ul>';
 
@@ -18300,8 +18530,28 @@ function _applySpesaScanUI() {
     _updateScanAiButton();
 }
 
+/** Drop purchased items from in-memory Bring list (by Italian or catalog name). */
+function _applyShoppingListRemovals(removedNames) {
+    if (!removedNames?.length) return;
+    const keys = new Set();
+    for (const n of removedNames) {
+        const low = String(n || '').trim().toLowerCase();
+        if (low) keys.add(low);
+        const tok = _nameTokens(low)[0];
+        if (tok) keys.add(tok);
+    }
+    if (!keys.size) return;
+    shoppingItems = (shoppingItems || []).filter(item => {
+        const nameLow = (item.name || '').toLowerCase();
+        const rawLow = (item.rawName || '').toLowerCase();
+        const first = _nameTokens(nameLow)[0] || '';
+        return !keys.has(nameLow) && !keys.has(rawLow) && !(first && keys.has(first));
+    });
+    loadShoppingCount();
+}
+
 // Called after successful add — returns true if spesa mode handled navigation
-async function spesaModeAfterAdd() {
+async function spesaModeAfterAdd(addResult) {
     if (!_spesaMode) return false;
     if (currentProduct) {
         _spesaSession.push({
@@ -18311,7 +18561,7 @@ async function spesaModeAfterAdd() {
         });
         updateSpesaBanner();
         _shoppingInventoryCache = null;
-        await _spesaRemovePurchasedFromList(currentProduct);
+        await _spesaRemovePurchasedFromList(currentProduct, addResult);
         const addLoc = document.getElementById('add-location')?.value || 'dispensa';
         _showFamilySiblingSuggest(currentProduct.id, addLoc);
     }
@@ -18320,27 +18570,34 @@ async function spesaModeAfterAdd() {
 }
 
 /** Remove matching shopping-list / Bring entry after a spesa-mode purchase. */
-async function _spesaRemovePurchasedFromList(product) {
+async function _spesaRemovePurchasedFromList(product, addResult) {
     const namesToMark = [product.name];
     if (product.shopping_name) namesToMark.push(product.shopping_name);
-    if (shoppingListUUID && shoppingItems.length > 0) {
-        const generic = product.shopping_name || product.name;
-        const match = _findSimilarItem(generic, shoppingItems) || _findSimilarItem(product.name, shoppingItems);
-        if (match) {
-            try {
-                const r = await api('shopping_remove', {}, 'POST', {
-                    name: match.name,
-                    rawName: match.rawName || '',
-                    listUUID: shoppingListUUID,
-                });
-                if (r?.success) {
-                    shoppingItems = shoppingItems.filter(i => i !== match);
-                    namesToMark.push(match.name);
-                }
-            } catch (_) { /* best effort */ }
-        }
+
+    if (addResult?.removed_names?.length) {
+        _applyShoppingListRemovals(addResult.removed_names);
+        namesToMark.push(...addResult.removed_names);
     }
+
+    const generic = product.shopping_name || product.name;
+    if (!addResult?.removed_from_bring) {
+        try {
+            const match = _findSimilarItem(generic, shoppingItems) || _findSimilarItem(product.name, shoppingItems);
+            const r = await api('shopping_remove', {}, 'POST', {
+                name: match?.name || generic,
+                rawName: match?.rawName || '',
+                listUUID: shoppingListUUID || undefined,
+            });
+            if (r?.success) {
+                _applyShoppingListRemovals([match?.name || generic, match?.rawName].filter(Boolean));
+                if (match?.name) namesToMark.push(match.name);
+            }
+        } catch (_) { /* best effort */ }
+    }
+
     _markBringPurchased(namesToMark);
+    loadShoppingList._bgCall = true;
+    loadShoppingList();
 }
 
 const _FAMILY_SIBLING_CONFIRM_TTL = 24 * 60 * 60 * 1000;
@@ -18936,27 +19193,6 @@ function _heartbeatRetry() {
  * Returns true if the app can proceed, false if a critical check failed.
  */
 async function _runStartupCheck() {
-    const spinnerEl  = document.getElementById('preloader-spinner');
-    const wrapEl     = document.getElementById('preloader-progress-wrap');
-    const barEl      = document.getElementById('preloader-bar');
-    const labelEl    = document.getElementById('preloader-check-label');
-    const warningsEl = document.getElementById('preloader-warnings');
-    const errorEl    = document.getElementById('preloader-error-msg');
-    const retryBtn   = document.getElementById('preloader-retry-btn');
-
-    if (!wrapEl) return true; // preloader already removed
-
-    const tl = (key, fallback) => {
-        const full = 'startup.' + key;
-        const v = typeof t === 'function' ? t(full) : full;
-        return (v === full) ? fallback : v;
-    };
-
-    // Switch from spinner to progress bar
-    if (spinnerEl) spinnerEl.style.display = 'none';
-    wrapEl.style.display = '';
-
-    // Helper: set progress bar + crossfade status text (function decl avoids TDZ if called early)
     let _curPct = 0;
     function setProgress(pct, label, state) {
         _curPct = pct;
@@ -18980,6 +19216,26 @@ async function _runStartupCheck() {
         el.className = `preloader-status-text ${sc}`;
         el.textContent = cleanLabel;
     }
+
+    const spinnerEl  = document.getElementById('preloader-spinner');
+    const wrapEl     = document.getElementById('preloader-progress-wrap');
+    const barEl      = document.getElementById('preloader-bar');
+    const labelEl    = document.getElementById('preloader-check-label');
+    const warningsEl = document.getElementById('preloader-warnings');
+    const errorEl    = document.getElementById('preloader-error-msg');
+    const retryBtn   = document.getElementById('preloader-retry-btn');
+
+    if (!wrapEl) return true; // preloader already removed
+
+    const tl = (key, fallback) => {
+        const full = 'startup.' + key;
+        const v = typeof t === 'function' ? t(full) : full;
+        return (v === full) ? fallback : v;
+    };
+
+    // Switch from spinner to progress bar
+    if (spinnerEl) spinnerEl.style.display = 'none';
+    wrapEl.style.display = '';
 
     // Auto-provision API token for same-origin browser sessions
     if (typeof ensureApiToken === 'function') {

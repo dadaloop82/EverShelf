@@ -38,8 +38,24 @@ function _ensureDataDir(): void {
     }
 }
 
+/** Ensure the SQLite DB and WAL sidecar files are writable (Docker volume first-boot). */
+function _ensureDbWritable(): void {
+    if (!file_exists(DB_PATH)) {
+        return;
+    }
+    if (!is_writable(DB_PATH)) {
+        @chmod(DB_PATH, 0664);
+    }
+    foreach ([DB_PATH . '-wal', DB_PATH . '-shm'] as $sidecar) {
+        if (file_exists($sidecar) && !is_writable($sidecar)) {
+            @chmod($sidecar, 0664);
+        }
+    }
+}
+
 function getDB(): PDO {
     _ensureDataDir();
+    _ensureDbWritable();
     // logger.php is required by index.php before getDB() is called.
     // In cron context it may not be loaded yet — guard with class_exists.
     $useLogging = class_exists('LoggingPDO', false);
@@ -53,7 +69,7 @@ function getDB(): PDO {
     $db->setAttribute(PDO::ATTR_TIMEOUT, 5); // PDO::ATTR_TIMEOUT is in seconds for MySQL, but not directly for SQLite.
                                              // For SQLite, we use PRAGMA busy_timeout.
     $db->exec('PRAGMA journal_mode = WAL;');
-    $db->exec('PRAGMA busy_timeout = 5000;'); // 5000 milliseconds = 5 seconds
+    $db->exec('PRAGMA busy_timeout = 10000;'); // 10 s — cron + PWA writes can contend under WAL
 
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec("PRAGMA journal_mode=WAL");
@@ -70,6 +86,29 @@ function getDB(): PDO {
     migrateDB($db);
     
     return $db;
+}
+
+/**
+ * Retry a DB write when SQLite returns "database is locked" (concurrent cron + API).
+ *
+ * @template T
+ * @param callable(): T $fn
+ * @return T
+ */
+function dbWithRetry(callable $fn, int $maxAttempts = 4): mixed {
+    $attempt = 0;
+    while (true) {
+        try {
+            return $fn();
+        } catch (\PDOException $e) {
+            $attempt++;
+            $locked = str_contains($e->getMessage(), 'database is locked');
+            if (!$locked || $attempt >= $maxAttempts) {
+                throw $e;
+            }
+            usleep(150000 * $attempt); // 150 ms, 300 ms, 450 ms …
+        }
+    }
 }
 
 function initializeDB(PDO $db): void {

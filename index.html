@@ -94,7 +94,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.39</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.40</span>
     </div>
 </div>
 
@@ -107,7 +107,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.39</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.40</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -420,6 +420,7 @@
                         <input type="number" id="add-quantity" value="1" min="0.1" step="any" class="qty-input">
                         <button type="button" class="qty-btn" onclick="adjustAddQty(1)">+</button>
                     </div>
+                    <span class="qty-unit-badge qty-unit-muted" id="add-quantity-unit" aria-live="polite">pz</span>
                     <select id="add-unit" class="form-input unit-select" onchange="onAddUnitChange()">
                         <option value="pz">pz</option>
                         <option value="conf">conf</option>
@@ -499,11 +500,14 @@
                     </button>
                     <div class="use-partial">
                         <p id="use-partial-hint" data-i18n="use.partial_hint">Oppure specifica la quantità usata:</p>
-                        <div class="qty-control">
-                            <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
-                            <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input"
-                                   oninput="_scaleUserDismissed=true; _cancelScaleTimersOnly();">
-                            <button type="button" class="qty-btn" id="use-qty-plus" onclick="adjustUseQty(1)">+</button>
+                        <div class="qty-control-with-unit">
+                            <div class="qty-control">
+                                <button type="button" class="qty-btn" id="use-qty-minus" onclick="adjustUseQty(-1)">−</button>
+                                <input type="number" id="use-quantity" value="1" min="0.1" step="any" class="qty-input"
+                                       oninput="_scaleUserDismissed=true; _cancelScaleTimersOnly();">
+                                <button type="button" class="qty-btn" id="use-qty-plus" onclick="adjustUseQty(1)">+</button>
+                            </div>
+                            <span class="qty-unit-badge" id="use-quantity-unit" aria-live="polite">—</span>
                         </div>
                         <button type="submit" id="btn-use-submit" class="btn btn-large btn-warning full-width mt-2 move-countdown-btn" data-i18n="use.submit">📤 Usa questa quantità</button>
                     </div>
@@ -1985,6 +1989,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260606n"></script>
+<script src="assets/js/app.js?v=20260606z"></script>
 </body>
 </html>
