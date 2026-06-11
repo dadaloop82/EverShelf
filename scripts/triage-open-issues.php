@@ -135,17 +135,6 @@ foreach ($bugs as $num => $msg) {
     closeIssue($token, $repo, $num, $dryRun);
 }
 
-// ── Feature / enhancement backlog (close with acknowledgment) ───────────────
-$features = [122, 121, 120, 119, 116, 115, 114, 106, 105, 104, 103, 102, 101, 97, 93, 81, 80, 79, 69, 67, 65];
-$featMsg = <<<'MD'
-Grazie per la proposta — è nel **backlog** del progetto.
-
-Chiudiamo questa issue per tenere il tracker focalizzato sui bug attivi; la funzionalità resta nel radar per release future. **Riapri pure** quando vuoi lavorarci o seguirne lo sviluppo.
-MD;
-
-foreach ($features as $num) {
-    commentIssue($token, $repo, $num, $featMsg, $dryRun);
-    closeIssue($token, $repo, $num, $dryRun);
-}
+// Feature/enhancement issues stay OPEN — do not bulk-close backlog items here.
 
 echo "Done.\n";

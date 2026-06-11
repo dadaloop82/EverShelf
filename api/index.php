@@ -11198,12 +11198,20 @@ function smartShopping(PDO $db): void {
                 if ($buyCount > 0 && $totalUsed > $buyCount * 5 && $daysSinceFirst < 999) {
                     $need14 = ($buyCount / $daysSinceFirst) * 14;
                 }
-                $suggestedQty   = (int) max(1, min(10, (int)($need14 + 0.3)));
-                $suggestedUnit  = 'conf';
+                // conf + package weight: express suggestion in g/ml, not raw conf count from mis-tracked grams.
+                if ($defQty > 0 && in_array(strtolower($pkgUnit), ['g', 'ml'], true)) {
+                    $pkgs = (int) max(1, min(3, (int)($need14 + 0.3)));
+                    $suggestedQty    = $pkgs * (int) $defQty;
+                    $suggestedUnit   = strtolower($pkgUnit);
+                    $suggestedApprox = $pkgs > 1;
+                } else {
+                    $suggestedQty   = (int) max(1, min(3, (int)($need14 + 0.3)));
+                    $suggestedUnit  = 'conf';
+                }
 
             } elseif ($pkgUnit !== '' && $defQty > 0) {
                 // Real package info available → express in confezioni (definitive)
-                $pkgs           = (int) max(1, min(10, (int)($need14 / $defQty + 0.3)));
+                $pkgs           = (int) max(1, min(3, (int)($need14 / $defQty + 0.3)));
                 $suggestedQty   = $pkgs;
                 $suggestedUnit  = 'conf';
 
@@ -11212,7 +11220,7 @@ function smartShopping(PDO $db): void {
                 // use defQty as the minimum purchase unit and round to nearest multiple.
                 // This ensures we never suggest less than one "reference pack".
                 $pkgs           = (int) max(1, (int)($need14 / $defQty + 0.3));
-                $pkgs           = min(10, $pkgs);
+                $pkgs           = min(3, $pkgs);
                 $suggestedQty   = $pkgs * (int)$defQty;
                 $suggestedUnit  = $unit;
                 $suggestedApprox = true; // always "almeno" — no confirmed pkg size
@@ -11234,8 +11242,8 @@ function smartShopping(PDO $db): void {
                 }
 
             } elseif ($unit === 'pz') {
-                // No package info → raw pz count, approximate
-                $suggestedQty    = (int) max(1, min(10, (int)($need14 + 0.3)));
+                // No package info → raw pz count, approximate (cap 5 — not 14-day bulk buy)
+                $suggestedQty    = (int) max(1, min(5, (int)($need14 + 0.3)));
                 $suggestedUnit   = 'pz';
                 $suggestedApprox = ($suggestedQty > 1);
             }
@@ -11278,17 +11286,17 @@ function smartShopping(PDO $db): void {
             if ($gap > 0) {
                 if ($unit === 'conf') {
                     if ($defQty > 0 && in_array(strtolower($pkgUnit), ['g', 'ml'])) {
-                        $pkgs = (int)max(1, min(10, (int)ceil($gap / $defQty)));
+                        $pkgs = (int)max(1, min(3, (int)ceil($gap / $defQty)));
                         $suggestedQty = $pkgs * (int)$defQty;
                         $suggestedUnit = strtolower($pkgUnit);
                         $suggestedApprox = true;
                     } else {
-                        $suggestedQty = (int)max(1, min(10, (int)ceil($gap)));
+                        $suggestedQty = (int)max(1, min(3, (int)ceil($gap)));
                         $suggestedUnit = 'conf';
                         $suggestedApprox = false;
                     }
                 } elseif ($unit === 'pz') {
-                    $suggestedQty = (int)max(1, min(10, (int)ceil($gap)));
+                    $suggestedQty = (int)max(1, min(5, (int)ceil($gap)));
                     $suggestedUnit = 'pz';
                     $suggestedApprox = $suggestedQty > 1;
                 } elseif ($unit === 'g' || $unit === 'ml') {
@@ -12856,22 +12864,16 @@ function _matchSmartShoppingItem(string $name, array $smartItems): ?array {
 
 /**
  * Resolve qty/unit/defQty for price estimation from smart-shopping suggestions.
+ * Each shopping-list line is priced as ONE typical retail purchase — not 14-day restock stock.
  */
 function _resolveShoppingPriceItem(string $name, array $smartItems): array {
     $si = _matchSmartShoppingItem($name, $smartItems);
-    if ($si && !empty($si['suggested_qty']) && (float)$si['suggested_qty'] > 0) {
-        return [
-            'name'             => $name,
-            'quantity'         => (float)$si['suggested_qty'],
-            'unit'             => trim($si['suggested_unit'] ?? $si['unit'] ?? 'conf'),
-            'default_quantity' => (float)($si['default_qty'] ?? 0),
-            'package_unit'     => trim($si['package_unit'] ?? ''),
-        ];
-    }
     if ($si) {
-        $unit = trim($si['unit'] ?? 'conf');
-        $defQty = (float)($si['default_qty'] ?? 0);
+        $unit    = trim($si['unit'] ?? 'conf');
+        $defQty  = (float)($si['default_qty'] ?? 0);
         $pkgUnit = trim($si['package_unit'] ?? '');
+
+        // Packaged goods (conf + weight/volume): one package at list price.
         if ($unit === 'conf' && $defQty > 0 && $pkgUnit !== '') {
             return [
                 'name'             => $name,
@@ -12881,16 +12883,31 @@ function _resolveShoppingPriceItem(string $name, array $smartItems): array {
                 'package_unit'     => $pkgUnit,
             ];
         }
+
+        // Sold by piece: 2–3 items typical for a single shop trip.
         if ($unit === 'pz') {
+            $gramsPerPiece = ($defQty >= 20) ? $defQty : 200.0;
             return [
                 'name'             => $name,
                 'quantity'         => 2,
                 'unit'             => 'pz',
+                'default_quantity' => $gramsPerPiece,
+                'package_unit'     => 'g',
+            ];
+        }
+
+        // Bulk g/ml with known reference pack: one pack, not multi-week stock.
+        if (($unit === 'g' || $unit === 'ml') && $defQty > 0) {
+            return [
+                'name'             => $name,
+                'quantity'         => $defQty,
+                'unit'             => $unit,
                 'default_quantity' => $defQty,
                 'package_unit'     => $pkgUnit,
             ];
         }
     }
+
     return [
         'name'             => $name,
         'quantity'         => 1,
@@ -13288,13 +13305,11 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
             $weightKg = $qty;
         }
         if ($weightKg <= 0) {
-            // Two cases:
-            // A) defQty was 0 (no weight data at all) → "–" is more honest than a fake price.
-            // B) defQty was 1-19 (suspicious: the value was stored as a piece count, not grams;
-            //    the assignment was intentionally skipped by the defQty<20 guard above).
-            //    In case B, fall back to ppu × qty so the badge shows something rather than €0.00.
-            if (in_array($unit, ['pz', 'conf']) && $defQty > 0) {
-                return round($pricePerUnit * max(1.0, $qty), 2);
+            // Piece/count units with €/kg AI price: estimate weight per piece (never €/kg × piece count).
+            if (in_array($unit, ['pz', 'conf'], true)) {
+                $gramsPerPiece = ($defQty >= 20) ? $defQty : 200.0;
+                $weightKg = max(1.0, $qty) * $gramsPerPiece / 1000.0;
+                return round($pricePerUnit * $weightKg, 2);
             }
             return null;
         }

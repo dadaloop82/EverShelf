@@ -12128,24 +12128,35 @@ async function syncShoppingPriceTotal(forceRefresh = false) {
 function _buildPricePayload() {
     return shoppingItems.map((item) => {
         const smart = _matchBringToSmart(item.name, smartShoppingItems);
-        if (smart?.suggested_qty > 0) {
-            return {
-                name: item.name,
-                quantity: smart.suggested_qty,
-                unit: smart.suggested_unit || smart.unit || 'conf',
-                default_quantity: smart.default_qty || 0,
-                package_unit: smart.package_unit || '',
-            };
-        }
         if (smart) {
             const unit = smart.unit || 'conf';
             const defQty = parseFloat(smart.default_qty) || 0;
             const pkgUnit = smart.package_unit || '';
+            // One shopping-list line ≈ one retail purchase (not 14-day restock qty).
             if (unit === 'conf' && defQty > 0 && pkgUnit) {
                 return {
                     name: item.name,
                     quantity: defQty,
                     unit: pkgUnit.toLowerCase(),
+                    default_quantity: defQty,
+                    package_unit: pkgUnit,
+                };
+            }
+            if (unit === 'pz') {
+                const gramsPerPiece = defQty >= 20 ? defQty : 200;
+                return {
+                    name: item.name,
+                    quantity: 2,
+                    unit: 'pz',
+                    default_quantity: gramsPerPiece,
+                    package_unit: 'g',
+                };
+            }
+            if ((unit === 'g' || unit === 'ml') && defQty > 0) {
+                return {
+                    name: item.name,
+                    quantity: defQty,
+                    unit,
                     default_quantity: defQty,
                     package_unit: pkgUnit,
                 };
