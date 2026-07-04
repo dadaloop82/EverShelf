@@ -94,7 +94,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.52</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.53</span>
     </div>
 </div>
 
@@ -107,7 +107,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.52</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.53</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -900,20 +900,20 @@
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
-        <div class="settings-tabs">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" data-i18n-title="settings.tab_general" title="Generali">⚙️</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys">🔑</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" data-i18n-title="settings.shopping.tab" title="Lista spesa">🛒</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette">🍳</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale">📅</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici">🔌</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera">📷</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza">🔒</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts">🔊</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab">🏠</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab">⚖️</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" data-i18n-title="settings.backup.tab" title="Backup">💾</button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" data-i18n-title="settings.info.tab" title="Info">ℹ️</button>
+        <div class="settings-tabs" role="tablist">
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" title="Generali"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Lista spesa"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" title="Info"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
         </div>
         <div class="settings-panels">
             <!-- Generali Tab -->
@@ -1144,9 +1144,82 @@
             </div>
             <!-- Recipe Tab -->
             <div class="settings-panel" id="tab-recipe">
+                <p class="settings-panel-intro" data-i18n="settings.recipe.panel_intro">Motore ricette, Mealie e collegamento con la lista spesa.</p>
+
                 <div class="settings-card">
-                    <h4 data-i18n="settings.recipe.title">🍳 Preferenze Ricette</h4>
-                    <p class="settings-hint" data-i18n="settings.recipe.hint">Configura le opzioni predefinite per la generazione delle ricette.</p>
+                    <h4 data-i18n="settings.recipe.engine_title">🧠 Motore ricette</h4>
+                    <p class="settings-hint" data-i18n="settings.recipe.engine_hint">Scegli da dove EverShelf prende le ricette quando premi «Genera ricetta».</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.source_label">Motore ricette</label>
+                        <select id="setting-recipe-source" class="form-input" onchange="_updateRecipeEngineHelp()">
+                            <option value="auto" data-i18n="settings.mealie.source_auto">Auto (Mealie se disponibile, altrimenti Gemini)</option>
+                            <option value="mealie" data-i18n="settings.mealie.source_mealie">Solo Mealie (ricettario salvato)</option>
+                            <option value="gemini" data-i18n="settings.mealie.source_gemini">Solo Gemini AI (ricette generate)</option>
+                        </select>
+                    </div>
+                    <div id="recipe-engine-help" class="settings-info-box"></div>
+                </div>
+
+                <div class="settings-card" id="mealie-settings-card">
+                    <h4 data-i18n="settings.mealie.connection_title">🍽️ Mealie — collegamento</h4>
+                    <p class="settings-hint" data-i18n="settings.mealie.hint">Mealie è un ricettario self-hosted. EverShelf cerca tra le tue ricette (anche offline dopo la sync).</p>
+                    <p class="settings-hint" id="mealie-setup-status"></p>
+                    <div id="mealie-install-progress" style="display:none;margin:8px 0 12px">
+                        <div class="settings-progress-track">
+                            <div id="mealie-install-progress-fill" class="settings-progress-fill"></div>
+                        </div>
+                        <p id="mealie-install-progress-text" class="settings-hint" style="margin-top:6px;margin-bottom:0"></p>
+                    </div>
+                    <div class="settings-btn-row">
+                        <button type="button" class="btn btn-secondary" id="btn-mealie-discover" onclick="discoverMealie()" data-i18n="settings.mealie.discover_btn">🔍 Verifica / Discovery</button>
+                        <button type="button" class="btn btn-secondary" id="btn-mealie-install" onclick="installMealie()" data-i18n="settings.mealie.install_btn">⚙️ Installa Mealie</button>
+                        <button type="button" class="btn btn-secondary" id="btn-mealie-sync" onclick="syncMealieCache(true)" data-i18n="settings.mealie.sync_btn">🔄 Sincronizza ricette</button>
+                    </div>
+                    <p class="settings-hint" id="mealie-cache-status"></p>
+                    <details class="settings-details">
+                        <summary data-i18n="settings.mealie.advanced_toggle">⚙️ Opzioni avanzate Mealie</summary>
+                        <div class="settings-details-body">
+                            <div class="form-group">
+                                <label data-i18n="settings.mealie.offline_label">Modalità Mealie</label>
+                                <select id="setting-mealie-offline" class="form-input">
+                                    <option value="auto" data-i18n="settings.mealie.offline_auto">Auto (online + cache offline se non raggiungibile)</option>
+                                    <option value="true" data-i18n="settings.mealie.offline_only">Solo offline (usa cache locale)</option>
+                                    <option value="false" data-i18n="settings.mealie.offline_online">Solo online (sempre API Mealie)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="settings.mealie.url_label">URL Mealie</label>
+                                <input type="url" id="setting-mealie-url" class="form-input" placeholder="http://127.0.0.1:9925">
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="settings.mealie.token_label">Token API Mealie</label>
+                                <input type="password" id="setting-mealie-token" class="form-input" placeholder="••••••••">
+                                <button type="button" class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-mealie-token')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="settings.mealie.sync_days_label">Sincronizza cache ogni (giorni)</label>
+                                <input type="number" id="setting-mealie-sync-days" class="form-input" min="1" max="90" value="7">
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="settings-card">
+                    <h4 data-i18n="settings.recipe.shopping_title">🛒 Ricette e lista spesa</h4>
+                    <p class="settings-hint" data-i18n="settings.recipe.shopping_hint">Quando una ricetta (Mealie o Gemini) richiede ingredienti che non hai in dispensa.</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.recipe.shopping_mode_label">Ingredienti mancanti</label>
+                        <select id="setting-recipe-shopping-mode" class="form-input">
+                            <option value="off" data-i18n="settings.recipe.shopping_off">Non suggerire</option>
+                            <option value="suggest" data-i18n="settings.recipe.shopping_suggest">Mostra suggerimenti (conferma manuale)</option>
+                            <option value="auto" data-i18n="settings.recipe.shopping_auto">Aggiungi automaticamente alla lista spesa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <h4 data-i18n="settings.recipe.prefs_title">👨‍🍳 Preferenze ricette</h4>
+                    <p class="settings-hint" data-i18n="settings.recipe.hint">Opzioni predefinite per la generazione delle ricette.</p>
                     <div class="form-group">
                         <label data-i18n="settings.recipe.persons_label">👥 Persone predefinite</label>
                         <div class="qty-control">
@@ -1170,41 +1243,6 @@
                         <label data-i18n="settings.recipe.dietary_label">🚫 Intolleranze / Restrizioni</label>
                         <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
                     </div>
-                </div>
-                <div class="settings-card" id="mealie-settings-card">
-                    <h4 data-i18n="settings.mealie.title">🍽️ Mealie (ricettario)</h4>
-                    <p class="settings-hint" data-i18n="settings.mealie.hint">Mealie è un gestore ricette open source self-hosted. EverShelf può cercare ricette nel tuo Mealie (anche offline dopo la sincronizzazione) invece di generarle con Gemini.</p>
-                    <div class="form-group">
-                        <label data-i18n="settings.mealie.source_label">Motore ricette</label>
-                        <select id="setting-recipe-source" class="form-input">
-                            <option value="auto" data-i18n="settings.mealie.source_auto">Auto (Mealie se disponibile, altrimenti Gemini)</option>
-                            <option value="mealie" data-i18n="settings.mealie.source_mealie">Solo Mealie</option>
-                            <option value="gemini" data-i18n="settings.mealie.source_gemini">Solo Gemini AI</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="settings.mealie.offline_label">Modalità Mealie</label>
-                        <select id="setting-mealie-offline" class="form-input">
-                            <option value="auto" data-i18n="settings.mealie.offline_auto">Auto (online + cache offline se non raggiungibile)</option>
-                            <option value="true" data-i18n="settings.mealie.offline_only">Solo offline (usa cache locale)</option>
-                            <option value="false" data-i18n="settings.mealie.offline_online">Solo online (sempre API Mealie)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="settings.mealie.url_label">URL Mealie</label>
-                        <input type="url" id="setting-mealie-url" class="form-input" placeholder="https://mealie.example.com">
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="settings.mealie.token_label">Token API Mealie</label>
-                        <input type="password" id="setting-mealie-token" class="form-input" placeholder="••••••••">
-                        <button type="button" class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-mealie-token')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="settings.mealie.sync_days_label">Sincronizza cache ogni (giorni)</label>
-                        <input type="number" id="setting-mealie-sync-days" class="form-input" min="1" max="90" value="7">
-                    </div>
-                    <p class="settings-hint" id="mealie-cache-status"></p>
-                    <button type="button" class="btn btn-secondary" id="btn-mealie-sync" onclick="syncMealieCache(true)" data-i18n="settings.mealie.sync_btn">🔄 Sincronizza ricette Mealie ora</button>
                 </div>
             </div>
             <!-- Weekly Meal Plan Tab -->
@@ -2041,6 +2079,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260704d"></script>
+<script src="assets/js/app.js?v=20260704m"></script>
 </body>
 </html>

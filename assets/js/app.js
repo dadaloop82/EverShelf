@@ -123,6 +123,49 @@ document.addEventListener('error', (e) => {
     e.target.style.opacity = '0.45';
 }, true);
 
+// ── App base path (subdir installs e.g. /dispensa/) ───────────────────────────
+function _appBasePath() {
+    const script = document.querySelector('script[src*="assets/js/app.js"]');
+    if (script?.src) {
+        try {
+            const u = new URL(script.src, window.location.href);
+            return u.pathname.replace(/assets\/js\/app\.js(\?.*)?$/, '');
+        } catch (_) { /* fall through */ }
+    }
+    let p = window.location.pathname || '/';
+    if (p.endsWith('index.html')) p = p.slice(0, -'index.html'.length);
+    if (!p.endsWith('/')) {
+        const last = p.split('/').pop() || '';
+        p = last.includes('.') ? p.slice(0, p.lastIndexOf('/') + 1) : (p + '/');
+    }
+    return p;
+}
+
+/** True only for real image URLs — DB sometimes stores unit codes (g, pz) by mistake. */
+function _validProductImageUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const u = url.trim();
+    if (!u) return false;
+    if (/^(g|kg|ml|l|cl|pz|conf|lt)$/i.test(u)) return false;
+    if (/^(https?:\/\/|data:image\/)/i.test(u)) return true;
+    if (u.startsWith('/') && u.length > 4) return true;
+    return u.includes('.') && u.length > 5;
+}
+
+function _invImageHtml(imageUrl, catIcon) {
+    if (!_validProductImageUrl(imageUrl)) return catIcon;
+    return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${catIcon}'">`;
+}
+
+function _shouldRegisterServiceWorker() {
+    if (!('serviceWorker' in navigator)) return false;
+    if (window.location.pathname.includes('/demo')) return false;
+    const h = window.location.hostname;
+    // Chrome often fails SW on LAN IP + self-signed cert (IP not in certificate SAN)
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) return false;
+    return true;
+}
+
 // ── Gemini AI availability ────────────────────────────────────────────────────
 // Set to true in _initApp / syncSettingsFromDB once server confirms key is set.
 // All AI entry points call _requireGemini() before opening camera / API calls.
@@ -2841,7 +2884,7 @@ function _applySyncedSettings(serverSettings) {
         'shopping_forecast','shopping_auto_add_threshold',
         'dark_mode',
         'barcode_ai_fallback',
-        'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable',
+        'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
         // Home Assistant
         'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
         'ha_notify_service','ha_expiry_days'];
@@ -3439,7 +3482,11 @@ async function loadSettingsUI() {
     if (mealieTokEl) mealieTokEl.value = s.mealie_api_token || '';
     const mealieSyncDaysEl = document.getElementById('setting-mealie-sync-days');
     if (mealieSyncDaysEl) mealieSyncDaysEl.value = s.mealie_cache_sync_days || 7;
+    const recipeShopModeEl = document.getElementById('setting-recipe-shopping-mode');
+    if (recipeShopModeEl) recipeShopModeEl.value = s.recipe_shopping_mode || 'suggest';
     _updateMealieCacheStatus(s);
+    _updateRecipeEngineHelp();
+    discoverMealie(false);
     // Camera
     const cameraSelect = document.getElementById('setting-camera-facing');
     if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
@@ -4052,6 +4099,8 @@ async function saveSettings() {
     if (mealieTokSave && mealieTokSave.value.trim()) s.mealie_api_token = mealieTokSave.value.trim();
     const mealieSyncDaysSave = document.getElementById('setting-mealie-sync-days');
     if (mealieSyncDaysSave) s.mealie_cache_sync_days = parseInt(mealieSyncDaysSave.value, 10) || 7;
+    const recipeShopModeSave = document.getElementById('setting-recipe-shopping-mode');
+    if (recipeShopModeSave) s.recipe_shopping_mode = recipeShopModeSave.value || 'suggest';
     // TTS settings
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
@@ -4196,6 +4245,7 @@ async function saveSettings() {
             mealie_url:         s.mealie_url || '',
             mealie_offline:     s.mealie_offline || 'auto',
             mealie_cache_sync_days: parseInt(s.mealie_cache_sync_days, 10) || 7,
+            recipe_shopping_mode: s.recipe_shopping_mode || 'suggest',
             ...(document.getElementById('setting-mealie-token')?.value.trim()
                 ? { mealie_api_token: document.getElementById('setting-mealie-token').value.trim() } : {}),
         }, tokenHeader);
@@ -4259,7 +4309,7 @@ function togglePasswordVisibility(inputId) {
 }
 
 // ===== API HELPER =====
-async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}) {
+async function api(action, params = {}, method = 'GET', body = null, extraHeaders = {}, timeoutMs = 0) {
     // In demo mode, all shopping write operations are no-ops
     if (_demoMode) {
         const BRING_WRITE_ACTIONS = ['bring_add', 'bring_remove', 'bring_migrate_names', 'bring_set_spec',
@@ -4289,6 +4339,9 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         opts.body = JSON.stringify(body);
     } else {
         opts.headers = { ...authHdrs, ...extraHeaders };
+    }
+    if (timeoutMs > 0 && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+        opts.signal = AbortSignal.timeout(timeoutMs);
     }
     let res;
     try {
@@ -6463,7 +6516,7 @@ function renderDashItem(item) {
     return `
     <div class="inventory-item compact-item" onclick="dashItemTap(${item.id}, ${item.product_id})">
         <div class="inv-image">
-            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
+            ${_invImageHtml(item.image_url, catIcon)}
         </div>
         <div class="inv-info">
             <div class="inv-name">${escapeHtml(item.name)}</div>
@@ -6712,12 +6765,12 @@ function renderInventoryItem(item) {
     const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
     
     return `
-    <div class="inventory-item" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
+    <div class="inventory-item" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" onclick="invRowTap(event)">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
-                ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
+                ${_invImageHtml(item.image_url, catIcon)}
             </div>
             <div class="inv-info">
                 <div class="inv-name">${escapeHtml(item.name)}</div>
@@ -6749,7 +6802,7 @@ function _inventorySwipeUseQty(item) {
 }
 
 async function _inventoryQuickUseOne(invId) {
-    const item = currentInventory.find(i => i.id === invId);
+    const item = currentInventory.find(i => i.id == invId);
     if (!item) return;
     const qty = _inventorySwipeUseQty(item);
     try {
@@ -6776,6 +6829,16 @@ async function _inventoryQuickUseOne(invId) {
     }
 }
 
+/** Tap riga inventario → schermata «Usa» (quantità). Swipe gestito a parte. */
+function invRowTap(ev) {
+    const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
+    if (!row || row.dataset.invSwipeDone === '1') return;
+    const productId = parseInt(row.dataset.productId, 10);
+    const location = row.dataset.location || 'dispensa';
+    if (isNaN(productId)) return;
+    quickUse(productId, location);
+}
+
 function _initInventoryRowSwipe(container) {
     if (!container) return;
     if (container._invSwipeHandlers) {
@@ -6796,7 +6859,7 @@ function _initInventoryRowSwipe(container) {
         startX = t0.clientX;
         startY = t0.clientY;
         dragging = true;
-        activeRow._swipeMoved = false;
+        row.dataset.invSwipeDone = '';
         activeContent.style.transition = 'none';
     };
 
@@ -6805,48 +6868,58 @@ function _initInventoryRowSwipe(container) {
         const t0 = e.touches[0];
         const dx = t0.clientX - startX;
         const dy = Math.abs(t0.clientY - startY);
-        if (dy > 24 && Math.abs(dx) < 20) {
+        if (dy > 40 && Math.abs(dx) < 16) {
             dragging = false;
-            activeContent.style.transform = '';
+            activeRow = null;
+            activeContent = null;
             return;
         }
-        if (Math.abs(dx) > 8) {
+        if (Math.abs(dx) > 10) {
             e.preventDefault();
-            activeRow._swipeMoved = true;
         }
-        const clamped = dx > 0
-            ? Math.min(100, dx)
-            : Math.max(-100, dx);
+        const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
         activeContent.style.transform = `translateX(${clamped}px)`;
         activeRow.classList.toggle('swipe-right', dx > 40);
         activeRow.classList.toggle('swipe-left', dx < -40);
     };
 
     const onEnd = (e) => {
-        if (!dragging || !activeRow || !activeContent) return;
+        const row = activeRow;
+        const content = activeContent;
+        activeRow = null;
+        activeContent = null;
         dragging = false;
-        activeContent.style.transition = 'transform 0.2s ease';
+        if (!row || !content) return;
+        content.style.transition = 'transform 0.2s ease';
         const t0 = e.changedTouches[0];
         const dx = t0.clientX - startX;
         const dy = Math.abs(t0.clientY - startY);
-        activeContent.style.transform = '';
-        activeRow.classList.remove('swipe-right', 'swipe-left');
+        content.style.transform = '';
+        row.classList.remove('swipe-right', 'swipe-left');
 
-        const invId = parseInt(activeRow.dataset.invId, 10);
-        const productId = parseInt(activeRow.dataset.productId, 10);
-        const moved = !!activeRow._swipeMoved;
-
-        if (dy > 50) { activeRow = null; activeContent = null; return; }
+        const invId = parseInt(row.dataset.invId, 10);
+        const productId = parseInt(row.dataset.productId, 10);
+        const location = row.dataset.location || 'dispensa';
 
         if (dx <= -60 && !isNaN(invId)) {
+            row.dataset.invSwipeDone = '1';
+            setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
             _inventoryQuickUseOne(invId);
-        } else if (dx >= 60 && !isNaN(invId)) {
-            editInventoryItem(invId);
-        } else if (!moved && !isNaN(invId)) {
-            showItemDetail(invId, productId);
+            return;
         }
-        activeRow = null;
-        activeContent = null;
+        if (dx >= 60 && !isNaN(invId)) {
+            row.dataset.invSwipeDone = '1';
+            setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
+            editInventoryItem(invId);
+            return;
+        }
+        // Scroll verticale evidente senza swipe orizzontale → ignora
+        if (dy > 55 && Math.abs(dx) < 20) return;
+        if (!isNaN(productId)) {
+            row.dataset.invSwipeDone = '1';
+            setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
+            quickUse(productId, location);
+        }
     };
 
     container._invSwipeHandlers = { start: onStart, move: onMove, end: onEnd };
@@ -6854,16 +6927,6 @@ function _initInventoryRowSwipe(container) {
     container.addEventListener('touchmove', onMove, { passive: false });
     container.addEventListener('touchend', onEnd, { passive: true });
     container.addEventListener('touchcancel', onEnd, { passive: true });
-
-    if (!('ontouchstart' in window)) {
-        container.addEventListener('click', (e) => {
-            const row = e.target.closest('.inventory-item');
-            if (!row) return;
-            const invId = parseInt(row.dataset.invId, 10);
-            const productId = parseInt(row.dataset.productId, 10);
-            if (!isNaN(invId)) showItemDetail(invId, productId);
-        });
-    }
 }
 
 function renderInventory(items) {
@@ -7064,7 +7127,7 @@ function quickAccessSelect(productId) {
 
 // ===== ITEM DETAIL MODAL =====
 function showItemDetail(inventoryId, productId) {
-    const item = currentInventory.find(i => i.id === inventoryId);
+    const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) {
         if (productId) _showExhaustedProductModal(productId);
         else showToast(t('error.not_in_inventory'), 'error');
@@ -7080,9 +7143,9 @@ function showItemDetail(inventoryId, productId) {
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
         <div class="product-preview-small" style="margin-bottom:12px">
-            ${item.image_url ?
-                `<img src="${escapeHtml(item.image_url)}" alt="" style="width:60px;height:60px;border-radius:10px;object-fit:cover">` :
-                `<span style="font-size:2.5rem">${catIcon}</span>`
+            ${ _validProductImageUrl(item.image_url)
+                ? `<img src="${escapeHtml(item.image_url)}" alt="" style="width:60px;height:60px;border-radius:10px;object-fit:cover">`
+                : `<span style="font-size:2.5rem">${catIcon}</span>`
             }
             <div class="product-preview-info">
                 <h3>${escapeHtml(item.name)}</h3>
@@ -12649,8 +12712,8 @@ function markShoppingItemBought(idx) {
     showToast(t('shopping.bought_scan_toast').replace('{name}', _shoppingListGenericTitle(item, smartData)), 'info');
 }
 
-/** Step 1: bought at store — remove from list; add to pantry at home via spesa mode later. */
-async function markShoppingItemPurchasedLater(idx) {
+/** Comprato · a casa — solo rimuove dalla lista (inventario lo fai tu a casa). */
+async function markShoppingItemBoughtAtHome(idx) {
     loadShoppingList._lastUserInteraction = Date.now();
     const item = shoppingItems[idx];
     if (!item) return;
@@ -12664,15 +12727,17 @@ async function markShoppingItemPurchasedLater(idx) {
             rawName: item.rawName || '',
             listUUID: shoppingListUUID,
         });
-        if (data.success || data._offline) {
-            _markBringPurchased([item.name]);
-            shoppingItems.splice(idx, 1);
-            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
-            renderShoppingItems();
-            if (panel) panel.scrollTop = scrollY;
-            showToast(t('shopping.bought_later_toast').replace('{name}', displayName), 'info');
-            loadShoppingCount();
+        if (!(data.success || data._offline)) {
+            showToast(t('shopping.remove_error'), 'error');
+            return;
         }
+        _markBringPurchased([item.name]);
+        shoppingItems.splice(idx, 1);
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+        renderShoppingItems();
+        if (panel) panel.scrollTop = scrollY;
+        loadShoppingCount();
+        showToast(t('shopping.bought_later_toast').replace('{name}', displayName), 'info');
     } catch (err) {
         showToast(t('shopping.remove_error'), 'error');
     }
@@ -14468,6 +14533,17 @@ function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml }) {
     </div>`;
 }
 
+function _shopSwipeThresholds(row) {
+    const w = row?.clientWidth || 300;
+    return {
+        w,
+        suggestAdd: 52,
+        homeMin: 52,
+        scanMin: Math.max(155, Math.round(w * 0.68)),
+        removeMax: -68,
+    };
+}
+
 function _initShopRowSwipe(container) {
     if (!container) return;
     if (container._swipeHandlers) {
@@ -14499,7 +14575,7 @@ function _initShopRowSwipe(container) {
         const t0 = e.touches[0];
         const dx = t0.clientX - startX;
         const dy = Math.abs(t0.clientY - startY);
-        if (dy > 24 && Math.abs(dx) < 20) {
+        if (dy > 32 && Math.abs(dx) < 24) {
             dragging = false;
             activeContent.style.transform = '';
             return;
@@ -14508,52 +14584,52 @@ function _initShopRowSwipe(container) {
             e.preventDefault();
             activeRow._swipeMoved = true;
         }
-        const w = activeRow.clientWidth || 300;
-        const half = w / 2;
+        const th = _shopSwipeThresholds(activeRow);
         if (activeRow.classList.contains('shop-row-suggest')) {
-            const max = half;
-            const clamped = Math.max(0, Math.min(max, dx));
+            const clamped = Math.max(0, Math.min(th.w * 0.55, dx));
             activeContent.style.transform = `translateX(${clamped}px)`;
-            activeRow.classList.toggle('swipe-right', clamped > max * 0.35);
+            activeRow.classList.toggle('swipe-right', clamped >= th.suggestAdd);
         } else if (dx > 0) {
-            const clamped = Math.min(w, dx);
+            const clamped = Math.min(th.w, dx);
             activeContent.style.transform = `translateX(${clamped}px)`;
-            activeRow.classList.toggle('zone-home', clamped >= half * 0.28 && clamped < half * 0.88);
-            activeRow.classList.toggle('zone-scan', clamped >= half * 0.88);
+            activeRow.classList.toggle('zone-home', clamped >= th.homeMin && clamped < th.scanMin);
+            activeRow.classList.toggle('zone-scan', clamped >= th.scanMin);
         } else {
             const clamped = Math.max(-100, dx);
             activeContent.style.transform = `translateX(${clamped}px)`;
-            activeRow.classList.toggle('swipe-left', clamped < -40);
+            activeRow.classList.toggle('swipe-left', clamped <= th.removeMax);
         }
     };
 
     const onEnd = (e) => {
-        if (!dragging || !activeRow || !activeContent) return;
+        const row = activeRow;
+        const content = activeContent;
+        if (!row || !content) return;
+        const moved = row._swipeMoved;
         dragging = false;
-        activeContent.style.transition = 'transform 0.2s ease';
+        content.style.transition = 'transform 0.2s ease';
         const t0 = e.changedTouches[0];
         const dx = t0.clientX - startX;
         const dy = Math.abs(t0.clientY - startY);
-        const w = activeRow.clientWidth || 300;
-        const half = w / 2;
-        activeContent.style.transform = '';
-        activeRow.classList.remove('swipe-right', 'swipe-left', 'zone-home', 'zone-scan');
-
-        if (dy > 50) { activeRow = null; activeContent = null; return; }
-
-        if (activeRow.classList.contains('shop-row-suggest')) {
-            const sidx = parseInt(activeRow.dataset.suggestIdx, 10);
-            if (dx > half * 0.35 && !isNaN(sidx)) addSmartItemQuick(sidx);
-        } else {
-            const idx = parseInt(activeRow.dataset.idx, 10);
-            if (!isNaN(idx)) {
-                if (dx >= half * 0.88) markShoppingItemBought(idx);
-                else if (dx >= half * 0.35) markShoppingItemPurchasedLater(idx);
-                else if (dx <= -72) removeBringItem(idx);
-            }
-        }
+        content.style.transform = '';
+        row.classList.remove('swipe-right', 'swipe-left', 'zone-home', 'zone-scan');
         activeRow = null;
         activeContent = null;
+
+        if (!moved || dy > 50) return;
+
+        const th = _shopSwipeThresholds(row);
+        if (row.classList.contains('shop-row-suggest')) {
+            const sidx = parseInt(row.dataset.suggestIdx, 10);
+            if (dx >= th.suggestAdd && !isNaN(sidx)) addSmartItemQuick(sidx);
+        } else {
+            const idx = parseInt(row.dataset.idx, 10);
+            if (!isNaN(idx)) {
+                if (dx >= th.scanMin) markShoppingItemBought(idx);
+                else if (dx >= th.homeMin) markShoppingItemBoughtAtHome(idx);
+                else if (dx <= th.removeMax) removeBringItem(idx);
+            }
+        }
     };
 
     container._swipeHandlers = { start: onStart, move: onMove, end: onEnd };
@@ -16668,8 +16744,9 @@ async function renderRecipe(r) {
     }
 
     // Optional shopping suggestions (ingredients removed because not in pantry)
-    const shopSug = r.shopping_suggestions || [];
-    if (shopSug.length > 0) {
+    const shopMode = getSettings().recipe_shopping_mode || 'suggest';
+    const shopSug = shopMode === 'off' ? [] : (r.shopping_suggestions || []);
+    if (shopSug.length > 0 && shopMode === 'suggest') {
         const items = shopSug.map(s => `<li><strong>${escapeHtml(s.name)}</strong>${s.qty ? ': ' + escapeHtml(s.qty) : ''}</li>`).join('');
         html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-suggestions">
             <p>🛒 ${escapeHtml(t('recipes.shopping_suggestions_intro'))}</p>
@@ -16678,7 +16755,7 @@ async function renderRecipe(r) {
         </div>`;
         _recipeShoppingSuggestions = shopSug;
     } else {
-        _recipeShoppingSuggestions = [];
+        _recipeShoppingSuggestions = shopSug;
     }
 
     // Ingredients
@@ -16785,6 +16862,10 @@ async function renderRecipe(r) {
     }
 
     document.getElementById('recipe-content').innerHTML = html;
+
+    if (shopMode === 'auto' && shopSug.length > 0) {
+        addRecipeShoppingSuggestions();
+    }
 }
 
 // ===== COOKING MODE =====
@@ -18408,6 +18489,263 @@ function _updateMealieCacheStatus(s) {
     }
     const ts = s.mealie_cache_synced_at ? new Date(s.mealie_cache_synced_at * 1000).toLocaleString() : '—';
     el.textContent = t('settings.mealie.cache_status').replace('{n}', n).replace('{date}', ts);
+}
+
+let _mealieSetupData = null;
+
+function _setMealieInstallProgress(text, pct = null) {
+    const box = document.getElementById('mealie-install-progress');
+    const fill = document.getElementById('mealie-install-progress-fill');
+    const txt = document.getElementById('mealie-install-progress-text');
+    if (box) box.style.display = text ? '' : 'none';
+    if (txt) txt.textContent = text || '';
+    if (fill) fill.style.width = (pct == null ? 0 : Math.min(100, pct)) + '%';
+}
+
+function _mealieInstallErrorMessage(resOrCode) {
+    const code = typeof resOrCode === 'string' ? resOrCode : (resOrCode?.error || '');
+    const key = {
+        docker_not_available: 'settings.mealie.err_docker',
+        docker_compose_not_available: 'settings.mealie.err_compose',
+        docker_dir_not_writable: 'settings.mealie.err_compose_write',
+        compose_write_failed: 'settings.mealie.err_compose_write',
+        docker_up_failed: 'settings.mealie.err_docker_up',
+        mealie_start_timeout: 'settings.mealie.err_timeout',
+        env_write_failed: 'settings.mealie.err_env',
+        token_failed: 'settings.mealie.err_token',
+        login_failed: 'settings.mealie.err_token',
+    }[code];
+    let msg = key ? t(key) : (code || t('settings.mealie.install_error'));
+    if (typeof resOrCode === 'object' && resOrCode?.detail) {
+        msg += ' — ' + String(resOrCode.detail).slice(0, 200);
+    }
+    return msg;
+}
+
+function _updateRecipeEngineHelp() {
+    const el = document.getElementById('recipe-engine-help');
+    const sel = document.getElementById('setting-recipe-source');
+    if (!el || !sel) return;
+    const key = {
+        auto: 'settings.recipe.engine_help_auto',
+        mealie: 'settings.recipe.engine_help_mealie',
+        gemini: 'settings.recipe.engine_help_gemini',
+    }[sel.value] || 'settings.recipe.engine_help_auto';
+    el.textContent = typeof t === 'function' ? t(key) : key;
+}
+
+function _updateMealieSetupStatus(data) {
+    _mealieSetupData = data;
+    const el = document.getElementById('mealie-setup-status');
+    const installBtn = document.getElementById('btn-mealie-install');
+    if (!el) return;
+    if (!data) {
+        el.textContent = '';
+        if (installBtn) {
+            installBtn.style.opacity = '0.55';
+            installBtn.title = t('settings.mealie.install_unavailable');
+        }
+        return;
+    }
+    const parts = [];
+    if (data.configured && data.configured_reachable) {
+        parts.push(t('settings.mealie.status_ok').replace('{url}', data.url || data.instances?.[0]?.url || ''));
+    } else if (data.configured) {
+        parts.push(t('settings.mealie.status_unreachable'));
+    } else if ((data.instances || []).length) {
+        const inst = data.instances[0];
+        parts.push(t('settings.mealie.status_found').replace('{url}', inst.url).replace('{version}', inst.version || '?'));
+    } else {
+        parts.push(t('settings.mealie.status_not_found'));
+    }
+    if (!data.docker_available) {
+        parts.push(t('settings.mealie.docker_missing'));
+    }
+    el.textContent = parts.join(' · ');
+    if (installBtn) {
+        const ready = !!(data.configured && data.configured_reachable);
+        const canInstall = !!data.installable && !ready;
+        installBtn.style.opacity = canInstall ? '1' : '0.55';
+        installBtn.title = canInstall ? '' : t('settings.mealie.install_unavailable');
+    }
+}
+
+async function discoverMealie(manual = true) {
+    if (typeof ensureApiToken === 'function') await ensureApiToken();
+    const btn = document.getElementById('btn-mealie-discover');
+    const statusEl = document.getElementById('mealie-setup-status');
+    const prevStatus = statusEl?.textContent || '';
+    if (manual) {
+        if (btn) { btn.style.opacity = '0.6'; btn.textContent = '⏳ ' + t('settings.mealie.discover_running'); }
+        if (statusEl) statusEl.textContent = t('settings.mealie.discover_running');
+        _setMealieInstallProgress(t('settings.mealie.discover_running'), 30);
+    }
+    try {
+        const res = await api('mealie_discover');
+        if (!res || res.success === false) {
+            if (res?.api_token_required && typeof _promptApiTokenIfNeeded === 'function') {
+                _promptApiTokenIfNeeded();
+            }
+            const err = res?.error === 'unauthorized' ? t('settings.mealie.discover_auth') : (res?.error || t('error.network'));
+            if (statusEl) statusEl.textContent = err;
+            if (manual) showToast(err, 'error');
+            _setMealieInstallProgress('');
+            return;
+        }
+        _updateMealieSetupStatus(res);
+        if (res.instances?.length) {
+            const urlEl = document.getElementById('setting-mealie-url');
+            if (urlEl && !urlEl.value.trim()) urlEl.value = res.instances[0].url;
+        }
+        if (manual && res.instances?.length && !res.configured_reachable) {
+            const inst = res.instances[0];
+            _setMealieInstallProgress(t('settings.mealie.install_step_configure'), 60);
+            const cfg = await api('mealie_configure', {}, 'POST', { url: inst.url });
+            if (cfg.success) {
+                showToast(t('settings.mealie.configure_ok').replace('{url}', cfg.url), 'success');
+                const urlEl = document.getElementById('setting-mealie-url');
+                if (urlEl) urlEl.value = cfg.url || inst.url;
+                const tokEl = document.getElementById('setting-mealie-token');
+                if (tokEl && cfg.token) tokEl.value = cfg.token;
+                _mealieAvailable = true;
+                discoverMealie(false);
+            } else if (cfg.error === 'token_required') {
+                showToast(t('settings.mealie.discover_need_token'), 'warning');
+            }
+        }
+        if (manual) {
+            let msg;
+            if (res.configured && res.configured_reachable) {
+                msg = t('settings.mealie.discover_ok_ready');
+            } else if (res.instances?.length) {
+                msg = t('settings.mealie.discover_ok_found').replace('{url}', res.instances[0].url);
+            } else if (res.docker_available) {
+                msg = t('settings.mealie.discover_ok_can_install');
+            } else {
+                msg = t('settings.mealie.discover_ok_no_docker');
+            }
+            showToast(msg, res.configured_reachable || res.instances?.length ? 'success' : 'info');
+        }
+    } catch (e) {
+        if (statusEl) statusEl.textContent = prevStatus || t('error.network');
+        if (manual) showToast(t('error.network'), 'error');
+    } finally {
+        _setMealieInstallProgress('');
+        if (btn && manual) {
+            btn.style.opacity = '1';
+            btn.textContent = t('settings.mealie.discover_btn');
+        }
+    }
+}
+
+async function installMealie() {
+    if (typeof ensureApiToken === 'function') await ensureApiToken();
+    const btn = document.getElementById('btn-mealie-install');
+    const discoverBtn = document.getElementById('btn-mealie-discover');
+    const data = _mealieSetupData;
+
+    if (!data?.docker_available) {
+        _setMealieInstallProgress(t('settings.mealie.docker_required_help'), 0);
+        showToast(t('settings.mealie.docker_missing'), 'warning');
+        return;
+    }
+    if (data.configured && data.configured_reachable) {
+        showToast(t('settings.mealie.already_ready'), 'info');
+        return;
+    }
+    if ((data.instances || []).length > 0) {
+        _setMealieInstallProgress(t('settings.mealie.install_step_configure'), 20);
+        try {
+            const cfg = await api('mealie_configure', {}, 'POST', { url: data.instances[0].url });
+            _setMealieInstallProgress('');
+            if (cfg.success) {
+                showToast(t('settings.mealie.configure_ok').replace('{url}', cfg.url), 'success');
+                discoverMealie(false);
+                syncMealieCache(true);
+            } else {
+                showToast(_mealieInstallErrorMessage(cfg), 'error');
+            }
+        } catch (e) {
+            _setMealieInstallProgress('');
+            showToast(t('error.network'), 'error');
+        }
+        return;
+    }
+    if (!data.installable) {
+        _setMealieInstallProgress(t('settings.mealie.install_unavailable'), 0);
+        showToast(t('settings.mealie.install_unavailable'), 'warning');
+        return;
+    }
+    if (!window.confirm(t('settings.mealie.install_confirm'))) return;
+
+    const progressSteps = [
+        { key: 'settings.mealie.install_step_prepare', pct: 8, at: 0 },
+        { key: 'settings.mealie.install_step_compose', pct: 18, at: 2000 },
+        { key: 'settings.mealie.install_step_pull', pct: 40, at: 8000 },
+        { key: 'settings.mealie.install_step_start', pct: 62, at: 25000 },
+        { key: 'settings.mealie.install_step_wait', pct: 82, at: 45000 },
+        { key: 'settings.mealie.install_step_token', pct: 94, at: 75000 },
+    ];
+    let progressTimers = [];
+    const startProgress = () => {
+        _setMealieInstallProgress(t(progressSteps[0].key), progressSteps[0].pct);
+        progressSteps.slice(1).forEach(step => {
+            progressTimers.push(setTimeout(() => {
+                _setMealieInstallProgress(t(step.key), step.pct);
+            }, step.at));
+        });
+    };
+    const stopProgress = () => {
+        progressTimers.forEach(clearTimeout);
+        progressTimers = [];
+    };
+
+    if (btn) { btn.style.opacity = '0.6'; btn.textContent = '⏳ ' + t('settings.mealie.install_running'); }
+    if (discoverBtn) discoverBtn.disabled = true;
+    startProgress();
+
+    try {
+        const res = await api('mealie_install', {}, 'POST', {}, {}, 600000);
+        stopProgress();
+        if (res.success) {
+            _setMealieInstallProgress(t('settings.mealie.install_step_done'), 100);
+            const urlEl = document.getElementById('setting-mealie-url');
+            if (urlEl) urlEl.value = res.url || '';
+            const tokEl = document.getElementById('setting-mealie-token');
+            if (tokEl && res.token) tokEl.value = res.token;
+            _mealieAvailable = true;
+            let msg = t('settings.mealie.install_ok').replace('{url}', res.url || '');
+            if (res.password || res.used_default_login) {
+                const webEmail = res.mealie_login || res.email || 'changeme@example.com';
+                const webPass = res.mealie_web_pass || res.password || 'MyPassword';
+                msg += '\n\n' + t('settings.mealie.install_credentials')
+                    .replace('{email}', webEmail)
+                    .replace('{password}', webPass);
+            }
+            alert(msg);
+            showToast(t('settings.mealie.install_ok_short'), 'success');
+            setTimeout(() => _setMealieInstallProgress(''), 4000);
+            discoverMealie(false);
+            syncMealieCache(true);
+        } else {
+            _setMealieInstallProgress(_mealieInstallErrorMessage(res), 0);
+            showToast(_mealieInstallErrorMessage(res), 'error');
+        }
+    } catch (e) {
+        stopProgress();
+        const msg = (e?.name === 'TimeoutError' || e?.name === 'AbortError')
+            ? t('settings.mealie.err_timeout')
+            : t('error.network');
+        _setMealieInstallProgress(msg, 0);
+        showToast(msg, 'error');
+    } finally {
+        stopProgress();
+        if (btn) {
+            btn.style.opacity = _mealieSetupData?.installable ? '1' : '0.55';
+            btn.textContent = t('settings.mealie.install_btn');
+        }
+        if (discoverBtn) discoverBtn.disabled = false;
+    }
 }
 
 async function generateRecipe() {
@@ -21095,8 +21433,9 @@ async function _initApp() {
     // with initial API calls and the PHP worker isn't blocked during startup.
     setTimeout(_checkWebappUpdate, 6000);
 
-    if ('serviceWorker' in navigator && !window.location.pathname.includes('/demo')) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if (_shouldRegisterServiceWorker()) {
+        const base = _appBasePath();
+        navigator.serviceWorker.register(base + 'sw.js', { scope: base }).catch(() => {});
     }
 
     // ── Background intervals ───────────────────────────────────────────────

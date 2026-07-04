@@ -101,11 +101,25 @@ function evershelfActionNeedsAuth(string $action, string $method): bool {
     return true;
 }
 
+/** Mealie setup from the EverShelf UI — allow same-origin browser without manual token copy. */
+function evershelfSameOriginSetupActions(): array {
+    return [
+        'mealie_discover',
+        'mealie_install',
+        'mealie_configure',
+        'mealie_setup_status',
+        'mealie_sync',
+    ];
+}
+
 function evershelfRequireApiAuth(string $action, string $method): void {
     if (!evershelfActionNeedsAuth($action, $method)) {
         return;
     }
     if (evershelfApiTokenValid()) {
+        return;
+    }
+    if (in_array($action, evershelfSameOriginSetupActions(), true) && evershelfIsSameOriginBrowser()) {
         return;
     }
     http_response_code(401);

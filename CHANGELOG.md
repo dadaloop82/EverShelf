@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.53] - 2026-07-04
+
+### Added
+- **Mealie — integrazione completa** — Ricettario self-hosted collegato a EverShelf: scelta ricette in base alla dispensa, cache offline, sync automatica.
+- **Mealie — installazione guidata** — Da Impostazioni → Ricette: discovery Docker, installazione automatica via `docker compose`, configurazione URL/token e progresso in UI.
+- **Motore ricette configurabile** — `RECIPE_SOURCE`: Auto (Mealie → Gemini), Solo Mealie, Solo Gemini; spiegazione inline in configurazione.
+- **Ricette → lista spesa** — `RECIPE_SHOPPING_MODE`: non suggerire / conferma manuale / aggiunta automatica ingredienti mancanti a Bring! o lista interna.
+- **Configurazione ricette riorganizzata** — Tab con etichette testuali, sezioni Motore / Mealie / Spesa / Preferenze, opzioni avanzate Mealie collassabili.
+
+### Changed
+- **Mealie setup API** — Accesso same-origin per discovery/install/configure (tutti gli utenti del browser LAN senza copiare manualmente il token API).
+- **Shopping list swipe** — Soglie e gesti corretti; «Comprato · a casa» rimuove solo dalla lista (niente scan).
+- **Inventario tap** — Tap apre subito la schermata «Usa» con quantità; swipe sinistra/destra per uso rapido e modifica.
+- **PWA service worker** — Base path dinamico (`/dispensa/` ecc.); SW disabilitato su IP LAN con certificato self-signed.
+
+### Fixed
+- **Mealie configure** — Token API ottenuto automaticamente con credenziali default quando l’istanza è già in esecuzione.
+- **Compose write** — `docker-compose.yml` scritto in `data/mealie/` (writable da www-data).
+
 ## [1.7.52] - 2026-07-04
 
 ### Added

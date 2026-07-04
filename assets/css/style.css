@@ -6455,14 +6455,33 @@ body.cooking-mode-active .app-header {
 .settings-tab {
     background: var(--bg-card);
     border: 2px solid var(--border);
-    border-radius: 25px;
-    padding: 7px 12px;
-    font-size: 0.78rem;
+    border-radius: 12px;
+    padding: 6px 8px;
+    font-size: 0.72rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transition: all 0.2s;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 52px;
+}
+
+.settings-tab-icon {
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.settings-tab-text {
+    font-size: 0.62rem;
+    font-weight: 600;
+    opacity: 0.85;
+    max-width: 56px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .settings-tab.active {
@@ -6498,6 +6517,65 @@ body.cooking-mode-active .app-header {
     color: var(--text-muted);
     margin-bottom: 12px;
     line-height: 1.4;
+}
+
+.settings-panel-intro {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+    line-height: 1.45;
+}
+
+.settings-info-box {
+    font-size: 0.82rem;
+    background: var(--bg, #f3f4f6);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 4px;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.settings-btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.settings-progress-track {
+    background: var(--border, #e5e7eb);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+}
+
+.settings-progress-fill {
+    background: var(--accent, #6366f1);
+    height: 100%;
+    width: 0%;
+    transition: width 0.5s ease;
+}
+
+.settings-details {
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+}
+
+.settings-details summary {
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--primary);
+    list-style: none;
+    padding: 6px 0;
+}
+
+.settings-details summary::-webkit-details-marker { display: none; }
+
+.settings-details-body {
+    padding-top: 8px;
 }
 
 .settings-status {

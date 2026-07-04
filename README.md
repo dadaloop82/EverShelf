@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.52-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.53-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,19 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.53 (2026-07-04) — Mealie
+
+EverShelf ora integra **[Mealie](https://mealie.io)**, il gestore ricette open source self-hosted:
+
+| Funzione | Descrizione |
+|----------|-------------|
+| **Ricette dalla dispensa** | Cerca tra le tue ricette Mealie quelle compatibili con ciò che hai in casa (con fallback Gemini in modalità Auto) |
+| **Cache offline** | Sincronizza il ricettario in locale; funziona anche senza rete verso Mealie |
+| **Installazione guidata** | Impostazioni → Ricette → Discovery / Installa Mealie (Docker) con token e URL configurati automaticamente |
+| **Lista spesa da ricetta** | Ingredienti mancanti → suggerimento o aggiunta automatica a Bring! / lista interna (configurabile) |
+
+Variabili `.env`: `MEALIE_URL`, `MEALIE_API_TOKEN`, `RECIPE_SOURCE` (auto/mealie/gemini), `MEALIE_OFFLINE`, `RECIPE_SHOPPING_MODE` (off/suggest/auto).
 
 ### 🆕 Release 1.7.52 (2026-07-04)
 
@@ -147,7 +160,7 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Product identification** — Point your camera at any product for instant recognition
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
 - **Storage & shelf-life hint** — When adding a new product, Gemini suggests the optimal storage location and shelf-life in the background; shown as an inline AI badge next to the expiry estimate
-- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated
+- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated. With **Mealie** configured, EverShelf picks from your saved cookbook first (offline cache supported) before falling back to Gemini in Auto mode
 - **Recipe stock hints** — Each pantry ingredient shows how much you have and what remains after use; when the leftover would be less than 5% of the full sealed package (10% for an already-opened partial pack), the recipe automatically uses everything on hand to avoid waste
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip

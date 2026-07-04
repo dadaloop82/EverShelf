@@ -671,7 +671,7 @@ $_writeActions = [
     'product_save','product_delete','product_merge',
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
-    'dismiss_anomaly','save_settings','mealie_import',
+    'dismiss_anomaly','save_settings','mealie_import','mealie_install','mealie_configure',
 ];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeActions, true)) {
     $csrfHeader  = $_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? '';
@@ -995,6 +995,33 @@ try {
         case 'mealie_sync':
             echo json_encode(mealieSyncCache(!empty($_GET['force'])), JSON_UNESCAPED_UNICODE);
             break;
+
+        case 'mealie_discover':
+            echo json_encode(mealieDiscover(), JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'mealie_setup_status':
+            echo json_encode(mealieSetupStatus(), JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'mealie_install': {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            echo json_encode(mealieInstall(is_array($input) ? $input : []), JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
+        case 'mealie_configure': {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $url = trim((string)($input['url'] ?? ''));
+            $email = trim((string)($input['email'] ?? ''));
+            $password = (string)($input['password'] ?? '');
+            echo json_encode(mealieConfigureFromInstance(
+                $url,
+                $email !== '' ? $email : null,
+                $password !== '' ? $password : null
+            ), JSON_UNESCAPED_UNICODE);
+            break;
+        }
 
         case 'ha_refresh_prices':
             haRefreshPrices(getDB());
@@ -5901,6 +5928,7 @@ function getServerSettings(): void {
         'mealie_usable'               => mealieUsable(),
         'mealie_cache_count'          => count(mealieLoadCache()['recipes']),
         'mealie_cache_synced_at'      => mealieLoadCache()['synced_at'] ?: null,
+        'recipe_shopping_mode'        => recipeShoppingMode(),
     ]);
 }
 
@@ -5975,6 +6003,7 @@ function saveSettings(): void {
         'ha_webhook_events'  => 'HA_WEBHOOK_EVENTS',
         'ha_notify_service'  => 'HA_NOTIFY_SERVICE',
         'recipe_source'      => 'RECIPE_SOURCE',
+        'recipe_shopping_mode' => 'RECIPE_SHOPPING_MODE',
         'mealie_url'         => 'MEALIE_URL',
         'mealie_api_token'   => 'MEALIE_API_TOKEN',
         'mealie_offline'     => 'MEALIE_OFFLINE',
@@ -7157,7 +7186,7 @@ function recipeEnforcePantryOnly(array &$recipe): array {
 
 /** Merge removed ingredients into recipe shopping_suggestions (deduped by name). */
 function recipeAttachShoppingSuggestions(array &$recipe, array $removed): void {
-    if (empty($removed)) {
+    if (recipeShoppingMode() === 'off' || empty($removed)) {
         return;
     }
     $existing = [];

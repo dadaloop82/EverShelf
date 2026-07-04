@@ -62,6 +62,12 @@ function mealieUsable(): bool {
     return mealieConfigured() || mealieHasCache();
 }
 
+/** off | suggest | auto — missing recipe ingredients → shopping list */
+function recipeShoppingMode(): string {
+    $m = strtolower(trim(env('RECIPE_SHOPPING_MODE', 'suggest')));
+    return in_array($m, ['off', 'suggest', 'auto'], true) ? $m : 'suggest';
+}
+
 function recipeEffectiveSource(): string {
     $src = strtolower(trim(env('RECIPE_SOURCE', '')));
     if (!in_array($src, ['gemini', 'mealie', 'auto'], true)) {
