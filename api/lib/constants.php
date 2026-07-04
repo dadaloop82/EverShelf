@@ -14,7 +14,7 @@ define('BRING_TOKEN_PATH',         EVERSHELF_ROOT . '/data/bring_token.json');
 define('AI_USAGE_PATH',            EVERSHELF_ROOT . '/data/ai_usage.json');
 define('BACKUP_DIR',               EVERSHELF_ROOT . '/data/backups');
 define('BACKUP_LAST_TS_PATH',      EVERSHELF_ROOT . '/data/backup_last_ts.json');
-define('CRON_LOG_PATH',            EVERSHELF_ROOT . '/data/cron.log');
+define('MEALIE_CACHE_PATH',        EVERSHELF_ROOT . '/data/mealie_cache.json');
 
 define('GEMINI_COST_25F_IN',  (float)(getenv('GEMINI_COST_25F_IN')  ?: 0.15));
 define('GEMINI_COST_25F_OUT', (float)(getenv('GEMINI_COST_25F_OUT') ?: 0.60));

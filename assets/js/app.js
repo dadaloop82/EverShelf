@@ -127,7 +127,14 @@ document.addEventListener('error', (e) => {
 // Set to true in _initApp / syncSettingsFromDB once server confirms key is set.
 // All AI entry points call _requireGemini() before opening camera / API calls.
 let _geminiAvailable = false;
+let _mealieAvailable = false;
 let _demoMode = false;
+
+function _requireRecipeEngine() {
+    if (_geminiAvailable || _mealieAvailable) return true;
+    showToast(t('error.no_recipe_engine'), 'warning');
+    return false;
+}
 
 function _requireGemini() {
     if (_geminiAvailable) return true;
@@ -2816,6 +2823,7 @@ async function syncSettingsFromDB() {
 function _applySyncedSettings(serverSettings) {
     if (!serverSettings) return;
     _geminiAvailable = !!(serverSettings.gemini_key_set);
+    _mealieAvailable = !!(serverSettings.mealie_usable);
     _demoMode = !!serverSettings.demo_mode;
     _updateGeminiButtonState();
     _applyDemoModeUI();
@@ -2833,6 +2841,7 @@ function _applySyncedSettings(serverSettings) {
         'shopping_forecast','shopping_auto_add_threshold',
         'dark_mode',
         'barcode_ai_fallback',
+        'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable',
         // Home Assistant
         'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
         'ha_notify_service','ha_expiry_days'];
@@ -3420,6 +3429,17 @@ async function loadSettingsUI() {
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
     if (ssTimeout) ssTimeout.value = String(s.screensaver_timeout || 5);
     document.getElementById('setting-dietary').value = s.dietary || '';
+    const recipeSrcEl = document.getElementById('setting-recipe-source');
+    if (recipeSrcEl) recipeSrcEl.value = s.recipe_source || 'auto';
+    const mealieOffEl = document.getElementById('setting-mealie-offline');
+    if (mealieOffEl) mealieOffEl.value = s.mealie_offline || 'auto';
+    const mealieUrlEl = document.getElementById('setting-mealie-url');
+    if (mealieUrlEl) mealieUrlEl.value = s.mealie_url || '';
+    const mealieTokEl = document.getElementById('setting-mealie-token');
+    if (mealieTokEl) mealieTokEl.value = s.mealie_api_token || '';
+    const mealieSyncDaysEl = document.getElementById('setting-mealie-sync-days');
+    if (mealieSyncDaysEl) mealieSyncDaysEl.value = s.mealie_cache_sync_days || 7;
+    _updateMealieCacheStatus(s);
     // Camera
     const cameraSelect = document.getElementById('setting-camera-facing');
     if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
@@ -4022,6 +4042,16 @@ async function saveSettings() {
     // Meal plan enabled toggle
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) s.meal_plan_enabled = mpEnabledEl.checked;
+    const recipeSrcSave = document.getElementById('setting-recipe-source');
+    if (recipeSrcSave) s.recipe_source = recipeSrcSave.value;
+    const mealieOffSave = document.getElementById('setting-mealie-offline');
+    if (mealieOffSave) s.mealie_offline = mealieOffSave.value;
+    const mealieUrlSave = document.getElementById('setting-mealie-url');
+    if (mealieUrlSave) s.mealie_url = mealieUrlSave.value.trim();
+    const mealieTokSave = document.getElementById('setting-mealie-token');
+    if (mealieTokSave && mealieTokSave.value.trim()) s.mealie_api_token = mealieTokSave.value.trim();
+    const mealieSyncDaysSave = document.getElementById('setting-mealie-sync-days');
+    if (mealieSyncDaysSave) s.mealie_cache_sync_days = parseInt(mealieSyncDaysSave.value, 10) || 7;
     // TTS settings
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
@@ -4162,6 +4192,12 @@ async function saveSettings() {
             ha_webhook_events:  s.ha_webhook_events || '',
             ha_notify_service:  s.ha_notify_service || '',
             ha_expiry_days:     s.ha_expiry_days || 3,
+            recipe_source:      s.recipe_source || 'auto',
+            mealie_url:         s.mealie_url || '',
+            mealie_offline:     s.mealie_offline || 'auto',
+            mealie_cache_sync_days: parseInt(s.mealie_cache_sync_days, 10) || 7,
+            ...(document.getElementById('setting-mealie-token')?.value.trim()
+                ? { mealie_api_token: document.getElementById('setting-mealie-token').value.trim() } : {}),
         }, tokenHeader);
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
@@ -4189,6 +4225,9 @@ async function saveSettings() {
         if (refreshed && refreshed.gemini_key_set !== undefined) {
             _geminiAvailable = !!(refreshed.gemini_key_set);
             _updateGeminiButtonState();
+        }
+        if (refreshed && refreshed.mealie_usable !== undefined) {
+            _mealieAvailable = !!refreshed.mealie_usable;
         }
     } catch(e) {}
     // Persist meal_plan and tts_voice to SQLite for cross-device sync
@@ -18332,8 +18371,47 @@ function regenerateRecipe() {
     showRegenChoice();
 }
 
+async function syncMealieCache(force = false) {
+    const btn = document.getElementById('btn-mealie-sync');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+    try {
+        const res = await api('mealie_sync' + (force ? '&force=1' : ''));
+        if (res.success) {
+            const n = res.count ?? 0;
+            showToast(t('settings.mealie.sync_ok').replace('{n}', n), 'success');
+            const s = getSettings();
+            s.mealie_cache_count = n;
+            s.mealie_cache_synced_at = res.synced_at;
+            s.mealie_usable = true;
+            _mealieAvailable = true;
+            _updateMealieCacheStatus(s);
+        } else {
+            showToast(res.error || t('settings.mealie.sync_error'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.network'), 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = t('settings.mealie.sync_btn');
+        }
+    }
+}
+
+function _updateMealieCacheStatus(s) {
+    const el = document.getElementById('mealie-cache-status');
+    if (!el) return;
+    const n = s.mealie_cache_count ?? 0;
+    if (!n) {
+        el.textContent = t('settings.mealie.cache_empty');
+        return;
+    }
+    const ts = s.mealie_cache_synced_at ? new Date(s.mealie_cache_synced_at * 1000).toLocaleString() : '—';
+    el.textContent = t('settings.mealie.cache_status').replace('{n}', n).replace('{date}', ts);
+}
+
 async function generateRecipe() {
-    if (!_requireGemini()) return;
+    if (!_requireRecipeEngine()) return;
     const meal = getSelectedMealType();
     const persons = parseInt(document.getElementById('recipe-persons').value) || 1;
     const settings = getSettings();
@@ -18453,6 +18531,8 @@ async function generateRecipe() {
             if (errorEvent) {
                 if (errorEvent.error === 'no_api_key') {
                     showToast(t('error.no_api_key'), 'warning');
+                } else if (errorEvent.error === 'mealie_no_match') {
+                    showToast(t('recipes.mealie_no_match'), 'warning');
                 } else {
                     const detail = errorEvent.detail ? ` (${errorEvent.detail})` : '';
                     showToast((errorEvent.error || t('recipes.generate_error')) + detail, 'error');
@@ -18580,11 +18660,12 @@ function _recipeApiErrorMessage(result) {
     if (!result) return t('error.generic');
     if (result.error === 'parse_error') return t('recipes.parse_error');
     if (result.error === 'no_api_key') return t('error.no_api_key');
+    if (result.error === 'mealie_no_match') return t('recipes.mealie_no_match');
     return result.error || t('error.generic');
 }
 
 async function generateRecipeForIngredient(ingredientName) {
-    if (!_requireGemini()) return;
+    if (!_requireRecipeEngine()) return;
     document.getElementById('recipe-overlay').style.display = 'flex';
     document.getElementById('recipe-ask').style.display = 'none';
     document.getElementById('recipe-loading').style.display = '';
@@ -20941,6 +21022,7 @@ async function _initApp() {
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
         _geminiAvailable = !!(serverSettings.gemini_key_set);
+    _mealieAvailable = !!(serverSettings.mealie_usable);
         _demoMode = !!serverSettings.demo_mode;
         _updateGeminiButtonState();
         _applyDemoModeUI();

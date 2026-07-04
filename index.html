@@ -1171,6 +1171,41 @@
                         <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
                     </div>
                 </div>
+                <div class="settings-card" id="mealie-settings-card">
+                    <h4 data-i18n="settings.mealie.title">🍽️ Mealie (ricettario)</h4>
+                    <p class="settings-hint" data-i18n="settings.mealie.hint">Mealie è un gestore ricette open source self-hosted. EverShelf può cercare ricette nel tuo Mealie (anche offline dopo la sincronizzazione) invece di generarle con Gemini.</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.source_label">Motore ricette</label>
+                        <select id="setting-recipe-source" class="form-input">
+                            <option value="auto" data-i18n="settings.mealie.source_auto">Auto (Mealie se disponibile, altrimenti Gemini)</option>
+                            <option value="mealie" data-i18n="settings.mealie.source_mealie">Solo Mealie</option>
+                            <option value="gemini" data-i18n="settings.mealie.source_gemini">Solo Gemini AI</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.offline_label">Modalità Mealie</label>
+                        <select id="setting-mealie-offline" class="form-input">
+                            <option value="auto" data-i18n="settings.mealie.offline_auto">Auto (online + cache offline se non raggiungibile)</option>
+                            <option value="true" data-i18n="settings.mealie.offline_only">Solo offline (usa cache locale)</option>
+                            <option value="false" data-i18n="settings.mealie.offline_online">Solo online (sempre API Mealie)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.url_label">URL Mealie</label>
+                        <input type="url" id="setting-mealie-url" class="form-input" placeholder="https://mealie.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.token_label">Token API Mealie</label>
+                        <input type="password" id="setting-mealie-token" class="form-input" placeholder="••••••••">
+                        <button type="button" class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-mealie-token')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.mealie.sync_days_label">Sincronizza cache ogni (giorni)</label>
+                        <input type="number" id="setting-mealie-sync-days" class="form-input" min="1" max="90" value="7">
+                    </div>
+                    <p class="settings-hint" id="mealie-cache-status"></p>
+                    <button type="button" class="btn btn-secondary" id="btn-mealie-sync" onclick="syncMealieCache(true)" data-i18n="settings.mealie.sync_btn">🔄 Sincronizza ricette Mealie ora</button>
+                </div>
             </div>
             <!-- Weekly Meal Plan Tab -->
             <div class="settings-panel" id="tab-mealplan">

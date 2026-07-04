@@ -992,6 +992,10 @@ try {
             break;
         }
 
+        case 'mealie_sync':
+            echo json_encode(mealieSyncCache(!empty($_GET['force'])), JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'ha_refresh_prices':
             haRefreshPrices(getDB());
             break;
@@ -5888,6 +5892,15 @@ function getServerSettings(): void {
         'ha_webhook_events'           => env('HA_WEBHOOK_EVENTS', 'expiry,shopping_add,stock_update,barcode_scan'),
         'ha_notify_service'           => env('HA_NOTIFY_SERVICE', ''),
         'ha_expiry_days'              => (int)env('HA_EXPIRY_DAYS', '3'),
+        // Mealie / recipe source
+        'recipe_source'               => recipeEffectiveSource(),
+        'mealie_url'                  => env('MEALIE_URL', ''),
+        'mealie_token_set'            => !empty(env('MEALIE_API_TOKEN', '')),
+        'mealie_offline'              => mealieOfflineMode(),
+        'mealie_cache_sync_days'      => mealieCacheSyncDays(),
+        'mealie_usable'               => mealieUsable(),
+        'mealie_cache_count'          => count(mealieLoadCache()['recipes']),
+        'mealie_cache_synced_at'      => mealieLoadCache()['synced_at'] ?: null,
     ]);
 }
 
@@ -5961,6 +5974,10 @@ function saveSettings(): void {
         'ha_webhook_id'      => 'HA_WEBHOOK_ID',
         'ha_webhook_events'  => 'HA_WEBHOOK_EVENTS',
         'ha_notify_service'  => 'HA_NOTIFY_SERVICE',
+        'recipe_source'      => 'RECIPE_SOURCE',
+        'mealie_url'         => 'MEALIE_URL',
+        'mealie_api_token'   => 'MEALIE_API_TOKEN',
+        'mealie_offline'     => 'MEALIE_OFFLINE',
     ];
     // Boolean keys
     $boolMap = [
@@ -5998,6 +6015,7 @@ function saveSettings(): void {
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
         // Home Assistant
         'ha_expiry_days' => 'HA_EXPIRY_DAYS',
+        'mealie_cache_sync_days' => 'MEALIE_CACHE_SYNC_DAYS',
     ];
     // Float keys
     $floatMap = [
@@ -8024,12 +8042,6 @@ function recipeResolveIngredientQuery(string $ingredientName, array $items): str
 // ===== RECIPE FROM INGREDIENT =====
 function recipeFromIngredient(PDO $db): void {
     EverLog::info('recipeFromIngredient');
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'no_api_key']);
-        return;
-    }
-
     $input = json_decode(file_get_contents('php://input'), true);
     $ingredientName = trim($input['ingredient'] ?? '');
     if (empty($ingredientName)) {
@@ -8037,10 +8049,8 @@ function recipeFromIngredient(PDO $db): void {
         return;
     }
     $lang = recipeNormalizeLang($input['lang'] ?? 'it');
-    $langName = recipeLangName($lang);
     $persons = max(1, intval($input['persons'] ?? 1));
 
-    // Fetch inventory (same as generateRecipe)
     $stmt = $db->query("
         SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
                CASE WHEN i.expiry_date IS NOT NULL THEN julianday(i.expiry_date) - julianday('now') ELSE 999 END AS days_left
@@ -8052,7 +8062,27 @@ function recipeFromIngredient(PDO $db): void {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $ingredientName = recipeResolveIngredientQuery($ingredientName, $items);
 
-    // Build compact pantry text (same logic as generateRecipe)
+    $source = recipeEffectiveSource();
+    if ($source !== 'gemini') {
+        $mealieRecipe = mealieTryRecipeGeneration($db, $items, $persons, ['ingredient' => $ingredientName]);
+        if ($mealieRecipe) {
+            EverLog::info('recipe_from_ingredient mealie', ['ingredient' => $ingredientName, 'title' => $mealieRecipe['title'] ?? '?']);
+            echo json_encode(['success' => true, 'recipe' => $mealieRecipe, 'source' => 'mealie']);
+            return;
+        }
+        if ($source === 'mealie') {
+            echo json_encode(['success' => false, 'error' => 'mealie_no_match']);
+            return;
+        }
+    }
+
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) {
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
+
+    $langName = recipeLangName($lang);
     $ingredientLines = [];
     foreach ($items as $item) {
         $line = "- {$item['name']}: {$item['quantity']} {$item['unit']}";
@@ -8150,9 +8180,6 @@ function generateRecipeStream(PDO $db): void {
 
     try {
 
-    $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
-
     $input               = json_decode(file_get_contents('php://input'), true) ?? [];
     $lang                = recipeNormalizeLang($input['lang'] ?? 'it');
     $recipeLangName      = recipeLangName($lang);
@@ -8181,6 +8208,29 @@ function generateRecipeStream(PDO $db): void {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($items)) { $send('error', ['error' => recipeText($lang, 'error_pantry_empty')]); return; }
+
+    $source = recipeEffectiveSource();
+    if ($source !== 'gemini') {
+        $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_mealie_search') ?: 'Cerco ricette in Mealie…']);
+        $mealieRecipe = mealieTryRecipeGeneration($db, $items, $persons, [
+            'exclude_titles' => array_merge($todayRecipes, array_map(static fn($n) => (string)$n, $rejectedIngredients)),
+        ]);
+        if ($mealieRecipe) {
+            $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_mealie_found') ?: 'Ricetta trovata in Mealie']);
+            $send('recipe', ['recipe' => $mealieRecipe, 'source' => 'mealie']);
+            return;
+        }
+        if ($source === 'mealie') {
+            $send('error', ['error' => 'mealie_no_match']);
+            return;
+        }
+    }
+
+    $apiKey = env('GEMINI_API_KEY');
+    if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
+
+    // ── AGENTE PASSO 1: Analisi dispensa (Gemini) ─────────────────────────────
+    $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_analyze_pantry')]);
 
     $getItemPriority = function($item): int {
         $daysLeft = floatval($item['days_left']);

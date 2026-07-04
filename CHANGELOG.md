@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inventory swipe (#80)** — Swipe left: quick use 1 unit (with undo toast); swipe right: edit item.
 - **Price sparklines (#81)** — Mini SVG trend in shopping price column (last 5 cache values).
 - **Mealie integration** — `mealie_list`, `mealie_import`, `mealie_status` API + MCP tools (requires `MEALIE_URL` + `MEALIE_API_TOKEN`).
+- **Mealie offline cache** — sync recipes to `data/mealie_cache.json`; `RECIPE_SOURCE` (gemini/mealie/auto) and `MEALIE_OFFLINE` (online/offline/auto) in settings.
 - **MCP HTTP transport** — Remote Streamable HTTP server (`npm run start:http` in `mcp-server/`).
 
 ### Fixed
