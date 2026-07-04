@@ -28,6 +28,8 @@ data/*.pem
 # OS files
 .DS_Store
 Thumbs.db
+node_modules/
+mcp-server/node_modules/
 
 # Editor / IDE
 *.swp

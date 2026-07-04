@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.42-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.51-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,32 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.51 (2026-07-04)
+
+- **Bug fix #206** — `product_save` INSERT column order aligned with UPDATE (new products no longer have shifted fields).
+- **Bug fix #207** — Docker image now includes PHP `zip` and `intl` extensions.
+- **Shopping list UX** — Larger mobile rows, product icons/backgrounds, plan-days quantities, scroll preserved on refresh, fewer auto-updates.
+- **Settings** — `.env` write fallback via SQLite when file permissions block saves; Bring can be disabled from Settings again.
+- **MCP server (beta)** — [`mcp-server/`](mcp-server/) companion for Claude Desktop / Cursor / HA LLM (inventory, expiry, shopping, recipes).
+- **PWA** — Basic service worker caches app shell for offline UI (shopping offline queue already supported).
+
+### 🆕 Release 1.7.46 (2026-06-06)
+
+- **Offline barcode DB** — Weekly sync from all free sources (OFF, OPF, OBF, OPFF, UPCitemdb); lookup works offline after sync.
+- **Barcode save/lookup fixes** — Piadina EAN 8030582017181 and similar products resolve reliably; save no longer fails silently after scan.
+
+### 🆕 Release 1.7.45 (2026-06-06)
+
+- **Duplicate products → one stock count** — If the catalog has duplicate entries for the same item, adding inventory merges them automatically (2 packages = quantity 2 on one product).
+
+### 🆕 Release 1.7.44 (2026-06-06)
+
+- **AI product insert** — No more UNIQUE barcode errors or wrong title/category when adding an AI-recognized product; merges with existing catalog/OFF entries instead of duplicating.
+
+### 🆕 Release 1.7.43 (2026-06-06)
+
+- Banner fixes: no false expiry for grated bread; edit button loads inventory; stale zero-qty alerts filtered out.
 
 ### 🆕 Release 1.7.42 (2026-06-11)
 
@@ -78,6 +104,27 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 
 > **Requires a self-hosted EverShelf instance.** The integration talks directly to your server — no cloud involved.  
 > Full documentation: [ha-evershelf on GitHub](https://github.com/dadaloop82/ha-evershelf)
+
+---
+
+### 🤖 NEW — MCP Server (AI Agent Integration)
+
+EverShelf ships a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so Claude Desktop, Cursor, Home Assistant LLM, Open WebUI, and other MCP hosts can query and update your pantry in natural language.
+
+| Tool | What it does |
+|------|----------------|
+| `get_inventory` | List stock by location |
+| `get_expiring_soon` | Items expiring in N days |
+| `get_pantry_stats` | Dashboard totals |
+| `get_shopping_list` | Current shopping list |
+| `get_smart_shopping` | AI restock predictions |
+| `add_shopping_items` | Add to shopping list |
+| `use_inventory_item` | Record consumption |
+| `suggest_recipe` | AI recipe from pantry |
+
+Setup: [`mcp-server/README.md`](mcp-server/README.md) — Node.js 18+, configure `EVERSHELF_URL` + optional `EVERSHELF_TOKEN`.
+
+Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"* → *"Add milk to the shopping list"* → *"I used 2 eggs"*.
 
 ---
 

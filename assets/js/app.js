@@ -573,20 +573,10 @@ function _scaleAutoFillUse(msg) {
 
     // Reject if converted value < 10 (density edge case)
     if (val < 10) {
-        _scaleUserDismissed = false;
-        _cancelScaleTimersOnly();
-        _startScaleStabilityWait(() => {
-            // Fill the input after 5 s of stable weight
-            const inp = document.getElementById('use-quantity');
-            if (inp) inp.value = val;
-            // Start the 5-s confirm progress bar
-            _startScaleAutoConfirm(() => {
-                _scaleLastConfirmedGrams = grams;
-                const form = document.querySelector('#page-use form');
-                if (form) form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-            }, 'btn-use-submit');
-        });
-    } else if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
+        _cancelScaleStabilityWait();
+        return;
+    }
+    if (!_scaleUserDismissed && !_scaleStabilityTimer && !_scaleAutoConfirmTimer) {
         // Same value, not dismissed, no timer running (e.g. after brief !stable interruption)
         // → restart stability wait so it eventually completes
         _cancelScaleTimersOnly();
@@ -1659,6 +1649,14 @@ function getExpiredSafety(item, daysExpired) {
     return { level: 'danger', icon: '🗑️', label: t('status.discard'), tip: t('status.tip_lowRisk_danger') };
 }
 
+/** True when an expired/opened item deserves a dashboard banner (not merely informational). */
+function shouldShowExpiredBanner(item) {
+    const days = item.days_expired ?? Math.abs(item.days_to_expiry ?? 0);
+    if (getExpiredSafety(item, days).level === 'ok') return false;
+    if (item.opened_at && item.is_edible === true) return false;
+    return true;
+}
+
 // Localized labels for local categories
 const CATEGORY_LABELS = {
     'latticini': `🥛 ${t('categories.latticini')}`, 'carne': `🥩 ${t('categories.carne')}`, 'pesce': `🐟 ${t('categories.pesce')}`,
@@ -1827,6 +1825,8 @@ function estimateOpenedExpiryDays(product, location) {
     if (/\b(caff[eè]|coffee|nespresso)\b/.test(name)) return 365;
     if (/\bolio\b/.test(name)) return 365;
     if (/salsa\s+di\s+soia|soy\s*sauce/.test(name)) return 90; // soy sauce fine opened anywhere
+    // Dry bread products (grated, breadcrumbs) — not fresh bread
+    if (/grattugiat|pangratt|panko|bread\s*crumb|briciole\s+di\s+pane/.test(name)) return 90;
     if (loc !== 'frigo') {
         if (/\b(pasta|spaghetti|penne|rigatoni|fusilli|farfalle|tagliatelle|linguine|bucatini|lasagn|tortiglioni)\b/.test(name)) return 365;
         if (/\b(riso|risotto|orzo|farro|quinoa|couscous)\b/.test(name) && !/\b(pronto|cotto)\b/.test(name)) return 365;
@@ -2334,54 +2334,147 @@ async function _fetchAiMatchCandidates(aiProduct) {
         return { in_stock: [], finished: [], catalog: [] };
     }
 }
+
+function _normalizeAiMatchName(name) {
+    return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Prefer an existing catalog row (especially with barcode) over creating a duplicate from AI guesses. */
+function _findBestAiCatalogMatch(aiProduct) {
+    const aiName = _normalizeAiMatchName(aiProduct?.name);
+    if (!aiName) return null;
+    const candidates = [
+        ...(_aiCatalogCandidates || []),
+        ...(_aiInventoryCandidates || []),
+        ...(_aiFinishedCandidates || []),
+    ];
+    let best = null;
+    let bestScore = 0;
+    for (const item of candidates) {
+        if (!item?.id) continue;
+        const itemName = _normalizeAiMatchName(item.name);
+        if (!itemName) continue;
+        let score = 0;
+        if (itemName === aiName) score = 100;
+        else if (itemName.includes(aiName) || aiName.includes(itemName)) score = 80;
+        else {
+            const aiTokens = aiName.split(' ').filter(Boolean);
+            const shared = aiTokens.filter(t => itemName.includes(t)).length;
+            if (shared >= 2) score = 60 + shared;
+            else if (shared === 1 && aiTokens.length === 1) score = 50;
+        }
+        if (item.barcode) score += 15;
+        if (score > bestScore) {
+            bestScore = score;
+            best = item;
+        }
+    }
+    return bestScore >= 50 ? best : null;
+}
+
+async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false } = {}) {
+    const productId = saveResult?.id || saveResult?.existing_id;
+    if (!productId) return false;
+    const full = await api('product_get', { id: productId }).catch(() => null);
+    currentProduct = full?.product || {
+        id: productId,
+        barcode: saveResult?.barcode || '',
+        name: draft?.name || t('product.not_recognized'),
+        brand: draft?.brand || '',
+        category: mapToLocalCategory(draft?.category || '', draft?.name || '', draft?.brand || ''),
+        image_url: '',
+        unit: 'pz',
+        default_quantity: 1,
+        package_unit: '',
+        _confCount: 0,
+        weight_info: '',
+    };
+    if (currentProduct.notes) {
+        const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+        if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+    }
+    addToScanRecents(currentProduct);
+    _clearAiMatchPanel();
+    showLoading(false);
+    if (showMergedToast || saveResult?.merged) {
+        showToast(t('scan.ai_match_merged_existing'), 'info');
+    }
+    setTimeout(() => showProductAction(), 250);
+    return true;
+}
+
 async function _confirmAiDetectedProduct() {
     const p = _aiDetectedProductDraft;
     if (!p) return;
     showLoading(true);
     try {
+        const localCategory = mapToLocalCategory(p.category || '', p.name || '', p.brand || '');
+
+        const catalogMatch = _findBestAiCatalogMatch(p);
+        if (catalogMatch?.barcode) {
+            const resolved = await api('resolve_barcode', { barcode: String(catalogMatch.barcode).replace(/\D/g, '') }).catch(() => null);
+            if (resolved?.found && resolved.product?.id) {
+                currentProduct = resolved.product;
+                if (currentProduct.notes) {
+                    const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                    if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+                }
+                addToScanRecents(currentProduct);
+                _clearAiMatchPanel();
+                showLoading(false);
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                setTimeout(() => showProductAction(), 250);
+                return;
+            }
+        }
+        if (catalogMatch?.id && !catalogMatch?.barcode) {
+            const full = await api('product_get', { id: catalogMatch.id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                if (currentProduct.notes) {
+                    const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
+                    if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
+                }
+                addToScanRecents(currentProduct);
+                _clearAiMatchPanel();
+                showLoading(false);
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                setTimeout(() => showProductAction(), 250);
+                return;
+            }
+        }
+
         const saveResult = await api('product_save', {}, 'POST', {
-            barcode: '',
+            barcode: null,
             name: p.name || t('product.not_recognized'),
             brand: p.brand || '',
-            category: p.category || '',
+            category: localCategory,
             image_url: '',
             unit: 'pz',
             default_quantity: 1,
             package_unit: '',
             notes: '',
         });
-        const newId = saveResult?.id;
-        if (saveResult?.success && newId) {
-            const full = await api('product_get', { id: newId }).catch(() => null);
-            currentProduct = full?.product || {
-                id: newId,
-                barcode: '',
-                name: p.name || t('product.not_recognized'),
-                brand: p.brand || '',
-                category: p.category || '',
-                image_url: '',
-                unit: 'pz',
-                default_quantity: 1,
-                package_unit: '',
-                _confCount: 0,
-                weight_info: '',
-            };
-            if (saveResult.merged) {
-                showToast(t('scan.ai_match_merged_existing'), 'info');
-            }
-            addToScanRecents(currentProduct);
-            _clearAiMatchPanel();
-            showLoading(false);
-            setTimeout(() => showProductAction(), 250);
-        } else {
-            showLoading(false);
-            const errKey = saveResult?.error;
-            const msg = errKey === 'offline' ? t('error.network')
-                : errKey === 'unauthorized' ? t('error.connection')
-                : (errKey || saveResult?.message || t('error.save'));
-            console.error('[AI add] product_save', saveResult);
-            showToast(msg, 'error');
+
+        if (saveResult?.success && (saveResult.id || saveResult.existing_id)) {
+            await _openAiSavedProduct(saveResult, p, { showMergedToast: !!saveResult.merged });
+            return;
         }
+
+        if (saveResult?.error === 'barcode_already_used' && saveResult.existing_id) {
+            if (await _openAiSavedProduct({ ...saveResult, id: saveResult.existing_id, merged: true }, p, { showMergedToast: true })) {
+                return;
+            }
+        }
+
+        showLoading(false);
+        const errKey = saveResult?.error;
+        const msg = errKey === 'offline' ? t('error.network')
+            : errKey === 'unauthorized' ? t('error.connection')
+            : errKey === 'save_failed' ? t('error.save')
+            : (errKey || saveResult?.message || t('error.save'));
+        console.error('[AI add] product_save', saveResult);
+        showToast(msg, 'error');
     } catch (err) {
         showLoading(false);
         console.error('[AI add]', err);
@@ -2482,7 +2575,7 @@ async function _tryGeminiVisualBarcode() {
             _aiDetectedProductDraft = {
                 name: p.name || t('product.not_recognized'),
                 brand: p.brand || '',
-                category: p.category || '',
+                category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
             };
             const matchRes = await _fetchAiMatchCandidates(_aiDetectedProductDraft);
             if (myGen !== _aiVisualGen) {
@@ -2599,7 +2692,17 @@ function saveSettingsToStorage(settings) {
 
 /** Save one or more settings directly to server .env (partial update). */
 async function _saveSettingToServer(data) {
-    try { await api('save_settings', {}, 'POST', data); } catch(e) { /* offline */ }
+    try {
+        const result = await api('save_settings', {}, 'POST', data);
+        if (result && result.success === false) {
+            showToast(result.error || t('error.settings_save'), 'error');
+            return false;
+        }
+        return true;
+    } catch (e) {
+        showToast(t('error.settings_save') || 'Impossibile salvare le impostazioni', 'error');
+        return false;
+    }
 }
 
 const _debouncedSyncSettings = debounce(function() {
@@ -2660,6 +2763,9 @@ async function syncSettingsFromDB() {
             if (srv.bring_blocklist)     _bringBlocklistCache    = srv.bring_blocklist;
             if (srv.no_expiry_dismissed) _noExpiryDismissedCache = srv.no_expiry_dismissed;
             if (srv.family_sibling_confirmed) _familySiblingConfirmedCache = srv.family_sibling_confirmed;
+            if (srv.shopping_plan_days != null && srv.shopping_plan_days !== '') {
+                _shoppingPlanDaysCache = parseInt(srv.shopping_plan_days, 10) || null;
+            }
 
             // ── One-time migration: if server has nothing yet, seed from old localStorage ──
             if (!srv.shopping_tags) {
@@ -3867,7 +3973,9 @@ function onShoppingModeChange(value) {
     const s = getSettings();
     s.shopping_mode = value;
     saveSettingsToStorage(s);
-    _saveSettingToServer({ shopping_mode: value });
+    _saveSettingToServer({ shopping_mode: value }).then((ok) => {
+        if (ok) showToast(value === 'bring' ? 'Bring! attivato' : 'Lista spesa interna attivata', 'success');
+    });
 }
 
 async function saveSettings() {
@@ -4263,7 +4371,8 @@ function showPage(pageId, param = null, options = {}) {
             break;
         case 'products': loadAllProducts(); break;
         case 'shopping':
-            _shoppingInventoryCache = null; // invalidate so hints use fresh data
+            _getShoppingInventoryCache();
+            _initShoppingPageInteractionTracking();
             loadShoppingList();
             break;
         case 'recipe': loadRecipeArchive(); break;
@@ -4279,18 +4388,15 @@ function showPage(pageId, param = null, options = {}) {
         _bannerRefreshTimer = setInterval(() => loadBannerAlerts(), 5 * 60 * 1000);
     }
 
-    // Auto-refresh shopping list every 45s while on shopping page so all clients stay in sync
+    // Background sync Bring list (every 5 min, skip while user is scrolling the list)
     if (_shoppingPollTimer) { clearInterval(_shoppingPollTimer); _shoppingPollTimer = null; }
     if (pageId === 'shopping') {
         _shoppingPollTimer = setInterval(() => {
+            const idleMs = Date.now() - (loadShoppingList._lastUserInteraction || 0);
+            if (idleMs < 2 * 60 * 1000) return;
             loadShoppingList._bgCall = true;
             loadShoppingList();
-            loadSmartShopping().then(() => {
-                _syncOnBringFlags();
-                renderSmartShopping();
-                updateShoppingTabCounts();
-            });
-        }, 45 * 1000);
+        }, 5 * 60 * 1000);
     }
     
     // Stop scanner when leaving scan page
@@ -5358,6 +5464,7 @@ let _bringBlocklistCache   = {};
 let _noExpiryDismissedCache = {};
 let _familySiblingConfirmedCache = {};
 let _scanHistoryCache      = [];
+let _shoppingPlanDaysCache = null; // null = auto (days until month end)
 function _saveToServer(key, value) {
     api('app_settings_save', {}, 'POST', { settings: { [key]: value } }).catch(() => {});
 }
@@ -5410,7 +5517,9 @@ async function loadBannerAlerts() {
             api('inventory_finished_items').catch(err => { console.warn('[Banner] finished_items fetch failed:', err); return { finished: [] }; }),
             api('stats').catch(() => ({ opened: [] })),
         ]);
-        const items = invData.inventory || [];
+        const items = (invData.inventory || []).filter(i => parseFloat(i.quantity) > 0);
+        const invById = Object.fromEntries(items.map(i => [i.id, i]));
+        const openedStatsById = Object.fromEntries((statsData.opened || []).map(o => [o.id, o]));
         const confirmed = getReviewConfirmed();
         // Track item IDs already queued to prevent the same item appearing in multiple types
         const _queuedItemIds = new Set();
@@ -5429,23 +5538,27 @@ async function loadBannerAlerts() {
                 if (rawDays < 0) daysExpired = Math.abs(rawDays);
             }
 
-            // Check effective expiry based on opened_at
+            // Check effective expiry based on opened_at (trust server when still edible)
             if (item.opened_at) {
-                const openDays = estimateOpenedExpiryDays(item, item.location);
-                const openedTs = new Date(item.opened_at).getTime();
-                const effectiveExpiry = new Date(openedTs + openDays * 86400000);
-                const today = new Date(); today.setHours(0, 0, 0, 0);
-                const openedDiff = Math.round((effectiveExpiry.getTime() - today.getTime()) / 86400000);
-                if (openedDiff < 0) {
-                    const openedExpiredDays = Math.abs(openedDiff);
-                    if (daysExpired === null || openedExpiredDays > daysExpired) daysExpired = openedExpiredDays;
+                const serverOi = openedStatsById[item.id];
+                if (!(serverOi && serverOi.is_edible)) {
+                    const openDays = estimateOpenedExpiryDays(item, item.location);
+                    const openedTs = new Date(item.opened_at).getTime();
+                    const effectiveExpiry = new Date(openedTs + openDays * 86400000);
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const openedDiff = Math.round((effectiveExpiry.getTime() - today.getTime()) / 86400000);
+                    if (openedDiff < 0) {
+                        const openedExpiredDays = Math.abs(openedDiff);
+                        if (daysExpired === null || openedExpiredDays > daysExpired) daysExpired = openedExpiredDays;
+                    }
                 }
             }
 
             if (daysExpired === null) return; // not expired by any measure
-            // Skip items the freezer bonus still considers safe — no need to alarm the user
-            if (getExpiredSafety(item, daysExpired).level === 'ok') return;
-            _bannerQueue.push({ type: 'expired', data: { ...item, days_expired: daysExpired } });
+            const serverOi = openedStatsById[item.id];
+            const bannerItem = { ...(serverOi ? { ...item, ...serverOi } : item), days_expired: daysExpired };
+            if (!shouldShowExpiredBanner(bannerItem)) return;
+            _bannerQueue.push({ type: 'expired', data: bannerItem });
             _queuedItemIds.add(item.id);
         });
 
@@ -5453,11 +5566,16 @@ async function loadBannerAlerts() {
         // The client-side getExpiredSafety check above uses conservative thresholds (e.g.
         // conserve are 'ok' for 30 days past), but the server uses product-specific AI shelf
         // life. Trust the server: any opened item with is_edible=false that isn't already
-        // queued goes into the banner as expired.
-        const openedNotEdible = (statsData.opened || []).filter(oi => !oi.is_edible && !_queuedItemIds.has(oi.id) && !confirmed['exp_' + oi.id]);
+        // queued goes into the banner as expired — unless safety is still 'ok'.
+        const openedNotEdible = (statsData.opened || []).filter(oi =>
+            !oi.is_edible && !_queuedItemIds.has(oi.id) && !confirmed['exp_' + oi.id] && invById[oi.id]
+        );
         openedNotEdible.forEach(oi => {
+            const live = invById[oi.id];
             const daysOI = Math.abs(oi.days_to_expiry ?? 0);
-            _bannerQueue.push({ type: 'expired', data: { ...oi, days_expired: daysOI } });
+            const bannerItem = { ...live, ...oi, days_expired: daysOI };
+            if (!shouldShowExpiredBanner(bannerItem)) return;
+            _bannerQueue.push({ type: 'expired', data: bannerItem });
             _queuedItemIds.add(oi.id);
         });
 
@@ -5570,6 +5688,11 @@ async function loadBannerAlerts() {
         noExpiryItems.slice(0, 8).forEach(item => {
             _bannerQueue.push({ type: 'no_expiry', data: item });
         });
+
+        // Drop expired banners that are still safe (ok) — opened items stay in dashboard list only
+        _bannerQueue = _bannerQueue.filter(entry =>
+            entry.type !== 'expired' || shouldShowExpiredBanner(entry.data)
+        );
 
         // Sort by priority (highest first)
         _bannerQueue.sort((a, b) => _bannerPriority(b) - _bannerPriority(a));
@@ -5713,7 +5836,7 @@ function renderBannerItem() {
         }
         btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
         // "Modifica" — opens full edit modal (includes date correction)
-        btns += `<button class="btn-banner btn-banner-edit2" onclick="editInventoryItem(${item.id})">${t('dashboard.banner_expired_action_modify')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit2" onclick="editReviewItem(${item.id}, ${item.product_id})">${t('dashboard.banner_expired_action_modify')}</button>`;
         if (isOpenedExpiry && !item.vacuum_sealed) {
             // Offer to re-seal with vacuum — extends shelf life
             btns += `<button class="btn-banner btn-banner-vacuum" onclick="bannerMarkVacuum()">${t('dashboard.banner_expired_action_vacuum')}</button>`;
@@ -6111,7 +6234,10 @@ function bannerFinishAll() {
         location: '__all__',
     }).then(res => {
         if (res.success) {
-            showToast(t('toast.finished_all').replace('{name}', item.name), 'success');
+            const msg = res.already_empty
+                ? t('toast.already_exhausted_confirmed').replace('{name}', item.name)
+                : t('toast.finished_all').replace('{name}', item.name);
+            showToast(msg, 'success');
             showLowStockBringPrompt(res, () => loadDashboard());
         } else {
             showToast(res.error || t('error.generic'), 'error');
@@ -6664,33 +6790,102 @@ async function loadQuickAccess() {
 
 function renderQuickAccessBtn(product) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(product.category, product.name)] || '📦';
+    const exhausted = parseFloat(product.stock_qty ?? 1) <= 0.001;
     const imgHtml = product.image_url
         ? `<img src="${escapeHtml(product.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">`
         : catIcon;
     const brandHtml = product.brand ? `<span class="qa-brand">(${escapeHtml(product.brand)})</span>` : '';
+    const exhaustedBadge = exhausted ? `<span class="qa-exhausted">${t('use.exhausted_badge')}</span>` : '';
     return `
-    <button class="quick-access-btn" onclick="quickAccessSelect(${product.product_id})">
+    <button class="quick-access-btn${exhausted ? ' quick-access-exhausted' : ''}" onclick="quickAccessSelect(${product.product_id})">
         <div class="qa-img">${imgHtml}</div>
         <div class="qa-name">${escapeHtml(product.name)}</div>
         ${brandHtml}
+        ${exhaustedBadge}
     </button>`;
 }
 
+async function _finishExhaustedProduct(productId) {
+    closeModal();
+    showLoading(true);
+    try {
+        const res = await api('inventory_confirm_finished', {}, 'POST', { product_id: productId });
+        showLoading(false);
+        if (!res.success) {
+            showToast(res.error || t('error.generic'), 'error');
+            return;
+        }
+        const name = res.product_name || currentProduct?.name || '';
+        showToast(t('toast.product_finished_confirmed'), 'success');
+        if (res.bring?.added || res.bring?.updated) {
+            setTimeout(() => showToast(t('toast.finished_to_bring'), 'info'), 1200);
+            loadShoppingList?.();
+        }
+        if (typeof loadDashboard === 'function') loadDashboard();
+        else refreshCurrentPage();
+    } catch (e) {
+        showLoading(false);
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+async function _showExhaustedProductModal(productId) {
+    let product = (currentProduct && currentProduct.id == productId) ? currentProduct : null;
+    if (!product) {
+        try {
+            const data = await api('product_get', { id: productId });
+            product = data.product;
+        } catch (_) {}
+    }
+    if (!product) {
+        showToast(t('error.not_found'), 'error');
+        return;
+    }
+    currentProduct = product;
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>${escapeHtml(product.name)}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="color:var(--text-muted);margin:8px 0 16px">${t('use.already_exhausted_modal')}</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <button type="button" class="btn btn-large btn-warning full-width" onclick="_finishExhaustedProduct(${productId})">
+                ${t('use.mark_exhausted_btn')}
+            </button>
+            <button type="button" class="btn btn-large btn-primary full-width" onclick="closeModal();showPage('scan')">
+                ${t('use.readd_btn')}
+            </button>
+            <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('confirm.cancel')}</button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
 function quickAccessSelect(productId) {
-    // Find the product in current inventory and show its detail
     const item = currentInventory.find(i => i.product_id === productId);
     if (item) {
         showItemDetail(item.id, item.product_id);
-    } else {
-        // Product not in current view (maybe different location), navigate to it
-        quickUse(productId, currentLocation || 'dispensa');
+        return;
     }
+    api('inventory_list').then(data => {
+        currentInventory = data.inventory || [];
+        const live = currentInventory.find(i => i.product_id == productId && parseFloat(i.quantity) > 0);
+        if (live) {
+            showItemDetail(live.id, productId);
+        } else {
+            _showExhaustedProductModal(productId);
+        }
+    }).catch(() => _showExhaustedProductModal(productId));
 }
 
 // ===== ITEM DETAIL MODAL =====
 function showItemDetail(inventoryId, productId) {
     const item = currentInventory.find(i => i.id === inventoryId);
-    if (!item) return;
+    if (!item) {
+        if (productId) _showExhaustedProductModal(productId);
+        else showToast(t('error.not_in_inventory'), 'error');
+        return;
+    }
     
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
@@ -6970,11 +7165,19 @@ function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
     if (expiryInput) expiryInput.value = newDate;
 }
 
-function editInventoryItem(id) {
+function editInventoryItem(id, _retried) {
     const item = currentInventory.find(i => i.id === id);
     if (!item) {
+        if (!_retried) {
+            api('inventory_list').then(data => {
+                currentInventory = data.inventory || [];
+                editInventoryItem(id, true);
+            });
+            return;
+        }
         closeModal();
         showToast(t('error.not_found'), 'error');
+        loadBannerAlerts();
         return;
     }
     
@@ -7944,13 +8147,35 @@ function _currentProductFromExternal(p, barcode, saveId) {
     };
 }
 
-function _finishBarcodeResolved(barcode) {
+async function _confirmShoppingScanMatch(product) {
+    if (!_shoppingBoughtFlow || !_spesaScanTarget?.name || !product?.name) return true;
+    const target = _spesaScanTarget.name;
+    const scanned = product.name;
+    const shoppingName = product.shopping_name || scanned;
+    if (_findSimilarItem(scanned, [{ name: target }])) return true;
+    if (_productMatchesShoppingFamily(scanned, target)) return true;
+    if (_productMatchesShoppingFamily(shoppingName, target)) return true;
+    const msg = t('shopping.scan_mismatch_prompt')
+        .replace('{expected}', target)
+        .replace('{scanned}', scanned);
+    return window.confirm(msg);
+}
+
+async function _finishBarcodeResolved(barcode) {
     showLoading(false);
+    if (_shoppingBoughtFlow && _spesaScanTarget && currentProduct) {
+        const ok = await _confirmShoppingScanMatch(currentProduct);
+        if (!ok) {
+            showToast(t('shopping.scan_mismatch_cancelled'), 'info');
+            _setScanStatus(t('scan.status_scanning'), '', '');
+            return;
+        }
+    }
     addToScanRecents(currentProduct);
     _showScanConfirm(currentProduct.name);
     stopScanner();
-    const delay = _spesaMode ? 120 : 300;
-    const next = _spesaMode ? showAddForm : showProductAction;
+    const delay = (_spesaMode || _shoppingBoughtFlow) ? 120 : 300;
+    const next = (_spesaMode || _shoppingBoughtFlow) ? showAddForm : showProductAction;
     setTimeout(() => next(), delay);
 }
 
@@ -7982,17 +8207,52 @@ async function _handleBarcodeResolve(result, barcode) {
             barcode: code,
             name: p.name || t('product.not_recognized'),
             brand: p.brand || '',
-            category: p.category || '',
+            category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
             image_url: p.image_url || '',
             unit: detected.unit,
             default_quantity: detected.quantity,
             package_unit: detected.packageUnit || '',
             notes: _externalBarcodeNotes(p),
         });
-        if (saveResult.id) {
+        if (saveResult?.id || saveResult?.success) {
             currentProduct = _currentProductFromExternal(p, code, saveResult.id);
             _finishBarcodeResolved(code);
             return true;
+        }
+        if (saveResult?.error === 'barcode_already_used' && saveResult.existing_id) {
+            const full = await api('product_get', { id: saveResult.existing_id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                _applyLocalBarcodeProductFixes(currentProduct);
+                _finishBarcodeResolved(code);
+                return true;
+            }
+        }
+        if (!saveResult?.id && !saveResult?.success) {
+            console.error('[barcode save]', saveResult);
+            const retry = await api('product_save', {}, 'POST', {
+                barcode: code,
+                name: p.name || t('product.not_recognized'),
+                brand: p.brand || '',
+                category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+                unit: 'pz',
+                default_quantity: 1,
+                image_url: p.image_url || '',
+            }).catch(() => null);
+            if (retry?.id || retry?.success) {
+                currentProduct = _currentProductFromExternal(p, code, retry.id);
+                _finishBarcodeResolved(code);
+                return true;
+            }
+            if (retry?.error === 'barcode_already_used' && retry.existing_id) {
+                const full = await api('product_get', { id: retry.existing_id }).catch(() => null);
+                if (full?.product) {
+                    currentProduct = full.product;
+                    _applyLocalBarcodeProductFixes(currentProduct);
+                    _finishBarcodeResolved(code);
+                    return true;
+                }
+            }
         }
     }
     return false;
@@ -8518,8 +8778,19 @@ async function submitProduct(e) {
         if (result.success) {
             currentProduct = { ...productData, id: result.id };
             showLoading(false);
-            showToast(t('toast.product_saved'), 'success');
+            showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
             showProductAction();
+        } else if (result.error === 'barcode_already_used' && result.existing_id) {
+            const full = await api('product_get', { id: result.existing_id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                showLoading(false);
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                showProductAction();
+            } else {
+                showLoading(false);
+                showToast(t('error.save'), 'error');
+            }
         } else {
             showLoading(false);
             showToast(result.error || t('error.save'), 'error');
@@ -8816,7 +9087,18 @@ function showProductAction() {
     if (banner && _spesaScanTarget) {
         const targetName = _spesaScanTarget.name;
         banner.style.display = 'block';
-        banner.innerHTML = `
+        if (_spesaScanTarget.mode === 'bought') {
+            banner.innerHTML = `
+            <div class="shopping-scan-target-info">
+                <span class="stb-label">✅ ${escapeHtml(t('shopping.btn_bought'))}</span>
+                <span class="stb-name">${escapeHtml(targetName)}</span>
+                <span class="stb-hint">${escapeHtml(t('shopping.bought_banner_hint'))}</span>
+            </div>
+            <div class="shopping-scan-target-actions">
+                <button class="btn btn-secondary stb-btn" onclick="_shoppingBoughtFlow=false;_spesaScanTarget=null;document.getElementById('shopping-scan-target-banner').style.display='none';showPage('shopping')">✕ ${t('btn.cancel')}</button>
+            </div>`;
+        } else {
+            banner.innerHTML = `
             <div class="shopping-scan-target-info">
                 <span class="stb-label">🛒 ${t('shopping.scan_target_label')}</span>
                 <span class="stb-name">${escapeHtml(targetName)}</span>
@@ -8824,8 +9106,8 @@ function showProductAction() {
             <div class="shopping-scan-target-actions">
                 <button class="btn btn-success stb-btn" onclick="confirmShoppingItemFound()">✅ ${t('shopping.scan_target_found')}</button>
                 <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>goBack()">✕ ${t('btn.cancel')}</button>
-            </div>
-        `;
+            </div>`;
+        }
     } else if (banner) {
         banner.style.display = 'none';
     }
@@ -9300,9 +9582,18 @@ async function saveEditedProductInfo() {
             currentProduct.brand = brand;
             currentProduct.notes = notes;
             if (category) currentProduct.category = category;
-            showToast(t('toast.product_updated'), 'success');
+            showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_updated'), result.merged ? 'info' : 'success');
             // Refresh the action page with updated data
             showProductAction();
+        } else if (result.error === 'barcode_already_used' && result.existing_id) {
+            const full = await api('product_get', { id: result.existing_id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                showProductAction();
+            } else {
+                showToast(t('error.save'), 'error');
+            }
         } else {
             showToast(result.error || t('error.save'), 'error');
         }
@@ -9334,6 +9625,17 @@ function showAddForm() {
     
     document.getElementById('add-quantity').value = unit === 'conf' ? (currentProduct._confCount || currentProduct.last_qty || 1) : (currentProduct.default_quantity || 1);
     document.getElementById('add-quantity').dataset.manuallySet = 'false';
+
+    if (_spesaScanTarget?.buyQty) {
+        const bq = _spesaScanTarget.buyQty;
+        if (bq.unit === 'conf') {
+            unitSelect.value = 'conf';
+            document.getElementById('add-quantity').value = bq.qty;
+        } else if (bq.unit === 'pz' || bq.unit === unit) {
+            unitSelect.value = bq.unit;
+            document.getElementById('add-quantity').value = bq.qty;
+        }
+    }
     
     // Show/hide conf size row and pre-fill
     const confRow = document.getElementById('add-conf-size-row');
@@ -9933,6 +10235,9 @@ async function submitAdd(e) {
         
         showLoading(false);
         if (result.success) {
+            if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
+                currentProduct.id = result.canonical_product_id;
+            }
             _recordRecentInventoryAdd({
                 productId: currentProduct.id,
                 location,
@@ -9956,7 +10261,9 @@ async function submitAdd(e) {
                     qtyInfo = ` (totale: ${result.total_qty} ${uLabel})`;
                 }
             }
-            showToast(t('add.product_added').replace('{name}', currentProduct.name).replace('{qty}', qtyInfo), 'success');
+            const mergedNote = result.catalog_merged ? ` — ${t('scan.ai_match_merged_existing')}` : '';
+            showToast(t('add.product_added').replace('{name}', currentProduct.name).replace('{qty}', qtyInfo) + mergedNote, result.catalog_merged ? 'info' : 'success');
+            if (await shoppingBoughtAfterAdd(result)) return;
             if (!(await spesaModeAfterAdd(result))) {
                 if (result.removed_from_bring) {
                     _applyShoppingListRemovals(result.removed_names || []);
@@ -10192,9 +10499,11 @@ async function loadUseInventoryInfo() {
         const unitSwitch = document.getElementById('use-unit-switch');
         
         if (items.length === 0) {
-            infoEl.innerHTML = t('use.not_in_inventory');
+            infoEl.innerHTML = `<p>${t('use.already_exhausted_hint')}</p>
+                <button type="button" class="btn btn-large btn-warning full-width mt-2" onclick="_finishExhaustedProduct(${currentProduct.id})">${t('use.mark_exhausted_btn')}</button>`;
             unitSwitch.style.display = 'none';
             _useConfMode = null;
+            _useCurrentItems = [];
             document.getElementById('use-expiry-hint').style.display = 'none';
             return;
         }
@@ -10317,14 +10626,23 @@ async function loadUseInventoryInfo() {
             }).join(' · ');
             
             const qtyInput = document.getElementById('use-quantity');
-            qtyInput.value = 1;
+            const activeLocQty = items.filter(i => i.location === activeLoc).reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
             qtyInput.step = 'any';
-            qtyInput.min = '0.01';
-            document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
+            qtyInput.min = '1';
+            if (unit === 'g' || unit === 'ml') {
+                qtyInput.value = activeLocQty > 0 ? Math.max(1, Math.round(activeLocQty / 2)) : getSubUnitStep(unit);
+                document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
+                _appendUseWeightFractionButtons(activeLocQty, unit);
+            } else {
+                qtyInput.value = 1;
+                document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
+            }
 
             // Fraction buttons for pz unit
             const existingFrac = document.getElementById('pz-fraction-btns');
             if (existingFrac) existingFrac.remove();
+            const existingWf = document.getElementById('weight-fraction-btns');
+            if (existingWf && unit !== 'g' && unit !== 'ml') existingWf.remove();
             if (unit === 'pz') {
                 const fracDiv = document.createElement('div');
                 fracDiv.id = 'pz-fraction-btns';
@@ -10442,10 +10760,58 @@ function adjustUseQty(direction) {
     });
 }
 
+function _useQtyAtSelectedLocation() {
+    const selectedLoc = document.getElementById('use-location')?.value;
+    if (!selectedLoc || !_useCurrentItems.length) return 0;
+    return _useCurrentItems
+        .filter(i => i.location === selectedLoc)
+        .reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
+}
+
+function setUseWeightFraction(frac) {
+    const input = document.getElementById('use-quantity');
+    if (!input) return;
+    const stock = _useQtyAtSelectedLocation();
+    if (stock <= 0) return;
+    const val = frac >= 1 ? stock : Math.max(1, Math.round(stock * frac));
+    input.value = Math.min(Math.round(val * 1000) / 1000, stock);
+    _scaleUserDismissed = true;
+    _cancelScaleTimersOnly();
+    document.querySelectorAll('#weight-fraction-btns .frac-btn, #pz-fraction-btns .frac-btn').forEach(b =>
+        b.classList.toggle('active', parseFloat(b.dataset.frac) === frac)
+    );
+}
+
+function _appendUseWeightFractionButtons(stock, unit) {
+    const existingWf = document.getElementById('weight-fraction-btns');
+    if (existingWf) existingWf.remove();
+    if (stock <= 0 || (unit !== 'g' && unit !== 'ml')) return;
+    const fracDiv = document.createElement('div');
+    fracDiv.id = 'weight-fraction-btns';
+    fracDiv.className = 'pz-fraction-btns';
+    const uLabel = unit;
+    fracDiv.innerHTML = `<p class="form-hint">${t('use.partial_piece_hint')}</p>
+        <div class="fraction-btn-row">${
+        [0.25, 0.5, 0.75, 1].map(f => {
+            const label = f === 0.25 ? '¼' : f === 0.5 ? '½' : f === 0.75 ? '¾' : t('use.one_whole');
+            const amt = f >= 1 ? Math.round(stock) : Math.max(1, Math.round(stock * f));
+            return `<button type="button" class="frac-btn${f === 0.5 ? ' active' : ''}" data-frac="${f}" onclick="setUseWeightFraction(${f})">${label} (${amt}${uLabel})</button>`;
+        }).join('')
+    }</div>`;
+    document.querySelector('#page-use .use-partial').appendChild(fracDiv);
+}
+
 function selectUseLocation(btn, loc) {
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('use-location').value = loc;
+    const unit = _useNormalUnit || _useCurrentItems[0]?.unit || 'pz';
+    if (unit === 'g' || unit === 'ml') {
+        const stock = _useQtyAtSelectedLocation();
+        _appendUseWeightFractionButtons(stock, unit);
+        const input = document.getElementById('use-quantity');
+        if (input && stock > 0) input.value = Math.max(1, Math.round(stock / 2));
+    }
 }
 
 // ── PREFERRED USE LOCATION ───────────────────────────────────────────────
@@ -10965,7 +11331,11 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
 async function submitUseAll() {
     const name = currentProduct ? currentProduct.name : '';
     const items0 = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
-    if (items0.length === 0) return;
+    if (items0.length === 0) {
+        if (currentProduct?.id) _showExhaustedProductModal(currentProduct.id);
+        else showToast(t('use.not_in_inventory'), 'error');
+        return;
+    }
 
     const unit = items0[0]?.unit || 'pz';
     const totalQty = _useAllTotalQty(items0);
@@ -11206,7 +11576,8 @@ async function submitUse(e) {
             // Check low stock → Bring! prompt, then move/vacuum modal
             showLowStockBringPrompt(result, moveCallback);
         } else if (result.duplicate) {
-            // Silently ignore: this was a scale double-trigger, not a real error
+            showToast(result.error || t('use.duplicate_recent'), 'info');
+            loadUseInventoryInfo();
         } else {
             showToast(result.error || t('error.generic'), 'error');
         }
@@ -11505,16 +11876,34 @@ async function saveAIProductDirect() {
         const result = await api('product_save', {}, 'POST', {
             name: id.name,
             brand: id.brand || '',
-            category: id.category || '',
+            category: mapToLocalCategory(id.category || '', id.name || '', id.brand || ''),
             unit: 'pz',
             default_quantity: 1,
         });
 
         if (result.success || result.id) {
-            currentProduct = { id: result.id, name: id.name, brand: id.brand || '', category: id.category || '', unit: 'pz', default_quantity: 1 };
+            currentProduct = {
+                id: result.id,
+                name: id.name,
+                brand: id.brand || '',
+                category: mapToLocalCategory(id.category || '', id.name || '', id.brand || ''),
+                unit: 'pz',
+                default_quantity: 1,
+            };
             showLoading(false);
-            showToast(t('toast.product_saved'), 'success');
+            showToast(result.merged ? t('scan.ai_match_merged_existing') : t('toast.product_saved'), result.merged ? 'info' : 'success');
             showProductAction();
+        } else if (result.error === 'barcode_already_used' && result.existing_id) {
+            const full = await api('product_get', { id: result.existing_id }).catch(() => null);
+            if (full?.product) {
+                currentProduct = full.product;
+                showLoading(false);
+                showToast(t('scan.ai_match_merged_existing'), 'info');
+                showProductAction();
+            } else {
+                showLoading(false);
+                showToast(t('error.save'), 'error');
+            }
         } else {
             showLoading(false);
             showToast(result.error || t('error.save'), 'error');
@@ -11828,7 +12217,9 @@ function updateShoppingTabCounts() {
     const prevEl = document.getElementById('tab-count-previsione');
     if (acqEl) acqEl.textContent = acquistoCount;
     if (prevEl) prevEl.textContent = previsioneCount;
-    document.getElementById('shopping-tabs')?.style.setProperty('display', 'flex');
+    // Unified list: tabs hidden; suggestions shown inline below the Bring list
+    document.getElementById('shopping-tabs')?.style.setProperty('display', 'none');
+    _updateShoppingFooter();
 }
 
 // ===== LOCAL SHOPPING TAGS (server-synced) =====
@@ -11869,6 +12260,240 @@ function toggleShoppingTag(itemIdx, tag) {
 }
 
 // ===== SCAN FROM SHOPPING LIST =====
+function _stockBaseForGap(qty, unit, defQty, pkgUnit) {
+    const q = parseFloat(qty) || 0;
+    if (q <= 0) return 0;
+    const u = unit || 'conf';
+    const def = parseFloat(defQty) || 0;
+    const pu = (pkgUnit || '').toLowerCase();
+    if (u !== 'conf' || def <= 0) return q;
+    if (pu === 'g' || pu === 'ml') return q * def;
+    if (pu === 'kg' || pu === 'l' || pu === 'lt') return q * def * 1000;
+    return q;
+}
+
+/** Recompute suggested purchase qty for the current plan-days horizon (client-side). */
+function _sanitizePieceMonthly(amount, useCount, usesPerMonth, unit) {
+    if (amount <= 0 || unit !== 'pz') return amount;
+    if (usesPerMonth > 0) {
+        const cap = usesPerMonth * 1.2;
+        if (amount > cap) return cap;
+    }
+    if (useCount > 0 && (amount / useCount) > 6) {
+        return Math.min(amount, useCount * 3);
+    }
+    return Math.min(amount, 120);
+}
+
+function _sanitizePieceDailyRate(daily, useCount, usesPerMonth, unit) {
+    if (daily <= 0 || unit !== 'pz') return daily;
+    if (useCount > 0 && usesPerMonth > 0) {
+        const cap = (usesPerMonth / 30) * 1.2;
+        daily = Math.min(daily, Math.max(0.2, cap));
+    }
+    return Math.min(daily, 1.5);
+}
+
+function _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit) {
+    if (unit === 'pz' && usesPerMonth >= 0.5) {
+        let avgPerEvent = 1;
+        if (monthly > 0.001) {
+            avgPerEvent = Math.min(1.2, Math.max(0.5, monthly / Math.max(0.5, usesPerMonth)));
+        }
+        const eventNeed = usesPerMonth * (planDays / 30) * avgPerEvent;
+        if (daily > 0.001) return Math.min(eventNeed, daily * planDays);
+        if (monthly > 0.001) return Math.min(eventNeed, monthly * (planDays / 30));
+        return eventNeed;
+    }
+    if (daily > 0.001) return daily * planDays;
+    if (monthly > 0.001) return monthly * (planDays / 30);
+    return 0;
+}
+
+function _maxSuggestedPieces(planDays) {
+    return Math.max(2, Math.min(30, Math.ceil(planDays * 2.5)));
+}
+
+/** Ceil discrete counts (conf/pz always round up). */
+function _ceilDiscreteQty(need) {
+    if (need <= 0) return 0;
+    return Math.max(1, Math.ceil(need));
+}
+
+function _suggestedConfQty(needBase, defQty, pkgUnit, maxPkgs = 6) {
+    const pu = (pkgUnit || '').toLowerCase();
+    if (defQty > 0 && (pu === 'g' || pu === 'ml')) {
+        const pkgs = _ceilDiscreteQty(needBase / defQty);
+        return { suggested_qty: Math.max(1, Math.min(maxPkgs, pkgs)), suggested_unit: 'conf' };
+    }
+    const qty = _ceilDiscreteQty(needBase);
+    return { suggested_qty: Math.max(1, Math.min(maxPkgs, qty)), suggested_unit: 'conf' };
+}
+
+function _computeSuggestedQtyForPlanDays(smartData) {
+    if (!smartData) return null;
+    const planDays = getShoppingPlanDays();
+    const useCount = parseInt(smartData.use_count, 10) || 0;
+    const usesPerMonth = parseFloat(smartData.uses_per_month) || 0;
+    const unit = smartData.unit || 'conf';
+    let daily = parseFloat(smartData.daily_rate) || 0;
+    let monthly = parseFloat(smartData.monthly_usage) || 0;
+    if (unit === 'pz') {
+        monthly = _sanitizePieceMonthly(monthly, useCount, usesPerMonth, unit);
+        daily = _sanitizePieceDailyRate(daily, useCount, usesPerMonth, unit);
+    }
+    const defQty = parseFloat(smartData.default_qty) || 0;
+    const pkgUnit = (smartData.package_unit || '').toLowerCase();
+    const stock = parseFloat(smartData.current_qty) || 0;
+    const onBring = !!smartData.on_bring;
+    const urgency = smartData.urgency || '';
+
+    let periodNeed = _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit);
+
+    if (periodNeed <= 0 && daily <= 0 && monthly <= 0) {
+        return smartData.suggested_qty > 0
+            ? { suggested_qty: smartData.suggested_qty, suggested_unit: smartData.suggested_unit || unit, suggested_approx: !!smartData.suggested_approx }
+            : null;
+    }
+
+    const stockBase = _stockBaseForGap(stock, unit, defQty, pkgUnit);
+    let needBase = Math.max(0, periodNeed - stockBase);
+    if (needBase <= 0 && onBring && periodNeed > 0 && stock <= 0) {
+        needBase = periodNeed;
+    } else if (needBase <= 0 && onBring && (urgency === 'critical' || urgency === 'high')) {
+        needBase = Math.max(periodNeed * 0.5, defQty > 0 ? defQty : 1);
+    }
+
+    if (needBase <= 0) {
+        if (onBring) {
+            return { suggested_qty: 1, suggested_unit: unit === 'pz' ? 'pz' : 'conf', suggested_approx: true };
+        }
+        return null;
+    }
+
+    let suggestedQty = null;
+    let suggestedUnit = unit;
+    let suggestedApprox = planDays !== getShoppingPlanDaysDefault() || daily <= 0;
+
+    if (unit === 'conf') {
+        const conf = _suggestedConfQty(needBase, defQty, pkgUnit);
+        suggestedQty = conf.suggested_qty;
+        suggestedUnit = conf.suggested_unit;
+    } else if (pkgUnit && defQty > 0) {
+        suggestedQty = Math.max(1, Math.min(6, _ceilDiscreteQty(needBase / defQty)));
+        suggestedUnit = 'conf';
+        suggestedApprox = true;
+    } else if ((unit === 'g' || unit === 'ml') && defQty > 0) {
+        const pkgs = Math.max(1, Math.min(6, Math.ceil(needBase / defQty)));
+        suggestedQty = pkgs * defQty;
+        suggestedUnit = unit;
+        suggestedApprox = true;
+    } else if (unit === 'g' || unit === 'ml') {
+        if (needBase >= 30) {
+            let rounded;
+            if (needBase < 500) rounded = Math.max(100, Math.round(needBase / 100) * 100);
+            else if (needBase < 2000) rounded = Math.max(250, Math.round(needBase / 250) * 250);
+            else rounded = Math.max(500, Math.round(needBase / 500) * 500);
+            suggestedQty = rounded;
+            suggestedUnit = unit;
+            suggestedApprox = true;
+        }
+    } else if (unit === 'pz') {
+        const rounded = _ceilDiscreteQty(needBase);
+        suggestedQty = Math.max(1, Math.min(_maxSuggestedPieces(planDays), rounded));
+        suggestedUnit = 'pz';
+    }
+
+    if (suggestedQty == null) return null;
+    return { suggested_qty: suggestedQty, suggested_unit: suggestedUnit, suggested_approx: suggestedApprox };
+}
+
+function _effectiveSmartQty(smartData) {
+    const computed = _computeSuggestedQtyForPlanDays(smartData);
+    if (computed) return computed;
+    if (smartData?.suggested_qty > 0) {
+        return {
+            suggested_qty: smartData.suggested_qty,
+            suggested_unit: smartData.suggested_unit || smartData.unit,
+            suggested_approx: !!smartData.suggested_approx,
+        };
+    }
+    return null;
+}
+
+function _shoppingSuggestedToAddQty(smartData) {
+    const eff = _effectiveSmartQty(smartData);
+    if (!eff?.suggested_qty || eff.suggested_qty <= 0) {
+        return { qty: 1, unit: smartData?.unit || 'conf' };
+    }
+    const sq = eff.suggested_qty;
+    const su = eff.suggested_unit || smartData?.unit || 'pz';
+    if (su === 'conf') return { qty: sq, unit: 'conf' };
+    if (su === 'pz') return { qty: sq, unit: 'pz' };
+    const defQty = parseFloat(smartData.default_qty) || 0;
+    if (smartData.unit === 'conf' && defQty > 0 && (su === 'g' || su === 'ml')) {
+        return { qty: Math.max(1, Math.ceil(sq / defQty)), unit: 'conf' };
+    }
+    return { qty: sq, unit: su };
+}
+
+function _shoppingBuyQtyDisplay(smartData) {
+    if (!smartData) return null;
+    const eff = _effectiveSmartQty(smartData);
+    if (!eff) return null;
+    const label = _formatSuggestQty(eff.suggested_qty, eff.suggested_unit || smartData.unit);
+    if (!label) return null;
+    const approx = eff.suggested_approx ? '~' : '';
+    return { label: approx + label, monthHint: '', approx: !!eff.suggested_approx };
+}
+
+function markShoppingItemBought(idx) {
+    loadShoppingList._lastUserInteraction = Date.now();
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+    _spesaScanTarget = {
+        name: item.name,
+        rawName: item.rawName || '',
+        idx,
+        mode: 'bought',
+        buyQty: _shoppingSuggestedToAddQty(smartData),
+        smartData,
+    };
+    _shoppingBoughtFlow = true;
+    showPage('scan');
+    showToast(t('shopping.bought_scan_toast').replace('{name}', _shoppingListGenericTitle(item, smartData)), 'info');
+}
+
+/** Step 1: bought at store — remove from list; add to pantry at home via spesa mode later. */
+async function markShoppingItemPurchasedLater(idx) {
+    loadShoppingList._lastUserInteraction = Date.now();
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+    const displayName = _shoppingListGenericTitle(item, smartData);
+    const panel = document.getElementById('tab-panel-acquisto');
+    const scrollY = panel?.scrollTop || 0;
+    try {
+        const data = await api('shopping_remove', {}, 'POST', {
+            name: item.name,
+            rawName: item.rawName || '',
+            listUUID: shoppingListUUID,
+        });
+        if (data.success || data._offline) {
+            _markBringPurchased([item.name]);
+            shoppingItems.splice(idx, 1);
+            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+            renderShoppingItems();
+            if (panel) panel.scrollTop = scrollY;
+            showToast(t('shopping.bought_later_toast').replace('{name}', displayName), 'info');
+            loadShoppingCount();
+        }
+    } catch (err) {
+        showToast(t('shopping.remove_error'), 'error');
+    }
+}
+
 function openScanForItem(idx) {
     loadShoppingList._lastUserInteraction = Date.now(); // user is actively using the list
     const item = shoppingItems[idx];
@@ -11899,18 +12524,21 @@ async function confirmShoppingItemFound() {
 
 // ===== AUTO-ADD CRITICAL ITEMS TO BRING! =====
 
-/** Build a Bring specification string that encodes urgency + optional brand. */
-function _urgencyToSpec(urgency, brand) {
+/** Build a Bring specification string — urgency only (list items stay generic, no brand). */
+function _urgencyToSpec(urgency) {
     const urgencyLabels = {
         critical: t('shopping.urgency_spec_critical'),
         high:     t('shopping.urgency_spec_high'),
         medium:   t('shopping.urgency_spec_medium'),
         low:      t('shopping.urgency_spec_low'),
     };
-    const urgLabel = urgencyLabels[urgency] || '';
-    if (urgLabel && brand) return `${urgLabel} · ${brand}`;
-    if (urgLabel) return urgLabel;
-    return brand || '';
+    return urgencyLabels[urgency] || '';
+}
+
+/** Generic label for a shopping-list row (never a specific product or brand). */
+function _shoppingListGenericTitle(item, smartData) {
+    if (smartData?.shopping_name) return smartData.shopping_name.trim();
+    return _resolveShoppingDisplayName(item, smartData);
 }
 
 /**
@@ -11998,11 +12626,15 @@ async function autoAddCriticalItems() {
     localStorage.setItem('_autoAddedCriticalTs', String(Date.now()));
     const toAdd = smartShoppingItems.filter(i => {
         if (i.on_bring) return false;
-        if (_isBringPurchased(i.name, i.urgency)) return false;
+        const gName = i.shopping_name || i.name;
+        if (_isBringPurchased(gName, i.urgency)) return false;
         return ['critical', 'high', 'medium', 'low'].includes(i.urgency);
     });
     if (toAdd.length === 0) return;
-    const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
+    const itemsToAdd = toAdd.map(i => ({
+        name: i.shopping_name || i.name,
+        specification: _urgencyToSpec(i.urgency),
+    }));
     try {
         const result = await api('shopping_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
@@ -12046,6 +12678,10 @@ let _cachedPrices = {};
 /** Canonical shopping total — same figure on dashboard, Spesa page and screensaver */
 let _canonicalShoppingTotal = null;
 let _priceTotalFetchPromise = null;
+/** Throttle server price fetches (ms) */
+const _PRICE_FETCH_MIN_MS = 15 * 60 * 1000;
+let _lastPriceFetchAt = 0;
+let _lastPricePayloadHash = '';
 
 function _formatShoppingTotalLabel(total, currency) {
     const sym = _currencySymbol(currency || getSettings().price_currency || 'EUR');
@@ -12135,6 +12771,15 @@ async function syncShoppingPriceTotal(forceRefresh = false) {
     if (!s.price_enabled || !_geminiAvailable) return;
     if (_priceTotalFetchPromise && !forceRefresh) return _priceTotalFetchPromise;
 
+    const payloadHash = JSON.stringify(_buildPricePayload());
+    const now = Date.now();
+    if (!forceRefresh && payloadHash === _lastPricePayloadHash && _canonicalShoppingTotal
+        && (now - _lastPriceFetchAt) < _PRICE_FETCH_MIN_MS) {
+        _applyPriceBadgesFromCache();
+        _applyShoppingTotalDisplay();
+        return;
+    }
+
     _priceTotalFetchPromise = (async () => {
         if (!shoppingItems.length) {
             try {
@@ -12147,6 +12792,8 @@ async function syncShoppingPriceTotal(forceRefresh = false) {
             return;
         }
         await fetchAllPrices(forceRefresh);
+        _lastPriceFetchAt = Date.now();
+        _lastPricePayloadHash = payloadHash;
     })().finally(() => { _priceTotalFetchPromise = null; });
 
     return _priceTotalFetchPromise;
@@ -12159,16 +12806,40 @@ async function syncShoppingPriceTotal(forceRefresh = false) {
 function _buildPricePayload() {
     return shoppingItems.map((item) => {
         const smart = _matchBringToSmart(item.name, smartShoppingItems);
+        const eff = _effectiveSmartQty(smart);
+        if (eff?.suggested_qty > 0) {
+            const su = eff.suggested_unit || smart?.unit || 'conf';
+            const defQty = parseFloat(smart?.default_qty) || 0;
+            const pkgUnit = smart?.package_unit || '';
+            return {
+                name: item.name,
+                quantity: eff.suggested_qty,
+                unit: String(su).toLowerCase(),
+                default_quantity: defQty,
+                package_unit: pkgUnit,
+            };
+        }
+        if (smart?.suggested_qty > 0) {
+            const su = smart.suggested_unit || smart.unit || 'conf';
+            const defQty = parseFloat(smart.default_qty) || 0;
+            const pkgUnit = smart.package_unit || '';
+            return {
+                name: item.name,
+                quantity: smart.suggested_qty,
+                unit: String(su).toLowerCase(),
+                default_quantity: defQty,
+                package_unit: pkgUnit,
+            };
+        }
         if (smart) {
             const unit = smart.unit || 'conf';
             const defQty = parseFloat(smart.default_qty) || 0;
             const pkgUnit = smart.package_unit || '';
-            // One shopping-list line ≈ one retail purchase (not 14-day restock qty).
             if (unit === 'conf' && defQty > 0 && pkgUnit) {
                 return {
                     name: item.name,
-                    quantity: defQty,
-                    unit: pkgUnit.toLowerCase(),
+                    quantity: 1,
+                    unit: 'conf',
                     default_quantity: defQty,
                     package_unit: pkgUnit,
                 };
@@ -12424,8 +13095,8 @@ async function fetchAllPrices(forceRefresh = false) {
     const country  = s.price_country  || 'Italia';
     const currency = s.price_currency || 'EUR';
 
-    // Send only item names — server resolves qty/unit from smart_shopping_cache
-    const itemsPayload = shoppingItems.map(i => ({ name: i.name }));
+    // Send qty/unit aligned to plan-days (server uses these for price totals)
+    const itemsPayload = _buildPricePayload();
 
     let serverTotal = null;
     try {
@@ -12447,6 +13118,7 @@ async function fetchAllPrices(forceRefresh = false) {
                         ...entry,
                         _qty:  entry._resolved_qty  ?? 1,
                         _unit: entry._resolved_unit ?? 'conf',
+                        _cached_at: Date.now(),
                     };
                     if (badge) badge.innerHTML = _buildPriceBadgeHTML(entry, sym);
                 } else {
@@ -12740,17 +13412,186 @@ function _renderSmartLastUpdate() {
 
 function startBgShoppingRefresh() {
     // No-op: server-side cron handles refresh every 5 minutes.
-    // The JS fetches pre-computed cache on demand (instant response).
 }
 
-async function loadSmartShopping() {
+function getShoppingPlanDaysDefault() {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return Math.max(1, lastDay - now.getDate() + 1);
+}
+
+function getShoppingPlanDays() {
+    const def = getShoppingPlanDaysDefault();
+    if (_shoppingPlanDaysCache == null || _shoppingPlanDaysCache === '') return def;
+    const d = parseInt(_shoppingPlanDaysCache, 10);
+    return (isNaN(d) || d < 1) ? def : Math.min(31, d);
+}
+
+function isShoppingPlanDaysCustom() {
+    return _shoppingPlanDaysCache != null && _shoppingPlanDaysCache !== ''
+        && parseInt(_shoppingPlanDaysCache, 10) !== getShoppingPlanDaysDefault();
+}
+
+function setShoppingPlanDays(days, persist = true) {
+    const d = Math.max(1, Math.min(31, parseInt(days, 10) || getShoppingPlanDaysDefault()));
+    _shoppingPlanDaysCache = d;
+    if (persist) _saveToServer('shopping_plan_days', d);
+    _renderShoppingPlanDaysBar();
+}
+
+function resetShoppingPlanDays() {
+    _shoppingPlanDaysCache = null;
+    _saveToServer('shopping_plan_days', null);
+    _renderShoppingPlanDaysBar();
+    applyShoppingPlanDays();
+}
+
+async function applyShoppingPlanDays() {
+    const input = document.getElementById('shopping-plan-days-input');
+    if (input) {
+        const v = parseInt(input.value, 10);
+        if (v >= 1 && v <= 31) setShoppingPlanDays(v, true);
+    }
+    _cachedPrices = {};
+    _lastPricePayloadHash = '';
+    renderShoppingItems._lastSig = '';
+    await loadSmartShopping(true);
+    renderShoppingItems(true);
+    syncShoppingPriceTotal(true);
+}
+
+const _debouncedApplyShoppingPlanDays = debounce(() => applyShoppingPlanDays(), 400);
+
+function _previewShoppingPlanDaysBar() {
+    const input = document.getElementById('shopping-plan-days-input');
+    if (!input) return;
+    const v = parseInt(input.value, 10);
+    if (v < 1 || v > 31) return;
+    const label = document.getElementById('shopping-plan-days-label');
+    const def = getShoppingPlanDaysDefault();
+    if (label) {
+        label.innerHTML = t('shopping.plan_days_label').replace('{days}', `<strong>${v}</strong>`);
+    }
+    const hint = document.getElementById('shopping-plan-days-hint');
+    if (hint) {
+        hint.textContent = v === def
+            ? t('shopping.plan_days_auto').replace('{days}', def)
+            : t('shopping.plan_days_custom').replace('{days}', v);
+    }
+}
+const _debouncedShoppingPlanDaysPreview = debounce(_previewShoppingPlanDaysBar, 300);
+
+function _initShoppingPageInteractionTracking() {
+    const page = document.getElementById('page-shopping');
+    if (!page || page._shopInteractionInit) return;
+    page._shopInteractionInit = true;
+    const markActive = () => { loadShoppingList._lastUserInteraction = Date.now(); };
+    page.addEventListener('touchstart', markActive, { passive: true });
+    page.addEventListener('scroll', markActive, { passive: true, capture: true });
+    const panel = document.getElementById('tab-panel-acquisto');
+    if (panel) panel.addEventListener('scroll', markActive, { passive: true });
+    window.addEventListener('scroll', () => {
+        if (_currentPageId === 'shopping') markActive();
+    }, { passive: true });
+}
+
+function _shoppingScrollEl() {
+    const panel = document.getElementById('tab-panel-acquisto');
+    if (panel && panel.scrollHeight > panel.clientHeight + 8) return panel;
+    return document.documentElement;
+}
+
+function _shoppingScrollY() {
+    const el = _shoppingScrollEl();
+    if (el === document.documentElement) {
+        return window.scrollY || document.documentElement.scrollTop || 0;
+    }
+    return el.scrollTop || 0;
+}
+
+function _restoreShoppingScroll(y) {
+    const el = _shoppingScrollEl();
+    if (el === document.documentElement) {
+        window.scrollTo(0, y);
+    } else {
+        el.scrollTop = y;
+    }
+}
+
+function _shoppingRenderSignature() {
+    const days = getShoppingPlanDays();
+    const itemsSig = shoppingItems.map(i => `${i.name}|${i.specification || ''}`).join('§');
+    const smartSig = smartShoppingItems.map(i => {
+        const eff = _effectiveSmartQty(i);
+        return `${i.shopping_name || i.name}:${eff?.suggested_qty ?? ''}:${eff?.suggested_unit ?? ''}:${i.urgency}:${i.on_bring}`;
+    }).join('§');
+    const collapsed = JSON.stringify(_shoppingSectionsCollapsedGet());
+    return `${days}::${itemsSig}::${smartSig}::${collapsed}::${!!getSettings().price_enabled}`;
+}
+
+function _shopRowVisualHtml(item, smartData) {
+    const inv = _shoppingInventoryCache || [];
+    const rows = inv.length ? _shoppingFamilyInventoryRows(item, smartData, inv) : [];
+    const imageUrl = rows.find(r => r.image_url)?.image_url || smartData?.image_url || '';
+    const cat = smartData?.category || rows[0]?.category || '';
+    const catKey = mapToLocalCategory(cat, smartData?.shopping_name || item?.name || '');
+    const icon = CATEGORY_ICONS[catKey] || '🛒';
+    const bg = imageUrl
+        ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
+        : `<div class="shop-row-visual-bg shop-row-visual-bg--cat cat-${catKey}"></div>`;
+    const img = imageUrl
+        ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+        : '';
+    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}<span class="shop-row-visual-icon">${icon}</span></div>`;
+}
+
+function _shopRowVisualHtmlFromSmart(item) {
+    const name = item.shopping_name || item.name;
+    const catKey = mapToLocalCategory(item.category || '', name);
+    const icon = CATEGORY_ICONS[catKey] || '🛒';
+    const imageUrl = item.image_url || '';
+    const bg = imageUrl
+        ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
+        : `<div class="shop-row-visual-bg shop-row-visual-bg--cat cat-${catKey}"></div>`;
+    const img = imageUrl
+        ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+        : '';
+    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}<span class="shop-row-visual-icon">${icon}</span></div>`;
+}
+
+function _renderShoppingPlanDaysBar() {
+    const bar = document.getElementById('shopping-plan-days-bar');
+    if (!bar) return;
+    const days = getShoppingPlanDays();
+    const def = getShoppingPlanDaysDefault();
+    const input = document.getElementById('shopping-plan-days-input');
+    if (input && document.activeElement !== input) input.value = days;
+    const label = document.getElementById('shopping-plan-days-label');
+    if (label) {
+        label.innerHTML = t('shopping.plan_days_label').replace('{days}', `<strong>${days}</strong>`);
+    }
+    const hint = document.getElementById('shopping-plan-days-hint');
+    if (hint) {
+        hint.textContent = days === def
+            ? t('shopping.plan_days_auto').replace('{days}', def)
+            : t('shopping.plan_days_custom').replace('{days}', days);
+    }
+    const resetBtn = document.getElementById('shopping-plan-days-reset');
+    if (resetBtn) resetBtn.style.display = isShoppingPlanDaysCustom() ? '' : 'none';
+}
+
+async function loadSmartShopping(forceRefresh = false) {
     try {
-        const data = await api('smart_shopping');
+        const planDays = getShoppingPlanDays();
+        const params = { plan_days: planDays };
+        if (forceRefresh) params.force = 1;
+        const data = await api('smart_shopping', params);
         if (data.success && data.items && data.items.length > 0) {
             const prevCriticalNames = new Set(
                 smartShoppingItems.filter(i => i.urgency === 'critical').map(i => i.name)
             );
             smartShoppingItems = _filterPurchasedSmartItems(data.items);
+            _offlineSmartCacheSet(smartShoppingItems, planDays);
             _smartShoppingLastFetch = Date.now();
             // NOTE: do NOT clear _cachedPrices here — qty validation (_qty/_unit metadata)
             // handles stale entries automatically item by item.
@@ -12767,6 +13608,7 @@ async function loadSmartShopping() {
             _updateSmartUrgencyBadge();
             document.getElementById('smart-shopping-empty').style.display = 'none';
             document.getElementById('smart-shopping-content').style.display = 'block';
+            if (data.plan_days_default) _renderShoppingPlanDaysBar();
         } else {
             smartShoppingItems = [];
             _smartShoppingLastFetch = Date.now();
@@ -12775,9 +13617,29 @@ async function loadSmartShopping() {
         }
     } catch (e) {
         console.error('Smart shopping error:', e);
-        smartShoppingItems = [];
+        const cached = _offlineSmartCacheGet();
+        if (cached?.items?.length) {
+            smartShoppingItems = _filterPurchasedSmartItems(cached.items);
+            _syncOnBringFlags();
+            renderShoppingItems();
+        } else {
+            smartShoppingItems = [];
+        }
     }
     updateShoppingTabCounts();
+    if (document.getElementById('page-shopping')?.classList.contains('active')) {
+        const sig = smartShoppingItems.map(i => {
+            const eff = _effectiveSmartQty(i);
+            return `${i.shopping_name || i.name}:${eff?.suggested_qty ?? ''}:${eff?.suggested_unit ?? ''}:${getShoppingPlanDays()}`;
+        }).join('|');
+        if (sig !== loadSmartShopping._lastRenderSig) {
+            loadSmartShopping._lastRenderSig = sig;
+            renderShoppingItems();
+        } else {
+            _applyPriceBadgesFromCache();
+            _applyShoppingTotalDisplay();
+        }
+    }
 }
 
 function filterSmart(filter) {
@@ -12849,24 +13711,9 @@ function renderSmartItem(item) {
 
     // Generic vs specific name logic
     const shoppingName = item.shopping_name || item.name;
-    const isGeneric = shoppingName !== item.name;
-    const variants = item.variants || [];
 
-    // Build title line: generic name (and brand only if not grouped)
-    let nameLine = `<div class="smart-item-name">${escapeHtml(shoppingName)}`;
-    if (!isGeneric && item.brand) nameLine += ` <small class="smart-brand">${escapeHtml(item.brand)}</small>`;
-    nameLine += `</div>`;
-
-    // Build subtitle: specific product + brand when grouped, plus any variants
-    let specificLine = '';
-    if (isGeneric || variants.length > 0) {
-        let specifics = [];
-        specifics.push(item.name + (item.brand ? ` (${item.brand})` : ''));
-        for (const v of variants) {
-            specifics.push(v.name + (v.brand ? ` (${v.brand})` : ''));
-        }
-        specificLine = `<div class="smart-item-specific">${escapeHtml(specifics.join(' · '))}</div>`;
-    }
+    let nameLine = `<div class="smart-item-name">${escapeHtml(shoppingName)}</div>`;
+    const specificLine = '';
 
         // Stock bar
         const pct = Math.min(100, Math.max(0, item.pct_left));
@@ -12979,20 +13826,9 @@ async function addSmartToBring() {
         const idx = parseInt(cb.dataset.idx);
         const item = smartShoppingItems[idx];
         if (item) {
-            const shoppingName = item.shopping_name || item.name;
-            const isGeneric = shoppingName !== item.name;
-            // Specific product/brand prefix (used when item is grouped under a generic name)
-            const productPrefix = isGeneric
-                ? (item.name + (item.brand ? ` · ${item.brand}` : ''))
-                : '';
-            // Full spec = urgency+qty from _buildSmartSpec, with product prefix prepended if needed
-            const smartSpec = _buildSmartSpec(item);
-            const spec = productPrefix
-                ? (smartSpec ? `${productPrefix} · ${smartSpec}` : productPrefix)
-                : smartSpec;
             itemsToAdd.push({
-                name: shoppingName,
-                specification: spec,
+                name: item.shopping_name || item.name,
+                specification: _buildSmartSpec(item),
             });
         }
     });
@@ -13128,19 +13964,12 @@ function _formatSuggestQty(qty, unit) {
  * Returns empty string for low/medium urgency items with no useful extra info.
  */
 function _buildSmartSpec(smartMatch) {
-    const urgPart = _urgencyToSpec(smartMatch.urgency, '');
-    let qtyPart = '';
-    const qtyFormatted = _formatSuggestQty(smartMatch.suggested_qty, smartMatch.suggested_unit || smartMatch.unit);
-    if (qtyFormatted) {
-        const approx = !!smartMatch.suggested_approx;
-        const tKey = approx ? 'shopping.suggest_buy_approx' : 'shopping.suggest_buy';
-        qtyPart = t(tKey).replace('{qty} {unit}', qtyFormatted);
-        if (qtyPart.includes('{qty}')) {
-            qtyPart = (approx ? '🛒 Almeno: ' : '🛒 Compra: ') + qtyFormatted;
-        }
-    }
-    const parts = [urgPart, qtyPart].filter(Boolean);
-    return parts.join(' · ');
+    return _urgencyToSpec(smartMatch.urgency);
+}
+
+/** True if Bring spec still contains product/brand text beyond urgency markers. */
+function _specNeedsGenericCleanup(spec) {
+    return !!_specDisplayText(spec || '').trim();
 }
 
 async function autoSyncUrgencySpecs() {
@@ -13151,8 +13980,7 @@ async function autoSyncUrgencySpecs() {
         if (!smartMatch) continue;
         const targetSpec    = _buildSmartSpec(smartMatch);
         const currentSpec   = (item.specification || '').trim();
-        if (targetSpec.toLowerCase() === currentSpec.toLowerCase()) continue;
-        // Resolve to generic shopping_name so PHP merges onto the canonical Bring item
+        if (targetSpec.toLowerCase() === currentSpec.toLowerCase() && !_specNeedsGenericCleanup(currentSpec)) continue;
         const apiName = smartMatch.shopping_name || item.name;
         toUpdate.push({ name: apiName, specification: targetSpec, update_spec: true });
         item.specification = targetSpec;
@@ -13186,6 +14014,7 @@ async function loadShoppingList() {
                     [...prevNames].some(n => !newNames.has(n));
                 if (hasChanges) {
                     shoppingItems = newItems;
+                    _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
                     for (const name of Object.keys(_cachedPrices)) {
                         if (!newNames.has(name.toLowerCase())) delete _cachedPrices[name];
                     }
@@ -13255,6 +14084,7 @@ async function loadShoppingList() {
             _markBringPurchased(data.recently.map(i => i.name).filter(Boolean));
         }
         shoppingItems = newItems;
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
         // Evict removed items from price cache so stale prices don't reappear
         for (const name of Object.keys(_cachedPrices)) {
             if (!newNames.has(name.toLowerCase())) delete _cachedPrices[name];
@@ -13265,24 +14095,34 @@ async function loadShoppingList() {
         renderShoppingItems();
         currentEl.style.display = 'block';
         
-        // Load smart shopping predictions, then re-render to show badges + auto-add critical
+        // Load smart shopping predictions, then re-render once with qty/urgency
         loadSmartShopping().then(() => {
-            _syncOnBringFlags();          // sync on_bring against current Bring list before any logic reads it
-            _syncTagsFromBringSpec();     // re-sync tags now that smart data is available
-            autoSyncUrgencySpecs();       // push urgency specs to Bring for matched items
-            renderSmartShopping();        // re-render smart tab with corrected on_bring flags
-            updateShoppingTabCounts();    // update tab badges with corrected counts
+            _syncOnBringFlags();
+            _syncTagsFromBringSpec();
+            autoSyncUrgencySpecs();
+            renderSmartShopping();
+            updateShoppingTabCounts();
             autoAddCriticalItems();
             cleanupObsoleteBringItems();
-            // Re-render shopping items ONLY if the user is not currently browsing the suggestions panel.
-            // Avoids interrupting the user mid-selection while background data loads.
-            if (suggestionsEl.style.display === 'none') {
-                renderShoppingItems();    // re-render shopping tab with urgency badges
-            }
         });
 
     } catch (err) {
         console.error('Bring! error:', err);
+        const cached = _offlineShoppingCacheGet();
+        if (cached?.items?.length) {
+            shoppingItems = cached.items;
+            shoppingListUUID = cached.listUUID || shoppingListUUID || '';
+            statusEl.style.display = 'none';
+            renderShoppingItems();
+            currentEl.style.display = 'block';
+            showToast(t('shopping.offline_list'), 'info');
+            const smartCached = _offlineSmartCacheGet();
+            if (smartCached?.items?.length) {
+                smartShoppingItems = _filterPurchasedSmartItems(smartCached.items);
+                _syncOnBringFlags();
+            }
+            return;
+        }
         statusEl.style.display = 'block';
         statusEl.innerHTML = `<div class="bring-error">${t('error.bring_connection')}</div>`;
     }
@@ -13291,14 +14131,18 @@ async function loadShoppingList() {
 /** Return the spec text to show in the UI, stripping urgency markers (those are shown as badges). */
 function _specDisplayText(spec) {
     if (!spec) return '';
-    // Strip known urgency prefixes set by _urgencyToSpec (case-insensitive, then trim separator)
+    let s = spec;
     const lower = spec.toLowerCase();
     for (const prefix of ['⚡ urgente', '🟠 presto', '🟡 a breve', '🔵 previsione']) {
         if (lower.startsWith(prefix)) {
-            return spec.slice(prefix.length).replace(/^\s*[·\-]\s*/, '').trim();
+            s = spec.slice(prefix.length).replace(/^\s*[·\-]\s*/, '').trim();
+            break;
         }
     }
-    return spec;
+    // Legacy: qty pushed to Bring before v1.7.51
+    s = s.replace(/🛒\s*(Compra|Almeno|Buy|At least):\s*[^·]+/gi, '')
+         .replace(/^\s*[·\-]\s*|\s*[·\-]\s*$/g, '').trim();
+    return s;
 }
 
 /** Return the spec for price search, stripping urgency markers that would confuse the AI. */
@@ -13306,30 +14150,320 @@ function _cleanSpecForSearch(spec) {
     return _specDisplayText(spec);
 }
 
-async function renderShoppingItems() {
+const URGENCY_BORDER = {
+    critical: '#ef4444',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#22c55e',
+};
+
+function _updateShoppingFooter() {
+    const footer = document.getElementById('shopping-footer');
+    const statsEl = document.getElementById('shopping-footer-stats');
+    if (!footer || !statsEl) return;
+    const n = shoppingItems.length;
+    if (n === 0) {
+        footer.style.display = 'none';
+        return;
+    }
+    let totalQty = 0;
+    for (const item of shoppingItems) {
+        const smart = _matchBringToSmart(item.name, smartShoppingItems);
+        const eff = _effectiveSmartQty(smart);
+        const sq = eff?.suggested_qty;
+        totalQty += (sq > 0 ? sq : 1);
+    }
+    statsEl.textContent = t('shopping.footer_stats')
+        .replace('{items}', n)
+        .replace('{qty}', Math.round(totalQty * 10) / 10);
+    footer.style.display = 'flex';
+}
+
+function showPriceDetail(idx) {
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const entry = _cachedPrices[item.name];
+    if (!entry || entry.error) {
+        showToast(t('shopping.price_not_available'), 'info');
+        return;
+    }
+    const sym = _currencySymbol(entry.currency || getSettings().price_currency || 'EUR');
+    const main = entry.estimated_total != null
+        ? `${sym}${entry.estimated_total.toFixed(2)}`
+        : `${sym}${(entry.price_per_unit || 0).toFixed(2)}`;
+    const note = entry.source_note || t('shopping.price_ai_estimate');
+    const cachedAt = entry._cached_at ? new Date(entry._cached_at).toLocaleString() : '';
+    const ageLine = cachedAt ? t('shopping.price_cached_at').replace('{date}', cachedAt) : '';
+    const body = `${main}\n\n${note}${ageLine ? '\n\n' + ageLine : ''}`;
+    alert(body);
+}
+
+async function addSmartItemQuick(globalIdx) {
+    const item = smartShoppingItems[globalIdx];
+    if (!item || item.on_bring) return;
+    loadShoppingList._lastUserInteraction = Date.now();
+    const apiName = item.shopping_name || item.name;
+    const spec = _urgencyToSpec(item.urgency);
+    const panel = document.getElementById('tab-panel-acquisto');
+    const scrollY = panel?.scrollTop || 0;
+
+    try {
+        const r = await api('shopping_add', {}, 'POST', {
+            items: [{ name: apiName, specification: spec }],
+            listUUID: shoppingListUUID,
+        });
+        if (r.success || r._offline) {
+            item.on_bring = true;
+            const exists = shoppingItems.some(i => i.name.toLowerCase() === apiName.toLowerCase());
+            if (!exists) {
+                shoppingItems.push({ name: apiName, specification: spec, rawName: apiName });
+            }
+            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+            _syncOnBringFlags();
+            renderShoppingItems();
+            if (panel) panel.scrollTop = scrollY;
+            loadShoppingCount();
+            updateShoppingTabCounts();
+            showToast(t('shopping.added_one_inline').replace('{name}', apiName), 'success');
+        }
+    } catch (e) {
+        showToast(t('error.network'), 'error');
+    }
+}
+
+function _shopRowQtyHtml(smartData) {
+    const buyQty = _shoppingBuyQtyDisplay(smartData);
+    if (!buyQty) return '';
+    return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}</span>`;
+}
+
+function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml }) {
+    return `
+    <div class="shop-row-swipe-zones">
+        <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
+        <div class="shop-row-zone shop-row-zone-scan">${escapeHtml(t('shopping.swipe_scan'))}</div>
+    </div>
+    <div class="shop-row-swipe-bg shop-row-swipe-bg-left">${escapeHtml(t('shopping.swipe_remove'))}</div>
+    <div class="shop-row-content">
+        <div class="shop-row-main">
+            ${visualHtml || ''}
+            <div class="shop-row-text">
+                <div class="shop-row-title">
+                    <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
+                    ${qtyHtml}
+                </div>
+            </div>
+            ${priceCell || ''}
+        </div>
+        <div class="shop-row-swipe-hint">${escapeHtml(t('shopping.swipe_hint_two'))}</div>
+    </div>`;
+}
+
+function _initShopRowSwipe(container) {
+    if (!container) return;
+    if (container._swipeHandlers) {
+        container.removeEventListener('touchstart', container._swipeHandlers.start);
+        container.removeEventListener('touchmove', container._swipeHandlers.move);
+        container.removeEventListener('touchend', container._swipeHandlers.end);
+        container.removeEventListener('touchcancel', container._swipeHandlers.end);
+    }
+
+    let startX = 0, startY = 0, activeRow = null, activeContent = null, dragging = false;
+
+    const onStart = (e) => {
+        loadShoppingList._lastUserInteraction = Date.now();
+        const row = e.target.closest('.shop-row');
+        if (!row) return;
+        activeRow = row;
+        activeContent = row.querySelector('.shop-row-content');
+        if (!activeContent) return;
+        const t0 = e.touches[0];
+        startX = t0.clientX;
+        startY = t0.clientY;
+        dragging = true;
+        row._swipeMoved = false;
+        activeContent.style.transition = 'none';
+    };
+
+    const onMove = (e) => {
+        if (!dragging || !activeContent || !activeRow) return;
+        const t0 = e.touches[0];
+        const dx = t0.clientX - startX;
+        const dy = Math.abs(t0.clientY - startY);
+        if (dy > 24 && Math.abs(dx) < 20) {
+            dragging = false;
+            activeContent.style.transform = '';
+            return;
+        }
+        if (Math.abs(dx) > 8) {
+            e.preventDefault();
+            activeRow._swipeMoved = true;
+        }
+        const w = activeRow.clientWidth || 300;
+        const half = w / 2;
+        if (activeRow.classList.contains('shop-row-suggest')) {
+            const max = half;
+            const clamped = Math.max(0, Math.min(max, dx));
+            activeContent.style.transform = `translateX(${clamped}px)`;
+            activeRow.classList.toggle('swipe-right', clamped > max * 0.35);
+        } else if (dx > 0) {
+            const clamped = Math.min(w, dx);
+            activeContent.style.transform = `translateX(${clamped}px)`;
+            activeRow.classList.toggle('zone-home', clamped >= half * 0.28 && clamped < half * 0.88);
+            activeRow.classList.toggle('zone-scan', clamped >= half * 0.88);
+        } else {
+            const clamped = Math.max(-100, dx);
+            activeContent.style.transform = `translateX(${clamped}px)`;
+            activeRow.classList.toggle('swipe-left', clamped < -40);
+        }
+    };
+
+    const onEnd = (e) => {
+        if (!dragging || !activeRow || !activeContent) return;
+        dragging = false;
+        activeContent.style.transition = 'transform 0.2s ease';
+        const t0 = e.changedTouches[0];
+        const dx = t0.clientX - startX;
+        const dy = Math.abs(t0.clientY - startY);
+        const w = activeRow.clientWidth || 300;
+        const half = w / 2;
+        activeContent.style.transform = '';
+        activeRow.classList.remove('swipe-right', 'swipe-left', 'zone-home', 'zone-scan');
+
+        if (dy > 50) { activeRow = null; activeContent = null; return; }
+
+        if (activeRow.classList.contains('shop-row-suggest')) {
+            const sidx = parseInt(activeRow.dataset.suggestIdx, 10);
+            if (dx > half * 0.35 && !isNaN(sidx)) addSmartItemQuick(sidx);
+        } else {
+            const idx = parseInt(activeRow.dataset.idx, 10);
+            if (!isNaN(idx)) {
+                if (dx >= half * 0.88) markShoppingItemBought(idx);
+                else if (dx >= half * 0.35) markShoppingItemPurchasedLater(idx);
+                else if (dx <= -72) removeBringItem(idx);
+            }
+        }
+        activeRow = null;
+        activeContent = null;
+    };
+
+    container._swipeHandlers = { start: onStart, move: onMove, end: onEnd };
+    container.addEventListener('touchstart', onStart, { passive: true });
+    container.addEventListener('touchmove', onMove, { passive: false });
+    container.addEventListener('touchend', onEnd, { passive: true });
+    container.addEventListener('touchcancel', onEnd, { passive: true });
+
+    // Suggest rows: tap = add (no swipe on main list needed for suggest)
+    container.querySelectorAll('.shop-row-suggest').forEach(row => {
+        row.addEventListener('click', (e) => {
+            if (row._swipeMoved) { row._swipeMoved = false; return; }
+            const sidx = parseInt(row.dataset.suggestIdx, 10);
+            if (!isNaN(sidx)) addSmartItemQuick(sidx);
+        });
+    });
+}
+
+function _initShoppingPullRefresh() {
+    const page = document.getElementById('page-shopping');
+    if (!page || page._pullInit) return;
+    page._pullInit = true;
+    let startY = 0;
+    let pulling = false;
+    let lastPullRefresh = 0;
+    page.addEventListener('touchstart', (e) => {
+        if (_shoppingScrollY() <= 4) {
+            startY = e.touches[0].clientY;
+            pulling = true;
+        }
+    }, { passive: true });
+    page.addEventListener('touchmove', (e) => {
+        if (!pulling) return;
+        if (_shoppingScrollY() > 8) { pulling = false; return; }
+        const dy = e.touches[0].clientY - startY;
+        if (dy > 140 && Date.now() - lastPullRefresh > 45000) {
+            pulling = false;
+            lastPullRefresh = Date.now();
+            loadShoppingList._lastUserInteraction = Date.now();
+            showToast(t('shopping.refreshing'), 'info');
+            loadShoppingList();
+            loadSmartShopping(true);
+        }
+    }, { passive: true });
+    page.addEventListener('touchend', () => { pulling = false; }, { passive: true });
+}
+
+function _renderShoppingSectionHead(secKey, secDef, count, collapsed) {
+    const chev = collapsed ? '▸' : '▾';
+    return `<button type="button" class="shop-section-head" onclick="toggleShoppingSection('${secKey}')" aria-expanded="${!collapsed}">
+        <span class="shop-section-label"><span class="sec-icon">${secDef.icon}</span>${escapeHtml(secDef.label)}</span>
+        <span class="shop-section-meta"><span class="shop-section-cnt">${count}</span><span class="shop-section-chev">${chev}</span></span>
+    </button>`;
+}
+
+function _renderShoppingSuggestionsInline() {
+    const items = smartShoppingItems.filter(i => !i.on_bring);
+    if (!items.length) return '';
+    const secKey = '__suggest__';
+    const collapsed = !!_shoppingSectionsCollapsedGet()[secKey];
+    let html = _renderShoppingSectionHead(secKey, { icon: '💡', label: t('shopping.section_suggested') }, items.length, collapsed);
+    if (collapsed) return html;
+    html += '<div class="shop-section-body">';
+    for (const item of items.slice(0, 25)) {
+        const globalIdx = smartShoppingItems.indexOf(item);
+        const name = item.shopping_name || item.name;
+        const qtyHtml = _shopRowQtyHtml(item);
+        const border = URGENCY_BORDER[item.urgency] || URGENCY_BORDER.low;
+        const visualHtml = _shopRowVisualHtmlFromSmart(item);
+        html += `<div class="shop-row shop-row-suggest" data-suggest-idx="${globalIdx}" style="border-left-color:${border}">
+            <div class="shop-row-swipe-bg shop-row-swipe-bg-right">${escapeHtml(t('shopping.swipe_add'))}</div>
+            <div class="shop-row-content">
+                <div class="shop-row-main">
+                    ${visualHtml}
+                    <div class="shop-row-text">
+                        <div class="shop-row-title">
+                            <span class="shop-row-title-name">${escapeHtml(name)}</span>
+                            ${qtyHtml}
+                        </div>
+                    </div>
+                </div>
+                <div class="shop-row-swipe-hint">${escapeHtml(t('shopping.swipe_add_hint'))}</div>
+            </div>
+        </div>`;
+    }
+    if (items.length > 25) {
+        html += `<div class="shop-row-more">${t('shopping.more_suggestions').replace('{n}', items.length - 25)}</div>`;
+    }
+    html += '</div>';
+    return html;
+}
+
+async function renderShoppingItems(force = false) {
     const container = document.getElementById('shopping-items');
     const countEl = document.getElementById('shopping-count');
+    const sig = _shoppingRenderSignature();
+    if (!force && sig === renderShoppingItems._lastSig) {
+        _applyPriceBadgesFromCache();
+        _applyShoppingTotalDisplay();
+        return;
+    }
+
+    const scrollY = _shoppingScrollY();
+    const collapsedMap = _shoppingSectionsCollapsedGet();
+    const priceEnabled = getSettings().price_enabled;
 
     if (shoppingItems.length === 0) {
         countEl.textContent = 0;
         const tabCountEmpty = document.getElementById('tab-count-acquisto');
         if (tabCountEmpty) tabCountEmpty.textContent = 0;
         container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>${t('shopping.empty')}</p></div>`;
+        container.innerHTML += _renderShoppingSuggestionsInline();
+        _renderShoppingPlanDaysBar();
+        _updateShoppingFooter();
+        _initShopRowSwipe(container);
+        _initShoppingPullRefresh();
         return;
     }
-    
-    const s = getSettings();
 
-    // Build section groups, sorted by urgency weight within each section
-    const TAG_LABELS = { urgente: t('shopping.tag_urgent'), prio: t('shopping.tag_priority'), check: t('shopping.tag_check') };
-    const urgencyMap = {
-        critical: { icon: '🔴', label: t('shopping.urgency_critical'), cls: 'badge-critical' },
-        high:     { icon: '🟠', label: t('shopping.urgency_high'),     cls: 'badge-high' },
-        medium:   { icon: '🟡', label: t('shopping.urgency_medium_short'), cls: 'badge-medium' },
-        low:      { icon: '🟢', label: t('shopping.urgency_low_short'), cls: 'badge-low' },
-    };
-
-    // Map each item to its section + urgency; collapse duplicates under the same generic name.
     const enrichedRaw = shoppingItems.map((item, idx) => {
         const smartData = _matchBringToSmart(item.name, smartShoppingItems);
         let urgency = smartData?.urgency || null;
@@ -13348,7 +14482,6 @@ async function renderShoppingItems() {
     const tabCount = document.getElementById('tab-count-acquisto');
     if (tabCount) tabCount.textContent = enriched.length;
 
-    // Group by section key, preserving SHOPPING_SECTIONS order
     const sectionMap = new Map();
     for (const e of enriched) {
         const key = e.sec.key;
@@ -13356,7 +14489,6 @@ async function renderShoppingItems() {
         sectionMap.get(key).items.push(e);
     }
 
-    // Sort items within each section: by urgency weight desc, then by use_count desc
     for (const [, group] of sectionMap) {
         group.items.sort((a, b) => {
             const wa = URGENCY_WEIGHT[a.urgency] || 0;
@@ -13366,103 +14498,47 @@ async function renderShoppingItems() {
         });
     }
 
-    // Render sections in canonical order
     let html = '';
     for (const secDef of SHOPPING_SECTIONS) {
         const group = sectionMap.get(secDef.key);
         if (!group) continue;
+        const collapsed = !!collapsedMap[secDef.key];
+        html += _renderShoppingSectionHead(secDef.key, secDef, group.items.length, collapsed);
+        if (collapsed) continue;
+        html += '<div class="shop-section-body">';
 
-        html += `<div class="shopping-section-divider"><span class="sec-icon">${secDef.icon}</span>${secDef.label}</div>`;
-
-        for (const { item, idx, smartData, urgency, duplicateNames = [] } of group.items) {
-            const catIcon = CATEGORY_ICONS[guessCategoryFromName(item.name)] || '🛒';
-            const bgStyle = urgency && URGENCY_BG[urgency] ? ` style="background:${URGENCY_BG[urgency]}"` : '';
-            const localTags = getShoppingTags(item.name);
-
-            const shoppingName = smartData?.shopping_name || item.name;
-            const isGenericGroup = smartData && shoppingName.toLowerCase() === item.name.toLowerCase()
-                && (smartData.name !== shoppingName || (smartData.variants || []).length > 0 || duplicateNames.length > 0);
-            const displayName = _resolveShoppingDisplayName(item, smartData);
-            const showAsGeneric = isGenericGroup && displayName.toLowerCase() === shoppingName.toLowerCase();
-            let specificLineHtml = '';
-            if (showAsGeneric || duplicateNames.length > 0 || (displayName !== item.name && _specDisplayText(item.specification))) {
-                const specText = _specDisplayText(item.specification);
-                let specifics = [];
-                if (specText) specifics.push(specText);
-                else if (smartData) {
-                    specifics.push(smartData.name + (smartData.brand ? ` (${smartData.brand})` : ''));
-                    for (const v of (smartData.variants || [])) {
-                        specifics.push(v.name + (v.brand ? ` (${v.brand})` : ''));
-                    }
-                }
-                for (const dup of duplicateNames) {
-                    if (!specifics.some(s => s.toLowerCase().includes(dup.toLowerCase()))) specifics.push(dup);
-                }
-                if (specifics.length) {
-                    specificLineHtml = `<div class="shopping-item-specific">${escapeHtml(specifics.join(' · '))}</div>`;
-                }
-            }
-
-            // Urgency badge (spec urgency markers are stripped in _specDisplayText)
-            let urgencyBadge = '';
-            if (urgency && urgencyMap[urgency]) {
-                const u = urgencyMap[urgency];
-                urgencyBadge = `<span class="sinv-badge ${u.cls}">${u.icon} ${u.label}</span>`;
-            }
-
-            // Frequency: uses per month (not raw transaction count)
-            let freqBadge = '';
-            const usesMonth = smartData ? Math.round(parseFloat(smartData.uses_per_month) || 0) : 0;
-            if (usesMonth >= 4) freqBadge = `<span class="sinv-badge badge-freq-high" title="${t('shopping.freq_high')}">📈 ~${usesMonth}/mese</span>`;
-            else if (usesMonth >= 2) freqBadge = `<span class="sinv-badge badge-freq-med" title="${t('shopping.freq_regular')}">📊 ~${usesMonth}/mese</span>`;
-
-            const localTagHtml = localTags.map(t =>
-                `<span class="sinv-badge badge-local-tag" onclick="event.stopPropagation(); toggleShoppingTag(${idx}, '${t}')">${TAG_LABELS[t] || t} ✕</span>`
-            ).join('');
-
-            const tagMenu = `<div class="shopping-tag-menu" onclick="event.stopPropagation()">
-                ${Object.entries(TAG_LABELS).map(([k, v]) =>
-                    `<button class="sinv-badge badge-tag-add ${localTags.includes(k) ? 'active' : ''}" onclick="toggleShoppingTag(${idx}, '${k}')">${v}</button>`
-                ).join('')}
-            </div>`;
-
-            const priceEnabled = getSettings().price_enabled;
+        for (const { item, idx, smartData, urgency } of group.items) {
+            const displayName = _shoppingListGenericTitle(item, smartData);
+            const qtyHtml = _shopRowQtyHtml(smartData);
+            const visualHtml = _shopRowVisualHtml(item, smartData);
+            const borderColor = urgency ? (URGENCY_BORDER[urgency] || 'transparent') : 'transparent';
+            const priceCell = priceEnabled
+                ? `<div class="shop-row-price" id="price-badge-${idx}" onclick="event.stopPropagation();showPriceDetail(${idx})"><span class="price-col-loading">…</span></div>`
+                : '';
 
             html += `
-            <div class="shopping-item" id="shop-item-${idx}" onclick="openScanForItem(${idx})" title="${t('shopping.tap_to_scan')}"${bgStyle}>
-                <span class="shopping-item-icon">${catIcon}</span>
-                <div class="shopping-item-body">
-                    <div class="shopping-item-top">
-                        <div class="shopping-item-info">
-                            <div class="shopping-item-name-row">
-                                <span class="shopping-item-name">${escapeHtml(displayName)}</span>
-                                <span class="shopping-item-scan-hint">📷</span>
-                            </div>
-                            ${specificLineHtml}
-                            ${(!isGenericGroup && _specDisplayText(item.specification)) ? `<div class="shopping-item-spec">${escapeHtml(_specDisplayText(item.specification))}</div>` : ''}
-                            ${(urgencyBadge || freqBadge || localTagHtml) ? `<div class="shopping-item-badges">${urgencyBadge}${freqBadge}${localTagHtml}</div>` : ''}
-                        </div>
-                        ${priceEnabled ? `<div class="shopping-item-price-col" id="price-badge-${idx}"><span class="price-col-loading">…</span></div>` : ''}
-                        <div class="shopping-item-right" onclick="event.stopPropagation()">
-                            <button class="shopping-item-tag-btn" onclick="toggleShoppingTagMenu(this)" title="${t('shopping.tag_title')}">🏷️</button>
-                            <button class="shopping-item-remove" onclick="removeBringItem(${idx})" title="${t('shopping.remove_title')}">✕</button>
-                        </div>
-                    </div>
-                    <div class="shopping-tag-menu-container" style="display:none">${tagMenu}</div>
-                </div>
+            <div class="shop-row" id="shop-item-${idx}" data-idx="${idx}" style="border-left-color:${borderColor}">
+                ${_shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml })}
             </div>`;
         }
+        html += '</div>';
     }
 
+    html += _renderShoppingSuggestionsInline();
     container.innerHTML = html;
+    renderShoppingItems._lastSig = sig;
+    _renderShoppingPlanDaysBar();
+    _updateShoppingFooter();
+    _initShopRowSwipe(container);
+    _initShoppingPullRefresh();
+    requestAnimationFrame(() => {
+        _restoreShoppingScroll(scrollY);
+    });
 
-    // ── PANTRY HINTS: show "already at home: X" for each shopping item ──────
-    // Load inventory once, then decorate all items asynchronously.
     _getShoppingInventoryCache().then(invItems => {
         for (const { item, idx, smartData, urgency } of pantryRows) {
             const matches = _shoppingFamilyInventoryRows(item, smartData, invItems);
             if (matches.length === 0) continue;
-            // Don't show "already at home" when the item is flagged urgent — stock is clearly insufficient.
             if (urgency === 'critical' || urgency === 'high') continue;
             const parts = [];
             const byKey = {};
@@ -13472,41 +14548,26 @@ async function renderShoppingItems() {
                 byKey[label] = (byKey[label] || 0) + 1;
             }
             for (const [label, n] of Object.entries(byKey)) {
-                parts.push(n > 1 ? `${label} (${n} prodotti)` : label);
+                parts.push(n > 1 ? `${label} (${n})` : label);
             }
             if (!parts.length) continue;
-            const hintText = parts.join(', ');
             const itemEl = document.getElementById(`shop-item-${idx}`);
-            if (!itemEl) continue;
-            const infoEl = itemEl.querySelector('.shopping-item-info');
-            if (!infoEl) continue;
-            // Don't duplicate
-            if (infoEl.querySelector('.shopping-pantry-hint')) continue;
+            const textEl = itemEl?.querySelector('.shop-row-text');
+            if (!textEl || textEl.querySelector('.shopping-pantry-hint')) continue;
             const hintEl = document.createElement('div');
-            hintEl.className = 'shopping-pantry-hint';
-            hintEl.textContent = t('shopping.pantry_hint').replace('{qty}', hintText);
-            infoEl.appendChild(hintEl);
+            hintEl.className = 'shop-row-sub shopping-pantry-hint';
+            hintEl.textContent = t('shopping.pantry_hint').replace('{qty}', parts.join(', '));
+            textEl.appendChild(hintEl);
         }
     });
 
-    // Trigger async price loading if enabled
     const s2 = getSettings();
     if (s2.price_enabled && shoppingItems.length > 0) {
         document.getElementById('shopping-price-bar').style.display = 'block';
         document.getElementById('btn-fetch-prices').style.display = 'inline-flex';
-        // Allow a new fetch (re-render may have happened while old fetch was running)
-        _pricesFetching = false;
-        if (smartShoppingItems.length === 0 && _smartShoppingLastFetch === 0) {
-            // Smart data hasn't loaded yet — show cached badges silently.
-            // loadSmartShopping().then() will call renderShoppingItems() again with real data.
-            _applyPriceBadgesFromCache();
-        } else {
-            // Always ask the server — it has a 5-min total cache and responds instantly
-            // if data is fresh. This guarantees every client sees the same prices.
-            // Show cached badges instantly while the server call is in flight.
-            _applyPriceBadgesFromCache();
-            fetchAllPrices(false);
-        }
+        _applyPriceBadgesFromCache();
+        _applyShoppingTotalDisplay();
+        syncShoppingPriceTotal(false);
     } else {
         document.getElementById('shopping-price-bar').style.display = 'none';
         document.getElementById('btn-fetch-prices').style.display = 'none';
@@ -13524,22 +14585,25 @@ function toggleShoppingTagMenu(btn) {
 }
 
 async function removeBringItem(idx) {
-    loadShoppingList._lastUserInteraction = Date.now(); // user is actively using the list
+    loadShoppingList._lastUserInteraction = Date.now();
     const item = shoppingItems[idx];
     if (!item) return;
+    const panel = document.getElementById('tab-panel-acquisto');
+    const scrollY = panel?.scrollTop || 0;
     try {
-        const data = await api('shopping_remove', {}, 'POST', { 
-            name: item.name, 
-            rawName: item.rawName || '', 
-            listUUID: shoppingListUUID 
+        const data = await api('shopping_remove', {}, 'POST', {
+            name: item.name,
+            rawName: item.rawName || '',
+            listUUID: shoppingListUUID,
         });
-        if (data.success) {
-            _markBringPurchased([item.name]); // prevent background sync from re-adding before barcode scan
+        if (data.success || data._offline) {
+            _markBringPurchased([item.name]);
             shoppingItems.splice(idx, 1);
+            _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
             renderShoppingItems();
+            if (panel) panel.scrollTop = scrollY;
             showToast(t('toast.removed_from_list_short'), 'success');
             logOperation('bring_manual_remove', { name: item.name });
-            // Update dashboard shopping count
             loadShoppingCount();
         }
     } catch (err) {
@@ -15030,18 +16094,16 @@ async function submitRecipeUse(useAll) {
     if (!_recipeUseContext) return;
     const { idx, productId, btn } = _recipeUseContext;
     const location = document.getElementById('ruse-location').value;
+    const cachedItems = _recipeUseContext.items || [];
+    const locItems = cachedItems.filter(i => i.location === location && parseFloat(i.quantity) > 0);
+    const unit = cachedItems[0]?.unit || 'pz';
+    const pkgSize = parseFloat(cachedItems[0]?.default_quantity) || 0;
+    const pkgUnit = cachedItems[0]?.package_unit || '';
     
     let qty;
     if (useAll) {
-        // Use the exact available qty at the selected location — do NOT send use_all=true
-        // to the API, because that would permanently DELETE the inventory row without a
-        // confirmation step. Instead send the precise quantity so the row is set to qty=0
-        // and the normal "finished items" banner can handle the reconciliation.
-        const cachedItems = _recipeUseContext.items || [];
-        const locItems = cachedItems.filter(i => i.location === location && parseFloat(i.quantity) > 0);
         qty = locItems.reduce((s, i) => s + parseFloat(i.quantity || 0), 0) || 0;
         if (qty <= 0) {
-            // Nothing at this location — fallback to current input value
             qty = parseFloat(document.getElementById('ruse-quantity').value) || 1;
         }
     } else {
@@ -15049,6 +16111,29 @@ async function submitRecipeUse(useAll) {
         if (_recipeUseConfMode && _recipeUseConfMode._activeUnit === 'sub') {
             qty = qty / _recipeUseConfMode.packageSize;
         }
+    }
+
+    const totalAtLoc = locItems.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
+    const consumesAllAtLoc = totalAtLoc > 0 && qty >= totalAtLoc * 0.999;
+    if (useAll || consumesAllAtLoc) {
+        const locInfo = LOCATIONS[location] || { label: location };
+        const qtyLabel = stripHtml(formatQuantity(qty, unit, pkgSize, pkgUnit));
+        const confirmed = await new Promise(resolve => {
+            document.getElementById('modal-content').innerHTML = `
+                <div class="modal-header">
+                    <h3>${escapeHtml(t('recipes.use_all_stock_confirm_title'))}</h3>
+                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <p style="margin:12px 0 18px;color:var(--text-muted)">${escapeHtml(t('recipes.use_all_stock_confirm_msg', { qty: qtyLabel, unit, location: locInfo.label }))}</p>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <button type="button" class="btn btn-large btn-danger full-width" id="ruse-stock-confirm">${escapeHtml(t('recipes.use_all_stock_confirm_btn'))}</button>
+                    <button type="button" class="btn btn-secondary full-width" id="ruse-stock-cancel">${escapeHtml(t('confirm.cancel'))}</button>
+                </div>`;
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.getElementById('ruse-stock-confirm').onclick = () => { closeModal(); resolve(true); };
+            document.getElementById('ruse-stock-cancel').onclick = () => { closeModal(); resolve(false); };
+        });
+        if (!confirmed) return;
     }
     
     closeModal();
@@ -15072,23 +16157,28 @@ async function submitRecipeUse(useAll) {
             
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
                 _cachedRecipe.recipe.ingredients[idx].used = true;
-                // Persist used state to DB
                 saveRecipeToArchive(_cachedRecipe.recipe);
             }
             
             showToast(t('recipes.ingredient_scaled_toast'), 'success');
+            if (result.location_fallback && result.requested_location && result.used_location) {
+                const usedLoc = LOCATIONS[result.used_location] || { label: result.used_location };
+                const reqLoc = LOCATIONS[result.requested_location] || { label: result.requested_location };
+                setTimeout(() => showToast(
+                    t('recipes.location_fallback_toast', { location: usedLoc.label, requested: reqLoc.label }),
+                    'info'
+                ), 800);
+            }
             if (result.added_to_bring) {
                 setTimeout(() => showToast(t('recipes.finished_added_bring_toast'), 'info'), 1500);
             }
             
-            // Check low stock → shopping prompt, then offer move
+            const usedLocation = result.used_location || location;
             const moveCallback = result.remaining > 0
                 ? () => setTimeout(() => {
-                    // Get vacuum state from the actual inventory item at this location
-                    const cachedItems = _recipeUseContext?.items || [];
-                    const itemAtLoc = cachedItems.find(i => i.location === location);
+                    const itemAtLoc = cachedItems.find(i => i.location === usedLocation);
                     const wasVacuum = !!(itemAtLoc?.vacuum_sealed);
-                    showRecipeMoveModal(productId, location, result.remaining, result.opened_id, wasVacuum);
+                    showRecipeMoveModal(productId, usedLocation, result.remaining, result.opened_id, wasVacuum);
                   }, 300)
                 : null;
             setTimeout(() => showLowStockBringPrompt(result, moveCallback), 300);
@@ -17256,7 +18346,7 @@ async function chatTransferToRecipes(btn, replyText) {
         });
         if (!result || !result.success || !result.recipe) {
             resetBtn();
-            showToast('⚠️ ' + (result?.error || t('error.generic') || t('error.generic')), 'error');
+            showToast('⚠️ ' + _recipeApiErrorMessage(result), 'error');
             return;
         }
         const recipe = result.recipe;
@@ -17298,6 +18388,13 @@ async function openIngredientDetail(productId, location) {
     }
 }
 
+function _recipeApiErrorMessage(result) {
+    if (!result) return t('error.generic');
+    if (result.error === 'parse_error') return t('recipes.parse_error');
+    if (result.error === 'no_api_key') return t('error.no_api_key');
+    return result.error || t('error.generic');
+}
+
 async function generateRecipeForIngredient(ingredientName) {
     if (!_requireGemini()) return;
     document.getElementById('recipe-overlay').style.display = 'flex';
@@ -17310,7 +18407,7 @@ async function generateRecipeForIngredient(ingredientName) {
         const result = await api('recipe_from_ingredient', {}, 'POST', { ingredient: ingredientName, lang: _currentLang });
         if (!result || !result.success || !result.recipe) {
             document.getElementById('recipe-overlay').style.display = 'none';
-            showToast('⚠️ ' + (result?.error || t('error.generic') || t('error.generic')), 'error');
+            showToast('⚠️ ' + _recipeApiErrorMessage(result), 'error');
             return;
         }
         const recipe = result.recipe;
@@ -17500,6 +18597,9 @@ const _OFFLINE_CACHE_KEY       = '_evershelf_inv_cache';
 const _OFFLINE_SETTINGS_KEY    = '_evershelf_settings_cache';
 const _OFFLINE_PRODUCTS_KEY    = '_evershelf_products_cache';
 const _OFFLINE_QUEUE_KEY       = '_evershelf_op_queue';
+const _OFFLINE_SHOPPING_KEY    = '_evershelf_shopping_cache';
+const _OFFLINE_SMART_KEY       = '_evershelf_smart_shopping_cache';
+const _SHOPPING_SECTIONS_KEY   = '_shop_sec_collapsed';
 
 // ─── Local cache helpers ────────────────────────────────────────────────────
 function _offlineCacheGet() {
@@ -17554,6 +18654,38 @@ function _offlineQueueGet() {
 }
 function _offlineQueueSet(q) {
     try { localStorage.setItem(_OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+}
+
+function _offlineShoppingCacheGet() {
+    try { return JSON.parse(localStorage.getItem(_OFFLINE_SHOPPING_KEY)) || null; } catch { return null; }
+}
+function _offlineShoppingCacheSet(data) {
+    try { localStorage.setItem(_OFFLINE_SHOPPING_KEY, JSON.stringify({ ...data, ts: Date.now() })); } catch(e) {}
+}
+function _offlineSmartCacheGet() {
+    try { return JSON.parse(localStorage.getItem(_OFFLINE_SMART_KEY)) || null; } catch { return null; }
+}
+function _offlineSmartCacheSet(items, planDays) {
+    try {
+        localStorage.setItem(_OFFLINE_SMART_KEY, JSON.stringify({
+            items,
+            plan_days: planDays ?? getShoppingPlanDays(),
+            ts: Date.now(),
+        }));
+    } catch(e) {}
+}
+
+function _shoppingSectionsCollapsedGet() {
+    try { return JSON.parse(localStorage.getItem(_SHOPPING_SECTIONS_KEY)) || {}; } catch { return {}; }
+}
+function _shoppingSectionsCollapsedSet(map) {
+    try { localStorage.setItem(_SHOPPING_SECTIONS_KEY, JSON.stringify(map)); } catch(e) {}
+}
+function toggleShoppingSection(secKey) {
+    const m = _shoppingSectionsCollapsedGet();
+    m[secKey] = !m[secKey];
+    _shoppingSectionsCollapsedSet(m);
+    renderShoppingItems();
 }
 function _offlineQueuePush(action, body) {
     const q = _offlineQueueGet();
@@ -17625,15 +18757,32 @@ function _handleOfflineApi(action, params, body) {
         }).slice(0, 20);
         return { success: true, products, _offline: true };
     }
+    if (action === 'shopping_list' || action === 'bring_list') {
+        const cached = _offlineShoppingCacheGet();
+        if (cached?.items?.length) {
+            return { success: true, purchase: cached.items, listUUID: cached.listUUID || 'offline', recently: [], _offline: true };
+        }
+        if (shoppingItems.length) {
+            return { success: true, purchase: shoppingItems, listUUID: shoppingListUUID || 'offline', recently: [], _offline: true };
+        }
+        return { success: true, purchase: [], listUUID: '', recently: [], _offline: true };
+    }
+    if (action === 'smart_shopping') {
+        const cached = _offlineSmartCacheGet();
+        if (cached?.items?.length) {
+            return { success: true, items: cached.items, _offline: true };
+        }
+        if (smartShoppingItems.length) {
+            return { success: true, items: smartShoppingItems, _offline: true };
+        }
+        return { success: true, items: [], _offline: true };
+    }
     // Safe empty responses for read-only endpoints that can't be served from cache
     const EMPTY_READS = {
         'recent_popular_products': { success: true, recent: [], popular: [], recent_ids: [], _offline: true },
         'consumption_predictions': { success: true, predictions: [], _offline: true },
         'inventory_anomalies':     { success: true, anomalies: [], _offline: true },
         'inventory_finished_items':{ success: true, finished: [], _offline: true },
-        'shopping_list':           { success: true, purchase: [], listUUID: '', _offline: true },
-        'bring_list':              { success: true, purchase: [], listUUID: '', _offline: true },
-        'smart_shopping':          { success: true, items: [], _offline: true },
         'recipe_archive':          { success: true, recipes: [], _offline: true },
         'food_facts':              { success: false, _offline: true },
         'notifications':           { success: true, notifications: [], _offline: true },
@@ -17642,10 +18791,12 @@ function _handleOfflineApi(action, params, body) {
 
     // ─── Writes: queue and apply optimistic update to cache ──────────────────
     const QUEUEABLE = ['inventory_update', 'inventory_use', 'inventory_delete',
-                       'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost'];
+                       'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
+                       'shopping_remove', 'shopping_add'];
     if (QUEUEABLE.includes(action)) {
         _offlineQueuePush(action, body);
         _applyOptimisticUpdate(action, body);
+        _applyShoppingOptimisticUpdate(action, body);
         return { success: true, _offline: true, _queued: true };
     }
     // Everything else (AI, Bring!, etc.): return offline error
@@ -17676,6 +18827,26 @@ function _applyOptimisticUpdate(action, body) {
         changed = true;
     }
     if (changed) _offlineCacheSet(cache);
+}
+
+function _applyShoppingOptimisticUpdate(action, body) {
+    if (!body) return;
+    if (action === 'shopping_remove') {
+        const name = (body.name || '').toLowerCase();
+        if (!name) return;
+        shoppingItems = (shoppingItems || []).filter(i => i.name.toLowerCase() !== name);
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+        _markBringPurchased([body.name]);
+        renderShoppingItems();
+        loadShoppingCount();
+    } else if (action === 'shopping_add' && body.items?.length) {
+        for (const it of body.items) {
+            if (!shoppingItems.some(i => i.name.toLowerCase() === (it.name || '').toLowerCase())) {
+                shoppingItems.push({ name: it.name, rawName: it.rawName || it.name, specification: it.specification || '' });
+            }
+        }
+        _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
+    }
 }
 
 // ─── Offline mode: banner + cache reads/write queue ─────────────────────────
@@ -17862,6 +19033,7 @@ let _autoHomeTimer = null;
 const AUTO_HOME_MS = 2 * 60 * 1000; // 2 minutes
 
 function _resetAutoHomeTimer() {
+    if (_currentPageId === 'shopping') return;
     clearTimeout(_autoHomeTimer);
     _autoHomeTimer = setTimeout(_triggerAutoHome, AUTO_HOME_MS);
 }
@@ -17875,6 +19047,10 @@ function _triggerAutoHome() {
     if (_screensaverActive) return;
     if (document.body.classList.contains('cooking-mode-active')) return;
     if (_currentPageId === 'dashboard') return;
+    // Stay on shopping / scan-add flow while user is in the store
+    if (_currentPageId === 'shopping') return;
+    if (_currentPageId === 'scan' && (_shoppingBoughtFlow || _spesaScanTarget || _spesaMode)) return;
+    if (_currentPageId === 'add' && (_shoppingBoughtFlow || _spesaScanTarget)) return;
     const modal = document.getElementById('modal-overlay');
     if (modal && modal.style.display === 'flex') return;
     showPage('dashboard');
@@ -17890,13 +19066,15 @@ function _screensaverTimeoutMs() {
 }
 
 function resetInactivityTimer() {
-    if (_screensaverActive) return; // don't reset while screensaver is showing
+    if (_screensaverActive) return;
+    if (_currentPageId === 'shopping') return;
     clearTimeout(_inactivityTimer);
     _inactivityTimer = setTimeout(activateScreensaver, _screensaverTimeoutMs());
 }
 
 function activateScreensaver() {
     if (_screensaverActive) return;
+    if (_currentPageId === 'shopping') return;
     if (document.body.classList.contains('cooking-mode-active')) return;
     _cancelAutoHomeTimer();
     _screensaverActive = true;
@@ -18148,13 +19326,17 @@ async function _screensaverAutoAddItems() {
 
     const toAdd = smartShoppingItems.filter(i => {
         if (i.on_bring) return false;
-        if (_isBringPurchased(i.name, i.urgency)) return false;
+        const gName = i.shopping_name || i.name;
+        if (_isBringPurchased(gName, i.urgency)) return false;
         return i.urgency === 'critical' || i.urgency === 'high';
     });
     if (toAdd.length === 0) return;
 
     sessionStorage.setItem('_ssAutoAddTs', String(Date.now()));
-    const itemsToAdd = toAdd.map(i => ({ name: i.name, specification: _urgencyToSpec(i.urgency, i.brand) }));
+    const itemsToAdd = toAdd.map(i => ({
+        name: i.shopping_name || i.name,
+        specification: _urgencyToSpec(i.urgency),
+    }));
     try {
         const result = await api('shopping_add', {}, 'POST', { items: itemsToAdd, listUUID: shoppingListUUID });
         if (result.success && result.added > 0) {
@@ -18483,6 +19665,7 @@ function generateScreensaverFact() {
 
 // ===== SPESA MODE (long-press camera for continuous scanning) =====
 let _spesaMode = false;
+let _shoppingBoughtFlow = false;
 let _longPressTimer = null;
 let _spesaSession = []; // { name, qty, unit } per ogni prodotto aggiunto
 
@@ -18590,6 +19773,28 @@ function _applyShoppingListRemovals(removedNames) {
         return !keys.has(nameLow) && !keys.has(rawLow) && !(first && keys.has(first));
     });
     loadShoppingCount();
+}
+
+async function shoppingBoughtAfterAdd(addResult) {
+    if (!_shoppingBoughtFlow) return false;
+    _shoppingBoughtFlow = false;
+    const targetName = _spesaScanTarget?.name || currentProduct?.name || '';
+    _spesaScanTarget = null;
+    const banner = document.getElementById('shopping-scan-target-banner');
+    if (banner) banner.style.display = 'none';
+
+    if (currentProduct) {
+        _shoppingInventoryCache = null;
+        await _spesaRemovePurchasedFromList(currentProduct, addResult);
+        const addLoc = document.getElementById('add-location')?.value || 'dispensa';
+        _showFamilySiblingSuggest(currentProduct.id, addLoc);
+    }
+    if (addResult?.removed_from_bring) {
+        setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 800);
+    }
+    showPage('shopping');
+    loadShoppingList();
+    return true;
 }
 
 // Called after successful add — returns true if spesa mode handled navigation
@@ -19620,17 +20825,24 @@ async function _initApp() {
     // with initial API calls and the PHP worker isn't blocked during startup.
     setTimeout(_checkWebappUpdate, 6000);
 
+    if ('serviceWorker' in navigator && !window.location.pathname.includes('/demo')) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
     // ── Background intervals ───────────────────────────────────────────────
     // 1) Ogni 5 min: ricarica la pagina corrente (scadenze, inventario, ecc.)
     setInterval(() => {
         if (!_screensaverActive) refreshCurrentPage();
     }, 5 * 60 * 1000);
 
-    // 2) Ogni 2 min: aggiorna contatore lista spesa e totale unificato
+    // 2) Ogni 5 min: contatore spesa (non ricaricare la lista se l'utente sta navigando)
     setInterval(() => {
         if (_currentPageId === 'shopping') {
-            loadShoppingList._bgCall = true;
-            loadShoppingList();
+            const idleMs = Date.now() - (loadShoppingList._lastUserInteraction || 0);
+            if (idleMs >= 2 * 60 * 1000) {
+                loadShoppingList._bgCall = true;
+                loadShoppingList();
+            }
         } else {
             loadShoppingCount();
             const _s = getSettings();
@@ -19638,15 +20850,21 @@ async function _initApp() {
                 syncShoppingPriceTotal(false);
             }
         }
-    }, 2 * 60 * 1000);
+    }, 5 * 60 * 1000);
 
-    // 3) Aggiorna immediatamente quando la tab torna visibile (es. torni da Bring! app)
+    // 3) Tab visibile: refresh leggero solo se l'utente non sta usando la lista
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-            // Always treat visibility restore as a background call for shopping
-            if (_currentPageId === 'shopping') loadShoppingList._bgCall = true;
-            refreshCurrentPage();
-            _checkWebappUpdate(); // also check for app updates when user returns to tab
+            if (_currentPageId === 'shopping') {
+                const idleMs = Date.now() - (loadShoppingList._lastUserInteraction || 0);
+                if (idleMs >= 90 * 1000) {
+                    loadShoppingList._bgCall = true;
+                    loadShoppingList();
+                }
+            } else {
+                refreshCurrentPage();
+            }
+            _checkWebappUpdate();
         }
     });
 
@@ -19704,7 +20922,7 @@ async function _backgroundBringSync() {
         const autoAdded = new Set(JSON.parse(localStorage.getItem('_bgAutoAdded') || '[]'));
 
         for (const si of smartItems) {
-            const expectedSpec = _urgencyToSpec(si.urgency, '');
+            const expectedSpec = _urgencyToSpec(si.urgency);
             const bringMatch = bringItems.find(bi => {
                 if (bi.name.toLowerCase() === si.name.toLowerCase()) return true;
                 const biFirst = _nameTokens(bi.name)[0];
@@ -19766,13 +20984,20 @@ async function _backgroundBringSync() {
         // Update urgency badge on dashboard without re-rendering anything visible
         _updateSmartUrgencyBadge();
 
-        // If shopping page is open, re-render it with fresh data
+        // If shopping page is open, re-render only when data actually changed
         if (_currentPageId === 'shopping') {
             _syncOnBringFlags();
             _syncTagsFromBringSpec();
             renderSmartShopping();
-            renderShoppingItems();
             updateShoppingTabCounts();
+            const newSig = _shoppingRenderSignature();
+            if (newSig !== _backgroundBringSync._lastSig) {
+                _backgroundBringSync._lastSig = newSig;
+                renderShoppingItems();
+            } else {
+                _applyPriceBadgesFromCache();
+                _applyShoppingTotalDisplay();
+            }
         }
 
     } catch (e) { /* silent — best effort */ }

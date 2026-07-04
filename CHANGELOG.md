@@ -11,6 +11,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.51] - 2026-07-04
+
+### Added
+- **MCP server (beta)** — `mcp-server/` companion for Claude Desktop, Cursor, HA LLM: inventory, expiry, shopping, recipes (`docs/wiki/MCP.md`).
+- **PWA service worker** — Basic app-shell cache (`sw.js`) for offline UI load.
+- **Offline barcode catalog** — Weekly cron sync from free sources; lookup works offline after sync.
+
+### Fixed
+- **#206** — `product_save` INSERT column order matched UPDATE/`productSaveParams()` (new products no longer have shifted DB fields).
+- **#207** — Docker image includes PHP `zip` and `intl` extensions (`libzip-dev`, `libicu-dev`).
+- **Settings `.env` write** — Fallback to SQLite `env_overrides` when `.env` is not writable; `.env` permissions should be `660` for www-data.
+
+### Changed
+- **Shopping list** — Compact mobile UI, swipe actions, plan-days horizon, generic product names, price aligned to suggested qty, scroll preserved on refresh, reduced auto-polling.
+- **Piece consumption** — Event-based estimates for `pz` items (e.g. onions); quantities respect conf/pz units in display and pricing.
+
+## [1.7.50] - 2026-07-03
+
+### Changed
+- **Lista spesa compatta (mobile)** — Quantità accanto al titolo, urgenza solo bordo colorato (niente badge duplicati), prezzo più leggibile, pulsanti **Comprato** / **Rimuovi** senza emoji, sezioni collassabili, suggerimenti inline sotto la lista (tab nascosti), footer voci/pezzi, swipe a destra = Comprato, pull-to-refresh.
+- **Offline supermercato** — Cache lista + previsioni in localStorage; rimozione e Comprato in coda offline.
+- **Prezzi** — Stima allineata a `suggested_qty` (quantità mensile), tap sul prezzo mostra dettaglio stima AI.
+- **Scan Comprato** — Avviso se il barcode non corrisponde alla voce in lista.
+- **Idle** — Nessun ritorno automatico alla home mentre sei sulla lista spesa (o scan/aggiunta Comprato).
+
+## [1.7.49] - 2026-06-06
+
+### Changed
+- **Lista spesa rivista** — Quantità in evidenza (consumo mensile dal mese precedente), pulsante **Comprato** con scansione barcode e aggiunta a dispensa, prezzi ridotti, UI mobile-first, sync Bring ogni 45s.
+
+## [1.7.48] - 2026-06-06
+
+### Fixed
+- **Prodotti che "spariscono"** — Tracciamento spostamenti frigo/dispensa nel registro (`[Spostamento]`), fallback automatico se si scala da ubicazione sbagliata, conferma obbligatoria quando una ricetta consuma tutto lo stock di un ingrediente.
+
+## [1.7.47] - 2026-06-06
+
+### Fixed
+- **Recipe parse_error (e.g. piadina)** — Robust JSON parsing for Gemini recipe responses (balanced braces, truncated JSON repair, object-shaped steps). JSON mode enabled for all recipe endpoints.
+
+## [1.7.46] - 2026-06-06
+
+### Added
+- **Offline barcode catalog** — Local `barcode_catalog` table synced weekly from free databases (Open Food Facts IT/world/v0, Open Products/Beauty/Pet Facts, UPCitemdb). Works without internet after sync. Configure via `BARCODE_OFFLINE_ENABLED`, `BARCODE_OFFLINE_SYNC_DAYS`, `BARCODE_LOOKUP_TIMEOUT` in `.env`.
+
+### Fixed
+- **Barcode 8030582017181 / save errors** — Broader free-source lookup, offline catalog first, save retry on scan, safe duplicate merge (no merge when two different barcodes), `lookup_barcode`/`search_barcode` check local + offline catalog.
+
+## [1.7.45] - 2026-06-06
+
+### Fixed
+- **Duplicate catalog products** — Adding stock now auto-merges duplicate catalog entries (same barcode, same name, or similar AI/OFF name) so two packages accumulate on one product instead of splitting inventory across duplicate rows.
+
+## [1.7.44] - 2026-06-06
+
+### Fixed
+- **AI product insert (UNIQUE barcode / wrong title)** — Saving an AI-identified product no longer creates duplicate catalog rows or overwrites Open Food Facts data with generic AI guesses. Barcode conflicts merge into the existing product; categories are normalized server-side; the scan flow prefers catalog matches that already have a barcode.
+
+## [1.7.43] - 2026-06-06
+
+### Fixed
+- **False expired banner for dry bread products** — Grated bread / breadcrumbs (`pane grattugiato`, panko, etc.) no longer inherit fresh-bread 4-day opened shelf life; they use 90 days in pantry.
+- **Banner "Modifica" → product not found** — Expired-banner edit now loads inventory first (same as other banner types); `editInventoryItem` retries once from the server and refreshes stale alerts if the row is gone.
+- **Stale banner alerts** — Skip zero-quantity inventory rows; server-side `opened` stats are cross-checked against live stock before showing.
+- **Opened products still OK** — Banner skips opened items with safety level `ok` or still edible per server stats (they remain visible in the dashboard "Aperti" section only).
+- **Use page for weight products (g/ml)** — Fraction buttons (¼, ½, ¾, all) with gram/ml amounts; default quantity is half of stock instead of 1 g; duplicate-use guard no longer blocks a different amount silently.
+- **“Finished” on already-empty products** — Marking depleted items (e.g. from Recent shortcuts) no longer fails silently; confirms exhausted state, adds to Bring!/shopping, explains product is still in catalog. `use_all` on empty inventory reconciles instead of fake success.
+
 ## [1.7.42] - 2026-06-11
 
 ### Added

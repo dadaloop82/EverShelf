@@ -102,6 +102,23 @@ try {
         echo '[' . date('Y-m-d H:i:s') . '] Shelf life pre-warm warning: ' . $pe->getMessage() . "\n";
     }
 
+    // ── Offline barcode catalog (weekly by default) ─────────────────────
+    if (env('BARCODE_OFFLINE_ENABLED', 'true') === 'true') {
+        try {
+            $syncDays = max(1, min(90, (int)env('BARCODE_OFFLINE_SYNC_DAYS', '7')));
+            $lastSync = $db->query("SELECT value FROM app_settings WHERE key = 'barcode_catalog_last_sync'")->fetchColumn();
+            $ageDays = $lastSync ? (time() - strtotime((string)$lastSync)) / 86400 : 999;
+            if ($ageDays >= $syncDays) {
+                $bcResult = barcodeCatalogSync($db, 50);
+                echo '[' . date('Y-m-d H:i:s') . '] Barcode catalog sync — refreshed: '
+                    . ($bcResult['refreshed'] ?? 0) . '/' . ($bcResult['total'] ?? 0)
+                    . ', failed: ' . ($bcResult['failed'] ?? 0) . "\n";
+            }
+        } catch (Throwable $be) {
+            echo '[' . date('Y-m-d H:i:s') . '] Barcode catalog sync warning: ' . $be->getMessage() . "\n";
+        }
+    }
+
     // ── DB cleanup (retention policy) ────────────────────────────────────
     // Delete old recipes and transactions based on .env retention settings.
     try {

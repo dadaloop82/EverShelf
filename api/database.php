@@ -205,6 +205,9 @@ function migrateDB(PDO $db): void {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )");
 
+    require_once __DIR__ . '/lib/barcode_catalog.php';
+    barcodeCatalogEnsureTable($db);
+
     // Migrate transactions CHECK constraint to allow 'waste' type
     $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();
     if ($sql && strpos($sql, "'waste'") === false) {
@@ -418,6 +421,8 @@ function estimateOpenedExpiryDaysPHP(string $name, string $category, string $loc
     if (preg_match('/\b(caff[eè]|coffee|nespresso)\b/', $n)) return 365;
     if (preg_match('/\bolio\b/', $n)) return 365;
     if (preg_match('/salsa\s+di\s+soia|soy\s*sauce/', $n)) return 90; // soy sauce fine opened anywhere
+    // Dry bread products (grated, breadcrumbs) — not fresh bread
+    if (preg_match('/grattugiat|pangratt|panko|bread\s*crumb|briciole\s+di\s+pane/', $n)) return 90;
     // Dry goods only outside fridge (uncooked)
     if ($loc !== 'frigo') {
         if (preg_match('/\b(pasta|spaghetti|penne|rigatoni|fusilli|farfalle|tagliatelle|linguine|bucatini|lasagn|tortiglioni)\b/', $n)) return 365;

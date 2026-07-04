@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260606m">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260704d">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20260603a"></script>
     <script src="assets/js/core/auth.js?v=20260603b"></script>
@@ -94,7 +94,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.42</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.51</span>
     </div>
 </div>
 
@@ -107,7 +107,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.42</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.51</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -766,11 +766,28 @@
                     </div>
                 </div>
                 <div class="shopping-current" id="shopping-current" style="display:none">
+                    <div id="shopping-plan-days-bar" class="shopping-plan-days-bar">
+                        <div class="shopping-plan-days-text">
+                            <span id="shopping-plan-days-label"></span>
+                            <span id="shopping-plan-days-hint" class="shopping-plan-days-hint"></span>
+                        </div>
+                        <div class="shopping-plan-days-controls">
+                            <label class="shopping-plan-days-input-wrap">
+                                <input type="number" id="shopping-plan-days-input" class="shopping-plan-days-input" min="1" max="31" inputmode="numeric"
+                                    oninput="_debouncedShoppingPlanDaysPreview()" onchange="applyShoppingPlanDays()" aria-label="Giorni pianificazione">
+                                <span data-i18n="shopping.plan_days_unit">gg</span>
+                            </label>
+                            <button type="button" class="shop-plan-reset" id="shopping-plan-days-reset" onclick="resetShoppingPlanDays()" data-i18n="shopping.plan_days_reset">Fine mese</button>
+                        </div>
+                    </div>
                     <div class="shopping-section-header">
                         <h3 data-i18n="shopping.section_to_buy">🛍️ Da comprare</h3>
                         <span class="shopping-count" id="shopping-count">0</span>
                     </div>
                     <div class="shopping-items" id="shopping-items"></div>
+                    <div class="shopping-footer" id="shopping-footer" style="display:none">
+                        <span id="shopping-footer-stats"></span>
+                    </div>
                 </div>
                 <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
                     <div class="shopping-section-header">
@@ -1989,6 +2006,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260606z"></script>
+<script src="assets/js/app.js?v=20260704d"></script>
 </body>
 </html>

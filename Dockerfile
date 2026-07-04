@@ -6,10 +6,12 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libcurl4-openssl-dev \
     libonig-dev \
     libgd-dev \
+    libzip-dev \
+    libicu-dev \
     tesseract-ocr \
     tesseract-ocr-ita \
     tesseract-ocr-eng \
-    && docker-php-ext-install pdo_sqlite curl mbstring gd \
+    && docker-php-ext-install pdo_sqlite curl mbstring gd zip intl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite and mod_headers
