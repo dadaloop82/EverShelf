@@ -1359,10 +1359,23 @@ const SHOPPING_SECTIONS = [
     { key: 'altro',          icon: '📦', label: t('shopping_sections.altro'),          cats: new Set(['altro']) },
 ];
 
-function getItemSection(name) {
-    const cat = guessCategoryFromName(name) || 'altro';
+function _sectionForCategory(cat) {
     for (const s of SHOPPING_SECTIONS) { if (s.cats.has(cat)) return s; }
     return SHOPPING_SECTIONS[SHOPPING_SECTIONS.length - 1];
+}
+
+function getItemSection(name, smartData = null) {
+    if (smartData?.category) {
+        const fromSmart = mapToLocalCategory(
+            smartData.category,
+            smartData.shopping_name || smartData.name || name,
+            smartData.brand || ''
+        );
+        if (fromSmart && fromSmart !== 'altro') return _sectionForCategory(fromSmart);
+    }
+    const label = smartData?.shopping_name || name;
+    const cat = guessCategoryFromName(label, smartData?.brand || '') || 'altro';
+    return _sectionForCategory(cat);
 }
 
 const URGENCY_WEIGHT = { critical: 4, high: 3, medium: 2, low: 1 };
@@ -1467,11 +1480,11 @@ function guessCategoryFromName(name, brand = '') {
     // Carne (include salumi)
     if (/pollo\b|manzo|maiale|vitello|tacchino|prosciutto|salame\b|bresaola|mortadella|wurstel|speck\b|pancetta|nduja|guanciale|cotechino|salsiccia|agnello|cinghiale|polpette|arrosto|bistecca|cotoletta|lonza|braciola|schinken|scamorza affumicat|spianata/.test(n)) return 'carne';
     // Pesce
-    if (/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|orata\b|sardine|trota|dentice|seppia|polpo|filetto.*pesce|pesce.*filetto/.test(n)) return 'pesce';
+    if (/tonno\b|salmone|merluzzo|pesce\b|sgombro\b|gamberi|acciughe|baccal[aà]|vongole|cozze|calamari|surimi|alici|branzino|\borata\b|sardine|\btrota\b|dentice|seppia|\bpolpo\b|filetto.*pesce|pesce.*filetto/.test(n)) return 'pesce';
     // Frutta
     if (/mela\b|mele\b|banana|arancia|pera\b|fragola|uva\b|kiwi\b|limone|frutta\b|mandarino|clementina|pompelmo|avocado|mango\b|ananas|melone|anguria|susina|prugna|ciliegia|albicocca|pesca\b|nettarina|fico\b|melograno|papaya|maracuja|cocco\b|dattero|lampone|mirtillo|ribes|more\b/.test(n)) return 'frutta';
     // Verdura
-    if (/insalata|zucchina|zucchine|pomodor|cipolla|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata|finocchio|sedano|porro|scalogno|cavolo|cavolfiore|asparagi|funghi|courgette|lattuga|bietola|radicchio|carciofo|fagiolini|piselli|mais\b|zucca\b|aglio\b|cetriolo|rapa\b|barbabietola|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
+    if (/insalata|zucchina|zucchine|pomodor|cipoll\w*|carota|spinaci|rucola|peperoni|melanzane|broccoli|patata|finocchio|sedano|porro|scalogno|cavolo|cavolfiore|asparagi|funghi|courgette|lattuga|bietola|radicchio|carciofo|fagiolini|piselli|mais\b|zucca\b|aglio\b|cetriolo|rapa\b|barbabietola|cime di rapa|pak choi|bok choy|verza|cavolo nero/.test(n)) return 'verdura';
     // Surgelati
     if (/surgelat|frozen|findus|4.salti|gelato|minestrone surgelato|potato wedge|potato.*wedge/.test(n)) return 'surgelati';
     // Snack & Dolci
@@ -6660,27 +6673,158 @@ function renderInventoryItem(item) {
     const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
     
     return `
-    <div class="inventory-item" onclick="showItemDetail(${item.id}, ${item.product_id})">
-        <div class="inv-image">
-            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
-        </div>
-        <div class="inv-info">
-            <div class="inv-name">${escapeHtml(item.name)}</div>
-            ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
-            <div class="inv-meta">
-                <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
-                ${catBadge}
-                ${expiryBadge}
-                ${openedBadge}
-                ${vacuumBadge}
+    <div class="inventory-item" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
+        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
+        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
+        <div class="inv-row-content">
+            <div class="inv-image">
+                ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
+            </div>
+            <div class="inv-info">
+                <div class="inv-name">${escapeHtml(item.name)}</div>
+                ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
+                <div class="inv-meta">
+                    <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
+                    ${catBadge}
+                    ${expiryBadge}
+                    ${openedBadge}
+                    ${vacuumBadge}
+                </div>
+            </div>
+            <div class="inv-qty-col">
+                <span class="inv-qty-number">${parts.mainQty}</span>
+                <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
+                ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
             </div>
         </div>
-        <div class="inv-qty-col">
-            <span class="inv-qty-number">${parts.mainQty}</span>
-            <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
-            ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
-        </div>
+        <div class="inv-swipe-hint">${escapeHtml(t('inventory.swipe_hint'))}</div>
     </div>`;
+}
+
+function _inventorySwipeUseQty(item) {
+    const unit = (item.unit || 'pz').toLowerCase();
+    if (unit === 'pz' || unit === 'conf') return 1;
+    const def = parseFloat(item.default_quantity) || 0;
+    if (def > 0) return def;
+    return 1;
+}
+
+async function _inventoryQuickUseOne(invId) {
+    const item = currentInventory.find(i => i.id === invId);
+    if (!item) return;
+    const qty = _inventorySwipeUseQty(item);
+    try {
+        const result = await api('inventory_use', {}, 'POST', {
+            product_id: item.product_id,
+            quantity: qty,
+            location: item.location,
+            notes: '',
+        });
+        if (!result.success) {
+            showToast(result.error || t('error.generic'), 'error');
+            return;
+        }
+        await loadInventory();
+        const qtyLabel = stripHtml(formatQuantity(qty, item.unit, item.default_quantity, item.package_unit));
+        const txId = result.transaction_id;
+        showActionToast(
+            t('inventory.swipe_used_toast').replace('{name}', item.name).replace('{qty}', qtyLabel),
+            t('inventory.swipe_undo'),
+            () => { if (txId) _doUndoTransaction(txId, 'out', item.name); else loadInventory(); }
+        );
+    } catch (e) {
+        showToast(t('error.network'), 'error');
+    }
+}
+
+function _initInventoryRowSwipe(container) {
+    if (!container) return;
+    if (container._invSwipeHandlers) {
+        container.removeEventListener('touchstart', container._invSwipeHandlers.start);
+        container.removeEventListener('touchmove', container._invSwipeHandlers.move);
+        container.removeEventListener('touchend', container._invSwipeHandlers.end);
+        container.removeEventListener('touchcancel', container._invSwipeHandlers.end);
+    }
+    let startX = 0, startY = 0, activeRow = null, activeContent = null, dragging = false;
+
+    const onStart = (e) => {
+        const row = e.target.closest('.inventory-item');
+        if (!row) return;
+        activeRow = row;
+        activeContent = row.querySelector('.inv-row-content');
+        if (!activeContent) return;
+        const t0 = e.touches[0];
+        startX = t0.clientX;
+        startY = t0.clientY;
+        dragging = true;
+        activeRow._swipeMoved = false;
+        activeContent.style.transition = 'none';
+    };
+
+    const onMove = (e) => {
+        if (!dragging || !activeContent || !activeRow) return;
+        const t0 = e.touches[0];
+        const dx = t0.clientX - startX;
+        const dy = Math.abs(t0.clientY - startY);
+        if (dy > 24 && Math.abs(dx) < 20) {
+            dragging = false;
+            activeContent.style.transform = '';
+            return;
+        }
+        if (Math.abs(dx) > 8) {
+            e.preventDefault();
+            activeRow._swipeMoved = true;
+        }
+        const clamped = dx > 0
+            ? Math.min(100, dx)
+            : Math.max(-100, dx);
+        activeContent.style.transform = `translateX(${clamped}px)`;
+        activeRow.classList.toggle('swipe-right', dx > 40);
+        activeRow.classList.toggle('swipe-left', dx < -40);
+    };
+
+    const onEnd = (e) => {
+        if (!dragging || !activeRow || !activeContent) return;
+        dragging = false;
+        activeContent.style.transition = 'transform 0.2s ease';
+        const t0 = e.changedTouches[0];
+        const dx = t0.clientX - startX;
+        const dy = Math.abs(t0.clientY - startY);
+        activeContent.style.transform = '';
+        activeRow.classList.remove('swipe-right', 'swipe-left');
+
+        const invId = parseInt(activeRow.dataset.invId, 10);
+        const productId = parseInt(activeRow.dataset.productId, 10);
+        const moved = !!activeRow._swipeMoved;
+
+        if (dy > 50) { activeRow = null; activeContent = null; return; }
+
+        if (dx <= -60 && !isNaN(invId)) {
+            _inventoryQuickUseOne(invId);
+        } else if (dx >= 60 && !isNaN(invId)) {
+            editInventoryItem(invId);
+        } else if (!moved && !isNaN(invId)) {
+            showItemDetail(invId, productId);
+        }
+        activeRow = null;
+        activeContent = null;
+    };
+
+    container._invSwipeHandlers = { start: onStart, move: onMove, end: onEnd };
+    container.addEventListener('touchstart', onStart, { passive: true });
+    container.addEventListener('touchmove', onMove, { passive: false });
+    container.addEventListener('touchend', onEnd, { passive: true });
+    container.addEventListener('touchcancel', onEnd, { passive: true });
+
+    if (!('ontouchstart' in window)) {
+        container.addEventListener('click', (e) => {
+            const row = e.target.closest('.inventory-item');
+            if (!row) return;
+            const invId = parseInt(row.dataset.invId, 10);
+            const productId = parseInt(row.dataset.productId, 10);
+            if (!isNaN(invId)) showItemDetail(invId, productId);
+        });
+    }
 }
 
 function renderInventory(items) {
@@ -6691,6 +6835,7 @@ function renderInventory(items) {
     }
     container.innerHTML = renderGroupedByCategory(items, false);
     _refineCategoryBadgesAsync();
+    _initInventoryRowSwipe(container);
 }
 
 /**
@@ -12966,6 +13111,30 @@ function _dedupeShoppingByGeneric(enriched) {
  * @param {Object} entry  — API response (price_per_unit, unit_label, estimated_total, source_note)
  * @param {string} sym    — currency symbol like "€"
  */
+function _buildPriceSparklineSVG(history) {
+    if (!history || history.length < 2) return '';
+    const prices = history.map(h => Number(h.price)).filter(n => !isNaN(n));
+    if (prices.length < 2) return '';
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+    const w = 36;
+    const h = 14;
+    const pts = prices.map((p, i) => {
+        const x = (i / (prices.length - 1)) * w;
+        const y = h - ((p - min) / range) * (h - 2) - 1;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const last = history[history.length - 1];
+    const ts = last.ts || last.cached_at;
+    let tooltip = '';
+    if (ts) {
+        const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+        if (!isNaN(d.getTime())) tooltip = t('shopping.price_sparkline_updated').replace('{date}', d.toLocaleDateString());
+    }
+    return `<svg class="price-sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"${tooltip ? ` title="${escapeHtml(tooltip)}"` : ''}><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
 function _buildPriceBadgeHTML(entry, sym) {
     const hasTotal = entry.estimated_total != null;
     const isApprox = !hasTotal || (entry.source_note || '').startsWith('~');
@@ -12979,7 +13148,8 @@ function _buildPriceBadgeHTML(entry, sym) {
         : '';
     const title = entry.source_note || '';
     const approxClass = isApprox ? ' price-col-approx' : '';
-    return `<div class="price-col-main${approxClass}" title="${escapeHtml(title)}">${mainLabel}</div>`
+    const spark = _buildPriceSparklineSVG(entry.history);
+    return `<div class="price-col-main${approxClass}" title="${escapeHtml(title)}">${mainLabel}${spark ? `<span class="price-spark-wrap">${spark}</span>` : ''}</div>`
          + (unitLine ? `<div class="price-col-unit">${unitLine}</div>` : '');
 }
 
@@ -13677,7 +13847,7 @@ function renderSmartShopping() {
     // Group by section
     const smartSectionMap = new Map();
     items.forEach(item => {
-        const sec = getItemSection(item.name);
+        const sec = getItemSection(item.shopping_name || item.name, item);
         if (!smartSectionMap.has(sec.key)) smartSectionMap.set(sec.key, { sec, items: [] });
         smartSectionMap.get(sec.key).items.push(item);
     });
@@ -14472,7 +14642,7 @@ async function renderShoppingItems(force = false) {
             if (spec.includes('urgente')) urgency = 'critical';
             else if (spec.includes('presto')) urgency = 'high';
         }
-        const sec = getItemSection(item.name);
+        const sec = getItemSection(item.name, smartData);
         return { item, idx, smartData, urgency, sec };
     });
     const enriched = _dedupeShoppingByGeneric(enrichedRaw);
@@ -14982,6 +15152,24 @@ function showToast(message, type = '') {
     setTimeout(() => {
         toast.className = 'toast';
     }, 3000);
+}
+
+function showActionToast(message, actionLabel, onAction, duration = 5000) {
+    const toast = document.getElementById('toast');
+    toast.innerHTML = `${escapeHtml(message)} <button type="button" class="toast-action">${escapeHtml(actionLabel)}</button>`;
+    toast.className = 'toast show action';
+    const btn = toast.querySelector('.toast-action');
+    const tid = setTimeout(() => {
+        toast.className = 'toast';
+        toast.textContent = '';
+    }, duration);
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        clearTimeout(tid);
+        toast.className = 'toast';
+        toast.textContent = '';
+        onAction();
+    };
 }
 
 // ===== LOG =====

@@ -1403,17 +1403,78 @@ body.server-offline .bottom-nav {
 .inventory-item {
     background: var(--bg-card);
     border-radius: var(--radius);
-    padding: 14px;
+    padding: 0;
     box-shadow: var(--shadow);
-    display: flex;
-    align-items: center;
-    gap: 12px;
+    display: block;
+    position: relative;
+    overflow: hidden;
     cursor: pointer;
     transition: transform 0.15s;
 }
 
-.inventory-item:active {
-    transform: scale(0.98);
+.inv-row-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: var(--bg-card);
+    position: relative;
+    z-index: 2;
+    will-change: transform;
+}
+
+.inv-swipe-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.inv-swipe-bg-left {
+    left: 0;
+    justify-content: flex-end;
+    background: rgba(239, 68, 68, 0.18);
+    color: #b91c1c;
+}
+
+.inv-swipe-bg-right {
+    right: 0;
+    justify-content: flex-start;
+    background: rgba(59, 130, 246, 0.16);
+    color: #1d4ed8;
+}
+
+.inventory-item.swipe-left .inv-swipe-bg-left,
+.inventory-item.swipe-right .inv-swipe-bg-right {
+    opacity: 1;
+}
+
+.inv-swipe-hint {
+    position: absolute;
+    bottom: 2px;
+    right: 10px;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    opacity: 0.55;
+    z-index: 1;
+    pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .inv-swipe-hint { display: none; }
+}
+
+.inventory-item:active .inv-row-content {
+    transform: none;
 }
 
 .inv-image {
@@ -4214,6 +4275,36 @@ body.server-offline .bottom-nav {
     pointer-events: auto;
 }
 
+.toast.action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+}
+
+.toast-action {
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.35);
+    color: inherit;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.price-spark-wrap {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-left: 4px;
+    opacity: 0.75;
+}
+
+.price-sparkline {
+    display: block;
+    color: var(--accent, #2d5016);
+}
 .toast.success {
     background: var(--success);
 }

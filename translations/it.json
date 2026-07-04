@@ -193,7 +193,12 @@
     "label_added": "📅 Aggiunto",
     "empty_text": "Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!",
     "empty_db": "Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!",
-    "qty_trace": "< 1"
+    "qty_trace": "< 1",
+    "swipe_use": "Usa 1",
+    "swipe_edit": "Modifica",
+    "swipe_hint": "← usa · → modifica",
+    "swipe_used_toast": "Usato {qty} di {name}",
+    "swipe_undo": "Annulla"
   },
   "scan": {
     "title": "Scansiona",
@@ -597,6 +602,7 @@
     "price_not_available": "Prezzo non ancora disponibile",
     "price_ai_estimate": "Stima AI (supermercato medio)",
     "price_cached_at": "Aggiornato: {date}",
+    "price_sparkline_updated": "Ultimo aggiornamento: {date}",
     "more_suggestions": "+ altri {n} suggerimenti",
     "swipe_hint": "Scorri → comprato · ← rimuovi",
     "swipe_bought": "Comprato",

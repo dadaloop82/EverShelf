@@ -671,7 +671,7 @@ $_writeActions = [
     'product_save','product_delete','product_merge',
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
-    'dismiss_anomaly','save_settings',
+    'dismiss_anomaly','save_settings','mealie_import',
 ];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeActions, true)) {
     $csrfHeader  = $_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? '';
@@ -974,6 +974,23 @@ try {
         case 'ha_suggest_recipe':
             haSuggestRecipe(getDB());
             break;
+
+        case 'mealie_status':
+            echo json_encode(mealieStatus(), JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'mealie_list':
+            $q = trim($_GET['query'] ?? '');
+            $limit = (int)($_GET['limit'] ?? 20);
+            echo json_encode(mealieListRecipes($q, $limit), JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'mealie_import': {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $key = trim($input['slug'] ?? $input['id'] ?? '');
+            echo json_encode(mealieImportToEverShelf($db, $key), JSON_UNESCAPED_UNICODE);
+            break;
+        }
 
         case 'ha_refresh_prices':
             haRefreshPrices(getDB());
@@ -3439,6 +3456,7 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
 function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes): void {
     $requestedLocation = $location;
     $locationFallback = false;
+    $lastTransactionId = null;
     // ── Server-side deduplication ─────────────────────────────────────────
     // Guard against accidental double-consume triggers (scale jitter, double tap,
     // delayed/offline replay burst). We only apply this stricter gate to manual
@@ -3625,6 +3643,7 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             $type = _isWasteNotes($notes) ? 'waste' : 'out';
             $stmt3 = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
             $stmt3->execute([$productId, $type, $quantity, $location, $notes]);
+            $lastTransactionId = (int)$db->lastInsertId();
             _maybeApplyWasteLearning($db, (int)$productId, $notes, $location);
             
             $remaining = $newFraction > 0.001 ? $newFraction : 0;
@@ -3717,6 +3736,7 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
     $type = _isWasteNotes($notes) ? 'waste' : 'out';
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
     $stmt->execute([$productId, $type, $actualDeducted, $location, $notes]);
+    $lastTransactionId = (int)$db->lastInsertId();
     _maybeApplyWasteLearning($db, (int)$productId, $notes, $location);
 
     // User explicitly chose "use all/finished": remove this row now instead of
@@ -3816,6 +3836,9 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         // about vacuum sealing the remaining portion.
         $response['opened_id'] = (int)$existing['id'];
         $response['opened_vacuum_sealed'] = (int)($existing['vacuum_sealed'] ?? 0);
+    }
+    if ($lastTransactionId > 0) {
+        $response['transaction_id'] = $lastTransactionId;
     }
     echo json_encode($response);
     // Inventory changed — force smart-shopping recompute on next request
@@ -13901,6 +13924,34 @@ function _savePriceCache(array $data): void {
     file_put_contents(PRICE_CACHE_PATH, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
+/** Keep last 5 price observations per product for sparkline charts. */
+function _appendPriceHistory(array $entry, float $pricePerUnit): array {
+    $history = $entry['history'] ?? [];
+    $now = time();
+    if (!empty($history)) {
+        $last = $history[count($history) - 1];
+        if (abs((float)($last['price'] ?? 0) - $pricePerUnit) < 0.005
+            && ($now - (int)($last['ts'] ?? 0)) < 3600) {
+            return $entry;
+        }
+    }
+    $history[] = ['price' => round($pricePerUnit, 4), 'ts' => $now];
+    if (count($history) > 5) {
+        $history = array_slice($history, -5);
+    }
+    $entry['history'] = $history;
+    return $entry;
+}
+
+function _storePriceCacheEntry(array &$cache, string $key, array $entry): void {
+    $ppu = (float)($entry['price_per_unit'] ?? 0);
+    if ($ppu > 0) {
+        $prev = $cache[$key] ?? [];
+        $entry = _appendPriceHistory(array_merge($prev, $entry), $ppu);
+    }
+    $cache[$key] = $entry;
+}
+
 /**
  * Return cache key: md5(lowercase name + country + schema version)
  * Bump version suffix when AI prompt format changes to auto-invalidate old entries.
@@ -14162,7 +14213,8 @@ function _computeAllShoppingPrices(array $clientItems, string $country, string $
                     'country'        => $country,
                     'cached_at'      => $now,
                 ];
-                $priceCache[$key] = $entry;
+                _storePriceCacheEntry($priceCache, $key, $entry);
+                $entry = $priceCache[$key];
                 $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'], $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']);
                 $prices[$name] = array_merge($entry, [
                     'estimated_total'       => $est,
@@ -14385,7 +14437,8 @@ function getShoppingPrice(PDO $db): void {
         'country'       => $country,
         'cached_at'     => $now,
     ];
-    $cache[$key] = $entry;
+    _storePriceCacheEntry($cache, $key, $entry);
+    $entry = $cache[$key];
     _savePriceCache($cache);
 
     $entry['success']               = true;

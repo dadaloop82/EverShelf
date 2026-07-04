@@ -193,7 +193,12 @@
     "label_added": "📅 Added",
     "empty_text": "No products here.<br>Scan a product to add it!",
     "empty_db": "No products in the database.<br>Scan a product to get started!",
-    "qty_trace": "< 1"
+    "qty_trace": "< 1",
+    "swipe_use": "Use 1",
+    "swipe_edit": "Edit",
+    "swipe_hint": "← use · → edit",
+    "swipe_used_toast": "Used {qty} of {name}",
+    "swipe_undo": "Undo"
   },
   "scan": {
     "title": "Scan",
@@ -596,6 +601,7 @@
     "price_not_available": "Price not available yet",
     "price_ai_estimate": "AI estimate (average supermarket)",
     "price_cached_at": "Updated: {date}",
+    "price_sparkline_updated": "Last updated: {date}",
     "more_suggestions": "+ {n} more suggestions",
     "swipe_hint": "Swipe → bought · ← remove",
     "swipe_bought": "Bought",

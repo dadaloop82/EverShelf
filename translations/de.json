@@ -193,7 +193,12 @@
     "label_added": "📅 Hinzugefügt",
     "empty_text": "Keine Produkte hier.<br>Scanne ein Produkt, um es hinzuzufügen!",
     "empty_db": "Keine Produkte in der Datenbank.<br>Scanne ein Produkt, um loszulegen!",
-    "qty_trace": "< 1"
+    "qty_trace": "< 1",
+    "swipe_use": "1 verbr.",
+    "swipe_edit": "Bearb.",
+    "swipe_hint": "← verbr. · → bearb.",
+    "swipe_used_toast": "{qty} von {name} verbraucht",
+    "swipe_undo": "Rückgängig"
   },
   "scan": {
     "title": "Scannen",
@@ -590,6 +595,7 @@
     "price_not_available": "Preis noch nicht verfügbar",
     "price_ai_estimate": "KI-Schätzung (Durchschnittssupermarkt)",
     "price_cached_at": "Aktualisiert: {date}",
+    "price_sparkline_updated": "Zuletzt aktualisiert: {date}",
     "more_suggestions": "+ {n} weitere Vorschläge",
     "swipe_hint": "Wischen → gekauft · ← entfernen",
     "swipe_bought": "Gekauft",

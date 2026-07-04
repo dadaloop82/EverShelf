@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.52] - 2026-07-04
+
+### Added
+- **Inventory swipe (#80)** — Swipe left: quick use 1 unit (with undo toast); swipe right: edit item.
+- **Price sparklines (#81)** — Mini SVG trend in shopping price column (last 5 cache values).
+- **Mealie integration** — `mealie_list`, `mealie_import`, `mealie_status` API + MCP tools (requires `MEALIE_URL` + `MEALIE_API_TOKEN`).
+- **MCP HTTP transport** — Remote Streamable HTTP server (`npm run start:http` in `mcp-server/`).
+
+### Fixed
+- Shopping list section: «Cipolla Dorata» no longer classified as fish (`orata` regex false positive); uses smart category when available.
+
 ## [1.7.51] - 2026-07-04
 
 ### Added
