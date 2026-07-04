@@ -2045,8 +2045,14 @@ let _detectorZbar = null;
 let _barcodeEnginesReady = null;
 let _tesseractWorker = null;
 let _tesseractInitPromise = null;
-const _LOCAL_OCR_DELAY_MS = 2500;    // local digit OCR before AI
+const _LOCAL_OCR_DELAY_MS = 2500;           // local digit OCR when no native engine
+const _LOCAL_OCR_DELAY_NATIVE_MS = 5000;    // defer heavy OCR when Native BarcodeDetector is active
+const _ZBAR_FALLBACK_DELAY_MS = 700;        // skip ZBar until native had time to decode
+const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
+const _BARCODE_PERSIST_MAX = 500;
 const _SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'];
+let _barcodeEnginesPreloadStarted = false;
+let _pendingBarcodeSave = null;
 
 // Apply fixed 2x zoom (hardware if available, CSS fallback)
 async function _applyFixedZoom() {
@@ -4427,6 +4433,7 @@ function refreshCurrentPage() {
 }
 
 function showPage(pageId, param = null, options = {}) {
+    if (pageId !== 'add') clearAddFormIdleCountdown();
     const skipHistory = !!options.skipHistory;
     if (!skipHistory) {
         const last = _pageHistory[_pageHistory.length - 1];
@@ -4468,7 +4475,7 @@ function showPage(pageId, param = null, options = {}) {
             }
             loadInventory();
             break;
-        case 'scan': _dismissFamilySiblingPrompt(); _resetAiFallbackForNewScan(); initScanner(); clearQuickNameResults(); updateSpesaBanner(); updateScanRecents(); _applySpesaScanUI();
+        case 'scan': preloadBarcodeEngines(); _dismissFamilySiblingPrompt(); _resetAiFallbackForNewScan(); initScanner(); clearQuickNameResults(); updateSpesaBanner(); updateScanRecents(); _applySpesaScanUI();
             // Pre-warm the embedding model the first time user visits scan page
             if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
                 window._getCategoryPipeline(); // fire-and-forget
@@ -7299,7 +7306,7 @@ function _inventoryWaste(payload, productLabel) {
 }
 
 async function deleteInventoryItem(id) {
-    const item = currentInventory.find(i => i.id === id);
+    const item = currentInventory.find(i => i.id == id);
     const unit = item ? (item.unit || 'pz') : 'pz';
     const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
     const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
@@ -7339,7 +7346,7 @@ async function deleteInventoryItem(id) {
 }
 
 async function _discardOnePiece(inventoryId) {
-    const item = currentInventory.find(i => i.id === inventoryId);
+    const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) { closeModal(); return; }
     closeModal();
     try {
@@ -7356,7 +7363,7 @@ async function _discardOnePiece(inventoryId) {
 }
 
 async function _discardAllFromModal(inventoryId) {
-    const item = currentInventory.find(i => i.id === inventoryId);
+    const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) { closeModal(); return; }
     closeModal();
     try {
@@ -7413,7 +7420,7 @@ function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
 }
 
 function editInventoryItem(id, _retried) {
-    const item = currentInventory.find(i => i.id === id);
+    const item = currentInventory.find(i => i.id == id);
     if (!item) {
         if (!_retried) {
             api('inventory_list').then(data => {
@@ -7703,7 +7710,7 @@ async function initScanner() {
         await _ensureBarcodeEngines();
         _scannerPaused = false;
         _startBestScanner(video);
-        setTimeout(() => _ensureTesseractWorker().catch(() => {}), 1200);
+        if (!_tesseractWorker) setTimeout(() => _ensureTesseractWorker().catch(() => {}), 400);
         _updateScanAiButton();
         
     } catch (err) {
@@ -7834,6 +7841,21 @@ function _ensureBarcodeEngines() {
         }
     })();
     return _barcodeEnginesReady;
+}
+
+/** Preload WASM/OCR engines during idle time so first scan is faster. */
+function preloadBarcodeEngines() {
+    if (_barcodeEnginesPreloadStarted) return;
+    _barcodeEnginesPreloadStarted = true;
+    const run = () => {
+        _ensureBarcodeEngines().catch(() => {});
+        _ensureTesseractWorker().catch(() => {});
+    };
+    if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 2500 });
+    } else {
+        setTimeout(run, 600);
+    }
 }
 
 const _EAN_FORMATS = new Set(['ean_13', 'ean_8', 'upc_a', 'upc_e', 'ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader']);
@@ -8032,6 +8054,7 @@ function startUnifiedScanner(videoEl) {
         }
 
         frameCount++;
+        const elapsed = Date.now() - startTime;
         if (frameCount === 1) {
             feedback('scanning');
             _setScanStatus(t('scan.status_scanning'), '', _detectorNative ? 'Native+ZBar' : 'ZBar');
@@ -8050,9 +8073,10 @@ function startUnifiedScanner(videoEl) {
             }
         }
 
-        // 2) ZBar WASM on live video — every frame offline, every 2 online
+        // 2) ZBar WASM — deferred when native engine is active (saves CPU)
+        const useZbar = !_detectorNative || elapsed >= _ZBAR_FALLBACK_DELAY_MS;
         const zbarEvery = (_offlineMode || !navigator.onLine) ? 1 : 2;
-        if (_detectorZbar && frameCount % zbarEvery === 0) {
+        if (useZbar && _detectorZbar && frameCount % zbarEvery === 0) {
             try {
                 const codes = await _detectorZbar.detect(videoEl);
                 if (codes && codes.length > 0) {
@@ -8064,8 +8088,8 @@ function startUnifiedScanner(videoEl) {
             }
         }
 
-        // 3) ZBar on enhanced crop variants — every 3 frames
-        if (_detectorZbar && frameCount % 3 === 0) {
+        // 3) ZBar on enhanced crop variants — every 3 frames when ZBar pass is active
+        if (useZbar && _detectorZbar && frameCount % 3 === 0) {
             const crop = _buildScanCropFrame(videoEl, frameCount);
             if (crop) {
                 try {
@@ -8079,8 +8103,8 @@ function startUnifiedScanner(videoEl) {
         }
 
         // 4) Local digit OCR (numbers under barcode) — after delay, works offline
-        const elapsed = Date.now() - startTime;
-        if (elapsed > _LOCAL_OCR_DELAY_MS && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > 1800) {
+        const ocrDelay = _detectorNative ? _LOCAL_OCR_DELAY_NATIVE_MS : _LOCAL_OCR_DELAY_MS;
+        if (elapsed > ocrDelay && !digitOcrBusy && (Date.now() - lastDigitOcrAt) > 1800) {
             lastDigitOcrAt = Date.now();
             digitOcrBusy = true;
             _tryLocalEanDigitOcr(videoEl).finally(() => { digitOcrBusy = false; });
@@ -8318,6 +8342,31 @@ function _barcodeCacheKey(barcode) {
     return String(barcode || '').replace(/\D/g, '');
 }
 
+function _barcodePersistGet(key) {
+    try {
+        const map = JSON.parse(localStorage.getItem(_BARCODE_PERSIST_KEY) || '{}');
+        const row = map[key];
+        if (!row || row.found === undefined) return null;
+        const { ts, ...result } = row;
+        return result;
+    } catch (_) {
+        return null;
+    }
+}
+
+function _barcodePersistSet(key, result) {
+    try {
+        const map = JSON.parse(localStorage.getItem(_BARCODE_PERSIST_KEY) || '{}');
+        map[key] = { ...result, ts: Date.now() };
+        const keys = Object.keys(map);
+        if (keys.length > _BARCODE_PERSIST_MAX) {
+            keys.sort((a, b) => (map[a].ts || 0) - (map[b].ts || 0));
+            keys.slice(0, keys.length - _BARCODE_PERSIST_MAX).forEach(k => { delete map[k]; });
+        }
+        localStorage.setItem(_BARCODE_PERSIST_KEY, JSON.stringify(map));
+    } catch (_) { /* quota */ }
+}
+
 /** Fix unit/qty from stored notes; fire-and-forget DB update when needed. */
 function _applyLocalBarcodeProductFixes(product) {
     if (!product) return;
@@ -8419,11 +8468,63 @@ async function _finishBarcodeResolved(barcode) {
         }
     }
     addToScanRecents(currentProduct);
-    _showScanConfirm(currentProduct.name);
+    const fastPath = _spesaMode || _shoppingBoughtFlow;
+    if (!fastPath) _showScanConfirm(currentProduct.name);
     stopScanner();
-    const delay = (_spesaMode || _shoppingBoughtFlow) ? 120 : 300;
-    const next = (_spesaMode || _shoppingBoughtFlow) ? showAddForm : showProductAction;
-    setTimeout(() => next(), delay);
+    const next = fastPath ? showAddForm : showProductAction;
+    if (fastPath) next();
+    else setTimeout(() => next(), 300);
+}
+
+async function _saveExternalBarcodeProduct(code, p) {
+    const detected = detectUnitAndQuantity(p.quantity_info);
+    let saveResult = await api('product_save', {}, 'POST', {
+        barcode: code,
+        name: p.name || t('product.not_recognized'),
+        brand: p.brand || '',
+        category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+        image_url: p.image_url || '',
+        unit: detected.unit,
+        default_quantity: detected.quantity,
+        package_unit: detected.packageUnit || '',
+        notes: _externalBarcodeNotes(p),
+    });
+    if (saveResult?.error === 'barcode_already_used' && saveResult.existing_id) {
+        const full = await api('product_get', { id: saveResult.existing_id }).catch(() => null);
+        if (full?.product) {
+            Object.assign(currentProduct, full.product);
+            _applyLocalBarcodeProductFixes(currentProduct);
+            return { id: full.product.id, success: true };
+        }
+        currentProduct.id = saveResult.existing_id;
+        return saveResult;
+    }
+    if (!saveResult?.id && !saveResult?.success) {
+        const retry = await api('product_save', {}, 'POST', {
+            barcode: code,
+            name: p.name || t('product.not_recognized'),
+            brand: p.brand || '',
+            category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+            unit: 'pz',
+            default_quantity: 1,
+            image_url: p.image_url || '',
+        }).catch(() => null);
+        if (retry?.existing_id && retry?.error === 'barcode_already_used') {
+            const full = await api('product_get', { id: retry.existing_id }).catch(() => null);
+            if (full?.product) {
+                Object.assign(currentProduct, full.product);
+                _applyLocalBarcodeProductFixes(currentProduct);
+                return { id: full.product.id, success: true };
+            }
+        }
+        saveResult = retry;
+    }
+    if (saveResult?.id || saveResult?.success) {
+        currentProduct.id = saveResult.id || saveResult.canonical_product_id || currentProduct.id;
+        if (saveResult.canonical_product_id) currentProduct.id = saveResult.canonical_product_id;
+        addToScanRecents(currentProduct);
+    }
+    return saveResult;
 }
 
 async function _resolveBarcodeLookup(barcode) {
@@ -8431,8 +8532,14 @@ async function _resolveBarcodeLookup(barcode) {
     if (_barcodeSessionCache.has(key)) {
         return _barcodeSessionCache.get(key);
     }
+    const persisted = _barcodePersistGet(key);
+    if (persisted) {
+        _barcodeSessionCache.set(key, persisted);
+        return persisted;
+    }
     const result = await api('resolve_barcode', { barcode: key });
     _barcodeSessionCache.set(key, result);
+    if (result?.found) _barcodePersistSet(key, result);
     return result;
 }
 
@@ -8442,65 +8549,22 @@ async function _handleBarcodeResolve(result, barcode) {
 
     if (result.source === 'local' && result.product) {
         currentProduct = result.product;
+        _pendingBarcodeSave = null;
         _applyLocalBarcodeProductFixes(currentProduct);
-        _finishBarcodeResolved(code);
+        await _finishBarcodeResolved(code);
         return true;
     }
 
     if (result.product) {
         const p = result.product;
-        const detected = detectUnitAndQuantity(p.quantity_info);
-        const saveResult = await api('product_save', {}, 'POST', {
-            barcode: code,
-            name: p.name || t('product.not_recognized'),
-            brand: p.brand || '',
-            category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
-            image_url: p.image_url || '',
-            unit: detected.unit,
-            default_quantity: detected.quantity,
-            package_unit: detected.packageUnit || '',
-            notes: _externalBarcodeNotes(p),
+        currentProduct = _currentProductFromExternal(p, code, null);
+        currentProduct.id = null;
+        _pendingBarcodeSave = _saveExternalBarcodeProduct(code, p).catch(err => {
+            console.error('[barcode save bg]', err);
+            return { error: String(err) };
         });
-        if (saveResult?.id || saveResult?.success) {
-            currentProduct = _currentProductFromExternal(p, code, saveResult.id);
-            _finishBarcodeResolved(code);
-            return true;
-        }
-        if (saveResult?.error === 'barcode_already_used' && saveResult.existing_id) {
-            const full = await api('product_get', { id: saveResult.existing_id }).catch(() => null);
-            if (full?.product) {
-                currentProduct = full.product;
-                _applyLocalBarcodeProductFixes(currentProduct);
-                _finishBarcodeResolved(code);
-                return true;
-            }
-        }
-        if (!saveResult?.id && !saveResult?.success) {
-            console.error('[barcode save]', saveResult);
-            const retry = await api('product_save', {}, 'POST', {
-                barcode: code,
-                name: p.name || t('product.not_recognized'),
-                brand: p.brand || '',
-                category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
-                unit: 'pz',
-                default_quantity: 1,
-                image_url: p.image_url || '',
-            }).catch(() => null);
-            if (retry?.id || retry?.success) {
-                currentProduct = _currentProductFromExternal(p, code, retry.id);
-                _finishBarcodeResolved(code);
-                return true;
-            }
-            if (retry?.error === 'barcode_already_used' && retry.existing_id) {
-                const full = await api('product_get', { id: retry.existing_id }).catch(() => null);
-                if (full?.product) {
-                    currentProduct = full.product;
-                    _applyLocalBarcodeProductFixes(currentProduct);
-                    _finishBarcodeResolved(code);
-                    return true;
-                }
-            }
-        }
+        await _finishBarcodeResolved(code);
+        return true;
     }
     return false;
 }
@@ -8508,7 +8572,10 @@ async function _handleBarcodeResolve(result, barcode) {
 async function onBarcodeDetected(barcode) {
     _dismissFamilySiblingPrompt();
     _resetAiFallbackForNewScan();
-    showLoading(true);
+    const fastPath = _spesaMode || _shoppingBoughtFlow;
+
+    if (!fastPath) showLoading(true);
+    else _setScanStatus(t('scan.status_lookup'), '', '');
 
     if (navigator.vibrate) navigator.vibrate(100);
 
@@ -9983,6 +10050,7 @@ function showAddForm() {
     showPage('add');
     updateScaleReadButtons();
     _initExpiryManualTracking('add-expiry');
+    startAddFormIdleCountdown();
     // History first (≥3 samples → average of last 3); AI only if history is insufficient
     (async () => {
         let hasHistory = false;
@@ -10430,6 +10498,19 @@ function _confirmRecentDuplicateAdd(recent, productName, addQty, unit, defQty, p
 
 async function submitAdd(e) {
     e.preventDefault();
+    clearAddFormIdleCountdown();
+
+    if (!currentProduct?.id && _pendingBarcodeSave) {
+        showLoading(true);
+        try {
+            await _pendingBarcodeSave;
+        } catch (_) { /* handled below */ }
+        showLoading(false);
+        if (!currentProduct?.id) {
+            showToast(t('error.generic'), 'error');
+            return;
+        }
+    }
 
     const selectedUnit = document.getElementById('add-unit').value;
     const productUnit = currentProduct.unit || 'pz';
@@ -10482,6 +10563,7 @@ async function submitAdd(e) {
         
         showLoading(false);
         if (result.success) {
+            _pendingBarcodeSave = null;
             if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
                 currentProduct.id = result.canonical_product_id;
             }
@@ -11432,6 +11514,75 @@ function clearMoveModalTimer() {
         document.getElementById('modal-content')?.removeEventListener('pointerdown', _moveModalTouchHandler, true);
         _moveModalTouchHandler = null;
     }
+}
+
+let _addFormIdleTimer = null;
+let _addFormIdleRAF = null;
+let _addFormIdlePageEl = null;
+let _addFormIdleOnInteraction = null;
+const ADD_FORM_IDLE_MS = 30000;
+
+function clearAddFormIdleCountdown() {
+    if (_addFormIdleTimer) { clearTimeout(_addFormIdleTimer); _addFormIdleTimer = null; }
+    if (_addFormIdleRAF) { cancelAnimationFrame(_addFormIdleRAF); _addFormIdleRAF = null; }
+    const btn = document.getElementById('btn-add-submit');
+    if (btn) btn.style.background = '';
+    if (_addFormIdlePageEl && _addFormIdleOnInteraction) {
+        _addFormIdlePageEl.removeEventListener('input', _addFormIdleOnInteraction);
+        _addFormIdlePageEl.removeEventListener('change', _addFormIdleOnInteraction);
+        _addFormIdlePageEl.removeEventListener('pointerdown', _addFormIdleOnInteraction);
+    }
+    _addFormIdlePageEl = null;
+    _addFormIdleOnInteraction = null;
+}
+
+function startAddFormIdleCountdown() {
+    clearAddFormIdleCountdown();
+    const pageAdd = document.getElementById('page-add');
+    const btn = document.getElementById('btn-add-submit');
+    if (!pageAdd || !btn || _currentPageId !== 'add') return;
+
+    const baseBg = getComputedStyle(btn).backgroundColor;
+    const duration = ADD_FORM_IDLE_MS;
+    let start = performance.now();
+
+    function tick() {
+        const elapsed = performance.now() - start;
+        const pct = Math.min(100, (elapsed / duration) * 100);
+        btn.style.background =
+            `linear-gradient(to left, rgba(255,255,255,0.35) ${100 - pct}%, rgba(255,255,255,0) ${100 - pct}%), ${baseBg}`;
+        if (elapsed < duration) {
+            _addFormIdleRAF = requestAnimationFrame(tick);
+        }
+    }
+
+    function onExpire() {
+        clearAddFormIdleCountdown();
+        if (_currentPageId !== 'add') return;
+        const form = pageAdd.querySelector('form');
+        if (form) form.requestSubmit();
+    }
+
+    function scheduleExpire() {
+        if (_addFormIdleTimer) clearTimeout(_addFormIdleTimer);
+        _addFormIdleTimer = setTimeout(onExpire, duration);
+    }
+
+    function onInteraction() {
+        start = performance.now();
+        scheduleExpire();
+        if (_addFormIdleRAF) cancelAnimationFrame(_addFormIdleRAF);
+        _addFormIdleRAF = requestAnimationFrame(tick);
+    }
+
+    _addFormIdlePageEl = pageAdd;
+    _addFormIdleOnInteraction = onInteraction;
+    pageAdd.addEventListener('input', onInteraction);
+    pageAdd.addEventListener('change', onInteraction);
+    pageAdd.addEventListener('pointerdown', onInteraction);
+
+    _addFormIdleRAF = requestAnimationFrame(tick);
+    scheduleExpire();
 }
 
 function startMoveModalCountdown(btnId, onExpire) {
@@ -20283,6 +20434,7 @@ function initSpesaMode() {
     btn.addEventListener('pointerdown', (e) => {
         e.preventDefault(); // prevent browser-generated synthetic click + 300ms delay
         btn.setPointerCapture(e.pointerId); // ensure pointerup always fires on this element even if finger drifts
+        preloadBarcodeEngines();
         _longPressTimer = setTimeout(() => {
             _longPressTimer = null;
             startSpesaMode();
@@ -20309,6 +20461,7 @@ function initSpesaMode() {
 function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
+    preloadBarcodeEngines();
     showToast(t('scan.mode_shopping_activated'), 'success');
     showPage('scan');
     updateSpesaBanner();
@@ -21391,6 +21544,7 @@ async function _initApp() {
     initScreensaverShortcuts();
     startBgShoppingRefresh();
     startHeartbeat();
+    preloadBarcodeEngines();
     // ── Recover any pending offline operations left over from a previous session ──
     // This handles the case where the user refreshed the page while offline ops
     // were queued — the queue survives in localStorage but _offlineMode is false.

@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.54] - 2026-07-04
+
+### Added
+- **Form Aggiungi — auto-submit idle** — Dopo 30 s di inattività il pulsante «Aggiungi» si invia da solo con barra progresso inversa (come gli altri countdown); ogni interazione resetta il timer.
+- **Scansione barcode — cache persistente** — Barcode già risolti salvati in `localStorage` (fino a 500 voci): lookup istantaneo al secondo scan.
+- **Scansione — precaricamento motori** — ZBar WASM e Tesseract precaricati all’avvio app, in modalità spesa e aprendo Scansione.
+
+### Changed
+- **Scansione barcode più veloce** — Native `BarcodeDetector` first (ZBar solo dopo 700 ms); OCR cifre ritardato se native attivo; lookup ottimistico (form subito, `product_save` in background); fast path spesa (niente overlay, form immediato).
+- **Modalità spesa** — Identificazione con messaggio in barra stato invece dello spinner a schermo intero.
+
+### Fixed
+- **Modifica inventario (swipe)** — Confronto ID con `==` invece di `===` (SQLite restituisce stringhe): la schermata di modifica si apre di nuovo.
+- **Cron smart shopping** — Aggiunto `CRON_LOG_PATH` in `constants.php`; il job ogni 5 min non andava più in fatal error.
+
 ## [1.7.53] - 2026-07-04
 
 ### Added

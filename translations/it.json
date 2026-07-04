@@ -239,6 +239,7 @@
     "status_partial": "Letto: {code} — verifico...",
     "status_invalid": "Non valido: {code} — riprovo",
     "status_confirmed": "Confermato!",
+    "status_lookup": "Identificazione…",
     "status_parallel": "Doppia scansione attiva...",
     "status_ocr_searching": "Sto leggendo i numeri del codice a barre...",
     "status_digit_ocr": "Leggo i numeri sotto il codice...",

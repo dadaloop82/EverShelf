@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.53-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.54-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,15 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.54 (2026-07-04) — Scansione & UX spesa
+
+| Funzione | Descrizione |
+|----------|-------------|
+| **Scansione più veloce** | Precaricamento ZBar/Tesseract, Native-first, cache barcode persistente, form Aggiungi subito (save in background) |
+| **Auto-submit Aggiungi** | Dopo 30 s di inattività nel form, invio automatico con countdown visivo |
+| **Fix modifica inventario** | Swipe a destra → modifica funziona di nuovo (ID numerici/stringa) |
+| **Cron** | Fix `CRON_LOG_PATH` — previsioni smart shopping e catalogo barcode di nuovo attivi ogni 5 min |
 
 ### 🆕 Release 1.7.53 (2026-07-04) — Mealie
 
