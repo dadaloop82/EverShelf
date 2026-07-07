@@ -1416,11 +1416,57 @@ body.server-offline .bottom-nav {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 14px;
+    padding: 14px 28px;
     background: var(--bg-card);
     position: relative;
     z-index: 2;
     will-change: transform;
+    touch-action: pan-y;
+}
+
+.inv-swipe-guide {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 12px 10px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-card) 88%, var(--accent, #3b82f6) 12%);
+    border: 1px dashed color-mix(in srgb, var(--text-muted) 35%, transparent);
+    border-radius: 10px;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.inv-swipe-edge {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    opacity: 0.42;
+    pointer-events: none;
+    z-index: 3;
+    white-space: nowrap;
+}
+
+.inv-swipe-edge-left {
+    left: 6px;
+    color: #b91c1c;
+}
+
+.inv-swipe-edge-right {
+    right: 6px;
+    color: #1d4ed8;
+}
+
+.inventory-item.swipe-left .inv-swipe-edge-left,
+.inventory-item.swipe-right .inv-swipe-edge-right {
+    opacity: 0;
 }
 
 .inv-swipe-bg {
@@ -1461,16 +1507,18 @@ body.server-offline .bottom-nav {
 .inv-swipe-hint {
     position: absolute;
     bottom: 2px;
-    right: 10px;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 0.62rem;
     color: var(--text-muted);
-    opacity: 0.55;
+    opacity: 0.6;
     z-index: 1;
     pointer-events: none;
+    white-space: nowrap;
 }
 
-@media (hover: hover) and (pointer: fine) {
-    .inv-swipe-hint { display: none; }
+.inventory-list {
+    touch-action: pan-y;
 }
 
 .inventory-item:active .inv-row-content {
@@ -3094,6 +3142,55 @@ body.server-offline .bottom-nav {
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.07);
     border: 1px solid rgba(148, 163, 184, 0.18);
     border-left: 5px solid transparent;
+}
+/* Shopping list urgency — border + tinted background */
+.shop-row-urgency-critical {
+    border-left-color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.32);
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.11) 0%, var(--bg-card) 42%);
+}
+.shop-row-urgency-high {
+    border-left-color: #f97316;
+    border-color: rgba(249, 115, 22, 0.28);
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.09) 0%, var(--bg-card) 42%);
+}
+.shop-row-urgency-medium {
+    border-left-color: #eab308;
+    border-color: rgba(234, 179, 8, 0.22);
+    background: linear-gradient(90deg, rgba(234, 179, 8, 0.07) 0%, var(--bg-card) 38%);
+}
+.shop-row-urgency-low {
+    border-left-color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.18);
+}
+.shop-row-urgency-badge {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.shop-row-urgency-badge--critical {
+    color: #b91c1c;
+    background: rgba(239, 68, 68, 0.14);
+}
+.shop-row-urgency-badge--high {
+    color: #c2410c;
+    background: rgba(249, 115, 22, 0.14);
+}
+[data-theme="dark"] .shop-row-urgency-critical,
+.dark .shop-row-urgency-critical {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.18) 0%, var(--bg-card) 45%);
+}
+[data-theme="dark"] .shop-row-urgency-high,
+.dark .shop-row-urgency-high {
+    background: linear-gradient(90deg, rgba(249, 115, 22, 0.14) 0%, var(--bg-card) 45%);
+}
+[data-theme="dark"] .shop-row-urgency-medium,
+.dark .shop-row-urgency-medium {
+    background: linear-gradient(90deg, rgba(234, 179, 8, 0.12) 0%, var(--bg-card) 40%);
 }
 .shop-row-content {
     position: relative;

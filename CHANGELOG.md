@@ -11,39 +11,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.56] - 2026-07-07
+
+### Added
+- **Inventory swipe guide** — Banner above the list explains swipe left = use one, swipe right = edit (all location tabs).
+- **Per-row swipe cues** — Edge labels (← Use / Edit →) and centered hint on each inventory row.
+
+### Changed
+- **Inventory swipe input** — Pointer events (mouse drag + touch); row padding adjusted for edge labels.
+
+## [1.7.55] - 2026-07-06
+
+### Added
+- **Shopping list urgency API** — `shopping_list` and `ha_shopping_items` return `urgency`, `urgent`, `urgency_label`, `urgency_color` per row (from smart shopping cache + spec markers).
+- **Urgent row styling** — Critical/high items get colored left border, tinted background, and badge on the shopping page.
+- **Internal list auto-add** — Cron runs `internalShoppingAutoAddCritical()` when `SHOPPING_MODE=internal` (Bring code unchanged).
+- **15-day shopping blocklist** — `SHOPPING_REMOVED_BLOCK_DAYS` (default 15): `shopping_remove` and *Bought* suppress cron/UI re-add; `shopping_add` respects blocklist.
+
+### Changed
+- **Bring disabled by default** — `SHOPPING_MODE=internal`; setup wizard skips Bring credentials; UI labels are mode-aware (not Bring-branded).
+- **Internal list deduplication** — Merges generic + specific duplicates (e.g. *Milk* + *Fresh mozzarella*) on load and after add.
+- **Pantry search** — Relevance scoring (name/shopping_name first); no longer matches all dairy when searching *milk*/*latte*; flat sorted results; searches all locations when filtering.
+- **Shopping footer count** — Piece count uses packages, not raw grams/ml (fixes inflated totals).
+
+### Fixed
+- **Internal list after purchase** — `shoppingRemoveProductFromList()` updates `shopping_list` when not using Bring; shopping flow always calls client remove in internal mode.
+- **Expired alerts** — Depleted stock excluded from expired section; 0.9 *pz* displays as 1, not "0 pcs".
+
 ## [1.7.54] - 2026-07-04
 
 ### Added
-- **Form Aggiungi — auto-submit idle** — Dopo 30 s di inattività il pulsante «Aggiungi» si invia da solo con barra progresso inversa (come gli altri countdown); ogni interazione resetta il timer.
-- **Scansione barcode — cache persistente** — Barcode già risolti salvati in `localStorage` (fino a 500 voci): lookup istantaneo al secondo scan.
-- **Scansione — precaricamento motori** — ZBar WASM e Tesseract precaricati all’avvio app, in modalità spesa e aprendo Scansione.
+- **Add form idle auto-submit** — After 30 s inactivity the Add button submits with reverse progress bar; any interaction resets the timer.
+- **Barcode scan persistent cache** — Resolved barcodes stored in `localStorage` (up to 500 entries) for instant repeat scans.
+- **Scan engine preload** — ZBar WASM and Tesseract preloaded at app start, in shopping mode, and when opening Scan.
 
 ### Changed
-- **Scansione barcode più veloce** — Native `BarcodeDetector` first (ZBar solo dopo 700 ms); OCR cifre ritardato se native attivo; lookup ottimistico (form subito, `product_save` in background); fast path spesa (niente overlay, form immediato).
-- **Modalità spesa** — Identificazione con messaggio in barra stato invece dello spinner a schermo intero.
+- **Faster barcode scan** — Native `BarcodeDetector` first (ZBar after 700 ms); delayed OCR when native is active; optimistic lookup (form immediately, `product_save` in background); shopping fast path (no overlay).
+- **Shopping mode** — Identification shown in status bar instead of full-screen spinner.
 
 ### Fixed
-- **Modifica inventario (swipe)** — Confronto ID con `==` invece di `===` (SQLite restituisce stringhe): la schermata di modifica si apre di nuovo.
-- **Cron smart shopping** — Aggiunto `CRON_LOG_PATH` in `constants.php`; il job ogni 5 min non andava più in fatal error.
+- **Inventory edit (swipe)** — ID comparison uses `==` instead of `===` (SQLite returns strings): edit screen opens again.
+- **Smart shopping cron** — Added `CRON_LOG_PATH` in `constants.php`; 5-minute job no longer fatals.
 
 ## [1.7.53] - 2026-07-04
 
 ### Added
-- **Mealie — integrazione completa** — Ricettario self-hosted collegato a EverShelf: scelta ricette in base alla dispensa, cache offline, sync automatica.
-- **Mealie — installazione guidata** — Da Impostazioni → Ricette: discovery Docker, installazione automatica via `docker compose`, configurazione URL/token e progresso in UI.
-- **Motore ricette configurabile** — `RECIPE_SOURCE`: Auto (Mealie → Gemini), Solo Mealie, Solo Gemini; spiegazione inline in configurazione.
-- **Ricette → lista spesa** — `RECIPE_SHOPPING_MODE`: non suggerire / conferma manuale / aggiunta automatica ingredienti mancanti a Bring! o lista interna.
-- **Configurazione ricette riorganizzata** — Tab con etichette testuali, sezioni Motore / Mealie / Spesa / Preferenze, opzioni avanzate Mealie collassabili.
+- **Mealie integration** — Self-hosted recipe book linked to EverShelf: pantry-based recipe pick, offline cache, automatic sync.
+- **Mealie guided setup** — Settings → Recipes: Docker discovery, install via `docker compose`, URL/token configuration with UI progress.
+- **Configurable recipe engine** — `RECIPE_SOURCE`: Auto (Mealie → Gemini), Mealie only, Gemini only.
+- **Recipes → shopping list** — `RECIPE_SHOPPING_MODE`: off / manual confirm / auto-add missing ingredients to Bring! or internal list.
+- **Recipe settings reorganized** — Tabbed layout: Engine / Mealie / Shopping / Preferences; collapsible Mealie advanced options.
 
 ### Changed
-- **Mealie setup API** — Accesso same-origin per discovery/install/configure (tutti gli utenti del browser LAN senza copiare manualmente il token API).
-- **Shopping list swipe** — Soglie e gesti corretti; «Comprato · a casa» rimuove solo dalla lista (niente scan).
-- **Inventario tap** — Tap apre subito la schermata «Usa» con quantità; swipe sinistra/destra per uso rapido e modifica.
-- **PWA service worker** — Base path dinamico (`/dispensa/` ecc.); SW disabilitato su IP LAN con certificato self-signed.
+- **Mealie setup API** — Same-origin access for discovery/install/configure (LAN browser users without manual API token copy).
+- **Shopping list swipe** — Thresholds and gestures fixed; *Bought · at home* removes from list only (no scan).
+- **Inventory tap** — Tap opens Use screen with quantity; swipe left/right for quick use and edit.
+- **PWA service worker** — Dynamic base path (`/dispensa/` etc.); SW disabled on LAN IPs with self-signed certs.
 
 ### Fixed
-- **Mealie configure** — Token API ottenuto automaticamente con credenziali default quando l’istanza è già in esecuzione.
-- **Compose write** — `docker-compose.yml` scritto in `data/mealie/` (writable da www-data).
+- **Mealie configure** — API token obtained automatically with default credentials when the instance is already running.
+- **Compose write** — `docker-compose.yml` written under `data/mealie/` (writable by www-data).
 
 ## [1.7.52] - 2026-07-04
 
@@ -76,21 +103,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.50] - 2026-07-03
 
 ### Changed
-- **Lista spesa compatta (mobile)** — Quantità accanto al titolo, urgenza solo bordo colorato (niente badge duplicati), prezzo più leggibile, pulsanti **Comprato** / **Rimuovi** senza emoji, sezioni collassabili, suggerimenti inline sotto la lista (tab nascosti), footer voci/pezzi, swipe a destra = Comprato, pull-to-refresh.
-- **Offline supermercato** — Cache lista + previsioni in localStorage; rimozione e Comprato in coda offline.
-- **Prezzi** — Stima allineata a `suggested_qty` (quantità mensile), tap sul prezzo mostra dettaglio stima AI.
-- **Scan Comprato** — Avviso se il barcode non corrisponde alla voce in lista.
-- **Idle** — Nessun ritorno automatico alla home mentre sei sulla lista spesa (o scan/aggiunta Comprato).
+- **Compact shopping list (mobile)** — Quantity next to title, urgency via colored border only, clearer prices, **Bought** / **Remove** buttons without emoji, collapsible sections, inline suggestions below the list, footer items/pieces count, swipe right = Bought, pull-to-refresh.
+- **Offline supermarket** — List + forecast cache in localStorage; remove and Bought queued offline.
+- **Prices** — Estimate aligned to `suggested_qty` (monthly quantity); tap price for AI estimate detail.
+- **Bought scan** — Warning when barcode does not match the list item.
+- **Idle** — No automatic return to home while on the shopping list (or Bought scan/add flow).
 
 ## [1.7.49] - 2026-06-06
 
 ### Changed
-- **Lista spesa rivista** — Quantità in evidenza (consumo mensile dal mese precedente), pulsante **Comprato** con scansione barcode e aggiunta a dispensa, prezzi ridotti, UI mobile-first, sync Bring ogni 45s.
+- **Shopping list refresh** — Prominent quantities (prior-month consumption), **Bought** with barcode scan and pantry add, smaller prices, mobile-first UI, Bring sync every 45s.
 
 ## [1.7.48] - 2026-06-06
 
 ### Fixed
-- **Prodotti che "spariscono"** — Tracciamento spostamenti frigo/dispensa nel registro (`[Spostamento]`), fallback automatico se si scala da ubicazione sbagliata, conferma obbligatoria quando una ricetta consuma tutto lo stock di un ingrediente.
+- **Products that "vanish"** — Fridge/pantry moves logged (`[Move]`); automatic fallback when deducting from wrong location; mandatory confirm when a recipe consumes all stock of an ingredient.
 
 ## [1.7.47] - 2026-06-06
 
@@ -119,9 +146,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **False expired banner for dry bread products** — Grated bread / breadcrumbs (`pane grattugiato`, panko, etc.) no longer inherit fresh-bread 4-day opened shelf life; they use 90 days in pantry.
-- **Banner "Modifica" → product not found** — Expired-banner edit now loads inventory first (same as other banner types); `editInventoryItem` retries once from the server and refreshes stale alerts if the row is gone.
+- **Banner "Edit" → product not found** — Expired-banner edit now loads inventory first (same as other banner types); `editInventoryItem` retries once from the server and refreshes stale alerts if the row is gone.
 - **Stale banner alerts** — Skip zero-quantity inventory rows; server-side `opened` stats are cross-checked against live stock before showing.
-- **Opened products still OK** — Banner skips opened items with safety level `ok` or still edible per server stats (they remain visible in the dashboard "Aperti" section only).
+- **Opened products still OK** — Banner skips opened items with safety level `ok` or still edible per server stats (they remain visible in the dashboard "Opened" section only).
 - **Use page for weight products (g/ml)** — Fraction buttons (¼, ½, ¾, all) with gram/ml amounts; default quantity is half of stock instead of 1 g; duplicate-use guard no longer blocks a different amount silently.
 - **“Finished” on already-empty products** — Marking depleted items (e.g. from Recent shortcuts) no longer fails silently; confirms exhausted state, adds to Bring!/shopping, explains product is still in catalog. `use_all` on empty inventory reconciles instead of fake success.
 
@@ -160,9 +187,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **SQLite database locked** — `PRAGMA busy_timeout` 10s + `dbWithRetry()` on `inventory_update` under cron/PWA contention.
 - **Barcode duplicate on save** — `saveProduct` merges or returns 409 instead of HTTP 500 on UNIQUE barcode.
 - **EverLog CLI crash** — Safe cast of `REQUEST_METHOD` when null (kiosk/cron).
-- **Spesa scan crash** — `currentPage` → `_currentPageId` in `_applySpesaScanUI`.
+- **Shopping scan crash** — `currentPage` → `_currentPageId` in `_applySpesaScanUI`.
 - **Recipe quantities** — Piece products use 1 pc base; serving caps for onions, leafy greens, minestrone; pantry-only post-processing; conf/g display fixes.
-- **Smart shopping purchased block** — Server-side blocklist + spesa mode sync prevents cron from re-adding bought items.
+- **Smart shopping purchased block** — Server-side blocklist + shopping mode sync prevents cron from re-adding bought items.
 
 ### Changed
 - **Docker behind Traefik** — Apache `SetEnvIf X-Forwarded-Proto https HTTPS=on` to avoid redirect loops.
@@ -171,20 +198,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **`resolve_barcode` API** — Single round-trip: local catalog lookup plus **parallel** external search (Open Food Facts IT/world, UPC Item DB, Open Products Facts, Open Beauty Facts via `curl_multi`). Results are stored in SQLite `barcode_cache` for instant repeat scans.
-- **Spesa barcode fast path** — In shopping mode, a successful scan opens the **add form directly** (skips the intermediate action page).
+- **Shopping scan barcode fast path** — In shopping mode, a successful scan opens the **add form directly** (skips the intermediate action page).
 - **Session barcode cache** — In-memory cache avoids duplicate API calls when scanning many items in one trip.
 - **Manual expiry flag (`expiry_user_set`)** — User-entered expiry dates are kept when changing location, vacuum seal, or moving stock; only auto-estimated dates are recalculated.
 - **Family sibling 24h dedup** — After confirming “Sì, tutto ok” on a similar in-stock product, the check prompt is suppressed for the same `shopping_name` family for 24 hours (synced via `family_sibling_confirmed` in app settings).
-- **Family sibling stock line** — Spesa prompt shows readable stock (e.g. `4 conf (da 20g)`); new `family_sibling_check` / `family_sibling_stock` strings in IT/EN/DE/FR/ES.
+- **Family sibling stock line** — Shopping scan prompt shows readable stock (e.g. `4 conf (20g each)`); new `family_sibling_check` / `family_sibling_stock` strings in IT/EN/DE/FR/ES.
 - **Quick-edit product notes** — Notes field in the inline name/brand editor on the product action page.
 
 ### Fixed
 - **Kiosk / WebView stability** — Guard `$_SERVER['REQUEST_METHOD']` when null; fix JS temporal-dead-zone crashes (`setProgress`, `enriched` → `enrichedRaw`, `duplicateNames`); lazy-load ZBar WASM so kiosk startup no longer OOM-crashes.
 - **Empty barcode SQL error** — Multiple products with `barcode = ''` violated SQLite UNIQUE; empty strings are normalized to `NULL` (migration included).
-- **Spesa ghost products** — Finished/catalog AI candidates and scan recents no longer show zero-stock items in shopping mode; `family_sibling_suggest` requires live inventory quantity.
+- **Shopping scan ghost products** — Finished/catalog AI candidates and scan recents no longer show zero-stock items in shopping mode; `family_sibling_suggest` requires live inventory quantity.
 - **Insalata di riso misclassification** — Prepared rice salads (e.g. Ponti) map to `pasta` instead of fresh `verdura`; server and client rules aligned.
 - **Family sibling prompt readability** — Quantity and question text use high-contrast colours on the dark overlay.
-- **Move after use / recipe move** — Respects manually set expiry (`expiry_user_set`); purchased items marked on blocklist after spesa add.
+- **Move after use / recipe move** — Respects manually set expiry (`expiry_user_set`); purchased items marked on blocklist after shopping add.
 
 ### Changed
 - **Barcode lookup** — Replaced sequential API waterfall (up to ~15s) with parallel fetch (~1–2s first hit); 30-minute negative cache for unknown codes.
@@ -194,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Finished products on shopping list** — Depleted items are now added to Bring! under their generic `shopping_name` (e.g. “Affettato”). If the generic is already on the list, the specific variant is appended to the specification instead of being skipped. Confirming a ghost/finished product from the dashboard banner also triggers this flow.
-- **Unstable shopping total** — Dashboard, Spesa tab, Home Assistant and screensaver now share one **weekly canonical total** (`PRICE_UPDATE_WEEKS=1`). Totals use **1 package per list item** (no more day-to-day swings from smart-shopping suggested quantities). AI prices are fetched only for items missing from cache; manual 🔄 refresh forces an update.
+- **Unstable shopping total** — Dashboard, Shopping tab, Home Assistant and screensaver now share one **weekly canonical total** (`PRICE_UPDATE_WEEKS=1`). Totals use **1 package per list item** (no more day-to-day swings from smart-shopping suggested quantities). AI prices are fetched only for items missing from cache; manual 🔄 refresh forces an update.
 - **Screensaver price mismatch** — Screensaver waits for the canonical total sync before displaying the amount, matching the other surfaces.
 
 ### Changed
@@ -220,7 +247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Maintenance scripts** — `scripts/sync-i18n.py` (5-language key sync), `scripts/re-enrich-recipe.php` (re-apply stock hints to archived recipes), `scripts/merge-duplicate-products.php` (batch duplicate merge).
 
 ### Fixed
-- **Unified shopping total** — Dashboard, Spesa page and screensaver now share one canonical server-side total (`shopping_total_cache`); background refresh runs during screensaver too.
+- **Unified shopping total** — Dashboard, Shopping page and screensaver now share one canonical server-side total (`shopping_total_cache`); background refresh runs during screensaver too.
 - **Recipe stream auth** — `generate_recipe_stream` and other direct `fetch()` calls now send the API token consistently, fixing 401 errors during recipe generation.
 - **Home Assistant auth compatibility** — HA integration endpoints accept the configured API token without breaking legacy setups.
 - **Security hardening** — API bootstrap modularised; scale SSE relay and sensitive routes require auth; env migration script for legacy installs.
