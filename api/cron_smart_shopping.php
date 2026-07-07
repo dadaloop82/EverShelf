@@ -45,10 +45,9 @@ try {
     echo '[' . date('Y-m-d H:i:s') . '] OK — ' . $itemCount . " items cached\n";
 
     // ── Bring! server-side sync ───────────────────────────────────────────
-    // After computing smart shopping, remove stale Bring! items and push every
-    // product that needs restocking (esauriti, quasi finiti, previsione).
-    // Runs fully server-side every cron cycle (~5 min).
+    // Only when SHOPPING_MODE=bring. Internal list uses internalShoppingAutoAddCritical.
     try {
+        if (isShoppingBringMode()) {
         $cleanupResult = bringCleanupObsolete($db);
         if (isset($cleanupResult['skipped'])) {
             echo '[' . date('Y-m-d H:i:s') . '] Bring! cleanup skipped: ' . $cleanupResult['skipped'] . "\n";
@@ -84,6 +83,15 @@ try {
         $dedupeFinal = bringDedupeGenerics($db);
         if (!isset($dedupeFinal['skipped']) && (($dedupeFinal['removed'] ?? 0) > 0)) {
             echo '[' . date('Y-m-d H:i:s') . '] Bring! dedupe (final) — removed: ' . ($dedupeFinal['removed'] ?? 0) . "\n";
+        }
+        } else {
+            $internalAdd = internalShoppingAutoAddCritical($db);
+            if (isset($internalAdd['skipped'])) {
+                echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add skipped: ' . $internalAdd['skipped'] . "\n";
+            } else {
+                echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add — added: ' . ($internalAdd['added'] ?? 0)
+                    . ', deduped: ' . ($internalAdd['deduped'] ?? 0) . "\n";
+            }
         }
     } catch (Throwable $be) {
         echo '[' . date('Y-m-d H:i:s') . '] Bring! sync warning: ' . $be->getMessage() . "\n";

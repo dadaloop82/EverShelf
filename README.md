@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.54-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.56-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -40,27 +40,46 @@
 
 ---
 
-### 🆕 Release 1.7.54 (2026-07-04) — Scansione & UX spesa
+### 🆕 Release 1.7.56 (2026-07-07) — Inventory swipe hints
 
-| Funzione | Descrizione |
-|----------|-------------|
-| **Scansione più veloce** | Precaricamento ZBar/Tesseract, Native-first, cache barcode persistente, form Aggiungi subito (save in background) |
-| **Auto-submit Aggiungi** | Dopo 30 s di inattività nel form, invio automatico con countdown visivo |
-| **Fix modifica inventario** | Swipe a destra → modifica funziona di nuovo (ID numerici/stringa) |
-| **Cron** | Fix `CRON_LOG_PATH` — previsioni smart shopping e catalogo barcode di nuovo attivi ogni 5 min |
+| Feature | Description |
+|---------|-------------|
+| **Swipe guide bar** | Persistent banner above the list: swipe **left** to use one, swipe **right** to edit — on every location tab |
+| **Row edge labels** | Each row shows faint ← Use / Edit → cues; colored backgrounds appear while dragging |
+| **Pointer + touch** | Swipe works with finger and mouse drag (desktop too) |
+
+### 🆕 Release 1.7.55 (2026-07-06) — Shopping list & pantry search
+
+| Feature | Description |
+|---------|-------------|
+| **Internal shopping list** | Bring! integration stays in code but is inactive by default (`SHOPPING_MODE=internal`); removed items sync correctly after purchase |
+| **List deduplication** | Generic + specific names (e.g. *Milk* / *Fresh mozzarella*) merge into one row |
+| **15-day remove block** | `shopping_remove` and *Bought* suppress auto re-add for 15 days (`SHOPPING_REMOVED_BLOCK_DAYS`) |
+| **Urgency in API & UI** | Each list item exposes `urgency`, `urgent`, `urgency_label`, `urgency_color`; critical/high rows get tinted background + border |
+| **Pantry search ranking** | Searching *milk* no longer returns all dairy (butter); results sorted by relevance; search spans all locations |
+| **Expiry alerts** | Depleted items no longer shown as expired; fractional *pz* display fixed (0.9 → 1, not 0) |
+
+### 🆕 Release 1.7.54 (2026-07-04) — Faster scan & add-form UX
+
+| Feature | Description |
+|---------|-------------|
+| **Faster barcode scan** | ZBar/Tesseract preload, Native-first, persistent barcode cache, immediate Add form (background save) |
+| **Add form auto-submit** | After 30 s idle, form submits automatically with reverse progress bar |
+| **Inventory edit fix** | Swipe right → edit works again (numeric ID string coercion) |
+| **Cron** | `CRON_LOG_PATH` fix — smart shopping and barcode catalog cron run every 5 min again |
 
 ### 🆕 Release 1.7.53 (2026-07-04) — Mealie
 
-EverShelf ora integra **[Mealie](https://mealie.io)**, il gestore ricette open source self-hosted:
+EverShelf now integrates **[Mealie](https://mealie.io)**, the self-hosted open-source recipe manager:
 
-| Funzione | Descrizione |
-|----------|-------------|
-| **Ricette dalla dispensa** | Cerca tra le tue ricette Mealie quelle compatibili con ciò che hai in casa (con fallback Gemini in modalità Auto) |
-| **Cache offline** | Sincronizza il ricettario in locale; funziona anche senza rete verso Mealie |
-| **Installazione guidata** | Impostazioni → Ricette → Discovery / Installa Mealie (Docker) con token e URL configurati automaticamente |
-| **Lista spesa da ricetta** | Ingredienti mancanti → suggerimento o aggiunta automatica a Bring! / lista interna (configurabile) |
+| Feature | Description |
+|---------|-------------|
+| **Recipes from pantry** | Match Mealie recipes to what you have in stock (Gemini fallback in Auto mode) |
+| **Offline cache** | Sync recipe book locally; works without network to Mealie |
+| **Guided setup** | Settings → Recipes → Discover / Install Mealie (Docker) with automatic URL/token |
+| **Recipe → shopping list** | Missing ingredients → suggest or auto-add to Bring! or internal list (`RECIPE_SHOPPING_MODE`) |
 
-Variabili `.env`: `MEALIE_URL`, `MEALIE_API_TOKEN`, `RECIPE_SOURCE` (auto/mealie/gemini), `MEALIE_OFFLINE`, `RECIPE_SHOPPING_MODE` (off/suggest/auto).
+Env vars: `MEALIE_URL`, `MEALIE_API_TOKEN`, `RECIPE_SOURCE` (auto/mealie/gemini), `MEALIE_OFFLINE`, `RECIPE_SHOPPING_MODE` (off/suggest/auto), `SHOPPING_MODE` (internal/bring), `SHOPPING_REMOVED_BLOCK_DAYS` (default 15).
 
 ### 🆕 Release 1.7.52 (2026-07-04)
 
@@ -182,7 +201,8 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Generic shopping names** — Products are grouped by type (e.g. "Milk", "Cold cuts", "Cooking cream") rather than brand, keeping the Bring! list clean and consolidated
 - **Smart predictions** — Know what you'll need before you run out
 - **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
-- **Auto-remove on scan** — Products are removed from the shopping list when scanned in  - **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
+- **Auto-remove on scan** — Products are removed from the shopping list when scanned in shopping mode
+- **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
   - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app
 
 ### 🍳 Cooking Mode

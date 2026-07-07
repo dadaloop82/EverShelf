@@ -2030,6 +2030,7 @@ function guessLocation(product) {
 // ===== STATE =====
 let currentProduct = null;
 let currentInventory = [];
+let _allInventoryCache = [];
 let _actionInventoryItems = [];
 let currentLocation = '';
 let scannerStream = null;
@@ -4031,6 +4032,27 @@ function removeAppliance(idx) {
     renderAppliances(s.appliances);
 }
 
+function _isShoppingBringMode() {
+    return (getSettings().shopping_mode || 'internal') === 'bring';
+}
+
+/** Update shopping-page labels when using internal list vs Bring! (integration code stays; mode toggles UI). */
+function _applyShoppingListLabels() {
+    const bring = _isShoppingBringMode();
+    const syncLabel = `🔄 ${t(bring ? 'shopping.force_sync' : 'shopping.force_sync_list')}`;
+    const syncBtn = document.getElementById('btn-force-sync');
+    if (syncBtn) syncBtn.textContent = syncLabel;
+    document.querySelectorAll('.shopping-actions button[onclick="forceSyncBring()"]').forEach(el => {
+        el.textContent = syncLabel;
+    });
+    const smartAddBtn = document.querySelector('#smart-actions .btn-success');
+    if (smartAddBtn) smartAddBtn.textContent = t(bring ? 'shopping.smart_add' : 'shopping.smart_add_list');
+    const selectedBtn = document.querySelector('[data-i18n="shopping.bring_add_selected"]');
+    if (selectedBtn) {
+        selectedBtn.textContent = `✅ ${t(bring ? 'shopping.bring_add_selected' : 'shopping.list_add_selected')}`;
+    }
+}
+
 function _applyShoppingSettingsUI(s) {
     const enabledEl = document.getElementById('setting-shopping-enabled');
     if (enabledEl) enabledEl.checked = s.shopping_enabled !== false;
@@ -4044,6 +4066,7 @@ function _applyShoppingSettingsUI(s) {
     if (forecastEl) forecastEl.checked = s.shopping_forecast !== false;
     const autoAddEl = document.getElementById('setting-shopping-auto-add');
     if (autoAddEl) autoAddEl.value = s.shopping_auto_add_threshold || 0;
+    _applyShoppingListLabels();
 }
 
 function onShoppingEnabledChange() {
@@ -4061,6 +4084,7 @@ function onShoppingModeChange(value) {
     saveSettingsToStorage(s);
     _saveSettingToServer({ shopping_mode: value }).then((ok) => {
         if (ok) showToast(value === 'bring' ? 'Bring! attivato' : 'Lista spesa interna attivata', 'success');
+        _applyShoppingListLabels();
     });
 }
 
@@ -4485,6 +4509,7 @@ function showPage(pageId, param = null, options = {}) {
         case 'shopping':
             _getShoppingInventoryCache();
             _initShoppingPageInteractionTracking();
+            _applyShoppingListLabels();
             loadShoppingList();
             break;
         case 'recipe': loadRecipeArchive(); break;
@@ -5312,9 +5337,10 @@ async function loadDashboard() {
         // Expiring items
         const expiringSection = document.getElementById('alert-expiring');
         const expiringList = document.getElementById('expiring-list');
-        if (statsData.expiring_soon && statsData.expiring_soon.length > 0) {
+        const visibleExpiring = (statsData.expiring_soon || []).filter(item => !isInventoryDepleted(item));
+        if (visibleExpiring.length > 0) {
             expiringSection.style.display = 'block';
-            expiringList.innerHTML = statsData.expiring_soon.map(item => {
+            expiringList.innerHTML = visibleExpiring.map(item => {
                 const days = daysUntilExpiry(item.expiry_date);
                 let badgeText, badgeClass;
                 if (days === 0) { badgeText = t('expiry.today'); badgeClass = 'today'; }
@@ -5322,7 +5348,7 @@ async function loadDashboard() {
                 else if (days <= 7) { badgeText = t('expiry.days').replace('{days}', days); badgeClass = 'expiring'; }
                 else if (days <= 30) { badgeText = t('expiry.days_compact').replace('{n}', days); badgeClass = 'expiring-soon'; }
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? t('expiry.days_compact').replace('{n}', days) : t('expiry.months_approx').replace('{n}', m); badgeClass = 'expiring-later'; }
-                const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+                const qtyDisplay = alertQtyDisplay(item);
                 return `
                 <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
@@ -5343,6 +5369,7 @@ async function loadDashboard() {
         const expiredSection = document.getElementById('alert-expired');
         const expiredList = document.getElementById('expired-list');
         const visibleExpired = (statsData.expired || []).filter(item => {
+            if (isInventoryDepleted(item)) return false;
             const days = Math.abs(daysUntilExpiry(item.expiry_date));
             return getExpiredSafety(item, days).level !== 'ok';
         });
@@ -5356,7 +5383,7 @@ async function loadDashboard() {
                 else daysText = t('expiry.expired_days').replace('{days}', days);
                 const safety = getExpiredSafety(item, days);
                 const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
-                const qtyDisplayExp = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+                const qtyDisplayExp = alertQtyDisplay(item);
                 return `
                 <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
                     <div class="alert-item-info">
@@ -5639,6 +5666,7 @@ async function loadBannerAlerts() {
         // 1. Expired products (highest priority) - derived from inventory
         // Also considers opened_at: if item is opened and its opened-shelf-life has passed, it's expired too
         items.forEach(item => {
+            if (isInventoryDepleted(item)) return;
             if (!item.expiry_date && !item.opened_at) return;
             if (confirmed['exp_' + item.id]) return;
 
@@ -5680,7 +5708,7 @@ async function loadBannerAlerts() {
         // life. Trust the server: any opened item with is_edible=false that isn't already
         // queued goes into the banner as expired — unless safety is still 'ok'.
         const openedNotEdible = (statsData.opened || []).filter(oi =>
-            !oi.is_edible && !_queuedItemIds.has(oi.id) && !confirmed['exp_' + oi.id] && invById[oi.id]
+            !isInventoryDepleted(oi) && !oi.is_edible && !_queuedItemIds.has(oi.id) && !confirmed['exp_' + oi.id] && invById[oi.id]
         );
         openedNotEdible.forEach(oi => {
             const live = invById[oi.id];
@@ -6560,12 +6588,32 @@ function formatSubRemainder(amt, pkgUnit) {
 }
 
 function _pzFractionLabel(n) {
-    const whole = Math.floor(n);
-    const frac = Math.round((n - whole) * 4) / 4; // nearest quarter
+    const q = parseFloat(n);
+    if (isNaN(q) || q <= 0.05) return '0';
+    // Nearest quarter; values like 0.9 must not display as "0"
+    let rounded = Math.round(q * 4) / 4;
+    if (rounded >= 0.875 && rounded < 1.25) return '1';
+    if (rounded < 0.25) rounded = 0.25;
+    const whole = Math.floor(rounded);
+    const frac = Math.round((rounded - whole) * 4) / 4;
     const fracMap = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
     const fracStr = fracMap[frac] || '';
-    if (whole === 0) return fracStr || '0';
-    return `${whole}${fracStr}`;
+    if (whole === 0) return fracStr || String(rounded);
+    return fracStr ? `${whole}${fracStr}` : String(whole);
+}
+
+/** Stock at/below depletion threshold — treat as finished, not expired. */
+function isInventoryDepleted(item) {
+    const q = parseFloat(item?.quantity);
+    if (isNaN(q) || q <= 0) return true;
+    const unit = (item?.unit || 'pz').toLowerCase();
+    const thresholds = { g: 20, ml: 20, kg: 0.02, l: 0.02, conf: 0.1, pz: 0.5 };
+    return q <= (thresholds[unit] ?? 0.5);
+}
+
+function alertQtyDisplay(item) {
+    if (isInventoryDepleted(item)) return t('shopping.out_of_stock');
+    return stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
 }
 
 function formatQuantity(qty, unit, defaultQty, packageUnit) {
@@ -6737,9 +6785,18 @@ function formatPackageFraction(qty, defaultQty) {
 // ===== INVENTORY =====
 async function loadInventory() {
     try {
-        const data = await api('inventory_list', currentLocation ? { location: currentLocation } : {});
-        currentInventory = data.inventory || [];
-        renderInventory(currentInventory);
+        const [locData, allData] = await Promise.all([
+            api('inventory_list', currentLocation ? { location: currentLocation } : {}),
+            currentLocation ? api('inventory_list', {}) : null,
+        ]);
+        currentInventory = locData.inventory || [];
+        _allInventoryCache = currentLocation ? (allData?.inventory || []) : currentInventory;
+        const q = document.getElementById('inventory-search')?.value?.trim();
+        if (q) {
+            filterInventory();
+        } else {
+            renderInventory(currentInventory);
+        }
         loadQuickAccess();
     } catch (err) {
         console.error('Inventory load error:', err);
@@ -6776,6 +6833,8 @@ function renderInventoryItem(item) {
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
+            <div class="inv-swipe-edge inv-swipe-edge-left" aria-hidden="true">${escapeHtml(t('inventory.swipe_edge_use'))}</div>
+            <div class="inv-swipe-edge inv-swipe-edge-right" aria-hidden="true">${escapeHtml(t('inventory.swipe_edge_edit'))}</div>
             <div class="inv-image">
                 ${_invImageHtml(item.image_url, catIcon)}
             </div>
@@ -6809,7 +6868,8 @@ function _inventorySwipeUseQty(item) {
 }
 
 async function _inventoryQuickUseOne(invId) {
-    const item = currentInventory.find(i => i.id == invId);
+    const item = currentInventory.find(i => i.id == invId)
+        || _allInventoryCache.find(i => i.id == invId);
     if (!item) return;
     const qty = _inventorySwipeUseQty(item);
     try {
@@ -6848,42 +6908,58 @@ function invRowTap(ev) {
 
 function _initInventoryRowSwipe(container) {
     if (!container) return;
-    if (container._invSwipeHandlers) {
-        container.removeEventListener('touchstart', container._invSwipeHandlers.start);
-        container.removeEventListener('touchmove', container._invSwipeHandlers.move);
-        container.removeEventListener('touchend', container._invSwipeHandlers.end);
-        container.removeEventListener('touchcancel', container._invSwipeHandlers.end);
+    if (container._invSwipeTeardown) {
+        container._invSwipeTeardown();
+        container._invSwipeTeardown = null;
     }
-    let startX = 0, startY = 0, activeRow = null, activeContent = null, dragging = false;
+    let startX = 0, startY = 0, activeRow = null, activeContent = null, dragging = false, activePointerId = null;
+
+    const pointFromEvent = (e, useChanged) => {
+        if (useChanged && e.changedTouches && e.changedTouches.length) {
+            const t0 = e.changedTouches[0];
+            return { x: t0.clientX, y: t0.clientY };
+        }
+        if (e.touches && e.touches.length) {
+            const t0 = e.touches[0];
+            return { x: t0.clientX, y: t0.clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
+    };
 
     const onStart = (e) => {
+        if (e.type.startsWith('pointer') && e.button !== 0) return;
+        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
         activeRow = row;
         activeContent = row.querySelector('.inv-row-content');
         if (!activeContent) return;
-        const t0 = e.touches[0];
-        startX = t0.clientX;
-        startY = t0.clientY;
+        const pt = pointFromEvent(e, false);
+        startX = pt.x;
+        startY = pt.y;
         dragging = true;
+        activePointerId = e.pointerId ?? null;
         row.dataset.invSwipeDone = '';
         activeContent.style.transition = 'none';
+        if (e.pointerId !== undefined && row.setPointerCapture) {
+            try { row.setPointerCapture(e.pointerId); } catch (_) {}
+        }
     };
 
     const onMove = (e) => {
         if (!dragging || !activeContent || !activeRow) return;
-        const t0 = e.touches[0];
-        const dx = t0.clientX - startX;
-        const dy = Math.abs(t0.clientY - startY);
+        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
+        const pt = pointFromEvent(e, false);
+        const dx = pt.x - startX;
+        const dy = Math.abs(pt.y - startY);
         if (dy > 40 && Math.abs(dx) < 16) {
             dragging = false;
             activeRow = null;
             activeContent = null;
+            activePointerId = null;
             return;
         }
-        if (Math.abs(dx) > 10) {
-            e.preventDefault();
-        }
+        if (Math.abs(dx) > 10) e.preventDefault();
         const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
         activeContent.style.transform = `translateX(${clamped}px)`;
         activeRow.classList.toggle('swipe-right', dx > 40);
@@ -6891,18 +6967,23 @@ function _initInventoryRowSwipe(container) {
     };
 
     const onEnd = (e) => {
+        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
         const row = activeRow;
         const content = activeContent;
         activeRow = null;
         activeContent = null;
         dragging = false;
+        activePointerId = null;
         if (!row || !content) return;
         content.style.transition = 'transform 0.2s ease';
-        const t0 = e.changedTouches[0];
-        const dx = t0.clientX - startX;
-        const dy = Math.abs(t0.clientY - startY);
+        const pt = pointFromEvent(e, true);
+        const dx = pt.x - startX;
+        const dy = Math.abs(pt.y - startY);
         content.style.transform = '';
         row.classList.remove('swipe-right', 'swipe-left');
+        if (e.pointerId !== undefined && row.releasePointerCapture) {
+            try { row.releasePointerCapture(e.pointerId); } catch (_) {}
+        }
 
         const invId = parseInt(row.dataset.invId, 10);
         const productId = parseInt(row.dataset.productId, 10);
@@ -6920,7 +7001,6 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        // Scroll verticale evidente senza swipe orizzontale → ignora
         if (dy > 55 && Math.abs(dx) < 20) return;
         if (!isNaN(productId)) {
             row.dataset.invSwipeDone = '1';
@@ -6929,22 +7009,64 @@ function _initInventoryRowSwipe(container) {
         }
     };
 
-    container._invSwipeHandlers = { start: onStart, move: onMove, end: onEnd };
-    container.addEventListener('touchstart', onStart, { passive: true });
-    container.addEventListener('touchmove', onMove, { passive: false });
-    container.addEventListener('touchend', onEnd, { passive: true });
-    container.addEventListener('touchcancel', onEnd, { passive: true });
+    const bindings = [
+        ['pointerdown', onStart, { passive: true }],
+        ['pointermove', onMove, { passive: false }],
+        ['pointerup', onEnd, { passive: true }],
+        ['pointercancel', onEnd, { passive: true }],
+    ];
+    bindings.forEach(([ev, fn, opts]) => container.addEventListener(ev, fn, opts));
+    container._invSwipeTeardown = () => bindings.forEach(([ev, fn, opts]) => container.removeEventListener(ev, fn, opts));
 }
 
-function renderInventory(items) {
+function renderInventory(items, options = {}) {
     const container = document.getElementById('inventory-list');
+    const guide = document.getElementById('inv-swipe-guide');
     if (items.length === 0) {
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
+        if (guide) guide.hidden = true;
         return;
     }
-    container.innerHTML = renderGroupedByCategory(items, false);
+    if (guide) guide.hidden = false;
+    container.innerHTML = options.flat
+        ? items.map(item => renderInventoryItem(item)).join('')
+        : renderGroupedByCategory(items, false);
     _refineCategoryBadgesAsync();
     _initInventoryRowSwipe(container);
+}
+
+/** Relevance score for dispensa search (higher = better match). */
+function _inventorySearchScore(item, q) {
+    if (!q) return 0;
+    const name = (item.name || '').toLowerCase();
+    const brand = (item.brand || '').toLowerCase();
+    const shopping = (item.shopping_name || '').toLowerCase();
+    const barcode = item.barcode || '';
+
+    if (name === q) return 1000;
+    if (shopping === q) return 980;
+    if (name.startsWith(q)) return 850;
+    if (shopping.startsWith(q)) return 820;
+
+    const nameFirst = (_nameTokens(item.name)[0] || '').toLowerCase();
+    const shopFirst = (_nameTokens(item.shopping_name || '')[0] || '').toLowerCase();
+    if (nameFirst === q) return 700;
+    if (shopFirst === q) return 680;
+
+    const wordRx = new RegExp('\\b' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (wordRx.test(name)) return 500;
+    if (wordRx.test(shopping)) return 480;
+    if (brand.includes(q)) return 200;
+    if (barcode.includes(q)) return 150;
+    if (name.includes(q)) return 80;
+    if (shopping.includes(q)) return 75;
+
+    const itemCat = mapToLocalCategory(item.category, item.name);
+    if (q === itemCat) return 15;
+    const catLabel = (t('categories.' + itemCat) || '').toLowerCase().replace(/[^\p{L}\s]/gu, '').trim();
+    if (catLabel && catLabel === q) return 15;
+
+    return 0;
 }
 
 /**
@@ -6985,22 +7107,36 @@ function filterInventory() {
         return;
     }
     if (qas) qas.style.display = 'none';
-    // Category inferred from the search term itself (e.g. "biscotti" → "snack")
-    const queryCat = guessCategoryFromName(q);
-    const filtered = currentInventory.filter(i => {
-        if (i.name.toLowerCase().includes(q)) return true;
-        if (i.brand && i.brand.toLowerCase().includes(q)) return true;
-        if (i.barcode && i.barcode.includes(q)) return true;
-        const itemCat = mapToLocalCategory(i.category, i.name);
-        // Match category key directly (e.g. "snack", "latticini")
-        if (itemCat.includes(q)) return true;
-        // Match category label (e.g. "dolci" matches "Snack & Dolci", "riso" matches "Pasta & Riso")
-        if ((CATEGORY_LABELS[itemCat] || '').toLowerCase().includes(q)) return true;
-        // Match by inferred category: "biscotti" → queryCat="snack" → all snack items
-        if (queryCat !== 'altro' && itemCat === queryCat) return true;
-        return false;
+
+    const pool = _allInventoryCache.length ? _allInventoryCache : currentInventory;
+    const scored = pool.map(item => ({ item, score: _inventorySearchScore(item, q) }));
+    let matched = scored.filter(s => s.score >= 15);
+
+    // Same shopping_name family (e.g. all «Latte» variants) when query hits the group
+    const familyKeys = new Set();
+    for (const { item, score } of matched) {
+        if (score >= 480 && item.shopping_name) {
+            familyKeys.add(item.shopping_name.toLowerCase());
+        }
+    }
+    if (familyKeys.size) {
+        const seen = new Set(matched.map(m => m.item.id));
+        for (const item of pool) {
+            if (seen.has(item.id)) continue;
+            const sn = (item.shopping_name || '').toLowerCase();
+            if (sn && familyKeys.has(sn)) {
+                matched.push({ item, score: 460 });
+                seen.add(item.id);
+            }
+        }
+    }
+
+    matched.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.item.name || '').localeCompare(b.item.name || '', 'it');
     });
-    renderInventory(filtered);
+
+    renderInventory(matched.map(m => m.item), { flat: true });
 }
 
 // ===== QUICK ACCESS: RECENT & POPULAR =====
@@ -12819,6 +12955,20 @@ function _effectiveSmartQty(smartData) {
     return null;
 }
 
+/** Discrete packages/pieces for footer stats — never sum raw g/ml as "pezzi". */
+function _discreteFooterQty(smartData) {
+    const eff = _effectiveSmartQty(smartData);
+    if (!eff?.suggested_qty || eff.suggested_qty <= 0) return 1;
+    const unit = (eff.suggested_unit || smartData?.unit || 'conf').toLowerCase();
+    if (unit === 'conf' || unit === 'pz') return eff.suggested_qty;
+    if (unit === 'g' || unit === 'ml') {
+        const defQty = parseFloat(smartData?.default_qty) || 0;
+        if (defQty > 0) return Math.max(1, Math.ceil(eff.suggested_qty / defQty));
+        return 1;
+    }
+    return Math.max(1, Math.min(50, Math.round(eff.suggested_qty)));
+}
+
 function _shoppingSuggestedToAddQty(smartData) {
     const eff = _effectiveSmartQty(smartData);
     if (!eff?.suggested_qty || eff.suggested_qty <= 0) {
@@ -12973,8 +13123,8 @@ function _unmarkAutoAddedBring(names) {
 }
 
 // ===== BRING! PURCHASED BLOCKLIST (server-synced) =====
-// When an item disappears from Bring (user bought it), we block auto-re-add for 4h.
-const _BRING_PURCHASED_TTL = 72 * 60 * 60 * 1000; // 72 h — match server blocklist
+// When an item disappears from the list (bought / removed), block auto-re-add for 15 days (server TTL).
+const _BRING_PURCHASED_TTL = 15 * 24 * 60 * 60 * 1000;
 
 function _getBringPurchasedBlocklist() {
     const map = Object.assign({}, _bringBlocklistCache || {});
@@ -13065,7 +13215,7 @@ async function forceSyncBring() {
     // Reload everything from scratch
     await loadShoppingList();
     await syncShoppingPriceTotal(true);
-    if (btn) { btn.disabled = false; btn.textContent = `🔄 ${t('shopping.force_sync')}`; }
+    if (btn) { btn.disabled = false; btn.textContent = `🔄 ${t(_isShoppingBringMode() ? 'shopping.force_sync' : 'shopping.force_sync_list')}`; }
     showToast(`🔄 ${t('shopping.sync_done')}`, 'success');
 }
 
@@ -13945,7 +14095,7 @@ function _restoreShoppingScroll(y) {
 
 function _shoppingRenderSignature() {
     const days = getShoppingPlanDays();
-    const itemsSig = shoppingItems.map(i => `${i.name}|${i.specification || ''}`).join('§');
+    const itemsSig = shoppingItems.map(i => `${i.name}|${i.specification || ''}|${i.urgency || ''}`).join('§');
     const smartSig = smartShoppingItems.map(i => {
         const eff = _effectiveSmartQty(i);
         return `${i.shopping_name || i.name}:${eff?.suggested_qty ?? ''}:${eff?.suggested_unit ?? ''}:${i.urgency}:${i.on_bring}`;
@@ -14204,7 +14354,7 @@ function renderSmartItem(item) {
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
                         ${freqBadge}${predBadge}${expiryBadge}${suggestBadge}
                         ${item.is_opened ? `<span class="smart-freq-badge freq-low">${t('inventory.opened_badge')}</span>` : ''}
-                        ${item.on_bring ? `<span class="smart-bring-badge">${t('shopping.bring_badge')}</span>` : ''}
+                        ${item.on_bring ? `<span class="smart-bring-badge">${t(_isShoppingBringMode() ? 'shopping.bring_badge' : 'shopping.list_badge')}</span>` : ''}
                     </div>
                 </div>
                 <div class="smart-item-stock">
@@ -14455,7 +14605,7 @@ async function loadShoppingList() {
     }
     
     statusEl.style.display = 'block';
-    statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t('shopping.bring_loading')}</div>`;
+    statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t(_isShoppingBringMode() ? 'shopping.bring_loading' : 'shopping.list_loading')}</div>`;
     currentEl.style.display = 'none';
     suggestionsEl.style.display = 'none';
 
@@ -14582,6 +14732,23 @@ const URGENCY_BORDER = {
     low: '#22c55e',
 };
 
+/** Resolve urgency: API field → smart match → spec markers. */
+function _resolveShoppingItemUrgency(item, smartData) {
+    if (item?.urgency) return item.urgency;
+    if (smartData?.urgency) return smartData.urgency;
+    const spec = (item?.specification || '').toLowerCase();
+    if (spec.includes('urgente') || item?.specification?.includes('⚡')) return 'critical';
+    if (spec.includes('presto') || item?.specification?.includes('🟠')) return 'high';
+    if (spec.includes('a breve') || spec.includes('pianifica') || item?.specification?.includes('🟡')) return 'medium';
+    if (spec.includes('previsione') || item?.specification?.includes('🔵')) return 'low';
+    return null;
+}
+
+function _shopRowUrgencyClass(urgency) {
+    if (!urgency || !URGENCY_BORDER[urgency]) return '';
+    return ` shop-row-urgency-${urgency}`;
+}
+
 function _updateShoppingFooter() {
     const footer = document.getElementById('shopping-footer');
     const statsEl = document.getElementById('shopping-footer-stats');
@@ -14594,9 +14761,7 @@ function _updateShoppingFooter() {
     let totalQty = 0;
     for (const item of shoppingItems) {
         const smart = _matchBringToSmart(item.name, smartShoppingItems);
-        const eff = _effectiveSmartQty(smart);
-        const sq = eff?.suggested_qty;
-        totalQty += (sq > 0 ? sq : 1);
+        totalQty += _discreteFooterQty(smart);
     }
     statsEl.textContent = t('shopping.footer_stats')
         .replace('{items}', n)
@@ -14662,7 +14827,7 @@ function _shopRowQtyHtml(smartData) {
     return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}</span>`;
 }
 
-function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml }) {
+function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
     return `
     <div class="shop-row-swipe-zones">
         <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
@@ -14676,6 +14841,7 @@ function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml }) {
                 <div class="shop-row-title">
                     <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
                     ${qtyHtml}
+                    ${urgencyBadge}
                 </div>
             </div>
             ${priceCell || ''}
@@ -14850,7 +15016,7 @@ function _renderShoppingSuggestionsInline() {
         const qtyHtml = _shopRowQtyHtml(item);
         const border = URGENCY_BORDER[item.urgency] || URGENCY_BORDER.low;
         const visualHtml = _shopRowVisualHtmlFromSmart(item);
-        html += `<div class="shop-row shop-row-suggest" data-suggest-idx="${globalIdx}" style="border-left-color:${border}">
+        html += `<div class="shop-row shop-row-suggest${_shopRowUrgencyClass(item.urgency)}" data-suggest-idx="${globalIdx}">
             <div class="shop-row-swipe-bg shop-row-swipe-bg-right">${escapeHtml(t('shopping.swipe_add'))}</div>
             <div class="shop-row-content">
                 <div class="shop-row-main">
@@ -14902,12 +15068,7 @@ async function renderShoppingItems(force = false) {
 
     const enrichedRaw = shoppingItems.map((item, idx) => {
         const smartData = _matchBringToSmart(item.name, smartShoppingItems);
-        let urgency = smartData?.urgency || null;
-        if (!urgency && item.specification) {
-            const spec = item.specification.toLowerCase();
-            if (spec.includes('urgente')) urgency = 'critical';
-            else if (spec.includes('presto')) urgency = 'high';
-        }
+        const urgency = _resolveShoppingItemUrgency(item, smartData);
         const sec = getItemSection(item.name, smartData);
         return { item, idx, smartData, urgency, sec };
     });
@@ -14947,14 +15108,17 @@ async function renderShoppingItems(force = false) {
             const displayName = _shoppingListGenericTitle(item, smartData);
             const qtyHtml = _shopRowQtyHtml(smartData);
             const visualHtml = _shopRowVisualHtml(item, smartData);
-            const borderColor = urgency ? (URGENCY_BORDER[urgency] || 'transparent') : 'transparent';
+            const urgencyClass = _shopRowUrgencyClass(urgency);
+            const urgencyBadge = (urgency === 'critical' || urgency === 'high')
+                ? `<span class="shop-row-urgency-badge shop-row-urgency-badge--${urgency}">${urgency === 'critical' ? '⚡' : '🟠'} ${t(urgency === 'critical' ? 'shopping.urgency_critical' : 'shopping.urgency_high')}</span>`
+                : '';
             const priceCell = priceEnabled
                 ? `<div class="shop-row-price" id="price-badge-${idx}" onclick="event.stopPropagation();showPriceDetail(${idx})"><span class="price-col-loading">…</span></div>`
                 : '';
 
             html += `
-            <div class="shop-row" id="shop-item-${idx}" data-idx="${idx}" style="border-left-color:${borderColor}">
-                ${_shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml })}
+            <div class="shop-row${urgencyClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
+                ${_shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgencyBadge })}
             </div>`;
         }
         html += '</div>';
@@ -20587,7 +20751,8 @@ async function _spesaRemovePurchasedFromList(product, addResult) {
     }
 
     const generic = product.shopping_name || product.name;
-    if (!addResult?.removed_from_bring) {
+    const needsClientRemove = getSettings().shopping_mode !== 'bring' || !addResult?.removed_from_bring;
+    if (needsClientRemove) {
         try {
             const match = _findSimilarItem(generic, shoppingItems) || _findSimilarItem(product.name, shoppingItems);
             const r = await api('shopping_remove', {}, 'POST', {
@@ -20875,8 +21040,12 @@ function _getMissingSetupSteps(serverSettings) {
     if (!setupDone) {
         // Step 1 — Gemini API key (check both localStorage and server .env)
         if (!s.gemini_key && !srv.gemini_key_set) missing.push(1);
-        // Step 2 — Bring! credentials (check both localStorage and server .env)
-        if ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set)) missing.push(2);
+        // Step 2 — Bring! credentials (only when SHOPPING_MODE=bring)
+        const shoppingMode = srv.shopping_mode || s.shopping_mode || 'internal';
+        if (shoppingMode === 'bring'
+            && ((!s.bring_email && !srv.bring_email) || (!s.bring_password && !srv.bring_password_set))) {
+            missing.push(2);
+        }
         // Step 3 — Google Drive backup (always optional on first run, skippable)
         if (!srv.gdrive_refresh_token_set && !srv.gdrive_folder_id) missing.push(3);
     }
