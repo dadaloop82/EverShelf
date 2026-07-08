@@ -6612,6 +6612,11 @@ function isInventoryDepleted(item) {
     return q <= (thresholds[unit] ?? 0.5);
 }
 
+/** Items shown in the inventory list (excludes depleted / trace leftovers). */
+function _inventoryVisibleItems(items) {
+    return (items || []).filter(i => !isInventoryDepleted(i));
+}
+
 function alertQtyDisplay(item) {
     if (isInventoryDepleted(item)) return t('shopping.out_of_stock');
     return stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
@@ -6790,8 +6795,10 @@ async function loadInventory() {
             api('inventory_list', currentLocation ? { location: currentLocation } : {}),
             currentLocation ? api('inventory_list', {}) : null,
         ]);
-        currentInventory = locData.inventory || [];
-        _allInventoryCache = currentLocation ? (allData?.inventory || []) : currentInventory;
+        currentInventory = _inventoryVisibleItems(locData.inventory || []);
+        _allInventoryCache = currentLocation
+            ? _inventoryVisibleItems(allData?.inventory || [])
+            : currentInventory;
         const q = document.getElementById('inventory-search')?.value?.trim();
         if (q) {
             filterInventory();
@@ -6995,15 +7002,16 @@ function _initInventoryRowSwipe(container) {
 function renderInventory(items, options = {}) {
     const container = document.getElementById('inventory-list');
     const guide = document.getElementById('inv-swipe-guide');
-    if (items.length === 0) {
+    const visible = _inventoryVisibleItems(items);
+    if (visible.length === 0) {
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         if (guide) guide.hidden = true;
         return;
     }
     if (guide) guide.hidden = false;
     container.innerHTML = options.flat
-        ? items.map(item => renderInventoryItem(item)).join('')
-        : renderGroupedByCategory(items, false);
+        ? visible.map(item => renderInventoryItem(item)).join('')
+        : renderGroupedByCategory(visible, false);
     _refineCategoryBadgesAsync();
     _initInventoryRowSwipe(container);
 }
@@ -7081,7 +7089,7 @@ function filterInventory() {
     }
     if (qas) qas.style.display = 'none';
 
-    const pool = _allInventoryCache.length ? _allInventoryCache : currentInventory;
+    const pool = _inventoryVisibleItems(_allInventoryCache.length ? _allInventoryCache : currentInventory);
     const scored = pool.map(item => ({ item, score: _inventorySearchScore(item, q) }));
     let matched = scored.filter(s => s.score >= 15);
 
@@ -7118,8 +7126,8 @@ async function loadQuickAccess() {
     if (!section) return;
     try {
         const data = await api('recent_popular_products');
-        const recent = data.recent || [];
-        const popular = data.popular || [];
+        const recent = (data.recent || []).filter(p => parseFloat(p.stock_qty ?? 0) > 0.001);
+        const popular = (data.popular || []).filter(p => parseFloat(p.stock_qty ?? 0) > 0.001);
         const recentIds = data.recent_ids || [];
 
         const recentGroup = document.getElementById('quick-recent-group');

@@ -3181,6 +3181,7 @@ function listInventory(PDO $db): void {
     $stmt = $db->prepare($query);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+    $rows = array_values(array_filter($rows, fn(array $r): bool => !isInventoryDepleted($r)));
     EverLog::debug('inventory_list fetched', ['rows' => count($rows), 'location' => $location ?: 'all']);
     echo json_encode(['inventory' => $rows]);
 }
