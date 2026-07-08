@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.57] - 2026-07-08
+
+### Added
+- **Product detail sheet** — Tap an inventory row for a 2×2 action grid: Use, Used all, Create recipe, Discard; edit in header.
+- **Use form idle countdown** — 15 s reverse progress on submit for piece/package units (grams/ml require manual entry).
+- **Corporate UI guide** — [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md) documents tokens, button intents, and list interaction patterns.
+
+### Changed
+- **Inventory nav label** — “List” / “Lista” (and equivalents) instead of “Pantry” / “Dispensa” for the list page; location tab names unchanged.
+- **Swipe left** — Opens Use quantity screen instead of consuming one unit immediately.
+- **Grams/ml defaults** — Empty quantity field on Use page; user must enter amount (no auto-fill or idle submit).
+
 ## [1.7.56] - 2026-07-07
 
 ### Added

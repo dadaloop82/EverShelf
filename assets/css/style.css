@@ -32,6 +32,20 @@
     --radius-sm: 10px;
     --nav-height: 70px;
     --header-height: 56px;
+    /* EverShelf corporate tokens */
+    --es-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --es-radius-card: var(--radius-sm);
+    --es-btn-height: 48px;
+    --es-btn-height-lg: 52px;
+    --es-space-xs: 4px;
+    --es-space-sm: 8px;
+    --es-space-md: 12px;
+    --es-space-lg: 16px;
+    --es-space-xl: 24px;
+    --es-action-use: var(--warning);
+    --es-action-success: var(--success);
+    --es-action-recipe: var(--accent);
+    --es-action-danger: var(--danger);
 }
 
 * {
@@ -42,7 +56,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--es-font);
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
@@ -1519,6 +1533,199 @@ body.server-offline .bottom-nav {
 
 .inventory-list {
     touch-action: pan-y;
+}
+
+/* ===== Item detail modal (corporate) ===== */
+.item-detail-modal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--es-space-md);
+}
+
+.item-detail-header {
+    align-items: flex-start;
+    gap: var(--es-space-sm);
+}
+
+.item-detail-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    flex: 1;
+    margin: 0;
+}
+
+.item-detail-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--es-radius-card);
+    background: var(--bg-card);
+    font-size: 1rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.item-detail-hero {
+    display: flex;
+    gap: var(--es-space-lg);
+    padding: var(--es-space-lg);
+    background: color-mix(in srgb, var(--bg-card) 92%, var(--primary) 8%);
+    border: 1px solid var(--border);
+    border-radius: var(--es-radius-card);
+}
+
+.item-detail-image {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: var(--es-radius-card);
+    overflow: hidden;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.item-detail-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.item-detail-emoji {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+
+.item-detail-hero-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.item-detail-brand {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin: 0;
+}
+
+.item-detail-qty-pill {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.item-detail-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.item-detail-chip {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text-light);
+    border: 1px solid var(--border);
+}
+
+.item-detail-chip--loc { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary-dark); border-color: transparent; }
+.item-detail-chip--danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); border-color: transparent; }
+.item-detail-chip--warn { background: color-mix(in srgb, var(--warning) 18%, transparent); color: #b45309; border-color: transparent; }
+.item-detail-chip--opened { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border-color: transparent; }
+.item-detail-chip--vacuum { background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success); border-color: transparent; }
+
+.item-detail-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 4px;
+}
+
+.item-detail-meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.82rem;
+    color: var(--text);
+}
+
+.item-detail-meta-label {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.item-detail-mono {
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    word-break: break-all;
+    text-align: right;
+}
+
+.item-detail-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.item-detail-action {
+    min-height: var(--es-btn-height);
+    border: none;
+    border-radius: var(--es-radius-card);
+    font-family: var(--es-font);
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+    color: #fff;
+}
+
+.item-detail-action:active {
+    transform: scale(0.97);
+    opacity: 0.92;
+}
+
+.item-detail-action-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.item-detail-action--use { background: linear-gradient(135deg, var(--es-action-use), var(--warning-light)); color: #1a1a1a; }
+.item-detail-action--all { background: linear-gradient(135deg, var(--es-action-success), var(--success-light)); }
+.item-detail-action--recipe { background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light)); }
+.item-detail-action--throw { background: var(--bg-card); color: var(--es-action-danger); border: 1.5px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+
+.use-idle-hint {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
 .inventory-item:active .inv-row-content {

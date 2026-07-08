@@ -4458,6 +4458,7 @@ function refreshCurrentPage() {
 
 function showPage(pageId, param = null, options = {}) {
     if (pageId !== 'add') clearAddFormIdleCountdown();
+    if (pageId !== 'use') clearUseFormIdleCountdown();
     const skipHistory = !!options.skipHistory;
     if (!skipHistory) {
         const last = _pageHistory[_pageHistory.length - 1];
@@ -6859,51 +6860,14 @@ function renderInventoryItem(item) {
     </div>`;
 }
 
-function _inventorySwipeUseQty(item) {
-    const unit = (item.unit || 'pz').toLowerCase();
-    if (unit === 'pz' || unit === 'conf') return 1;
-    const def = parseFloat(item.default_quantity) || 0;
-    if (def > 0) return def;
-    return 1;
-}
-
-async function _inventoryQuickUseOne(invId) {
-    const item = currentInventory.find(i => i.id == invId)
-        || _allInventoryCache.find(i => i.id == invId);
-    if (!item) return;
-    const qty = _inventorySwipeUseQty(item);
-    try {
-        const result = await api('inventory_use', {}, 'POST', {
-            product_id: item.product_id,
-            quantity: qty,
-            location: item.location,
-            notes: '',
-        });
-        if (!result.success) {
-            showToast(result.error || t('error.generic'), 'error');
-            return;
-        }
-        await loadInventory();
-        const qtyLabel = stripHtml(formatQuantity(qty, item.unit, item.default_quantity, item.package_unit));
-        const txId = result.transaction_id;
-        showActionToast(
-            t('inventory.swipe_used_toast').replace('{name}', item.name).replace('{qty}', qtyLabel),
-            t('inventory.swipe_undo'),
-            () => { if (txId) _doUndoTransaction(txId, 'out', item.name); else loadInventory(); }
-        );
-    } catch (e) {
-        showToast(t('error.network'), 'error');
-    }
-}
-
-/** Tap riga inventario → schermata «Usa» (quantità). Swipe gestito a parte. */
+/** Tap riga inventario → scheda prodotto. Swipe gestito a parte. */
 function invRowTap(ev) {
     const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
     if (!row || row.dataset.invSwipeDone === '1') return;
+    const invId = parseInt(row.dataset.invId, 10);
     const productId = parseInt(row.dataset.productId, 10);
-    const location = row.dataset.location || 'dispensa';
-    if (isNaN(productId)) return;
-    quickUse(productId, location);
+    if (isNaN(invId)) return;
+    showItemDetail(invId, isNaN(productId) ? null : productId);
 }
 
 function _initInventoryRowSwipe(container) {
@@ -6989,10 +6953,10 @@ function _initInventoryRowSwipe(container) {
         const productId = parseInt(row.dataset.productId, 10);
         const location = row.dataset.location || 'dispensa';
 
-        if (dx <= -60 && !isNaN(invId)) {
+        if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             row.dataset.invSwipeDone = '1';
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
-            _inventoryQuickUseOne(invId);
+            quickUse(productId, location);
             return;
         }
         if (dx >= 60 && !isNaN(invId)) {
@@ -7002,10 +6966,10 @@ function _initInventoryRowSwipe(container) {
             return;
         }
         if (dy > 55 && Math.abs(dx) < 20) return;
-        if (!isNaN(productId)) {
+        if (!isNaN(invId)) {
             row.dataset.invSwipeDone = '1';
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
-            quickUse(productId, location);
+            showItemDetail(invId, isNaN(productId) ? null : productId);
         }
     };
 
@@ -7269,6 +7233,21 @@ function quickAccessSelect(productId) {
 }
 
 // ===== ITEM DETAIL MODAL =====
+function _itemDetailExpiryChip(item) {
+    if (!item.expiry_date) return '';
+    const days = daysUntilExpiry(item.expiry_date);
+    const isExpired = days < 0;
+    const isExpiring = !isExpired && days <= 7;
+    let expiryText;
+    if (isExpired) expiryText = t('expiry.badge_expired_ago').replace('{n}', Math.abs(days));
+    else if (days === 0) expiryText = t('expiry.badge_today');
+    else if (days === 1) expiryText = t('expiry.badge_tomorrow');
+    else if (days <= 7) expiryText = t('expiry.badge_days').replace('{n}', days);
+    else expiryText = formatDate(item.expiry_date);
+    const cls = isExpired ? 'item-detail-chip--danger' : isExpiring ? 'item-detail-chip--warn' : 'item-detail-chip--muted';
+    return `<span class="item-detail-chip ${cls}">${escapeHtml(expiryText)}</span>`;
+}
+
 function showItemDetail(inventoryId, productId) {
     const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) {
@@ -7276,67 +7255,78 @@ function showItemDetail(inventoryId, productId) {
         else showToast(t('error.not_in_inventory'), 'error');
         return;
     }
-    
+
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
-    
+    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const chips = [
+        `<span class="item-detail-chip item-detail-chip--loc">${locInfo.icon} ${escapeHtml(locInfo.label)}</span>`,
+        _itemDetailExpiryChip(item),
+        item.opened_at ? `<span class="item-detail-chip item-detail-chip--opened">${t('inventory.opened_badge')}</span>` : '',
+        item.vacuum_sealed ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
+    ].filter(Boolean).join('');
+
+    const metaRows = [
+        item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('product.brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
+        `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
+        item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_status')}</span><span>${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span></div>` : '',
+        item.barcode ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">Barcode</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>` : '',
+    ].filter(Boolean).join('');
+
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${escapeHtml(item.name)}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <div class="product-preview-small" style="margin-bottom:12px">
-            ${ _validProductImageUrl(item.image_url)
-                ? `<img src="${escapeHtml(item.image_url)}" alt="" style="width:60px;height:60px;border-radius:10px;object-fit:cover">`
-                : `<span style="font-size:2.5rem">${catIcon}</span>`
-            }
-            <div class="product-preview-info">
-                <h3>${escapeHtml(item.name)}</h3>
-                <p>${item.brand ? escapeHtml(item.brand) : ''}</p>
+        <div class="item-detail-modal">
+            <div class="modal-header item-detail-header">
+                <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
+                <div class="item-detail-header-actions">
+                    <button type="button" class="btn-icon" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
+                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+                </div>
             </div>
-        </div>
-        <div class="modal-detail">
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_position')}</span>
-                <span class="modal-detail-value">${locInfo.icon} ${locInfo.label}</span>
+            <div class="item-detail-hero">
+                <div class="item-detail-image">
+                    ${_validProductImageUrl(item.image_url)
+                        ? `<img src="${escapeHtml(item.image_url)}" alt="">`
+                        : `<span class="item-detail-emoji">${catIcon}</span>`
+                    }
+                </div>
+                <div class="item-detail-hero-body">
+                    ${item.brand ? `<p class="item-detail-brand">${escapeHtml(item.brand)}</p>` : ''}
+                    <div class="item-detail-qty-pill">${qtyDisplay}</div>
+                    <div class="item-detail-chips">${chips}</div>
+                </div>
             </div>
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_quantity')}</span>
-                <span class="modal-detail-value">${formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)}</span>
+            ${metaRows ? `<div class="item-detail-meta">${metaRows}</div>` : ''}
+            <div class="item-detail-actions">
+                <button type="button" class="item-detail-action item-detail-action--use" onclick="closeModal();quickUse(${item.product_id}, '${item.location}')">
+                    <span class="item-detail-action-icon">📤</span>
+                    <span>${escapeHtml(t('inventory.item_detail_use'))}</span>
+                </button>
+                <button type="button" class="item-detail-action item-detail-action--all" onclick="itemDetailUseAll(${item.product_id}, '${item.location}')">
+                    <span class="item-detail-action-icon">✅</span>
+                    <span>${escapeHtml(t('inventory.item_detail_use_all'))}</span>
+                </button>
+                <button type="button" class="item-detail-action item-detail-action--recipe" data-name="${escapeHtml(item.name)}" onclick="closeModal();generateRecipeForIngredient(this.dataset.name)">
+                    <span class="item-detail-action-icon">🍳</span>
+                    <span>${escapeHtml(t('inventory.item_detail_recipe'))}</span>
+                </button>
+                <button type="button" class="item-detail-action item-detail-action--throw" onclick="itemDetailThrow(${inventoryId})">
+                    <span class="item-detail-action-icon">🗑️</span>
+                    <span>${escapeHtml(t('inventory.item_detail_throw'))}</span>
+                </button>
             </div>
-            ${item.expiry_date ? `
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_expiry')}</span>
-                <span class="modal-detail-value">${formatDate(item.expiry_date)}</span>
-            </div>` : ''}
-            ${item.vacuum_sealed ? `
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_storage')}</span>
-                <span class="modal-detail-value">${t('inventory.vacuum_badge')}</span>
-            </div>` : ''}
-            ${item.opened_at ? `
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_status')}</span>
-                <span class="modal-detail-value">${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span>
-            </div>` : ''}
-            ${item.barcode ? `
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">🔖 Barcode</span>
-                <span class="modal-detail-value">${item.barcode}</span>
-            </div>` : ''}
-            <div class="modal-detail-row">
-                <span class="modal-detail-label">${t('inventory.label_added')}</span>
-                <span class="modal-detail-value">${formatDateTime(item.added_at)}</span>
-            </div>
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-danger flex-1" onclick="quickUse(${item.product_id}, '${item.location}')">📤 ${t('btn.use')}</button>
-            <button class="btn btn-primary flex-1" onclick="editInventoryItem(${inventoryId})">✏️ ${t('btn.edit_item')}</button>
-            <button class="btn btn-accent flex-1" data-name="${escapeHtml(item.name)}" onclick="closeModal();generateRecipeForIngredient(this.dataset.name)">🍳 ${t('action.create_recipe_btn')}</button>
-            <button class="btn btn-secondary" onclick="deleteInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function itemDetailThrow(inventoryId) {
+    deleteInventoryItem(inventoryId);
+}
+
+async function itemDetailUseAll(productId, location) {
+    closeModal();
+    await _openUsePage(productId, location);
+    submitUseAll();
 }
 
 function closeModal() {
@@ -7349,49 +7339,45 @@ function closeModal() {
     _bannerEditPending = false;
 }
 
-async function quickUse(productId, location) {
-    closeModal();
+async function _openUsePage(productId, location) {
     showLoading(true);
     try {
         currentProduct = { id: productId };
-        // Get product info
         const data = await api('product_get', { id: productId });
         if (data.product) {
             currentProduct = data.product;
-            // Extract weight_info from notes if available
             if (!currentProduct.weight_info && currentProduct.notes) {
                 const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
                 if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
             }
         }
         document.getElementById('use-location').value = location;
-        // Mark active location button
         document.querySelectorAll('#page-use .loc-btn').forEach(b => b.classList.remove('active'));
-        const locBtns = document.querySelectorAll('#page-use .loc-btn');
-        locBtns.forEach(b => {
+        document.querySelectorAll('#page-use .loc-btn').forEach(b => {
             if (b.textContent.toLowerCase().includes(location)) b.classList.add('active');
         });
-        
-        renderUsePreview();
 
-        // Reset scale state so the stale weight already on the scale doesn't
-        // immediately trigger an auto-fill. Only a weight *change* (≥10 g) after
-        // the page opens should be treated as a new product being placed.
-        _cancelScaleAutoConfirm(false); // stops timers, clears _scaleStabilityVal & _scaleLastConfirmedGrams
+        renderUsePreview();
+        _cancelScaleAutoConfirm(false);
         if (_scaleLatestWeight) {
             const _baselineG = _scaleToGrams(parseFloat(_scaleLatestWeight.value), _scaleLatestWeight.unit);
             if (_baselineG !== null && _baselineG >= 10) _scaleLastConfirmedGrams = _baselineG;
-            _scaleLatestWeight = null; // prevent immediate call inside loadUseInventoryInfo
+            _scaleLatestWeight = null;
         }
 
-        loadUseInventoryInfo();
-        showLoading(false);
-        showPage('use');
+        await loadUseInventoryInfo();
+        showPage('use', null, { skipHistory: false });
     } catch (err) {
-        showLoading(false);
-        console.error('quickUse error:', err);
+        console.error('_openUsePage error:', err);
         showToast(t('error.loading'), 'error');
+    } finally {
+        showLoading(false);
     }
+}
+
+async function quickUse(productId, location) {
+    closeModal();
+    await _openUsePage(productId, location);
 }
 
 const WASTE_REASON_KEYS = ['expired', 'spoiled', 'wrong_location', 'kept_too_long', 'bought_too_much', 'forgotten', 'bad_quality', 'other'];
@@ -10970,6 +10956,7 @@ async function loadUseInventoryInfo() {
             _useConfMode = null;
             _useCurrentItems = [];
             document.getElementById('use-expiry-hint').style.display = 'none';
+            clearUseFormIdleCountdown();
             return;
         }
 
@@ -11095,11 +11082,13 @@ async function loadUseInventoryInfo() {
             qtyInput.step = 'any';
             qtyInput.min = '1';
             if (unit === 'g' || unit === 'ml') {
-                qtyInput.value = activeLocQty > 0 ? Math.max(1, Math.round(activeLocQty / 2)) : getSubUnitStep(unit);
+                qtyInput.value = '';
+                qtyInput.placeholder = t('use.qty_placeholder');
                 document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
                 _appendUseWeightFractionButtons(activeLocQty, unit);
             } else {
                 qtyInput.value = 1;
+                qtyInput.placeholder = '';
                 document.getElementById('use-partial-hint').textContent = t('use.partial_hint');
             }
 
@@ -11124,6 +11113,7 @@ async function loadUseInventoryInfo() {
             }
             syncUseQtyUnitBadge();
         }
+        _maybeStartUseFormIdleCountdown();
     } catch(e) {
         console.error(e);
     }
@@ -11151,15 +11141,17 @@ function switchUseUnit(mode) {
         qtyInput.min = 1;
         hint.textContent = t('recipes.quantity_in_total', { unit: _useConfMode.subLabel, total: `${Math.round(_useConfMode.totalSub)}${_useConfMode.subLabel}` });
         if (confFracBtns) confFracBtns.style.display = 'none';
+        clearUseFormIdleCountdown();
     } else {
         confBtn.classList.add('active');
         subBtn.classList.remove('active');
         _useConfMode._activeUnit = 'conf';
-        qtyInput.value = Math.min(1, _useConfMode.totalConf); // start at 1 or max if < 1
+        qtyInput.value = Math.min(1, _useConfMode.totalConf);
         qtyInput.step = 'any';
         qtyInput.min = 0.25;
         hint.textContent = t('recipes.packs_of_have', { size: `${_useConfMode.packageSize}${_useConfMode.subLabel}`, count: _useConfMode.totalConf.toFixed(1) });
         if (confFracBtns) confFracBtns.style.display = '';
+        _maybeStartUseFormIdleCountdown();
     }
     syncUseQtyUnitBadge();
 }
@@ -11658,6 +11650,106 @@ let _addFormIdlePageEl = null;
 let _addFormIdleOnInteraction = null;
 const ADD_FORM_IDLE_MS = 30000;
 
+let _useFormIdleTimer = null;
+let _useFormIdleRAF = null;
+let _useFormIdlePageEl = null;
+let _useFormIdleOnInteraction = null;
+const USE_FORM_IDLE_MS = 15000;
+
+function _useFormIdleEligible() {
+    if (_currentPageId !== 'use') return false;
+    if (_useConfMode) {
+        if (_useConfMode._activeUnit === 'sub') return false;
+        if (_useConfMode._activeUnit === 'conf') return true;
+    }
+    const u = _useNormalUnit || (_useCurrentItems?.[0]?.unit || 'pz');
+    if (u === 'g' || u === 'ml') return false;
+    return u === 'pz' || u === 'conf';
+}
+
+function clearUseFormIdleCountdown() {
+    if (_useFormIdleTimer) { clearTimeout(_useFormIdleTimer); _useFormIdleTimer = null; }
+    if (_useFormIdleRAF) { cancelAnimationFrame(_useFormIdleRAF); _useFormIdleRAF = null; }
+    const btn = document.getElementById('btn-use-submit');
+    if (btn) btn.style.background = '';
+    const hint = document.getElementById('use-idle-hint');
+    if (hint) hint.style.display = 'none';
+    if (_useFormIdlePageEl && _useFormIdleOnInteraction) {
+        _useFormIdlePageEl.removeEventListener('input', _useFormIdleOnInteraction);
+        _useFormIdlePageEl.removeEventListener('change', _useFormIdleOnInteraction);
+        _useFormIdlePageEl.removeEventListener('pointerdown', _useFormIdleOnInteraction);
+    }
+    _useFormIdlePageEl = null;
+    _useFormIdleOnInteraction = null;
+}
+
+function _maybeStartUseFormIdleCountdown() {
+    clearUseFormIdleCountdown();
+    if (!_useFormIdleEligible()) return;
+
+    const pageUse = document.getElementById('page-use');
+    const btn = document.getElementById('btn-use-submit');
+    if (!pageUse || !btn) return;
+
+    const qtyInput = document.getElementById('use-quantity');
+    if (qtyInput) {
+        if (_useConfMode && _useConfMode._activeUnit === 'conf') {
+            qtyInput.value = Math.min(1, _useConfMode.totalConf);
+        } else if (!_useConfMode) {
+            const u = _useNormalUnit || (_useCurrentItems?.[0]?.unit || 'pz');
+            if (u === 'pz' || u === 'conf') qtyInput.value = 1;
+        }
+    }
+
+    const hint = document.getElementById('use-idle-hint');
+    if (hint) {
+        hint.textContent = t('use.idle_auto_hint');
+        hint.style.display = 'block';
+    }
+
+    const baseBg = getComputedStyle(btn).backgroundColor;
+    const duration = USE_FORM_IDLE_MS;
+    let start = performance.now();
+
+    function tick() {
+        const elapsed = performance.now() - start;
+        const pct = Math.min(100, (elapsed / duration) * 100);
+        btn.style.background =
+            `linear-gradient(to left, rgba(255,255,255,0.35) ${100 - pct}%, rgba(255,255,255,0) ${100 - pct}%), ${baseBg}`;
+        if (elapsed < duration) {
+            _useFormIdleRAF = requestAnimationFrame(tick);
+        }
+    }
+
+    function onExpire() {
+        clearUseFormIdleCountdown();
+        if (_currentPageId !== 'use' || !_useFormIdleEligible()) return;
+        const form = pageUse.querySelector('form');
+        if (form) form.requestSubmit();
+    }
+
+    function scheduleExpire() {
+        if (_useFormIdleTimer) clearTimeout(_useFormIdleTimer);
+        _useFormIdleTimer = setTimeout(onExpire, duration);
+    }
+
+    function onInteraction() {
+        start = performance.now();
+        scheduleExpire();
+        if (_useFormIdleRAF) cancelAnimationFrame(_useFormIdleRAF);
+        _useFormIdleRAF = requestAnimationFrame(tick);
+    }
+
+    _useFormIdlePageEl = pageUse;
+    _useFormIdleOnInteraction = onInteraction;
+    pageUse.addEventListener('input', onInteraction);
+    pageUse.addEventListener('change', onInteraction);
+    pageUse.addEventListener('pointerdown', onInteraction);
+
+    _useFormIdleRAF = requestAnimationFrame(tick);
+    scheduleExpire();
+}
+
 function clearAddFormIdleCountdown() {
     if (_addFormIdleTimer) { clearTimeout(_addFormIdleTimer); _addFormIdleTimer = null; }
     if (_addFormIdleRAF) { cancelAnimationFrame(_addFormIdleRAF); _addFormIdleRAF = null; }
@@ -12053,13 +12145,21 @@ async function _submitUseAllAt(location, isOpenedOnly) {
 
 async function submitUse(e) {
     e.preventDefault();
-    if (_useSubmitting) return; // prevent double-submit from scale auto-confirm
+    if (_useSubmitting) return;
+    clearUseFormIdleCountdown();
     _useSubmitting = true;
     _cancelScaleTimersOnly();
     _scaleStabilityVal = null;
     showLoading(true);
     try {
-        let qty = parseFloat(document.getElementById('use-quantity').value) || 1;
+        const rawQty = document.getElementById('use-quantity').value;
+        let qty = parseFloat(rawQty);
+        if (!rawQty || isNaN(qty) || qty <= 0) {
+            showLoading(false);
+            _useSubmitting = false;
+            showToast(t('use.error_qty_required'), 'error');
+            return;
+        }
         let displayQty = qty;
         let displayUnit = '';
         

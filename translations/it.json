@@ -6,7 +6,7 @@
   "nav": {
     "title": "EverShelf",
     "home": "Home",
-    "inventory": "Dispensa",
+    "inventory": "Lista",
     "recipes": "Ricette",
     "shopping": "Spesa",
     "log": "Storico",
@@ -174,7 +174,7 @@
     "banner_finished_restore_prompt": "Quante {unit} di {name} hai ancora? (stima sistema: {qty})"
   },
   "inventory": {
-    "title": "Dispensa",
+    "title": "Lista",
     "filter_all": "Tutti",
     "search_placeholder": "🔍 Cerca prodotto...",
     "recent_title": "🕐 Ultimi usati",
@@ -194,14 +194,19 @@
     "empty_text": "Nessun prodotto qui.<br>Scansiona un prodotto per aggiungerlo!",
     "empty_db": "Nessun prodotto nel database.<br>Scansiona un prodotto per iniziare!",
     "qty_trace": "< 1",
-    "swipe_use": "Usa 1",
+    "swipe_use": "Usa",
     "swipe_edit": "Modifica",
-    "swipe_guide": "← Scorri a sinistra per usare · scorri a destra per modificare →",
+    "swipe_guide": "← Scorri per usare (quantità) · scorri a destra per modificare →",
     "swipe_edge_use": "← Usa",
     "swipe_edge_edit": "Modifica →",
     "swipe_hint": "← usa · modifica →",
     "swipe_used_toast": "Usato {qty} di {name}",
-    "swipe_undo": "Annulla"
+    "swipe_undo": "Annulla",
+    "item_detail_use": "Usa",
+    "item_detail_use_all": "Usato tutto",
+    "item_detail_recipe": "Crea ricetta",
+    "item_detail_throw": "Butta",
+    "item_detail_edit": "Modifica prodotto"
   },
   "scan": {
     "title": "Scansiona",
@@ -360,6 +365,9 @@
     "disambiguation_all": "🗑️ Finito TUTTO ({qty})",
     "toast_one_conf_finished": "📦 1 confezione di {name} terminata!",
     "error_exceeds_stock": "⚠️ Non puoi usare più di quanto hai disponibile!",
+    "error_qty_required": "⚠️ Indica quanto hai usato.",
+    "qty_placeholder": "Quantità",
+    "idle_auto_hint": "Conferma automatica in 15 s se non tocchi (1 pezzo o 1 confezione)",
     "use_all_confirm_title": "✅ Finisci tutto",
     "use_all_confirm_msg": "Conferma che hai finito tutto il prodotto:",
     "use_all_confirm_btn": "✅ Sì, finito",
