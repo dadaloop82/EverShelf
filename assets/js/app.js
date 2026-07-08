@@ -6860,14 +6860,18 @@ function renderInventoryItem(item) {
     </div>`;
 }
 
-/** Tap riga inventario → scheda prodotto. Swipe gestito a parte. */
+/** Tap riga inventario → modifica. Swipe gestito a parte. */
 function invRowTap(ev) {
     const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
     if (!row || row.dataset.invSwipeDone === '1') return;
     const invId = parseInt(row.dataset.invId, 10);
-    const productId = parseInt(row.dataset.productId, 10);
     if (isNaN(invId)) return;
-    showItemDetail(invId, isNaN(productId) ? null : productId);
+    editInventoryItem(invId);
+}
+
+function _findInventoryItem(id) {
+    return currentInventory.find(i => i.id == id)
+        || _allInventoryCache.find(i => i.id == id);
 }
 
 function _initInventoryRowSwipe(container) {
@@ -6876,7 +6880,8 @@ function _initInventoryRowSwipe(container) {
         container._invSwipeTeardown();
         container._invSwipeTeardown = null;
     }
-    let startX = 0, startY = 0, activeRow = null, activeContent = null, dragging = false, activePointerId = null;
+
+    let swipeCtx = null;
 
     const pointFromEvent = (e, useChanged) => {
         if (useChanged && e.changedTouches && e.changedTouches.length) {
@@ -6890,86 +6895,90 @@ function _initInventoryRowSwipe(container) {
         return { x: e.clientX, y: e.clientY };
     };
 
+    const resetRowVisual = (row, content) => {
+        if (!row || !content) return;
+        content.style.transition = 'transform 0.2s ease';
+        content.style.transform = '';
+        row.classList.remove('swipe-right', 'swipe-left');
+    };
+
     const onStart = (e) => {
         if (e.type.startsWith('pointer') && e.button !== 0) return;
-        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
-        activeRow = row;
-        activeContent = row.querySelector('.inv-row-content');
-        if (!activeContent) return;
+        const content = row.querySelector('.inv-row-content');
+        if (!content) return;
         const pt = pointFromEvent(e, false);
-        startX = pt.x;
-        startY = pt.y;
-        dragging = true;
-        activePointerId = e.pointerId ?? null;
+        swipeCtx = {
+            row,
+            content,
+            startX: pt.x,
+            startY: pt.y,
+            maxDx: 0,
+            maxDy: 0,
+            pointerId: e.pointerId ?? null,
+        };
         row.dataset.invSwipeDone = '';
-        activeContent.style.transition = 'none';
+        content.style.transition = 'none';
         if (e.pointerId !== undefined && row.setPointerCapture) {
             try { row.setPointerCapture(e.pointerId); } catch (_) {}
         }
     };
 
     const onMove = (e) => {
-        if (!dragging || !activeContent || !activeRow) return;
-        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
+        if (!swipeCtx) return;
+        if (swipeCtx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== swipeCtx.pointerId) return;
         const pt = pointFromEvent(e, false);
-        const dx = pt.x - startX;
-        const dy = Math.abs(pt.y - startY);
-        if (dy > 40 && Math.abs(dx) < 16) {
-            dragging = false;
-            activeRow = null;
-            activeContent = null;
-            activePointerId = null;
-            return;
+        const dx = pt.x - swipeCtx.startX;
+        const dy = Math.abs(pt.y - swipeCtx.startY);
+        swipeCtx.maxDx = Math.max(swipeCtx.maxDx, Math.abs(dx));
+        swipeCtx.maxDy = Math.max(swipeCtx.maxDy, dy);
+        if (swipeCtx.maxDx > 12 && swipeCtx.maxDx > swipeCtx.maxDy + 6) {
+            e.preventDefault();
+            const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
+            swipeCtx.content.style.transform = `translateX(${clamped}px)`;
+            swipeCtx.row.classList.toggle('swipe-right', dx > 40);
+            swipeCtx.row.classList.toggle('swipe-left', dx < -40);
         }
-        if (Math.abs(dx) > 10) e.preventDefault();
-        const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
-        activeContent.style.transform = `translateX(${clamped}px)`;
-        activeRow.classList.toggle('swipe-right', dx > 40);
-        activeRow.classList.toggle('swipe-left', dx < -40);
     };
 
     const onEnd = (e) => {
-        if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
-        const row = activeRow;
-        const content = activeContent;
-        activeRow = null;
-        activeContent = null;
-        dragging = false;
-        activePointerId = null;
-        if (!row || !content) return;
-        content.style.transition = 'transform 0.2s ease';
+        const ctx = swipeCtx;
+        swipeCtx = null;
+        if (!ctx) return;
+        if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
+
+        const { row, content } = ctx;
         const pt = pointFromEvent(e, true);
-        const dx = pt.x - startX;
-        const dy = Math.abs(pt.y - startY);
-        content.style.transform = '';
-        row.classList.remove('swipe-right', 'swipe-left');
-        if (e.pointerId !== undefined && row.releasePointerCapture) {
-            try { row.releasePointerCapture(e.pointerId); } catch (_) {}
+        const dx = pt.x - ctx.startX;
+        const dy = Math.abs(pt.y - ctx.startY);
+        resetRowVisual(row, content);
+        if (ctx.pointerId !== undefined && row.releasePointerCapture) {
+            try { row.releasePointerCapture(ctx.pointerId); } catch (_) {}
         }
 
         const invId = parseInt(row.dataset.invId, 10);
         const productId = parseInt(row.dataset.productId, 10);
         const location = row.dataset.location || 'dispensa';
 
-        if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
+        const markSwipeDone = () => {
             row.dataset.invSwipeDone = '1';
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
+        };
+
+        if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
+            markSwipeDone();
             quickUse(productId, location);
             return;
         }
         if (dx >= 60 && !isNaN(invId)) {
-            row.dataset.invSwipeDone = '1';
-            setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
+            markSwipeDone();
             editInventoryItem(invId);
             return;
         }
-        if (dy > 55 && Math.abs(dx) < 20) return;
-        if (!isNaN(invId)) {
-            row.dataset.invSwipeDone = '1';
-            setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
-            showItemDetail(invId, isNaN(productId) ? null : productId);
+        if (ctx.maxDx < 18 && ctx.maxDy < 35 && dy < 35 && !isNaN(invId)) {
+            markSwipeDone();
+            editInventoryItem(invId);
         }
     };
 
@@ -7249,7 +7258,7 @@ function _itemDetailExpiryChip(item) {
 }
 
 function showItemDetail(inventoryId, productId) {
-    const item = currentInventory.find(i => i.id == inventoryId);
+    const item = _findInventoryItem(inventoryId);
     if (!item) {
         if (productId) _showExhaustedProductModal(productId);
         else showToast(t('error.not_in_inventory'), 'error');
@@ -7542,7 +7551,7 @@ function recalcEditExpiry(locInputId, vacuumInputId, expiryInputId) {
 }
 
 function editInventoryItem(id, _retried) {
-    const item = currentInventory.find(i => i.id == id);
+    const item = _findInventoryItem(id);
     if (!item) {
         if (!_retried) {
             api('inventory_list').then(data => {

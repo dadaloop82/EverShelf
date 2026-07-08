@@ -199,7 +199,7 @@
     "swipe_guide": "← Scorri per usare (quantità) · scorri a destra per modificare →",
     "swipe_edge_use": "← Usa",
     "swipe_edge_edit": "Modifica →",
-    "swipe_hint": "← usa · modifica →",
+    "swipe_hint": "tap modifica · ← usa",
     "swipe_used_toast": "Usato {qty} di {name}",
     "swipe_undo": "Annulla",
     "item_detail_use": "Usa",
