@@ -7287,7 +7287,7 @@ function showItemDetail(inventoryId, productId) {
             <div class="modal-header item-detail-header">
                 <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
                 <div class="item-detail-header-actions">
-                    <button type="button" class="btn-icon" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
+                    <button type="button" class="btn-icon-round" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
                     <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>

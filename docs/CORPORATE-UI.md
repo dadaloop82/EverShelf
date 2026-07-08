@@ -1,6 +1,6 @@
 # EverShelf Corporate UI
 
-Design tokens and patterns for a consistent look across the PWA. All new UI should follow these rules.
+Design tokens and patterns for a consistent look across the PWA. **App-wide styles** live in `assets/css/style.css` under the `CORPORATE UI LAYER` section (modals, buttons, cards, nav, forms, badges). Component-specific layouts (e.g. item detail 2×2 grid) use dedicated classes.
 
 ## Brand palette
 
@@ -46,7 +46,7 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 - **Nav label:** “List” / “Lista” (not “Pantry” — that name is reserved for the storage *location* tab).
 - **Swipe left:** open Use page with quantity + optional 15s countdown.
 - **Swipe right:** edit product.
-- **Tap:** product detail modal with four actions (Use, Used all, Recipe, Discard).
+- **Tap:** opens edit modal; swipe right also edits.
 
 ## Modals
 

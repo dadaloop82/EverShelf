@@ -1562,7 +1562,7 @@ body.server-offline .bottom-nav {
     flex-shrink: 0;
 }
 
-.btn-icon {
+.item-detail-header-actions .btn-icon-round {
     width: 36px;
     height: 36px;
     border: 1px solid var(--border);
@@ -9506,4 +9506,297 @@ body.offline-mode #smart-shopping {
     opacity: 0.45;
     pointer-events: none;
     filter: grayscale(0.6);
+}
+
+/* ===== CORPORATE UI LAYER (app-wide) ===== */
+/* Shared visual language: tokens, gradients, cards, touch targets. */
+
+.btn {
+    font-family: var(--es-font);
+    border-radius: var(--es-radius-card);
+    min-height: var(--es-btn-height);
+}
+
+.btn-large {
+    min-height: var(--es-btn-height-lg);
+    border-radius: var(--es-radius-card);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--es-action-success), var(--success-light));
+    color: #fff;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--es-action-danger), var(--danger-light));
+    color: #fff;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--es-action-use), var(--warning-light));
+    color: #1a1a1a;
+}
+
+.btn-accent {
+    background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light));
+    color: #fff;
+}
+
+.btn-secondary {
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+}
+
+.modal-overlay {
+    background: color-mix(in srgb, #0f172a 55%, transparent);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-top: 3px solid var(--primary-light);
+    padding: var(--es-space-lg) var(--es-space-lg) calc(var(--es-space-xl) + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.modal-close {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 1.1rem;
+}
+
+.modal-detail {
+    background: color-mix(in srgb, var(--bg-card) 90%, var(--primary) 10%);
+    border: 1px solid var(--border);
+    border-radius: var(--es-radius-card);
+    padding: var(--es-space-md) var(--es-space-lg);
+    gap: 0;
+}
+
+.modal-detail-row {
+    padding: 10px 0;
+    font-size: 0.85rem;
+    border-bottom-color: color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.modal-detail-row:last-child {
+    border-bottom: none;
+}
+
+.modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: var(--es-space-lg);
+}
+
+.modal-actions .btn:only-child,
+.modal-actions .btn.full-width:only-child {
+    grid-column: 1 / -1;
+}
+
+.modal-actions .btn-large.full-width {
+    grid-column: 1 / -1;
+}
+
+.page-header {
+    margin-bottom: var(--es-space-lg);
+    padding-bottom: var(--es-space-md);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, var(--primary) 10%);
+}
+
+.page-header h2 {
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+}
+
+.back-btn,
+.page-header-action-btn {
+    border-radius: var(--es-radius-card);
+    min-height: 40px;
+}
+
+.stat-card,
+.inventory-item,
+.shop-row,
+.transaction-item,
+.product-details-card,
+.use-inventory-info,
+#use-product-preview,
+.product-preview-small {
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.stat-card {
+    border-radius: var(--es-radius-card);
+}
+
+.inventory-item {
+    border-radius: var(--es-radius-card);
+    overflow: hidden;
+}
+
+.inv-badge {
+    font-size: 0.68rem;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.badge-location {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary-dark);
+}
+
+.badge-category {
+    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+    color: var(--text-light);
+}
+
+.badge-expiry {
+    background: color-mix(in srgb, var(--warning) 18%, transparent);
+    color: #b45309;
+}
+
+.badge-expired {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--danger);
+}
+
+.inv-swipe-guide {
+    border-radius: var(--es-radius-card);
+}
+
+.location-tabs .tab {
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    min-height: 36px;
+}
+
+.location-tabs .tab.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    border-color: transparent;
+}
+
+.search-bar input,
+.form-input,
+.qty-input {
+    font-family: var(--es-font);
+    border-radius: var(--es-radius-card);
+    border-width: 1.5px;
+}
+
+.search-bar input:focus,
+.form-input:focus,
+.qty-input:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-light) 18%, transparent);
+}
+
+.loc-btn {
+    border-radius: var(--es-radius-card);
+    min-height: var(--es-btn-height);
+    font-weight: 600;
+}
+
+.loc-btn.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-color: transparent;
+    color: #fff;
+}
+
+.bottom-nav {
+    border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.nav-btn {
+    font-family: var(--es-font);
+    border-radius: var(--es-radius-card);
+}
+
+.nav-btn.active {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.nav-btn.active .nav-label {
+    font-weight: 700;
+}
+
+.shop-row {
+    border-radius: var(--es-radius-card);
+}
+
+.form-hint,
+.use-idle-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.empty-state {
+    border-radius: var(--es-radius-card);
+    border: 1px dashed color-mix(in srgb, var(--text-muted) 30%, transparent);
+    background: color-mix(in srgb, var(--bg-card) 92%, var(--primary) 8%);
+    padding: var(--es-space-xl);
+}
+
+#use-product-preview,
+.product-preview-small {
+    border-radius: var(--es-radius-card);
+    padding: var(--es-space-lg);
+    background: color-mix(in srgb, var(--bg-card) 92%, var(--primary) 8%);
+}
+
+.use-inventory-info {
+    border-radius: var(--es-radius-card);
+    padding: var(--es-space-md) var(--es-space-lg);
+    margin-bottom: var(--es-space-md);
+    font-size: 0.88rem;
+}
+
+.qty-btn {
+    border-radius: var(--es-radius-card);
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.frac-btn,
+.recipe-option-chip,
+.bug-type-pill {
+    border-radius: 999px;
+    font-family: var(--es-font);
+}
+
+.recipe-dialog {
+    border-top: 3px solid var(--accent-light);
+}
+
+@media (min-width: 640px) {
+    .modal-overlay {
+        align-items: center;
+        padding: var(--es-space-lg);
+    }
+
+    .modal-content {
+        border-radius: var(--radius);
+        max-height: 85vh;
+    }
 }
