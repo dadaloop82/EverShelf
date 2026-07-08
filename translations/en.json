@@ -6,7 +6,7 @@
   "nav": {
     "title": "EverShelf",
     "home": "Home",
-    "inventory": "Pantry",
+    "inventory": "List",
     "recipes": "Recipes",
     "shopping": "Shopping",
     "log": "Log",
@@ -174,7 +174,7 @@
     "banner_finished_restore_prompt": "How many {unit} of {name} do you still have? (system estimate: {qty})"
   },
   "inventory": {
-    "title": "Pantry",
+    "title": "List",
     "filter_all": "All",
     "search_placeholder": "🔍 Search product...",
     "recent_title": "🕐 Recently used",
@@ -194,14 +194,19 @@
     "empty_text": "No products here.<br>Scan a product to add it!",
     "empty_db": "No products in the database.<br>Scan a product to get started!",
     "qty_trace": "< 1",
-    "swipe_use": "Use 1",
+    "swipe_use": "Use",
     "swipe_edit": "Edit",
-    "swipe_guide": "← Swipe left to use one · Swipe right to edit →",
+    "swipe_guide": "← Swipe to use (pick quantity) · swipe right to edit →",
     "swipe_edge_use": "← Use",
     "swipe_edge_edit": "Edit →",
     "swipe_hint": "← use · edit →",
     "swipe_used_toast": "Used {qty} of {name}",
-    "swipe_undo": "Undo"
+    "swipe_undo": "Undo",
+    "item_detail_use": "Use",
+    "item_detail_use_all": "Used all",
+    "item_detail_recipe": "Create recipe",
+    "item_detail_throw": "Discard",
+    "item_detail_edit": "Edit product"
   },
   "scan": {
     "title": "Scan",
@@ -359,6 +364,9 @@
     "disambiguation_all": "🗑️ Finish EVERYTHING ({qty})",
     "toast_one_conf_finished": "📦 1 package of {name} finished!",
     "error_exceeds_stock": "⚠️ You cannot use more than you have available!",
+    "error_qty_required": "⚠️ Enter how much you used.",
+    "qty_placeholder": "Amount",
+    "idle_auto_hint": "Auto-confirms in 15 s if idle (1 piece or 1 package)",
     "use_all_confirm_title": "✅ Finish everything",
     "use_all_confirm_msg": "Confirm that you have finished the product:",
     "use_all_confirm_btn": "✅ Yes, finished",

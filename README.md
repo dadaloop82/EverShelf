@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.56-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.57-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,15 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.57 (2026-07-08) — List page & product sheet
+
+| Feature | Description |
+|---------|-------------|
+| **List (not Pantry)** | Inventory nav/page renamed to *List* / *Lista* in all languages; storage location tabs still say Pantry/Fridge/Freezer |
+| **Swipe → quantity** | Swipe left opens the Use screen (no instant −1); 15 s idle auto-submit for **pcs** and **packages** only |
+| **Product sheet** | Tap opens redesigned modal: Use, Used all, Create recipe, Discard + edit in header |
+| **Corporate UI** | Design tokens and patterns in [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md) |
 
 ### 🆕 Release 1.7.56 (2026-07-07) — Inventory swipe hints
 

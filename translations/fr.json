@@ -6,7 +6,7 @@
   "nav": {
     "title": "EverShelf",
     "home": "Accueil",
-    "inventory": "Garde-manger",
+    "inventory": "Liste",
     "recipes": "Recettes",
     "shopping": "Courses",
     "log": "Journal",
@@ -174,7 +174,7 @@
     "banner_finished_restore_prompt": "Combien de {unit} de {name} vous reste-t-il ? (estimation : {qty})"
   },
   "inventory": {
-    "title": "Garde-manger",
+    "title": "Liste",
     "filter_all": "Tout",
     "search_placeholder": "🔍 Rechercher un produit...",
     "recent_title": "🕐 Utilisés récemment",
@@ -194,14 +194,19 @@
     "empty_text": "Aucun produit ici.<br>Scannez un produit pour l'ajouter !",
     "empty_db": "Aucun produit dans la base de données.<br>Scannez un produit pour commencer !",
     "qty_trace": "< 1",
-    "swipe_use": "Utiliser 1",
+    "swipe_use": "Utiliser",
     "swipe_edit": "Modifier",
     "swipe_guide": "← Glisser à gauche pour utiliser · glisser à droite pour modifier →",
     "swipe_edge_use": "← Utiliser",
     "swipe_edge_edit": "Modifier →",
     "swipe_hint": "← utiliser · modifier →",
     "swipe_used_toast": "Utilisé {qty} de {name}",
-    "swipe_undo": "Annuler"
+    "swipe_undo": "Annuler",
+    "item_detail_use": "Utiliser",
+    "item_detail_use_all": "Tout utilisé",
+    "item_detail_recipe": "Créer une recette",
+    "item_detail_throw": "Jeter",
+    "item_detail_edit": "Modifier le produit"
   },
   "scan": {
     "title": "Scanner",
@@ -359,6 +364,9 @@
     "disambiguation_all": "🗑️ Tout finir ({qty})",
     "toast_one_conf_finished": "📦 1 emballage de {name} terminé !",
     "error_exceeds_stock": "⚠️ Vous ne pouvez pas utiliser plus que ce que vous avez disponible !",
+    "error_qty_required": "⚠️ Indiquez la quantité utilisée.",
+    "qty_placeholder": "Quantité",
+    "idle_auto_hint": "Confirmation auto dans 15 s si inactif (1 pièce ou 1 paquet)",
     "use_all_confirm_title": "✅ Tout terminer",
     "use_all_confirm_msg": "Confirmez que vous avez terminé le produit :",
     "use_all_confirm_btn": "✅ Oui, terminé",

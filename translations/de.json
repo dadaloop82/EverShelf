@@ -6,7 +6,7 @@
   "nav": {
     "title": "EverShelf",
     "home": "Home",
-    "inventory": "Vorrat",
+    "inventory": "Liste",
     "recipes": "Rezepte",
     "shopping": "Einkauf",
     "log": "Verlauf",
@@ -174,7 +174,7 @@
     "banner_finished_restore_prompt": "Wie viele {unit} {name} hast du noch? (Systemschätzung: {qty})"
   },
   "inventory": {
-    "title": "Vorrat",
+    "title": "Liste",
     "filter_all": "Alle",
     "search_placeholder": "🔍 Produkt suchen...",
     "recent_title": "🕐 Zuletzt verwendet",
@@ -194,14 +194,19 @@
     "empty_text": "Keine Produkte hier.<br>Scanne ein Produkt, um es hinzuzufügen!",
     "empty_db": "Keine Produkte in der Datenbank.<br>Scanne ein Produkt, um loszulegen!",
     "qty_trace": "< 1",
-    "swipe_use": "1 verbr.",
+    "swipe_use": "Verbr.",
     "swipe_edit": "Bearb.",
     "swipe_guide": "← Nach links wischen = verbrauchen · Nach rechts wischen = bearbeiten →",
     "swipe_edge_use": "← Verbr.",
     "swipe_edge_edit": "Bearb. →",
     "swipe_hint": "← verbr. · bearb. →",
     "swipe_used_toast": "{qty} von {name} verbraucht",
-    "swipe_undo": "Rückgängig"
+    "swipe_undo": "Rückgängig",
+    "item_detail_use": "Verbrauchen",
+    "item_detail_use_all": "Alles aufgebraucht",
+    "item_detail_recipe": "Rezept erstellen",
+    "item_detail_throw": "Entsorgen",
+    "item_detail_edit": "Produkt bearbeiten"
   },
   "scan": {
     "title": "Scannen",
@@ -359,6 +364,9 @@
     "disambiguation_all": "🗑️ ALLES verbraucht ({qty})",
     "toast_one_conf_finished": "📦 1 Packung von {name} verbraucht!",
     "error_exceeds_stock": "⚠️ Du kannst nicht mehr verwenden als du verfügbar hast!",
+    "error_qty_required": "⚠️ Gib an, wie viel du verwendet hast.",
+    "qty_placeholder": "Menge",
+    "idle_auto_hint": "Auto-Bestätigung in 15 s bei Inaktivität (1 Stück oder 1 Packung)",
     "use_all_confirm_title": "✅ Alles aufbrauchen",
     "use_all_confirm_msg": "Bestätige, dass du das Produkt vollständig aufgebraucht hast:",
     "use_all_confirm_btn": "✅ Ja, aufgebraucht",

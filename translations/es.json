@@ -6,7 +6,7 @@
   "nav": {
     "title": "EverShelf",
     "home": "Inicio",
-    "inventory": "Despensa",
+    "inventory": "Lista",
     "recipes": "Recetas",
     "shopping": "Compras",
     "log": "Registro",
@@ -174,7 +174,7 @@
     "banner_finished_restore_prompt": "¿Cuántas {unit} de {name} te quedan? (estimación del sistema: {qty})"
   },
   "inventory": {
-    "title": "Despensa",
+    "title": "Lista",
     "filter_all": "Todo",
     "search_placeholder": "🔍 Buscar producto...",
     "recent_title": "🕐 Usados recientemente",
@@ -194,14 +194,19 @@
     "empty_text": "No hay productos aquí.<br>¡Escanea un producto para añadirlo!",
     "empty_db": "No hay productos en la base de datos.<br>¡Escanea un producto para empezar!",
     "qty_trace": "< 1",
-    "swipe_use": "Usar 1",
+    "swipe_use": "Usar",
     "swipe_edit": "Editar",
     "swipe_guide": "← Desliza a la izquierda para usar · desliza a la derecha para editar →",
     "swipe_edge_use": "← Usar",
     "swipe_edge_edit": "Editar →",
     "swipe_hint": "← usar · editar →",
     "swipe_used_toast": "Usado {qty} de {name}",
-    "swipe_undo": "Deshacer"
+    "swipe_undo": "Deshacer",
+    "item_detail_use": "Usar",
+    "item_detail_use_all": "Todo usado",
+    "item_detail_recipe": "Crear receta",
+    "item_detail_throw": "Desechar",
+    "item_detail_edit": "Editar producto"
   },
   "scan": {
     "title": "Escáner",
@@ -359,6 +364,9 @@
     "disambiguation_all": "🗑️ Terminar TODO ({qty})",
     "toast_one_conf_finished": "📦 1 envase de {name} terminado!",
     "error_exceeds_stock": "⚠️ ¡No puedes usar más de lo que tienes disponible!",
+    "error_qty_required": "⚠️ Indica cuánto has usado.",
+    "qty_placeholder": "Cantidad",
+    "idle_auto_hint": "Confirmación automática en 15 s si no tocas (1 pieza o 1 paquete)",
     "use_all_confirm_title": "✅ Terminar todo",
     "use_all_confirm_msg": "Confirma que has terminado el producto:",
     "use_all_confirm_btn": "✅ Sí, terminado",

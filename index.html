@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260704d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260708a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20260603a"></script>
     <script src="assets/js/core/auth.js?v=20260603b"></script>
@@ -94,7 +94,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.56</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.57</span>
     </div>
 </div>
 
@@ -107,7 +107,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.56</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.57</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -511,6 +511,7 @@
                             <span class="qty-unit-badge" id="use-quantity-unit" aria-live="polite">—</span>
                         </div>
                         <button type="submit" id="btn-use-submit" class="btn btn-large btn-warning full-width mt-2 move-countdown-btn" data-i18n="use.submit">📤 Usa questa quantità</button>
+                        <p id="use-idle-hint" class="form-hint use-idle-hint" style="display:none" aria-live="polite"></p>
                     </div>
                 </div>
             </div>
@@ -2080,6 +2081,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260707a"></script>
+<script src="assets/js/app.js?v=20260708a"></script>
 </body>
 </html>
