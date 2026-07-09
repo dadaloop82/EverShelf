@@ -6841,8 +6841,6 @@ function renderInventoryItem(item) {
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
-            <div class="inv-swipe-edge inv-swipe-edge-left" aria-hidden="true">${escapeHtml(t('inventory.swipe_edge_use'))}</div>
-            <div class="inv-swipe-edge inv-swipe-edge-right" aria-hidden="true">${escapeHtml(t('inventory.swipe_edge_edit'))}</div>
             <div class="inv-image">
                 ${_invImageHtml(item.image_url, catIcon)}
             </div>
@@ -6863,7 +6861,6 @@ function renderInventoryItem(item) {
                 ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
             </div>
         </div>
-        <div class="inv-swipe-hint">${escapeHtml(t('inventory.swipe_hint'))}</div>
     </div>`;
 }
 
@@ -6999,21 +6996,49 @@ function _initInventoryRowSwipe(container) {
     container._invSwipeTeardown = () => bindings.forEach(([ev, fn, opts]) => container.removeEventListener(ev, fn, opts));
 }
 
+function _playInventorySwipeDemo(container) {
+    const key = 'evershelf_inv_swipe_demo_v1';
+    if (!container || localStorage.getItem(key)) return;
+    const row = container.querySelector('.inventory-item');
+    const content = row?.querySelector('.inv-row-content');
+    if (!row || !content) return;
+    localStorage.setItem(key, '1');
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    row.classList.add('inv-swipe-demo-active');
+    content.style.transition = 'transform 0.42s cubic-bezier(.4,0,.2,1)';
+
+    (async () => {
+        await sleep(350);
+        row.classList.add('swipe-left');
+        content.style.transform = 'translateX(-76px)';
+        await sleep(620);
+        content.style.transform = '';
+        row.classList.remove('swipe-left');
+        await sleep(280);
+        row.classList.add('swipe-right');
+        content.style.transform = 'translateX(76px)';
+        await sleep(620);
+        content.style.transform = '';
+        row.classList.remove('swipe-right');
+        row.classList.remove('inv-swipe-demo-active');
+        content.style.transition = '';
+    })();
+}
+
 function renderInventory(items, options = {}) {
     const container = document.getElementById('inventory-list');
-    const guide = document.getElementById('inv-swipe-guide');
     const visible = _inventoryVisibleItems(items);
     if (visible.length === 0) {
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
-        if (guide) guide.hidden = true;
         return;
     }
-    if (guide) guide.hidden = false;
     container.innerHTML = options.flat
         ? visible.map(item => renderInventoryItem(item)).join('')
         : renderGroupedByCategory(visible, false);
     _refineCategoryBadgesAsync();
     _initInventoryRowSwipe(container);
+    _playInventorySwipeDemo(container);
 }
 
 /** Relevance score for dispensa search (higher = better match). */
