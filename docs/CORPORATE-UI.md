@@ -1,6 +1,19 @@
 # EverShelf Corporate UI
 
-Design tokens and patterns for a consistent look across the PWA. **App-wide styles** live in `assets/css/style.css` under the `CORPORATE UI LAYER` section (modals, buttons, cards, nav, forms, badges). Component-specific layouts (e.g. item detail 2×2 grid) use dedicated classes.
+Design tokens live in `assets/css/style.css` (`:root`). **App-wide component styles** live in `assets/css/corporate.css` (loaded after `style.css`).
+
+## Files
+
+| File | Role |
+|------|------|
+| `style.css` | Layout, legacy components, dark mode |
+| `corporate.css` | Unified buttons, cards, forms, modals, lists, nav |
+
+## Inventory list — swipe UX
+
+- **No persistent text hints** (no banner, no edge labels).
+- **First visit only:** the first row animates left (use) then right (edit); stored in `localStorage` key `evershelf_inv_swipe_demo_v1`.
+- **During swipe:** colored backgrounds with action labels appear on the row.
 
 ## Brand palette
 

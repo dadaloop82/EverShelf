@@ -1,0 +1,623 @@
+/**
+ * EverShelf — Corporate UI (app-wide)
+ * Loaded after style.css. Unifies cards, buttons, forms, lists, modals, nav.
+ */
+
+/* ── Base typography ───────────────────────────────────────────── */
+body,
+input,
+select,
+textarea,
+button {
+    font-family: var(--es-font);
+}
+
+.page.active {
+    padding: var(--es-space-md) var(--es-space-lg) var(--es-space-xl);
+}
+
+h1, h2, h3, h4,
+.page-header h2,
+.modal-header h3,
+.section-card h3,
+.settings-card h4 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+    font-family: var(--es-font);
+    border-radius: var(--es-radius-card);
+    min-height: var(--es-btn-height);
+    font-weight: 600;
+    font-size: var(--es-text-body);
+    box-shadow: var(--es-shadow-card);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.btn-large {
+    min-height: var(--es-btn-height-lg);
+    font-size: 1rem;
+}
+
+.btn:active {
+    transform: scale(0.98);
+    box-shadow: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--es-action-success), var(--success-light));
+    color: #fff;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--es-action-danger), var(--danger-light));
+    color: #fff;
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--es-action-use), var(--warning-light));
+    color: #1a1a1a;
+}
+
+.btn-accent {
+    background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light));
+    color: #fff;
+}
+
+.btn-secondary,
+.btn-ghost {
+    background: var(--bg-card);
+    border: 1.5px solid var(--es-border-subtle);
+    color: var(--text);
+    box-shadow: none;
+}
+
+.btn-link,
+.pref-loc-change {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* ── Cards & surfaces ────────────────────────────────────────── */
+.es-surface,
+.section-card,
+.settings-card,
+.stat-card,
+.alert-card,
+.opened-product-card,
+.smart-item,
+.product-item,
+.review-section,
+.nutrition-block,
+.recipe-storage-card,
+.scale-live-box,
+.product-details-card,
+#use-product-preview,
+.product-preview-small,
+.use-inventory-info,
+.quick-access-btn {
+    background: var(--es-surface-tint);
+    border: 1px solid var(--es-border-subtle);
+    border-radius: var(--es-radius-card);
+    box-shadow: var(--es-shadow-card);
+}
+
+.section-card,
+.settings-card {
+    padding: var(--es-space-lg);
+    margin-bottom: var(--es-space-md);
+}
+
+.stat-card {
+    padding: var(--es-space-lg);
+    border-radius: var(--es-radius-card);
+}
+
+.stat-value {
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* ── Page chrome ─────────────────────────────────────────────── */
+.app-header {
+    box-shadow: var(--es-shadow-card);
+    border-bottom: 1px solid color-mix(in srgb, #fff 12%, transparent);
+}
+
+.page-header {
+    margin-bottom: var(--es-space-lg);
+    padding-bottom: var(--es-space-md);
+    border-bottom: 1px solid var(--es-border-subtle);
+}
+
+.page-header h2 {
+    font-size: var(--es-text-title);
+    flex: 1;
+}
+
+.back-btn,
+.page-header-action-btn {
+    border-radius: var(--es-radius-card);
+    min-height: 40px;
+    border: 1px solid var(--es-border-subtle);
+    background: var(--bg-card);
+    font-weight: 600;
+}
+
+/* ── Tabs (location, shopping, settings) ───────────────────── */
+.tab,
+.settings-tab,
+.shopping-tab {
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: var(--es-text-small);
+    border: 1.5px solid var(--es-border-subtle);
+    background: var(--bg-card);
+    min-height: 36px;
+    transition: all 0.15s ease;
+}
+
+.tab.active,
+.settings-tab.active,
+.shopping-tab.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: var(--es-shadow-card);
+}
+
+.location-tabs,
+.settings-tabs,
+.shopping-tabs {
+    gap: var(--es-space-sm);
+    margin-bottom: var(--es-space-md);
+}
+
+/* ── Forms & inputs ──────────────────────────────────────────── */
+.search-bar input,
+.form-input,
+.qty-input,
+select.form-input {
+    font-family: var(--es-font);
+    border-radius: var(--es-radius-card);
+    border: 1.5px solid var(--es-border-subtle);
+    background: var(--bg-card);
+    font-size: var(--es-text-body);
+    min-height: var(--es-btn-height);
+}
+
+.search-bar input:focus,
+.form-input:focus,
+.qty-input:focus,
+select.form-input:focus {
+    border-color: var(--primary-light);
+    box-shadow: var(--es-focus-ring);
+    outline: none;
+}
+
+.form-group label {
+    font-size: var(--es-text-small);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+.form-hint,
+.use-idle-hint,
+.settings-hint {
+    font-size: var(--es-text-micro);
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.loc-btn {
+    border-radius: var(--es-radius-card);
+    min-height: var(--es-btn-height);
+    font-weight: 600;
+    border: 1.5px solid var(--es-border-subtle);
+    background: var(--bg-card);
+}
+
+.loc-btn.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-color: transparent;
+    color: #fff;
+}
+
+.qty-control {
+    border-radius: var(--es-radius-card);
+    border: 1.5px solid var(--es-border-subtle);
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.qty-btn {
+    border-radius: 0;
+    min-width: 44px;
+    min-height: 44px;
+    background: var(--es-surface-tint);
+    border: none;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.qty-input {
+    border: none;
+    box-shadow: none;
+    min-height: 44px;
+}
+
+.frac-btn,
+.recipe-option-chip,
+.bug-type-pill,
+.purchase-type-btn {
+    border-radius: 999px;
+    font-family: var(--es-font);
+    font-weight: 600;
+    font-size: var(--es-text-small);
+    border: 1.5px solid var(--es-border-subtle);
+    background: var(--bg-card);
+}
+
+.recipe-option-chip:has(input:checked),
+.frac-btn.active,
+.bug-type-pill.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ── Inventory list ──────────────────────────────────────────── */
+.inventory-list {
+    gap: var(--es-space-sm);
+}
+
+.inventory-item {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+    box-shadow: var(--es-shadow-card);
+    overflow: hidden;
+}
+
+.inv-row-content {
+    padding: var(--es-space-md);
+    background: var(--bg-card);
+}
+
+.inv-name {
+    font-size: var(--es-text-body);
+    font-weight: 700;
+}
+
+.inv-brand {
+    font-size: var(--es-text-small);
+    color: var(--text-muted);
+}
+
+.inv-badge,
+.vacuum-badge,
+.opened-badge {
+    font-size: var(--es-text-micro);
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.badge-location {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary-dark);
+}
+
+.badge-category {
+    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+    color: var(--text-light);
+}
+
+.badge-expiry {
+    background: color-mix(in srgb, var(--warning) 18%, transparent);
+    color: #b45309;
+}
+
+.badge-expired {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--danger);
+}
+
+.inv-swipe-bg {
+    font-size: var(--es-text-small);
+    font-weight: 700;
+}
+
+.inv-swipe-bg-left {
+    background: color-mix(in srgb, var(--es-action-use) 22%, transparent);
+    color: #92400e;
+}
+
+.inv-swipe-bg-right {
+    background: color-mix(in srgb, var(--primary-light) 22%, transparent);
+    color: var(--primary-dark);
+}
+
+/* Hide static swipe text hints — demo animation on first visit only */
+.inv-swipe-guide,
+.inv-swipe-edge,
+.inv-swipe-hint {
+    display: none !important;
+}
+
+.inventory-item.inv-swipe-demo-active {
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: var(--es-shadow-elevated);
+}
+
+.category-header {
+    font-size: var(--es-text-small);
+    font-weight: 700;
+    color: var(--primary);
+    padding: var(--es-space-sm) var(--es-space-xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* ── Shopping list ───────────────────────────────────────────── */
+.shop-row {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+    box-shadow: var(--es-shadow-card);
+    margin-bottom: var(--es-space-sm);
+}
+
+.shop-row-title {
+    font-weight: 700;
+    font-size: var(--es-text-body);
+}
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.modal-overlay,
+#recipe-overlay {
+    background: color-mix(in srgb, #0f172a 58%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-content,
+.recipe-dialog {
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-top: 3px solid var(--primary-light);
+    padding: var(--es-space-lg);
+    padding-bottom: calc(var(--es-space-xl) + env(safe-area-inset-bottom, 0px));
+    box-shadow: var(--es-shadow-elevated);
+}
+
+.recipe-dialog {
+    border-top-color: var(--accent-light);
+}
+
+.modal-header {
+    margin-bottom: var(--es-space-md);
+}
+
+.modal-header h3 {
+    font-size: var(--es-text-title);
+}
+
+.modal-close {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+    background: var(--bg-card);
+}
+
+.modal-detail {
+    background: var(--es-surface-tint);
+    border: 1px solid var(--es-border-subtle);
+    border-radius: var(--es-radius-card);
+    padding: var(--es-space-md) var(--es-space-lg);
+}
+
+.modal-detail-row {
+    padding: 10px 0;
+    font-size: var(--es-text-small);
+    border-bottom: 1px solid var(--es-border-subtle);
+}
+
+.modal-detail-row:last-child {
+    border-bottom: none;
+}
+
+.modal-detail-label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: var(--es-space-lg);
+}
+
+.modal-actions .btn:only-child,
+.modal-actions .btn.full-width,
+.modal-actions .btn-large.full-width {
+    grid-column: 1 / -1;
+}
+
+/* ── Bottom navigation ───────────────────────────────────────── */
+.bottom-nav {
+    border-top: 1px solid var(--es-border-subtle);
+    box-shadow: 0 -4px 24px color-mix(in srgb, #000 8%, transparent);
+    background: color-mix(in srgb, var(--bg-card) 92%, var(--primary) 8%);
+}
+
+.nav-btn {
+    border-radius: var(--es-radius-card);
+    min-height: 52px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-btn.active {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.nav-btn.active .nav-label {
+    font-weight: 700;
+}
+
+/* ── Alerts & banners ────────────────────────────────────────── */
+.alert-top-banner,
+.banner-carousel-item {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+    box-shadow: var(--es-shadow-card);
+}
+
+/* ── Transactions & log ──────────────────────────────────────── */
+.transaction-item,
+.log-entry {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+    background: var(--bg-card);
+    margin-bottom: var(--es-space-sm);
+    box-shadow: var(--es-shadow-card);
+}
+
+/* ── Scanner ─────────────────────────────────────────────────── */
+.scanner-viewport {
+    border-radius: var(--radius);
+    border: 2px solid var(--es-border-subtle);
+    box-shadow: var(--es-shadow-elevated);
+}
+
+.scan-status-bar {
+    border-radius: var(--es-radius-card);
+    font-size: var(--es-text-small);
+}
+
+/* ── Cooking mode ────────────────────────────────────────────── */
+.cooking-step-card,
+.cooking-timer-bar {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-subtle);
+}
+
+.zw-tip-card {
+    border-radius: var(--es-radius-card);
+    border: 1.5px dashed color-mix(in srgb, var(--success) 45%, transparent);
+    background: color-mix(in srgb, var(--success) 8%, var(--bg-card));
+}
+
+/* ── Toast & loading ─────────────────────────────────────────── */
+.toast {
+    border-radius: var(--es-radius-card);
+    box-shadow: var(--es-shadow-elevated);
+    font-weight: 600;
+    font-size: var(--es-text-small);
+}
+
+.loading-overlay {
+    backdrop-filter: blur(3px);
+}
+
+/* ── Empty states ────────────────────────────────────────────── */
+.empty-state {
+    border-radius: var(--radius);
+    border: 1.5px dashed color-mix(in srgb, var(--text-muted) 28%, transparent);
+    background: var(--es-surface-tint);
+    padding: var(--es-space-xl);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-state-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--es-space-sm);
+    opacity: 0.85;
+}
+
+/* ── Quick access ──────────────────────────────────────────────── */
+.quick-access-label {
+    font-size: var(--es-text-small);
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: var(--es-space-sm);
+}
+
+.quick-access-btn {
+    padding: var(--es-space-sm);
+    min-height: 72px;
+}
+
+/* ── Toggle switch ───────────────────────────────────────────── */
+.toggle-switch input:checked + .toggle-slider {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+}
+
+/* ── Item detail modal (product sheet) ───────────────────────── */
+.item-detail-modal {
+    gap: var(--es-space-md);
+}
+
+.item-detail-hero {
+    background: var(--es-surface-tint);
+    border: 1px solid var(--es-border-subtle);
+    border-radius: var(--es-radius-card);
+    padding: var(--es-space-lg);
+}
+
+.item-detail-qty-pill {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.item-detail-action {
+    border-radius: var(--es-radius-card);
+    min-height: var(--es-btn-height);
+    font-weight: 600;
+    box-shadow: var(--es-shadow-card);
+}
+
+/* ── Desktop modal centering ─────────────────────────────────── */
+@media (min-width: 640px) {
+    .modal-overlay,
+    #recipe-overlay {
+        align-items: center;
+        padding: var(--es-space-lg);
+    }
+
+    .modal-content,
+    .recipe-dialog {
+        border-radius: var(--radius);
+        max-height: 88vh;
+    }
+}
+
+/* ── Dark mode alignment ─────────────────────────────────────── */
+[data-theme="dark"] .section-card,
+[data-theme="dark"] .settings-card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .inventory-item,
+[data-theme="dark"] .shop-row,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .search-bar input,
+[data-theme="dark"] .form-input {
+    border-color: color-mix(in srgb, var(--border) 70%, #fff 8%);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .btn-secondary {
+    background: color-mix(in srgb, var(--bg-card) 90%, #fff 4%);
+}
