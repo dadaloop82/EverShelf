@@ -56,10 +56,10 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 
 ## Inventory list
 
-- **Nav label:** “List” / “Lista” (not “Pantry” — that name is reserved for the storage *location* tab).
-- **Swipe left:** open Use page with quantity + optional 15s countdown.
-- **Swipe right:** edit product.
-- **Tap:** opens edit modal; swipe right also edits.
+- **Nav label:** “List” / “Lista” (storage location tabs keep Pantry/Fridge/Freezer names).
+- **Swipe left:** open Use quantity screen.
+- **Swipe right / tap:** edit product.
+- **Onboarding:** one-time swipe demo animation on first list open (no static hints).
 
 ## Modals
 

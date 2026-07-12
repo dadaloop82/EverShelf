@@ -1482,19 +1482,6 @@ body.server-offline .bottom-nav {
     opacity: 1;
 }
 
-.inv-swipe-hint {
-    position: absolute;
-    bottom: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.62rem;
-    color: var(--text-muted);
-    opacity: 0.6;
-    z-index: 1;
-    pointer-events: none;
-    white-space: nowrap;
-}
-
 .inventory-list {
     touch-action: pan-y;
 }
