@@ -156,7 +156,8 @@ class KioskActivity : AppCompatActivity() {
 
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val res = tts?.setLanguage(Locale.ITALIAN)
+                val locale = ttsLocaleForKiosk()
+                val res = tts?.setLanguage(locale)
                 if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
                     tts?.language = Locale.getDefault()
                 }
@@ -497,17 +498,28 @@ class KioskActivity : AppCompatActivity() {
             }
             @JavascriptInterface
             fun speak(text: String, rate: Float, pitch: Float) {
-                val engine = tts ?: return
-                if (!ttsReady) return
-                engine.setSpeechRate(rate.coerceIn(0.1f, 4f))
-                engine.setPitch(pitch.coerceIn(0.1f, 4f))
-                val params = Bundle().apply {
-                    putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+                // TextToSpeech must run on the main thread — @JavascriptInterface is on a background thread.
+                runOnUiThread {
+                    val engine = tts
+                    if (engine == null || !ttsReady) {
+                        safeEvalJs("if(window._kioskTtsError)window._kioskTtsError('kiosk_tts',-3)")
+                        return@runOnUiThread
+                    }
+                    engine.setSpeechRate(rate.coerceIn(0.1f, 4f))
+                    engine.setPitch(pitch.coerceIn(0.1f, 4f))
+                    val params = Bundle().apply {
+                        putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
+                    }
+                    val code = engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, "kiosk_tts")
+                    if (code == TextToSpeech.ERROR) {
+                        safeEvalJs("if(window._kioskTtsError)window._kioskTtsError('kiosk_tts',-1)")
+                    }
                 }
-                engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, "kiosk_tts")
             }
             @JavascriptInterface
-            fun stopSpeech() { tts?.stop() }
+            fun stopSpeech() {
+                runOnUiThread { tts?.stop() }
+            }
             @JavascriptInterface
             fun isTtsReady(): String = if (ttsReady) "true" else "false"
             @JavascriptInterface
@@ -1093,6 +1105,17 @@ class KioskActivity : AppCompatActivity() {
             ErrorReporter.reportMessage("install_packager_exception",
                 "installWithPackageInstaller exception for $targetPkg: ${e.message}",
                 forceReport = true)
+        }
+    }
+
+    private fun ttsLocaleForKiosk(): Locale {
+        val lang = (prefs.getString("kiosk_language", "it") ?: "it").lowercase().take(2)
+        return when (lang) {
+            "en" -> Locale.US
+            "de" -> Locale.GERMAN
+            "fr" -> Locale.FRENCH
+            "es" -> Locale("es", "ES")
+            else -> Locale.ITALIAN
         }
     }
 

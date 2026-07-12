@@ -1759,6 +1759,46 @@ function detectUnitAndQuantity(quantityInfo) {
     return { unit: 'pz', quantity: 1, weightInfo: quantityInfo };
 }
 
+/** Fresh produce sold by piece — label weight (e.g. "300 g") is informational only. */
+function isSoldByPiece(name, category) {
+    const n = (name || '').toLowerCase();
+    if (!n) return false;
+    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/.test(n)) return false;
+    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/.test(n)) return true;
+    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/.test(n)) return true;
+    return false;
+}
+
+/** Unit/qty for new products — piece produce stays pz even when OFF reports grams. */
+function detectProductUnitAndQuantity(name, category, quantityInfo) {
+    if (isSoldByPiece(name, category)) {
+        return { unit: 'pz', quantity: 1, weightInfo: quantityInfo || '', packageUnit: '' };
+    }
+    return detectUnitAndQuantity(quantityInfo);
+}
+
+function suggestCategoryUnitQty(category, name) {
+    if (isSoldByPiece(name, category)) return { unit: 'pz', qty: 1 };
+    const catDefaults = {
+        'latticini': { unit: 'pz', qty: 1 },
+        'carne': { unit: 'g', qty: 500 },
+        'pesce': { unit: 'g', qty: 300 },
+        'frutta': { unit: 'g', qty: 1000 },
+        'verdura': { unit: 'g', qty: 500 },
+        'pasta': { unit: 'g', qty: 500 },
+        'pane': { unit: 'pz', qty: 1 },
+        'surgelati': { unit: 'g', qty: 450 },
+        'bevande': { unit: 'ml', qty: 1000 },
+        'condimenti': { unit: 'pz', qty: 1 },
+        'snack': { unit: 'g', qty: 250 },
+        'conserve': { unit: 'g', qty: 400 },
+        'cereali': { unit: 'g', qty: 500 },
+        'igiene': { unit: 'pz', qty: 1 },
+        'pulizia': { unit: 'pz', qty: 1 },
+    };
+    return catDefaults[category] || { unit: 'pz', qty: 1 };
+}
+
 // Estimate expiry days based on category/product type
 const EXPIRY_DAYS = {
     'latticini': 7, 'carne': 4, 'pesce': 3, 'frutta': 7, 'verdura': 7,
@@ -2645,7 +2685,7 @@ async function _tryGeminiVisualBarcode() {
             _aiDetectedProductDraft = {
                 name: p.name || t('product.not_recognized'),
                 brand: p.brand || '',
-                category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+                category: cat,
             };
             const matchRes = await _fetchAiMatchCandidates(_aiDetectedProductDraft);
             if (myGen !== _aiVisualGen) {
@@ -2904,6 +2944,7 @@ function _applySyncedSettings(serverSettings) {
     }
     if (changed) {
         _settingsCache = s;
+        _applyKioskTtsOverrides(s);
         // Update localStorage hint for _earlyTheme() IIFE on next load
         try { localStorage.setItem('evershelf_dark_mode', s.dark_mode || 'auto'); } catch(_) {}
     }
@@ -3523,8 +3564,8 @@ async function loadSettingsUI() {
         s.tts_auth_type = s.tts_auth_type || 'bearer';
         s.tts_content_type = s.tts_content_type || 'application/json';
         s.tts_enabled = s.tts_enabled !== undefined ? s.tts_enabled : false;
-        // Default engine: 'server' if a URL was already configured, else 'browser'
-        if (!s.tts_engine) s.tts_engine = s.tts_url ? 'server' : 'browser';
+        // Default engine: native/browser on kiosk; else server if URL configured
+        if (!s.tts_engine) s.tts_engine = (_hasKioskTts() || !s.tts_url) ? 'browser' : 'server';
         s.tts_voice = s.tts_voice || '';
         s.tts_rate = s.tts_rate !== undefined ? s.tts_rate : 1;
         s.tts_pitch = s.tts_pitch !== undefined ? s.tts_pitch : 1;
@@ -3604,6 +3645,7 @@ async function loadSettingsUI() {
         }
         if (changed) {
             _settingsCache = s;
+            _applyKioskTtsOverrides(s);
             // Re-populate UI with merged values
             document.getElementById('setting-gemini-key').value = s.gemini_key || '';
             document.getElementById('setting-bring-email').value = s.bring_email || '';
@@ -6608,7 +6650,7 @@ function isInventoryDepleted(item) {
     const q = parseFloat(item?.quantity);
     if (isNaN(q) || q <= 0) return true;
     const unit = (item?.unit || 'pz').toLowerCase();
-    const thresholds = { g: 20, ml: 20, kg: 0.02, l: 0.02, conf: 0.1, pz: 0.5 };
+    const thresholds = { g: 20, ml: 20, kg: 0.02, l: 0.02, conf: 0.1, pz: 0.25 };
     return q <= (thresholds[unit] ?? 0.5);
 }
 
@@ -6864,13 +6906,15 @@ function renderInventoryItem(item) {
     </div>`;
 }
 
-/** Tap riga inventario → modifica. Swipe gestito a parte. */
+/** Tap riga inventario → Usa. Swipe gestito a parte. */
 function invRowTap(ev) {
     const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
     if (!row || row.dataset.invSwipeDone === '1') return;
     const invId = parseInt(row.dataset.invId, 10);
-    if (isNaN(invId)) return;
-    editInventoryItem(invId);
+    const productId = parseInt(row.dataset.productId, 10);
+    const location = row.dataset.location || 'dispensa';
+    if (isNaN(productId)) return;
+    quickUse(productId, location);
 }
 
 function _findInventoryItem(id) {
@@ -6980,9 +7024,9 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        if (ctx.maxDx < 18 && ctx.maxDy < 35 && dy < 35 && !isNaN(invId)) {
+        if (ctx.maxDx < 18 && ctx.maxDy < 35 && dy < 35 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            editInventoryItem(invId);
+            quickUse(productId, location);
         }
     };
 
@@ -8534,6 +8578,32 @@ function _barcodePersistSet(key, result) {
 /** Fix unit/qty from stored notes; fire-and-forget DB update when needed. */
 function _applyLocalBarcodeProductFixes(product) {
     if (!product) return;
+    const cat = product.category || mapToLocalCategory(product.category || '', product.name || '', product.brand || '');
+    if (isSoldByPiece(product.name, cat)) {
+        const needsSave = product.unit !== 'pz' || parseFloat(product.default_quantity || 0) !== 1;
+        product.unit = 'pz';
+        product.default_quantity = 1;
+        product.package_unit = '';
+        if (needsSave && product.id) {
+            api('product_save', {}, 'POST', {
+                id: product.id,
+                barcode: product.barcode,
+                name: product.name,
+                brand: product.brand || '',
+                category: cat,
+                image_url: product.image_url || '',
+                unit: 'pz',
+                default_quantity: 1,
+                package_unit: '',
+                notes: product.notes || '',
+            }).catch(() => {});
+        }
+        if (!product.weight_info && product.notes) {
+            const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
+            if (pesoMatch) product.weight_info = pesoMatch[1].trim();
+        }
+        return;
+    }
     if (product.unit === 'pz' && product.default_quantity === 0 && product.notes) {
         const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
         if (pesoMatch) {
@@ -8582,13 +8652,14 @@ function _externalBarcodeNotes(p) {
 }
 
 function _currentProductFromExternal(p, barcode, saveId) {
-    const detected = detectUnitAndQuantity(p.quantity_info);
+    const cat = mapToLocalCategory(p.category || '', p.name || '', p.brand || '');
+    const detected = detectProductUnitAndQuantity(p.name, cat, p.quantity_info);
     return {
         id: saveId,
         barcode: barcode,
         name: p.name || t('product.not_recognized'),
         brand: p.brand || '',
-        category: p.category || '',
+        category: cat,
         image_url: p.image_url || '',
         unit: detected.unit,
         default_quantity: detected.quantity,
@@ -8641,12 +8712,13 @@ async function _finishBarcodeResolved(barcode) {
 }
 
 async function _saveExternalBarcodeProduct(code, p) {
-    const detected = detectUnitAndQuantity(p.quantity_info);
+    const cat = mapToLocalCategory(p.category || '', p.name || '', p.brand || '');
+    const detected = detectProductUnitAndQuantity(p.name, cat, p.quantity_info);
     let saveResult = await api('product_save', {}, 'POST', {
         barcode: code,
         name: p.name || t('product.not_recognized'),
         brand: p.brand || '',
-        category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+        category: cat,
         image_url: p.image_url || '',
         unit: detected.unit,
         default_quantity: detected.quantity,
@@ -8668,7 +8740,7 @@ async function _saveExternalBarcodeProduct(code, p) {
             barcode: code,
             name: p.name || t('product.not_recognized'),
             brand: p.brand || '',
-            category: mapToLocalCategory(p.category || '', p.name || '', p.brand || ''),
+            category: cat,
             unit: 'pz',
             default_quantity: 1,
             image_url: p.image_url || '',
@@ -9087,32 +9159,17 @@ function onCategoryChange(fromAutoDetect = false) {
     
     // Auto-detect from name: suggest default unit/qty based on category
     // BUT only if user hasn't manually changed the quantity field
-    const catDefaults = {
-        'latticini': { unit: 'pz', qty: 1 },
-        'carne': { unit: 'g', qty: 500 },
-        'pesce': { unit: 'g', qty: 300 },
-        'frutta': { unit: 'g', qty: 1000 },
-        'verdura': { unit: 'g', qty: 500 },
-        'pasta': { unit: 'g', qty: 500 },
-        'pane': { unit: 'pz', qty: 1 },
-        'surgelati': { unit: 'g', qty: 450 },
-        'bevande': { unit: 'ml', qty: 1000 },
-        'condimenti': { unit: 'pz', qty: 1 },
-        'snack': { unit: 'g', qty: 250 },
-        'conserve': { unit: 'g', qty: 400 },
-        'cereali': { unit: 'g', qty: 500 },
-        'igiene': { unit: 'pz', qty: 1 },
-        'pulizia': { unit: 'pz', qty: 1 },
-    };
+    const name = document.getElementById('pf-name')?.value || '';
+    const suggested = suggestCategoryUnitQty(cat, name);
     
-    if (catDefaults[cat]) {
+    if (suggested) {
         // Only auto-fill unit/qty if user hasn't manually touched them
         const unitManuallySet = unitSelect.dataset.manuallySet === 'true';
         if (qtyInput.dataset.manuallySet !== 'true' && !unitManuallySet) {
-            unitSelect.value = catDefaults[cat].unit;
-            qtyInput.value = catDefaults[cat].qty;
+            unitSelect.value = suggested.unit;
+            qtyInput.value = suggested.qty;
         } else if (qtyInput.dataset.manuallySet !== 'true' && unitManuallySet) {
-            qtyInput.value = catDefaults[cat].qty;
+            qtyInput.value = suggested.qty;
         }
     }
 }
@@ -11122,7 +11179,7 @@ async function loadUseInventoryInfo() {
             const qtyInput = document.getElementById('use-quantity');
             const activeLocQty = items.filter(i => i.location === activeLoc).reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
             qtyInput.step = 'any';
-            qtyInput.min = '1';
+            qtyInput.min = unit === 'pz' ? '0.25' : (unit === 'conf' ? '0.25' : '0.1');
             if (unit === 'g' || unit === 'ml') {
                 qtyInput.value = '';
                 qtyInput.placeholder = t('use.qty_placeholder');
@@ -11205,6 +11262,8 @@ function setConfFraction(f) {
     document.querySelectorAll('#conf-fraction-btns .frac-btn').forEach(b =>
         b.classList.toggle('active', parseFloat(b.dataset.frac) === f)
     );
+    if (f !== 1) clearUseFormIdleCountdown();
+    else _maybeStartUseFormIdleCountdown();
 }
 
 function getSubUnitStep(pkgUnit) {
@@ -11383,10 +11442,13 @@ function _expandUseLocationSelector() {
 // ────────────────────────────────────────────────────────────────────────
 
 function setPzFraction(frac) {
-    document.getElementById('use-quantity').value = frac;
+    const input = document.getElementById('use-quantity');
+    if (input) input.value = frac;
     document.querySelectorAll('#pz-fraction-btns .frac-btn').forEach(b => {
         b.classList.toggle('active', parseFloat(b.dataset.frac) === frac);
     });
+    if (frac !== 1) clearUseFormIdleCountdown();
+    else _maybeStartUseFormIdleCountdown();
 }
 
 // ===== LOW STOCK → BRING! PROMPT =====
@@ -11700,13 +11762,16 @@ const USE_FORM_IDLE_MS = 15000;
 
 function _useFormIdleEligible() {
     if (_currentPageId !== 'use') return false;
+    const qtyInput = document.getElementById('use-quantity');
+    const qty = parseFloat(qtyInput?.value);
     if (_useConfMode) {
         if (_useConfMode._activeUnit === 'sub') return false;
-        if (_useConfMode._activeUnit === 'conf') return true;
+        if (_useConfMode._activeUnit === 'conf') return qty === 1 || isNaN(qty);
     }
     const u = _useNormalUnit || (_useCurrentItems?.[0]?.unit || 'pz');
     if (u === 'g' || u === 'ml') return false;
-    return u === 'pz' || u === 'conf';
+    if (u === 'pz' || u === 'conf') return qty === 1 || isNaN(qty);
+    return false;
 }
 
 function clearUseFormIdleCountdown() {
@@ -12470,6 +12535,7 @@ async function selectAIMatch(idx) {
         const localResult = await api('search_barcode', { barcode: match.barcode });
         if (localResult.found) {
             currentProduct = localResult.product;
+            _applyLocalBarcodeProductFixes(currentProduct);
             showLoading(false);
             showProductAction();
             return;
@@ -12479,7 +12545,8 @@ async function selectAIMatch(idx) {
         const lookupResult = await api('lookup_barcode', { barcode: match.barcode });
         if (lookupResult.found && lookupResult.product) {
             const p = lookupResult.product;
-            const detected = detectUnitAndQuantity(p.quantity_info);
+            const cat = mapToLocalCategory(p.category || '', p.name || match.name || '', p.brand || match.brand || '');
+            const detected = detectProductUnitAndQuantity(p.name || match.name, cat, p.quantity_info);
 
             const notesParts = [];
             if (p.quantity_info) notesParts.push(`${t('product.weight_label')}: ${p.quantity_info}`);
@@ -12492,7 +12559,7 @@ async function selectAIMatch(idx) {
                 barcode: match.barcode,
                 name: p.name || match.name,
                 brand: p.brand || match.brand || '',
-                category: p.category || '',
+                category: cat,
                 image_url: p.image_url || match.image_url || '',
                 unit: detected.unit,
                 default_quantity: detected.quantity,
@@ -12505,12 +12572,13 @@ async function selectAIMatch(idx) {
                     barcode: match.barcode,
                     name: p.name || match.name,
                     brand: p.brand || match.brand || '',
-                    category: p.category || '',
+                    category: cat,
                     image_url: p.image_url || match.image_url || '',
                     unit: detected.unit,
                     default_quantity: detected.quantity,
                     weight_info: p.quantity_info || '',
                 };
+                _applyLocalBarcodeProductFixes(currentProduct);
                 showLoading(false);
                 showProductAction();
                 return;
@@ -12754,7 +12822,8 @@ function _pfAiFillFields(name, brand, category, barcode, imageUrl, quantityInfo)
         preview.style.display = 'block';
     }
     if (quantityInfo) {
-        const detected = detectUnitAndQuantity(quantityInfo);
+        const cat = document.getElementById('pf-category')?.value || mapToLocalCategory(category || '', name || '');
+        const detected = detectProductUnitAndQuantity(name, cat, quantityInfo);
         document.getElementById('pf-unit').value = detected.unit;
         document.getElementById('pf-defqty').value = detected.quantity;
         document.getElementById('pf-defqty').dataset.manuallySet = 'true';
@@ -17748,7 +17817,7 @@ function _buildHaTtsRequest(text, s) {
 
 async function _ttsViaProxy(req) {
     // Route through server-side proxy to avoid mixed-content / CORS issues
-    return fetch('api/index.php?action=tts_proxy', {
+    const res = await fetch('api/index.php?action=tts_proxy', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -17762,30 +17831,46 @@ async function _ttsViaProxy(req) {
             payload: req.body
         })
     });
+    return res;
+}
+
+/** True when running inside the EverShelf Android kiosk WebView with native TTS. */
+function _hasKioskTts() {
+    return typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function';
+}
+
+/** Keep kiosk/tablet on native TTS even when server settings prefer HA/external endpoint. */
+function _applyKioskTtsOverrides(s) {
+    if (!_hasKioskTts() || !s) return s;
+    s.tts_engine = 'browser';
+    return s;
 }
 
 async function speakCookingStep(text) {
     if (!text) return;
     const s = getSettings();
-    // Respect the user's explicit engine choice.
-    // Do NOT gate on s.tts_enabled — the _cookingTTS toggle in cooking mode is the only gate.
-    // If the preferred engine fails, always fall back to browser TTS.
     const fallback = () => _speakBrowser(text);
+
+    // Kiosk WebView: always use native Android TTS (server/HA endpoints play elsewhere).
+    if (_hasKioskTts()) {
+        _speakBrowser(text);
+        return;
+    }
+
     try {
-        // 1. Browser engine — always use Web Speech API / kiosk bridge directly
         if (!s.tts_engine || s.tts_engine === 'browser') {
             _speakBrowser(text);
-        // 2. HA TTS — if HA is enabled and a media player entity is configured
         } else if (s.ha_enabled && s.ha_tts_entity && s.ha_url) {
             try {
                 const req = _buildHaTtsRequest(text, s);
-                await _ttsViaProxy(req);
+                const res = await _ttsViaProxy(req);
+                if (!res.ok) fallback();
             } catch(e) { fallback(); }
-        // 3. Generic external endpoint ('server' or legacy 'custom' engine)
         } else if ((s.tts_engine === 'server' || s.tts_engine === 'custom') && s.tts_url) {
             try {
                 const req = _buildTtsRequest(text, s);
-                await _ttsViaProxy(req);
+                const res = await _ttsViaProxy(req);
+                if (!res.ok) fallback();
             } catch(e) { fallback(); }
         } else {
             _speakBrowser(text);
@@ -18207,14 +18292,15 @@ function testSound() {
 async function testTTS() {
     const statusEl = document.getElementById('tts-test-status');
     const enabled = document.getElementById('setting-tts-enabled')?.checked;
-    if (!enabled) {
+    const onKiosk = _hasKioskTts();
+    if (!enabled && !onKiosk) {
         if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
         return;
     }
-    const engine = document.getElementById('setting-tts-engine')?.value || 'browser';
+    const engine = onKiosk ? 'browser' : (document.getElementById('setting-tts-engine')?.value || 'browser');
     if (engine === 'browser') {
         // Kiosk native TTS bridge takes priority over Web Speech API
-        if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
+        if (onKiosk) {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {

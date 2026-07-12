@@ -69,7 +69,7 @@ function getDB(): PDO {
     $db->setAttribute(PDO::ATTR_TIMEOUT, 5); // PDO::ATTR_TIMEOUT is in seconds for MySQL, but not directly for SQLite.
                                              // For SQLite, we use PRAGMA busy_timeout.
     $db->exec('PRAGMA journal_mode = WAL;');
-    $db->exec('PRAGMA busy_timeout = 10000;'); // 10 s — cron + PWA writes can contend under WAL
+    $db->exec('PRAGMA busy_timeout = 20000;'); // 20 s — cron + PWA writes can contend under WAL
 
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec("PRAGMA journal_mode=WAL");
@@ -95,7 +95,7 @@ function getDB(): PDO {
  * @param callable(): T $fn
  * @return T
  */
-function dbWithRetry(callable $fn, int $maxAttempts = 4): mixed {
+function dbWithRetry(callable $fn, int $maxAttempts = 6): mixed {
     $attempt = 0;
     while (true) {
         try {
@@ -680,4 +680,60 @@ function getVacuumExpiryDaysPHP(int $baseDays): int {
     if ($baseDays <= 30) return (int)round($baseDays * 2.5);
     if ($baseDays <= 90) return (int)round($baseDays * 2.5);
     return (int)round($baseDays * 1.5);
+}
+
+/**
+ * Fresh produce sold by piece (avocado, banana, onion…) — not by weight.
+ * Weight on the label (e.g. "300 g") is informational only.
+ */
+function isSoldByPieceProduct(string $name, string $category = ''): bool {
+    $n = mb_strtolower(trim($name));
+    if ($n === '') {
+        return false;
+    }
+    if (preg_match('/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/i', $n)) {
+        return false;
+    }
+    if (preg_match('/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i', $n)) {
+        return true;
+    }
+    if (preg_match('/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/i', $n)) {
+        return true;
+    }
+    return false;
+}
+
+/** Force pz/1 for piece produce; optionally flag inventory conversion from g/ml. */
+function normalizePieceProductFields(array $fields, ?array $existing = null): array {
+    if (!isSoldByPieceProduct((string)($fields['name'] ?? ''), (string)($fields['category'] ?? ''))) {
+        return $fields;
+    }
+    $prevUnit = strtolower((string)($existing['unit'] ?? $fields['unit'] ?? 'pz'));
+    $prevDef = (float)($existing['default_quantity'] ?? $fields['default_quantity'] ?? 0);
+    if (in_array($prevUnit, ['g', 'ml'], true)) {
+        $gpp = ($prevDef >= 50 && $prevDef <= 2000) ? $prevDef : 200;
+        $fields['_inventory_convert'] = ['grams_per_piece' => $gpp];
+    }
+    $fields['unit'] = 'pz';
+    $fields['default_quantity'] = 1;
+    $fields['package_unit'] = '';
+    return $fields;
+}
+
+/** Convert inventory rows from grams/ml to piece count when product unit is corrected. */
+function repairPieceProductInventory(PDO $db, int $productId, float $gramsPerPiece): void {
+    if ($gramsPerPiece <= 0) {
+        $gramsPerPiece = 200;
+    }
+    $stmt = $db->prepare('SELECT id, quantity FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt->execute([$productId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $raw = (float)$row['quantity'];
+        $pz = round($raw / $gramsPerPiece * 4) / 4;
+        if ($pz < 0.25 && $raw > 0) {
+            $pz = 0.25;
+        }
+        $db->prepare('UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+            ->execute([$pz, $row['id']]);
+    }
 }

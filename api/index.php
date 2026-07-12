@@ -2889,11 +2889,14 @@ function saveProduct(PDO $db): void {
 
     $existing = $id ? loadProductRow($db, $id) : null;
     $fields = mergeIncomingProductFields($existing, $input, $barcode);
+    $invConvert = $fields['_inventory_convert'] ?? null;
+    $fields = _stripPieceProductInternalKeys($fields);
     $params = productSaveParams($fields);
 
     try {
         if ($id) {
             executeProductUpdate($db, $fields, $id);
+            applyPieceProductInventoryRepair($db, $id, $existing, $invConvert);
             $consolidated = safeConsolidateDuplicateProducts($db, $id);
             if ($consolidated['merged']) {
                 $merged = true;
@@ -2924,7 +2927,10 @@ function saveProduct(PDO $db): void {
                 }
                 $existingOwner = loadProductRow($db, $owner);
                 $fields = mergeIncomingProductFields($existingOwner, $input, $fields['barcode']);
+                $invConvert = $fields['_inventory_convert'] ?? null;
+                $fields = _stripPieceProductInternalKeys($fields);
                 executeProductUpdate($db, $fields, $owner);
+                applyPieceProductInventoryRepair($db, $owner, $existingOwner, $invConvert);
                 echo json_encode(['success' => true, 'id' => $owner, 'merged' => true]);
                 return;
             }
@@ -3914,11 +3920,12 @@ function updateInventory(PDO $db): void {
     $params[] = $id;
 
     // Wrap all writes in a single transaction; retry on SQLITE_BUSY (cron + PWA overlap).
-    dbWithRetry(function () use ($db, $fields, $params, $input, $prevRow, $id): void {
-        $db->beginTransaction();
-        try {
-            $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
-            $stmt->execute($params);
+    try {
+        dbWithRetry(function () use ($db, $fields, $params, $input, $prevRow, $id): void {
+            $db->exec('BEGIN IMMEDIATE');
+            try {
+                $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
+                $stmt->execute($params);
 
             // Ledger-neutral move: out from old location + in at new (audit trail for "where did it go?")
             if (isset($input['location']) && $prevRow && $input['location'] !== $prevRow['location']) {
@@ -3971,11 +3978,23 @@ function updateInventory(PDO $db): void {
             }
 
             $db->commit();
-        } catch (Throwable $e) {
-            if ($db->inTransaction()) $db->rollBack();
-            throw $e;
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) $db->rollBack();
+                throw $e;
+            }
+        });
+    } catch (PDOException $e) {
+        if (str_contains($e->getMessage(), 'database is locked')) {
+            http_response_code(503);
+            echo json_encode([
+                'success' => false,
+                'error'   => 'database_busy',
+                'message' => 'Database temporaneamente occupato — riprova tra un attimo.',
+            ], JSON_UNESCAPED_UNICODE);
+            return;
         }
-    });
+        throw $e;
+    }
 
     // Real-time shopping sync: done after commit so DB lock is not held during HTTP call
     if (isset($input['quantity']) && $prevRow && abs((float)$input['quantity'] - (float)$prevRow['quantity']) > 0.001) {
@@ -4022,7 +4041,7 @@ function deleteInventory(PDO $db): void {
 }
 
 function productQtyThreshold(string $unit): float {
-    static $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.5];
+    static $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.25];
     return $thresholds[$unit] ?? 0.5;
 }
 
@@ -4224,7 +4243,8 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $defQty = $input['default_quantity'] ?? 1;
         $existingUnit = (string)($existing['unit'] ?? 'pz');
         $existingQty = (float)($existing['default_quantity'] ?? 1);
-        if ($unit === 'pz' && (float)$defQty === 1.0 && ($existingUnit !== 'pz' || abs($existingQty - 1.0) > 0.001)) {
+        $pieceProduct = isSoldByPieceProduct($name, $category);
+        if (!$pieceProduct && $unit === 'pz' && (float)$defQty === 1.0 && ($existingUnit !== 'pz' || abs($existingQty - 1.0) > 0.001)) {
             $unit = $existingUnit;
             $defQty = $existing['default_quantity'] ?? 1;
         }
@@ -4251,7 +4271,7 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         ? (string)$input['shopping_name']
         : computeShoppingName($name, $category, $brand);
 
-    return [
+    $fields = [
         'name'              => $name,
         'brand'             => $brand,
         'category'          => $category,
@@ -4264,6 +4284,23 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         'shopping_name'     => $shoppingName,
         'nutriments_json'   => $nutriJson,
     ];
+    return normalizePieceProductFields($fields, $existing);
+}
+
+function applyPieceProductInventoryRepair(PDO $db, int $productId, ?array $existing, ?array $invConvert): void {
+    if (!$invConvert || !$existing || $productId <= 0) {
+        return;
+    }
+    $prevUnit = strtolower((string)($existing['unit'] ?? ''));
+    if (!in_array($prevUnit, ['g', 'ml'], true)) {
+        return;
+    }
+    repairPieceProductInventory($db, $productId, (float)($invConvert['grams_per_piece'] ?? 200));
+}
+
+function _stripPieceProductInternalKeys(array $fields): array {
+    unset($fields['_inventory_convert']);
+    return $fields;
 }
 
 function productSaveParams(array $fields): array {
@@ -6283,23 +6320,53 @@ function _recordAiUsage(string $model, int $tokIn, int $tokOut, string $action =
 }
 
 /**
- * Like callGemini() but tries gemini-2.5-flash first, falls back to gemini-2.0-flash
- * on quota/rate-limit errors (429/503). Builds the URL from model name + API key.
+ * Ordered Gemini model fallback chain (newest first).
+ * gemini-2.0-flash was shut down 2026-06-01 — do not use.
+ */
+function geminiModelChain(): array {
+    return [
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-2.5-flash-lite',
+    ];
+}
+
+/** True when the API says this model is gone — try the next one in the chain. */
+function geminiModelUnavailable(int $httpCode, ?array $data): bool {
+    if ($httpCode === 404) {
+        return true;
+    }
+    $msg = strtolower((string)($data['error']['message'] ?? ''));
+    return str_contains($msg, 'not found')
+        || str_contains($msg, 'not supported')
+        || str_contains($msg, 'shut down')
+        || str_contains($msg, 'deprecated')
+        || str_contains($msg, 'no longer');
+}
+
+/**
+ * Like callGemini() but walks geminiModelChain() on quota or unavailable-model errors.
  */
 function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = ''): array {
-    $models   = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-    $last     = ['http_code' => 0, 'body' => '', 'data' => null, 'tokens_in' => 0, 'tokens_out' => 0];
+    $models    = geminiModelChain();
+    $last      = ['http_code' => 0, 'body' => '', 'data' => null, 'tokens_in' => 0, 'tokens_out' => 0];
     $promptLen = strlen(json_encode($payload));
     foreach ($models as $idx => $model) {
-        $isFallback = $idx > 0;
-        EverLog::aiCall($model, $promptLen, $isFallback);
+        EverLog::aiCall($model, $promptLen, $idx > 0);
         $url  = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
         $last = callGemini($url, $payload, $timeout);
         if ($last['http_code'] === 200) {
             _recordAiUsage($model, $last['tokens_in'], $last['tokens_out'], $usageAction);
             return $last;
         }
-        if ($last['http_code'] !== 429 && $last['http_code'] !== 503) return $last; // non-retryable
+        if (geminiModelUnavailable($last['http_code'], $last['data'])) {
+            EverLog::warn('AI model unavailable, trying fallback', ['model' => $model, 'code' => $last['http_code']]);
+            continue;
+        }
+        if ($last['http_code'] !== 429 && $last['http_code'] !== 503) {
+            return $last;
+        }
         EverLog::warn('AI model exhausted, trying fallback', ['model' => $model, 'code' => $last['http_code']]);
     }
     return $last;
@@ -8555,12 +8622,8 @@ PROMPT;
     $genConfig = recipeGeminiGenerationConfig(min(1.4, 0.7 + $variation * 0.25), 4096);
     $payload   = ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => $genConfig];
 
-    // A: retry SSE-aware con feedback live; C: fallback automatico su quota separata
-    // Ordine: 2.5-flash (quota separata e spesso più disponibile) → 2.0-flash
-    $models = [
-        'gemini-2.5-flash',  // primario: quota TPM separata da 2.0
-        'gemini-2.0-flash',  // fallback
-    ];
+    // A: retry SSE-aware con feedback live; C: fallback automatico su quota / modello spento
+    $models = geminiModelChain();
 
     $result   = null;
     $httpCode = 0;
@@ -8605,8 +8668,15 @@ PROMPT;
                 'data'      => $body ? json_decode($body, true) : null,
             ];
 
-            // Successo o errore non-retry → esci dal loop retry
+            // Successo → esci; modello spento → prossimo modello; quota → retry/wait
             if ($httpCode === 200) break 2;
+            if (geminiModelUnavailable($httpCode, $result['data'])) {
+                if ($modelIdx < count($models) - 1) {
+                    $nextName = str_replace('gemini-', 'Gemini ', $models[$modelIdx + 1]);
+                    $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_switch_model', ['model' => $nextName])]);
+                }
+                break;
+            }
             if ($httpCode !== 429 && $httpCode !== 503) break;
             if ($attempt >= $maxRetries) break;
 
@@ -8631,8 +8701,8 @@ PROMPT;
         }
 
         // C: se primario esaurito dopo tutti i retry, cambia modello immediatamente
-        if ($httpCode === 429 && $modelIdx === 0) {
-            $fallbackName = str_replace('gemini-', 'Gemini ', $models[1]);
+        if (($httpCode === 429 || geminiModelUnavailable($httpCode, $result['data'] ?? null)) && $modelIdx < count($models) - 1) {
+            $fallbackName = str_replace('gemini-', 'Gemini ', $models[$modelIdx + 1]);
             $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_switch_model', ['model' => $fallbackName])]);
             continue;
         }
