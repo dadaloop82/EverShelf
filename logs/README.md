@@ -10,6 +10,8 @@ evershelf_YYYY-MM-DD_HH.log
 
 The directory is tracked in git (via this README) but `.log` files are ignored via `.gitignore`.
 
+For project overview and features (including Corporate UI), see the root [README.md](../README.md).
+
 ## Configuration (`.env`)
 
 | Variable | Default | Description |

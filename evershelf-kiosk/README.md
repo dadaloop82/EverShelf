@@ -2,9 +2,12 @@
 
 Android kiosk app for wall-mounted kitchen tablets. Full-screen WebView wrapper with integrated BLE scale gateway — no external apps required.
 
-> **Version:** 1.6.0 (versionCode 10)
-> **Package:** `it.dadaloop.evershelf.kiosk`
-> **Min SDK:** Android 7.0 (API 24)
+> **Version:** 1.7.20 (versionCode 21)  
+> **Package:** `it.dadaloop.evershelf.kiosk`  
+> **Min SDK:** Android 7.0 (API 24)  
+> **Releases:** [GitHub — kiosk tags](https://github.com/dadaloop82/EverShelf/releases)
+
+Pairs with the EverShelf web app **Corporate UI** (v1.7.57+). The kiosk loads the same SPA; native bridges supply TTS, BLE scale, and kiosk lock.
 
 ---
 
@@ -16,9 +19,15 @@ Android kiosk app for wall-mounted kitchen tablets. Full-screen WebView wrapper 
 - **Exit button (✕)** — visible in header, requires confirmation dialog to exit kiosk
 - **Hard refresh (↻)** — clears WebView cache to pick up web app updates instantly
 - **SSL support** — accepts self-signed certificates for local HTTPS servers
-- **Update notifications** — checks GitHub releases every 6 hours, shows auto-dismiss banner
-- **Native TTS bridge** — cooking mode voice readout uses Android TextToSpeech directly
+- **Update notifications** — checks GitHub releases every 6 hours, shows auto-dismiss banner; webapp can call `checkForUpdates()` / `installUpdate(url)`
 - **Settings activity** — change server URL, test connection, re-run setup wizard
+
+### Native TTS bridge (cooking mode)
+- **`_kioskBridge.speak(text, rate, pitch)`** — Android `TextToSpeech` on the **main thread** (required since v1.7.20; JS bridge runs on a background thread)
+- **`_kioskBridge.stopSpeech()`** — stops current utterance
+- **`_kioskBridge.isTtsReady()`** — returns `"true"` / `"false"` for voice readiness
+- **Locale** — TTS language follows kiosk setup language (`kiosk_language` pref)
+- **Web app behavior** — kiosk tablets prefer the native bridge over server-side TTS (`tts_engine: server`); cooking mode does not depend on Web Speech API voice packs
 
 ### BLE Scale Gateway (integrated, no external app)
 - **Built-in BLE gateway** — `GatewayService` foreground service handles BLE scanning and connection automatically when a scale is configured
@@ -45,7 +54,11 @@ KioskActivity (WebView — full-screen EverShelf)
     ├── SettingsActivity (URL, scale status, re-run wizard)
     ├── Immersive mode (SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
     ├── Screen pinning (startLockTask / stopLockTask)
-    ├── JS bridge (_kioskBridge: exit, hardReload)
+    ├── JS bridge (_kioskBridge)
+    │       ├── exit, hardReload
+    │       ├── speak, stopSpeech, isTtsReady
+    │       ├── checkForUpdates, installUpdate
+    │       ├── reconfigureScale, openSettings, setNativeSettingsVisible
     └── GatewayService (foreground service — BLE + WebSocket)
             ├── BleScaleManager   — BLE scanning, GATT, auto-reconnect
             ├── GatewayWebSocketServer — WebSocket server :8765
@@ -58,13 +71,13 @@ The kiosk app is fully self-contained. No separate gateway app is required.
 
 ## Setup
 
-1. Install the **EverShelf Kiosk** APK on your Android tablet
+1. Install the **EverShelf Kiosk** APK from [GitHub Releases](https://github.com/dadaloop82/EverShelf/releases) (tag `kiosk-1.7.20` or newer)
 2. Launch the app — the setup wizard starts automatically
 3. Choose your language
 4. Grant camera, microphone and Bluetooth permissions when prompted
 5. Enter your EverShelf server URL (e.g. `https://192.168.1.100/dispensa`) or use auto-discovery
 6. If you have a Bluetooth scale: tap **"Yes, I have a scale"**, wait for the BLE scan, then tap your scale in the list
-7. Done — the web app loads in full-screen kiosk mode
+7. Done — the web app loads in full-screen kiosk mode with Corporate UI styling
 
 ### Scale Configuration
 
@@ -140,6 +153,10 @@ The built-in WebSocket server speaks the same protocol as the legacy standalone 
 
 ## Building
 
+CI builds release APKs on push to `main` when `evershelf-kiosk/**` changes ([workflow](https://github.com/dadaloop82/EverShelf/actions/workflows/kiosk.yml)).
+
+Local build:
+
 ```bash
 cd evershelf-kiosk
 ./gradlew assembleDebug
@@ -164,4 +181,3 @@ For release:
 ## License
 
 MIT — see [LICENSE](../LICENSE)
-
