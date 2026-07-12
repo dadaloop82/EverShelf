@@ -40,22 +40,29 @@
 
 ---
 
-### 🆕 Release 1.7.57 (2026-07-08) — List page & product sheet
+### 🆕 Release 1.7.57 (2026-07-08) — Corporate UI & List UX
 
-| Feature | Description |
-|---------|-------------|
-| **List (not Pantry)** | Inventory nav/page renamed to *List* / *Lista* in all languages; storage location tabs still say Pantry/Fridge/Freezer |
-| **Swipe → quantity** | Swipe left opens the Use screen (no instant −1); 15 s idle auto-submit for **pcs** and **packages** only |
-| **Product sheet** | Tap opens redesigned modal: Use, Used all, Create recipe, Discard + edit in header |
-| **Corporate UI** | Design tokens and patterns in [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md) |
+Full visual refactor across the web app. See [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md) for the design system.
 
-### 🆕 Release 1.7.56 (2026-07-07) — Inventory swipe hints
+| Area | What changed |
+|------|----------------|
+| **`corporate.css`** | New stylesheet loaded after `style.css` — unified buttons, cards, forms, modals, tabs, lists, and navigation app-wide |
+| **Design tokens** | Shared palette (primary green `#2d5016`, accent purple), spacing scale, 10px card radius, 48px touch targets, gradient CTAs |
+| **List page** | Nav label renamed to *List* / *Lista* (storage tabs still Pantry / Fridge / Freezer) |
+| **List interactions** | **Tap** or **swipe left** → Use quantity screen; **swipe right** → edit; pointer + touch on desktop |
+| **Onboarding** | One-time swipe demo on first list visit (`evershelf_inv_swipe_demo_v1`); no persistent banner or edge labels (1.7.56 hints removed) |
+| **Product sheet** | 2×2 action grid (Use, Used all, Recipe, Discard) from dashboard, alerts, and quick-access chips |
+| **Idle auto-submit** | Use form: 15 s for pcs/conf only; Add form: 30 s — reverse progress on submit button |
+| **Surfaces** | Dashboard stat cards, settings cards, shopping rows, inventory rows, modals — consistent borders, shadows, typography |
 
-| Feature | Description |
-|---------|-------------|
-| **Swipe guide bar** | Persistent banner above the list: swipe **left** to use one, swipe **right** to edit — on every location tab |
-| **Row edge labels** | Each row shows faint ← Use / Edit → cues; colored backgrounds appear while dragging |
-| **Pointer + touch** | Swipe works with finger and mouse drag (desktop too) |
+### 🆕 Recent patches (July 2026)
+
+| Fix | Description |
+|-----|-------------|
+| **Gemini models (#212)** | Chain: `gemini-3.5-flash` → `gemini-2.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`; removed shut-down `gemini-2.0-flash` |
+| **SQLite locks (#210/#211)** | `BEGIN IMMEDIATE`, 20 s busy timeout, retries; graceful 503 on persistent lock |
+| **Android TTS** | Kiosk **1.7.20**: `speak()` on main thread; kiosk always prefers native TTS over server proxy |
+| **Piece produce** | Avocado, fruit, and other sold-by-piece items stay in **pcs** (`pz`); fractional use down to ¼ piece |
 
 ### 🆕 Release 1.7.55 (2026-07-06) — Shopping list & pantry search
 
@@ -183,6 +190,8 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 ---
 
 ### 📦 Inventory Management
+- **Corporate list UX** — Unified row cards with swipe backgrounds; tap or swipe left opens **Use**; swipe right opens **edit**; product detail sheet (2×2 actions) from dashboard and quick-access chips
+- **Piece fractions** — Use form accepts ¼-piece steps for produce sold by the piece (e.g. ½ avocado); server keeps fruit/veg in **pcs**, not grams
 - **Export inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; export button always visible in the inventory page header
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS; last 20 scanned products saved as tappable chips so you can re-select them without rescanning
 - **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
@@ -202,7 +211,7 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip
 - **Anomaly explanation** — "Explain" button on anomaly banners explains in plain language why a discrepancy likely occurred and what to do
-- **Model fallback** — All AI endpoints try `gemini-2.5-flash` first and fall back to `gemini-2.0-flash` automatically
+- **Model fallback** — AI endpoints walk a model chain (`gemini-3.5-flash` → `gemini-2.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`) on quota or unavailable-model errors
 - **Graceful no-key state** — When no Gemini key is configured, AI entry points show a friendly message; the header button is visually greyed with an amber dot
 
 ### 🛒 Shopping List
@@ -217,7 +226,7 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 ### 🍳 Cooking Mode
 - **♻️ Zero-waste tips** — For each cooking step that generates reusable scraps (peels, cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.), a dismissible ♻️ tip card appears with a practical reuse idea; tips are generated by Gemini as part of the recipe at no extra API cost; opt-in toggle in Settings (default OFF)
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
-- **Text-to-Speech** — Voice readout of recipe steps; supports browser Web Speech API, native Android TTS (kiosk), or a custom REST endpoint (Home Assistant, etc.); retries voice loading for up to 10 seconds with a fallback refresh button; TTS activates automatically without requiring the global TTS setting to be enabled
+- **Text-to-Speech** — Voice readout of recipe steps; browser Web Speech API, native Android TTS via kiosk `_kioskBridge.speak()` (main-thread safe), or custom REST endpoint (Home Assistant); kiosk tablets always prefer the native bridge over server-side TTS; retries voice loading for up to 10 seconds with a fallback refresh button
 - **Auto-read on navigate** — Each step is read aloud automatically when you tap Next or Previous; the first step is read when entering cooking mode
 - **Timer voice alerts** — 10-second countdown warning spoken aloud before each timer expires; expiry announced vocally when time is up
 - **Recipe completion** — "Bon appétit!" announced via TTS when the last step is confirmed
@@ -238,6 +247,17 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Swipe navigation** — Touch swipe or tap arrows/dots to browse banner notifications
 - **Quick-access buttons** — Recently used and most popular products shown on the inventory page for fast access
 
+### 🎨 Corporate UI (v1.7.57+)
+
+App-wide visual system documented in [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md).
+
+- **`corporate.css`** — Second stylesheet layer on top of `style.css`; does not replace layout/dark-mode logic
+- **Consistent components** — Gradient primary/success/warning/accent buttons, pill tabs, elevated cards, blurred modal overlays, unified form inputs and quantity controls
+- **Touch-first** — 48px minimum button height; large CTAs at 52px; active press feedback (`scale(0.98)`)
+- **Inventory** — Swipe-colored row backgrounds, category headers, hidden static hints; one-time demo animation on first visit
+- **Shopping & settings** — Matching row cards, settings tabs, and section cards
+- **Dark mode** — Corporate tokens respect existing light/dark/auto theme variables
+
 ### 🌙 Appearance
 - **Dark mode** — Three modes: Light, Dark, and Auto (time-based: dark from 20:00 to 07:00, light otherwise); applies immediately without page reload; auto mode re-evaluates every 5 minutes, so night/day transitions happen automatically even on always-on kiosk displays; theme is applied before the first render to prevent a white flash
 - **Global settings tab** — A dedicated **⚙️ General** tab groups all system-wide settings (language, currency, theme, screensaver, zero-waste tips, export) at the top of the Settings panel
@@ -251,6 +271,7 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Mobile-first design** — Optimized for phones, works on tablets and desktop
 - **Installable** — Add to home screen for a native app experience
 - **Multi-device** — All user data (shopping tags, pinned items, location preferences, scan history) is stored server-side in SQLite and shared across every device on the same instance; no data is siloed in a single browser's localStorage
+
 ### 📶 Offline Mode
 - **Automatic detection** — Full-screen overlay appears immediately on network loss; shows a "Continue offline" button after 3 s, and auto-enters offline mode after 8 s
 - **Local inventory cache** — Inventory is synced to `localStorage` at every startup and on each successful API call; the offline view always reflects the last known state
@@ -266,11 +287,13 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **SSE relay** — Server-side relay avoids mixed-content (HTTPS→WS) issues
 - **Auto-discovery** — Server scans LAN to find the gateway automatically
 - **Auto weight reading** — When adding/using a product with unit g/ml, weight fills automatically
-- **10g threshold** — Ignores readings that haven't changed enough between products  - **Duplicate-reading prevention** — Server-side 12-second dedup window rejects a second scale-triggered deduction of the same product, guarding against BLE multi-fire- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
+- **10g threshold** — Ignores readings that haven't changed enough between products
+- **Duplicate-reading prevention** — Server-side 12-second dedup window rejects a second scale-triggered deduction of the same product, guarding against BLE multi-fire
+- **ml conversion hint** — Shows "weight in grams → will be converted to ml" when product unit is ml
 - **Stability + auto-confirm** — 10s stable wait + 5s countdown before confirming
 - **Real-time status** — Scale connection indicator always visible in the header
 - **Multi-protocol** — Supports Bluetooth SIG Weight Scale, Body Composition, Xiaomi Mi Scale 2 and 100+ models
-- **Built into kiosk (v1.6.0+)** — BLE gateway runs as an integrated foreground service inside the [EverShelf Kiosk](evershelf-kiosk/) app; no separate APK needed.
+- **Built into kiosk (v1.7.20+)** — BLE gateway runs as an integrated foreground service inside the [EverShelf Kiosk](evershelf-kiosk/) app; no separate APK needed.
 
 ### 📺 Android Kiosk Mode (Add-on)
 - **Dedicated tablet app** — Full-screen WebView wrapper for wall-mounted kitchen tablets
@@ -280,11 +303,11 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Built-in BLE scale gateway** — `GatewayService` foreground service; BLE scanning + WebSocket server `:8765` run directly inside the kiosk app. Select your scale in step 5 of the wizard — no external app required
 - **Scale auto-configuration** — After selecting the BLE device, the wizard writes `scale_enabled` and `scale_gateway_url=ws://127.0.0.1:8765` to the server automatically
 - **Camera & mic permissions** — Full hardware access for barcode scanning and voice; grant button transforms to a green confirmation after granting
-- **Native TTS bridge** — Cooking mode voice readout uses the Android TextToSpeech engine directly, bypassing Web Speech API voice limitations; no offline voice packs required
+- **Native TTS bridge** — `_kioskBridge.speak(text, rate, pitch)` uses Android TextToSpeech on the main thread; locale follows kiosk language; `stopSpeech()` and `isTtsReady()` for cooking mode
 - **Hard refresh** — ↻ button clears WebView cache to pick up web app updates
 - **Update notifications** — Checks GitHub releases every 6h, shows banner when updates available
 - **SSL support** — Accepts self-signed certificates
-- **Android kiosk app** — [`evershelf-kiosk/`](evershelf-kiosk/) — downloadable APK
+- **Android kiosk app** — [`evershelf-kiosk/`](evershelf-kiosk/) — v1.7.20 APK via [GitHub Releases](https://github.com/dadaloop82/EverShelf/releases)
 
 ---
 
@@ -484,16 +507,24 @@ evershelf/
 │   └── cron_smart_shopping.php  # Background job for predictions
 │
 ├── assets/
-│   ├── css/style.css       # All application styles
+│   ├── css/
+│   │   ├── style.css       # Layout, legacy components, dark mode, :root tokens
+│   │   └── corporate.css   # App-wide unified UI (buttons, cards, forms, lists)
 │   ├── js/app.js           # All application logic
 │   └── img/                # Static images
+│
+├── docs/
+│   └── CORPORATE-UI.md     # Design system reference
+│
+├── mcp-server/             # MCP companion for AI agents
+│   └── README.md
 │
 └── data/                   # Runtime data (gitignored)
     ├── evershelf.db         # SQLite database (auto-created)
     ├── backups/            # Local DB backups
     └── *.json              # Token/cache files
 
-evershelf-scale-gateway/    # ⚖️ Android BLE gateway [DEPRECATED — integrated into kiosk v1.6.0+]
+evershelf-scale-gateway/    # ⚖️ Android BLE gateway [DEPRECATED — integrated into kiosk v1.7.20+]
     ├── README.md           # Deprecation notice + legacy docs
     └── app/src/            # Kotlin Android source (WebSocket + BLE)
 
@@ -660,5 +691,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 </div>
 
 For a live walkthrough with real data and full AI enabled, visit the **[live demo](https://evershelfproject.dadaloop.it/demo)** — no installation required.
+
+Corporate UI screenshots (List page, product sheet, dashboard cards): see [assets/img/screenshots/README.md](assets/img/screenshots/README.md).
 
 > Want to contribute additional screenshots? See [CONTRIBUTING.md](CONTRIBUTING.md) — PRs welcome!

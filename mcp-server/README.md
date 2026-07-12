@@ -3,6 +3,8 @@
 [Model Context Protocol](https://modelcontextprotocol.io/) companion for [EverShelf](https://github.com/dadaloop82/EverShelf).  
 Lets AI agents (Claude Desktop, Cursor, Home Assistant LLM, Open WebUI, n8n, …) query and update your pantry via natural language.
 
+The MCP server talks to the same REST API as the web UI (Corporate UI v1.7.57+). It does not render the frontend — only API actions.
+
 ## Tools exposed
 
 | Tool | Description |
@@ -65,6 +67,12 @@ Settings → MCP → Add server with the same command/env.
 - *"Add milk and eggs to my shopping list."*
 - *"What can I cook tonight with what's in the fridge?"*
 - *"I used 2 eggs — update inventory."*
+- *"Log half an avocado used from the fridge."* (piece fractions supported in the web app)
+
+## Related docs
+
+- Main project: [README.md](../README.md)
+- Design system (web UI): [docs/CORPORATE-UI.md](../docs/CORPORATE-UI.md)
 
 ## License
 
