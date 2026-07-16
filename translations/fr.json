@@ -357,7 +357,7 @@
     "when_tomorrow": "expire <strong>demain</strong>",
     "when_days": "expire dans <strong>{n} jours</strong>",
     "toast_used": "📤 {qty} de {name} utilisé",
-    "toast_bring": "🛒 Produit terminé → ajouté à Bring !",
+    "toast_bring": "Ajouté à la liste de courses",
     "toast_opened_finished": "🔓 Emballage ouvert de {name} terminé !",
     "disambiguation_hint": "Que voulez-vous dire par « tout fini » ?",
     "disambiguation_one_conf": "Terminer <strong>1 emballage</strong> ({qty})",
@@ -373,7 +373,8 @@
     "throw_all_confirm_title": "🗑️ Tout jeter",
     "throw_all_confirm_msg": "Voulez-vous vraiment jeter tout le produit ?",
     "throw_all_confirm_btn": "🗑️ Oui, jeter",
-    "locations_short": "emplacements"
+    "locations_short": "emplacements",
+    "toast_shopping": "Ajouté à la liste de courses"
   },
   "waste": {
     "reason_title": "Pourquoi le jetez-vous ?",
@@ -963,11 +964,11 @@
     "shopping": {
       "tab": "Liste de courses",
       "title": "Liste de courses",
-      "hint": "Configurez la liste de courses intégrée ou connectez Bring!.",
+      "hint": "EverShelf a sa propre liste de courses. Bring! est optionnel et ne fait que la refléter.",
       "enable_label": "Activer la liste de courses",
       "mode_label": "Fournisseur",
-      "mode_internal": "Intégré (sans Bring!)",
-      "mode_bring": "Bring! (application externe)",
+      "mode_internal": "EverShelf (liste intégrée)",
+      "mode_bring": "Miroir Bring! (optionnel)",
       "bring_section_title": "Configuration Bring!",
       "ai_section_title": "Assistance IA",
       "smart_suggestions_label": "Suggestions IA",
@@ -1138,7 +1139,7 @@
     "removed_from_list_short": "Retiré de la liste",
     "added_to_shopping": "🛒 Ajouté à la liste de courses !",
     "removed_from_shopping": "🛒 Retiré de la liste de courses",
-    "finished_to_bring": "🛒 Produit terminé → ajouté à Bring !",
+    "finished_to_bring": "🛒 Produit terminé → ajouté à la liste de courses",
     "thrown_away": "🗑️ {name} jeté !",
     "thrown_away_partial": "🗑️ {qty} {unit} de {name} jeté(s)",
     "finished_all": "📤 {name} terminé !",
@@ -1147,7 +1148,8 @@
     "ghost_restored": "✅ {name} : {qty} {unit} restaurés dans l'inventaire",
     "appliance_added": "Appareil ajouté",
     "item_added": "{name} ajouté",
-    "vacuum_sealed": "{name} enregistré sous vide"
+    "vacuum_sealed": "{name} enregistré sous vide",
+    "finished_to_shopping": "🛒 Produit terminé → ajouté à la liste de courses"
   },
   "antiwaste": {
     "title": "🌱 Rapport anti-gaspi",

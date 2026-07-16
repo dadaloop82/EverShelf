@@ -1,7 +1,8 @@
 #!/usr/bin/env php
 <?php
 /**
- * Backfill Bring!/shopping list for products depleted in the last N days.
+ * Backfill shopping list for products depleted in the last N days.
+ * Works for both Bring! and internal shopping modes.
  * Usage: php scripts/backfill-finished-shopping.php [days]
  */
 define('CRON_MODE', true);
@@ -25,13 +26,16 @@ $rows = $db->query("
     ) DESC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-echo '[' . date('Y-m-d H:i:s') . "] Backfill {$days}d — " . count($rows) . " prodotti esauriti\n";
+$mode = isShoppingBringMode() ? 'bring' : 'internal';
+echo '[' . date('Y-m-d H:i:s') . "] Backfill {$days}d ({$mode}) — " . count($rows) . " prodotti esauriti\n";
 
 $added = 0;
 $updated = 0;
 $skipped = 0;
+$byReason = [];
 foreach ($rows as $r) {
-    $res = bringAddDepletedProduct($db, (int)$r['id']);
+    $res = shoppingAddDepletedProduct($db, (int)$r['id']);
+    $reason = (string)($res['reason'] ?? '');
     if (!empty($res['added'])) {
         $added++;
         echo "  + {$r['name']} → {$res['generic_name']}\n";
@@ -40,26 +44,11 @@ foreach ($rows as $r) {
         echo "  ~ {$r['name']} → {$res['generic_name']}\n";
     } else {
         $skipped++;
+        $byReason[$reason ?: 'other'] = ($byReason[$reason ?: 'other'] ?? 0) + 1;
     }
 }
 
-ob_start();
-smartShopping($db);
-$json = ob_get_clean();
-$decoded = json_decode($json, true);
-if ($decoded && !empty($decoded['success'])) {
-    $decoded['cached_at'] = date('c');
-    $decoded['cached_ts'] = time();
-    file_put_contents(
-        __DIR__ . '/../data/smart_shopping_cache.json',
-        json_encode($decoded, JSON_UNESCAPED_UNICODE)
-    );
+echo "Done: added={$added} updated={$updated} skipped={$skipped}\n";
+if ($byReason) {
+    echo 'Skip reasons: ' . json_encode($byReason, JSON_UNESCAPED_UNICODE) . "\n";
 }
-
-ob_start();
-bringSyncFull($db, false);
-$sync = json_decode(ob_get_clean(), true);
-$auto = $sync['auto_add'] ?? [];
-
-echo '[' . date('Y-m-d H:i:s') . "] bringAddDepleted: added={$added} updated={$updated} skipped={$skipped}\n";
-echo '[' . date('Y-m-d H:i:s') . '] bringSync auto_add: ' . json_encode($auto, JSON_UNESCAPED_UNICODE) . "\n";

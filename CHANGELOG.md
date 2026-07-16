@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.58] - 2026-07-16
+
+### Fixed
+- **Shopping list without Bring!** — Depleting a product now always targets the EverShelf built-in list (`shoppingAddDepletedProduct`). Bring! credentials are no longer required for auto-add on finish.
+- **Hidden list rows** — The 15-day purchase/remove blocklist no longer hides rows already stored in `shopping_list` when `SHOPPING_MODE=internal` (blocklist only gates auto re-add).
+- **Finished → buy again** — Finishing a product clears that family's blocklist entry so it can reappear on the list immediately.
+- **Family stock** — Auto-add skips a generic name when another product in the same `shopping_name` family still has stock.
+- **German “Butter” generic** — Maps to *Burro* / *Butter* (was truncated to “Bur”).
+
+### Changed
+- **Shopping architecture** — EverShelf owns the shopping list; Bring! is an optional mirror (`SHOPPING_MODE=bring`). Settings copy and toasts say “shopping list”, not “Bring!”.
+- **API** — Inventory use responses include `added_to_shopping` (legacy `added_to_bring` kept as alias).
+
 ## [1.7.57] - 2026-07-08
 
 ### Added

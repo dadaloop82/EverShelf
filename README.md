@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.57-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.58-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,18 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.58 (2026-07-16) — EverShelf shopping list (Bring!-independent)
+
+The shopping list **always lives in EverShelf**. Bring! is optional and only mirrors that list when `SHOPPING_MODE=bring`.
+
+| Area | What changed |
+|------|----------------|
+| **Built-in list first** | Finishing a product adds its **generic** name via `shoppingAddDepletedProduct` — works with empty Bring credentials |
+| **Blocklist** | 15-day remove/purchase block still prevents silent re-add from cron; it no longer **hides** existing internal list rows |
+| **Re-buy after finish** | Depleting clears the family blocklist so staples return to the list when you run out again |
+| **Family stock** | Skips auto-add when another product sharing the same `shopping_name` still has stock |
+| **UI / i18n** | Settings and toasts describe the EverShelf list; Bring! labelled as optional mirror |
 
 ### 🆕 Release 1.7.57 (2026-07-08) — Corporate UI & List UX
 
@@ -63,6 +75,7 @@ Full visual refactor across the web app. See [`docs/CORPORATE-UI.md`](docs/CORPO
 | **SQLite locks (#210/#211)** | `BEGIN IMMEDIATE`, 20 s busy timeout, retries; graceful 503 on persistent lock |
 | **Android TTS** | Kiosk **1.7.20**: `speak()` on main thread; kiosk always prefers native TTS over server proxy |
 | **Piece produce** | Avocado, fruit, and other sold-by-piece items stay in **pcs** (`pz`); fractional use down to ¼ piece |
+| **Shopping list (1.7.58)** | EverShelf-native list works without Bring!; deplete auto-add + blocklist visibility fixed |
 
 ### 🆕 Release 1.7.55 (2026-07-06) — Shopping list & pantry search
 
@@ -215,13 +228,15 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Graceful no-key state** — When no Gemini key is configured, AI entry points show a friendly message; the header button is visually greyed with an amber dot
 
 ### 🛒 Shopping List
-- **Bring! integration** — Sync with the [Bring!](https://www.getbring.com/) shopping list app
-- **Generic shopping names** — Products are grouped by type (e.g. "Milk", "Cold cuts", "Cooking cream") rather than brand, keeping the Bring! list clean and consolidated
+- **EverShelf built-in list (default)** — Shopping list is stored on the server (`shopping_list`); no external app required (`SHOPPING_MODE=internal`)
+- **Generic shopping names** — Products are grouped by type (e.g. “Milk”, “Cold cuts”, “Cooking cream”) rather than brand
+- **Auto-add on depletion** — When a product (and its generic family) reaches zero, it is added to the EverShelf list automatically
+- **Optional Bring! mirror** — Set `SHOPPING_MODE=bring` plus Bring credentials to sync the same list to the [Bring!](https://www.getbring.com/) app; disabling Bring does not disable the EverShelf list
 - **Smart predictions** — Know what you'll need before you run out
-- **Auto-add on depletion** — When a product reaches zero the app adds it to Bring! automatically, no confirmation needed
 - **Auto-remove on scan** — Products are removed from the shopping list when scanned in shopping mode
-- **Auto-migration** — Items already on the Bring! list are silently renamed to their generic name in the background (throttled, runs on list load)
-  - **Catalog coverage** — All product types resolve to a German Bring! catalog key for icon and category display in the Bring! app
+- **15-day remove block** — After *Bought* / remove, cron will not silently re-add that family for `SHOPPING_REMOVED_BLOCK_DAYS` (default 15); finishing the product again clears the block
+- **List deduplication** — Generic + specific names merge into one row
+  - **Bring catalog keys** — When mirroring to Bring!, product types resolve to a German catalog key for icon/category display
 
 ### 🍳 Cooking Mode
 - **♻️ Zero-waste tips** — For each cooking step that generates reusable scraps (peels, cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.), a dismissible ♻️ tip card appears with a practical reuse idea; tips are generated by Gemini as part of the recipe at no extra API cost; opt-in toggle in Settings (default OFF)

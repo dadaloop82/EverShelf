@@ -6456,7 +6456,7 @@ async function confirmBannerFinished() {
     try {
         const res = await api('inventory_confirm_finished', {}, 'POST', { product_id: productId });
         if (res.bring?.added || res.bring?.updated) {
-            showToast(t('toast.finished_to_bring'), 'info');
+            showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
             loadShoppingList();
         }
     } catch(e) {}
@@ -7258,7 +7258,7 @@ async function _finishExhaustedProduct(productId) {
         const name = res.product_name || currentProduct?.name || '';
         showToast(t('toast.product_finished_confirmed'), 'success');
         if (res.bring?.added || res.bring?.updated) {
-            setTimeout(() => showToast(t('toast.finished_to_bring'), 'info'), 1200);
+            setTimeout(() => showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info'), 1200);
             loadShoppingList?.();
         }
         if (typeof loadDashboard === 'function') loadDashboard();
@@ -11606,14 +11606,11 @@ function showLowStockBringPrompt(result, afterCallback) {
         ? result.total_family_remaining
         : totalRemaining;
     
-    // ── Fully depleted: no need to ask — backend already added to Bring! ──
-    // Skip the modal entirely and proceed to the next step (e.g. move modal).
+    // ── Fully depleted: backend already added to EverShelf shopping list ──
     if (totalRemaining <= 0) {
-        // Backend auto-adds to Bring! when fully depleted. If it failed (Bring not
-        // configured, or product already on list), silently attempt it from JS.
-        if (!result.added_to_bring && shoppingName) {
-            // Fire-and-forget — don't block the callback
-            // Use generic shopping name; specific name + 🛒 marker in spec so cron cleanup can auto-remove.
+        const addedToList = !!(result.added_to_shopping || result.added_to_bring);
+        // Fallback if server skipped (e.g. race) — still targets EverShelf list via shopping_add
+        if (!addedToList && shoppingName) {
             const spec = (shoppingName !== name ? name + (result.product_brand ? ` · ${result.product_brand}` : '') : name) + ' · 🛒 Esaurito';
             (async () => {
                 try {
@@ -11621,7 +11618,7 @@ function showLowStockBringPrompt(result, afterCallback) {
                     if (shoppingListUUID) payload.listUUID = shoppingListUUID;
                     const data = await api('shopping_add', {}, 'POST', payload);
                     if (data.success && data.added > 0) {
-                        showToast(t('toast.finished_to_bring'), 'info');
+                        showToast(t('toast.finished_to_shopping') || (t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
                     }
                 } catch(_e) { /* silent */ }
             })();
@@ -12109,8 +12106,8 @@ async function _doSubmitUseAll() {
         showLoading(false);
         if (result.success) {
             showToast(t('toast.finished_all', { name: currentProduct.name }), 'success');
-            if (result.added_to_bring) {
-                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            if (result.added_to_shopping || result.added_to_bring) {
+                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
             }
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
@@ -12185,8 +12182,8 @@ async function _submitUseOneConf(location) {
         showLoading(false);
         if (result.success) {
             showToast(t('use.toast_one_conf_finished').replace('{name}', currentProduct.name), 'success');
-            if (result.added_to_bring) {
-                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            if (result.added_to_shopping || result.added_to_bring) {
+                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
             }
             _recordUseLocationChoice(currentProduct.id, location);
             const _vacUnit = result.product_unit || currentProduct?.unit || '';
@@ -12237,8 +12234,8 @@ async function _submitUseAllAt(location, isOpenedOnly) {
                 ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
                 : `📤 ${currentProduct.name} terminato!`;
             showToast(toastMsg, 'success');
-            if (result.added_to_bring) {
-                setTimeout(() => showToast(t('use.toast_bring'), 'info'), 1500);
+            if (result.added_to_shopping || result.added_to_bring) {
+                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
             }
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
@@ -12304,8 +12301,8 @@ async function submitUse(e) {
         if (result.success) {
             const usedText = displayUnit ? `${displayQty}${displayUnit}` : displayQty;
             showToast(t('use.toast_used').replace('{qty}', usedText).replace('{name}', currentProduct.name), 'success');
-            if (result.added_to_bring) {
-                setTimeout(() => showToast(t('toast.finished_to_bring'), 'info'), 1500);
+            if (result.added_to_shopping || result.added_to_bring) {
+                setTimeout(() => showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info'), 1500);
             }
             // If there's remaining quantity, offer to move to another location
             const usedFrom = document.getElementById('use-location').value;
@@ -16998,7 +16995,7 @@ async function submitRecipeUse(useAll) {
                     'info'
                 ), 800);
             }
-            if (result.added_to_bring) {
+            if (result.added_to_shopping || result.added_to_bring) {
                 setTimeout(() => showToast(t('recipes.finished_added_bring_toast'), 'info'), 1500);
             }
             

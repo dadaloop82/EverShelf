@@ -357,7 +357,7 @@
     "when_tomorrow": "läuft <strong>morgen</strong> ab",
     "when_days": "läuft in <strong>{n} Tagen</strong> ab",
     "toast_used": "📤 {qty} von {name} verwendet",
-    "toast_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt",
+    "toast_bring": "Zur Einkaufsliste hinzugefügt",
     "toast_opened_finished": "🔓 Geöffnete Packung von {name} aufgebraucht!",
     "disambiguation_hint": "Was meinst du mit \"alles aufgebraucht\"?",
     "disambiguation_one_conf": "<strong>1 Packung</strong> aufgebraucht ({qty})",
@@ -373,7 +373,8 @@
     "throw_all_confirm_title": "🗑️ Alles entsorgen",
     "throw_all_confirm_msg": "Möchtest du wirklich das gesamte Produkt entsorgen?",
     "throw_all_confirm_btn": "🗑️ Ja, entsorgen",
-    "locations_short": "Orte"
+    "locations_short": "Orte",
+    "toast_shopping": "Zur Einkaufsliste hinzugefügt"
   },
   "waste": {
     "reason_title": "Warum wirfst du es weg?",
@@ -1116,11 +1117,11 @@
     "shopping": {
       "tab": "Einkaufsliste",
       "title": "Einkaufsliste",
-      "hint": "Konfiguriere die integrierte Einkaufsliste oder verbinde Bring!.",
+      "hint": "EverShelf hat eine eigene Einkaufsliste. Bring! ist optional und spiegelt nur diese Liste.",
       "enable_label": "Einkaufsliste aktivieren",
       "mode_label": "Anbieter",
-      "mode_internal": "Intern (ohne Bring!)",
-      "mode_bring": "Bring! (externe App)",
+      "mode_internal": "EverShelf (integrierte Liste)",
+      "mode_bring": "Zu Bring! spiegeln (optional)",
       "bring_section_title": "Bring!-Konfiguration",
       "ai_section_title": "KI-Unterstützung",
       "smart_suggestions_label": "KI-Vorschläge",
@@ -1250,7 +1251,7 @@
     "removed_from_list_short": "Von der Liste entfernt",
     "added_to_shopping": "🛒 Zur Einkaufsliste hinzugefügt!",
     "removed_from_shopping": "🛒 Von der Einkaufsliste entfernt",
-    "finished_to_bring": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt",
+    "finished_to_bring": "🛒 Produkt aufgebraucht → zur Einkaufsliste hinzugefügt",
     "thrown_away": "🗑️ {name} weggeworfen!",
     "thrown_away_partial": "🗑️ {qty} {unit} von {name} weggeworfen",
     "finished_all": "📤 {name} aufgebraucht!",
@@ -1259,7 +1260,8 @@
     "already_exhausted_confirmed": "✅ {name} als leer markiert — Einkaufsliste prüfen",
     "ghost_restored": "✅ {name}: {qty} {unit} im Bestand wiederhergestellt",
     "appliance_added": "Gerät hinzugefügt",
-    "item_added": "{name} hinzugefügt"
+    "item_added": "{name} hinzugefügt",
+    "finished_to_shopping": "🛒 Produkt aufgebraucht → zur Einkaufsliste hinzugefügt"
   },
   "antiwaste": {
     "title": "🌱 Anti-Verschwendungs-Bericht",
