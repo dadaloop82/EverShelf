@@ -357,7 +357,7 @@
     "when_tomorrow": "expires <strong>tomorrow</strong>",
     "when_days": "expires in <strong>{n} days</strong>",
     "toast_used": "📤 Used {qty} of {name}",
-    "toast_bring": "🛒 Product finished → added to Bring!",
+    "toast_bring": "Added to shopping list",
     "toast_opened_finished": "🔓 Opened package of {name} finished!",
     "disambiguation_hint": "What do you mean by \"all done\"?",
     "disambiguation_one_conf": "Finished <strong>1 package</strong> ({qty})",
@@ -373,7 +373,8 @@
     "throw_all_confirm_title": "🗑️ Discard everything",
     "throw_all_confirm_msg": "Do you really want to throw away the whole product?",
     "throw_all_confirm_btn": "🗑️ Yes, discard",
-    "locations_short": "places"
+    "locations_short": "places",
+    "toast_shopping": "Added to shopping list"
   },
   "waste": {
     "reason_title": "Why are you discarding it?",
@@ -1122,11 +1123,11 @@
     "shopping": {
       "tab": "Shopping list",
       "title": "Shopping list",
-      "hint": "Configure the built-in shopping list or connect Bring!.",
+      "hint": "EverShelf has its own shopping list. Bring! is optional and only mirrors that list.",
       "enable_label": "Enable shopping list",
       "mode_label": "Provider",
-      "mode_internal": "Built-in (no Bring!)",
-      "mode_bring": "Bring! (external app)",
+      "mode_internal": "EverShelf (built-in list)",
+      "mode_bring": "Mirror to Bring! (optional)",
       "bring_section_title": "Bring! configuration",
       "ai_section_title": "AI assistance",
       "smart_suggestions_label": "AI suggestions",
@@ -1256,7 +1257,7 @@
     "removed_from_list_short": "Removed from the list",
     "added_to_shopping": "🛒 Added to the shopping list!",
     "removed_from_shopping": "🛒 Removed from the shopping list",
-    "finished_to_bring": "🛒 Product finished → added to Bring!",
+    "finished_to_bring": "🛒 Product finished → added to shopping list",
     "thrown_away": "🗑️ {name} thrown away!",
     "thrown_away_partial": "🗑️ Thrown away {qty} {unit} of {name}",
     "finished_all": "📤 {name} finished!",
@@ -1265,7 +1266,8 @@
     "already_exhausted_confirmed": "✅ {name} marked as finished — check the shopping list",
     "ghost_restored": "✅ {name}: restored {qty} {unit} to inventory",
     "appliance_added": "Appliance added",
-    "item_added": "{name} added"
+    "item_added": "{name} added",
+    "finished_to_shopping": "🛒 Product finished → added to shopping list"
   },
   "antiwaste": {
     "title": "🌱 Anti-Waste Report",

@@ -357,7 +357,7 @@
     "when_tomorrow": "caduca <strong>mañana</strong>",
     "when_days": "caduca en <strong>{n} días</strong>",
     "toast_used": "📤 {qty} de {name} usado",
-    "toast_bring": "🛒 Producto terminado → añadido a Bring!",
+    "toast_bring": "Añadido a la lista de la compra",
     "toast_opened_finished": "🔓 ¡Paquete abierto de {name} terminado!",
     "disambiguation_hint": "¿Qué quieres decir con «todo terminado»?",
     "disambiguation_one_conf": "Terminado <strong>1 envase</strong> ({qty})",
@@ -373,7 +373,8 @@
     "throw_all_confirm_title": "🗑️ Desechar todo",
     "throw_all_confirm_msg": "¿Realmente quieres tirar todo el producto?",
     "throw_all_confirm_btn": "🗑️ Sí, desechar",
-    "locations_short": "ubicaciones"
+    "locations_short": "ubicaciones",
+    "toast_shopping": "Añadido a la lista de la compra"
   },
   "waste": {
     "reason_title": "¿Por qué lo tiras?",
@@ -963,11 +964,11 @@
     "shopping": {
       "tab": "Lista de la compra",
       "title": "Lista de la compra",
-      "hint": "Configura la lista de la compra integrada o conecta Bring!.",
+      "hint": "EverShelf tiene su propia lista de la compra. Bring! es opcional y solo la refleja.",
       "enable_label": "Activar lista de la compra",
       "mode_label": "Proveedor",
-      "mode_internal": "Integrado (sin Bring!)",
-      "mode_bring": "Bring! (app externa)",
+      "mode_internal": "EverShelf (lista integrada)",
+      "mode_bring": "Espejo a Bring! (opcional)",
       "bring_section_title": "Configuración de Bring!",
       "ai_section_title": "Asistencia IA",
       "smart_suggestions_label": "Sugerencias IA",
@@ -1138,7 +1139,7 @@
     "removed_from_list_short": "Eliminado de la lista",
     "added_to_shopping": "🛒 ¡Añadido a la lista de la compra!",
     "removed_from_shopping": "🛒 Eliminado de la lista de la compra",
-    "finished_to_bring": "🛒 Producto terminado → ¡añadido a Bring!",
+    "finished_to_bring": "🛒 Producto terminado → añadido a la lista de la compra",
     "thrown_away": "🗑️ ¡{name} tirado!",
     "thrown_away_partial": "🗑️ {qty} {unit} de {name} tirado(s)",
     "finished_all": "📤 ¡{name} terminado!",
@@ -1147,7 +1148,8 @@
     "ghost_restored": "✅ {name}: restaurados {qty} {unit} en el inventario",
     "appliance_added": "Electrodoméstico añadido",
     "item_added": "{name} añadido",
-    "vacuum_sealed": "{name} guardado al vacío"
+    "vacuum_sealed": "{name} guardado al vacío",
+    "finished_to_shopping": "🛒 Producto terminado → añadido a la lista de la compra"
   },
   "antiwaste": {
     "title": "🌱 Informe anti-desperdicio",

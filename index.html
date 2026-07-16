@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.57</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.58</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.57</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.58</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1031,7 +1031,7 @@
                 <!-- Shopping enable + provider -->
                 <div class="settings-card">
                     <h4 data-i18n="settings.shopping.title">🛒 Lista della spesa</h4>
-                    <p class="settings-hint" data-i18n="settings.shopping.hint">Configura la lista della spesa integrata o collega Bring!.</p>
+                    <p class="settings-hint" data-i18n="settings.shopping.hint">EverShelf ha la propria lista della spesa. Bring! è opzionale e fa solo da mirror.</p>
                     <div class="form-group">
                         <label class="toggle-row">
                             <span data-i18n="settings.shopping.enable_label">Abilita lista della spesa</span>
@@ -1046,11 +1046,11 @@
                         <div class="radio-group" style="margin-top:6px">
                             <label class="radio-option">
                                 <input type="radio" name="shopping-mode" value="internal" onchange="onShoppingModeChange(this.value)">
-                                <span data-i18n="settings.shopping.mode_internal">Interno (senza Bring!)</span>
+                                <span data-i18n="settings.shopping.mode_internal">EverShelf (lista integrata)</span>
                             </label>
                             <label class="radio-option" style="margin-left:16px">
                                 <input type="radio" name="shopping-mode" value="bring" onchange="onShoppingModeChange(this.value)">
-                                <span data-i18n="settings.shopping.mode_bring">Bring! (app esterna)</span>
+                                <span data-i18n="settings.shopping.mode_bring">Mirror su Bring! (opzionale)</span>
                             </label>
                         </div>
                     </div>
@@ -2081,6 +2081,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260712a"></script>
+<script src="assets/js/app.js?v=20260716a"></script>
 </body>
 </html>

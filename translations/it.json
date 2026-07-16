@@ -358,7 +358,7 @@
     "when_tomorrow": "scade <strong>domani</strong>",
     "when_days": "scade tra <strong>{n} giorni</strong>",
     "toast_used": "📤 Usato {qty} di {name}",
-    "toast_bring": "🛒 Prodotto finito → aggiunto a Bring!",
+    "toast_bring": "Aggiunto alla lista della spesa",
     "toast_opened_finished": "🔓 Confezione aperta di {name} finita!",
     "disambiguation_hint": "Cosa intendi con \"finito tutto\"?",
     "disambiguation_one_conf": "Finita <strong>1 confezione</strong> ({qty})",
@@ -374,7 +374,8 @@
     "throw_all_confirm_title": "🗑️ Butta tutto",
     "throw_all_confirm_msg": "Vuoi davvero buttare via tutto il prodotto?",
     "throw_all_confirm_btn": "🗑️ Sì, butta",
-    "locations_short": "posti"
+    "locations_short": "posti",
+    "toast_shopping": "Aggiunto alla lista della spesa"
   },
   "waste": {
     "reason_title": "Perché lo butti?",
@@ -1124,11 +1125,11 @@
     "shopping": {
       "tab": "Lista spesa",
       "title": "Lista della spesa",
-      "hint": "Configura la lista della spesa integrata o collega Bring!.",
+      "hint": "EverShelf ha la propria lista della spesa. Bring! è opzionale e fa solo da mirror.",
       "enable_label": "Abilita lista della spesa",
       "mode_label": "Provider",
-      "mode_internal": "Interno (senza Bring!)",
-      "mode_bring": "Bring! (app esterna)",
+      "mode_internal": "EverShelf (lista integrata)",
+      "mode_bring": "Mirror su Bring! (opzionale)",
       "bring_section_title": "Configurazione Bring!",
       "ai_section_title": "Assistenza AI",
       "smart_suggestions_label": "Suggerimenti AI",
@@ -1258,7 +1259,7 @@
     "removed_from_list_short": "Rimosso dalla lista",
     "added_to_shopping": "🛒 Aggiunto alla lista della spesa!",
     "removed_from_shopping": "🛒 Rimosso dalla lista della spesa",
-    "finished_to_bring": "🛒 Prodotto finito → aggiunto a Bring!",
+    "finished_to_bring": "🛒 Prodotto finito → aggiunto alla lista della spesa",
     "thrown_away": "🗑️ {name} buttato!",
     "thrown_away_partial": "🗑️ Buttato {qty} {unit} di {name}",
     "finished_all": "📤 {name} terminato!",
@@ -1267,7 +1268,8 @@
     "already_exhausted_confirmed": "✅ {name} segnato esaurito — controlla la lista spesa",
     "ghost_restored": "✅ {name}: ripristinati {qty} {unit} in inventario",
     "appliance_added": "Elettrodomestico aggiunto",
-    "item_added": "{name} aggiunto"
+    "item_added": "{name} aggiunto",
+    "finished_to_shopping": "🛒 Prodotto finito → aggiunto alla lista della spesa"
   },
   "antiwaste": {
     "title": "🌱 Rapporto Anti-Spreco",
