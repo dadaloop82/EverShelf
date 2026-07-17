@@ -35,6 +35,10 @@ h1, h2, h3, h4,
     font-size: var(--es-text-body);
     box-shadow: var(--es-shadow-card);
     transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    /* Default (no variant): readable on white cards — avoid white-on-white */
+    background: color-mix(in srgb, var(--bg) 55%, var(--bg-card) 45%);
+    color: var(--text);
+    border: 1.5px solid color-mix(in srgb, var(--border) 55%, var(--text-muted) 45%);
 }
 
 .btn-large {
@@ -48,34 +52,45 @@ h1, h2, h3, h4,
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    background-color: var(--primary);
+    background-image: linear-gradient(135deg, var(--primary), var(--primary-light));
     color: #fff;
+    border-color: transparent;
 }
 
 .btn-success {
-    background: linear-gradient(135deg, var(--es-action-success), var(--success-light));
+    background-color: var(--es-action-success);
+    background-image: linear-gradient(135deg, var(--es-action-success), var(--success-light));
     color: #fff;
+    border-color: transparent;
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, var(--es-action-danger), var(--danger-light));
+    background-color: var(--es-action-danger);
+    background-image: linear-gradient(135deg, var(--es-action-danger), var(--danger-light));
     color: #fff;
+    border-color: transparent;
 }
 
 .btn-warning {
-    background: linear-gradient(135deg, var(--es-action-use), var(--warning-light));
+    background-color: var(--es-action-use);
+    background-image: linear-gradient(135deg, var(--es-action-use), var(--warning-light));
     color: #1a1a1a;
+    border-color: transparent;
 }
 
 .btn-accent {
-    background: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light));
+    background-color: var(--es-action-recipe);
+    background-image: linear-gradient(135deg, var(--es-action-recipe), var(--accent-light));
     color: #fff;
+    border-color: transparent;
 }
 
 .btn-secondary,
 .btn-ghost {
-    background: var(--bg-card);
-    border: 1.5px solid var(--es-border-subtle);
+    /* Tinted surface + stronger border so text stays readable on white cards/modals */
+    background: color-mix(in srgb, var(--bg) 62%, var(--bg-card) 38%);
+    border: 1.5px solid color-mix(in srgb, var(--border) 45%, var(--text-muted) 55%);
     color: var(--text);
     box-shadow: none;
 }
@@ -84,6 +99,9 @@ h1, h2, h3, h4,
 .pref-loc-change {
     color: var(--primary);
     font-weight: 600;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
 }
 
 /* ── Cards & surfaces ────────────────────────────────────────── */
@@ -224,8 +242,9 @@ select.form-input:focus {
     border-radius: var(--es-radius-card);
     min-height: var(--es-btn-height);
     font-weight: 600;
-    border: 1.5px solid var(--es-border-subtle);
-    background: var(--bg-card);
+    border: 1.5px solid color-mix(in srgb, var(--border) 45%, var(--text-muted) 55%);
+    background: color-mix(in srgb, var(--bg) 55%, var(--bg-card) 45%);
+    color: var(--text);
 }
 
 .loc-btn.active {

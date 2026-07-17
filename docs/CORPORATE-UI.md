@@ -65,7 +65,7 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 | Used all / confirm | `.btn-success`, `.item-detail-action--all` | Success gradient |
 | Recipe / AI | `.btn-accent`, `.item-detail-action--recipe` | Accent gradient |
 | Discard | `.item-detail-action--throw`, `.btn-danger` | Outline or solid danger |
-| Secondary / cancel | `.btn-secondary` | Neutral border |
+| Secondary / cancel | `.btn-secondary` | Tinted surface + stronger border (readable on white cards; v1.7.59) |
 
 **Idle auto-submit** (Add form 30s, Use form 15s for pcs/conf only): reverse `linear-gradient` wipe on the submit button; hint text below in `--text-muted`. Grams/ml Use forms require manual entry — no idle submit.
 

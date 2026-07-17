@@ -2907,8 +2907,8 @@ function saveProduct(PDO $db): void {
         }
 
         $stmt = $db->prepare('
-            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, name_user_set)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute($params);
         $id = (int)$db->lastInsertId();
@@ -3911,12 +3911,22 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
 function updateInventory(PDO $db): void {
     EverLog::info('updateInventory');
     $input = json_decode(file_get_contents('php://input'), true);
-    $id = $input['id'] ?? 0;
+    $id = (int)($input['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Inventory ID required']);
+        return;
+    }
 
     // Read current state before update (needed for transaction reconciliation)
     $prev = $db->prepare("SELECT quantity, location, product_id FROM inventory WHERE id = ?");
     $prev->execute([$id]);
     $prevRow = $prev->fetch(PDO::FETCH_ASSOC);
+    if (!$prevRow) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
 
     $fields = [];
     $params = [];
@@ -3929,10 +3939,10 @@ function updateInventory(PDO $db): void {
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
 
-    // Wrap all writes in a single transaction; retry on SQLITE_BUSY (cron + PWA overlap).
+    // Wrap all writes in a single IMMEDIATE transaction; retry on SQLITE_BUSY.
     try {
         dbWithRetry(function () use ($db, $fields, $params, $input, $prevRow, $id): void {
-            $db->exec('BEGIN IMMEDIATE');
+            dbBeginImmediate($db);
             try {
                 $stmt = $db->prepare("UPDATE inventory SET " . implode(', ', $fields) . " WHERE id = ?");
                 $stmt->execute($params);
@@ -3981,15 +3991,17 @@ function updateInventory(PDO $db): void {
                 $stmt->execute([$newUnit, $input['product_id']]);
             }
 
-            // Update package info if provided
-            if (isset($input['package_unit']) && isset($input['product_id'])) {
+            // Update package info only when editing a conf product (non-empty package fields).
+            // Never wipe default_quantity just because the client omitted / cleared package_size.
+            if (isset($input['package_unit']) && isset($input['product_id'])
+                && trim((string)$input['package_unit']) !== '') {
                 $stmt = $db->prepare("UPDATE products SET package_unit = ?, default_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
                 $stmt->execute([$input['package_unit'], $input['package_size'] ?? 0, $input['product_id']]);
             }
 
-            $db->commit();
+            dbCommit($db);
             } catch (Throwable $e) {
-                if ($db->inTransaction()) $db->rollBack();
+                dbRollback($db);
                 throw $e;
             }
         });
@@ -4003,7 +4015,10 @@ function updateInventory(PDO $db): void {
             ], JSON_UNESCAPED_UNICODE);
             return;
         }
-        throw $e;
+        EverLog::error('updateInventory failed', ['msg' => $e->getMessage(), 'id' => $id]);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        return;
     }
 
     // Real-time shopping sync: done after commit so DB lock is not held during HTTP call
@@ -4018,7 +4033,23 @@ function updateInventory(PDO $db): void {
         ]);
     }
 
-    echo json_encode(['success' => true]);
+    $fresh = $db->prepare('SELECT id, quantity, location, expiry_date, vacuum_sealed, product_id FROM inventory WHERE id = ?');
+    $fresh->execute([(int)$id]);
+    $row = $fresh->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
+        return;
+    }
+    echo json_encode([
+        'success'        => true,
+        'id'             => (int)$row['id'],
+        'quantity'       => (float)$row['quantity'],
+        'location'       => $row['location'],
+        'expiry_date'    => $row['expiry_date'],
+        'vacuum_sealed'  => (int)$row['vacuum_sealed'],
+        'product_id'     => (int)$row['product_id'],
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 function deleteInventory(PDO $db): void {
@@ -4238,10 +4269,29 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
     $incomingName = trim((string)($input['name'] ?? ''));
     $incomingBrand = trim((string)($input['brand'] ?? ''));
     $incomingCategory = sanitizeProductCategory((string)($input['category'] ?? ''), $incomingName, $incomingBrand);
+    $forceName = !empty($input['name_user_set']) || !empty($input['force_name']);
 
     if ($existing) {
-        $name = pickBetterName((string)($existing['name'] ?? ''), $incomingName);
-        $brand = pickBetterBrand((string)($existing['brand'] ?? ''), $incomingBrand);
+        $existingLocked = !empty($existing['name_user_set']);
+        if ($forceName && $incomingName !== '') {
+            // Explicit user edit — always keep the name they typed.
+            $name = $incomingName;
+            $nameUserSet = 1;
+        } elseif ($existingLocked) {
+            // Previous manual rename — never replace with catalog/OFF title.
+            $name = (string)($existing['name'] ?? '');
+            $nameUserSet = 1;
+        } else {
+            $name = pickBetterName((string)($existing['name'] ?? ''), $incomingName);
+            $nameUserSet = 0;
+        }
+        if ($forceName) {
+            $brand = $incomingBrand;
+        } elseif ($existingLocked && trim((string)($existing['brand'] ?? '')) !== '') {
+            $brand = (string)$existing['brand'];
+        } else {
+            $brand = pickBetterBrand((string)($existing['brand'] ?? ''), $incomingBrand);
+        }
         $category = pickBetterCategory((string)($existing['category'] ?? ''), $incomingCategory, $name, $brand);
         $imageUrl = pickBetterString((string)($existing['image_url'] ?? ''), (string)($input['image_url'] ?? ''));
         $notes = pickBetterNotes((string)($existing['notes'] ?? ''), (string)($input['notes'] ?? ''));
@@ -4275,6 +4325,7 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $defQty = $input['default_quantity'] ?? 1;
         $packageUnit = trim((string)($input['package_unit'] ?? ''));
         $nutriJson = isset($input['nutriments']) ? json_encode($input['nutriments']) : null;
+        $nameUserSet = $forceName ? 1 : 0;
     }
 
     $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
@@ -4293,6 +4344,7 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         'package_unit'      => $packageUnit,
         'shopping_name'     => $shoppingName,
         'nutriments_json'   => $nutriJson,
+        'name_user_set'     => (int)($nameUserSet ?? 0),
     ];
     return normalizePieceProductFields($fields, $existing);
 }
@@ -4326,6 +4378,7 @@ function productSaveParams(array $fields): array {
         $fields['package_unit'],
         $fields['shopping_name'],
         $fields['nutriments_json'],
+        (int)($fields['name_user_set'] ?? 0),
     ];
 }
 
@@ -4333,7 +4386,7 @@ function executeProductUpdate(PDO $db, array $fields, int $id): void {
     $stmt = $db->prepare('
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
-        nutriments_json=?,
+        nutriments_json=?, name_user_set=?,
         updated_at=CURRENT_TIMESTAMP WHERE id=?
     ');
     $stmt->execute([...productSaveParams($fields), $id]);
@@ -12396,18 +12449,22 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
     // 3. Get transaction stats per product (exclude undone=1 corrections)
     // Also compute rolling 90-day consumption for smarter quantity suggestions (#70)
+    // Location moves ([Spostamento] …) write paired out+in — must NOT count as consumption.
+    $txReal = shoppingTxNotMoveNotesSql('notes');
     $txStmt = $db->query("
         SELECT product_id,
-               COUNT(CASE WHEN type IN ('out','waste') AND undone=0 THEN 1 END) as use_count,
-               SUM(CASE WHEN type IN ('out','waste') AND undone=0 THEN quantity ELSE 0 END) as total_used,
-               COUNT(CASE WHEN type = 'in' AND undone=0 THEN 1 END) as buy_count,
-               SUM(CASE WHEN type = 'in' AND undone=0 THEN quantity ELSE 0 END) as total_bought,
-               MIN(CASE WHEN type = 'in' AND undone=0 THEN created_at END) as first_in,
-               MAX(CASE WHEN type = 'in' AND undone=0 THEN created_at END) as last_in,
-               MAX(CASE WHEN type IN ('out','waste') AND undone=0 THEN created_at END) as last_out,
-               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND created_at >= datetime('now','-90 days') THEN quantity ELSE 0 END) as used_90d,
-               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND created_at >= datetime('now','-30 days') THEN quantity ELSE 0 END) as used_30d,
-               SUM(CASE WHEN type IN ('out','waste') AND undone=0
+               COUNT(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal} THEN 1 END) as use_count,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal} THEN quantity ELSE 0 END) as total_used,
+               COUNT(CASE WHEN type = 'in' AND undone=0 AND {$txReal} THEN 1 END) as buy_count,
+               SUM(CASE WHEN type = 'in' AND undone=0 AND {$txReal} THEN quantity ELSE 0 END) as total_bought,
+               MIN(CASE WHEN type = 'in' AND undone=0 AND {$txReal} THEN created_at END) as first_in,
+               MAX(CASE WHEN type = 'in' AND undone=0 AND {$txReal} THEN created_at END) as last_in,
+               MAX(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal} THEN created_at END) as last_out,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
+                    AND created_at >= datetime('now','-90 days') THEN quantity ELSE 0 END) as used_90d,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
+                    AND created_at >= datetime('now','-30 days') THEN quantity ELSE 0 END) as used_30d,
+               SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
                     AND created_at >= date('now','start of month','-1 month')
                     AND created_at < date('now','start of month') THEN quantity ELSE 0 END) as used_prev_month
         FROM transactions
@@ -12511,16 +12568,8 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $dailyRate = $dailyRate60; // only older data
             }
         } else {
-            // Fallback: all-time effective-period rate (original logic)
-            $lastActivity = max($lastIn ?? 0, $lastOut ?? 0);
-            $activitySpan = ($firstIn && $lastActivity > $firstIn) ? ($lastActivity - $firstIn) : 0;
-            // Guard: if all activity fits within 24h (e.g. bought & consumed same day / seconds apart),
-            // effectiveDays would collapse to 1 → wildly inflated daily rate (e.g. Pizza: in+out 9s apart).
-            // Fall back to daysSinceFirst (first purchase → now) for a conservative estimate.
-            $effectiveDays = ($activitySpan >= 86400)
-                ? max(1, $activitySpan / 86400)
-                : $daysSinceFirst;
-            $dailyRate = $effectiveDays < 999 && $totalUsed > 0 ? $totalUsed / $effectiveDays : 0;
+            $usage = $used30d > 0 ? $used30d : $totalUsed;
+            $dailyRate = shoppingFallbackDailyRate($usage, $daysSinceFirst);
         }
 
         // --- Buy-cycle proxy (for products tracked without individual 'out' events) ---
@@ -12580,6 +12629,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             ? ($useCount / $daysSinceFirst) * 30
             : ($daysSinceFirst >= 7 ? ($useCount / $daysSinceFirst) * 30 : $useCount * 0.5);
         $dailyRate = smartSanitizePieceDailyRate($dailyRate, $useCount, $usesPerMonth, $unit);
+        $dailyRate = shoppingSanitizeDailyRate(
+            $dailyRate,
+            $unit,
+            $defQty,
+            $buyCount,
+            $totalBought,
+            $used30d,
+            $useCount,
+            $usesPerMonth
+        );
         if ($dailyRate > 0 && $qty > 0) {
             $daysLeft = min($qty / $dailyRate, 365);
         }
@@ -12973,6 +13032,11 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         }
 
         [$suggestedQty, $suggestedUnit] = _applyWasteHintsToSuggestion($pid, $suggestedQty, $suggestedUnit ?? $unit, $wasteLearning);
+        if ($suggestedQty !== null) {
+            $capped = shoppingCapSuggestedQty($suggestedQty, $suggestedUnit ?? $unit, $defQty, $pkgUnit, $planDays);
+            $suggestedQty = $capped['quantity'];
+            $suggestedUnit = $capped['unit'];
+        }
         $wHint = $wasteLearning[(string)$pid] ?? [];
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
@@ -14739,6 +14803,13 @@ function _matchSmartShoppingItem(string $name, array $smartItems): ?array {
 }
 
 /**
+ * @deprecated Use shoppingCapPriceQty() from lib/shopping_guards.php
+ */
+function _capQtyForShoppingPrice(float $qty, string $unit, float $defQty, string $pkgUnit): array {
+    return shoppingCapPriceQty($qty, $unit, $defQty, $pkgUnit);
+}
+
+/**
  * Resolve qty/unit/defQty for price estimation from smart-shopping suggestions.
  * Each shopping-list line is priced as ONE typical retail purchase — not 14-day restock stock.
  */
@@ -14751,12 +14822,13 @@ function _resolveShoppingPriceItem(string $name, array $smartItems): array {
         $sq      = (float)($si['suggested_qty'] ?? 0);
         $su      = trim($si['suggested_unit'] ?? $unit);
 
-        // Price aligned to suggested purchase qty (~monthly need), not a single pack.
+        // Cap to a realistic one-trip purchase (not full plan-days restock stock).
         if ($sq > 0) {
+            $capped = shoppingCapPriceQty($sq, $su !== '' ? $su : $unit, $defQty, $pkgUnit);
             return [
                 'name'             => $name,
-                'quantity'         => $sq,
-                'unit'             => strtolower($su !== '' ? $su : $unit),
+                'quantity'         => $capped['quantity'],
+                'unit'             => $capped['unit'],
                 'default_quantity' => $defQty,
                 'package_unit'     => $pkgUnit,
             ];
@@ -14813,12 +14885,15 @@ function _shoppingListPriceItems(array $clientItems, array $smartItems = []): ar
         $clientUnit = strtolower(trim($ci['unit'] ?? ''));
         if ($clientQty > 0 && $clientUnit !== '') {
             $si = _matchSmartShoppingItem($name, $smartItems);
+            $defQty = (float)($ci['default_quantity'] ?? $si['default_qty'] ?? 0);
+            $pkgUnit = trim($ci['package_unit'] ?? $si['package_unit'] ?? '');
+            $capped = shoppingCapPriceQty($clientQty, $clientUnit, $defQty, $pkgUnit);
             $items[] = [
                 'name'             => $name,
-                'quantity'         => $clientQty,
-                'unit'             => $clientUnit,
-                'default_quantity' => (float)($ci['default_quantity'] ?? $si['default_qty'] ?? 0),
-                'package_unit'     => trim($ci['package_unit'] ?? $si['package_unit'] ?? ''),
+                'quantity'         => $capped['quantity'],
+                'unit'             => $capped['unit'],
+                'default_quantity' => $defQty,
+                'package_unit'     => $pkgUnit,
             ];
             continue;
         }
@@ -14867,7 +14942,10 @@ function _computeAllShoppingPrices(array $clientItems, string $country, string $
         $key0 = md5(mb_strtolower(trim($name)) . '|' . mb_strtolower(trim($country)));
         $entry = $priceCache[$key] ?? $priceCache[$key0] ?? null;
         if ($entry !== null && !$forceRefresh) {
-            $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']);
+            $est = shoppingGuardLineTotal(
+                _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']),
+                $name
+            );
             $prices[$name] = array_merge($entry, [
                 'estimated_total'       => $est,
                 'estimated_total_label' => $est !== null ? _formatPrice($est, $currency) : null,
@@ -14879,7 +14957,10 @@ function _computeAllShoppingPrices(array $clientItems, string $country, string $
             continue;
         }
         if ($entry !== null && $forceRefresh && ($now - (int)($entry['cached_at'] ?? 0)) < $maxAge) {
-            $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']);
+            $est = shoppingGuardLineTotal(
+                _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']),
+                $name
+            );
             $prices[$name] = array_merge($entry, [
                 'estimated_total'       => $est,
                 'estimated_total_label' => $est !== null ? _formatPrice($est, $currency) : null,
@@ -14917,7 +14998,10 @@ function _computeAllShoppingPrices(array $clientItems, string $country, string $
                 ];
                 _storePriceCacheEntry($priceCache, $key, $entry);
                 $entry = $priceCache[$key];
-                $est = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'], $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']);
+                $est = shoppingGuardLineTotal(
+                    _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'], $item['quantity'], $item['unit'], $item['default_quantity'], $item['package_unit']),
+                    $name
+                );
                 $prices[$name] = array_merge($entry, [
                     'estimated_total'       => $est,
                     'estimated_total_label' => $est !== null ? _formatPrice($est, $currency) : null,
@@ -15270,6 +15354,8 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
         }
         if ($pkgWeight > 0) {
             $packages = (int) max(1, ceil($qty / $pkgWeight));
+            // Safety: one bad suggested_qty must not dominate the whole list total
+            $packages = min(SHOPPING_GUARD_MAX_PRICE_PACKS + 3, $packages);
             return round($pricePerUnit * $packages, 2);
         }
         // No conversion possible → return single-unit price (1 package minimum)

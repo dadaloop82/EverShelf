@@ -111,6 +111,40 @@ function dbWithRetry(callable $fn, int $maxAttempts = 6): mixed {
     }
 }
 
+/**
+ * Start a SQLite IMMEDIATE write transaction.
+ * IMPORTANT: use dbCommit()/dbRollback() — NOT PDO::commit()/rollBack().
+ * PDO::beginTransaction() uses DEFERRED BEGIN; exec('BEGIN IMMEDIATE') is not
+ * tracked by PDO::inTransaction(), so PDO::commit() throws "no active transaction"
+ * and the write is rolled back on disconnect.
+ */
+function dbBeginImmediate(PDO $db): void {
+    if ($db->inTransaction()) {
+        return;
+    }
+    $db->exec('BEGIN IMMEDIATE');
+}
+
+function dbCommit(PDO $db): void {
+    if ($db->inTransaction()) {
+        $db->commit();
+        return;
+    }
+    $db->exec('COMMIT');
+}
+
+function dbRollback(PDO $db): void {
+    if ($db->inTransaction()) {
+        $db->rollBack();
+        return;
+    }
+    try {
+        $db->exec('ROLLBACK');
+    } catch (Throwable $e) {
+        // already closed / no txn
+    }
+}
+
 function initializeDB(PDO $db): void {
     $db->exec("
         CREATE TABLE IF NOT EXISTS products (
@@ -349,6 +383,13 @@ function migrateDB(PDO $db): void {
     $prodCols2 = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
     if (!in_array('nutriments_json', $prodCols2)) {
         try { $db->exec("ALTER TABLE products ADD COLUMN nutriments_json TEXT DEFAULT NULL"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+
+    // User-locked product title/brand — rescans must not overwrite with Open Food Facts names
+    $prodCols3 = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
+    if (!in_array('name_user_set', $prodCols3)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN name_user_set INTEGER DEFAULT 0"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 }

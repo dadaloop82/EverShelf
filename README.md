@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.58-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.59-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -39,6 +39,15 @@
 > **⚠️ Name disambiguation:** There is an unrelated iOS app also called **EverShelf**, developed and published by [Joshumi Technologies LLC](https://evershelf.joshumi.com/) on the [Apple App Store](https://apps.apple.com/app/evershelf/id6759439940). That application is a **completely separate, independent product** with no affiliation, association, or collaboration with this open-source project. This repository has no connection to Joshumi Technologies LLC, its products, or its services.
 
 ---
+
+### 🆕 Release 1.7.59 (2026-07-17) — Shopping spend guards & inventory polish
+
+| Area | What changed |
+|------|----------------|
+| **Estimated spend** | Guards so location moves and short-history bursts cannot inflate “Spesa stimata” (caps on daily rate, packs/line, €/line). Regression: `scripts/test-shopping-guards.php` |
+| **Rename** | Tap the product title in Edit to rename inline; `name_user_set` keeps custom names across rescans |
+| **Inventory save** | Reliable SQLite transactions for quantity / package / vacuum; search preserved while editing |
+| **UI** | Single scale icon; secondary buttons readable on white cards (no white-on-white) |
 
 ### 🆕 Release 1.7.58 (2026-07-16) — EverShelf shopping list (Bring!-independent)
 
@@ -76,6 +85,7 @@ Full visual refactor across the web app. See [`docs/CORPORATE-UI.md`](docs/CORPO
 | **Android TTS** | Kiosk **1.7.20**: `speak()` on main thread; kiosk always prefers native TTS over server proxy |
 | **Piece produce** | Avocado, fruit, and other sold-by-piece items stay in **pcs** (`pz`); fractional use down to ¼ piece |
 | **Shopping list (1.7.58)** | EverShelf-native list works without Bring!; deplete auto-add + blocklist visibility fixed |
+| **Spend guards (1.7.59)** | Estimated shopping total cannot explode from location moves / short history; rename via tap on title |
 
 ### 🆕 Release 1.7.55 (2026-07-06) — Shopping list & pantry search
 
