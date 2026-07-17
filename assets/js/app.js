@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260606n'; // bump when translations change
+const _I18N_VERSION = '20260716e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // Italian fallback (flat)
 let _i18nLoadedVersion = null;
@@ -2071,6 +2071,21 @@ function guessLocation(product) {
 let currentProduct = null;
 let currentInventory = [];
 let _allInventoryCache = [];
+/** Persisted inventory list search — survives Use/Edit navigation. */
+let _inventorySearchQuery = '';
+
+function _rememberInventorySearchFromInput() {
+    const el = document.getElementById('inventory-search');
+    if (el) _inventorySearchQuery = el.value || '';
+}
+
+function _restoreInventorySearchInput() {
+    const el = document.getElementById('inventory-search');
+    if (!el) return;
+    if ((_inventorySearchQuery || '') !== (el.value || '')) {
+        el.value = _inventorySearchQuery || '';
+    }
+}
 let _actionInventoryItems = [];
 let currentLocation = '';
 let scannerStream = null;
@@ -4519,11 +4534,12 @@ function showPage(pageId, param = null, options = {}) {
     const page = document.getElementById(`page-${pageId}`);
     if (page) page.classList.add('active');
 
-    // Clear search inputs when navigating away
-    const invSearch = document.getElementById('inventory-search');
-    if (invSearch) invSearch.value = '';
+    // Keep inventory search across Use/Edit/back — clearing it on every navigation
+    // made searching then opening a product extremely painful.
+    // Only clear the catalog (products) search when leaving that page.
     const prodSearch = document.getElementById('products-search');
-    if (prodSearch) prodSearch.value = '';
+    if (prodSearch && pageId !== 'products') prodSearch.value = '';
+    _restoreInventorySearchInput();
     
     // Update nav
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -6833,6 +6849,7 @@ function formatPackageFraction(qty, defaultQty) {
 // ===== INVENTORY =====
 async function loadInventory() {
     try {
+        _restoreInventorySearchInput();
         const [locData, allData] = await Promise.all([
             api('inventory_list', currentLocation ? { location: currentLocation } : {}),
             currentLocation ? api('inventory_list', {}) : null,
@@ -6841,7 +6858,7 @@ async function loadInventory() {
         _allInventoryCache = currentLocation
             ? _inventoryVisibleItems(allData?.inventory || [])
             : currentInventory;
-        const q = document.getElementById('inventory-search')?.value?.trim();
+        const q = (_inventorySearchQuery || document.getElementById('inventory-search')?.value || '').trim();
         if (q) {
             filterInventory();
         } else {
@@ -7149,7 +7166,8 @@ function filterLocation(loc) {
 }
 
 function filterInventory() {
-    const q = document.getElementById('inventory-search').value.toLowerCase().trim();
+    _rememberInventorySearchFromInput();
+    const q = (_inventorySearchQuery || '').toLowerCase().trim();
     const qas = document.getElementById('quick-access-section');
     if (!q) {
         if (qas) qas.style.display = '';
@@ -7664,8 +7682,12 @@ function editInventoryItem(id, _retried) {
     
     // Rebuild modal content for editing (don't close and reopen - just replace content)
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('edit.title').replace('{name}', escapeHtml(item.name))}</h3>
+        <div class="modal-header edit-modal-header">
+            <h3 class="edit-modal-heading">
+                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item') || t('btn.edit') || 'Modifica')}</span>
+                <button type="button" id="edit-title-display" class="edit-title-tap" onclick="startEditProductTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(item.name)}</button>
+                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+            </h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
         <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
@@ -7685,7 +7707,7 @@ function editInventoryItem(id, _retried) {
                     <div style="font-size:0.78rem;color:#7c6cb0;margin-top:2px">${t('scale.place_on_scale')}</div>
                 </div>
                 <button type="button" id="btn-scale-edit" class="btn btn-secondary scale-read-btn" style="margin-top:8px;width:100%"
-                    onclick="readScaleForEdit()">⚖️ ${t('scale.read_btn')}</button>
+                    onclick="readScaleForEdit()">${t('scale.read_btn')}</button>
                 ` : ''}
             </div>
             <div class="form-group">
@@ -7732,6 +7754,49 @@ function editInventoryItem(id, _retried) {
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('edit-expiry', item);
     setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
+    const titleInput = document.getElementById('edit-product-name');
+    if (titleInput) {
+        titleInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                finishEditProductTitle();
+            } else if (ev.key === 'Escape') {
+                ev.preventDefault();
+                finishEditProductTitle(true);
+            }
+        });
+        titleInput.addEventListener('blur', () => finishEditProductTitle());
+    }
+}
+
+function startEditProductTitle() {
+    const display = document.getElementById('edit-title-display');
+    const input = document.getElementById('edit-product-name');
+    if (!display || !input) return;
+    input.value = (display.textContent || '').trim();
+    display.style.display = 'none';
+    input.style.display = '';
+    input.focus();
+    input.select();
+}
+
+function finishEditProductTitle(cancel = false) {
+    const display = document.getElementById('edit-title-display');
+    const input = document.getElementById('edit-product-name');
+    if (!display || !input || input.style.display === 'none') return;
+    if (!cancel) {
+        const v = (input.value || '').trim();
+        if (v) {
+            display.textContent = v;
+            input.value = v;
+        } else {
+            input.value = (display.textContent || '').trim();
+        }
+    } else {
+        input.value = (display.textContent || '').trim();
+    }
+    input.style.display = 'none';
+    display.style.display = '';
 }
 
 function onEditUnitChange() {
@@ -7758,12 +7823,44 @@ function onEditUnitChange() {
     }
 }
 
+/** Patch live inventory caches after a successful edit (keeps search results in sync). */
+function _patchLiveInventoryItem(inventoryId, patch) {
+    const id = inventoryId;
+    const apply = (arr) => {
+        if (!Array.isArray(arr)) return;
+        const idx = arr.findIndex(i => i.id == id);
+        if (idx >= 0) Object.assign(arr[idx], patch);
+    };
+    apply(currentInventory);
+    apply(_allInventoryCache);
+}
+
 async function submitEditInventory(e, id, productId) {
     e.preventDefault();
+    const prev = _findInventoryItem(id) || {};
+    const titleInput = document.getElementById('edit-product-name');
+    const titleDisplay = document.getElementById('edit-title-display');
+    const name = (
+        (titleInput && titleInput.style.display !== 'none'
+            ? titleInput.value
+            : (titleInput?.value || titleDisplay?.textContent)) || ''
+    ).trim();
+    const brand = prev.brand || '';
     const qty = parseFloat(document.getElementById('edit-qty').value);
     const loc = document.getElementById('edit-loc').value;
     const expiry = document.getElementById('edit-expiry').value || null;
     const unit = document.getElementById('edit-unit').value;
+
+    if (!name) {
+        showToast(t('product.name_required') || t('error.generic'), 'error');
+        startEditProductTitle();
+        return;
+    }
+
+    if (isNaN(qty) || qty < 0) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
 
     if (unit === 'conf') {
         const confSize = parseFloat(document.getElementById('edit-conf-size')?.value);
@@ -7775,43 +7872,102 @@ async function submitEditInventory(e, id, productId) {
     }
 
     // Safety guard: warn if quantity is unreasonably large to prevent unit-confusion errors
-    // (e.g. user types "183" thinking it's ml, but the field expects conf units)
     const _largeQtyLimits = { conf: 50, pz: 200, g: 10000, ml: 10000 };
     const _largeQtyLimit = _largeQtyLimits[unit] ?? 500;
     if (qty > _largeQtyLimit) {
         if (!confirm(t('edit.confirm_large_qty').replace('{qty}', qty).replace('{unit}', unit))) return;
     }
 
-    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId,
+    const payload = {
+        id: parseInt(id, 10) || id,
+        quantity: qty,
+        location: loc,
+        expiry_date: expiry,
+        unit,
+        product_id: parseInt(productId, 10) || productId,
         vacuum_sealed: document.getElementById('edit-vacuum')?.checked ? 1 : 0,
-        expiry_user_set: _expiryUserSetPayload('edit-expiry') };
+        expiry_user_set: _expiryUserSetPayload('edit-expiry'),
+    };
     
-    // Add package info if conf
     if (unit === 'conf') {
         payload.package_unit = document.getElementById('edit-conf-unit')?.value || '';
         payload.package_size = parseFloat(document.getElementById('edit-conf-size')?.value) || 0;
-    } else {
-        // Clear package info if not conf
-        payload.package_unit = '';
-        payload.package_size = 0;
     }
     
-    await api('inventory_update', {}, 'POST', payload);
-    closeModal();
-    showToast(t('toast.updated'), 'success');
-    if (_bannerEditPending) {
-        _bannerEditPending = false;
-        // Mark the item as confirmed so it does NOT reappear in the banner
-        const entry = _bannerQueue[_bannerIndex];
-        if (entry) {
-            if (entry.type === 'review') setReviewConfirmed(entry.data.id);
-            else if (entry.type === 'prediction') setReviewConfirmed('pred_' + entry.data.inventory_id);
-            else if (entry.type === 'expired') setReviewConfirmed('exp_' + entry.data.id);
-            else if (entry.type === 'expiring') setReviewConfirmed('exps_' + entry.data.id);
+    try {
+        // Persist renamed title on the product catalog (locked so barcode rescans keep it)
+        if (name !== (prev.name || '').trim()) {
+            const prodSave = await api('product_save', {}, 'POST', {
+                id: payload.product_id,
+                name,
+                brand,
+                name_user_set: 1,
+                category: prev.category || '',
+                image_url: prev.image_url || '',
+                unit: unit || prev.unit || 'pz',
+                default_quantity: prev.default_quantity ?? 1,
+                package_unit: unit === 'conf' ? (payload.package_unit || prev.package_unit || '') : (prev.package_unit || ''),
+                barcode: prev.barcode || null,
+                notes: prev.notes || '',
+            });
+            if (prodSave && prodSave.success === false) {
+                showToast(prodSave.message || prodSave.error || t('error.generic'), 'error');
+                return;
+            }
         }
-        dismissBannerItem();
+
+        const res = await api('inventory_update', {}, 'POST', payload);
+        if (!res?.success) {
+            showToast(res?.message || res?.error || t('error.generic'), 'error');
+            return;
+        }
+        const savedQty = res.quantity !== undefined ? parseFloat(res.quantity) : qty;
+        const patch = {
+            name,
+            brand,
+            quantity: savedQty,
+            location: loc,
+            expiry_date: expiry,
+            unit,
+            vacuum_sealed: payload.vacuum_sealed,
+        };
+        if (unit === 'conf') {
+            patch.package_unit = payload.package_unit;
+            patch.default_quantity = payload.package_size;
+        }
+        _patchLiveInventoryItem(payload.id, patch);
+        // Also patch other inventory rows of the same product (same barcode title)
+        const patchAll = (arr) => {
+            if (!Array.isArray(arr)) return;
+            arr.forEach(i => {
+                if (i.product_id == payload.product_id) {
+                    i.name = name;
+                    i.brand = brand;
+                }
+            });
+        };
+        patchAll(currentInventory);
+        patchAll(_allInventoryCache);
+        closeModal();
+        showToast(t('toast.updated'), 'success');
+        if (_bannerEditPending) {
+            _bannerEditPending = false;
+            const entry = _bannerQueue[_bannerIndex];
+            if (entry) {
+                if (entry.type === 'review') setReviewConfirmed(entry.data.id);
+                else if (entry.type === 'prediction') setReviewConfirmed('pred_' + entry.data.inventory_id);
+                else if (entry.type === 'expired') setReviewConfirmed('exp_' + entry.data.id);
+                else if (entry.type === 'expiring') setReviewConfirmed('exps_' + entry.data.id);
+            }
+            dismissBannerItem();
+        }
+        if ((_inventorySearchQuery || '').trim()) filterInventory();
+        else renderInventory(currentInventory);
+        await loadInventory();
+    } catch (err) {
+        console.error('submitEditInventory', err);
+        showToast(t('error.connection'), 'error');
     }
-    refreshCurrentPage();
 }
 
 // ===== SCAN DEBUG LOG =====
@@ -9853,22 +10009,41 @@ async function submitActionEditInventory(e, id, productId) {
     const expiry = document.getElementById('action-edit-expiry').value || null;
     const unit = document.getElementById('action-edit-unit').value;
     
-    const payload = { id, quantity: qty, location: loc, expiry_date: expiry, unit, product_id: productId,
+    const payload = {
+        id: parseInt(id, 10) || id,
+        quantity: qty,
+        location: loc,
+        expiry_date: expiry,
+        unit,
+        product_id: parseInt(productId, 10) || productId,
         vacuum_sealed: document.getElementById('action-edit-vacuum')?.checked ? 1 : 0,
-        expiry_user_set: _expiryUserSetPayload('action-edit-expiry') };
+        expiry_user_set: _expiryUserSetPayload('action-edit-expiry'),
+    };
     
     if (unit === 'conf') {
         payload.package_unit = document.getElementById('action-edit-conf-unit')?.value || '';
         payload.package_size = parseFloat(document.getElementById('action-edit-conf-size')?.value) || 0;
-    } else {
-        payload.package_unit = '';
-        payload.package_size = 0;
     }
     
-    await api('inventory_update', {}, 'POST', payload);
-    closeModal();
-    showToast(t('toast.updated'), 'success');
-    showProductAction(); // Refresh the action page
+    try {
+        const res = await api('inventory_update', {}, 'POST', payload);
+        if (!res?.success) {
+            showToast(res?.message || res?.error || t('error.generic'), 'error');
+            return;
+        }
+        _patchLiveInventoryItem(payload.id, {
+            quantity: res.quantity !== undefined ? parseFloat(res.quantity) : qty,
+            location: loc,
+            expiry_date: expiry,
+            unit,
+            vacuum_sealed: payload.vacuum_sealed,
+        });
+        closeModal();
+        showToast(t('toast.updated'), 'success');
+        showProductAction(); // Refresh the action page
+    } catch (err) {
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 async function deleteActionInventoryItem(id) {
@@ -10109,6 +10284,7 @@ async function saveEditedProductInfo() {
             unit: currentProduct.unit || 'pz',
             default_quantity: currentProduct.default_quantity || 1,
             notes: notes,
+            name_user_set: 1,
         });
         showLoading(false);
         if (result.success) {
@@ -12908,11 +13084,9 @@ async function selectProductForAction(productId) {
         if (data.product) {
             currentProduct = data.product;
             showLoading(false);
-            // Clear search inputs after selecting a product
+            // Clear catalog search only — keep inventory search for when the user goes back
             const psInput = document.getElementById('products-search');
             if (psInput) psInput.value = '';
-            const invInput = document.getElementById('inventory-search');
-            if (invInput) invInput.value = '';
             showProductAction();
         } else {
             showLoading(false);
@@ -13054,6 +13228,25 @@ function _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit) {
 
 function _maxSuggestedPieces(planDays) {
     return Math.max(2, Math.min(30, Math.ceil(planDays * 2.5)));
+}
+
+/** Mirror api/lib/shopping_guards.php — cap qty sent to price API (one trip). */
+function _capPricePayloadQty(qty, unit, defQty, pkgUnit, planDays = 7) {
+    const u = String(unit || 'conf').toLowerCase();
+    const pu = String(pkgUnit || '').toLowerCase();
+    const maxPkgs = 3;
+    if (qty <= 0) return { quantity: 1, unit: u || 'conf' };
+    if (u === 'g' || u === 'ml') {
+        const pack = (defQty >= 20 && (!pu || pu === u)) ? defQty : (u === 'ml' ? 1000 : 500);
+        const maxByPack = pack * maxPkgs;
+        const perDay = u === 'ml' ? 500 : 200;
+        const maxByPlan = perDay * Math.min(Math.max(1, planDays), 7);
+        return { quantity: Math.min(qty, maxByPack, maxByPlan), unit: u };
+    }
+    if (u === 'conf' || u === 'pz') {
+        return { quantity: Math.min(qty, maxPkgs), unit: u };
+    }
+    return { quantity: qty, unit: u };
 }
 
 /** Ceil discrete counts (conf/pz always round up). */
@@ -13562,6 +13755,7 @@ async function syncShoppingPriceTotal(forceRefresh = false) {
  * Tries to parse quantity/unit from the Bring! specification field.
  */
 function _buildPricePayload() {
+    const planDays = getShoppingPlanDays();
     return shoppingItems.map((item) => {
         const smart = _matchBringToSmart(item.name, smartShoppingItems);
         const eff = _effectiveSmartQty(smart);
@@ -13569,10 +13763,11 @@ function _buildPricePayload() {
             const su = eff.suggested_unit || smart?.unit || 'conf';
             const defQty = parseFloat(smart?.default_qty) || 0;
             const pkgUnit = smart?.package_unit || '';
+            const capped = _capPricePayloadQty(eff.suggested_qty, su, defQty, pkgUnit, planDays);
             return {
                 name: item.name,
-                quantity: eff.suggested_qty,
-                unit: String(su).toLowerCase(),
+                quantity: capped.quantity,
+                unit: String(capped.unit).toLowerCase(),
                 default_quantity: defQty,
                 package_unit: pkgUnit,
             };
@@ -13581,10 +13776,11 @@ function _buildPricePayload() {
             const su = smart.suggested_unit || smart.unit || 'conf';
             const defQty = parseFloat(smart.default_qty) || 0;
             const pkgUnit = smart.package_unit || '';
+            const capped = _capPricePayloadQty(smart.suggested_qty, su, defQty, pkgUnit, planDays);
             return {
                 name: item.name,
-                quantity: smart.suggested_qty,
-                unit: String(su).toLowerCase(),
+                quantity: capped.quantity,
+                unit: String(capped.unit).toLowerCase(),
                 default_quantity: defQty,
                 package_unit: pkgUnit,
             };
@@ -19957,10 +20153,14 @@ function _applyOptimisticUpdate(action, body) {
     if (!cache) return;
     let changed = false;
     if (action === 'inventory_update' && body.id) {
-        const idx = cache.findIndex(i => i.id === body.id);
-        if (idx >= 0) { Object.assign(cache[idx], body); changed = true; }
+        const idx = cache.findIndex(i => i.id == body.id);
+        if (idx >= 0) {
+            Object.assign(cache[idx], body);
+            if (body.quantity !== undefined) cache[idx].quantity = parseFloat(body.quantity);
+            changed = true;
+        }
     } else if (action === 'inventory_use' && body.id) {
-        const idx = cache.findIndex(i => i.id === body.id);
+        const idx = cache.findIndex(i => i.id == body.id);
         if (idx >= 0) {
             const used = parseFloat(body.qty ?? body.amount ?? 0);
             cache[idx].quantity = Math.max(0, parseFloat(cache[idx].quantity ?? 0) - used);

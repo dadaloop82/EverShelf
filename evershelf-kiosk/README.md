@@ -7,7 +7,7 @@ Android kiosk app for wall-mounted kitchen tablets. Full-screen WebView wrapper 
 > **Min SDK:** Android 7.0 (API 24)  
 > **Releases:** [GitHub — kiosk tags](https://github.com/dadaloop82/EverShelf/releases)
 
-Pairs with the EverShelf web app **Corporate UI** (v1.7.57+). The kiosk loads the same SPA; native bridges supply TTS, BLE scale, and kiosk lock.
+Pairs with the EverShelf web app **Corporate UI** (v1.7.57+) and shopping spend guards (v1.7.59+). The kiosk loads the same SPA; native bridges supply TTS, BLE scale, and kiosk lock.
 
 ---
 

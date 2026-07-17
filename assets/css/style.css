@@ -4649,6 +4649,57 @@ body.server-offline .bottom-nav {
     font-size: 1.15rem;
 }
 
+.edit-modal-header .edit-modal-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35em 0.5em;
+    margin: 0;
+    padding-right: 8px;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.edit-modal-prefix {
+    font-weight: 600;
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.edit-title-tap {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 1.5px dashed transparent;
+    color: inherit;
+    cursor: text;
+    font: inherit;
+    font-weight: 700;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.edit-title-tap:hover,
+.edit-title-tap:focus-visible {
+    border-bottom-color: currentColor;
+    outline: none;
+    opacity: 1;
+}
+
+.edit-title-input {
+    flex: 1;
+    min-width: 0;
+    font-size: inherit;
+    font-weight: 700;
+    padding: 4px 8px;
+    margin: 0;
+}
+
 .modal-close {
     background: var(--bg);
     border: none;
@@ -8966,17 +9017,25 @@ body.cooking-mode-active .app-header {
     color: var(--text-muted);
 }
 /* Buttons */
+[data-theme="dark"] .btn:not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-accent):not(.btn-link),
 [data-theme="dark"] .btn-secondary,
+[data-theme="dark"] .btn-ghost,
 [data-theme="dark"] .btn-outline,
 [data-theme="dark"] .back-btn,
 [data-theme="dark"] .page-header-action-btn {
-    background: var(--bg-card);
+    background: color-mix(in srgb, var(--bg) 35%, var(--bg-card) 65%);
     color: var(--text);
-    border-color: var(--border);
+    border-color: color-mix(in srgb, var(--border) 70%, var(--text-muted) 30%);
 }
 [data-theme="dark"] .btn-outline {
     color: var(--primary-light);
     border-color: var(--primary-light);
+}
+[data-theme="dark"] .btn-primary,
+[data-theme="dark"] .btn-success,
+[data-theme="dark"] .btn-danger,
+[data-theme="dark"] .btn-accent {
+    color: #fff;
 }
 /* Inventory items */
 [data-theme="dark"] .inventory-item {

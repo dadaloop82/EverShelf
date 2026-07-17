@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.59] - 2026-07-17
+
+### Fixed
+- **Inflated “estimated spend”** — Location moves (`[Spostamento]`) no longer count as consumption. Short-history daily rates use calendar days (min 7), not a 1–2 day activity burst. Hard caps: ≤250 g/day (or 2 L/day), ≤3 packs per suggested line, ≤€25 per priced line. Regression tests: `php scripts/test-shopping-guards.php`.
+- **Inventory edit save** — `BEGIN IMMEDIATE` / commit helpers so quantity, package size, and vacuum seal persist (PDO transaction mismatch).
+- **Inventory search** — Search query is preserved when opening/editing a product.
+- **Package size wipe** — Non-`conf` edits no longer send `package_size: 0` and clear `default_quantity`.
+- **Scale button** — Removed duplicate ⚖️ icon on “Read from scale” in the edit modal.
+- **Button contrast** — Secondary/default buttons use a tinted surface + stronger border (no white-on-white on cards/modals).
+
+### Added
+- **Rename by tapping the title** — In the edit modal, tap the product name to rename inline (no extra name/brand fields). Custom titles lock via `products.name_user_set` so barcode rescans keep them.
+- **`api/lib/shopping_guards.php`** — Central guards for consumption stats, suggested qty, and price totals.
+
 ## [1.7.58] - 2026-07-16
 
 ### Fixed
