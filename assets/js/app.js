@@ -2464,10 +2464,25 @@ function _normalizeAiMatchName(name) {
     return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** Prefer an existing catalog row (especially with barcode) over creating a duplicate from AI guesses. */
+/** Processed / flavored foods — must not match plain produce of the same fruit. */
+function _aiNameLooksProcessed(name) {
+    return /\b(confettura|marmellata|yogurt|yoghurt|succo|spremuta|nettare|gelato|crema|torta|biscott|salsa|sugo|passata|sciroppo|essiccat|candit|integrale|snack|barretta|budino|mousse|drink|bevanda)\b/i.test(name || '');
+}
+
+function _aiSignificantTokens(name) {
+    const stop = new Set(['di', 'del', 'della', 'dei', 'degli', 'delle', 'da', 'in', 'con', 'per', 'su', 'a', 'e', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'the', 'and', 'of']);
+    return _normalizeAiMatchName(name).split(/\s+/).filter(t => t.length > 2 && !stop.has(t));
+}
+
+/**
+ * Prefer an existing catalog row only on a strong match.
+ * Never map plain "albicocche" → "Confettura albicocche" via substring.
+ */
 function _findBestAiCatalogMatch(aiProduct) {
     const aiName = _normalizeAiMatchName(aiProduct?.name);
     if (!aiName) return null;
+    const aiTokens = _aiSignificantTokens(aiName);
+    const aiProcessed = _aiNameLooksProcessed(aiName);
     const candidates = [
         ...(_aiCatalogCandidates || []),
         ...(_aiInventoryCandidates || []),
@@ -2479,34 +2494,71 @@ function _findBestAiCatalogMatch(aiProduct) {
         if (!item?.id) continue;
         const itemName = _normalizeAiMatchName(item.name);
         if (!itemName) continue;
+        const itemProcessed = _aiNameLooksProcessed(itemName);
+        // Fresh produce vs jam/yogurt/juice with the same fruit word → never auto-merge
+        if (aiProcessed !== itemProcessed) continue;
+
         let score = 0;
-        if (itemName === aiName) score = 100;
-        else if (itemName.includes(aiName) || aiName.includes(itemName)) score = 80;
-        else {
-            const aiTokens = aiName.split(' ').filter(Boolean);
-            const shared = aiTokens.filter(t => itemName.includes(t)).length;
-            if (shared >= 2) score = 60 + shared;
-            else if (shared === 1 && aiTokens.length === 1) score = 50;
+        if (itemName === aiName) {
+            score = 100;
+        } else {
+            const itemTokens = _aiSignificantTokens(itemName);
+            if (!aiTokens.length || !itemTokens.length) continue;
+            // Require the shorter token set to be fully covered by the longer one,
+            // and similar length (avoid "albicocche" ⊆ "confettura albicocche").
+            const [shortT, longT] = aiTokens.length <= itemTokens.length
+                ? [aiTokens, itemTokens]
+                : [itemTokens, aiTokens];
+            const covered = shortT.every(t => longT.some(x => x === t || x.includes(t) || t.includes(x)));
+            const lenRatio = Math.min(aiName.length, itemName.length) / Math.max(aiName.length, itemName.length);
+            if (covered && lenRatio >= 0.72 && shortT.length >= 2) {
+                score = 70 + shortT.length;
+            } else if (covered && lenRatio >= 0.85 && shortT.length === 1) {
+                score = 65; // single-word only if names nearly same length
+            } else {
+                continue;
+            }
         }
-        if (item.barcode) score += 15;
+        if (item.barcode) score += 10;
         if (score > bestScore) {
             bestScore = score;
             best = item;
         }
     }
-    return bestScore >= 50 ? best : null;
+    // Exact name always wins; fuzzy needs a high bar
+    return bestScore >= 85 ? best : null;
 }
 
 async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false } = {}) {
     const productId = saveResult?.id || saveResult?.existing_id;
     if (!productId) return false;
+    const draftName = String(draft?.name || '').trim();
+    const draftBrand = String(draft?.brand || '').trim();
+    const draftCategory = mapToLocalCategory(draft?.category || '', draftName, draftBrand);
+
+    // Absolute rule: the AI label the user confirmed must never be replaced by a catalog title.
+    if (draftName) {
+        await api('product_save', {}, 'POST', {
+            id: productId,
+            name: draftName,
+            brand: draftBrand,
+            category: draftCategory,
+            name_user_set: 1,
+            unit: 'pz',
+            default_quantity: 1,
+            package_unit: '',
+            notes: '',
+            image_url: '',
+        }).catch(() => null);
+    }
+
     const full = await api('product_get', { id: productId }).catch(() => null);
     currentProduct = full?.product || {
         id: productId,
         barcode: saveResult?.barcode || '',
-        name: draft?.name || t('product.not_recognized'),
-        brand: draft?.brand || '',
-        category: mapToLocalCategory(draft?.category || '', draft?.name || '', draft?.brand || ''),
+        name: draftName || t('product.not_recognized'),
+        brand: draftBrand,
+        category: draftCategory,
         image_url: '',
         unit: 'pz',
         default_quantity: 1,
@@ -2514,6 +2566,12 @@ async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false 
         _confCount: 0,
         weight_info: '',
     };
+    // Belt-and-suspenders: keep draft name in the UI even if API returned something else
+    if (draftName) {
+        currentProduct.name = draftName;
+        if (draftBrand) currentProduct.brand = draftBrand;
+        currentProduct.category = draftCategory;
+    }
     if (currentProduct.notes) {
         const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
         if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
@@ -2522,56 +2580,36 @@ async function _openAiSavedProduct(saveResult, draft, { showMergedToast = false 
     _clearAiMatchPanel();
     showLoading(false);
     if (showMergedToast || saveResult?.merged) {
-        showToast(t('scan.ai_match_merged_existing'), 'info');
+        // Do not imply the name changed — only that a same-name row was reused
+        if (_normalizeAiMatchName(full?.product?.name) === _normalizeAiMatchName(draftName)) {
+            showToast(t('scan.ai_match_merged_existing'), 'info');
+        }
     }
-    setTimeout(() => showProductAction(), 250);
+    const hasStock = await _productHasLiveStock(productId).catch(() => false);
+    setTimeout(() => {
+        if (hasStock && !_spesaMode) showProductAction();
+        else showAddForm();
+    }, 250);
     return true;
 }
 
 async function _confirmAiDetectedProduct() {
     const p = _aiDetectedProductDraft;
     if (!p) return;
+    const aiName = String(p.name || '').trim();
+    if (!aiName) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
     showLoading(true);
     try {
-        const localCategory = mapToLocalCategory(p.category || '', p.name || '', p.brand || '');
+        const localCategory = mapToLocalCategory(p.category || '', aiName, p.brand || '');
 
-        const catalogMatch = _findBestAiCatalogMatch(p);
-        if (catalogMatch?.barcode) {
-            const resolved = await api('resolve_barcode', { barcode: String(catalogMatch.barcode).replace(/\D/g, '') }).catch(() => null);
-            if (resolved?.found && resolved.product?.id) {
-                currentProduct = resolved.product;
-                if (currentProduct.notes) {
-                    const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
-                    if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
-                }
-                addToScanRecents(currentProduct);
-                _clearAiMatchPanel();
-                showLoading(false);
-                showToast(t('scan.ai_match_merged_existing'), 'info');
-                setTimeout(() => showProductAction(), 250);
-                return;
-            }
-        }
-        if (catalogMatch?.id && !catalogMatch?.barcode) {
-            const full = await api('product_get', { id: catalogMatch.id }).catch(() => null);
-            if (full?.product) {
-                currentProduct = full.product;
-                if (currentProduct.notes) {
-                    const pesoMatch = currentProduct.notes.match(/Peso:\s*([^·]+)/);
-                    if (pesoMatch) currentProduct.weight_info = pesoMatch[1].trim();
-                }
-                addToScanRecents(currentProduct);
-                _clearAiMatchPanel();
-                showLoading(false);
-                showToast(t('scan.ai_match_merged_existing'), 'info');
-                setTimeout(() => showProductAction(), 250);
-                return;
-            }
-        }
-
+        // NEVER auto-switch to a different catalog product (Confettura, Anguria Perla Nera, …).
+        // The green button means: keep EXACTLY this AI name. Similar items stay in the list below.
         const saveResult = await api('product_save', {}, 'POST', {
             barcode: null,
-            name: p.name || t('product.not_recognized'),
+            name: aiName,
             brand: p.brand || '',
             category: localCategory,
             image_url: '',
@@ -2579,15 +2617,16 @@ async function _confirmAiDetectedProduct() {
             default_quantity: 1,
             package_unit: '',
             notes: '',
+            name_user_set: 1,
         });
 
         if (saveResult?.success && (saveResult.id || saveResult.existing_id)) {
-            await _openAiSavedProduct(saveResult, p, { showMergedToast: !!saveResult.merged });
+            await _openAiSavedProduct(saveResult, { ...p, name: aiName }, { showMergedToast: false });
             return;
         }
 
         if (saveResult?.error === 'barcode_already_used' && saveResult.existing_id) {
-            if (await _openAiSavedProduct({ ...saveResult, id: saveResult.existing_id, merged: true }, p, { showMergedToast: true })) {
+            if (await _openAiSavedProduct({ ...saveResult, id: saveResult.existing_id }, { ...p, name: aiName }, { showMergedToast: false })) {
                 return;
             }
         }
@@ -2697,10 +2736,11 @@ async function _tryGeminiVisualBarcode() {
             scanLog(`AI visual: found "${p.name}" (${p.brand})`);
             _hideScanAiOverlay();
             showToast(t('scan.ai_fallback_found'), 'success');
+            const category = mapToLocalCategory(p.category || '', p.name || '', p.brand || '');
             _aiDetectedProductDraft = {
                 name: p.name || t('product.not_recognized'),
                 brand: p.brand || '',
-                category: cat,
+                category,
             };
             const matchRes = await _fetchAiMatchCandidates(_aiDetectedProductDraft);
             if (myGen !== _aiVisualGen) {
@@ -7409,7 +7449,7 @@ function showItemDetail(inventoryId, productId) {
                     <span class="item-detail-action-icon">✅</span>
                     <span>${escapeHtml(t('inventory.item_detail_use_all'))}</span>
                 </button>
-                <button type="button" class="item-detail-action item-detail-action--recipe" data-name="${escapeHtml(item.name)}" onclick="closeModal();generateRecipeForIngredient(this.dataset.name)">
+                <button type="button" class="item-detail-action item-detail-action--recipe" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     <span class="item-detail-action-icon">🍳</span>
                     <span>${escapeHtml(t('inventory.item_detail_recipe'))}</span>
                 </button>
@@ -7749,6 +7789,9 @@ function editInventoryItem(id, _retried) {
                 </label>
             </div>
             <button type="submit" class="btn btn-large btn-primary full-width">${t('btn.save')}</button>
+            <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
+                data-name="${escapeHtml(item.name || '')}"
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn') || 'Crea ricetta')}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -9715,7 +9758,7 @@ function showProductAction() {
                     <span class="btn-icon">✏️</span>
                     <span class="btn-text">${t('product.modify_details')}<br><small>${t('action.edit_sub')}</small></span>
                 </button>
-                <button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="generateRecipeForIngredient(this.dataset.name)">
+                <button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
                     👨‍🍳 ${t('action.create_recipe_btn') || 'Crea una ricetta'}
                 </button>
             `;
@@ -9988,6 +10031,9 @@ function editActionInventoryItem(inventoryId) {
                 <button type="submit" class="btn btn-large btn-primary flex-1">${t('btn.save')}</button>
                 <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
             </div>
+            <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
+                data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn') || 'Crea ricetta')}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -19766,6 +19812,17 @@ async function generateRecipeForIngredient(ingredientName) {
         document.getElementById('recipe-overlay').style.display = 'none';
         showToast('⚠️ ' + t('error.connection'), 'error');
     }
+}
+
+/** Open recipe generation from edit/use screens (closes modal first). */
+function startRecipeFromProduct(ingredientName) {
+    const name = String(ingredientName || currentProduct?.name || '').trim();
+    if (!name) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
+    try { closeModal(); } catch (_) { /* ignore */ }
+    generateRecipeForIngredient(name);
 }
 
 async function sendChatMessage() {
