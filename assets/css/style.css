@@ -7266,7 +7266,7 @@ body.cooking-mode-active .app-header {
 
 .btn-recipe-from-ingredient {
     grid-column: 1 / -1;
-    background: linear-gradient(135deg, #0f766e, #0d9488);
+    background: linear-gradient(135deg, var(--es-action-recipe, #7c3aed), var(--accent-light, #8b5cf6));
     color: white;
     border: none;
     border-radius: 14px;
@@ -7279,6 +7279,17 @@ body.cooking-mode-active .app-header {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#page-use .btn-recipe-from-ingredient {
+    margin-top: 12px;
+    margin-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+.modal-content .btn-recipe-from-ingredient {
+    margin-top: 10px;
 }
 
 .btn-recipe-from-ingredient:active {
