@@ -8,6 +8,7 @@ data/*.db-wal
 data/*.db-shm
 data/backups/
 data/cron.log
+data/cron.log.*
 data/smart_shopping_cache.json
 data/bring_token.json
 data/bring_catalog.json
@@ -16,8 +17,14 @@ data/shopping_price_cache.json
 data/anomaly_dismissed.json
 data/opened_shelf_cache.json
 data/shopping_name_cache.json
+data/shopping_total_cache.json
+data/ai_usage.json
+data/classify_daily.json
 data/client_debug.log
 data/rate_limits/
+data/mealie/
+data/mealie_cache.json
+data/*.db.bak*
 
 # SSL certificates (local only)
 data/*.crt

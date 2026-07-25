@@ -138,8 +138,17 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
 
     // ── Cost helper ───────────────────────────────────────────────────────────
     $calcCost = function(int $tokIn, int $tokOut, string $modelHint = '2.5'): float {
-        $inRate  = str_contains($modelHint, '2.5') ? GEMINI_COST_25F_IN  : GEMINI_COST_20F_IN;
-        $outRate = str_contains($modelHint, '2.5') ? GEMINI_COST_25F_OUT : GEMINI_COST_20F_OUT;
+        $m = strtolower($modelHint);
+        if (str_contains($m, '3.5') || str_contains($m, '3.1')) {
+            $inRate  = GEMINI_COST_35F_IN;
+            $outRate = GEMINI_COST_35F_OUT;
+        } elseif (str_contains($m, '2.5') || str_contains($m, 'flash-lite')) {
+            $inRate  = str_contains($m, 'lite') ? GEMINI_COST_20F_IN : GEMINI_COST_25F_IN;
+            $outRate = str_contains($m, 'lite') ? GEMINI_COST_20F_OUT : GEMINI_COST_25F_OUT;
+        } else {
+            $inRate  = GEMINI_COST_20F_IN;
+            $outRate = GEMINI_COST_20F_OUT;
+        }
         return round(($tokIn / 1_000_000) * $inRate + ($tokOut / 1_000_000) * $outRate, 6);
     };
 
@@ -217,22 +226,42 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
         'year'  => $year,
 
         // Current month (from ai_usage.json)
-        'month_stats' => [
-            'calls'        => (int)$cur['calls'],
-            'input_tokens' => (int)$cur['input_tokens'],
-            'output_tokens'=> (int)$cur['output_tokens'],
-            'cost_usd'     => $calcCost((int)$cur['input_tokens'], (int)$cur['output_tokens']),
-            'by_action'    => $cur['by_action'] ?? [],
-            'by_model'     => $cur['by_model']  ?? [],
-        ],
+        'month_stats' => (function() use ($cur, $calcCost) {
+            $byModel = $cur['by_model'] ?? [];
+            $cost = 0.0;
+            if ($byModel) {
+                foreach ($byModel as $mdl => $mu) {
+                    $cost += $calcCost((int)($mu['in'] ?? 0), (int)($mu['out'] ?? 0), (string)$mdl);
+                }
+            } else {
+                $cost = $calcCost((int)$cur['input_tokens'], (int)$cur['output_tokens'], 'gemini-3.5-flash');
+            }
+            return [
+                'calls'        => (int)$cur['calls'],
+                'input_tokens' => (int)$cur['input_tokens'],
+                'output_tokens'=> (int)$cur['output_tokens'],
+                'cost_usd'     => round($cost, 6),
+                'by_action'    => $cur['by_action'] ?? [],
+                'by_model'     => $byModel,
+            ];
+        })(),
 
         // Current year (from ai_usage.json — all months summed)
-        'year_stats' => [
-            'calls'        => (int)$yearBucket['calls'],
-            'input_tokens' => (int)$yearBucket['input_tokens'],
-            'output_tokens'=> (int)$yearBucket['output_tokens'],
-            'cost_usd'     => $calcCost((int)$yearBucket['input_tokens'], (int)$yearBucket['output_tokens']),
-        ],
+        'year_stats' => (function() use ($yearBucket, $calcCost) {
+            $cost = 0.0;
+            foreach (($yearBucket['by_model'] ?? []) as $mdl => $mu) {
+                $cost += $calcCost((int)($mu['in'] ?? 0), (int)($mu['out'] ?? 0), (string)$mdl);
+            }
+            if ($cost <= 0 && ((int)$yearBucket['calls'] > 0)) {
+                $cost = $calcCost((int)$yearBucket['input_tokens'], (int)$yearBucket['output_tokens'], 'gemini-3.5-flash');
+            }
+            return [
+                'calls'        => (int)$yearBucket['calls'],
+                'input_tokens' => (int)$yearBucket['input_tokens'],
+                'output_tokens'=> (int)$yearBucket['output_tokens'],
+                'cost_usd'     => round($cost, 6),
+            ];
+        })(),
 
         // DB activity
         'db' => array_merge(
@@ -252,7 +281,9 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
 
         // Current Gemini pricing (from .env / defaults)
         'pricing' => [
+            '3.5-flash' => ['in' => GEMINI_COST_35F_IN, 'out' => GEMINI_COST_35F_OUT],
             '2.5-flash' => ['in' => GEMINI_COST_25F_IN, 'out' => GEMINI_COST_25F_OUT],
+            '2.5-flash-lite' => ['in' => GEMINI_COST_20F_IN, 'out' => GEMINI_COST_20F_OUT],
             '2.0-flash' => ['in' => GEMINI_COST_20F_IN, 'out' => GEMINI_COST_20F_OUT],
         ],
 
@@ -265,13 +296,24 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
         'bring_expires_ts'  => $bringExpiresTs,
 
         // History (last 13 months for trend)
-        'history' => array_map(fn($k, $v) => [
-            'month'        => $k,
-            'input_tokens' => (int)($v['input_tokens']  ?? 0),
-            'output_tokens'=> (int)($v['output_tokens'] ?? 0),
-            'calls'        => (int)($v['calls'] ?? 0),
-            'cost_usd'     => $calcCost((int)($v['input_tokens'] ?? 0), (int)($v['output_tokens'] ?? 0)),
-        ], array_keys($aiData), array_values($aiData)),
+        'history' => array_map(function($k, $v) use ($calcCost) {
+            $byModel = $v['by_model'] ?? [];
+            $cost = 0.0;
+            if ($byModel) {
+                foreach ($byModel as $mdl => $mu) {
+                    $cost += $calcCost((int)($mu['in'] ?? 0), (int)($mu['out'] ?? 0), (string)$mdl);
+                }
+            } else {
+                $cost = $calcCost((int)($v['input_tokens'] ?? 0), (int)($v['output_tokens'] ?? 0), 'gemini-3.5-flash');
+            }
+            return [
+                'month'        => $k,
+                'input_tokens' => (int)($v['input_tokens']  ?? 0),
+                'output_tokens'=> (int)($v['output_tokens'] ?? 0),
+                'calls'        => (int)($v['calls'] ?? 0),
+                'cost_usd'     => round($cost, 6),
+            ];
+        }, array_keys($aiData), array_values($aiData)),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -4330,7 +4372,7 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
 
     $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
         ? (string)$input['shopping_name']
-        : computeShoppingName($name, $category, $brand);
+        : computeShoppingName($name, $category, $brand, true);
 
     $fields = [
         'name'              => $name,
@@ -6335,10 +6377,16 @@ function callGemini(string $url, array $payload, int $timeout = 60): array {
     }
 
     $data = $lastBody ? json_decode($lastBody, true) : null;
-    // Extract token counts from Gemini usageMetadata
+    // Extract token counts from Gemini usageMetadata.
+    // thoughtsTokenCount is billed as output on Gemini 3.x — must count it.
     $usage = $data['usageMetadata'] ?? [];
     $tokIn  = (int)($usage['promptTokenCount']     ?? 0);
-    $tokOut = (int)($usage['candidatesTokenCount'] ?? 0);
+    $tokCand = (int)($usage['candidatesTokenCount'] ?? 0);
+    $tokThoughts = (int)($usage['thoughtsTokenCount'] ?? 0);
+    $tokOut = $tokCand + $tokThoughts;
+    if ($tokOut <= 0 && !empty($usage['totalTokenCount'])) {
+        $tokOut = max(0, (int)$usage['totalTokenCount'] - $tokIn);
+    }
 
     return [
         'http_code'  => $lastCode,
@@ -6384,16 +6432,36 @@ function _recordAiUsage(string $model, int $tokIn, int $tokOut, string $action =
 }
 
 /**
- * Ordered Gemini model fallback chain (newest first).
+ * Ordered Gemini model fallback chain.
  * gemini-2.0-flash was shut down 2026-06-01 — do not use.
+ * @param string $tier 'default' (quality) | 'lite' (cheap classifiers / one-word tasks)
  */
-function geminiModelChain(): array {
+function geminiModelChain(string $tier = 'default'): array {
+    if ($tier === 'lite') {
+        return [
+            'gemini-2.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-2.5-flash',
+            'gemini-3.5-flash',
+        ];
+    }
     return [
         'gemini-3.5-flash',
         'gemini-2.5-flash',
         'gemini-3.1-flash-lite',
         'gemini-2.5-flash-lite',
     ];
+}
+
+/** Ensure thinking is disabled unless the caller set an explicit budget. */
+function geminiEnsureNoThinking(array $payload): array {
+    if (!isset($payload['generationConfig']) || !is_array($payload['generationConfig'])) {
+        $payload['generationConfig'] = [];
+    }
+    if (!isset($payload['generationConfig']['thinkingConfig'])) {
+        $payload['generationConfig']['thinkingConfig'] = ['thinkingBudget' => 0];
+    }
+    return $payload;
 }
 
 /** True when the API says this model is gone — try the next one in the chain. */
@@ -6411,9 +6479,11 @@ function geminiModelUnavailable(int $httpCode, ?array $data): bool {
 
 /**
  * Like callGemini() but walks geminiModelChain() on quota or unavailable-model errors.
+ * @param string $tier 'default' | 'lite'
  */
-function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = ''): array {
-    $models    = geminiModelChain();
+function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = '', string $tier = 'default'): array {
+    $models    = geminiModelChain($tier);
+    $payload   = geminiEnsureNoThinking($payload);
     $last      = ['http_code' => 0, 'body' => '', 'data' => null, 'tokens_in' => 0, 'tokens_out' => 0];
     $promptLen = strlen(json_encode($payload));
     foreach ($models as $idx => $model) {
@@ -6465,10 +6535,11 @@ function prewarmShelfLifeCache(PDO $db, int $limit = 5): array {
     $skipped = 0;
     foreach ($rows as $row) {
         if ($warmed >= $limit) { $skipped++; continue; }
-        $cacheKey = md5(mb_strtolower($row['name']) . '|' . mb_strtolower($row['location']));
-        if (isset($cache[$cacheKey])) { $skipped++; continue; }
-        // Call with AI enabled — this writes to cache internally
-        getOpenedShelfLifeDays($row['name'], $row['category'] ?? '', $row['location'], false, true);
+        // Must match getOpenedShelfLifeDays() key (…|v2) or cache never hits and cron re-invokes forever.
+        $cacheKey = md5(mb_strtolower($row['name']) . '|' . mb_strtolower($row['location']) . '|v2');
+        if (isset($cache[$cacheKey]['days'])) { $skipped++; continue; }
+        // Rules only in cron — never burn Gemini every 5 minutes for pre-warm.
+        getOpenedShelfLifeDays($row['name'], $row['category'] ?? '', $row['location'], false, false);
         $warmed++;
     }
 
@@ -6517,9 +6588,13 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
 
         $payload = [
             'contents'         => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => ['maxOutputTokens' => 8, 'temperature' => 0],
+            'generationConfig' => [
+                'maxOutputTokens' => 8,
+                'temperature'     => 0,
+                'thinkingConfig'  => ['thinkingBudget' => 0],
+            ],
         ];
-        $result = callGeminiWithFallback($apiKey, $payload, 12, 'shelf_life');
+        $result = callGeminiWithFallback($apiKey, $payload, 12, 'shelf_life', 'lite');
         if ($result['http_code'] === 200) {
             $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
             $parsed = (int)preg_replace('/\D/', '', $text);
@@ -9229,65 +9304,155 @@ function italianToBring(string $italianName): string {
  */
 /**
  * Ask Gemini to classify a product name into a short Italian shopping category word.
- * Results are cached in a local JSON file to avoid repeated API calls.
+ * Results (and misses) are cached with file locking to avoid repeated API calls.
  * Returns null on failure so the caller can fall back gracefully.
  */
+function _shoppingNameCacheLoad(): array {
+    if (!file_exists(SHOPPING_NAME_CACHE_PATH)) {
+        return [];
+    }
+    $raw = @file_get_contents(SHOPPING_NAME_CACHE_PATH);
+    if ($raw === false || $raw === '') {
+        return [];
+    }
+    $cache = json_decode($raw, true);
+    return is_array($cache) ? $cache : [];
+}
+
+function _shoppingNameCacheSave(array $cache): void {
+    $json = json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($json === false) {
+        return;
+    }
+    $tmp = SHOPPING_NAME_CACHE_PATH . '.tmp.' . getmypid();
+    if (@file_put_contents($tmp, $json, LOCK_EX) === false) {
+        return;
+    }
+    @rename($tmp, SHOPPING_NAME_CACHE_PATH);
+}
+
+/** Normalize a cache entry to ['v' => ?string, 'ts' => int]. Legacy string values supported. */
+function _shoppingNameCacheEntry($entry): ?array {
+    if (is_string($entry)) {
+        $v = trim($entry);
+        if ($v === '' || mb_strlen($v) < 2) {
+            return null;
+        }
+        // Truncated garbage from thinking+maxOutputTokens (e.g. "Form", "Ver")
+        if (mb_strlen($v) <= 3 && !in_array(mb_strtolower($v), ['olio','uova','pane','sale','te','tè','riso','mais','vino','birra','latte','acqua','pesce','carne','uovo'], true)) {
+            return null; // treat as miss — force refresh when AI allowed
+        }
+        return ['v' => $v, 'ts' => time()];
+    }
+    if (!is_array($entry)) {
+        return null;
+    }
+    $ts = (int)($entry['ts'] ?? 0);
+    $v = array_key_exists('v', $entry) ? $entry['v'] : null;
+    if ($v === null || $v === '') {
+        // Negative cache — still valid within TTL
+        if ($ts > 0 && (time() - $ts) < GEMINI_CLASSIFY_NEG_TTL) {
+            return ['v' => null, 'ts' => $ts];
+        }
+        return null;
+    }
+    if (!is_string($v) || mb_strlen(trim($v)) < 2) {
+        return null;
+    }
+    return ['v' => trim($v), 'ts' => $ts ?: time()];
+}
+
+function _classifyDailyCount(): int {
+    if (!file_exists(GEMINI_CLASSIFY_DAY_PATH)) {
+        return 0;
+    }
+    $d = json_decode((string)@file_get_contents(GEMINI_CLASSIFY_DAY_PATH), true) ?: [];
+    if (($d['day'] ?? '') !== date('Y-m-d')) {
+        return 0;
+    }
+    return (int)($d['n'] ?? 0);
+}
+
+function _classifyDailyBump(): void {
+    $today = date('Y-m-d');
+    $d = ['day' => $today, 'n' => 0];
+    if (file_exists(GEMINI_CLASSIFY_DAY_PATH)) {
+        $prev = json_decode((string)@file_get_contents(GEMINI_CLASSIFY_DAY_PATH), true) ?: [];
+        if (($prev['day'] ?? '') === $today) {
+            $d['n'] = (int)($prev['n'] ?? 0);
+        }
+    }
+    $d['n']++;
+    @file_put_contents(GEMINI_CLASSIFY_DAY_PATH, json_encode($d), LOCK_EX);
+}
+
 function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
     EverLog::debug('_geminiClassifyProduct');
     $apiKey = env('GEMINI_API_KEY');
-    if (empty($apiKey)) return null;
-
-    // Load/save classification cache
-    $cacheFile = __DIR__ . '/../data/shopping_name_cache.json';
-    $cache = [];
-    if (file_exists($cacheFile)) {
-        $raw = @file_get_contents($cacheFile);
-        if ($raw) $cache = json_decode($raw, true) ?: [];
+    if (empty($apiKey)) {
+        return null;
     }
-    $cacheKey = md5(mb_strtolower($name . '|' . $brand));
-    if (isset($cache[$cacheKey])) return $cache[$cacheKey];
 
-    // Build catalog list so Gemini picks an existing Bring! entry when possible
-    $catalog = bringCatalog();
-    $catalogList = implode(', ', array_slice(array_values($catalog['de2it']), 0, 200));
+    $cacheKey = md5(mb_strtolower(trim($name) . '|' . trim($brand)));
+    $cache = _shoppingNameCacheLoad();
+    $hit = isset($cache[$cacheKey]) ? _shoppingNameCacheEntry($cache[$cacheKey]) : null;
+    if ($hit !== null) {
+        return $hit['v']; // may be null (negative cache)
+    }
+
+    if (_classifyDailyCount() >= GEMINI_CLASSIFY_DAILY_MAX) {
+        EverLog::warn('classify_category daily cap reached', ['max' => GEMINI_CLASSIFY_DAILY_MAX]);
+        return null;
+    }
 
     $prompt = <<<PROMPT
-Sei un assistente per la spesa italiana. Data la descrizione di un prodotto alimentare,
-rispondi con UNA SOLA parola (o al massimo due) in italiano che rappresenta la categoria
-generica più appropriata per la lista della spesa.
-
-Il nome deve essere:
-- Breve (1-2 parole al massimo)
-- In italiano
-- Riconoscibile da un supermercato italiano (es: "Pane", "Latte", "Formaggio", "Yogurt",
-  "Pasta", "Riso", "Olio", "Biscotti", "Succo", "Marmellata", "Salsa", "Farina", ...)
-- Se esiste nel catalogo Bring! scegli quella voce: {$catalogList}
+Classifica questo prodotto alimentare per una lista della spesa italiana.
+Rispondi con UNA sola parola (o al massimo due) in italiano, tipo: Pane, Latte, Formaggio, Yogurt, Pasta, Riso, Olio, Biscotti, Succo, Marmellata, Salsa, Farina, Uova, Burro, Cipolla, Tonno.
+Niente punteggiatura, niente spiegazioni.
 
 Prodotto: "{$name}"
 Marca: "{$brand}"
-Categoria OpenFoodFacts: "{$category}"
-
-Rispondi SOLO con la parola/coppia di parole, senza punteggiatura, senza spiegazioni.
+Categoria: "{$category}"
 PROMPT;
 
     $payload = [
         'contents' => [['parts' => [['text' => $prompt]]]],
-        'generationConfig' => ['temperature' => 0.1, 'maxOutputTokens' => 16],
+        'generationConfig' => [
+            'temperature'     => 0.1,
+            'maxOutputTokens' => 16,
+            'thinkingConfig'  => ['thinkingBudget' => 0],
+        ],
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 15, 'classify_category');
-    if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) return null;
+    _classifyDailyBump();
+    $result = callGeminiWithFallback($apiKey, $payload, 15, 'classify_category', 'lite');
+    if ($result['http_code'] !== 200 || !isset($result['data']['candidates'][0])) {
+        $cache[$cacheKey] = ['v' => null, 'ts' => time()];
+        _shoppingNameCacheSave($cache);
+        return null;
+    }
 
     $text = trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '');
-    // Sanitize: keep only letters and spaces, max 30 chars, capitalize first letter
     $text = preg_replace('/[^\p{L}\s]/u', '', $text);
     $text = trim(preg_replace('/\s+/', ' ', $text));
-    if (mb_strlen($text) < 2 || mb_strlen($text) > 30) return null;
+    if (mb_strlen($text) < 2 || mb_strlen($text) > 30) {
+        $cache[$cacheKey] = ['v' => null, 'ts' => time()];
+        _shoppingNameCacheSave($cache);
+        return null;
+    }
     $text = mb_strtoupper(mb_substr($text, 0, 1)) . mb_substr($text, 1);
 
-    // Persist to cache
-    $cache[$cacheKey] = $text;
-    @file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $cache[$cacheKey] = ['v' => $text, 'ts' => time()];
+    // Cap cache size (keep newest ~2000)
+    if (count($cache) > 2500) {
+        uasort($cache, static function ($a, $b) {
+            $ta = is_array($a) ? (int)($a['ts'] ?? 0) : 0;
+            $tb = is_array($b) ? (int)($b['ts'] ?? 0) : 0;
+            return $tb <=> $ta;
+        });
+        $cache = array_slice($cache, 0, 2000, true);
+    }
+    _shoppingNameCacheSave($cache);
 
     return $text;
 }
@@ -9296,8 +9461,9 @@ PROMPT;
 function productMatchesShoppingFamily(string $productName, string $shoppingName): bool {
     $sn = mb_strtolower(trim($shoppingName));
     if ($sn === '') return false;
-    $computed = mb_strtolower(computeShoppingName($productName));
-    $snComputed = mb_strtolower(computeShoppingName($shoppingName));
+    // Local-only: never trigger Gemini from family matching (hot path / cron).
+    $computed = mb_strtolower(computeShoppingName($productName, '', '', false));
+    $snComputed = mb_strtolower(computeShoppingName($shoppingName, '', '', false));
     if ($computed === $sn || $computed === $snComputed) return true;
     $nameLower = mb_strtolower(trim($productName));
     return $nameLower === $sn || str_starts_with($nameLower, $sn . ' ');
@@ -9316,7 +9482,7 @@ function isPreparedSaladProduct(string $name, string $brand = ''): bool {
     return false;
 }
 
-function computeShoppingName(string $name, string $category = '', string $brand = ''): string {
+function computeShoppingName(string $name, string $category = '', string $brand = '', bool $allowAi = false): string {
     $lower = mb_strtolower(trim($name));
     if (isPreparedSaladProduct($name, $brand) && !preg_match('/insalata\s+di\s+riso/u', $lower)) {
         return 'Insalata di riso';
@@ -9633,21 +9799,21 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         }
     }
 
-    // 3. Gemini AI classification — called when:
-    //    - The name has 2+ tokens (e.g. "Gran bauletto rustico"),
-    //    - OR the single token doesn't look like a clean Italian product word
-    //      (contains non-Italian chars, uppercase mix, brand-style length, etc.),
-    //    - OR category/brand context is available to help Gemini disambiguate.
-    // Single-token ultra-common words (5+ lowercase Italian chars) that already look
-    // like valid category names are skipped (unlikely to need AI).
+    // 3. Gemini AI classification — ONLY when explicitly allowed (product save).
+    //    Cron / Bring sync / family matching must never hit the API (use cache-free local fallback).
+    //    Hard block: CLI/cron never classifies (prevents silent cost loops).
+    if ($allowAi && ((defined('CRON_MODE') && CRON_MODE) || PHP_SAPI === 'cli')) {
+        $allowAi = false;
+    }
     $firstToken = $tokens[0] ?? '';
+    // >= 3 so Pane/Riso/Olio/Sale/Sugo skip AI
     $isCleanItalianToken = count($tokens) === 1
-        && mb_strlen($firstToken) >= 5
-        && mb_strtolower($firstToken) === $firstToken  // all lowercase → already in stop-word-free form
-        && preg_match('/^[a-z]+$/', $firstToken);     // only ASCII lowercase (no accents = usually Italian noun)
+        && mb_strlen($firstToken) >= 3
+        && mb_strtolower($firstToken) === $firstToken
+        && preg_match('/^[a-zàèéìòù]+$/u', $firstToken);
     $hasCategoryHint = $category !== '' || $brand !== '';
     $needsAI = !$isCleanItalianToken || ($hasCategoryHint && count($tokens) >= 2);
-    if ($needsAI) {
+    if ($allowAi && $needsAI) {
         $aiResult = _geminiClassifyProduct($name, $brand, $category);
         if ($aiResult !== null) return $aiResult;
     }
@@ -10232,9 +10398,10 @@ function buildSmartBringSpec(array $si): string {
     return implode(' · ', $parts);
 }
 
-/** True when a smart-shopping row should be kept on Bring!/internal list. */
+/** True when a smart-shopping row should be auto-synced to Bring!/internal list.
+ *  Only Urgente + Presto — not "A breve" / previsioni (those stay in suggestions). */
 function smartItemShouldSyncToBring(array $si): bool {
-    return in_array($si['urgency'] ?? 'none', ['critical', 'high', 'medium', 'low'], true);
+    return in_array($si['urgency'] ?? 'none', ['critical', 'high'], true);
 }
 
 // ===== BRING PURCHASED BLOCKLIST (server-side, synced with app_settings.bring_blocklist) =====
@@ -10305,17 +10472,49 @@ function bringShoppingFamilyStockQty(PDO $db, string $shoppingName): float {
     return $total;
 }
 
-/** Days since the last inbound transaction for a shopping_name family; null if never bought. */
+/** Fresh (non-expired) family stock — expired leftovers must not suppress restock suggestions. */
+function bringShoppingFamilyFreshStockQty(PDO $db, string $shoppingName): float {
+    $key = mb_strtolower(trim($shoppingName));
+    if ($key === '') {
+        return 0.0;
+    }
+    $stmt = $db->prepare("
+        SELECT p.name, p.shopping_name,
+               COALESCE(SUM(CASE
+                   WHEN i.expiry_date IS NULL OR i.expiry_date >= date('now') THEN i.quantity
+                   ELSE 0 END), 0) AS qty
+        FROM products p
+        INNER JOIN inventory i ON p.id = i.product_id AND i.quantity > 0
+        WHERE LOWER(TRIM(COALESCE(NULLIF(p.shopping_name, ''), p.name))) = ?
+        GROUP BY p.id
+    ");
+    $stmt->execute([$key]);
+    $total = 0.0;
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $sn = trim((string)($row['shopping_name'] ?? '')) ?: (string)$row['name'];
+        if (productMatchesShoppingFamily((string)$row['name'], $sn)) {
+            $total += (float)$row['qty'];
+        }
+    }
+    return $total;
+}
+
+/**
+ * Days since the last real purchase for a shopping_name family; null if never bought.
+ * Ignores location moves and undo restorations (those are not shopping trips).
+ */
 function bringShoppingFamilyDaysSinceLastBuy(PDO $db, string $shoppingName): ?float {
     $key = mb_strtolower(trim($shoppingName));
     if ($key === '') {
         return null;
     }
+    $txReal = shoppingTxNotMoveNotesSql('t.notes');
     $stmt = $db->prepare("
         SELECT MAX(t.created_at)
         FROM transactions t
         INNER JOIN products p ON p.id = t.product_id
         WHERE t.type = 'in' AND t.undone = 0
+          AND {$txReal}
           AND LOWER(TRIM(COALESCE(NULLIF(p.shopping_name, ''), p.name))) = ?
     ");
     $stmt->execute([$key]);
@@ -10380,6 +10579,23 @@ function smartItemHideFromPredictions(PDO $db, array $item): bool {
     if (bringIsPurchasedBlocked($db, $name, $generic)) {
         return true;
     }
+
+    // Never suppress urgent / nearly-empty staples — "just bought" must not hide
+    // eggs that are already almost gone or expired.
+    $urgency = (string)($item['urgency'] ?? '');
+    if (in_array($urgency, ['critical', 'high'], true)) {
+        return false;
+    }
+    $daysLeft = $item['days_left'] ?? null;
+    if ($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft <= 7) {
+        return false;
+    }
+    $fresh = bringShoppingFamilyFreshStockQty($db, $generic);
+    if ($fresh <= 0) {
+        // Only expired leftovers (or empty) — still need a restock suggestion
+        return false;
+    }
+
     $stock = bringShoppingFamilyStockQty($db, $generic);
     if ($stock <= 0) {
         return false;
@@ -12658,6 +12874,12 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $isRecent = $daysSinceLastUse <= 60;
         $recentlyExhausted = $lastOut && ($now - $lastOut) / 86400 <= RECENTLY_EXHAUSTED_DAYS;
 
+        // "Urgente" / "Presto" = used often + real consumption + stock gone or nearly gone.
+        // Require proven habit (useCount) so short seasonal spikes stay quieter.
+        // Top staple (≥4/mese) → Urgente; weekly staple (≥3/mese) → Presto when empty/low.
+        $isTopStaple    = $usesPerMonth >= 4.0 && $useCount >= 5 && $dailyRate > 0;
+        $isUrgentStaple = ($usesPerMonth >= 3.0 && $useCount >= 5 && $dailyRate > 0) || $isTopStaple;
+
         // --- Determine urgency ---
         $urgency = 'none'; // none, low, medium, high, critical
         $reasons = [];
@@ -12694,20 +12916,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             // For DEPLETED products: recency is misleading — the product may not have been
             // "used recently" precisely because it ran out. Base urgency on usage rate only.
             $reasons[] = 'Esaurito';
-            if ($isFrequent && $useCount >= 5) {
+            if ($isTopStaple) {
                 $urgency = 'critical'; $score += 120;
                 $reasons[] = 'Uso frequente (~' . max(1, (int)round($usesPerMonth)) . '/mese)';
-            } elseif ($isFrequent && $useCount >= 2) {
-                $urgency = 'critical'; $score += 100;
-            } elseif ($isFrequent) {
-                // usesPerMonth >= 1.5 but few recorded uses (new product) → high
-                $urgency = 'high'; $score += 75;
+            } elseif ($isUrgentStaple) {
+                $urgency = 'high'; $score += 90;
+                $reasons[] = 'Uso frequente (~' . max(1, (int)round($usesPerMonth)) . '/mese)';
+            } elseif ($isFrequent && $useCount >= 3 && $dailyRate > 0) {
+                $urgency = 'medium'; $score += 50;
             } elseif ($isRegular && ($useCount >= 3 || $buyCount >= 2)) {
-                $urgency = 'high'; $score += 65;
-            } elseif ($isRegular) {
-                $urgency = 'medium'; $score += 45;
-            } elseif ($useCount >= 2 || $buyCount >= 2) {
-                $urgency = 'low'; $score += 30;
+                $urgency = 'medium'; $score += 40;
+            } elseif ($isRegular || $useCount >= 2 || $buyCount >= 2) {
+                $urgency = 'low'; $score += 25;
             } else {
                 $urgency = 'low'; $score += 10;
             }
@@ -12724,12 +12944,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             (!in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 0.5) ||
             (in_array($unit, ['conf', 'pz']) && $familyOtherStock >= 1.0)
         );
-        if (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isRegular) {
-            $urgency = $isFrequent ? 'high' : 'medium';
+        if (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isUrgentStaple) {
+            $urgency = $isTopStaple ? 'critical' : 'high';
             $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
-            $score += 80;
-        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isRegular) {
-            if ($dailyRate > 0 && $daysLeft <= 5 && $isFrequent) {
+            $score += $isTopStaple ? 100 : 80;
+        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isRegular) {
+            $urgency = 'medium';
+            $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
+            $score += 50;
+        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isUrgentStaple) {
+            if ($dailyRate > 0 && $daysLeft <= 5) {
                 $urgency = 'high';
                 $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
                 $score += 75;
@@ -12742,6 +12966,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
                 $score += 30;
             }
+        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isRegular && $isRecent) {
+            $urgency = 'low';
+            $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
+            $score += 25;
         }
 
         // Expiring soon or expired (needs replacement)
@@ -12756,12 +12984,23 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             if (($justRestocked && $freshPctLeft >= 50) || $familyFreshPct >= 50) {
                 // Fresh stock from this product or same-family products is adequate.
                 // The expired batch will show in the dashboard expiry banner — don't add to shopping list.
-            } elseif ($isRegular || $buyCount >= 2) {
-                // Only suggest restocking if this is a product the user buys regularly.
-                // If it expired without ever being a staple, the expiry banner is enough.
+            } elseif ($isTopStaple) {
                 $urgency = 'critical';
                 $reasons[] = 'Scaduto!';
                 $score += 90;
+            } elseif ($isUrgentStaple) {
+                if (!in_array($urgency, ['critical', 'high'], true)) {
+                    $urgency = 'high';
+                }
+                $reasons[] = 'Scaduto!';
+                $score += 70;
+            } elseif ($isRegular && $buyCount >= 2) {
+                // Occasional staple: suggest restock quietly; expiry banner still shows
+                if ($urgency === 'none') {
+                    $urgency = 'medium';
+                }
+                $reasons[] = 'Scaduto!';
+                $score += 40;
             }
             // else: one-off product expired unused → expiry banner handles it, no shopping noise
         } elseif ($isExpiringSoon && $qty > 0) {
@@ -12771,28 +13010,33 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             //     (daysLeft based on consumption rate > days to expiry)
             // (c) non-regular + within 3 days + low stock → minimal safety net
             $willExpireBeforeUsed = $dailyRate > 0 && $daysToExpiry < $daysLeft;
-            if ($isRegular && ($pctLeft < 50 || $willExpireBeforeUsed)) {
-                if ($urgency === 'none') $urgency = 'medium';
+            if ($isUrgentStaple && ($pctLeft < 50 || $willExpireBeforeUsed)) {
+                if ($urgency === 'none' || $urgency === 'low') {
+                    $urgency = 'medium';
+                }
                 if ($willExpireBeforeUsed && $pctLeft >= 50) {
-                    // Has stock but won't finish it in time → buy fresh and use this one now
                     $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg — ricompra';
                 } else {
                     $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
                 }
                 $score += 40;
-            } elseif (!$isRegular && $daysToExpiry <= 3 && $pctLeft < 50) {
-                // Non-regular product: only flag when very close and running low
+            } elseif ($isRegular && ($pctLeft < 50 || $willExpireBeforeUsed)) {
                 if ($urgency === 'none') $urgency = 'low';
                 $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
-                $score += 20;
+                $score += 25;
+            } elseif (!$isRegular && $daysToExpiry <= 3 && $pctLeft < 50) {
+                if ($urgency === 'none') $urgency = 'low';
+                $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
+                $score += 15;
             }
         }
 
-        // Frequently used but stock getting low (predictive) — scale urgency by imminence
-        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isFrequent && $isRecent) {
+        // Frequently used but stock getting low (predictive) — never "Urgente" alone;
+        // Presto only for top staples about to run out.
+        if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isUrgentStaple && $isRecent) {
             $daysLeftDisplay = (int)round($daysLeft);
             $reasons[] = 'Finisce tra ~' . $daysLeftDisplay . 'gg';
-            if ($daysLeftDisplay <= 3) {
+            if ($daysLeftDisplay <= 3 && $isTopStaple) {
                 $urgency = 'high';
                 $score += 70;
             } elseif ($daysLeftDisplay <= 7) {
@@ -12801,6 +13045,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             } else {
                 $urgency = 'low';
                 $score += 25;
+            }
+        }
+        // Frequent staples that won't cover the shopping plan window
+        if ($dailyRate > 0 && $isUrgentStaple && $isRecent && $qty > 0
+            && $daysLeft <= $planDays && !in_array($urgency, ['critical', 'high'], true)) {
+            $daysLeftDisplay = (int)round($daysLeft);
+            if ($urgency === 'none' || $urgency === 'low') {
+                $urgency = ($daysLeftDisplay <= 3 && $isTopStaple) ? 'high' : 'medium';
+                $reasons[] = 'Uso frequente — scorta insufficiente per ' . $planDays . 'gg';
+                $score += ($urgency === 'high') ? 70 : 45;
             }
         }
         // Buy-cycle prediction for products not tracked per-use (e.g. salt, spices):
@@ -12818,14 +13072,14 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $score += 25;
             }
         }
-        // Also upgrade existing low urgency when imminent depletion is detected
-        if ($urgency === 'low' && $dailyRate > 0 && (int)round($daysLeft) <= 3 && $isFrequent) {
-            $urgency = 'high';
+        // Upgrade low → medium when a top staple is days from empty
+        if ($urgency === 'low' && $dailyRate > 0 && (int)round($daysLeft) <= 3 && $isTopStaple) {
+            $urgency = 'medium';
             $daysLeftLbl = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
             if (!in_array($daysLeftLbl, $reasons)) {
                 $reasons[] = $daysLeftLbl;
             }
-            $score += 45;
+            $score += 30;
         }
 
         // Opened item with fast consumption — only if actually used regularly
@@ -12835,34 +13089,32 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $score += 20;
         }
 
-        // Absolute minimum stock fallback: flag items with critically low stock.
-        // Requires: product is regularly consumed (isRegular), bought ≥2 times (proven staple),
-        // and stock is clearly depleted relative to normal purchase (pctLeft < 80).
-        if ($urgency === 'none' && $isRegular && $buyCount >= 2 && $qty > 0 && $pctLeft < 80) {
+        // Absolute minimum stock fallback — never "urgente"; medium only for weekly+ staples.
+        if ($urgency === 'none' && $isUrgentStaple && $buyCount >= 2 && $qty > 0 && $pctLeft < 80) {
             if ($unit === 'conf') {
                 if ($qty <= 1) {
-                    $urgency = 'high';
-                    $reasons[] = 'Solo 1 confezione rimasta';
-                    $score += 60;
-                } elseif ($qty <= 2) {
                     $urgency = 'medium';
+                    $reasons[] = 'Solo 1 confezione rimasta';
+                    $score += 45;
+                } elseif ($qty <= 2) {
+                    $urgency = 'low';
                     $reasons[] = 'Solo 2 confezioni rimaste';
-                    $score += 40;
+                    $score += 25;
                 }
             } elseif ($unit === 'pz') {
                 if ($qty <= 1) {
-                    $urgency = 'high';
-                    $reasons[] = 'Solo 1 pezzo rimasto';
-                    $score += 60;
-                } elseif ($qty <= 2) {
                     $urgency = 'medium';
+                    $reasons[] = 'Solo 1 pezzo rimasto';
+                    $score += 45;
+                } elseif ($qty <= 2) {
+                    $urgency = 'low';
                     $reasons[] = 'Solo 2 pezzi rimasti';
-                    $score += 40;
+                    $score += 25;
                 }
             } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0 && $qty <= $defQty * 0.20) {
-                $urgency = 'medium';
+                $urgency = 'low';
                 $reasons[] = 'Scorta minima (' . round($qty) . $unit . ')';
-                $score += 40;
+                $score += 25;
             }
         }
 
@@ -15141,7 +15393,7 @@ function guessCategoryFromAI(): void {
         ],
     ];
 
-    $result = callGeminiWithFallback($apiKey, $payload, 10, 'guess_category');
+    $result = callGeminiWithFallback($apiKey, $payload, 10, 'guess_category', 'lite');
     $raw    = strtolower(trim($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? ''));
     $raw    = preg_replace('/[^a-z_ ]/', '', $raw);
     $raw    = trim($raw);

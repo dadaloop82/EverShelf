@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.60] - 2026-07-25
+
+### Fixed
+- **Critical Gemini cost leak (`classify_category`)** — Smart shopping / Bring sync / family matching called `computeShoppingName()` on every cron cycle (~every 5 minutes). That path hit Gemini for multi-word names, with a fat Bring catalog prompt (~990 input tokens/call), no `thinkingBudget: 0`, and a cache that often failed to persist (empty/truncated answers). Result: **1,000+ classify calls/month** with almost no user action. Settings also under-reported cost using old 2.5 Flash rates while traffic used `gemini-3.5-flash`.
+- **What we changed to stop it**
+  - Gemini shopping-name classification is **off by default** and **hard-blocked in CLI/cron**; AI runs only when saving a product (HTTP) if a name is still needed.
+  - Durable cache with file lock, negative-cache TTL for misses, purge of truncated junk entries; daily hard cap (default 40).
+  - Slim one-word prompt (no 200-item catalog dump); `thinkingBudget: 0` injected for all Gemini payloads; classifiers prefer **`gemini-2.5-flash-lite`**.
+  - Usage accounting records thinking tokens; Info tab costs use real per-model rates (including 3.5 Flash).
+  - Shelf-life prewarm reduced to 1 item per cron cycle.
+- **Shopping urgency noise** — “Urgent” / “Soon” limited to frequent staples with real consumption that are empty or nearly empty; medium/low predictions are no longer auto-added to the list.
+- **Eggs / undo restocks** — `[Undone]` / `[Annullato]` transactions no longer count as purchases; high/critical and expired-only stock are not hidden from predictions.
+
+### Added
+- **Clear search** — × button on inventory and catalog search bars to wipe the query in one tap.
+
 ## [1.7.59] - 2026-07-17
 
 ### Fixed

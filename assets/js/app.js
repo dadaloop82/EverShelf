@@ -1272,6 +1272,10 @@ function translatePage() {
         const key = el.getAttribute('data-i18n-title');
         if (key) el.title = t(key);
     });
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+        const key = el.getAttribute('data-i18n-aria');
+        if (key) el.setAttribute('aria-label', t(key));
+    });
     // Update HTML lang attribute
     document.documentElement.lang = _currentLang;
     // Populate language selector if present
@@ -2077,6 +2081,7 @@ let _inventorySearchQuery = '';
 function _rememberInventorySearchFromInput() {
     const el = document.getElementById('inventory-search');
     if (el) _inventorySearchQuery = el.value || '';
+    _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
 }
 
 function _restoreInventorySearchInput() {
@@ -2085,6 +2090,31 @@ function _restoreInventorySearchInput() {
     if ((_inventorySearchQuery || '') !== (el.value || '')) {
         el.value = _inventorySearchQuery || '';
     }
+    _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
+}
+
+function _syncSearchClearBtn(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input || !btn) return;
+    btn.hidden = !(input.value || '').trim();
+}
+
+function clearInventorySearch() {
+    const el = document.getElementById('inventory-search');
+    if (el) el.value = '';
+    _inventorySearchQuery = '';
+    _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
+    filterInventory();
+    el?.focus();
+}
+
+function clearProductsSearch() {
+    const el = document.getElementById('products-search');
+    if (el) el.value = '';
+    _syncSearchClearBtn('products-search', 'products-search-clear');
+    searchAllProducts();
+    el?.focus();
 }
 let _actionInventoryItems = [];
 let currentLocation = '';
@@ -13090,6 +13120,7 @@ async function loadAllProducts() {
 
 async function searchAllProducts() {
     const q = document.getElementById('products-search').value;
+    _syncSearchClearBtn('products-search', 'products-search-clear');
     if (q.length < 2) {
         loadAllProducts();
         return;
@@ -13133,6 +13164,7 @@ async function selectProductForAction(productId) {
             // Clear catalog search only — keep inventory search for when the user goes back
             const psInput = document.getElementById('products-search');
             if (psInput) psInput.value = '';
+            _syncSearchClearBtn('products-search', 'products-search-clear');
             showProductAction();
         } else {
             showLoading(false);
@@ -13625,7 +13657,7 @@ async function autoAddCriticalItems() {
         if (i.on_bring) return false;
         const gName = i.shopping_name || i.name;
         if (_isBringPurchased(gName, i.urgency)) return false;
-        return ['critical', 'high', 'medium', 'low'].includes(i.urgency);
+        return ['critical', 'high'].includes(i.urgency);
     });
     if (toAdd.length === 0) return;
     const itemsToAdd = toAdd.map(i => ({

@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.59-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.60-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -40,124 +40,7 @@
 
 ---
 
-### 🆕 Release 1.7.59 (2026-07-17) — Shopping spend guards & inventory polish
-
-| Area | What changed |
-|------|----------------|
-| **Estimated spend** | Guards so location moves and short-history bursts cannot inflate “Spesa stimata” (caps on daily rate, packs/line, €/line). Regression: `scripts/test-shopping-guards.php` |
-| **Rename** | Tap the product title in Edit to rename inline; `name_user_set` keeps custom names across rescans |
-| **Inventory save** | Reliable SQLite transactions for quantity / package / vacuum; search preserved while editing |
-| **UI** | Single scale icon; secondary buttons readable on white cards (no white-on-white) |
-
-### 🆕 Release 1.7.58 (2026-07-16) — EverShelf shopping list (Bring!-independent)
-
-The shopping list **always lives in EverShelf**. Bring! is optional and only mirrors that list when `SHOPPING_MODE=bring`.
-
-| Area | What changed |
-|------|----------------|
-| **Built-in list first** | Finishing a product adds its **generic** name via `shoppingAddDepletedProduct` — works with empty Bring credentials |
-| **Blocklist** | 15-day remove/purchase block still prevents silent re-add from cron; it no longer **hides** existing internal list rows |
-| **Re-buy after finish** | Depleting clears the family blocklist so staples return to the list when you run out again |
-| **Family stock** | Skips auto-add when another product sharing the same `shopping_name` still has stock |
-| **UI / i18n** | Settings and toasts describe the EverShelf list; Bring! labelled as optional mirror |
-
-### 🆕 Release 1.7.57 (2026-07-08) — Corporate UI & List UX
-
-Full visual refactor across the web app. See [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.md) for the design system.
-
-| Area | What changed |
-|------|----------------|
-| **`corporate.css`** | New stylesheet loaded after `style.css` — unified buttons, cards, forms, modals, tabs, lists, and navigation app-wide |
-| **Design tokens** | Shared palette (primary green `#2d5016`, accent purple), spacing scale, 10px card radius, 48px touch targets, gradient CTAs |
-| **List page** | Nav label renamed to *List* / *Lista* (storage tabs still Pantry / Fridge / Freezer) |
-| **List interactions** | **Tap** or **swipe left** → Use quantity screen; **swipe right** → edit; pointer + touch on desktop |
-| **Onboarding** | One-time swipe demo on first list visit (`evershelf_inv_swipe_demo_v1`); no persistent banner or edge labels (1.7.56 hints removed) |
-| **Product sheet** | 2×2 action grid (Use, Used all, Recipe, Discard) from dashboard, alerts, and quick-access chips |
-| **Idle auto-submit** | Use form: 15 s for pcs/conf only; Add form: 30 s — reverse progress on submit button |
-| **Surfaces** | Dashboard stat cards, settings cards, shopping rows, inventory rows, modals — consistent borders, shadows, typography |
-
-### 🆕 Recent patches (July 2026)
-
-| Fix | Description |
-|-----|-------------|
-| **Gemini models (#212)** | Chain: `gemini-3.5-flash` → `gemini-2.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`; removed shut-down `gemini-2.0-flash` |
-| **SQLite locks (#210/#211)** | `BEGIN IMMEDIATE`, 20 s busy timeout, retries; graceful 503 on persistent lock |
-| **Android TTS** | Kiosk **1.7.20**: `speak()` on main thread; kiosk always prefers native TTS over server proxy |
-| **Piece produce** | Avocado, fruit, and other sold-by-piece items stay in **pcs** (`pz`); fractional use down to ¼ piece |
-| **Shopping list (1.7.58)** | EverShelf-native list works without Bring!; deplete auto-add + blocklist visibility fixed |
-| **Spend guards (1.7.59)** | Estimated shopping total cannot explode from location moves / short history; rename via tap on title |
-
-### 🆕 Release 1.7.55 (2026-07-06) — Shopping list & pantry search
-
-| Feature | Description |
-|---------|-------------|
-| **Internal shopping list** | Bring! integration stays in code but is inactive by default (`SHOPPING_MODE=internal`); removed items sync correctly after purchase |
-| **List deduplication** | Generic + specific names (e.g. *Milk* / *Fresh mozzarella*) merge into one row |
-| **15-day remove block** | `shopping_remove` and *Bought* suppress auto re-add for 15 days (`SHOPPING_REMOVED_BLOCK_DAYS`) |
-| **Urgency in API & UI** | Each list item exposes `urgency`, `urgent`, `urgency_label`, `urgency_color`; critical/high rows get tinted background + border |
-| **Pantry search ranking** | Searching *milk* no longer returns all dairy (butter); results sorted by relevance; search spans all locations |
-| **Expiry alerts** | Depleted items no longer shown as expired; fractional *pz* display fixed (0.9 → 1, not 0) |
-
-### 🆕 Release 1.7.54 (2026-07-04) — Faster scan & add-form UX
-
-| Feature | Description |
-|---------|-------------|
-| **Faster barcode scan** | ZBar/Tesseract preload, Native-first, persistent barcode cache, immediate Add form (background save) |
-| **Add form auto-submit** | After 30 s idle, form submits automatically with reverse progress bar |
-| **Inventory edit fix** | Swipe right → edit works again (numeric ID string coercion) |
-| **Cron** | `CRON_LOG_PATH` fix — smart shopping and barcode catalog cron run every 5 min again |
-
-### 🆕 Release 1.7.53 (2026-07-04) — Mealie
-
-EverShelf now integrates **[Mealie](https://mealie.io)**, the self-hosted open-source recipe manager:
-
-| Feature | Description |
-|---------|-------------|
-| **Recipes from pantry** | Match Mealie recipes to what you have in stock (Gemini fallback in Auto mode) |
-| **Offline cache** | Sync recipe book locally; works without network to Mealie |
-| **Guided setup** | Settings → Recipes → Discover / Install Mealie (Docker) with automatic URL/token |
-| **Recipe → shopping list** | Missing ingredients → suggest or auto-add to Bring! or internal list (`RECIPE_SHOPPING_MODE`) |
-
-Env vars: `MEALIE_URL`, `MEALIE_API_TOKEN`, `RECIPE_SOURCE` (auto/mealie/gemini), `MEALIE_OFFLINE`, `RECIPE_SHOPPING_MODE` (off/suggest/auto), `SHOPPING_MODE` (internal/bring), `SHOPPING_REMOVED_BLOCK_DAYS` (default 15).
-
-### 🆕 Release 1.7.52 (2026-07-04)
-
-- Inventory swipe gestures (#80), price sparklines (#81), Mealie import API, MCP HTTP transport.
-
-### 🆕 Release 1.7.51 (2026-07-04)
-
-- **Bug fix #206** — `product_save` INSERT column order aligned with UPDATE (new products no longer have shifted fields).
-- **Bug fix #207** — Docker image now includes PHP `zip` and `intl` extensions.
-- **Shopping list UX** — Larger mobile rows, product icons/backgrounds, plan-days quantities, scroll preserved on refresh, fewer auto-updates.
-- **Settings** — `.env` write fallback via SQLite when file permissions block saves; Bring can be disabled from Settings again.
-- **MCP server (beta)** — [`mcp-server/`](mcp-server/) companion for Claude Desktop / Cursor / HA LLM (inventory, expiry, shopping, recipes).
-- **PWA** — Basic service worker caches app shell for offline UI (shopping offline queue already supported).
-
-### 🆕 Release 1.7.46 (2026-06-06)
-
-- **Offline barcode DB** — Weekly sync from all free sources (OFF, OPF, OBF, OPFF, UPCitemdb); lookup works offline after sync.
-- **Barcode save/lookup fixes** — Piadina EAN 8030582017181 and similar products resolve reliably; save no longer fails silently after scan.
-
-### 🆕 Release 1.7.45 (2026-06-06)
-
-- **Duplicate products → one stock count** — If the catalog has duplicate entries for the same item, adding inventory merges them automatically (2 packages = quantity 2 on one product).
-
-### 🆕 Release 1.7.44 (2026-06-06)
-
-- **AI product insert** — No more UNIQUE barcode errors or wrong title/category when adding an AI-recognized product; merges with existing catalog/OFF entries instead of duplicating.
-
-### 🆕 Release 1.7.43 (2026-06-06)
-
-- Banner fixes: no false expiry for grated bread; edit button loads inventory; stale zero-qty alerts filtered out.
-
-### 🆕 Release 1.7.42 (2026-06-11)
-
-- **Stable shopping total** — Each list item is priced as one typical purchase (no more inflated totals from 14-day restock quantities or €/kg × piece count).
-- **Waste reason picker** — When discarding food, choose why (expired, wrong storage, bought too much, …); EverShelf learns and adjusts restock suggestions and storage hints.
-- **Fewer SQLite lock errors** — `inventory_use` and `shopping_add` retry on `SQLITE_BUSY`; smart shopping gets a longer PHP time limit on large pantries.
-- **Android kiosk** — Locale string escaping fix; setup wizard JSON save fix (CI build).
-
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+Release notes live in **[CHANGELOG.md](CHANGELOG.md)** — this README covers what EverShelf is, what it can do, and how to run it.
 
 ---
 

@@ -177,6 +177,7 @@
     "title": "Lista",
     "filter_all": "Todo",
     "search_placeholder": "🔍 Buscar producto...",
+    "clear_search": "Borrar búsqueda",
     "recent_title": "🕐 Usados recientemente",
     "popular_title": "⭐ Más usados",
     "empty": "No hay productos aquí.\n¡Escanea un producto para añadirlo!",
