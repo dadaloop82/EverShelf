@@ -1399,11 +1399,12 @@ body.server-offline .bottom-nav {
 /* ===== SEARCH BAR ===== */
 .search-bar {
     margin-bottom: 12px;
+    position: relative;
 }
 
 .search-bar input {
     width: 100%;
-    padding: 14px 16px;
+    padding: 14px 44px 14px 16px;
     border-radius: var(--radius);
     border: 2px solid var(--border);
     background: var(--bg-card);
@@ -1414,6 +1415,38 @@ body.server-offline .bottom-nav {
 
 .search-bar input:focus {
     border-color: var(--primary);
+}
+
+.search-clear-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: var(--border, #e5e7eb);
+    color: var(--text-muted, #6b7280);
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 1;
+}
+
+.search-clear-btn:hover,
+.search-clear-btn:focus-visible {
+    background: var(--primary, #2563eb);
+    color: #fff;
+    outline: none;
+}
+
+.search-clear-btn[hidden] {
+    display: none !important;
 }
 
 /* ===== INVENTORY LIST ===== */
@@ -9100,6 +9133,10 @@ body.cooking-mode-active .app-header {
     background: var(--bg-card);
     color: var(--text);
     border-color: var(--border);
+}
+[data-theme="dark"] .search-clear-btn {
+    background: #334155;
+    color: #cbd5e1;
 }
 /* Action modal location selector */
 [data-theme="dark"] .action-location-btn {

@@ -177,6 +177,7 @@
     "title": "List",
     "filter_all": "All",
     "search_placeholder": "🔍 Search product...",
+    "clear_search": "Clear search",
     "recent_title": "🕐 Recently used",
     "popular_title": "⭐ Most used",
     "empty": "No products here.\nScan a product to add it!",

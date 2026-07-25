@@ -101,7 +101,7 @@ try {
     // Pre-warm the opened shelf life cache for opened items not yet cached.
     // Capped at 5 items per cron cycle to avoid Gemini rate limits.
     try {
-        $prewarmResult = prewarmShelfLifeCache($db, 5);
+        $prewarmResult = prewarmShelfLifeCache($db, 1);
         if ($prewarmResult['warmed'] > 0) {
             echo '[' . date('Y-m-d H:i:s') . '] Shelf life pre-warm — warmed: ' . $prewarmResult['warmed']
                 . ', skipped: ' . $prewarmResult['skipped'] . "\n";

@@ -20,11 +20,16 @@ const SHOPPING_GUARD_MAX_ML_PER_DAY = 2000.0;
 const SHOPPING_GUARD_MIN_HISTORY_DAYS = 7.0;
 
 /**
- * SQL fragment: transaction is real consumption/purchase, not a location move.
+ * SQL fragment: transaction is real consumption/purchase — not a location move
+ * or an undo restoration ([Undone]/[Annullato]), which must not count as buys/uses.
  */
 function shoppingTxNotMoveNotesSql(string $notesExpr = 'notes'): string
 {
-    return "({$notesExpr} IS NULL OR {$notesExpr} NOT LIKE '[Spostamento]%')";
+    return "({$notesExpr} IS NULL OR ("
+        . "{$notesExpr} NOT LIKE '[Spostamento]%'"
+        . " AND {$notesExpr} NOT LIKE '[Undone]%'"
+        . " AND {$notesExpr} NOT LIKE '[Annullato]%'"
+        . '))';
 }
 
 /**
