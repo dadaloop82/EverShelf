@@ -18,10 +18,22 @@ function healthEnsureTables(PDO $db): void {
         hydration_ml INTEGER,
         resting_hr REAL,
         weight_kg REAL,
+        distance_m INTEGER,
+        floors INTEGER,
         raw_json TEXT,
         synced_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )");
+    try {
+        $cols = $db->query("PRAGMA table_info(health_daily)")->fetchAll(PDO::FETCH_ASSOC);
+        $names = array_column($cols, 'name');
+        if (!in_array('distance_m', $names, true)) {
+            $db->exec('ALTER TABLE health_daily ADD COLUMN distance_m INTEGER');
+        }
+        if (!in_array('floors', $names, true)) {
+            $db->exec('ALTER TABLE health_daily ADD COLUMN floors INTEGER');
+        }
+    } catch (Throwable $e) { /* ignore */ }
 
     $db->exec("CREATE TABLE IF NOT EXISTS health_profile (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -170,11 +182,23 @@ function healthNormalizeDailyPayload(array $input, string $defaultSource = 'manu
         }
         return is_numeric($v) ? (float)$v : null;
     };
+    $kcalOrNull = static function ($v): ?int {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        return is_numeric($v) ? (int)round((float)$v) : null;
+    };
     $intOrNull = static function ($v): ?int {
         if ($v === null || $v === '') {
             return null;
         }
         return is_numeric($v) ? (int)$v : null;
+    };
+    $sleepOrNull = static function ($v): ?float {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        return is_numeric($v) ? round((float)$v, 1) : null;
     };
     $types = $input['exercise_types'] ?? null;
     if (is_string($types) && $types !== '') {
@@ -183,19 +207,24 @@ function healthNormalizeDailyPayload(array $input, string $defaultSource = 'manu
     }
     if (!is_array($types)) {
         $types = null;
+    } else {
+        $types = array_values(array_filter(array_map(static fn($t) => is_string($t) ? trim($t) : (string)$t, $types)));
     }
     return [
         'date' => $date,
         'source' => $source,
-        'burned_kcal' => $numOrNull($input['burned_kcal'] ?? null),
-        'active_kcal' => $numOrNull($input['active_kcal'] ?? null),
+        'burned_kcal' => $kcalOrNull($input['burned_kcal'] ?? null),
+        'active_kcal' => $kcalOrNull($input['active_kcal'] ?? null),
         'steps' => $intOrNull($input['steps'] ?? null),
         'exercise_min' => $intOrNull($input['exercise_min'] ?? null),
         'exercise_types' => $types,
-        'sleep_hours' => $numOrNull($input['sleep_hours'] ?? null),
+        'sleep_hours' => $sleepOrNull($input['sleep_hours'] ?? null),
         'hydration_ml' => $intOrNull($input['hydration_ml'] ?? null),
-        'resting_hr' => $numOrNull($input['resting_hr'] ?? null),
-        'weight_kg' => $numOrNull($input['weight_kg'] ?? null),
+        'resting_hr' => $kcalOrNull($input['resting_hr'] ?? null),
+        'weight_kg' => $numOrNull($input['weight_kg'] ?? null) !== null
+            ? round((float)$numOrNull($input['weight_kg']), 1) : null,
+        'distance_m' => $intOrNull($input['distance_m'] ?? null),
+        'floors' => $intOrNull($input['floors'] ?? null),
         'synced_at' => trim((string)($input['synced_at'] ?? '')) ?: date('c'),
     ];
 }
@@ -222,6 +251,8 @@ function healthUpsertDaily(PDO $db, array $payload, ?array $raw = null): array {
         'hydration_ml' => $merge($payload['hydration_ml'], $prev['hydration_ml'] ?? null),
         'resting_hr' => $merge($payload['resting_hr'], $prev['resting_hr'] ?? null),
         'weight_kg' => $merge($payload['weight_kg'], $prev['weight_kg'] ?? null),
+        'distance_m' => $merge($payload['distance_m'] ?? null, $prev['distance_m'] ?? null),
+        'floors' => $merge($payload['floors'] ?? null, $prev['floors'] ?? null),
         'synced_at' => $payload['synced_at'],
         'updated_at' => $now,
     ];
@@ -232,8 +263,8 @@ function healthUpsertDaily(PDO $db, array $payload, ?array $raw = null): array {
     }
     $db->prepare('INSERT INTO health_daily
         (date, source, burned_kcal, active_kcal, steps, exercise_min, exercise_types,
-         sleep_hours, hydration_ml, resting_hr, weight_kg, raw_json, synced_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         sleep_hours, hydration_ml, resting_hr, weight_kg, distance_m, floors, raw_json, synced_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(date) DO UPDATE SET
             source=excluded.source,
             burned_kcal=excluded.burned_kcal,
@@ -245,13 +276,16 @@ function healthUpsertDaily(PDO $db, array $payload, ?array $raw = null): array {
             hydration_ml=excluded.hydration_ml,
             resting_hr=excluded.resting_hr,
             weight_kg=excluded.weight_kg,
+            distance_m=excluded.distance_m,
+            floors=excluded.floors,
             raw_json=COALESCE(excluded.raw_json, health_daily.raw_json),
             synced_at=excluded.synced_at,
             updated_at=excluded.updated_at
     ')->execute([
         $row['date'], $row['source'], $row['burned_kcal'], $row['active_kcal'], $row['steps'],
         $row['exercise_min'], $typesJson, $row['sleep_hours'], $row['hydration_ml'],
-        $row['resting_hr'], $row['weight_kg'], $rawJson, $row['synced_at'], $row['updated_at'],
+        $row['resting_hr'], $row['weight_kg'], $row['distance_m'], $row['floors'], $rawJson,
+        $row['synced_at'], $row['updated_at'],
     ]);
     // Optionally update profile weight from daily
     if ($row['weight_kg'] !== null) {
@@ -277,13 +311,22 @@ function healthGetDaily(PDO $db, ?string $date = null): ?array {
     } else {
         $row['exercise_types'] = [];
     }
-    foreach (['burned_kcal', 'active_kcal', 'sleep_hours', 'resting_hr', 'weight_kg'] as $f) {
+    foreach (['burned_kcal', 'active_kcal'] as $f) {
         if ($row[$f] !== null) {
-            $row[$f] = (float)$row[$f];
+            $row[$f] = (int)round((float)$row[$f]);
         }
     }
-    foreach (['steps', 'exercise_min', 'hydration_ml'] as $f) {
-        if ($row[$f] !== null) {
+    if ($row['sleep_hours'] !== null) {
+        $row['sleep_hours'] = round((float)$row['sleep_hours'], 1);
+    }
+    if ($row['resting_hr'] !== null) {
+        $row['resting_hr'] = (int)round((float)$row['resting_hr']);
+    }
+    if ($row['weight_kg'] !== null) {
+        $row['weight_kg'] = round((float)$row['weight_kg'], 1);
+    }
+    foreach (['steps', 'exercise_min', 'hydration_ml', 'distance_m', 'floors'] as $f) {
+        if (array_key_exists($f, $row) && $row[$f] !== null) {
             $row[$f] = (int)$row[$f];
         }
     }
@@ -377,8 +420,11 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
     $label = 'Equilibrio';
     $notes = [];
 
-    $highActivity = $exMin >= 30 || $active >= 350 || $steps >= 10000;
-    $lowActivity = $exMin < 15 && $steps > 0 && $steps < 4000 && $active < 150;
+    $highActivity = $exMin >= 30 || $active >= 350 || $steps >= 10000
+        || (int)($daily['distance_m'] ?? 0) >= 7000
+        || (int)($daily['floors'] ?? 0) >= 10;
+    $lowActivity = $exMin < 15 && $steps > 0 && $steps < 4000 && $active < 150
+        && (int)($daily['distance_m'] ?? 0) < 3000;
     $noData = $daily === null
         || ($burned === null && $active <= 0 && $steps <= 0 && $exMin <= 0);
 
@@ -470,16 +516,31 @@ function healthFuelPromptBlock(array $budget): string {
     $d = $budget['daily'] ?? null;
     if (is_array($d)) {
         if ($d['burned_kcal'] !== null) {
-            $dailyBits[] = 'kcal bruciate ~' . (int)$d['burned_kcal'];
+            $dailyBits[] = 'kcal bruciate ~' . (int)round((float)$d['burned_kcal']);
+        }
+        if ($d['active_kcal'] !== null) {
+            $dailyBits[] = 'kcal attive ~' . (int)round((float)$d['active_kcal']);
         }
         if (!empty($d['steps'])) {
             $dailyBits[] = (int)$d['steps'] . ' passi';
         }
         if (!empty($d['exercise_min'])) {
-            $dailyBits[] = (int)$d['exercise_min'] . ' min esercizio';
+            $dailyBits[] = (int)$d['exercise_min'] . ' min movimento';
+        }
+        if (!empty($d['exercise_types']) && is_array($d['exercise_types'])) {
+            $dailyBits[] = 'tipi: ' . implode(', ', array_slice($d['exercise_types'], 0, 4));
+        }
+        if (!empty($d['distance_m'])) {
+            $dailyBits[] = round((int)$d['distance_m'] / 1000, 1) . ' km';
+        }
+        if (!empty($d['floors'])) {
+            $dailyBits[] = (int)$d['floors'] . ' piani';
         }
         if ($d['sleep_hours'] !== null) {
             $dailyBits[] = 'sonno ' . round((float)$d['sleep_hours'], 1) . 'h';
+        }
+        if (!empty($d['resting_hr'])) {
+            $dailyBits[] = 'FC riposo ' . (int)$d['resting_hr'];
         }
     }
     $todayLine = $dailyBits ? ("\n- oggi: " . implode(', ', $dailyBits)) : '';

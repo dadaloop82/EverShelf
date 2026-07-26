@@ -15,6 +15,7 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -101,10 +102,10 @@ class MainActivity : AppCompatActivity() {
         if (raw.isNotBlank()) {
             try {
                 val j = JSONObject(raw)
-                binding.metricKcal.text = "🔥 ${j.opt("burned_kcal") ?: "—"} kcal"
-                binding.metricSteps.text = "👟 ${j.opt("steps") ?: "—"}"
-                binding.metricExercise.text = "⏱ ${j.opt("exercise_min") ?: "—"} min"
-                binding.metricSleep.text = "😴 ${j.opt("sleep_hours") ?: "—"} h"
+                binding.metricKcal.text = "🔥 ${fmtInt(j, "burned_kcal")} kcal"
+                binding.metricSteps.text = "👟 ${fmtInt(j, "steps")}"
+                binding.metricExercise.text = "⏱ ${fmtInt(j, "exercise_min")} min"
+                binding.metricSleep.text = "😴 ${fmtSleep(j)} h"
                 binding.statusLine.text = j.optString("source", "health_connect")
             } catch (_: Exception) {
                 binding.statusLine.setText(R.string.main_waiting)
@@ -155,6 +156,24 @@ class MainActivity : AppCompatActivity() {
                 Toast.LENGTH_LONG
             ).show()
             refreshUi()
+        }
+    }
+
+    private fun fmtInt(j: JSONObject, key: String): String {
+        if (!j.has(key) || j.isNull(key)) return "—"
+        return try {
+            j.getDouble(key).roundToInt().toString()
+        } catch (_: Exception) {
+            j.optString(key, "—")
+        }
+    }
+
+    private fun fmtSleep(j: JSONObject): String {
+        if (!j.has("sleep_hours") || j.isNull("sleep_hours")) return "—"
+        return try {
+            String.format(Locale.getDefault(), "%.1f", j.getDouble("sleep_hours"))
+        } catch (_: Exception) {
+            "—"
         }
     }
 }

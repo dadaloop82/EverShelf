@@ -16824,7 +16824,7 @@ async function loadHealthSettingsTab() {
         if (st && res && res.success) {
             const d = res.daily;
             if (d) {
-                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min ?? '—'} min · (${d.source || '?'})`;
+                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min != null ? Math.round(d.exercise_min) : '—'} min${d.distance_m ? ` · ${Math.round(d.distance_m/100)/10} km` : ''} · (${d.source || '?'})`;
             } else {
                 st.textContent = t('recipes.fuel_no_daily') || 'Nessun dato oggi';
             }
