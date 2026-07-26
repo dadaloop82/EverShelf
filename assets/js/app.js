@@ -16891,29 +16891,26 @@ async function createHealthBridgeToken() {
         if (res && res.success && res.token) {
             const token = res.token.token;
             const base = window.location.origin + window.location.pathname.replace(/\/?index\.html$/, '').replace(/\/?$/, '/');
-            // Compact JSON for camera QR (primary) — app reads url + token together
+            // QR payload only (never shown as raw text in the UI)
             const pairing = JSON.stringify({
                 v: 1,
                 service: 'evershelf_health',
                 url: base,
                 token: token,
             });
-            // Deep link alternative (same payload)
-            const deep = 'evershelfhealth://pair?url=' + encodeURIComponent(base) + '&token=' + encodeURIComponent(token);
             if (out) {
-                out.style.display = '';
-                out.textContent = pairing + '\n\n' + deep;
+                out.style.display = 'none';
+                out.textContent = '';
             }
             if (qrBox) {
                 qrBox.style.display = '';
-                // Prefer JSON payload — WizardActivity.applyPairingPayload parses it
-                const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=' + encodeURIComponent(pairing);
+                const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=' + encodeURIComponent(pairing);
                 qrBox.innerHTML =
                     '<p class="settings-hint" style="font-weight:600;margin-bottom:8px">' +
                     (t('settings.health.qr_scan_now') || 'Scansiona questo QR dall’app Health Bridge') +
-                    '</p><img alt="QR pairing" width="220" height="220" src="' + qrUrl + '">' +
+                    '</p><img alt="QR pairing" width="240" height="240" src="' + qrUrl + '" style="background:#fff;border-radius:12px;padding:8px">' +
                     '<p class="settings-hint" style="margin-top:8px">' +
-                    (t('settings.health.qr_hint') || 'Contiene URL server + token. Non condividere.') +
+                    (t('settings.health.qr_hint') || 'Il QR contiene URL e token. Non condividere lo schermo.') +
                     '</p>';
             }
             showToast(t('settings.health.bridge_created') || 'QR pronto — scansiona dal telefono', 'success');
