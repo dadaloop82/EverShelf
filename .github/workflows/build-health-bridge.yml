@@ -1,0 +1,86 @@
+name: Build & Release Health Bridge APK
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'evershelf-health-bridge/**'
+      - '.github/workflows/build-health-bridge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Health Bridge APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Get version name
+        id: version
+        run: |
+          VERSION=$(grep 'versionName' evershelf-health-bridge/app/build.gradle.kts | grep -oP '"\K[^"]+' | head -1)
+          VCODE=$(grep 'versionCode' evershelf-health-bridge/app/build.gradle.kts | grep -oP '\d+' | head -1)
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$VCODE" >> "$GITHUB_OUTPUT"
+          echo "Health Bridge version: $VERSION (versionCode $VCODE)"
+
+      - name: Build release APK
+        working-directory: evershelf-health-bridge
+        run: |
+          # CI provides SDK via ANDROID_HOME — do not use machine-local local.properties
+          rm -f local.properties
+          gradle assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp evershelf-health-bridge/app/build/outputs/apk/release/app-release.apk \
+            artifacts/evershelf-health-bridge.apk
+          ls -lh artifacts/evershelf-health-bridge.apk
+
+      - name: Create versioned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="health-bridge-${{ steps.version.outputs.name }}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git push --delete origin "$TAG" 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "EverShelf Health Bridge v${{ steps.version.outputs.name }}" \
+            --notes "Android gateway for Fuel Mode. Pair via QR from EverShelf Settings → Health (URL + token). Android 9+ / Health Connect." \
+            artifacts/evershelf-health-bridge.apk
+
+      - name: Update health-bridge-latest tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete health-bridge-latest --yes 2>/dev/null || true
+          git push --delete origin health-bridge-latest 2>/dev/null || true
+          sleep 2
+          gh release create health-bridge-latest \
+            --title "EverShelf Health Bridge Latest" \
+            --notes "Alias → health-bridge-${{ steps.version.outputs.name }} (versionCode ${{ steps.version.outputs.code }})" \
+            --prerelease \
+            artifacts/evershelf-health-bridge.apk

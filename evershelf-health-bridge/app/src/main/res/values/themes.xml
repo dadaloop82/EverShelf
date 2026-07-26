@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.EverShelfHealth" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/es_green</item>
+        <item name="colorPrimaryContainer">@color/es_cream</item>
+        <item name="colorSecondary">@color/es_amber</item>
+        <item name="android:statusBarColor">@color/es_green</item>
+        <item name="android:navigationBarColor">@color/es_cream</item>
+        <item name="android:windowBackground">@color/es_cream</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+</resources>

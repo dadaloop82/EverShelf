@@ -2872,6 +2872,7 @@ function getSettings() {
     if (s.pref_opened) s.recipe_prefs.push('opened');
     if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
     if (s.pref_fuel) s.recipe_prefs.push('fuel');
+    s.health_enabled = !!s.health_enabled;
     s.dietary_restrictions = s.dietary || '';
     return s;
 }
@@ -2915,6 +2916,7 @@ const _debouncedSyncSettings = debounce(function() {
         pref_opened: s.pref_opened,
         pref_zerowaste: s.pref_zerowaste,
         pref_fuel: s.pref_fuel,
+        health_enabled: s.health_enabled,
         dietary: s.dietary,
         appliances: s.appliances,
     };
@@ -3006,7 +3008,7 @@ function _applySyncedSettings(serverSettings) {
     _applyDemoModeUI();
     const s = getSettings();
     const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-        'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','dietary','appliances',
+        'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
@@ -3604,6 +3606,9 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
     const fuelPrefEl = document.getElementById('setting-pref-fuel');
     if (fuelPrefEl) fuelPrefEl.checked = !!s.pref_fuel;
+    const healthEnEl = document.getElementById('setting-health-enabled');
+    if (healthEnEl) healthEnEl.checked = !!s.health_enabled;
+    applyHealthUiState();
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
@@ -3708,7 +3713,7 @@ async function loadSettingsUI() {
         // Merge all server settings into local cache (server wins)
         const serverKeys = ['bring_email',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-            'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','dietary','appliances',
+            'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
@@ -3749,6 +3754,9 @@ async function loadSettingsUI() {
             document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
             const fuelPrefEl2 = document.getElementById('setting-pref-fuel');
             if (fuelPrefEl2) fuelPrefEl2.checked = !!s.pref_fuel;
+            const healthEnEl2 = document.getElementById('setting-health-enabled');
+            if (healthEnEl2) healthEnEl2.checked = !!s.health_enabled;
+            applyHealthUiState();
             document.getElementById('setting-dietary').value = s.dietary || '';
             if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
             if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
@@ -4239,6 +4247,8 @@ async function saveSettings() {
     s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
     const fuelSaveEl = document.getElementById('setting-pref-fuel');
     if (fuelSaveEl) s.pref_fuel = fuelSaveEl.checked;
+    const healthEnSave = document.getElementById('setting-health-enabled');
+    if (healthEnSave) s.health_enabled = healthEnSave.checked;
     s.dietary = document.getElementById('setting-dietary').value.trim();
     // Camera
     s.camera_facing = document.getElementById('setting-camera-facing').value;
@@ -4357,6 +4367,7 @@ async function saveSettings() {
             pref_opened: s.pref_opened,
             pref_zerowaste: s.pref_zerowaste,
             pref_fuel: !!s.pref_fuel,
+            health_enabled: !!s.health_enabled,
             dietary: s.dietary,
             appliances: s.appliances,
             camera_facing: s.camera_facing,
@@ -16692,6 +16703,7 @@ function openRecipeDialog() {
         if (cb) cb.checked = settings.recipe_prefs && settings.recipe_prefs.includes(key);
     });
     if (typeof onRecipeFuelToggle === 'function') onRecipeFuelToggle();
+    if (typeof applyHealthUiState === 'function') applyHealthUiState();
     
     document.getElementById('recipe-ask').style.display = '';
     document.getElementById('recipe-loading').style.display = 'none';
@@ -16707,6 +16719,14 @@ async function onRecipeFuelToggle() {
     const cb = document.getElementById('recipe-opt-fuel');
     const panel = document.getElementById('recipe-fuel-panel');
     if (!panel) return;
+    const healthOn = !!(getSettings().health_enabled);
+    if (!healthOn) {
+        if (cb) cb.checked = false;
+        panel.style.display = 'none';
+        panel.hidden = true;
+        showToast(t('settings.health.disabled_toast') || 'Abilita i dati salute in Configurazione → Salute', 'warning');
+        return;
+    }
     const on = !!(cb && cb.checked);
     panel.style.display = on ? '' : 'none';
     panel.hidden = !on;
@@ -16771,6 +16791,59 @@ async function saveRecipeFuelManual() {
     }
 }
 
+function applyHealthUiState() {
+    const s = getSettings();
+    const on = !!s.health_enabled;
+    const body = document.getElementById('health-settings-body');
+    if (body) body.classList.toggle('is-disabled', !on);
+    const wrap = document.getElementById('recipe-opt-fuel-wrap');
+    if (wrap) {
+        wrap.classList.toggle('is-disabled', !on);
+        wrap.title = on ? '' : (t('settings.health.disabled_toast') || 'Funzione salute disattivata');
+    }
+    const fuelCb = document.getElementById('recipe-opt-fuel');
+    if (fuelCb && !on) {
+        fuelCb.checked = false;
+        const panel = document.getElementById('recipe-fuel-panel');
+        if (panel) { panel.style.display = 'none'; panel.hidden = true; }
+    }
+}
+
+async function onHealthEnabledChange() {
+    const el = document.getElementById('setting-health-enabled');
+    const s = getSettings();
+    s.health_enabled = !!(el && el.checked);
+    saveSettingsToStorage(s);
+    applyHealthUiState();
+    await _saveSettingToServer({ health_enabled: s.health_enabled });
+    if (s.health_enabled) {
+        showToast(t('settings.health.enabled_on') || 'Dati salute attivati', 'success');
+    } else {
+        showToast(t('settings.health.enabled_off') || 'Dati salute disattivati', 'info');
+    }
+}
+
+async function loadHealthSettingsTab() {
+    applyHealthUiState();
+    await loadHealthProfileIntoSettings();
+    const urlEl = document.getElementById('health-pairing-url');
+    if (urlEl) {
+        urlEl.textContent = (t('settings.health.server_url') || 'URL server') + ': ' + (window.location.origin + window.location.pathname.replace(/\/?$/, '/'));
+    }
+    try {
+        const res = await api('health_status');
+        const st = document.getElementById('health-today-status');
+        if (st && res && res.success) {
+            const d = res.daily;
+            if (d) {
+                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal ?? '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min ?? '—'} min · (${d.source || '?'})`;
+            } else {
+                st.textContent = t('recipes.fuel_no_daily') || 'Nessun dato oggi';
+            }
+        }
+    } catch (_) { /* ignore */ }
+}
+
 async function loadHealthProfileIntoSettings() {
     try {
         const res = await api('health_status');
@@ -16814,12 +16887,36 @@ async function createHealthBridgeToken() {
     try {
         const res = await api('health_bridge_token_create', {}, 'POST', { label: 'Health Bridge' });
         const out = document.getElementById('health-bridge-token-out');
+        const qrBox = document.getElementById('health-bridge-qr');
         if (res && res.success && res.token) {
+            const token = res.token.token;
+            const base = window.location.origin + window.location.pathname.replace(/\/?index\.html$/, '').replace(/\/?$/, '/');
+            // Compact JSON for camera QR (primary) — app reads url + token together
+            const pairing = JSON.stringify({
+                v: 1,
+                service: 'evershelf_health',
+                url: base,
+                token: token,
+            });
+            // Deep link alternative (same payload)
+            const deep = 'evershelfhealth://pair?url=' + encodeURIComponent(base) + '&token=' + encodeURIComponent(token);
             if (out) {
                 out.style.display = '';
-                out.textContent = res.token.token;
+                out.textContent = pairing + '\n\n' + deep;
             }
-            showToast(t('settings.health.bridge_created') || 'Token creato — copialo nell’app', 'success');
+            if (qrBox) {
+                qrBox.style.display = '';
+                // Prefer JSON payload — WizardActivity.applyPairingPayload parses it
+                const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=' + encodeURIComponent(pairing);
+                qrBox.innerHTML =
+                    '<p class="settings-hint" style="font-weight:600;margin-bottom:8px">' +
+                    (t('settings.health.qr_scan_now') || 'Scansiona questo QR dall’app Health Bridge') +
+                    '</p><img alt="QR pairing" width="220" height="220" src="' + qrUrl + '">' +
+                    '<p class="settings-hint" style="margin-top:8px">' +
+                    (t('settings.health.qr_hint') || 'Contiene URL server + token. Non condividere.') +
+                    '</p>';
+            }
+            showToast(t('settings.health.bridge_created') || 'QR pronto — scansiona dal telefono', 'success');
         } else {
             showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
         }
@@ -16833,7 +16930,9 @@ async function unlinkHealthBridge() {
     try {
         const res = await api('health_unlink', {}, 'POST', {});
         const out = document.getElementById('health-bridge-token-out');
+        const qrBox = document.getElementById('health-bridge-qr');
         if (out) { out.style.display = 'none'; out.textContent = ''; }
+        if (qrBox) { qrBox.style.display = 'none'; qrBox.innerHTML = ''; }
         if (res && res.success) {
             showToast(t('settings.health.bridge_unlinked') || 'Bridge scollegato', 'success');
         } else {

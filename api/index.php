@@ -65,6 +65,20 @@ if (($_GET['action'] ?? '') === 'ping') {
     exit;
 }
 
+// ── Health Bridge discovery hello (no token) — phone LAN scan ─────────────────
+if (($_GET['action'] ?? '') === 'health_bridge_hello') {
+    echo json_encode([
+        'ok' => true,
+        'service' => 'evershelf',
+        'feature' => 'health_bridge',
+        'name' => env('INSTANCE_NAME', 'EverShelf'),
+        'version' => function_exists('_appVersion') ? _appVersion() : '',
+        'health_enabled' => env('HEALTH_ENABLED', 'false') === 'true',
+        'ts' => time(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ── Kiosk OTA metadata (LAN self-host; no DB required) ───────────────────────
 if (($_GET['action'] ?? '') === 'kiosk_update') {
     getKioskUpdate();
@@ -6071,6 +6085,7 @@ function getServerSettings(): void {
         'pref_opened' => env('PREF_OPENED', 'false') === 'true',
         'pref_zerowaste' => env('PREF_ZEROWASTE', 'false') === 'true',
         'pref_fuel' => env('PREF_FUEL', 'false') === 'true',
+        'health_enabled' => env('HEALTH_ENABLED', 'false') === 'true',
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? explode(',', env('APPLIANCES', '')) : [],
         'camera_facing' => env('CAMERA_FACING', 'environment'),
@@ -6212,6 +6227,7 @@ function saveSettings(): void {
         'pref_opened'     => 'PREF_OPENED',
         'pref_zerowaste'  => 'PREF_ZEROWASTE',
         'pref_fuel'       => 'PREF_FUEL',
+        'health_enabled'  => 'HEALTH_ENABLED',
         'scale_enabled'   => 'SCALE_ENABLED',
         'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
@@ -8153,7 +8169,7 @@ function generateRecipe(PDO $db): void {
 
     $fuelBudget = null;
     $fuelText = '';
-    if (in_array('fuel', $options, true)) {
+    if (in_array('fuel', $options, true) && env('HEALTH_ENABLED', 'false') === 'true') {
         $fuelBudget = computeMealBudget($db, $mealType, $options);
         $fuelText = healthFuelPromptBlock($fuelBudget);
     }
@@ -8787,7 +8803,7 @@ function generateRecipeStream(PDO $db): void {
     $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
     $fuelBudget = null;
     $fuelText = '';
-    if (in_array('fuel', $options, true)) {
+    if (in_array('fuel', $options, true) && env('HEALTH_ENABLED', 'false') === 'true') {
         $fuelBudget = computeMealBudget($db, $mealType, $options);
         $fuelText = healthFuelPromptBlock($fuelBudget);
     }

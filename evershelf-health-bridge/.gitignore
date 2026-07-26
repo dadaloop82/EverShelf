@@ -1,0 +1,8 @@
+# Local SDK path — never commit (CI uses android-actions/setup-android)
+local.properties
+.gradle/
+**/build/
+*.iml
+.idea/
+captures/
+.DS_Store

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="es_green">#2D5016</color>
+    <color name="es_green_light">#4A7C2C</color>
+    <color name="es_cream">#F3F7EC</color>
+    <color name="es_amber">#B45309</color>
+    <color name="es_surface">#FFFFFF</color>
+    <color name="es_text">#1A2E0A</color>
+    <color name="es_muted">#5C6B52</color>
+</resources>

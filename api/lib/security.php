@@ -57,6 +57,7 @@ function evershelfPublicActions(): array {
         'ping',
         'app_bootstrap',
         'check_update',
+        'health_bridge_hello',
         'report_error',
         'report_bug',
         'client_log',

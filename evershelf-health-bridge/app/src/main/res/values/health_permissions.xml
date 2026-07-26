@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Declared for Play / Health Connect reviewers -->
+    <string name="health_permissions_rationale">EverShelf Health legge aggregati giornalieri (passi, calorie, esercizio, sonno, peso) per personalizzare le ricette sul tuo server EverShelf. I dati restano sulla tua rete.</string>
+</resources>

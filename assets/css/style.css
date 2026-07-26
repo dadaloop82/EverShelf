@@ -7082,14 +7082,40 @@ body.cooking-mode-active .app-header {
     font-size: 0.82rem;
     font-weight: 600;
 }
-.health-bridge-token-out {
-    margin-top: 8px;
-    padding: 10px;
-    font-size: 0.75rem;
-    word-break: break-all;
-    background: var(--bg);
+.health-settings-body.is-disabled {
+    opacity: 0.45;
+    filter: grayscale(0.85);
+    pointer-events: none;
+    user-select: none;
+}
+.settings-subheading {
+    margin: 16px 0 8px;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+.health-bridge-download {
+    margin-bottom: 12px;
+    padding: 12px;
     border-radius: var(--radius-sm);
-    border: 1px dashed var(--border, #ccc);
+    background: rgba(45, 80, 22, 0.06);
+    border: 1px solid rgba(45, 80, 22, 0.15);
+}
+.health-today-status {
+    font-size: 0.85rem;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+}
+.health-bridge-qr img {
+    max-width: 180px;
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+}
+.recipe-opt-fuel-wrap.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    filter: grayscale(1);
 }
 [data-theme="dark"] .recipe-fuel-panel {
     background: linear-gradient(135deg, rgba(74, 222, 128, 0.08), rgba(251, 146, 60, 0.1));
