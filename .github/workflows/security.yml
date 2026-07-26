@@ -10,6 +10,9 @@ on:
       - 'Dockerfile'
       - 'docker-compose.yml'
       - 'api/**'
+      - 'mcp-server/**'
+      - 'package-lock.json'
+      - '**/package-lock.json'
       - '.github/workflows/security.yml'
   schedule:
     # Run weekly on Monday at 07:00 UTC
