@@ -3982,7 +3982,7 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
     // Silent Fuel Mode tracking: pantry "use" only (not waste, not recipe — recipes log once client-side)
     try {
         $usedQty = isset($actualDeducted) ? (float)$actualDeducted : (float)$quantity;
-        healthLogInventoryUse($db, (int)$productId, $usedQty, (string)$notes, is_array($prodInfo) ? $prodInfo : null);
+        healthLogInventoryUse($db, (int)$productId, $usedQty, (string)$notes, null);
     } catch (Throwable $e) {
         EverLog::warn('healthLogInventoryUse: ' . $e->getMessage());
     }
