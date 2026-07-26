@@ -103,7 +103,7 @@ Every product entry inside `expiring_list`, `expired_list`, `low_stock_list`, an
 {
   "product_id":       42,
   "inventory_id":     7,
-  "name":             "Latte intero",
+  "name":             "Whole milk",
   "brand":            "Parmalat",
   "category":         "Lattiero-caseari",
   "quantity":         2.0,

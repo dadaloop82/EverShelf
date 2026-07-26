@@ -99,7 +99,17 @@ When the dashboard shows a suspicious quantity banner, tap **🤖 Spiega** to ge
 
 ### Model Fallback
 
-All AI endpoints try `gemini-2.5-flash` first and automatically fall back to `gemini-2.0-flash` if unavailable.
+AI endpoints walk `gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite` on quota or unavailable-model errors (`gemini-2.5-flash` is omitted — blocked for many new Google AI keys).
+
+---
+
+## 🫀 Health Bridge & Fuel Mode
+
+- **Health Bridge** Android APK syncs Health Connect daily metrics to EverShelf (QR pairing from Settings → Health).
+- **Fuel Mode** sizes recipes to your profile goal + today’s activity + pantry stock.
+- Intake is inferred from pantry use and cooked recipes only (no separate meal diary).
+
+See [Health](Health) and the [Health Bridge README](https://github.com/dadaloop82/EverShelf/blob/main/evershelf-health-bridge/README.md).
 
 ---
 
@@ -112,7 +122,7 @@ Configure `BRING_EMAIL` and `BRING_PASSWORD` in `.env` to enable.
 - **View and manage** your Bring! list inside EverShelf
 - **Auto-add on depletion** — when stock hits zero, the product is added to Bring! automatically
 - **Auto-remove on scan** — scanning a product in removes it from the shopping list
-- **Generic names** — products are grouped by type ("Latte", "Panna da cucina") not brand, keeping the list clean
+- **Generic names** — products are grouped by type ("Milk", "Cooking cream") not brand, keeping the list clean
 - **Auto-migration** — items already on Bring! are silently renamed to their generic name on list load
 - **Catalog coverage** — 100+ product types mapped to Bring! catalog keys for icons and categories in the Bring! app
 - **AI fallback** — unknown product types use Gemini to determine the best generic name
@@ -132,7 +142,7 @@ Start cooking mode from any recipe by tapping **▶ Start Cooking**.
   - Custom REST endpoint (e.g. Home Assistant)
 - **Built-in timers** — automatic timer suggestions based on recipe text; 10-second vocal countdown warning before expiry
 - **Ingredient tracking** — mark ingredients as used; leftover quantities prompt a "move to another location" flow
-- **Recipe completion** — "Buon appetito!" *(Enjoy your meal!)* spoken on the last step
+- **Recipe completion** — "Enjoy your meal!" spoken on the last step
 
 ---
 

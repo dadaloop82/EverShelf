@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.60-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.64-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -46,7 +46,47 @@ Release notes live in **[CHANGELOG.md](CHANGELOG.md)** — this README covers wh
 
 ## ✨ Features
 
-### 🏠 NEW — Home Assistant Integration
+### 🫀 NEW — Health Bridge & Fuel Mode
+
+EverShelf can sync **daily activity from your phone** and use it to generate recipes that match **your** calorie/protein budget — no meal diary, no extra apps to log food.
+
+| | |
+|---|---|
+| **Health Bridge (Android APK)** | Lightweight gateway that reads **Health Connect** (steps, active kcal, workouts, sleep, distance, resting HR…) and posts daily aggregates to your EverShelf server |
+| **QR pairing** | Settings → **Health** generates a QR with server URL + token — scan once from the phone; same Wi‑Fi as the server |
+| **Keep-alive** | Persistent notification + battery-optimization exemption so OEM killers don’t stop background sync |
+| **Fuel Mode (“at my pace”)** | Recipe generation uses biological profile + today’s activity + pantry stock; silent intake from pantry “use” and cooked recipes only |
+| **Settings → Health** | Profile (sex, age, height, weight, goal, activity), master enable switch, bridge download / unlink |
+
+**Download (always latest build):**  
+[evershelf-health-bridge.apk](https://github.com/dadaloop82/EverShelf/releases/download/health-bridge-latest/evershelf-health-bridge.apk)
+
+Setup notes: [`evershelf-health-bridge/README.md`](evershelf-health-bridge/README.md)
+
+---
+
+### 🤖 NEW — MCP Server (AI Agent Integration)
+
+EverShelf ships a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so Claude Desktop, Cursor, Home Assistant LLM, Open WebUI, and other MCP hosts can query and update your pantry in natural language.
+
+| Tool | What it does |
+|------|----------------|
+| `get_inventory` | List stock by location |
+| `get_expiring_soon` | Items expiring in N days |
+| `get_pantry_stats` | Dashboard totals |
+| `get_shopping_list` | Current shopping list |
+| `get_smart_shopping` | AI restock predictions |
+| `add_shopping_items` | Add to shopping list |
+| `use_inventory_item` | Record consumption |
+| `suggest_recipe` | AI recipe from pantry |
+
+Setup: [`mcp-server/README.md`](mcp-server/README.md) — Node.js 20+, configure `EVERSHELF_URL` + optional `EVERSHELF_TOKEN`.
+
+Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"* → *"Add milk to the shopping list"* → *"I used 2 eggs"*.
+
+---
+
+### 🏠 Home Assistant Integration
 
 EverShelf has a **native Home Assistant integration** available on HACS.  
 Connect your pantry to your smart home in minutes — no YAML, no manual sensor setup.
@@ -74,27 +114,6 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 
 ---
 
-### 🤖 NEW — MCP Server (AI Agent Integration)
-
-EverShelf ships a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so Claude Desktop, Cursor, Home Assistant LLM, Open WebUI, and other MCP hosts can query and update your pantry in natural language.
-
-| Tool | What it does |
-|------|----------------|
-| `get_inventory` | List stock by location |
-| `get_expiring_soon` | Items expiring in N days |
-| `get_pantry_stats` | Dashboard totals |
-| `get_shopping_list` | Current shopping list |
-| `get_smart_shopping` | AI restock predictions |
-| `add_shopping_items` | Add to shopping list |
-| `use_inventory_item` | Record consumption |
-| `suggest_recipe` | AI recipe from pantry |
-
-Setup: [`mcp-server/README.md`](mcp-server/README.md) — Node.js 18+, configure `EVERSHELF_URL` + optional `EVERSHELF_TOKEN`.
-
-Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"* → *"Add milk to the shopping list"* → *"I used 2 eggs"*.
-
----
-
 ### 📦 Inventory Management
 - **Corporate list UX** — Unified row cards with swipe backgrounds; tap or swipe left opens **Use**; swipe right opens **edit**; product detail sheet (2×2 actions) from dashboard and quick-access chips
 - **Piece fractions** — Use form accepts ¼-piece steps for produce sold by the piece (e.g. ½ avocado); server keeps fruit/veg in **pcs**, not grams
@@ -117,7 +136,7 @@ Example: *"What's expiring this week?"* → *"Suggest a dinner from the fridge"*
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip
 - **Anomaly explanation** — "Explain" button on anomaly banners explains in plain language why a discrepancy likely occurred and what to do
-- **Model fallback** — AI endpoints walk a model chain (`gemini-3.5-flash` → `gemini-2.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`) on quota or unavailable-model errors
+- **Model fallback** — AI endpoints walk a model chain (`gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`) on quota or unavailable-model errors
 - **Graceful no-key state** — When no Gemini key is configured, AI entry points show a friendly message; the header button is visually greyed with an amber dot
 
 ### 🛒 Shopping List

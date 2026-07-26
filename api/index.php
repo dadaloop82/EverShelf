@@ -6479,20 +6479,19 @@ function _recordAiUsage(string $model, int $tokIn, int $tokOut, string $action =
 /**
  * Ordered Gemini model fallback chain.
  * gemini-2.0-flash was shut down 2026-06-01 — do not use.
+ * gemini-2.5-flash is blocked for new Google AI keys ("no longer available to new users").
  * @param string $tier 'default' (quality) | 'lite' (cheap classifiers / one-word tasks)
  */
 function geminiModelChain(string $tier = 'default'): array {
     if ($tier === 'lite') {
         return [
-            'gemini-2.5-flash-lite',
             'gemini-3.1-flash-lite',
-            'gemini-2.5-flash',
             'gemini-3.5-flash',
+            'gemini-2.5-flash-lite', // last resort for older keys that still allow 2.5-lite
         ];
     }
     return [
         'gemini-3.5-flash',
-        'gemini-2.5-flash',
         'gemini-3.1-flash-lite',
         'gemini-2.5-flash-lite',
     ];
@@ -6519,7 +6518,9 @@ function geminiModelUnavailable(int $httpCode, ?array $data): bool {
         || str_contains($msg, 'not supported')
         || str_contains($msg, 'shut down')
         || str_contains($msg, 'deprecated')
-        || str_contains($msg, 'no longer');
+        || str_contains($msg, 'no longer')
+        || str_contains($msg, 'update your code')
+        || str_contains($msg, 'newer model');
 }
 
 /**

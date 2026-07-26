@@ -10,17 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Ideas collected during development. No priority or date implied.
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
-- **Health Bridge Android app** — Phone gateway reading Health Connect / Google Fit and posting daily aggregates to `health_ingest`.
+
+## [1.7.64] - 2026-07-26
+
+### Added
+- **i18n completeness** — Health / Fuel Mode / Mealie / shopping keys filled for DE, FR, ES; English is now the universal `t()` fallback (never Italian for other locales).
+
+### Security
+- **mcp-server** — `fast-uri` → 3.1.4; `@hono/node-server` → 2.0.12 (overrides); Node engine ≥20. Clears Dependabot / Trivy alerts on the lockfile.
+
+### Fixed
+- **Scanner OOM (#216)** — cap barcode enhance canvas size and catch `getImageData` RangeError on high-res Android cameras.
+- **Gemini 2.5 for new keys (#212)** — drop `gemini-2.5-flash` from the fallback chain (blocked for new Google AI users); prefer 3.5 / 3.1-lite.
+- **SQLite busy auto-reports (#218)** — client retries `database_busy` (503) briefly and no longer opens GitHub issues for that expected case.
+- **Hardcoded Italian UI** — shopping-mode toasts, uncategorized label, “from recipe” specs, Fuel badge fallbacks now use i18n keys.
+
+### Changed
+- **README** — Health Bridge & Fuel Mode featured as the primary NEW highlight (Home Assistant remains documented below).
 
 ## [1.7.63] - 2026-07-26
 
 ### Added
-- **Health Bridge keep-alive** — persistent notification + battery-optimization exemption so OEMs don’t kill background sync (APK 1.0.3).
-- **Fuel Mode as bio-driven generation** — “A ritmo mio” builds the meal from profile goal + today’s activity + pantry; auto-enabled when Health is on; generate button becomes “Genera a ritmo mio”.
+- **Health Bridge keep-alive** — persistent notification + battery-optimization exemption so OEMs don’t kill background sync (APK 1.0.3+).
+- **Fuel Mode as bio-driven generation** — “at my pace” builds the meal from profile goal + today’s activity + pantry; auto-enabled when Health is on; generate button switches to Fuel-mode wording.
 - **Silent intake from EverShelf only** — recipe cook (once per recipe/day) and pantry “use” (estimated kcal); no manual meal diary.
 
 ### Changed
-- Removed “Ho mangiato questa” (no extra food diary).
+- Removed the manual “I ate this” meal-diary action (no extra food diary).
 
 ## [1.7.62] - 2026-07-26
 
@@ -31,10 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.61] - 2026-07-26
 
 ### Added
-- **Fuel Mode (“A ritmo mio”)** — Optional recipe option that builds a deterministic meal calorie/protein budget from a health profile + today’s activity (manual entry now; Health Bridge later). APIs: `health_status`, `health_ingest`, `health_profile_save`, `health_bridge_token_create`, `health_unlink`. Recipe result shows target vs estimated nutrition match.
+- **Fuel Mode (“at my pace”)** — Optional recipe option that builds a deterministic meal calorie/protein budget from a health profile + today’s activity (manual entry initially; Health Bridge later). APIs: `health_status`, `health_ingest`, `health_profile_save`, `health_bridge_token_create`, `health_unlink`. Recipe result shows target vs estimated nutrition match.
 
 ### Fixed
-- **Recipe expiry “scade oggi”** — Calendar-day `days_left` (no `julianday('now')` time skew); prompts include real expiry dates and prefer the soonest lot; freezer not treated as urgent.
+- **Recipe expiry “expires today”** — Calendar-day `days_left` (no `julianday('now')` time skew); prompts include real expiry dates and prefer the soonest lot; freezer not treated as urgent.
 
 ## [1.7.60] - 2026-07-25
 
