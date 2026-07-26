@@ -10,6 +10,7 @@ EverShelf can use **phone activity** (via Health Connect) to drive **Fuel Mode**
 | **Health Bridge APK** | Android app that reads Health Connect and POSTs daily aggregates to EverShelf |
 | **Fuel Mode** | Recipe option that budgets kcal/protein from profile + today’s activity |
 | **Silent intake** | Pantry “use” and cooked recipes contribute estimated intake — no separate meal diary |
+| **Remaining-day budget** | Fuel Mode subtracts today’s logged intake and splits the leftover across meals still ahead |
 
 ## Download
 
