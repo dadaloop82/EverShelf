@@ -523,7 +523,9 @@
         "location_fallback_toast": "Stock found in {location} (not in {requested})",
         "frozen_badge": "surgelé — du congélateur",
         "from_recipe": "Depuis une recette",
-        "from_recipe_qty": "Depuis une recette · {qty}"
+        "from_recipe_qty": "Depuis une recette · {qty}",
+        "fuel_eaten_today": "déjà consommé aujourd’hui ~{kcal} kcal",
+        "fuel_remaining": "il reste {kcal} kcal aujourd’hui"
     },
     "shopping": {
         "title": "🛒 Liste de courses",
