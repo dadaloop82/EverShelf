@@ -7107,6 +7107,8 @@ PROMPT;
                 'status_quota_wait' => '⏳ Quota TPM esaurita ({model}), attendo {s}s... (tentativo {a}/{m})',
                 'status_retry_generation' => '✍️ Riprovo la generazione...',
                 'status_switch_model' => '🔄 Cambio modello → {model}...',
+                'status_mealie_search' => '📚 Cerco ricette in Mealie…',
+                'status_mealie_found' => '✅ Ricetta trovata in Mealie',
                 'error_pantry_empty' => 'La dispensa è vuota!',
                 'error_gemini_api' => 'Errore API Gemini',
                 'error_cannot_generate' => 'Impossibile generare la ricetta',
@@ -7130,6 +7132,8 @@ PROMPT;
                 'status_quota_wait' => '⏳ TPM quota reached ({model}), waiting {s}s... (attempt {a}/{m})',
                 'status_retry_generation' => '✍️ Retrying generation...',
                 'status_switch_model' => '🔄 Switching model → {model}...',
+                'status_mealie_search' => '📚 Searching Mealie recipes…',
+                'status_mealie_found' => '✅ Recipe found in Mealie',
                 'error_pantry_empty' => 'Pantry is empty!',
                 'error_gemini_api' => 'Gemini API error',
                 'error_cannot_generate' => 'Unable to generate recipe',
@@ -7153,6 +7157,8 @@ PROMPT;
                 'status_quota_wait' => '⏳ TPM-Limit erreicht ({model}), warte {s}s... (Versuch {a}/{m})',
                 'status_retry_generation' => '✍️ Generierung wird erneut versucht...',
                 'status_switch_model' => '🔄 Modellwechsel → {model}...',
+                'status_mealie_search' => '📚 Suche Mealie-Rezepte…',
+                'status_mealie_found' => '✅ Rezept in Mealie gefunden',
                 'error_pantry_empty' => 'Die Vorratskammer ist leer!',
                 'error_gemini_api' => 'Gemini-API-Fehler',
                 'error_cannot_generate' => 'Rezept konnte nicht erstellt werden',
@@ -8343,7 +8349,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
-8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `tools_needed`). Keep `meal` unchanged.
+8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullateur"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
 11. NON confondere forme diverse dello stesso ingrediente di base: 'Pomodori'/'Pomodoro Piccadilly' (freschi, pz/g) ≠ 'Passata di pomodoro'/'Polpa di pomodoro'/'Sugo al pomodoro' (elaborato, conf/g); 'Latte fresco' ≠ 'Latte UHT' ≠ 'Panna'; 'Farina 00' ≠ 'Farina integrale'. Se la forma giusta NON è in lista, scegli un'altra ricetta con prodotti disponibili.
@@ -8351,13 +8357,14 @@ REGOLE:
 13. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 14. VIETATO mettere in `ingredients` qualcosa che non è in DISPENSA (no from_pantry:false, no ingredienti inventati). Acqua, sale, pepe e olio NON vanno in ingredients (solo nei passi).
 15. Ingredienti con [❄️ SURGELATO]: sono congelati. Nei passi scrivi esplicitamente come usarli (verdure/piatti pronti surgelati: dal freezer direttamente in pentola/padella calda, senza scongelare; carne/pesce grossi: scongela in frigo se serve). Aggiungi 2-5 min di cottura rispetto al fresco. NON trattarli come prodotti freschi di frigo.
+16. `fuel_why`: se A RITMO MIO è attivo, stringa obbligatoria (2–4 frasi) che spiega perché hai scelto quegli ingredienti in base a obiettivo/attività/budget; altrimenti "".
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
 {$promptLanguageRule}
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","fuel_why":"…","nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
 
     $payload = [
@@ -8954,7 +8961,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
-8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `tools_needed`). Keep `meal` unchanged.
+8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullatore"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `zero_waste_tips`: array of zero-waste tips for steps that generate reusable scraps (peels, leftover cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.). Each entry: {"step": 0-based_step_index, "scrap": "scrap name", "tip": "short practical reuse tip (max 20 words)"}. Use the same language as other text fields. Empty array [] if no reusable scraps are generated.
 11. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
@@ -8963,13 +8970,14 @@ REGOLE:
 14. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 15. VIETATO mettere in `ingredients` qualcosa che non è in DISPENSA (no from_pantry:false, no ingredienti inventati). Acqua, sale, pepe e olio NON vanno in ingredients (solo nei passi).
 16. Ingredienti con [❄️ SURGELATO]: sono congelati. Nei passi scrivi esplicitamente come usarli (verdure/piatti pronti surgelati: dal freezer direttamente in pentola/padella calda, senza scongelare; carne/pesce grossi: scongela in frigo se serve). Aggiungi 2-5 min di cottura rispetto al fresco. NON trattarli come prodotti freschi di frigo.
+17. `fuel_why`: se A RITMO MIO è attivo, stringa obbligatoria (2–4 frasi) che spiega perché hai scelto quegli ingredienti in base a obiettivo/attività/budget; altrimenti "".
 
 DISPENSA:
 $ingredientsText
 
 Rispondi SOLO JSON valido (no markdown):
 {$promptLanguageRule}
-{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","zero_waste_tips":[{"step":0,"scrap":"…","tip":"…"}],"nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
+{"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","fuel_why":"…","zero_waste_tips":[{"step":0,"scrap":"…","tip":"…"}],"nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
 
     $genConfig = recipeGeminiGenerationConfig(min(1.4, 0.7 + $variation * 0.25), 4096);
