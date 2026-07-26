@@ -502,7 +502,9 @@ function healthFuelPromptBlock(array $budget): string {
         . "- TDEE stimato oggi: {$budget['tdee']} kcal"
         . $todayLine
         . $notes
-        . "\nCostruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico). In nutrition_note spiega in 1 frase come risponde a obiettivo+attività. I valori in `nutrition` devono avvicinarsi al target.";
+        . "\nCostruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico)."
+        . "\nObbligatorio: campo `fuel_why` (2–4 frasi nella lingua della ricetta) che spiega PERCHÉ hai scelto QUEGLI ingredienti in base a: obiettivo profilo, attività/sonno di oggi, intent del pasto, e vincoli dispensa/scadenze. Cita 2–4 ingredienti concreti e il motivo (es. proteine post-allenamento, carb per ricarica, verdure per volume a basso kcal)."
+        . "\nIn nutrition_note una frase sul match kcal/macro. I valori in `nutrition` devono avvicinarsi al target.";
 }
 
 function healthHashToken(string $token): string {

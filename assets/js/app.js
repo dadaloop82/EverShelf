@@ -17771,6 +17771,12 @@ async function renderRecipe(r) {
         html += `<div class="recipe-expiry-note">⚠️ ${escapeHtml(r.expiry_note)}</div>`;
     }
 
+    // Fuel Mode: why these ingredients (bio + activity)
+    if (r.fuel_why || (r.fuel_budget && r.fuel_rationale)) {
+        const why = r.fuel_why || r.fuel_rationale;
+        html += `<div class="recipe-fuel-why"><strong>${escapeHtml(t('recipes.fuel_why_title') || 'Perché questi ingredienti')}</strong>${escapeHtml(why)}</div>`;
+    }
+
     // Tools/appliances banner (shown only when specific equipment is needed)
     const tools = (r.tools_needed && r.tools_needed.length > 0)
         ? r.tools_needed.filter(t => t && t.trim())

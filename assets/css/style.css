@@ -7081,8 +7081,36 @@ body.cooking-mode-active .app-header {
 }
 .recipe-opt-fuel-featured {
     border-color: rgba(180, 83, 9, 0.45) !important;
-    background: rgba(180, 83, 9, 0.1) !important;
+    background: rgba(180, 83, 9, 0.12) !important;
+    color: #7c2d12 !important;
     font-weight: 700;
+}
+.recipe-opt-fuel-featured:has(input:checked) {
+    background: rgba(180, 83, 9, 0.22) !important;
+    border-color: #b45309 !important;
+    color: #7c2d12 !important;
+}
+.recipe-opt-fuel-featured span {
+    color: inherit !important;
+}
+.recipe-fuel-why {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: rgba(45, 80, 22, 0.07);
+    border-left: 3px solid var(--primary);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--text);
+    text-align: left;
+}
+.recipe-fuel-why strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--primary);
 }
 .recipe-fuel-status div + div {
     margin-top: 4px;
