@@ -49,6 +49,7 @@ Tippe unten, um Health Connect zu öffnen.</string>
     <string name="wiz_sync_fail">Sync fehlgeschlagen: %1$s</string>
     <string name="wiz_done_title">Fertig</string>
     <string name="wiz_done_body">EverShelf kann „Fuel Mode“ mit deiner Aktivität nutzen. Die App sync’t etwa alle 30 Minuten.</string>
+    <string name="wiz_done_battery">Als Nächstes fragt Android nach Ausnahme von Batterieoptimierung und zeigt eine persistente Benachrichtigung.</string>
     <string name="main_hero">In deinem Tempo</string>
     <string name="main_subtitle">Aktivität und Kalorien mit der Vorratskammer syncen</string>
     <string name="main_today">HEUTE</string>
@@ -60,6 +61,7 @@ Tippe unten, um Health Connect zu öffnen.</string>
     <string name="main_sync_now">Jetzt synchronisieren</string>
     <string name="main_syncing">Synchronisiere…</string>
     <string name="main_perms">Health-Connect-Rechte</string>
+    <string name="main_battery">Batterieoptimierung deaktivieren</string>
     <string name="main_reconfigure">Neu einrichten / Server wechseln</string>
     <string name="main_synced">Synchronisiert ✓</string>
     <string name="main_error">Fehler: %1$s</string>
@@ -68,4 +70,13 @@ Tippe unten, um Health Connect zu öffnen.</string>
     <string name="main_menu_hc">Health Connect öffnen</string>
     <string name="toast_perms_ok">Rechte erteilt</string>
     <string name="toast_perms_incomplete">Rechte unvollständig — Health Connect öffnen</string>
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Hält EverShelf Health für Hintergrund-Sync am Leben</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_body">Aktiv · letzter Sync %1$s</string>
+    <string name="notif_never">nie</string>
+    <string name="notif_syncing">Sync mit EverShelf…</string>
+    <string name="notif_sync_ok">Synchronisiert · warte auf nächsten Zyklus</string>
+    <string name="notif_sync_fail">Sync fehlgeschlagen: %1$s</string>
+    <string name="notif_action_sync">Jetzt syncen</string>
 </resources>

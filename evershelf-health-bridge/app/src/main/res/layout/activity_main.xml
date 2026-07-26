@@ -171,6 +171,18 @@
                 android:textColor="@color/es_green" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnBattery"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:text="@string/main_battery"
+                android:textAllCaps="false"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/es_amber"
+                android:textColor="@color/es_amber" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSetup"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="match_parent"

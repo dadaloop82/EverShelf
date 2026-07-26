@@ -52,6 +52,7 @@
 
     <string name="wiz_done_title">You\'re set</string>
     <string name="wiz_done_body">EverShelf can now use \"Fuel mode / A ritmo mio\" with your activity. The app syncs in the background about every 30 minutes.</string>
+    <string name="wiz_done_battery">Next, Android will ask to keep this app unrestricted (no battery optimization) and show a persistent notification so the sync is not killed.</string>
 
     <string name="main_hero">At your pace</string>
     <string name="main_subtitle">Sync activity and calories with your pantry</string>
@@ -64,6 +65,7 @@
     <string name="main_sync_now">Sync now</string>
     <string name="main_syncing">Syncing…</string>
     <string name="main_perms">Health Connect permissions</string>
+    <string name="main_battery">Disable battery optimization</string>
     <string name="main_reconfigure">Reconfigure / change server</string>
     <string name="main_synced">Synced ✓</string>
     <string name="main_error">Error: %1$s</string>
@@ -72,4 +74,14 @@
     <string name="main_menu_hc">Open Health Connect</string>
     <string name="toast_perms_ok">Permissions granted</string>
     <string name="toast_perms_incomplete">Incomplete permissions — open Health Connect</string>
+
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Keeps EverShelf Health alive for background sync</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_body">Active · last sync %1$s</string>
+    <string name="notif_never">never</string>
+    <string name="notif_syncing">Syncing with EverShelf…</string>
+    <string name="notif_sync_ok">Synced · waiting for next cycle</string>
+    <string name="notif_sync_fail">Sync failed: %1$s</string>
+    <string name="notif_action_sync">Sync now</string>
 </resources>

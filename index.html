@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.58</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.63</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.58</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.63</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2032,7 +2032,7 @@
                         <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_sleep">Ore sonno</span><input type="number" id="fuel-sleep-hours" min="0" max="24" step="0.1" class="form-input" placeholder="es. 6.5"></label>
                     </div>
                     <button type="button" class="btn btn-secondary btn-sm full-width mt-2" onclick="saveRecipeFuelManual()" data-i18n="recipes.fuel_save">💾 Salva dati di oggi</button>
-                    <p class="recipe-fuel-hint" data-i18n="recipes.fuel_hint">Opzionale: collega un Health Bridge sul telefono più avanti. Per ora puoi inserire i dati a mano.</p>
+                    <p class="recipe-fuel-hint" data-i18n="recipes.fuel_hint">I dati arrivano dal Health Bridge sul telefono. Puoi anche correggerli a mano qui.</p>
                 </div>
             </div>
             <button class="btn btn-large btn-success full-width" onclick="generateRecipe()" data-i18n="recipes.generate_btn">
@@ -2165,6 +2165,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260723a"></script>
+<script src="assets/js/app.js?v=20260726a"></script>
 </body>
 </html>

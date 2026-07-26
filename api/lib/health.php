@@ -44,6 +44,20 @@ function healthEnsureTables(PDO $db): void {
         last_used_at TEXT,
         revoked_at TEXT
     )");
+
+    $db->exec("CREATE TABLE IF NOT EXISTS health_meals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        meal TEXT NOT NULL DEFAULT 'pranzo',
+        title TEXT NOT NULL DEFAULT '',
+        kcal REAL,
+        protein_g REAL,
+        carbs_g REAL,
+        fat_g REAL,
+        servings REAL NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+    )");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_health_meals_date ON health_meals(date)");
 }
 
 function healthTodayDate(): string {
@@ -539,6 +553,9 @@ function healthStatusPayload(PDO $db): array {
     $tokens = healthListBridgeTokens($db);
     $activeTokens = array_values(array_filter($tokens, static fn($t) => empty($t['revoked'])));
     $budgetPreview = computeMealBudget($db, 'pranzo', []);
+    $mealsToday = healthGetMealsForDate($db, healthTodayDate());
+    $eaten = healthMealsTotals($mealsToday);
+    $tdee = (int)($budgetPreview['tdee'] ?? 0);
     return [
         'success' => true,
         'today' => healthTodayDate(),
@@ -547,5 +564,110 @@ function healthStatusPayload(PDO $db): array {
         'bridge_linked' => count($activeTokens) > 0,
         'bridge_tokens' => $tokens,
         'budget_preview' => $budgetPreview,
+        'meals_today' => $mealsToday,
+        'eaten_today' => $eaten,
+        'remaining_kcal' => $tdee > 0 ? max(0, $tdee - (int)round($eaten['kcal'])) : null,
+    ];
+}
+
+/** Logged meals for a calendar day (newest first). */
+function healthGetMealsForDate(PDO $db, string $date): array {
+    healthEnsureTables($db);
+    $stmt = $db->prepare('SELECT * FROM health_meals WHERE date = ? ORDER BY id DESC');
+    $stmt->execute([$date]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return array_map(static function (array $r): array {
+        return [
+            'id' => (int)$r['id'],
+            'date' => $r['date'],
+            'meal' => $r['meal'],
+            'title' => $r['title'],
+            'kcal' => $r['kcal'] !== null ? (float)$r['kcal'] : null,
+            'protein_g' => $r['protein_g'] !== null ? (float)$r['protein_g'] : null,
+            'carbs_g' => $r['carbs_g'] !== null ? (float)$r['carbs_g'] : null,
+            'fat_g' => $r['fat_g'] !== null ? (float)$r['fat_g'] : null,
+            'servings' => (float)$r['servings'],
+            'created_at' => $r['created_at'],
+        ];
+    }, $rows);
+}
+
+/** @param list<array> $meals */
+function healthMealsTotals(array $meals): array {
+    $kcal = 0.0;
+    $prot = 0.0;
+    foreach ($meals as $m) {
+        $kcal += (float)($m['kcal'] ?? 0);
+        $prot += (float)($m['protein_g'] ?? 0);
+    }
+    return [
+        'kcal' => round($kcal, 1),
+        'protein_g' => round($prot, 1),
+        'count' => count($meals),
+    ];
+}
+
+/**
+ * Log a consumed meal (closed-loop Fuel Mode).
+ * @return array{success:bool,meal?:array,error?:string,eaten_today?:array,remaining_kcal?:int|null}
+ */
+function healthLogMeal(PDO $db, array $input): array {
+    healthEnsureTables($db);
+    $title = trim((string)($input['title'] ?? ''));
+    if ($title === '') {
+        return ['success' => false, 'error' => 'title_required'];
+    }
+    $meal = strtolower(trim((string)($input['meal'] ?? 'pranzo')));
+    $allowed = ['colazione', 'pranzo', 'cena', 'dolce', 'succo', 'altro'];
+    if (!in_array($meal, $allowed, true)) {
+        $meal = 'altro';
+    }
+    $servings = (float)($input['servings'] ?? 1);
+    if ($servings <= 0) {
+        $servings = 1;
+    }
+    if ($servings > 10) {
+        $servings = 10;
+    }
+    $date = trim((string)($input['date'] ?? ''));
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = healthTodayDate();
+    }
+    $kcal = isset($input['kcal']) && $input['kcal'] !== '' && $input['kcal'] !== null
+        ? (float)$input['kcal'] * $servings : null;
+    $prot = isset($input['protein_g']) && $input['protein_g'] !== '' && $input['protein_g'] !== null
+        ? (float)$input['protein_g'] * $servings : null;
+    $carbs = isset($input['carbs_g']) && $input['carbs_g'] !== '' && $input['carbs_g'] !== null
+        ? (float)$input['carbs_g'] * $servings : null;
+    $fat = isset($input['fat_g']) && $input['fat_g'] !== '' && $input['fat_g'] !== null
+        ? (float)$input['fat_g'] * $servings : null;
+
+    $now = date('c');
+    $db->prepare('INSERT INTO health_meals
+        (date, meal, title, kcal, protein_g, carbs_g, fat_g, servings, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?)')
+        ->execute([$date, $meal, mb_substr($title, 0, 200), $kcal, $prot, $carbs, $fat, $servings, $now]);
+    $id = (int)$db->lastInsertId();
+    $meals = healthGetMealsForDate($db, $date);
+    $eaten = healthMealsTotals($meals);
+    $budget = computeMealBudget($db, $meal === 'altro' ? 'pranzo' : $meal, []);
+    $tdee = (int)($budget['tdee'] ?? 0);
+    return [
+        'success' => true,
+        'meal' => [
+            'id' => $id,
+            'date' => $date,
+            'meal' => $meal,
+            'title' => $title,
+            'kcal' => $kcal,
+            'protein_g' => $prot,
+            'carbs_g' => $carbs,
+            'fat_g' => $fat,
+            'servings' => $servings,
+            'created_at' => $now,
+        ],
+        'eaten_today' => $eaten,
+        'remaining_kcal' => $tdee > 0 ? max(0, $tdee - (int)round($eaten['kcal'])) : null,
+        'tdee' => $tdee,
     ];
 }

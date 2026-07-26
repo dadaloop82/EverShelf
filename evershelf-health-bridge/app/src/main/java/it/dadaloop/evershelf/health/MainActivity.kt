@@ -6,7 +6,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
@@ -47,12 +46,17 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         setSupportActionBar(binding.toolbar)
         SyncHelper.schedulePeriodic(this)
+        BatteryHelper.ensureBackgroundSurvival(this)
 
         binding.heroTitle.setText(R.string.main_hero)
         binding.heroSubtitle.setText(R.string.main_subtitle)
         binding.btnSync.setText(R.string.main_sync_now)
         binding.btnPermissions.setText(R.string.main_perms)
         binding.btnSetup.setText(R.string.main_reconfigure)
+        binding.btnBattery.setText(R.string.main_battery)
+        binding.btnBattery.setOnClickListener {
+            BatteryHelper.requestIgnoreBatteryOptimizations(this)
+        }
 
         binding.btnSync.setOnClickListener { doSync() }
         binding.btnPermissions.setOnClickListener { requestHcPermissions() }
@@ -112,6 +116,7 @@ class MainActivity : AppCompatActivity() {
         if (HealthConnectReader.sdkStatus(this) != HealthConnectClient.SDK_AVAILABLE) {
             binding.statusLine.setText(R.string.main_hc_missing)
         }
+        binding.btnBattery.alpha = if (BatteryHelper.isIgnoringBatteryOptimizations(this)) 0.45f else 1f
     }
 
     private fun requestHcPermissions() {
@@ -138,7 +143,7 @@ class MainActivity : AppCompatActivity() {
     private fun doSync() {
         binding.btnSync.isEnabled = false
         binding.btnSync.setText(R.string.main_syncing)
-        ContextCompat.startForegroundService(this, Intent(this, SyncForegroundService::class.java))
+        KeepAliveService.start(this)
         lifecycleScope.launch {
             val res = SyncHelper.syncNow(this@MainActivity)
             binding.btnSync.isEnabled = true

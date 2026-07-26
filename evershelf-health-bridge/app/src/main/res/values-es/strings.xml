@@ -49,6 +49,7 @@ Toca abajo para abrir Health Connect.</string>
     <string name="wiz_sync_fail">Error de sync: %1$s</string>
     <string name="wiz_done_title">Listo</string>
     <string name="wiz_done_body">EverShelf puede usar «A mi ritmo» con tu actividad. Sync en segundo plano ~cada 30 min.</string>
+    <string name="wiz_done_battery">A continuación Android pedirá excluir la app de la optimización de batería y mostrará una notificación persistente.</string>
     <string name="main_hero">A tu ritmo</string>
     <string name="main_subtitle">Sincroniza actividad y calorías con la despensa</string>
     <string name="main_today">HOY</string>
@@ -60,6 +61,7 @@ Toca abajo para abrir Health Connect.</string>
     <string name="main_sync_now">Sincronizar ahora</string>
     <string name="main_syncing">Sincronizando…</string>
     <string name="main_perms">Permisos Health Connect</string>
+    <string name="main_battery">Desactivar optimización de batería</string>
     <string name="main_reconfigure">Reconfigurar / cambiar servidor</string>
     <string name="main_synced">Sincronizado ✓</string>
     <string name="main_error">Error: %1$s</string>
@@ -68,4 +70,13 @@ Toca abajo para abrir Health Connect.</string>
     <string name="main_menu_hc">Abrir Health Connect</string>
     <string name="toast_perms_ok">Permisos concedidos</string>
     <string name="toast_perms_incomplete">Permisos incompletos — abre Health Connect</string>
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Mantiene EverShelf Health activo para la sync en segundo plano</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_body">Activo · último sync %1$s</string>
+    <string name="notif_never">nunca</string>
+    <string name="notif_syncing">Sincronizando con EverShelf…</string>
+    <string name="notif_sync_ok">Sincronizado · esperando el próximo ciclo</string>
+    <string name="notif_sync_fail">Error de sync: %1$s</string>
+    <string name="notif_action_sync">Sincronizar</string>
 </resources>

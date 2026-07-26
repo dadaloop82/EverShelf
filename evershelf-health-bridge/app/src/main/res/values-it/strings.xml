@@ -45,6 +45,7 @@
     <string name="wiz_sync_fail">Sync fallita: %1$s</string>
     <string name="wiz_done_title">Tutto pronto</string>
     <string name="wiz_done_body">EverShelf può usare «A ritmo mio» con la tua attività. L\'app sincronizza in background circa ogni 30 minuti.</string>
+    <string name="wiz_done_battery">Ora Android chiederà di escludere l\'app dalle ottimizzazioni batteria e mostrerà una notifica persistente così non viene killata.</string>
     <string name="main_hero">A ritmo tuo</string>
     <string name="main_subtitle">Sincronizza attività e calorie con la dispensa</string>
     <string name="main_today">OGGI</string>
@@ -56,6 +57,7 @@
     <string name="main_sync_now">Sincronizza ora</string>
     <string name="main_syncing">Sincronizzo…</string>
     <string name="main_perms">Permessi Health Connect</string>
+    <string name="main_battery">Disattiva ottimizzazione batteria</string>
     <string name="main_reconfigure">Riconfigura / cambia server</string>
     <string name="main_synced">Sincronizzato ✓</string>
     <string name="main_error">Errore: %1$s</string>
@@ -64,4 +66,13 @@
     <string name="main_menu_hc">Apri Health Connect</string>
     <string name="toast_perms_ok">Permessi concessi</string>
     <string name="toast_perms_incomplete">Permessi incompleti — apri Health Connect</string>
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Mantiene EverShelf Health attivo per la sync in background</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_body">Attivo · ultimo sync %1$s</string>
+    <string name="notif_never">mai</string>
+    <string name="notif_syncing">Sincronizzo con EverShelf…</string>
+    <string name="notif_sync_ok">Sincronizzato · in attesa del prossimo ciclo</string>
+    <string name="notif_sync_fail">Sync fallita: %1$s</string>
+    <string name="notif_action_sync">Sincronizza</string>
 </resources>

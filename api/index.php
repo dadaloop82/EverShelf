@@ -939,6 +939,9 @@ try {
         case 'health_unlink':
             healthUnlinkAction($db);
             break;
+        case 'health_meal_log':
+            healthMealLogAction($db);
+            break;
 
         // ===== BRING! SHOPPING LIST =====
         case 'bring_list':
@@ -7886,6 +7889,22 @@ function healthUnlinkAction(PDO $db): void {
         'revoked' => $revoked,
         'status' => healthStatusPayload($db),
     ]);
+}
+
+function healthMealLogAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+    $result = healthLogMeal($db, $input);
+    if (!empty($result['success'])) {
+        EverLog::info('health_meal_log', [
+            'title' => $result['meal']['title'] ?? '?',
+            'kcal' => $result['meal']['kcal'] ?? null,
+        ]);
+    }
+    echo json_encode($result);
 }
 
 /**
