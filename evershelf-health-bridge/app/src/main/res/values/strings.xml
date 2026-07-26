@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EverShelf Health</string>
+    <string name="privacy_policy">EverShelf Health Bridge reads daily aggregates (steps, calories, exercise, sleep) via Health Connect and sends them to your EverShelf server on the local network. No raw GPS. You can revoke permissions anytime.</string>
+
+    <string name="wizard_exit_title">Exit setup?</string>
+    <string name="wizard_exit_message">You can finish setup later when you reopen the app.</string>
+    <string name="wizard_exit_confirm">Exit</string>
+    <string name="wizard_exit_cancel">Continue</string>
+    <string name="btn_back">← Back</string>
+    <string name="btn_next">Next →</string>
+    <string name="btn_skip">Skip</string>
+    <string name="btn_finish">Start using the app</string>
+
+    <string name="wiz_lang_title">Choose language</string>
+    <string name="wiz_lang_hint">You can change this later in the system settings.</string>
+
+    <string name="wiz_welcome_title">Fuel your kitchen</string>
+    <string name="wiz_welcome_body">This app bridges Health Connect / Google Fit with EverShelf so recipes can match what you burned today.\n\nEverything stays on your Wi‑Fi. Optional and private.</string>
+
+    <string name="wiz_perms_title">Health permissions</string>
+    <string name="wiz_perms_body">We only need read access to daily activity: steps, calories, exercise, sleep, weight.\n\nTap below to open Health Connect and allow EverShelf Health.</string>
+    <string name="wiz_perms_btn">Grant Health Connect access</string>
+    <string name="wiz_perms_open_store">Install / open Health Connect</string>
+    <string name="wiz_perms_granted">Permissions look good — continue</string>
+    <string name="wiz_perms_partial">Some permissions missing — you can continue and fix later</string>
+
+    <string name="wiz_pair_title">Link EverShelf</string>
+    <string name="wiz_pair_body">On the computer/tablet open EverShelf → Settings → Health → create a Bridge token, then scan the QR. It passes the server URL and the token together.</string>
+    <string name="wiz_pair_scan">📷 Scan QR from EverShelf</string>
+    <string name="wiz_pair_manual">Or enter manually</string>
+    <string name="wiz_pair_discover">🔍 Find EverShelf on Wi‑Fi</string>
+    <string name="wiz_pair_url_hint">EverShelf URL</string>
+    <string name="wiz_pair_token_hint">Bridge token (es_health_…)</string>
+    <string name="wiz_pair_status_empty">Waiting for QR or details…</string>
+    <string name="wiz_pair_qr_ok">QR read — URL and token filled</string>
+    <string name="wiz_pair_need_both">URL and token are required</string>
+    <string name="wiz_pair_bad_token">Token must start with es_health_</string>
+    <string name="wiz_pair_testing">Checking server…</string>
+    <string name="wiz_pair_unreachable">Server unreachable. Same Wi‑Fi? URL correct?</string>
+    <string name="wiz_pair_ok">Linked to %1$s</string>
+    <string name="wiz_discovering">Scanning local network…</string>
+    <string name="wiz_discover_none">No server found. Scan the QR or type the URL.</string>
+    <string name="wiz_discover_pick">Choose EverShelf</string>
+
+    <string name="wiz_sync_title">First sync</string>
+    <string name="wiz_sync_body">We\'ll pull today\'s activity from Health Connect and send it to EverShelf.</string>
+    <string name="wiz_sync_btn">Sync now</string>
+    <string name="wiz_sync_running">Syncing…</string>
+    <string name="wiz_sync_ok">Synced successfully</string>
+    <string name="wiz_sync_fail">Sync failed: %1$s</string>
+
+    <string name="wiz_done_title">You\'re set</string>
+    <string name="wiz_done_body">EverShelf can now use \"Fuel mode / A ritmo mio\" with your activity. The app syncs in the background about every 30 minutes.</string>
+
+    <string name="main_hero">At your pace</string>
+    <string name="main_subtitle">Sync activity and calories with your pantry</string>
+    <string name="main_today">TODAY</string>
+    <string name="main_waiting">Waiting for sync…</string>
+    <string name="main_server">SERVER</string>
+    <string name="main_not_linked">Not linked</string>
+    <string name="main_last_sync">Last sync: %1$s</string>
+    <string name="main_last_sync_none">Last sync: —</string>
+    <string name="main_sync_now">Sync now</string>
+    <string name="main_syncing">Syncing…</string>
+    <string name="main_perms">Health Connect permissions</string>
+    <string name="main_reconfigure">Reconfigure / change server</string>
+    <string name="main_synced">Synced ✓</string>
+    <string name="main_error">Error: %1$s</string>
+    <string name="main_hc_missing">Install / update Health Connect</string>
+    <string name="main_menu_setup">Setup</string>
+    <string name="main_menu_hc">Open Health Connect</string>
+    <string name="toast_perms_ok">Permissions granted</string>
+    <string name="toast_perms_incomplete">Incomplete permissions — open Health Connect</string>
+</resources>

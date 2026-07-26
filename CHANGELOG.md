@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 - **Health Bridge Android app** — Phone gateway reading Health Connect / Google Fit and posting daily aggregates to `health_ingest`.
 
+## [1.7.62] - 2026-07-26
+
+### Added
+- **Settings → Health** — dedicated tab for personal/biological data with master enable switch (greys out when off).
+- **Health Bridge Android app** — multilingual setup wizard; QR pairing passes EverShelf URL + token; Health Connect sync. APK built/released by GitHub Actions (`health-bridge-latest`).
+
 ## [1.7.61] - 2026-07-26
 
 ### Added

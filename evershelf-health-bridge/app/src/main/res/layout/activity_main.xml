@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/es_cream">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/es_green">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="EverShelf Health"
+            app:titleTextColor="@android:color/white"
+            app:menu="@menu/main_menu" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:padding="20dp"
+        android:clipToPadding="false">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/heroTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="A ritmo tuo"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="@color/es_text"
+                android:letterSpacing="-0.02" />
+
+            <TextView
+                android:id="@+id/heroSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Sincronizza attività e calorie con la dispensa"
+                android:textColor="@color/es_muted"
+                android:textSize="15sp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                app:cardBackgroundColor="@color/es_surface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#D8E4C8">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="18dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OGGI"
+                        android:textAllCaps="true"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.08"
+                        android:textColor="@color/es_muted"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/statusLine"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="In attesa di sync…"
+                        android:textSize="16sp"
+                        android:textColor="@color/es_text"
+                        android:textStyle="bold" />
+
+                    <GridLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:columnCount="2"
+                        android:layout_marginTop="16dp"
+                        android:alignmentMode="alignMargins"
+                        android:useDefaultMargins="true">
+
+                        <TextView android:id="@+id/metricKcal" android:text="🔥 — kcal" android:textSize="15sp" android:textColor="@color/es_text" />
+                        <TextView android:id="@+id/metricSteps" android:text="👟 — passi" android:textSize="15sp" android:textColor="@color/es_text" />
+                        <TextView android:id="@+id/metricExercise" android:text="⏱ — min" android:textSize="15sp" android:textColor="@color/es_text" />
+                        <TextView android:id="@+id/metricSleep" android:text="😴 — h" android:textSize="15sp" android:textColor="@color/es_text" />
+                    </GridLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:cardBackgroundColor="@color/es_surface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#D8E4C8">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="18dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="SERVER"
+                        android:textAllCaps="true"
+                        android:textSize="11sp"
+                        android:letterSpacing="0.08"
+                        android:textColor="@color/es_muted"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/serverLine"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Non collegato"
+                        android:textSize="14sp"
+                        android:textColor="@color/es_text" />
+
+                    <TextView
+                        android:id="@+id/lastSyncLine"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Ultimo sync: —"
+                        android:textSize="13sp"
+                        android:textColor="@color/es_muted" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSync"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="22dp"
+                android:text="Sincronizza ora"
+                android:textAllCaps="false"
+                app:cornerRadius="16dp"
+                android:backgroundTint="@color/es_green" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPermissions"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:text="Permessi Health Connect"
+                android:textAllCaps="false"
+                app:cornerRadius="16dp"
+                app:strokeColor="@color/es_green"
+                android:textColor="@color/es_green" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSetup"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Configura / cambia server"
+                android:textAllCaps="false"
+                android:textColor="@color/es_amber" />
+
+            <TextView
+                android:id="@+id/footerHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="24dp"
+                android:text="@string/privacy_policy"
+                android:textSize="12sp"
+                android:textColor="@color/es_muted"
+                android:lineSpacingExtra="2dp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
