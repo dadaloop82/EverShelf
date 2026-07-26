@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 - **Health Bridge Android app** — Phone gateway reading Health Connect / Google Fit and posting daily aggregates to `health_ingest`.
 
+## [1.7.63] - 2026-07-26
+
+### Added
+- **Health Bridge keep-alive** — persistent notification + battery-optimization exemption so OEMs don’t kill background sync (APK 1.0.3).
+- **“Ho mangiato questa”** — closed-loop Fuel Mode: log a recipe’s nutrition against today’s TDEE; Settings → Health shows eaten / remaining kcal.
+
+### Changed
+- Fuel Mode hint now assumes Health Bridge as primary source (manual override still available).
+
 ## [1.7.62] - 2026-07-26
 
 ### Added

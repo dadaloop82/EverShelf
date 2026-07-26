@@ -29,8 +29,10 @@ object SyncHelper {
                 Prefs.saveServer(ctx, resolved, Prefs.token(ctx))
             }
             Prefs.saveLastSync(ctx, payload.toString())
+            BridgeNotifier.update(ctx)
             Log.i(TAG, "sync ok")
         }.onFailure {
+            BridgeNotifier.update(ctx, ctx.getString(R.string.notif_sync_fail, it.message ?: "?"))
             Log.w(TAG, "sync fail: ${it.message}")
         }
         return res

@@ -322,11 +322,14 @@ class WizardActivity : AppCompatActivity() {
         container.addView(
             col(
                 title(getString(R.string.wiz_done_title)),
-                body(getString(R.string.wiz_done_body))
+                body(getString(R.string.wiz_done_body)),
+                body(getString(R.string.wiz_done_battery))
             )
         )
         SyncHelper.schedulePeriodic(this)
+        BatteryHelper.ensureBackgroundSurvival(this)
         btnNext.setOnClickListener {
+            BatteryHelper.ensureBackgroundSurvival(this)
             startActivity(Intent(this, MainActivity::class.java))
             finish()
         }

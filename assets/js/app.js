@@ -16791,6 +16791,57 @@ async function saveRecipeFuelManual() {
     }
 }
 
+/** Closed-loop Fuel Mode: log this recipe as eaten today. */
+async function logRecipeMealEaten(btn) {
+    const r = _cachedRecipe?.recipe;
+    if (!r || !r.title) {
+        showToast(t('error.generic') || 'Errore', 'error');
+        return;
+    }
+    const n = r.nutrition || {};
+    if (n.kcal == null && n.protein_g == null) {
+        showToast(t('recipes.fuel_ate_no_nutrition') || 'Niente valori nutrizionali da registrare', 'info');
+        return;
+    }
+    if (btn) btn.disabled = true;
+    const meal = _normalizeMealId(_cachedRecipe?.meal || r.meal || '') || 'pranzo';
+    try {
+        const res = await api('health_meal_log', {}, 'POST', {
+            title: r.title,
+            meal,
+            kcal: n.kcal ?? null,
+            protein_g: n.protein_g ?? null,
+            carbs_g: n.carbs_g ?? null,
+            fat_g: n.fat_g ?? null,
+            servings: 1,
+        });
+        const statusEl = document.getElementById('recipe-meal-log-status');
+        if (res && res.success) {
+            const eaten = Math.round(res.eaten_today?.kcal || 0);
+            const left = res.remaining_kcal;
+            let msg = (t('recipes.fuel_ate_ok') || 'Registrato · oggi {eaten} kcal').replace('{eaten}', String(eaten));
+            if (left != null) {
+                msg += ' · ' + (t('recipes.fuel_ate_remaining') || 'restano ~{n} kcal').replace('{n}', String(left));
+            }
+            if (statusEl) {
+                statusEl.style.display = '';
+                statusEl.textContent = msg;
+            }
+            if (btn) {
+                btn.textContent = t('recipes.fuel_ate_done') || '✓ Registrato';
+            }
+            showToast(msg, 'success');
+            loadHealthSettingsTab().catch(() => {});
+        } else {
+            if (btn) btn.disabled = false;
+            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+        }
+    } catch (_) {
+        if (btn) btn.disabled = false;
+        showToast(t('error.generic') || 'Errore', 'error');
+    }
+}
+
 function applyHealthUiState() {
     const s = getSettings();
     const on = !!s.health_enabled;
@@ -16835,11 +16886,19 @@ async function loadHealthSettingsTab() {
         const st = document.getElementById('health-today-status');
         if (st && res && res.success) {
             const d = res.daily;
+            const bits = [];
             if (d) {
-                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal ?? '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min ?? '—'} min · (${d.source || '?'})`;
+                bits.push(`🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min ?? '—'} min · (${d.source || '?'})`);
             } else {
-                st.textContent = t('recipes.fuel_no_daily') || 'Nessun dato oggi';
+                bits.push(t('recipes.fuel_no_daily') || 'Nessun dato oggi');
             }
+            if (res.eaten_today && res.eaten_today.count > 0) {
+                bits.push(`${t('settings.health.eaten') || 'Mangiati'}: ${Math.round(res.eaten_today.kcal)} kcal (${res.eaten_today.count})`);
+                if (res.remaining_kcal != null) {
+                    bits.push(`${t('settings.health.remaining') || 'Restano'} ~${res.remaining_kcal} kcal`);
+                }
+            }
+            st.textContent = bits.join(' · ');
         }
     } catch (_) { /* ignore */ }
 }
@@ -17895,6 +17954,8 @@ async function renderRecipe(r) {
                 </div>
             </div>
             <p class="recipe-nutrition-note">${t('recipes.nutrition_per_serving')}</p>
+            <button type="button" class="btn btn-secondary full-width mt-2" id="recipe-meal-log-btn" onclick="logRecipeMealEaten(this)">${escapeHtml(t('recipes.fuel_ate_this') || '🍽️ Ho mangiato questa')}</button>
+            <p id="recipe-meal-log-status" class="recipe-fuel-hint" style="display:none;margin-top:8px"></p>
         </div>`;
     }
 

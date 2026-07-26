@@ -49,6 +49,7 @@ Touchez ci-dessous pour Health Connect.</string>
     <string name="wiz_sync_fail">Échec sync : %1$s</string>
     <string name="wiz_done_title">C\'est prêt</string>
     <string name="wiz_done_body">EverShelf peut utiliser « À mon rythme » avec votre activité. Sync auto ~toutes les 30 min.</string>
+    <string name="wiz_done_battery">Ensuite Android demandera d\'exclure l\'app des optimisations batterie et affichera une notification persistante.</string>
     <string name="main_hero">À votre rythme</string>
     <string name="main_subtitle">Sync activité et calories avec le garde-manger</string>
     <string name="main_today">AUJOURD\'HUI</string>
@@ -60,6 +61,7 @@ Touchez ci-dessous pour Health Connect.</string>
     <string name="main_sync_now">Synchroniser</string>
     <string name="main_syncing">Sync…</string>
     <string name="main_perms">Autorisations Health Connect</string>
+    <string name="main_battery">Désactiver l\'optimisation batterie</string>
     <string name="main_reconfigure">Reconfigurer / changer de serveur</string>
     <string name="main_synced">Synchronisé ✓</string>
     <string name="main_error">Erreur : %1$s</string>
@@ -68,4 +70,13 @@ Touchez ci-dessous pour Health Connect.</string>
     <string name="main_menu_hc">Ouvrir Health Connect</string>
     <string name="toast_perms_ok">Autorisations accordées</string>
     <string name="toast_perms_incomplete">Autorisations incomplètes — ouvrir Health Connect</string>
+    <string name="notif_channel_name">Health Bridge</string>
+    <string name="notif_channel_desc">Maintient EverShelf Health actif pour la sync en arrière-plan</string>
+    <string name="notif_title">EverShelf Health Bridge</string>
+    <string name="notif_body">Actif · dernière sync %1$s</string>
+    <string name="notif_never">jamais</string>
+    <string name="notif_syncing">Sync avec EverShelf…</string>
+    <string name="notif_sync_ok">Synchronisé · en attente du prochain cycle</string>
+    <string name="notif_sync_fail">Échec sync : %1$s</string>
+    <string name="notif_action_sync">Synchroniser</string>
 </resources>
