@@ -16723,22 +16723,14 @@ function toggleRecipeOption(btn) {
 
 async function onRecipeFuelToggle() {
     const cb = document.getElementById('recipe-opt-fuel');
-    const panel = document.getElementById('recipe-fuel-panel');
-    if (!panel) return;
     const healthOn = !!(getSettings().health_enabled);
     if (!healthOn) {
         if (cb) cb.checked = false;
-        panel.style.display = 'none';
-        panel.hidden = true;
         updateRecipeFuelGenerateBtn();
         showToast(t('settings.health.disabled_toast') || 'Abilita i dati salute in Configurazione → Salute', 'warning');
         return;
     }
-    const on = !!(cb && cb.checked);
-    panel.style.display = on ? '' : 'none';
-    panel.hidden = !on;
     updateRecipeFuelGenerateBtn();
-    if (on) await refreshRecipeFuelPanel();
 }
 
 function updateRecipeFuelGenerateBtn() {
@@ -16749,74 +16741,6 @@ function updateRecipeFuelGenerateBtn() {
     btn.textContent = fuelOn
         ? (t('recipes.generate_fuel_btn') || '🔥 Genera a ritmo mio')
         : (t('recipes.generate_btn') || '✨ Genera Ricetta');
-}
-
-async function refreshRecipeFuelPanel() {
-    const statusEl = document.getElementById('recipe-fuel-status');
-    try {
-        const res = await api('health_status');
-        if (!res || !res.success) {
-            if (statusEl) statusEl.textContent = t('recipes.fuel_status_error') || 'Dati salute non disponibili';
-            return;
-        }
-        const d = res.daily || null;
-        const p = res.profile || {};
-        const b = res.budget_preview || {};
-        const goalMap = {
-            maintain: t('settings.health.goal_maintain') || 'Mantenimento',
-            lose: t('settings.health.goal_lose') || 'Dimagrimento',
-            gain: t('settings.health.goal_gain') || 'Massa',
-        };
-        const lines = [];
-        lines.push(`${t('recipes.fuel_profile_line') || 'Profilo'}: ${goalMap[p.goal] || p.goal || '—'} · TDEE ~${b.tdee || '?'} kcal`);
-        if (d) {
-            const act = [];
-            if (d.burned_kcal != null) act.push(`🔥 ${Math.round(d.burned_kcal)} kcal`);
-            if (d.steps != null) act.push(`👟 ${d.steps}`);
-            if (d.exercise_min != null) act.push(`⏱ ${d.exercise_min} min`);
-            if (d.sleep_hours != null) act.push(`😴 ${Number(d.sleep_hours).toFixed(1)}h`);
-            lines.push(`${t('recipes.fuel_activity_line') || 'Attività oggi'}: ${act.join(' · ') || '—'} (${d.source || '?'})`);
-        } else {
-            lines.push(t('recipes.fuel_no_daily') || 'Nessun dato attività oggi — uso il profilo');
-        }
-        if (b.label) {
-            lines.push(`${t('recipes.fuel_budget_line') || 'Budget pasto'}: ${b.label} · ~${b.target_kcal || '?'} kcal · ≥${b.protein_g || '?'}g prot`);
-        }
-        if (statusEl) statusEl.innerHTML = lines.map(l => `<div>${escapeHtml(l)}</div>`).join('');
-        const setVal = (id, v) => {
-            const el = document.getElementById(id);
-            if (el && v != null && el.value === '') el.value = v;
-        };
-        if (d) {
-            setVal('fuel-burned-kcal', d.burned_kcal);
-            setVal('fuel-steps', d.steps);
-            setVal('fuel-exercise-min', d.exercise_min);
-            setVal('fuel-sleep-hours', d.sleep_hours);
-        }
-    } catch (e) {
-        if (statusEl) statusEl.textContent = t('recipes.fuel_status_error') || 'Dati salute non disponibili';
-    }
-}
-
-async function saveRecipeFuelManual() {
-    const payload = {
-        source: 'manual',
-        burned_kcal: document.getElementById('fuel-burned-kcal')?.value || null,
-        steps: document.getElementById('fuel-steps')?.value || null,
-        exercise_min: document.getElementById('fuel-exercise-min')?.value || null,
-        sleep_hours: document.getElementById('fuel-sleep-hours')?.value || null,
-    };
-    try {
-        const res = await api('health_ingest', {}, 'POST', payload);
-        if (res && res.success) {
-            showToast(t('recipes.fuel_saved') || 'Dati salute salvati', 'success');
-            await refreshRecipeFuelPanel();
-        } else {
-            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
-        }
-    } catch (e) {
-        showToast(t('error.generic') || 'Errore', 'error');
-    }
 }
 
 /** Silent: once per recipe/day when you use an ingredient from that recipe. */
@@ -16869,9 +16793,8 @@ function applyHealthUiState() {
     const fuelCb = document.getElementById('recipe-opt-fuel');
     if (fuelCb && !on) {
         fuelCb.checked = false;
-        const panel = document.getElementById('recipe-fuel-panel');
-        if (panel) { panel.style.display = 'none'; panel.hidden = true; }
     }
+    if (typeof updateRecipeFuelGenerateBtn === 'function') updateRecipeFuelGenerateBtn();
 }
 
 async function onHealthEnabledChange() {

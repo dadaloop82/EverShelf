@@ -2023,18 +2023,6 @@
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> <span data-i18n="recipes.opt_zero_waste">♻️ Zero Sprechi</span></label>
                     <label class="recipe-option-chip recipe-opt-fuel-wrap recipe-opt-fuel-featured" id="recipe-opt-fuel-wrap"><input type="checkbox" id="recipe-opt-fuel" onchange="onRecipeFuelToggle()"> <span data-i18n="recipes.opt_fuel">🔥 A ritmo mio</span></label>
                 </div>
-                <div id="recipe-fuel-panel" class="recipe-fuel-panel" style="display:none" hidden>
-                    <p class="recipe-fuel-lead" data-i18n="recipes.fuel_lead">Genera il pasto dal tuo profilo (obiettivo), dall’attività di oggi e dalla dispensa.</p>
-                    <div id="recipe-fuel-status" class="recipe-fuel-status" data-i18n="recipes.fuel_loading">Carico dati salute…</div>
-                    <div class="recipe-fuel-manual-grid">
-                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_burned">Kcal bruciate</span><input type="number" id="fuel-burned-kcal" min="0" max="10000" step="1" class="form-input" placeholder="es. 540"></label>
-                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_steps">Passi</span><input type="number" id="fuel-steps" min="0" max="100000" step="1" class="form-input" placeholder="es. 7200"></label>
-                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_exercise">Min esercizio</span><input type="number" id="fuel-exercise-min" min="0" max="600" step="1" class="form-input" placeholder="es. 45"></label>
-                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_sleep">Ore sonno</span><input type="number" id="fuel-sleep-hours" min="0" max="24" step="0.1" class="form-input" placeholder="es. 6.5"></label>
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-sm full-width mt-2" onclick="saveRecipeFuelManual()" data-i18n="recipes.fuel_save">💾 Aggiorna attività di oggi</button>
-                    <p class="recipe-fuel-hint" data-i18n="recipes.fuel_hint">Attività dal Health Bridge (o correzione manuale). L’obiettivo è quello in Configurazione → Salute. Nessun diario pasti: conta solo ciò che usi dalla dispensa / dalle ricette.</p>
-                </div>
             </div>
             <button class="btn btn-large btn-success full-width" onclick="generateRecipe()" data-i18n="recipes.generate_btn">
                 ✨ Genera Ricetta
@@ -2166,6 +2154,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260726b"></script>
+<script src="assets/js/app.js?v=20260726c"></script>
 </body>
 </html>
