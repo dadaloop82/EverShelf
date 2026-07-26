@@ -1243,11 +1243,51 @@
                             <label class="checkbox-label"><input type="checkbox" id="setting-pref-healthy"> <span data-i18n="settings.recipe.healthy">💚 Extra Salutare</span></label>
                             <label class="checkbox-label"><input type="checkbox" id="setting-pref-opened"> <span data-i18n="settings.recipe.opened">📦 Priorità Cose Aperte</span></label>
                             <label class="checkbox-label"><input type="checkbox" id="setting-pref-zerowaste"> <span data-i18n="settings.recipe.zerowaste">♻️ Zero Sprechi</span></label>
+                            <label class="checkbox-label"><input type="checkbox" id="setting-pref-fuel"> <span data-i18n="settings.recipe.fuel">🔥 A ritmo mio</span></label>
                         </div>
                     </div>
                     <div class="form-group">
                         <label data-i18n="settings.recipe.dietary_label">🚫 Intolleranze / Restrizioni</label>
                         <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.health.title">🔥 Salute / A ritmo mio</h4>
+                    <p class="settings-hint" data-i18n="settings.health.hint">Profilo usato per stimare il budget calorico del pasto. I dati giornalieri arrivano dal telefono (Bridge) o da inserimento manuale in Genera ricetta.</p>
+                    <div class="form-group recipe-fuel-manual-grid">
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.sex">Sesso</span>
+                            <select id="health-profile-sex" class="form-input">
+                                <option value="">—</option>
+                                <option value="m" data-i18n="settings.health.sex_m">M</option>
+                                <option value="f" data-i18n="settings.health.sex_f">F</option>
+                                <option value="other" data-i18n="settings.health.sex_other">Altro</option>
+                            </select>
+                        </label>
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.birth_year">Anno di nascita</span><input type="number" id="health-profile-birth-year" class="form-input" min="1920" max="2015" placeholder="es. 1985"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.height">Altezza (cm)</span><input type="number" id="health-profile-height" class="form-input" min="100" max="250" step="1"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.weight">Peso (kg)</span><input type="number" id="health-profile-weight" class="form-input" min="30" max="300" step="0.1"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.goal">Obiettivo</span>
+                            <select id="health-profile-goal" class="form-input">
+                                <option value="maintain" data-i18n="settings.health.goal_maintain">Mantenimento</option>
+                                <option value="lose" data-i18n="settings.health.goal_lose">Dimagrimento</option>
+                                <option value="gain" data-i18n="settings.health.goal_gain">Massa</option>
+                            </select>
+                        </label>
+                        <label class="recipe-fuel-field"><span data-i18n="settings.health.activity">Attività tipica</span>
+                            <select id="health-profile-activity" class="form-input">
+                                <option value="sedentary" data-i18n="settings.health.act_sedentary">Sedentaria</option>
+                                <option value="light" data-i18n="settings.health.act_light">Leggera</option>
+                                <option value="moderate" selected data-i18n="settings.health.act_moderate">Moderata</option>
+                                <option value="active" data-i18n="settings.health.act_active">Attiva</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button type="button" class="btn btn-secondary full-width" onclick="saveHealthProfileFromSettings()" data-i18n="settings.health.save">Salva profilo salute</button>
+                    <div id="health-bridge-box" class="health-bridge-box mt-2">
+                        <p class="settings-hint" data-i18n="settings.health.bridge_hint">Health Bridge (telefono): genera un token da mettere nell’app gateway. Opzionale.</p>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="createHealthBridgeToken()" data-i18n="settings.health.bridge_create">🔑 Crea token Bridge</button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="unlinkHealthBridge()" data-i18n="settings.health.bridge_unlink">Scollega / revoca token</button>
+                        <pre id="health-bridge-token-out" class="health-bridge-token-out" style="display:none"></pre>
                     </div>
                 </div>
             </div>
@@ -1953,6 +1993,18 @@
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-healthy"> <span data-i18n="recipes.opt_healthy">💚 Extra Salutare</span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-opened"> <span data-i18n="recipes.opt_opened">📦 Priorità Cose Aperte</span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> <span data-i18n="recipes.opt_zero_waste">♻️ Zero Sprechi</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-fuel" onchange="onRecipeFuelToggle()"> <span data-i18n="recipes.opt_fuel">🔥 A ritmo mio</span></label>
+                </div>
+                <div id="recipe-fuel-panel" class="recipe-fuel-panel" style="display:none" hidden>
+                    <div id="recipe-fuel-status" class="recipe-fuel-status" data-i18n="recipes.fuel_loading">Carico dati salute…</div>
+                    <div class="recipe-fuel-manual-grid">
+                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_burned">Kcal bruciate</span><input type="number" id="fuel-burned-kcal" min="0" max="10000" step="1" class="form-input" placeholder="es. 540"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_steps">Passi</span><input type="number" id="fuel-steps" min="0" max="100000" step="1" class="form-input" placeholder="es. 7200"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_exercise">Min esercizio</span><input type="number" id="fuel-exercise-min" min="0" max="600" step="1" class="form-input" placeholder="es. 45"></label>
+                        <label class="recipe-fuel-field"><span data-i18n="recipes.fuel_sleep">Ore sonno</span><input type="number" id="fuel-sleep-hours" min="0" max="24" step="0.1" class="form-input" placeholder="es. 6.5"></label>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm full-width mt-2" onclick="saveRecipeFuelManual()" data-i18n="recipes.fuel_save">💾 Salva dati di oggi</button>
+                    <p class="recipe-fuel-hint" data-i18n="recipes.fuel_hint">Opzionale: collega un Health Bridge sul telefono più avanti. Per ora puoi inserire i dati a mano.</p>
                 </div>
             </div>
             <button class="btn btn-large btn-success full-width" onclick="generateRecipe()" data-i18n="recipes.generate_btn">

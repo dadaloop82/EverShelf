@@ -2871,6 +2871,7 @@ function getSettings() {
     if (s.pref_healthy) s.recipe_prefs.push('salutare');
     if (s.pref_opened) s.recipe_prefs.push('opened');
     if (s.pref_zerowaste) s.recipe_prefs.push('zerowaste');
+    if (s.pref_fuel) s.recipe_prefs.push('fuel');
     s.dietary_restrictions = s.dietary || '';
     return s;
 }
@@ -2913,6 +2914,7 @@ const _debouncedSyncSettings = debounce(function() {
         pref_healthy: s.pref_healthy,
         pref_opened: s.pref_opened,
         pref_zerowaste: s.pref_zerowaste,
+        pref_fuel: s.pref_fuel,
         dietary: s.dietary,
         appliances: s.appliances,
     };
@@ -3004,7 +3006,7 @@ function _applySyncedSettings(serverSettings) {
     _applyDemoModeUI();
     const s = getSettings();
     const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-        'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
+        'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','dietary','appliances',
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
@@ -3600,11 +3602,14 @@ async function loadSettingsUI() {
     document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
     document.getElementById('setting-pref-opened').checked = !!s.pref_opened;
     document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
+    const fuelPrefEl = document.getElementById('setting-pref-fuel');
+    if (fuelPrefEl) fuelPrefEl.checked = !!s.pref_fuel;
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
     if (ssTimeout) ssTimeout.value = String(s.screensaver_timeout || 5);
     document.getElementById('setting-dietary').value = s.dietary || '';
+    if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
     const recipeSrcEl = document.getElementById('setting-recipe-source');
     if (recipeSrcEl) recipeSrcEl.value = s.recipe_source || 'auto';
     const mealieOffEl = document.getElementById('setting-mealie-offline');
@@ -3703,7 +3708,7 @@ async function loadSettingsUI() {
         // Merge all server settings into local cache (server wins)
         const serverKeys = ['bring_email',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
-            'pref_healthy','pref_opened','pref_zerowaste','dietary','appliances',
+            'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','dietary','appliances',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
@@ -3742,7 +3747,10 @@ async function loadSettingsUI() {
             document.getElementById('setting-pref-healthy').checked = !!s.pref_healthy;
             document.getElementById('setting-pref-opened').checked = !!s.pref_opened;
             document.getElementById('setting-pref-zerowaste').checked = !!s.pref_zerowaste;
+            const fuelPrefEl2 = document.getElementById('setting-pref-fuel');
+            if (fuelPrefEl2) fuelPrefEl2.checked = !!s.pref_fuel;
             document.getElementById('setting-dietary').value = s.dietary || '';
+            if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
             if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
             renderAppliances(s.appliances || []);
             if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
@@ -4229,6 +4237,8 @@ async function saveSettings() {
     s.pref_healthy = document.getElementById('setting-pref-healthy').checked;
     s.pref_opened = document.getElementById('setting-pref-opened').checked;
     s.pref_zerowaste = document.getElementById('setting-pref-zerowaste').checked;
+    const fuelSaveEl = document.getElementById('setting-pref-fuel');
+    if (fuelSaveEl) s.pref_fuel = fuelSaveEl.checked;
     s.dietary = document.getElementById('setting-dietary').value.trim();
     // Camera
     s.camera_facing = document.getElementById('setting-camera-facing').value;
@@ -4346,6 +4356,7 @@ async function saveSettings() {
             pref_healthy: s.pref_healthy,
             pref_opened: s.pref_opened,
             pref_zerowaste: s.pref_zerowaste,
+            pref_fuel: !!s.pref_fuel,
             dietary: s.dietary,
             appliances: s.appliances,
             camera_facing: s.camera_facing,
@@ -16673,12 +16684,14 @@ function openRecipeDialog() {
         'scadenze': 'recipe-opt-scadenze',
         'salutare': 'recipe-opt-healthy',
         'opened': 'recipe-opt-opened',
-        'zerowaste': 'recipe-opt-zerowaste'
+        'zerowaste': 'recipe-opt-zerowaste',
+        'fuel': 'recipe-opt-fuel'
     };
     Object.entries(prefMap).forEach(([key, id]) => {
         const cb = document.getElementById(id);
         if (cb) cb.checked = settings.recipe_prefs && settings.recipe_prefs.includes(key);
     });
+    if (typeof onRecipeFuelToggle === 'function') onRecipeFuelToggle();
     
     document.getElementById('recipe-ask').style.display = '';
     document.getElementById('recipe-loading').style.display = 'none';
@@ -16688,6 +16701,147 @@ function openRecipeDialog() {
 // Toggle recipe option chip
 function toggleRecipeOption(btn) {
     btn.classList.toggle('active');
+}
+
+async function onRecipeFuelToggle() {
+    const cb = document.getElementById('recipe-opt-fuel');
+    const panel = document.getElementById('recipe-fuel-panel');
+    if (!panel) return;
+    const on = !!(cb && cb.checked);
+    panel.style.display = on ? '' : 'none';
+    panel.hidden = !on;
+    if (on) await refreshRecipeFuelPanel();
+}
+
+async function refreshRecipeFuelPanel() {
+    const statusEl = document.getElementById('recipe-fuel-status');
+    try {
+        const res = await api('health_status');
+        if (!res || !res.success) {
+            if (statusEl) statusEl.textContent = t('recipes.fuel_status_error') || 'Dati salute non disponibili';
+            return;
+        }
+        const d = res.daily || null;
+        const b = res.budget_preview || {};
+        const bits = [];
+        if (d) {
+            if (d.burned_kcal != null) bits.push(`🔥 ${Math.round(d.burned_kcal)} kcal`);
+            if (d.steps != null) bits.push(`👟 ${d.steps}`);
+            if (d.exercise_min != null) bits.push(`⏱ ${d.exercise_min} min`);
+            if (d.sleep_hours != null) bits.push(`😴 ${d.sleep_hours}h`);
+            bits.push(`(${d.source || 'manual'})`);
+        } else {
+            bits.push(t('recipes.fuel_no_daily') || 'Nessun dato oggi — inserisci sotto o usa il profilo');
+        }
+        if (b.label) bits.push(`→ ${b.label} · ~${b.target_kcal || '?'} kcal`);
+        if (statusEl) statusEl.textContent = bits.join(' · ');
+        const setVal = (id, v) => {
+            const el = document.getElementById(id);
+            if (el && v != null && el.value === '') el.value = v;
+        };
+        if (d) {
+            setVal('fuel-burned-kcal', d.burned_kcal);
+            setVal('fuel-steps', d.steps);
+            setVal('fuel-exercise-min', d.exercise_min);
+            setVal('fuel-sleep-hours', d.sleep_hours);
+        }
+    } catch (e) {
+        if (statusEl) statusEl.textContent = t('recipes.fuel_status_error') || 'Dati salute non disponibili';
+    }
+}
+
+async function saveRecipeFuelManual() {
+    const payload = {
+        source: 'manual',
+        burned_kcal: document.getElementById('fuel-burned-kcal')?.value || null,
+        steps: document.getElementById('fuel-steps')?.value || null,
+        exercise_min: document.getElementById('fuel-exercise-min')?.value || null,
+        sleep_hours: document.getElementById('fuel-sleep-hours')?.value || null,
+    };
+    try {
+        const res = await api('health_ingest', {}, 'POST', payload);
+        if (res && res.success) {
+            showToast(t('recipes.fuel_saved') || 'Dati salute salvati', 'success');
+            await refreshRecipeFuelPanel();
+        } else {
+            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+        }
+    } catch (e) {
+        showToast(t('error.generic') || 'Errore', 'error');
+    }
+}
+
+async function loadHealthProfileIntoSettings() {
+    try {
+        const res = await api('health_status');
+        if (!res || !res.success) return;
+        const p = res.profile || {};
+        const set = (id, v) => {
+            const el = document.getElementById(id);
+            if (el) el.value = v != null ? v : '';
+        };
+        set('health-profile-sex', p.sex || '');
+        set('health-profile-birth-year', p.birth_year);
+        set('health-profile-height', p.height_cm);
+        set('health-profile-weight', p.weight_kg);
+        set('health-profile-goal', p.goal || 'maintain');
+        set('health-profile-activity', p.activity_default || 'moderate');
+    } catch (_) { /* ignore */ }
+}
+
+async function saveHealthProfileFromSettings() {
+    const payload = {
+        sex: document.getElementById('health-profile-sex')?.value || null,
+        birth_year: document.getElementById('health-profile-birth-year')?.value || null,
+        height_cm: document.getElementById('health-profile-height')?.value || null,
+        weight_kg: document.getElementById('health-profile-weight')?.value || null,
+        goal: document.getElementById('health-profile-goal')?.value || 'maintain',
+        activity_default: document.getElementById('health-profile-activity')?.value || 'moderate',
+    };
+    try {
+        const res = await api('health_profile_save', {}, 'POST', payload);
+        if (res && res.success) {
+            showToast(t('settings.health.saved') || 'Profilo salute salvato', 'success');
+        } else {
+            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+        }
+    } catch (e) {
+        showToast(t('error.generic') || 'Errore', 'error');
+    }
+}
+
+async function createHealthBridgeToken() {
+    try {
+        const res = await api('health_bridge_token_create', {}, 'POST', { label: 'Health Bridge' });
+        const out = document.getElementById('health-bridge-token-out');
+        if (res && res.success && res.token) {
+            if (out) {
+                out.style.display = '';
+                out.textContent = res.token.token;
+            }
+            showToast(t('settings.health.bridge_created') || 'Token creato — copialo nell’app', 'success');
+        } else {
+            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+        }
+    } catch (e) {
+        showToast(t('error.generic') || 'Errore', 'error');
+    }
+}
+
+async function unlinkHealthBridge() {
+    if (!confirm(t('settings.health.bridge_unlink_confirm') || 'Revocare tutti i token Health Bridge?')) return;
+    try {
+        const res = await api('health_unlink', {}, 'POST', {});
+        const out = document.getElementById('health-bridge-token-out');
+        if (out) { out.style.display = 'none'; out.textContent = ''; }
+        if (res && res.success) {
+            showToast(t('settings.health.bridge_unlinked') || 'Bridge scollegato', 'success');
+        } else {
+            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+        }
+    } catch (e) {
+        showToast(t('error.generic') || 'Errore', 'error');
+    }
 }
 
 function closeRecipeDialog() {
@@ -17610,8 +17764,19 @@ async function renderRecipe(r) {
     if (r.nutrition && (r.nutrition.kcal || r.nutrition.protein_g || r.nutrition.carbs_g || r.nutrition.fat_g)) {
         const n = r.nutrition;
         html += `<div class="recipe-nutrition-block">
-            <h4 class="recipe-section-heading">📊 ${t('recipes.nutrition_title')}</h4>
-            <div class="recipe-nutrition-grid">
+            <h4 class="recipe-section-heading">📊 ${t('recipes.nutrition_title')}</h4>`;
+        if (r.fuel_budget && r.fuel_budget.target_kcal) {
+            const fb = r.fuel_budget;
+            const kcal = n.kcal != null ? Number(n.kcal) : null;
+            const target = Number(fb.target_kcal);
+            let match = '';
+            if (kcal != null && target > 0) {
+                const pct = Math.round((kcal / target) * 100);
+                match = ` · ${pct}% ${t('recipes.fuel_match') || 'del target'}`;
+            }
+            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || 'A ritmo mio')} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}</div>`;
+        }
+        html += `<div class="recipe-nutrition-grid">
                 <div class="recipe-nutrition-item">
                     <span class="recipe-nutrition-icon">🔥</span>
                     <span class="recipe-nutrition-value">${n.kcal ?? '—'}</span>
@@ -19590,7 +19755,8 @@ async function generateRecipe() {
         'recipe-opt-scadenze': 'scadenze',
         'recipe-opt-healthy': 'salutare',
         'recipe-opt-opened': 'opened',
-        'recipe-opt-zerowaste': 'zerowaste'
+        'recipe-opt-zerowaste': 'zerowaste',
+        'recipe-opt-fuel': 'fuel'
     };
     Object.entries(optMap).forEach(([id, key]) => {
         const cb = document.getElementById(id);

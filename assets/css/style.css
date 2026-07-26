@@ -7042,6 +7042,64 @@ body.cooking-mode-active .app-header {
     border-color: var(--primary);
 }
 
+.recipe-fuel-panel {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(45, 80, 22, 0.06), rgba(180, 83, 9, 0.08));
+    border: 1px solid rgba(45, 80, 22, 0.15);
+    text-align: left;
+}
+.recipe-fuel-status {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+.recipe-fuel-manual-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.recipe-fuel-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+.recipe-fuel-hint {
+    margin: 8px 0 0;
+    font-size: 0.75rem;
+    opacity: 0.75;
+}
+.recipe-fuel-badge {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(180, 83, 9, 0.12);
+    border: 1px solid rgba(180, 83, 9, 0.25);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.health-bridge-token-out {
+    margin-top: 8px;
+    padding: 10px;
+    font-size: 0.75rem;
+    word-break: break-all;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border, #ccc);
+}
+[data-theme="dark"] .recipe-fuel-panel {
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.08), rgba(251, 146, 60, 0.1));
+    border-color: rgba(74, 222, 128, 0.2);
+}
+[data-theme="dark"] .recipe-fuel-badge {
+    background: rgba(251, 146, 60, 0.15);
+    border-color: rgba(251, 146, 60, 0.3);
+}
+
 /* Meal-plan chip: visually highlighted to stand out as the planned food type */
 .recipe-opt-mealplan-chip {
     grid-column: 1 / -1;
