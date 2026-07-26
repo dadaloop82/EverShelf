@@ -3979,6 +3979,13 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
     if ($lastTransactionId > 0) {
         $response['transaction_id'] = $lastTransactionId;
     }
+    // Silent Fuel Mode tracking: pantry "use" only (not waste, not recipe — recipes log once client-side)
+    try {
+        $usedQty = isset($actualDeducted) ? (float)$actualDeducted : (float)$quantity;
+        healthLogInventoryUse($db, (int)$productId, $usedQty, (string)$notes, is_array($prodInfo) ? $prodInfo : null);
+    } catch (Throwable $e) {
+        EverLog::warn('healthLogInventoryUse: ' . $e->getMessage());
+    }
     echo json_encode($response);
     // Inventory changed — force smart-shopping recompute on next request
     invalidateSmartShoppingCache();
@@ -8173,7 +8180,7 @@ function generateRecipe(PDO $db): void {
         'salutare' => 'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
         'opened' => 'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
         'zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
-        'fuel' => 'A RITMO MIO (Fuel Mode): adatta calorie/macro del pasto al MEAL BUDGET sotto (dati salute + profilo).',
+        'fuel' => 'A RITMO MIO (Fuel Mode): genera la ricetta dai dati biologici (profilo), dall’OBIETTIVO (maintain/lose/gain) e dall’attività fisica di oggi. Adatta calorie/macro al MEAL BUDGET sotto.',
     ];
     foreach ($options as $opt) {
         if (isset($optionLabels[$opt])) {
@@ -8816,7 +8823,7 @@ function generateRecipeStream(PDO $db): void {
         'salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
         'opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
         'zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
-        'fuel'=>'A RITMO MIO (Fuel Mode): adatta calorie/macro del pasto al MEAL BUDGET sotto (dati salute + profilo).',
+        'fuel'=>'A RITMO MIO (Fuel Mode): genera la ricetta dai dati biologici (profilo), dall’OBIETTIVO (maintain/lose/gain) e dall’attività fisica di oggi. Adatta calorie/macro al MEAL BUDGET sotto.',
     ];
     foreach ($options as $opt) { if (isset($optionLabels[$opt])) $extraRules[] = $optionLabels[$opt]; }
     $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
