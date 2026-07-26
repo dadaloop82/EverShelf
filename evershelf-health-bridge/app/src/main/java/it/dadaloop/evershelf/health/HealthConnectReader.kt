@@ -199,7 +199,7 @@ object HealthConnectReader {
             val rhrAgg = client.aggregate(
                 AggregateRequest(setOf(RestingHeartRateRecord.BPM_AVG), timeRangeFilter = range)
             )
-            rhrAgg[RestingHeartRateRecord.BPM_AVG]?.let { out.put("resting_hr", it.roundToInt()) }
+            rhrAgg[RestingHeartRateRecord.BPM_AVG]?.let { out.put("resting_hr", it.toInt()) }
         } catch (_: Exception) {
             // Fallback: average of recent HR samples in last 24h overnight window is noisy; skip
         }
