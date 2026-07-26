@@ -460,7 +460,6 @@
     "fuel_steps": "Steps",
     "fuel_exercise": "Exercise minutes",
     "fuel_sleep": "Sleep hours",
-    "fuel_save": "💾 Save today's data",
     "fuel_hint": "Activity from Health Bridge (or manual correction). Goal is in Settings → Health. No meal diary: only pantry uses and cooked recipes count.",
     "fuel_saved": "Health data saved",
     "fuel_status_error": "Health data unavailable",
