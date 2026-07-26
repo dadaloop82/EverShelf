@@ -909,6 +909,23 @@ try {
             recipeFromIngredient($db);
             break;
 
+        // ===== HEALTH / FUEL MODE =====
+        case 'health_status':
+            healthStatusAction($db);
+            break;
+        case 'health_ingest':
+            healthIngestAction($db);
+            break;
+        case 'health_profile_save':
+            healthProfileSaveAction($db);
+            break;
+        case 'health_bridge_token_create':
+            healthBridgeTokenCreateAction($db);
+            break;
+        case 'health_unlink':
+            healthUnlinkAction($db);
+            break;
+
         // ===== BRING! SHOPPING LIST =====
         case 'bring_list':
             bringGetList();
@@ -6053,6 +6070,7 @@ function getServerSettings(): void {
         'pref_healthy' => env('PREF_HEALTHY', 'false') === 'true',
         'pref_opened' => env('PREF_OPENED', 'false') === 'true',
         'pref_zerowaste' => env('PREF_ZEROWASTE', 'false') === 'true',
+        'pref_fuel' => env('PREF_FUEL', 'false') === 'true',
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? explode(',', env('APPLIANCES', '')) : [],
         'camera_facing' => env('CAMERA_FACING', 'environment'),
@@ -6193,6 +6211,7 @@ function saveSettings(): void {
         'pref_healthy'    => 'PREF_HEALTHY',
         'pref_opened'     => 'PREF_OPENED',
         'pref_zerowaste'  => 'PREF_ZEROWASTE',
+        'pref_fuel'       => 'PREF_FUEL',
         'scale_enabled'   => 'SCALE_ENABLED',
         'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
@@ -7792,6 +7811,67 @@ function recipeEnrichIngredientsFromPantry(PDO $db, array &$ingredients, array $
     unset($ing);
 }
 
+// ===== HEALTH / FUEL MODE API =====
+function healthStatusAction(PDO $db): void {
+    echo json_encode(healthStatusPayload($db));
+}
+
+function healthIngestAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+    // Allow { daily: {...} } or flat payload
+    $payloadIn = isset($input['daily']) && is_array($input['daily']) ? $input['daily'] : $input;
+    if (isset($input['profile']) && is_array($input['profile'])) {
+        healthSaveProfile($db, $input['profile']);
+    }
+    $defaultSource = evershelfProvidedHealthToken() !== '' ? 'bridge' : 'manual';
+    $normalized = healthNormalizeDailyPayload($payloadIn, $defaultSource);
+    $daily = healthUpsertDaily($db, $normalized, $payloadIn);
+    EverLog::info('health_ingest', ['date' => $daily['date'] ?? '?', 'source' => $daily['source'] ?? '?']);
+    echo json_encode([
+        'success' => true,
+        'daily' => $daily,
+        'budget_preview' => computeMealBudget($db, 'pranzo', []),
+    ]);
+}
+
+function healthProfileSaveAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+    $profile = healthSaveProfile($db, $input);
+    echo json_encode(['success' => true, 'profile' => $profile]);
+}
+
+function healthBridgeTokenCreateAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $label = trim((string)($input['label'] ?? 'Health Bridge'));
+    $created = healthCreateBridgeToken($db, $label);
+    EverLog::info('health_bridge_token_create', ['id' => $created['id']]);
+    echo json_encode(['success' => true, 'token' => $created]);
+}
+
+function healthUnlinkAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $tokenId = isset($input['token_id']) ? (int)$input['token_id'] : null;
+    $clearDaily = !empty($input['clear_daily']);
+    $revoked = healthRevokeBridgeToken($db, $tokenId > 0 ? $tokenId : null);
+    if ($clearDaily) {
+        $db->exec('DELETE FROM health_daily');
+    }
+    EverLog::info('health_unlink', ['revoked' => $revoked, 'clear_daily' => $clearDaily]);
+    echo json_encode([
+        'success' => true,
+        'revoked' => $revoked,
+        'status' => healthStatusPayload($db),
+    ]);
+}
+
 /**
  * Calendar-day delta for inventory expiry in SQL.
  * Must NOT use julianday('now') with time — that makes "tomorrow" look like ~0.5 days
@@ -8057,7 +8137,8 @@ function generateRecipe(PDO $db): void {
         'scadenze' => 'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
         'salutare' => 'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
         'opened' => 'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
-        'zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.'
+        'zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
+        'fuel' => 'A RITMO MIO (Fuel Mode): adatta calorie/macro del pasto al MEAL BUDGET sotto (dati salute + profilo).',
     ];
     foreach ($options as $opt) {
         if (isset($optionLabels[$opt])) {
@@ -8068,6 +8149,13 @@ function generateRecipe(PDO $db): void {
     $extraRulesText = '';
     if (!empty($extraRules)) {
         $extraRulesText = "\n\n⚠️ PREFERENZE OBBLIGATORIE (RISPETTALE SEMPRE, non sono suggerimenti):\n" . implode("\n", array_map(fn($r) => "→ $r", $extraRules));
+    }
+
+    $fuelBudget = null;
+    $fuelText = '';
+    if (in_array('fuel', $options, true)) {
+        $fuelBudget = computeMealBudget($db, $mealType, $options);
+        $fuelText = healthFuelPromptBlock($fuelBudget);
     }
     
     // Appliances
@@ -8203,7 +8291,7 @@ function generateRecipe(PDO $db): void {
 
     $prompt = <<<PROMPT
 You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.
-{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+{$extraRulesText}{$fuelText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto. Non inventare date di scadenza: usa SOLO quelle scritte in DISPENSA (es. «SCADE DOMANI (2026-07-27)»). Stesso nome con date diverse = lotti diversi → usa il lotto con la data più vicina.
@@ -8256,6 +8344,9 @@ PROMPT;
 
     if ($recipe && !empty($recipe['title'])) {
         $removed = recipePostProcessGenerated($db, $recipe, $items);
+        if ($fuelBudget) {
+            $recipe['fuel_budget'] = $fuelBudget;
+        }
 
         EverLog::info('recipe generated', ['title' => $recipe['title'] ?? '?', 'meal' => $mealType, 'persons' => $persons, 'ingredients' => count($recipe['ingredients'] ?? []), 'shopping_suggestions' => count($removed)]);
         echo json_encode(['success' => true, 'recipe' => $recipe]);
@@ -8683,9 +8774,23 @@ function generateRecipeStream(PDO $db): void {
     }
 
     $extraRules = [];
-    $optionLabels = ['veloce'=>'VELOCE: max 15-20 min totali.','pocafame'=>'POCA FAME: porzione leggera, snack o insalata.','scadenze'=>'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.','salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.','opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].','zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.'];
+    $optionLabels = [
+        'veloce'=>'VELOCE: max 15-20 min totali.',
+        'pocafame'=>'POCA FAME: porzione leggera, snack o insalata.',
+        'scadenze'=>'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
+        'salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
+        'opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
+        'zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
+        'fuel'=>'A RITMO MIO (Fuel Mode): adatta calorie/macro del pasto al MEAL BUDGET sotto (dati salute + profilo).',
+    ];
     foreach ($options as $opt) { if (isset($optionLabels[$opt])) $extraRules[] = $optionLabels[$opt]; }
     $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
+    $fuelBudget = null;
+    $fuelText = '';
+    if (in_array('fuel', $options, true)) {
+        $fuelBudget = computeMealBudget($db, $mealType, $options);
+        $fuelText = healthFuelPromptBlock($fuelBudget);
+    }
     $appliancesText = _buildAppliancesPrompt($appliances, compact: false);
     $dietaryText    = !empty($dietaryRestrictions) ? "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni." : '';
 
@@ -8797,7 +8902,7 @@ function generateRecipeStream(PDO $db): void {
     $promptLanguageRule = recipeText($lang, 'prompt_lang_rule');
     $promptStepExample = recipeText($lang, 'prompt_step_example');
     $prompt = <<<PROMPT
-You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.{$extraRulesText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
+You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.{$extraRulesText}{$fuelText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
 REGOLE:
 {$mealPlanRule}1. PRIORITÀ: usa prima gli ingredienti scaduti/in scadenza (⚠️🔴🟠), poi quelli [APERTO], poi il resto. Non inventare date di scadenza: usa SOLO quelle scritte in DISPENSA (es. «SCADE DOMANI (2026-07-27)»). Stesso nome con date diverse = lotti diversi → usa il lotto con la data più vicina.
@@ -8939,6 +9044,9 @@ PROMPT;
     }
 
     recipePostProcessGenerated($db, $recipe, $items);
+    if (!empty($fuelBudget)) {
+        $recipe['fuel_budget'] = $fuelBudget;
+    }
 
     $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
     $send('recipe', ['recipe' => $recipe]);

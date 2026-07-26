@@ -392,6 +392,10 @@ function migrateDB(PDO $db): void {
         try { $db->exec("ALTER TABLE products ADD COLUMN name_user_set INTEGER DEFAULT 0"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
+
+    // Fuel Mode / Health Bridge snapshots (#fuel)
+    require_once __DIR__ . '/lib/health.php';
+    healthEnsureTables($db);
 }
 
 /**

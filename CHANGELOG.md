@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Ideas collected during development. No priority or date implied.
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
+- **Health Bridge Android app** — Phone gateway reading Health Connect / Google Fit and posting daily aggregates to `health_ingest`.
+
+## [1.7.61] - 2026-07-26
+
+### Added
+- **Fuel Mode (“A ritmo mio”)** — Optional recipe option that builds a deterministic meal calorie/protein budget from a health profile + today’s activity (manual entry now; Health Bridge later). APIs: `health_status`, `health_ingest`, `health_profile_save`, `health_bridge_token_create`, `health_unlink`. Recipe result shows target vs estimated nutrition match.
+
+### Fixed
+- **Recipe expiry “scade oggi”** — Calendar-day `days_left` (no `julianday('now')` time skew); prompts include real expiry dates and prefer the soonest lot; freezer not treated as urgent.
 
 ## [1.7.60] - 2026-07-25
 

@@ -112,6 +112,21 @@ function evershelfSameOriginSetupActions(): array {
     ];
 }
 
+/** Health Bridge phone gateway may auth health_ingest with X-Health-Token. */
+function evershelfHealthIngestActions(): array {
+    return ['health_ingest'];
+}
+
+function evershelfProvidedHealthToken(): string {
+    if (!empty($_SERVER['HTTP_X_HEALTH_TOKEN'])) {
+        return (string)$_SERVER['HTTP_X_HEALTH_TOKEN'];
+    }
+    if (isset($_GET['health_token'])) {
+        return (string)$_GET['health_token'];
+    }
+    return '';
+}
+
 function evershelfRequireApiAuth(string $action, string $method): void {
     if (!evershelfActionNeedsAuth($action, $method)) {
         return;
@@ -121,6 +136,13 @@ function evershelfRequireApiAuth(string $action, string $method): void {
     }
     if (in_array($action, evershelfSameOriginSetupActions(), true) && evershelfIsSameOriginBrowser()) {
         return;
+    }
+    // Optional Health Bridge token (phone gateway) for ingest only
+    if (in_array($action, evershelfHealthIngestActions(), true)) {
+        $ht = evershelfProvidedHealthToken();
+        if ($ht !== '' && function_exists('healthBridgeTokenValid') && healthBridgeTokenValid(getDB(), $ht)) {
+            return;
+        }
     }
     http_response_code(401);
     header('Content-Type: application/json; charset=utf-8');
@@ -162,7 +184,7 @@ function evershelfSendCorsHeaders(): void {
         }
     }
     header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, X-EverShelf-Request, X-API-Token, X-Settings-Token');
+    header('Access-Control-Allow-Headers: Content-Type, X-EverShelf-Request, X-API-Token, X-Settings-Token, X-Health-Token');
 }
 
 /** Read-only actions allowed in DEMO_MODE. */
@@ -176,7 +198,7 @@ function evershelfDemoReadOnlyActions(): array {
         'consumption_predictions', 'inventory_anomalies', 'inventory_duplicate_loss_checks',
         'recent_popular_products', 'expiry_history', 'food_facts', 'opened_shelf_life',
         'bring_list', 'bring_suggest', 'shopping_list', 'shopping_suggest', 'smart_shopping',
-        'recipes_list', 'chat_list', 'app_settings_get',
+        'recipes_list', 'chat_list', 'app_settings_get', 'health_status',
         'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',
         'backup_list', 'export_inventory',
