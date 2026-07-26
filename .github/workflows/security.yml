@@ -75,3 +75,5 @@ jobs:
         with:
           sarif_file: 'trivy-fs-results.sarif'
           category: 'trivy-fs'
+
+# Rescan trigger: ensure Trivy FS picks up mcp-server lockfile on main
