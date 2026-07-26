@@ -55,9 +55,17 @@ function healthEnsureTables(PDO $db): void {
         carbs_g REAL,
         fat_g REAL,
         servings REAL NOT NULL DEFAULT 1,
+        source TEXT NOT NULL DEFAULT 'recipe',
         created_at TEXT NOT NULL
     )");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_health_meals_date ON health_meals(date)");
+    try {
+        $cols = $db->query("PRAGMA table_info(health_meals)")->fetchAll(PDO::FETCH_ASSOC);
+        $names = array_column($cols, 'name');
+        if (!in_array('source', $names, true)) {
+            $db->exec("ALTER TABLE health_meals ADD COLUMN source TEXT NOT NULL DEFAULT 'recipe'");
+        }
+    } catch (Throwable $e) { /* ignore */ }
 }
 
 function healthTodayDate(): string {
@@ -439,6 +447,13 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
         'meal_share' => round($share, 3),
         'date' => healthTodayDate(),
         'has_fresh_data' => !$noData,
+        'goal' => $goal,
+        'profile' => [
+            'sex' => $profile['sex'] ?? null,
+            'weight_kg' => $profile['weight_kg'] ?? null,
+            'goal' => $goal,
+            'activity_default' => $profile['activity_default'] ?? null,
+        ],
     ];
 }
 
@@ -472,15 +487,22 @@ function healthFuelPromptBlock(array $budget): string {
     $prot = (int)$budget['protein_g'];
     $lo = (int)round($kcal * 0.85);
     $hi = (int)round($kcal * 1.15);
-    return "\n\nMEAL BUDGET / A RITMO MIO (obbligatorio rispettare ±15% sulle kcal; non inventare dati salute):\n"
-        . "- intent: {$budget['intent']} ({$budget['label']})\n"
+    $goal = $budget['goal'] ?? 'maintain';
+    $goalLine = match ($goal) {
+        'lose' => 'obiettivo profilo: DIMAGRIMENTO (deficit controllato, priorità proteine e volume verdure)',
+        'gain' => 'obiettivo profilo: MASSA (surplus leggero, proteine alte, carb sufficienti)',
+        default => 'obiettivo profilo: MANTENIMENTO (equilibrio kcal/macro)',
+    };
+    return "\n\nMEAL BUDGET / A RITMO MIO (obbligatorio: ricetta guidata da profilo biologico + obiettivo + attività di oggi; rispetta ±15% sulle kcal; non inventare dati salute):\n"
+        . "- {$goalLine}\n"
+        . "- intent pasto oggi: {$budget['intent']} ({$budget['label']})\n"
         . "- target_kcal per porzione: {$kcal} (accettabile {$lo}–{$hi})\n"
         . "- protein_g: ≥{$prot}\n"
         . "- carbs: {$budget['carbs']}; fat: {$budget['fat']}\n"
         . "- TDEE stimato oggi: {$budget['tdee']} kcal"
         . $todayLine
         . $notes
-        . "\nIn nutrition_note spiega in 1 frase come il piatto risponde a questo budget. I valori in `nutrition` devono avvicinarsi al target.";
+        . "\nCostruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico). In nutrition_note spiega in 1 frase come risponde a obiettivo+attività. I valori in `nutrition` devono avvicinarsi al target.";
 }
 
 function healthHashToken(string $token): string {
@@ -587,6 +609,7 @@ function healthGetMealsForDate(PDO $db, string $date): array {
             'carbs_g' => $r['carbs_g'] !== null ? (float)$r['carbs_g'] : null,
             'fat_g' => $r['fat_g'] !== null ? (float)$r['fat_g'] : null,
             'servings' => (float)$r['servings'],
+            'source' => $r['source'] ?? 'recipe',
             'created_at' => $r['created_at'],
         ];
     }, $rows);
@@ -608,14 +631,22 @@ function healthMealsTotals(array $meals): array {
 }
 
 /**
- * Log a consumed meal (closed-loop Fuel Mode).
- * @return array{success:bool,meal?:array,error?:string,eaten_today?:array,remaining_kcal?:int|null}
+ * Log consumed meal from EverShelf only (recipe cook or inventory use) — no manual diary.
+ * Recipe: one entry per title/day. Use: additive per product use.
+ * @return array{success:bool,meal?:array,error?:string,eaten_today?:array,remaining_kcal?:int|null,skipped?:bool}
  */
 function healthLogMeal(PDO $db, array $input): array {
     healthEnsureTables($db);
+    if (env('HEALTH_ENABLED', 'false') !== 'true') {
+        return ['success' => false, 'error' => 'health_disabled'];
+    }
     $title = trim((string)($input['title'] ?? ''));
     if ($title === '') {
         return ['success' => false, 'error' => 'title_required'];
+    }
+    $source = strtolower(trim((string)($input['source'] ?? 'recipe')));
+    if (!in_array($source, ['recipe', 'use'], true)) {
+        $source = 'recipe';
     }
     $meal = strtolower(trim((string)($input['meal'] ?? 'pranzo')));
     $allowed = ['colazione', 'pranzo', 'cena', 'dolce', 'succo', 'altro'];
@@ -633,6 +664,26 @@ function healthLogMeal(PDO $db, array $input): array {
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         $date = healthTodayDate();
     }
+
+    // Recipe: log once per title/day (first ingredient use wins)
+    if ($source === 'recipe') {
+        $dup = $db->prepare('SELECT id FROM health_meals WHERE date = ? AND source = ? AND title = ? LIMIT 1');
+        $dup->execute([$date, 'recipe', mb_substr($title, 0, 200)]);
+        if ($dup->fetchColumn()) {
+            $meals = healthGetMealsForDate($db, $date);
+            $eaten = healthMealsTotals($meals);
+            $budget = computeMealBudget($db, $meal === 'altro' ? 'pranzo' : $meal, []);
+            $tdee = (int)($budget['tdee'] ?? 0);
+            return [
+                'success' => true,
+                'skipped' => true,
+                'eaten_today' => $eaten,
+                'remaining_kcal' => $tdee > 0 ? max(0, $tdee - (int)round($eaten['kcal'])) : null,
+                'tdee' => $tdee,
+            ];
+        }
+    }
+
     $kcal = isset($input['kcal']) && $input['kcal'] !== '' && $input['kcal'] !== null
         ? (float)$input['kcal'] * $servings : null;
     $prot = isset($input['protein_g']) && $input['protein_g'] !== '' && $input['protein_g'] !== null
@@ -644,9 +695,9 @@ function healthLogMeal(PDO $db, array $input): array {
 
     $now = date('c');
     $db->prepare('INSERT INTO health_meals
-        (date, meal, title, kcal, protein_g, carbs_g, fat_g, servings, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?)')
-        ->execute([$date, $meal, mb_substr($title, 0, 200), $kcal, $prot, $carbs, $fat, $servings, $now]);
+        (date, meal, title, kcal, protein_g, carbs_g, fat_g, servings, source, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)')
+        ->execute([$date, $meal, mb_substr($title, 0, 200), $kcal, $prot, $carbs, $fat, $servings, $source, $now]);
     $id = (int)$db->lastInsertId();
     $meals = healthGetMealsForDate($db, $date);
     $eaten = healthMealsTotals($meals);
@@ -664,10 +715,105 @@ function healthLogMeal(PDO $db, array $input): array {
             'carbs_g' => $carbs,
             'fat_g' => $fat,
             'servings' => $servings,
+            'source' => $source,
             'created_at' => $now,
         ],
         'eaten_today' => $eaten,
         'remaining_kcal' => $tdee > 0 ? max(0, $tdee - (int)round($eaten['kcal'])) : null,
         'tdee' => $tdee,
+    ];
+}
+
+/**
+ * Estimate kcal from a pantry use (not recipe / not waste) and log silently.
+ */
+function healthLogInventoryUse(PDO $db, int $productId, float $qty, string $notes, ?array $prodInfo = null): void {
+    if (env('HEALTH_ENABLED', 'false') !== 'true' || $productId <= 0 || $qty <= 0) {
+        return;
+    }
+    if ($notes !== '' && (str_starts_with($notes, 'Ricetta:') || str_starts_with($notes, 'Recipe:'))) {
+        return; // recipe nutrition logged separately when cooking
+    }
+    if (function_exists('_isWasteNotes') && _isWasteNotes($notes)) {
+        return;
+    }
+    if (!$prodInfo) {
+        $stmt = $db->prepare('SELECT name, category, unit, default_quantity, nutriments_json FROM products WHERE id = ?');
+        $stmt->execute([$productId]);
+        $prodInfo = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+    if (!$prodInfo) {
+        return;
+    }
+    $est = healthEstimateProductMacros($prodInfo, $qty);
+    if ($est['kcal'] === null || $est['kcal'] <= 0) {
+        return;
+    }
+    healthLogMeal($db, [
+        'title' => (string)($prodInfo['name'] ?? 'Uso dispensa'),
+        'meal' => 'altro',
+        'source' => 'use',
+        'kcal' => $est['kcal'],
+        'protein_g' => $est['protein_g'],
+        'carbs_g' => $est['carbs_g'],
+        'fat_g' => $est['fat_g'],
+        'servings' => 1,
+    ]);
+}
+
+/** @return array{kcal:?float,protein_g:?float,carbs_g:?float,fat_g:?float} */
+function healthEstimateProductMacros(array $prod, float $qty): array {
+    $catDefaults = [
+        'frutta' => 52, 'verdura' => 30, 'carne' => 200, 'pesce' => 130, 'latticini' => 150,
+        'pasta' => 350, 'pane' => 265, 'cereali' => 370, 'bevande' => 40, 'condimenti' => 150,
+        'conserve' => 80, 'surgelati' => 100, 'snack' => 480, 'altro' => 150,
+    ];
+    $protDef = [
+        'carne' => 20, 'pesce' => 20, 'latticini' => 8, 'pasta' => 12, 'pane' => 9, 'cereali' => 10, 'altro' => 4,
+    ];
+    $unit = $prod['unit'] ?? 'pz';
+    $defQty = (float)($prod['default_quantity'] ?? 0);
+    $grams = 100.0;
+    if ($unit === 'g') {
+        $grams = $qty;
+    } elseif ($unit === 'kg') {
+        $grams = $qty * 1000;
+    } elseif ($unit === 'ml') {
+        $grams = $qty;
+    } elseif ($unit === 'l') {
+        $grams = $qty * 1000;
+    } elseif (in_array($unit, ['pz', 'conf'], true) && $defQty >= 20) {
+        $grams = $qty * $defQty;
+    } elseif (in_array($unit, ['pz', 'conf'], true)) {
+        $grams = $qty * max(40, $defQty > 0 ? $defQty : 100);
+    }
+
+    $kcal100 = null;
+    $prot100 = null;
+    $carb100 = null;
+    $fat100 = null;
+    if (!empty($prod['nutriments_json'])) {
+        $nm = json_decode((string)$prod['nutriments_json'], true);
+        if (is_array($nm)) {
+            $kcal100 = isset($nm['energy-kcal_100g']) ? (float)$nm['energy-kcal_100g']
+                : (isset($nm['energy_kcal_100g']) ? (float)$nm['energy_kcal_100g'] : null);
+            $prot100 = isset($nm['proteins_100g']) ? (float)$nm['proteins_100g'] : null;
+            $carb100 = isset($nm['carbohydrates_100g']) ? (float)$nm['carbohydrates_100g'] : null;
+            $fat100 = isset($nm['fat_100g']) ? (float)$nm['fat_100g'] : null;
+        }
+    }
+    $cat = strtolower(trim((string)($prod['category'] ?? 'altro')));
+    if ($kcal100 === null) {
+        $kcal100 = (float)($catDefaults[$cat] ?? $catDefaults['altro']);
+    }
+    if ($prot100 === null) {
+        $prot100 = (float)($protDef[$cat] ?? 4);
+    }
+    $factor = $grams / 100.0;
+    return [
+        'kcal' => round($kcal100 * $factor, 1),
+        'protein_g' => round($prot100 * $factor, 1),
+        'carbs_g' => $carb100 !== null ? round($carb100 * $factor, 1) : null,
+        'fat_g' => $fat100 !== null ? round($fat100 * $factor, 1) : null,
     ];
 }

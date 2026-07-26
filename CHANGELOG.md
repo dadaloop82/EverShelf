@@ -16,10 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Health Bridge keep-alive** — persistent notification + battery-optimization exemption so OEMs don’t kill background sync (APK 1.0.3).
-- **“Ho mangiato questa”** — closed-loop Fuel Mode: log a recipe’s nutrition against today’s TDEE; Settings → Health shows eaten / remaining kcal.
+- **Fuel Mode as bio-driven generation** — “A ritmo mio” builds the meal from profile goal + today’s activity + pantry; auto-enabled when Health is on; generate button becomes “Genera a ritmo mio”.
+- **Silent intake from EverShelf only** — recipe cook (once per recipe/day) and pantry “use” (estimated kcal); no manual meal diary.
 
 ### Changed
-- Fuel Mode hint now assumes Health Bridge as primary source (manual override still available).
+- Removed “Ho mangiato questa” (no extra food diary).
 
 ## [1.7.62] - 2026-07-26
 
