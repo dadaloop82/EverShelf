@@ -1150,9 +1150,9 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260716e'; // bump when translations change
+const _I18N_VERSION = '20260726h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
-let _i18nFallback = null;  // Italian fallback (flat)
+let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
 let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español' };
@@ -1203,13 +1203,13 @@ async function loadTranslations(lang) {
     lang = lang || _currentLang;
     try {
         const bust = _I18N_VERSION;
-        // Reload fallback when version changes (avoids stale cached keys)
+        // English is the universal fallback so missing keys never surface as Italian
         if (!_i18nFallback || _i18nLoadedVersion !== bust) {
-            const fbRes = await fetch(`translations/it.json?v=${bust}`);
+            const fbRes = await fetch(`translations/en.json?v=${bust}`);
             if (fbRes.ok) _i18nFallback = _flattenI18n(await fbRes.json());
             _i18nLoadedVersion = bust;
         }
-        if (lang === 'it') {
+        if (lang === 'en') {
             _i18nStrings = _i18nFallback;
         } else {
             const res = await fetch(`translations/${encodeURIComponent(lang)}.json?v=${bust}`);
@@ -4226,7 +4226,7 @@ function onShoppingModeChange(value) {
     s.shopping_mode = value;
     saveSettingsToStorage(s);
     _saveSettingToServer({ shopping_mode: value }).then((ok) => {
-        if (ok) showToast(value === 'bring' ? 'Bring! attivato' : 'Lista spesa interna attivata', 'success');
+        if (ok) showToast(value === 'bring' ? t('settings.shopping.mode_bring_on') : t('settings.shopping.mode_internal_on'), 'success');
         _applyShoppingListLabels();
     });
 }
@@ -4522,36 +4522,51 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     if (timeoutMs > 0 && typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
         opts.signal = AbortSignal.timeout(timeoutMs);
     }
-    let res;
-    try {
-        res = await fetch(url, opts);
-        // Server responded → reset failure counter and hide overlay if it was showing
-        if (_networkDown) _hideNetworkOverlay(true);
-        _networkFailCount = 0;
-    } catch (fetchErr) {
-        // Network-level failure (no route to host, Wi-Fi down, etc.)
-        _networkFailCount++;
-        if (_networkFailCount >= _NETWORK_FAIL_THRESHOLD) {
-            _showNetworkOverlay();
+    const maxAttempts = 3;
+    let data = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        let res;
+        try {
+            res = await fetch(url, opts);
+            // Server responded → reset failure counter and hide overlay if it was showing
+            if (_networkDown) _hideNetworkOverlay(true);
+            _networkFailCount = 0;
+        } catch (fetchErr) {
+            // Network-level failure (no route to host, Wi-Fi down, etc.)
+            _networkFailCount++;
+            if (_networkFailCount >= _NETWORK_FAIL_THRESHOLD) {
+                _showNetworkOverlay();
+            }
+            throw fetchErr;
         }
-        throw fetchErr;
+        try {
+            data = await res.json();
+        } catch (_) {
+            data = null;
+        }
+        const isDbBusy = res.status === 503 && data && data.error === 'database_busy';
+        if (isDbBusy && attempt < maxAttempts) {
+            remoteLog('API_RETRY', `${action} database_busy attempt ${attempt}/${maxAttempts}`);
+            await new Promise(r => setTimeout(r, 350 * attempt));
+            continue;
+        }
+        if (!res.ok) {
+            remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
+            if (res.status === 401) {
+                window._apiTokenRequired = true;
+                if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
+            }
+            // Report HTTP 5xx as server errors — skip expected SQLite busy (already retried)
+            if (res.status >= 500 && !isDbBusy) {
+                reportError({
+                    type:    'api-server-error',
+                    message: `API ${action} returned HTTP ${res.status}`,
+                    context: { action, status: res.status },
+                });
+            }
+        }
+        break;
     }
-    if (!res.ok) {
-        remoteLog('API_ERROR', `${action} HTTP ${res.status}`);
-        if (res.status === 401) {
-            window._apiTokenRequired = true;
-            if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
-        }
-        // Report HTTP 5xx as server errors (not 4xx which are usually user errors)
-        if (res.status >= 500) {
-            reportError({
-                type:    'api-server-error',
-                message: `API ${action} returned HTTP ${res.status}`,
-                context: { action, status: res.status },
-            });
-        }
-    }
-    const data = await res.json();
     // Keep local caches fresh for offline use (only ever written when server responds successfully)
     if (action === 'inventory_list' && data && Array.isArray(data.inventory)) {
         _offlineCacheSet(data.inventory);
@@ -4569,7 +4584,7 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     if (data && data.error) {
         remoteLog('API_FAIL', `${action}: ${data.error}`);
     }
-    return data;
+    return data || { success: false, error: 'invalid_response' };
 }
 
 // ===== PAGE NAVIGATION =====
@@ -8379,6 +8394,17 @@ function _extractEanCandidates(text) {
     return found;
 }
 
+/** Cap scan canvas so getImageData cannot OOM on high-res Android cameras. */
+function _capScanCanvasSize(width, height, maxSide = 1280) {
+    const side = Math.max(width, height);
+    if (!width || !height || side <= maxSide) return { width, height };
+    const scale = maxSide / side;
+    return {
+        width: Math.max(1, Math.round(width * scale)),
+        height: Math.max(1, Math.round(height * scale)),
+    };
+}
+
 // Build preprocessed crop frames for ZBar (rotates through variants)
 function _buildScanCropFrame(videoEl, frameCount) {
     const vw = videoEl.videoWidth;
@@ -8397,8 +8423,9 @@ function _buildScanCropFrame(videoEl, frameCount) {
     const sh = Math.round(vh * v.h);
     const sx = Math.round(vw * v.x);
     const sy = Math.round(vh * v.y);
-    canvas.width = Math.round(sw * v.scale);
-    canvas.height = Math.round(sh * v.scale);
+    const sized = _capScanCanvasSize(Math.round(sw * v.scale), Math.round(sh * v.scale));
+    canvas.width = sized.width;
+    canvas.height = sized.height;
     ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     if (v.enhance || _offlineMode || !navigator.onLine || isFrontCamera()) {
         enhanceCanvasForBarcode(ctx, canvas.width, canvas.height);
@@ -8417,8 +8444,9 @@ function _captureDigitStrip(videoEl) {
     const sx = Math.round((vw - cropW) / 2);
     const sy = Math.round(vh * 0.2);
     const scale = 2;
-    canvas.width = cropW * scale;
-    canvas.height = cropH * scale;
+    const sized = _capScanCanvasSize(cropW * scale, cropH * scale);
+    canvas.width = sized.width;
+    canvas.height = sized.height;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(videoEl, sx, sy, cropW, cropH, 0, 0, canvas.width, canvas.height);
     enhanceCanvasForBarcode(ctx, canvas.width, canvas.height);
@@ -8751,7 +8779,15 @@ function startQuaggaScanner(videoEl, isPrimary = true) {
 
 // Enhance low-quality camera frames for better barcode recognition
 function enhanceCanvasForBarcode(ctx, w, h) {
-    const imageData = ctx.getImageData(0, 0, w, h);
+    // ~1.2MP cap — getImageData on full 4K frames OOMs Android WebViews (#216)
+    const MAX_PIXELS = 1200000;
+    if (!w || !h || w * h > MAX_PIXELS) return;
+    let imageData;
+    try {
+        imageData = ctx.getImageData(0, 0, w, h);
+    } catch (_) {
+        return;
+    }
     const d = imageData.data;
     // Convert to high-contrast grayscale
     for (let i = 0; i < d.length; i += 4) {
@@ -8764,7 +8800,9 @@ function enhanceCanvasForBarcode(ctx, w, h) {
         gray = gray < 140 ? 0 : 255;
         d[i] = d[i+1] = d[i+2] = gray;
     }
-    ctx.putImageData(imageData, 0, 0);
+    try {
+        ctx.putImageData(imageData, 0, 0);
+    } catch (_) { /* ignore */ }
 }
 
 function stopScanner() {
@@ -13169,7 +13207,7 @@ function renderProductsList(products) {
                 ${p.brand ? `<div class="inv-brand">${escapeHtml(p.brand)}</div>` : ''}
                 <div class="inv-meta">
                     ${p.barcode ? `<span class="inv-badge" style="background:#f3f4f6;color:#374151">📊 ${p.barcode}</span>` : ''}
-                    <span class="inv-badge" style="background:#f3f4f6;color:#374151">${catIcon} ${p.category || 'Non categorizzato'}</span>
+                    <span class="inv-badge" style="background:#f3f4f6;color:#374151">${catIcon} ${p.category || t('common.uncategorized')}</span>
                 </div>
             </div>
         </div>`;
@@ -17716,7 +17754,7 @@ async function addRecipeShoppingSuggestions() {
         const payload = {
             items: items.map(s => ({
                 name: s.name,
-                specification: s.qty ? `Da ricetta · ${s.qty}` : 'Da ricetta',
+                specification: s.qty ? t('recipes.from_recipe_qty', { qty: s.qty }) : t('recipes.from_recipe'),
             })),
             listUUID: typeof shoppingListUUID !== 'undefined' ? shoppingListUUID : undefined,
         };
@@ -17863,9 +17901,9 @@ async function renderRecipe(r) {
             let match = '';
             if (kcal != null && target > 0) {
                 const pct = Math.round((kcal / target) * 100);
-                match = ` · ${pct}% ${t('recipes.fuel_match') || 'del target'}`;
+                match = ` · ${pct}% ${t('recipes.fuel_match')}`;
             }
-            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || 'A ritmo mio')} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}</div>`;
+            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || t('recipes.opt_fuel'))} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}</div>`;
         }
         html += `<div class="recipe-nutrition-grid">
                 <div class="recipe-nutrition-item">

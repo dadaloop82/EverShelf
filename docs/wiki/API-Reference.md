@@ -241,14 +241,14 @@ Get the current Bring! shopping list.
 Add items to the Bring! list.
 
 ```json
-{ "items": ["Latte", "Pane"] }
+{ "items": ["Milk", "Bread"] }
 ```
 
 ### `bring_remove` — POST
 Remove an item from the Bring! list.
 
 ```json
-{ "name": "Latte" }
+{ "name": "Milk" }
 ```
 
 ### `smart_shopping` — GET

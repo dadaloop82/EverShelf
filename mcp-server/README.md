@@ -20,7 +20,7 @@ The MCP server talks to the same REST API as the web UI (Corporate UI v1.7.57+, 
 
 ## Requirements
 
-- Node.js **18+**
+- Node.js **20+**
 - Running EverShelf instance (self-hosted)
 - `API_TOKEN` on the server if you enabled API authentication
 

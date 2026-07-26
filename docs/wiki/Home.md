@@ -19,6 +19,9 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [Configuration](Configuration) | `.env` reference — all options explained |
 | [Features](Features) | Complete feature documentation |
 | [API Reference](API-Reference) | All REST endpoints, parameters, and responses |
+| [Health Bridge & Fuel Mode](Health) | Phone activity sync and bio-driven recipes |
+| [Home Assistant](Home-Assistant) | HACS integration, sensors, services |
+| [MCP](MCP) | Model Context Protocol server for AI agents |
 | [Android Kiosk](Android-Kiosk) | Tablet kiosk app setup and usage |
 | [Scale Gateway](Scale-Gateway) | BLE smart scale integration |
 | [Translations](Translations) | Adding and editing language files |
@@ -34,8 +37,9 @@ EverShelf is a **self-hosted pantry management system** that runs entirely on yo
 - Tracks food inventory across multiple storage locations (pantry, fridge, freezer, custom)
 - Scans barcodes and uses **Google Gemini AI** to identify products from photos
 - Suggests recipes based on what's in your pantry — especially items about to expire
+- **Fuel Mode** — optional bio-driven recipes from Health Bridge activity + your profile
 - Predicts what you'll need to buy before you run out
-- Integrates with the **Bring!** shopping list app
+- Integrates with the **Bring!** shopping list app and **Home Assistant** (HACS)
 - Supports a **BLE smart scale** for weight-based tracking
 - Runs as a **Progressive Web App** installable on any device
 - Optionally pairs with a dedicated **Android kiosk tablet app**
