@@ -23,7 +23,11 @@ object SyncHelper {
             return Result.failure(IllegalStateException(payload.optString("error")))
         }
         val res = EverShelfClient.ingest(Prefs.url(ctx), Prefs.token(ctx), payload)
-        res.onSuccess {
+        res.onSuccess { json ->
+            val resolved = json.optString("_resolved_base", "")
+            if (resolved.isNotBlank() && resolved != Prefs.url(ctx)) {
+                Prefs.saveServer(ctx, resolved, Prefs.token(ctx))
+            }
             Prefs.saveLastSync(ctx, payload.toString())
             Log.i(TAG, "sync ok")
         }.onFailure {
