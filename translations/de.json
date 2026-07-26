@@ -523,7 +523,9 @@
         "parse_error": "Could not parse the recipe from AI. Please try again.",
         "frozen_badge": "Tiefkühl — aus dem Gefrierfach",
         "from_recipe": "Aus Rezept",
-        "from_recipe_qty": "Aus Rezept · {qty}"
+        "from_recipe_qty": "Aus Rezept · {qty}",
+        "fuel_eaten_today": "heute bereits ~{kcal} kcal verbraucht",
+        "fuel_remaining": "noch {kcal} kcal heute"
     },
     "shopping": {
         "title": "🛒 Einkaufsliste",

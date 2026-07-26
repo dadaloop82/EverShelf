@@ -523,7 +523,9 @@
         "ing_use_all_note": "use all (<5% of full package left)",
         "frozen_badge": "frozen — from freezer",
         "from_recipe": "From recipe",
-        "from_recipe_qty": "From recipe · {qty}"
+        "from_recipe_qty": "From recipe · {qty}",
+        "fuel_eaten_today": "already eaten today ~{kcal} kcal",
+        "fuel_remaining": "{kcal} kcal left today"
     },
     "shopping": {
         "title": "🛒 Shopping List",

@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260726h'; // bump when translations change
+const _I18N_VERSION = '20260726i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -17903,7 +17903,15 @@ async function renderRecipe(r) {
                 const pct = Math.round((kcal / target) * 100);
                 match = ` · ${pct}% ${t('recipes.fuel_match')}`;
             }
-            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || t('recipes.opt_fuel'))} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}</div>`;
+            let eatenHint = '';
+            const eaten = fb.eaten_today;
+            if (eaten && Number(eaten.count) > 0) {
+                const ek = Math.round(Number(eaten.kcal) || 0);
+                const rem = fb.remaining_kcal != null ? Math.round(Number(fb.remaining_kcal)) : null;
+                eatenHint = ` · ${t('recipes.fuel_eaten_today', { kcal: ek })}`;
+                if (rem != null) eatenHint += ` · ${t('recipes.fuel_remaining', { kcal: rem })}`;
+            }
+            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || t('recipes.opt_fuel'))} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}${eatenHint}</div>`;
         }
         html += `<div class="recipe-nutrition-grid">
                 <div class="recipe-nutrition-item">

@@ -523,7 +523,9 @@
         "location_fallback_toast": "Stock found in {location} (not in {requested})",
         "frozen_badge": "congelado — del congelador",
         "from_recipe": "De receta",
-        "from_recipe_qty": "De receta · {qty}"
+        "from_recipe_qty": "De receta · {qty}",
+        "fuel_eaten_today": "ya consumido hoy ~{kcal} kcal",
+        "fuel_remaining": "quedan {kcal} kcal hoy"
     },
     "shopping": {
         "title": "🛒 Lista de la compra",

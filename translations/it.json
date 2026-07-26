@@ -523,7 +523,9 @@
         "ing_stock_line": "Hai {have} · restano {remain} dopo l'uso",
         "ing_use_all_note": "uso totale (<5% della confezione intera)",
         "from_recipe": "Da ricetta",
-        "from_recipe_qty": "Da ricetta · {qty}"
+        "from_recipe_qty": "Da ricetta · {qty}",
+        "fuel_eaten_today": "già consumato oggi ~{kcal} kcal",
+        "fuel_remaining": "restano {kcal} kcal oggi"
     },
     "shopping": {
         "title": "🛒 Lista della Spesa",

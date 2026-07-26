@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.65] - 2026-07-26
+
+### Changed
+- **Fuel Mode meal budget** — subtracts today’s silent intake (cooked recipes + pantry uses) and redistributes remaining kcal/protein across meals still ahead, so “at my pace” recipes don’t overload the day.
+
 ## [1.7.64] - 2026-07-26
 
 ### Added

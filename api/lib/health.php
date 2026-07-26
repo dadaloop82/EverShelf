@@ -384,14 +384,41 @@ function healthEstimateTdee(array $profile, ?array $daily): int {
 }
 
 /**
- * Compute a deterministic meal budget for Fuel Mode.
+ * Meal types already “covered” today (have at least one logged meal with kcal).
+ * Pantry "use" / altro does not mark a main meal as done.
  *
- * @return array{available:bool,reason?:string,intent:string,label:string,target_kcal:int,protein_g:int,carbs:string,fat:string,notes:string[],daily:?array,tdee:int,meal_share:float}
+ * @param list<array> $meals
+ * @return list<string>
+ */
+function healthMealsCoveredTypes(array $meals): array {
+    $covered = [];
+    foreach ($meals as $m) {
+        $type = strtolower(trim((string)($m['meal'] ?? '')));
+        if ($type === '' || $type === 'altro') {
+            continue;
+        }
+        if ((float)($m['kcal'] ?? 0) <= 0) {
+            continue;
+        }
+        $covered[$type] = true;
+    }
+    return array_keys($covered);
+}
+
+/**
+ * Compute a deterministic meal budget for Fuel Mode.
+ * Subtracts what was already eaten/cooked today (health_meals) so the next
+ * recipe does not overload daily kcal/protein.
+ *
+ * @return array{available:bool,reason?:string,intent:string,label:string,target_kcal:int,protein_g:int,carbs:string,fat:string,notes:string[],daily:?array,tdee:int,meal_share:float,eaten_today?:array,remaining_kcal?:int,target_kcal_raw?:int}
  */
 function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []): array {
     healthEnsureTables($db);
     $profile = healthGetProfile($db);
     $daily = healthGetDaily($db, healthTodayDate());
+    $mealsToday = healthGetMealsForDate($db, healthTodayDate());
+    $eaten = healthMealsTotals($mealsToday);
+    $coveredTypes = healthMealsCoveredTypes($mealsToday);
 
     $shares = [
         'colazione' => 0.25,
@@ -460,12 +487,70 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
         $notes[] = 'Extra salutare: prediligi verdure, cereali integrali, pochi grassi saturi.';
     }
 
-    $targetKcal = (int)max(180, round($tdee * $share));
-    // Protein: ~1.6–2.0 g/kg on ricarica, else ~1.2–1.4; distribute by meal share
+    $targetKcalRaw = (int)max(180, round($tdee * $share));
+
+    $eatenKcal = (float)($eaten['kcal'] ?? 0);
+    $eatenProt = (float)($eaten['protein_g'] ?? 0);
+    $remainingKcal = (int)max(0, round($tdee - $eatenKcal));
+
+    // Redistribute remaining kcal across meals still ahead (+ current meal)
+    $mainShares = [
+        'colazione' => $shares['colazione'],
+        'pranzo' => $shares['pranzo'],
+        'cena' => $shares['cena'],
+    ];
+    $pool = [];
+    foreach ($mainShares as $type => $w) {
+        if ($type === $meal) {
+            $pool[$type] = $share;
+            continue;
+        }
+        if (in_array($type, $coveredTypes, true)) {
+            continue;
+        }
+        $pool[$type] = $w;
+    }
+    if (!isset($mainShares[$meal])) {
+        $pool = [$meal => $share];
+        foreach ($mainShares as $type => $w) {
+            if (!in_array($type, $coveredTypes, true)) {
+                $pool[$type] = $w;
+            }
+        }
+    }
+    $poolSum = array_sum($pool);
+    if ($poolSum <= 0) {
+        $pool = [$meal => 1.0];
+        $poolSum = 1.0;
+    }
+    $mealWeight = $pool[$meal] ?? $share;
+    if ($remainingKcal <= 0) {
+        $targetKcal = 120;
+        $intent = 'leggero';
+        $label = 'Budget giornaliero esaurito';
+        $notes[] = 'Budget kcal giornaliero già raggiunto/superato: proponi un pasto molto leggero (volume verdure, poche kcal).';
+    } else {
+        $targetKcal = (int)max(150, round($remainingKcal * ($mealWeight / $poolSum)));
+        if ($remainingKcal < 200) {
+            $targetKcal = (int)max(120, $remainingKcal);
+            $intent = 'leggero';
+            $label = 'Quasi a target giornaliero';
+            $notes[] = 'Hai già consumato quasi tutto il budget giornaliero: pasto leggero / volume verdure.';
+        } elseif ($eatenKcal >= 50) {
+            $notes[] = 'Già consumato oggi ~' . (int)round($eatenKcal) . ' kcal'
+                . ((int)round($eatenProt) > 0 ? (' / ~' . (int)round($eatenProt) . ' g proteine') : '')
+                . ' — budget di questo pasto ricalcolato sul rimanente (' . $remainingKcal . ' kcal).';
+        }
+    }
+
     $weight = (float)($profile['weight_kg'] ?? $daily['weight_kg'] ?? 70);
     $protPerKg = $intent === 'ricarica' ? 1.8 : ($intent === 'leggero' ? 1.2 : 1.4);
     $dailyProt = (int)round($weight * $protPerKg);
-    $protein = (int)max(12, round($dailyProt * $share));
+    $remainingProt = (int)max(0, round($dailyProt - $eatenProt));
+    $protein = (int)max(10, round($remainingProt * ($mealWeight / $poolSum)));
+    if ($remainingKcal < 200) {
+        $protein = (int)max(8, min($protein, 25));
+    }
 
     $carbs = 'medi';
     $fat = 'moderati';
@@ -479,11 +564,22 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
 
     $available = !$noData || !empty($profile['weight_kg']) || !empty($profile['daily_kcal_override']);
 
+    $eatenTitles = [];
+    foreach (array_slice($mealsToday, 0, 8) as $m) {
+        $t = trim((string)($m['title'] ?? ''));
+        if ($t === '') {
+            continue;
+        }
+        $k = $m['kcal'] !== null ? ((int)round((float)$m['kcal']) . ' kcal') : '? kcal';
+        $eatenTitles[] = $t . ' (' . $k . ')';
+    }
+
     return [
         'available' => $available,
         'intent' => $intent,
         'label' => $label,
         'target_kcal' => $targetKcal,
+        'target_kcal_raw' => $targetKcalRaw,
         'protein_g' => $protein,
         'carbs' => $carbs,
         'fat' => $fat,
@@ -494,6 +590,11 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
         'date' => healthTodayDate(),
         'has_fresh_data' => !$noData,
         'goal' => $goal,
+        'eaten_today' => $eaten,
+        'remaining_kcal' => $remainingKcal,
+        'remaining_protein_g' => $remainingProt,
+        'meals_covered' => $coveredTypes,
+        'eaten_items' => $eatenTitles,
         'profile' => [
             'sex' => $profile['sex'] ?? null,
             'weight_kg' => $profile['weight_kg'] ?? null,
@@ -543,7 +644,25 @@ function healthFuelPromptBlock(array $budget): string {
             $dailyBits[] = 'FC riposo ' . (int)$d['resting_hr'];
         }
     }
-    $todayLine = $dailyBits ? ("\n- oggi: " . implode(', ', $dailyBits)) : '';
+    $todayLine = $dailyBits ? ("\n- oggi (attività): " . implode(', ', $dailyBits)) : '';
+    $eaten = $budget['eaten_today'] ?? null;
+    $eatenLine = '';
+    if (is_array($eaten) && (int)($eaten['count'] ?? 0) > 0) {
+        $eatenLine = "\n- GIÀ CONSUMATO OGGI (ricette cucinate + usi dispensa): ~"
+            . (int)round((float)($eaten['kcal'] ?? 0)) . ' kcal'
+            . ', proteine ~' . (int)round((float)($eaten['protein_g'] ?? 0)) . ' g'
+            . ', carb ~' . (int)round((float)($eaten['carbs_g'] ?? 0)) . ' g'
+            . ', grassi ~' . (int)round((float)($eaten['fat_g'] ?? 0)) . ' g'
+            . ' (' . (int)$eaten['count'] . ' voci)';
+        $items = $budget['eaten_items'] ?? [];
+        if (is_array($items) && $items) {
+            $eatenLine .= "\n- dettagli consumi: " . implode('; ', array_slice($items, 0, 6));
+        }
+        if (isset($budget['remaining_kcal'])) {
+            $eatenLine .= "\n- rimanente giornata: " . (int)$budget['remaining_kcal'] . ' kcal'
+                . (isset($budget['remaining_protein_g']) ? (' / proteine rimanenti ~' . (int)$budget['remaining_protein_g'] . ' g') : '');
+        }
+    }
     $kcal = (int)$budget['target_kcal'];
     $prot = (int)$budget['protein_g'];
     $lo = (int)round($kcal * 0.85);
@@ -554,17 +673,19 @@ function healthFuelPromptBlock(array $budget): string {
         'gain' => 'obiettivo profilo: MASSA (surplus leggero, proteine alte, carb sufficienti)',
         default => 'obiettivo profilo: MANTENIMENTO (equilibrio kcal/macro)',
     };
-    return "\n\nMEAL BUDGET / A RITMO MIO (obbligatorio: ricetta guidata da profilo biologico + obiettivo + attività di oggi; rispetta ±15% sulle kcal; non inventare dati salute):\n"
+    return "\n\nMEAL BUDGET / A RITMO MIO (obbligatorio: ricetta guidata da profilo biologico + obiettivo + attività di oggi + ciò che HAI GIÀ MANGIATO OGGI; rispetta ±15% sulle kcal; non inventare dati salute):\n"
         . "- {$goalLine}\n"
         . "- intent pasto oggi: {$budget['intent']} ({$budget['label']})\n"
-        . "- target_kcal per porzione: {$kcal} (accettabile {$lo}–{$hi})\n"
+        . "- target_kcal per QUESTO pasto (già scontato i consumi di oggi): {$kcal} (accettabile {$lo}–{$hi})\n"
         . "- protein_g: ≥{$prot}\n"
         . "- carbs: {$budget['carbs']}; fat: {$budget['fat']}\n"
-        . "- TDEE stimato oggi: {$budget['tdee']} kcal"
+        . "- TDEE / budget giornaliero: {$budget['tdee']} kcal"
         . $todayLine
+        . $eatenLine
         . $notes
         . "\nCostruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico)."
-        . "\nObbligatorio: campo `fuel_why` (2–4 frasi nella lingua della ricetta) che spiega PERCHÉ hai scelto QUEGLI ingredienti in base a: obiettivo profilo, attività/sonno di oggi, intent del pasto, e vincoli dispensa/scadenze. Cita 2–4 ingredienti concreti e il motivo (es. proteine post-allenamento, carb per ricarica, verdure per volume a basso kcal)."
+        . "\nNON sovraccaricare: se già hai consumato molto oggi, fai un pasto più leggero e bilancia i macro rimanenti."
+        . "\nObbligatorio: campo `fuel_why` (2–4 frasi nella lingua della ricetta) che spiega PERCHÉ hai scelto QUEGLI ingredienti in base a: obiettivo profilo, attività/sonno di oggi, cosa già mangiato oggi, intent del pasto, e vincoli dispensa/scadenze. Cita 2–4 ingredienti concreti e il motivo (es. proteine post-allenamento, carb per ricarica, verdure per volume a basso kcal)."
         . "\nIn nutrition_note una frase sul match kcal/macro. I valori in `nutrition` devono avvicinarsi al target.";
 }
 
@@ -682,13 +803,19 @@ function healthGetMealsForDate(PDO $db, string $date): array {
 function healthMealsTotals(array $meals): array {
     $kcal = 0.0;
     $prot = 0.0;
+    $carbs = 0.0;
+    $fat = 0.0;
     foreach ($meals as $m) {
         $kcal += (float)($m['kcal'] ?? 0);
         $prot += (float)($m['protein_g'] ?? 0);
+        $carbs += (float)($m['carbs_g'] ?? 0);
+        $fat += (float)($m['fat_g'] ?? 0);
     }
     return [
         'kcal' => round($kcal, 1),
         'protein_g' => round($prot, 1),
+        'carbs_g' => round($carbs, 1),
+        'fat_g' => round($fat, 1),
         'count' => count($meals),
     ];
 }
