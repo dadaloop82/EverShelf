@@ -376,7 +376,12 @@
         "throw_all_confirm_msg": "Do you really want to throw away the whole product?",
         "throw_all_confirm_btn": "🗑️ Yes, discard",
         "locations_short": "places",
-        "toast_shopping": "Added to shopping list"
+        "toast_shopping": "Added to shopping list",
+        "use_all_safety_banner": "⚠ Warning",
+        "use_all_safety_headline": "ALL of this product will be used",
+        "use_all_safety_warn": "Stock will be removed from inventory. This is hard to undo. Prefer entering a partial quantity unless the pack is really empty.",
+        "use_all_safety_ack": "I understand — use ALL remaining stock",
+        "use_all_slide_label": "Slide to confirm →"
     },
     "waste": {
         "reason_title": "Why are you discarding it?",

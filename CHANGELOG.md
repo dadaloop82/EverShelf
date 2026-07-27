@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.66] - 2026-07-27
+
+### Fixed
+- **“Use ALL / Finished” mis-taps** — a single inventory row used to skip confirmation entirely (likely how a full pack could be wiped in one tap). Now always requires an acknowledge checkbox + slide-to-confirm, with a large warning that ALL stock will be removed.
+
 ## [1.7.65] - 2026-07-26
 
 ### Changed

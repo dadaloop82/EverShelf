@@ -2218,6 +2218,141 @@ body.server-offline .bottom-nav {
     font-size: 1.15rem;
 }
 
+/* —— Use-all safety confirm (checkbox + slide) —— */
+.use-all-safety {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 2px 8px;
+    text-align: center;
+}
+.use-all-safety-banner {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #fff;
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    border-radius: 12px;
+    padding: 14px 12px;
+    text-transform: uppercase;
+}
+.use-all-safety-headline {
+    margin: 4px 0 0;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--danger, #dc2626);
+    line-height: 1.25;
+}
+.use-all-safety-product {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.use-all-safety-qty {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--danger, #dc2626);
+}
+.use-all-safety-warn {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.use-all-safety-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 12px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    cursor: pointer;
+    user-select: none;
+}
+.use-all-safety-check input {
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--danger, #dc2626);
+}
+.slide-confirm {
+    position: relative;
+    user-select: none;
+    touch-action: none;
+    margin-top: 4px;
+}
+.slide-confirm.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.slide-confirm-track {
+    position: relative;
+    height: 56px;
+    border-radius: 999px;
+    background: rgba(220, 38, 38, 0.12);
+    border: 2px solid var(--danger, #dc2626);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.slide-confirm-label {
+    position: relative;
+    z-index: 1;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--danger, #dc2626);
+    pointer-events: none;
+    padding: 0 56px;
+}
+.slide-confirm-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: rgba(220, 38, 38, 0.28);
+    z-index: 0;
+}
+.slide-confirm-thumb {
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--danger, #dc2626);
+    color: #fff;
+    font-size: 1.4rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    cursor: grab;
+}
+.slide-confirm-thumb:active {
+    cursor: grabbing;
+}
+.slide-confirm.is-done .slide-confirm-track {
+    background: #16a34a;
+    border-color: #16a34a;
+}
+.slide-confirm.is-done .slide-confirm-label {
+    color: #fff;
+}
+.slide-confirm.is-done .slide-confirm-thumb {
+    background: #15803d;
+}
+
 .use-partial {
     background: var(--bg);
     border-radius: var(--radius);

@@ -376,7 +376,12 @@
         "throw_all_confirm_msg": "Voulez-vous vraiment jeter tout le produit ?",
         "throw_all_confirm_btn": "🗑️ Oui, jeter",
         "locations_short": "emplacements",
-        "toast_shopping": "Ajouté à la liste de courses"
+        "toast_shopping": "Ajouté à la liste de courses",
+        "use_all_safety_banner": "⚠ Attention",
+        "use_all_safety_headline": "TOUT ce produit sera consommé",
+        "use_all_safety_warn": "Le stock disparaîtra de l’inventaire. Difficile à annuler. Si le paquet n’est pas vide, saisissez une quantité partielle.",
+        "use_all_safety_ack": "Je comprends — utiliser TOUT le stock restant",
+        "use_all_slide_label": "Glisser pour confirmer →"
     },
     "waste": {
         "reason_title": "Pourquoi le jetez-vous ?",
