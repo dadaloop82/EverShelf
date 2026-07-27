@@ -376,7 +376,12 @@
         "throw_all_confirm_msg": "¿Realmente quieres tirar todo el producto?",
         "throw_all_confirm_btn": "🗑️ Sí, desechar",
         "locations_short": "ubicaciones",
-        "toast_shopping": "Añadido a la lista de la compra"
+        "toast_shopping": "Añadido a la lista de la compra",
+        "use_all_safety_banner": "⚠ Atención",
+        "use_all_safety_headline": "Se usará TODO el producto",
+        "use_all_safety_warn": "El stock desaparecerá del inventario. Difícil de deshacer. Si no está vacío, introduce una cantidad parcial.",
+        "use_all_safety_ack": "Entiendo — usar TODO el stock restante",
+        "use_all_slide_label": "Desliza para confirmar →"
     },
     "waste": {
         "reason_title": "¿Por qué lo tiras?",

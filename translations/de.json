@@ -376,7 +376,12 @@
         "throw_all_confirm_msg": "Möchtest du wirklich das gesamte Produkt entsorgen?",
         "throw_all_confirm_btn": "🗑️ Ja, entsorgen",
         "locations_short": "Orte",
-        "toast_shopping": "Zur Einkaufsliste hinzugefügt"
+        "toast_shopping": "Zur Einkaufsliste hinzugefügt",
+        "use_all_safety_banner": "⚠ Achtung",
+        "use_all_safety_headline": "ALLES von diesem Produkt wird verbraucht",
+        "use_all_safety_warn": "Der Bestand wird aus dem Inventar entfernt. Schwer rückgängig zu machen. Bei Restmenge besser eine Teilmenge eingeben.",
+        "use_all_safety_ack": "Verstanden — gesamten Restbestand verbrauchen",
+        "use_all_slide_label": "Zum Bestätigen schieben →"
     },
     "waste": {
         "reason_title": "Warum wirfst du es weg?",

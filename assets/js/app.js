@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260726i'; // bump when translations change
+const _I18N_VERSION = '20260727a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -12390,20 +12390,138 @@ async function submitUseAll() {
         return;
     }
 
-    // No opened packages → if there is only one item row, it's unambiguous — skip confirm
-    if (items0.length === 1) {
-        _doSubmitUseAll();
-        return;
+    // ALWAYS require slide-to-confirm (even for a single row — skipping was too easy to mis-tap)
+    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit));
+    _showUseAllSlideConfirm(name, qtyStr, _doSubmitUseAll);
+}
+
+/**
+ * Hard-to-misclick confirm for “use ALL / finished”.
+ * Requires: acknowledge checkbox + slide gesture to the end.
+ */
+function _showUseAllSlideConfirm(productName, qtyStr, onConfirm) {
+    const contentEl = document.getElementById('modal-content');
+    const overlayEl = document.getElementById('modal-overlay');
+    let done = false;
+
+    contentEl.innerHTML = `
+        <div class="use-all-safety">
+            <div class="use-all-safety-banner" role="alert">${escapeHtml(t('use.use_all_safety_banner'))}</div>
+            <p class="use-all-safety-headline">${escapeHtml(t('use.use_all_safety_headline'))}</p>
+            <p class="use-all-safety-product">${escapeHtml(productName)}</p>
+            <p class="use-all-safety-qty">${escapeHtml(qtyStr)}</p>
+            <p class="use-all-safety-warn">${escapeHtml(t('use.use_all_safety_warn'))}</p>
+            <label class="use-all-safety-check">
+                <input type="checkbox" id="use-all-ack">
+                <span>${escapeHtml(t('use.use_all_safety_ack'))}</span>
+            </label>
+            <div class="slide-confirm is-disabled" id="use-all-slide" aria-disabled="true">
+                <div class="slide-confirm-track">
+                    <span class="slide-confirm-label">${escapeHtml(t('use.use_all_slide_label'))}</span>
+                    <div class="slide-confirm-fill" id="use-all-slide-fill"></div>
+                    <div class="slide-confirm-thumb" id="use-all-slide-thumb" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">→</div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary full-width" id="use-all-cancel">${escapeHtml(t('confirm.cancel') || 'Cancel')}</button>
+        </div>
+    `;
+    overlayEl.style.display = 'flex';
+
+    const ack = document.getElementById('use-all-ack');
+    const slide = document.getElementById('use-all-slide');
+    const thumb = document.getElementById('use-all-slide-thumb');
+    const fill = document.getElementById('use-all-slide-fill');
+    const track = slide.querySelector('.slide-confirm-track');
+
+    function setEnabled(on) {
+        slide.classList.toggle('is-disabled', !on);
+        slide.setAttribute('aria-disabled', on ? 'false' : 'true');
+        if (!on) {
+            thumb.style.transform = 'translateX(0)';
+            fill.style.width = '0';
+            thumb.setAttribute('aria-valuenow', '0');
+        }
+    }
+    ack.addEventListener('change', () => setEnabled(ack.checked));
+
+    let dragging = false;
+    let maxX = 0;
+    let currentX = 0;
+
+    function measure() {
+        maxX = Math.max(0, track.clientWidth - thumb.offsetWidth - 8);
+    }
+    function setX(x) {
+        currentX = Math.max(0, Math.min(maxX, x));
+        thumb.style.transform = `translateX(${currentX}px)`;
+        fill.style.width = `${currentX + thumb.offsetWidth / 2}px`;
+        thumb.setAttribute('aria-valuenow', String(maxX > 0 ? Math.round((currentX / maxX) * 100) : 0));
+    }
+    function cleanupListeners() {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('touchmove', onPointerMove);
+        window.removeEventListener('touchend', onPointerUp);
+    }
+    function clientX(e) {
+        return (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    }
+    function onPointerDown(e) {
+        if (slide.classList.contains('is-disabled') || done) return;
+        dragging = true;
+        measure();
+        const rect = track.getBoundingClientRect();
+        setX(clientX(e) - rect.left - thumb.offsetWidth / 2);
+        try { thumb.setPointerCapture?.(e.pointerId); } catch (_) {}
+        e.preventDefault();
+    }
+    function onPointerMove(e) {
+        if (!dragging || done) return;
+        const rect = track.getBoundingClientRect();
+        setX(clientX(e) - rect.left - thumb.offsetWidth / 2);
+        if (currentX >= maxX * 0.92) {
+            dragging = false;
+            finish();
+        }
+        e.preventDefault?.();
+    }
+    function onPointerUp() {
+        if (!dragging || done) return;
+        dragging = false;
+        thumb.style.transition = 'transform 0.2s ease';
+        fill.style.transition = 'width 0.2s ease';
+        setX(0);
+        setTimeout(() => {
+            thumb.style.transition = '';
+            fill.style.transition = '';
+        }, 220);
+    }
+    function finish() {
+        if (done) return;
+        done = true;
+        cleanupListeners();
+        measure();
+        setX(maxX);
+        slide.classList.add('is-done');
+        setTimeout(() => {
+            closeModal();
+            onConfirm();
+        }, 180);
     }
 
-    // Multiple rows, no opened packages → standard destructive confirm
-    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit));
-    _showDestructiveConfirm(
-        t('use.use_all_confirm_title') || '✅ Finisci tutto',
-        `${t('use.use_all_confirm_msg') || 'Conferma che hai finito tutto il prodotto:'} "${name}" (${qtyStr})`,
-        _doSubmitUseAll,
-        t('use.use_all_confirm_btn') || '✅ Sì, finito'
-    );
+    document.getElementById('use-all-cancel').addEventListener('click', () => {
+        if (done) return;
+        done = true;
+        cleanupListeners();
+        closeModal();
+    });
+
+    thumb.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    thumb.addEventListener('touchstart', onPointerDown, { passive: false });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
 }
 
 async function _doSubmitUseAll() {
@@ -12516,20 +12634,27 @@ function _confirmThenSubmitUseAllAt(location, isOpenedOnly) {
     const name = currentProduct ? currentProduct.name : '';
     const items = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
     if (isOpenedOnly) {
-        // Finisce solo la confezione aperta — azione leggera, nessun confirm necessario
-        _submitUseAllAt(location, true);
+        // Finish only the opened package — still require an explicit confirm
+        const opened = items.filter(_isOpenedInventoryItem);
+        const row = opened.find(i => i.location === location) || opened[0] || items[0];
+        const qtyStr = stripHtml(formatQuantity(
+            parseFloat(row?.quantity || 0),
+            row?.unit || 'pz',
+            row?.default_quantity,
+            row?.package_unit
+        ));
+        _showUseAllSlideConfirm(
+            `${name} (${t('use.opened_badge')})`,
+            qtyStr,
+            () => _submitUseAllAt(location, true)
+        );
         return;
     }
-    // Finisce tutto — richiede confirm distruttivo
+    // Finish everything — slide confirm (hard to mis-tap)
     const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
     const unit = items[0]?.unit || 'pz';
     const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
-    _showDestructiveConfirm(
-        t('use.use_all_confirm_title') || '✅ Finisci tutto',
-        `${t('use.use_all_confirm_msg') || 'Conferma che hai finito tutto il prodotto:'} "${name}" (${qtyStr})`,
-        () => _submitUseAllAt('__all__', false),
-        t('use.use_all_confirm_btn') || '✅ Sì, finito'
-    );
+    _showUseAllSlideConfirm(name, qtyStr, () => _submitUseAllAt('__all__', false));
 }
 
 async function _submitUseAllAt(location, isOpenedOnly) {
