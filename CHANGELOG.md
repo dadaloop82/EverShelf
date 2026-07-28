@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.68] - 2026-07-28
+
+### Added
+- **`ha_generate_recipe` API** — Home Assistant (and other clients) can generate a full pantry recipe with the same options as the app (`meal`, `persons`, `options` / fuel·veloce·scadenze·…, `meal_plan_type`). Returns structured JSON with `title`, `main_ingredients`, `summary`, plus the full `recipe` object. Pair with HA integration ≥ 1.3.0 (`evershelf.generate_recipe` + event `evershelf_recipe_generated`).
+
+## [1.7.67] - 2026-07-28
+
+### Fixed
+- **Smart shopping false “Presto/Urgente”** — depleted product variants (e.g. “Uova”) no longer stay Urgent when another product in the same shopping family still has stock (e.g. 9 “uova medie”). Family coverage now always applies; the 30-day “recently exhausted” exception was wrongly keeping buy suggestions.
+- **Shopping list cleanup** — internal list removes stale ⚡/🟠 auto-rows when the family is stocked again (Uova/Cipolla/Burro no longer linger as Urgente).
+- **Use ALL / Throw ALL / recipe deplete** — same checkbox + slide-to-confirm safety on banner finish-all, discard-all, throw-all, throw/use quantities that wipe a location, and recipe “use all”.
+
 ## [1.7.66] - 2026-07-27
 
 ### Fixed

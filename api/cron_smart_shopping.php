@@ -85,6 +85,13 @@ try {
             echo '[' . date('Y-m-d H:i:s') . '] Bring! dedupe (final) — removed: ' . ($dedupeFinal['removed'] ?? 0) . "\n";
         }
         } else {
+            $internalCleanup = internalShoppingCleanupObsolete($db);
+            if (isset($internalCleanup['skipped'])) {
+                echo '[' . date('Y-m-d H:i:s') . '] Internal list cleanup skipped: ' . $internalCleanup['skipped'] . "\n";
+            } else {
+                echo '[' . date('Y-m-d H:i:s') . '] Internal list cleanup — removed: ' . ($internalCleanup['removed'] ?? 0)
+                    . '/' . ($internalCleanup['candidates'] ?? 0) . " candidates\n";
+            }
             $internalAdd = internalShoppingAutoAddCritical($db);
             if (isset($internalAdd['skipped'])) {
                 echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add skipped: ' . $internalAdd['skipped'] . "\n";

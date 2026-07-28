@@ -201,6 +201,7 @@ function evershelfDemoReadOnlyActions(): array {
         'bring_list', 'bring_suggest', 'shopping_list', 'shopping_suggest', 'smart_shopping',
         'recipes_list', 'chat_list', 'app_settings_get', 'health_status',
         'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
+        'ha_refresh_prices',
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',
         'backup_list', 'export_inventory',
     ];
@@ -216,6 +217,7 @@ function evershelfDemoBlocksAction(string $action, string $method): bool {
     // Block all AI generation in demo (cost + writes)
     if (str_starts_with($action, 'gemini_') || in_array($action, [
         'generate_recipe', 'generate_recipe_stream', 'chat_to_recipe', 'recipe_from_ingredient',
+        'ha_suggest_recipe', 'ha_generate_recipe',
     ], true)) {
         return true;
     }

@@ -381,7 +381,11 @@
         "use_all_safety_headline": "ALLES von diesem Produkt wird verbraucht",
         "use_all_safety_warn": "Der Bestand wird aus dem Inventar entfernt. Schwer rückgängig zu machen. Bei Restmenge besser eine Teilmenge eingeben.",
         "use_all_safety_ack": "Verstanden — gesamten Restbestand verbrauchen",
-        "use_all_slide_label": "Zum Bestätigen schieben →"
+        "use_all_slide_label": "Zum Bestätigen schieben →",
+        "throw_all_safety_banner": "⚠ Achtung",
+        "throw_all_safety_headline": "ALLES von diesem Produkt wird entsorgt",
+        "throw_all_safety_warn": "Der Bestand wird als Abfall aus dem Inventar entfernt. Schwer rückgängig zu machen.",
+        "throw_all_safety_ack": "Verstanden — gesamten Restbestand entsorgen"
     },
     "waste": {
         "reason_title": "Warum wirfst du es weg?",
@@ -490,6 +494,10 @@
         "use_all_stock_confirm_title": "Gesamten Vorrat verwenden?",
         "use_all_stock_confirm_msg": "Du verwendest {qty} ({unit}) — damit ist alles in {location} aufgebraucht. Bestätigen?",
         "use_all_stock_confirm_btn": "Ja, alles verwenden",
+        "use_all_safety_banner": "⚠ Achtung",
+        "use_all_safety_headline": "Der GESAMTE Bestand dieser Zutat wird verbraucht",
+        "use_all_safety_warn": "Alles am gewählten Ort wird abgezogen. Schwer rückgängig, wenn nur die Rezeptmenge nötig war.",
+        "use_all_safety_ack": "Verstanden — gesamten Restbestand hier verbrauchen",
         "location_fallback_toast": "Vorrat in {location} gefunden (nicht in {requested})",
         "finished_added_bring_toast": "🛒 Produkt aufgebraucht → zu Bring! hinzugefügt!",
         "load_error": "Fehler beim Laden",

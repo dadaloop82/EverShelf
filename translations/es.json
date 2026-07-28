@@ -381,7 +381,11 @@
         "use_all_safety_headline": "Se usará TODO el producto",
         "use_all_safety_warn": "El stock desaparecerá del inventario. Difícil de deshacer. Si no está vacío, introduce una cantidad parcial.",
         "use_all_safety_ack": "Entiendo — usar TODO el stock restante",
-        "use_all_slide_label": "Desliza para confirmar →"
+        "use_all_slide_label": "Desliza para confirmar →",
+        "throw_all_safety_banner": "⚠ Atención",
+        "throw_all_safety_headline": "Se tirará TODO el producto",
+        "throw_all_safety_warn": "El stock desaparecerá del inventario como desperdicio. Difícil de deshacer.",
+        "throw_all_safety_ack": "Entiendo — tirar TODO el stock restante"
     },
     "waste": {
         "reason_title": "¿Por qué lo tiras?",
@@ -525,6 +529,10 @@
         "use_all_stock_confirm_title": "Use all stock?",
         "use_all_stock_confirm_msg": "You are about to use {qty} ({unit}) — this will finish everything in {location}. Confirm?",
         "use_all_stock_confirm_btn": "Yes, use all",
+        "use_all_safety_banner": "⚠ Atención",
+        "use_all_safety_headline": "Se usará TODO el stock de este ingrediente",
+        "use_all_safety_warn": "Se descontará todo en la ubicación elegida. Difícil de deshacer si solo necesitabas la cantidad de la receta.",
+        "use_all_safety_ack": "Entiendo — usar TODO el stock restante aquí",
         "location_fallback_toast": "Stock found in {location} (not in {requested})",
         "frozen_badge": "congelado — del congelador",
         "from_recipe": "De receta",

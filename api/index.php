@@ -1061,6 +1061,10 @@ try {
             haSuggestRecipe(getDB());
             break;
 
+        case 'ha_generate_recipe':
+            haGenerateRecipe(getDB());
+            break;
+
         case 'mealie_status':
             echo json_encode(mealieStatus(), JSON_UNESCAPED_UNICODE);
             break;
@@ -1865,6 +1869,230 @@ function haCalendar(PDO $db): void {
         http_response_code(500);
         echo json_encode(['error' => $e->getMessage()]);
     }
+}
+
+// ===== HA GENERATE RECIPE (structured, full options) =====
+
+/** Guess meal slot from local server hour. */
+function haGuessMealFromHour(?int $hour = null): string {
+    $h = $hour ?? (int)date('G');
+    if ($h < 10) return 'colazione';
+    if ($h < 15) return 'pranzo';
+    if ($h < 18) return 'merenda';
+    return 'cena';
+}
+
+/**
+ * Build recipe input from GET query + POST JSON (body wins).
+ * Mirrors UI fields: meal, persons, options[], meal_plan_type, fuel/veloce/scadenze/…
+ */
+function haParseRecipeGenerateInput(): array {
+    $body = [];
+    $raw = file_get_contents('php://input');
+    if (is_string($raw) && $raw !== '') {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $body = $decoded;
+        }
+    }
+    $get = $_GET;
+    unset($get['action'], $get['api_token'], $get['token']);
+    $input = array_merge($get, $body);
+
+    // options: array or comma-separated string
+    $options = $input['options'] ?? [];
+    if (is_string($options)) {
+        $options = array_values(array_filter(array_map('trim', explode(',', $options))));
+    }
+    if (!is_array($options)) {
+        $options = [];
+    }
+    $flagMap = [
+        'veloce' => 'veloce',
+        'pocafame' => 'pocafame',
+        'scadenze' => 'scadenze',
+        'salutare' => 'salutare',
+        'healthy' => 'salutare',
+        'opened' => 'opened',
+        'zerowaste' => 'zerowaste',
+        'fuel' => 'fuel',
+    ];
+    foreach ($flagMap as $key => $optName) {
+        $v = $input[$key] ?? null;
+        if ($v === true || $v === 1 || $v === '1' || $v === 'true' || $v === 'on' || $v === 'yes') {
+            if (!in_array($optName, $options, true)) {
+                $options[] = $optName;
+            }
+        }
+    }
+
+    $usePrefs = !isset($input['use_prefs']) || filter_var($input['use_prefs'], FILTER_VALIDATE_BOOLEAN)
+        || $input['use_prefs'] === '1' || $input['use_prefs'] === 1;
+    // If caller sent no options, apply EverShelf preference defaults
+    if ($options === [] && $usePrefs) {
+        $prefMap = [
+            'PREF_VELOCE' => 'veloce',
+            'PREF_POCAFAME' => 'pocafame',
+            'PREF_SCADENZE' => 'scadenze',
+            'PREF_HEALTHY' => 'salutare',
+            'PREF_OPENED' => 'opened',
+            'PREF_ZEROWASTE' => 'zerowaste',
+            'PREF_FUEL' => 'fuel',
+        ];
+        foreach ($prefMap as $envKey => $optName) {
+            if (env($envKey, 'false') === 'true') {
+                $options[] = $optName;
+            }
+        }
+    }
+    // Fuel only when health module is on
+    if (in_array('fuel', $options, true) && env('HEALTH_ENABLED', 'false') !== 'true') {
+        $options = array_values(array_filter($options, static fn($o) => $o !== 'fuel'));
+    }
+
+    $meal = trim((string)($input['meal'] ?? ''));
+    if ($meal === '' || $meal === 'auto') {
+        $meal = haGuessMealFromHour();
+    }
+
+    $persons = isset($input['persons']) ? (int)$input['persons'] : (int)env('DEFAULT_PERSONS', '1');
+    $persons = max(1, min(12, $persons));
+
+    $appliances = $input['appliances'] ?? null;
+    if ($appliances === null) {
+        $appliances = env('APPLIANCES', '') !== ''
+            ? array_values(array_filter(array_map('trim', explode(',', env('APPLIANCES', '')))))
+            : [];
+    } elseif (is_string($appliances)) {
+        $appliances = array_values(array_filter(array_map('trim', explode(',', $appliances))));
+    }
+
+    $dietary = $input['dietary_restrictions'] ?? $input['dietary'] ?? env('DIETARY', '');
+
+    $lang = $input['lang'] ?? env('APP_LANG', 'it');
+
+    return [
+        'meal' => $meal,
+        'persons' => $persons,
+        'lang' => $lang,
+        'sub_type' => $input['sub_type'] ?? '',
+        'options' => array_values(array_unique($options)),
+        'appliances' => $appliances,
+        'dietary_restrictions' => is_string($dietary) ? $dietary : '',
+        'today_recipes' => is_array($input['today_recipes'] ?? null) ? $input['today_recipes'] : [],
+        'meal_plan_type' => trim((string)($input['meal_plan_type'] ?? '')),
+        'variation' => max(0, (int)($input['variation'] ?? 0)),
+        'rejected_ingredients' => is_array($input['rejected_ingredients'] ?? null) ? $input['rejected_ingredients'] : [],
+    ];
+}
+
+/**
+ * Pick top pantry ingredient names for HA summaries / TTS.
+ *
+ * @param array<int,array<string,mixed>> $ingredients
+ * @return list<string>
+ */
+function haRecipeMainIngredients(array $ingredients, int $limit = 6): array {
+    $names = [];
+    foreach ($ingredients as $ing) {
+        $n = trim((string)($ing['name'] ?? ''));
+        if ($n === '') continue;
+        // Skip tiny seasonings if somehow present
+        if (preg_match('/^(sale|pepe|olio|acqua|sale fino|pepe nero)\b/iu', $n)) continue;
+        $names[] = $n;
+        if (count($names) >= $limit) break;
+    }
+    return $names;
+}
+
+/**
+ * Structured recipe for Home Assistant.
+ * POST/GET /api/index.php?action=ha_generate_recipe
+ *
+ * Same options as the app recipe dialog. Returns title + main_ingredients for
+ * automations (arrive home → lunch suggestion).
+ */
+function haGenerateRecipe(PDO $db): void {
+    header('Content-Type: application/json; charset=utf-8');
+    // Recipe generation can take 30–60s
+    @set_time_limit(120);
+
+    $input = haParseRecipeGenerateInput();
+    EverLog::info('ha_generate_recipe', [
+        'meal' => $input['meal'],
+        'persons' => $input['persons'],
+        'options' => $input['options'],
+        'meal_plan_type' => $input['meal_plan_type'] ?: null,
+    ]);
+
+    $GLOBALS['_HA_RECIPE_INPUT'] = $input;
+    $GLOBALS['_HA_RECIPE_RETURN'] = true;
+    $GLOBALS['_HA_RECIPE_RESULT'] = null;
+    try {
+        generateRecipe($db);
+    } finally {
+        unset($GLOBALS['_HA_RECIPE_INPUT'], $GLOBALS['_HA_RECIPE_RETURN']);
+    }
+
+    $result = $GLOBALS['_HA_RECIPE_RESULT'] ?? null;
+    unset($GLOBALS['_HA_RECIPE_RESULT']);
+
+    if (!is_array($result)) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'internal_no_result'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    if (empty($result['success']) || empty($result['recipe']) || !is_array($result['recipe'])) {
+        $code = !empty($result['http_code']) ? (int)$result['http_code'] : 503;
+        if ($code < 400) $code = 503;
+        http_response_code($code >= 400 && $code < 600 ? $code : 503);
+        echo json_encode([
+            'success' => false,
+            'error' => $result['error'] ?? 'generation_failed',
+            'detail' => $result['detail'] ?? null,
+            'meal' => $input['meal'],
+            'persons' => $input['persons'],
+            'options' => $input['options'],
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $recipe = $result['recipe'];
+    $ings = is_array($recipe['ingredients'] ?? null) ? $recipe['ingredients'] : [];
+    $main = haRecipeMainIngredients($ings);
+    $title = trim((string)($recipe['title'] ?? ''));
+    $mainList = implode(', ', $main);
+    $summary = $title . ($mainList !== '' ? ' — ' . $mainList : '');
+
+    $ingredientsSimple = [];
+    foreach ($ings as $ing) {
+        $ingredientsSimple[] = [
+            'name' => (string)($ing['name'] ?? ''),
+            'qty' => (string)($ing['qty'] ?? ''),
+            'qty_number' => $ing['qty_number'] ?? null,
+            'from_pantry' => !empty($ing['from_pantry']),
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'title' => $title,
+        'main_ingredients' => $main,
+        'summary' => $summary,
+        'meal' => $recipe['meal'] ?? $input['meal'],
+        'persons' => $recipe['persons'] ?? $input['persons'],
+        'prep_time' => $recipe['prep_time'] ?? null,
+        'cook_time' => $recipe['cook_time'] ?? null,
+        'tags' => $recipe['tags'] ?? [],
+        'options' => $input['options'],
+        'meal_plan_type' => $input['meal_plan_type'] ?: null,
+        'ingredients' => $ingredientsSimple,
+        'steps_count' => is_array($recipe['steps'] ?? null) ? count($recipe['steps']) : 0,
+        'nutrition' => $recipe['nutrition'] ?? null,
+        'fuel_why' => $recipe['fuel_why'] ?? null,
+        'recipe' => $recipe,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== HA SUGGEST RECIPE =====
@@ -8008,15 +8236,30 @@ function recipeBuildPantryLine(array $item, int $group): string {
 }
 
 // ===== RECIPE GENERATION WITH GEMINI =====
+
+/** Echo JSON or stash result when called from haGenerateRecipe (no double-output). */
+function recipeRespond(array $payload): void {
+    if (!empty($GLOBALS['_HA_RECIPE_RETURN'])) {
+        $GLOBALS['_HA_RECIPE_RESULT'] = $payload;
+        return;
+    }
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+}
+
 function generateRecipe(PDO $db): void {
     EverLog::debug('generateRecipe start');
     $apiKey = env('GEMINI_API_KEY');
     if (empty($apiKey)) {
-        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        recipeRespond(['success' => false, 'error' => 'no_api_key']);
         return;
     }
 
-    $input = json_decode(file_get_contents('php://input'), true);
+    $input = $GLOBALS['_HA_RECIPE_INPUT']
+        ?? json_decode(file_get_contents('php://input'), true)
+        ?? [];
+    if (!is_array($input)) {
+        $input = [];
+    }
     $lang = recipeNormalizeLang($input['lang'] ?? 'it');
     $recipeLangName = recipeLangName($lang);
     $mealType = $input['meal'] ?? 'pranzo';
@@ -8043,7 +8286,7 @@ function generateRecipe(PDO $db): void {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($items)) {
-        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_pantry_empty')]);
+        recipeRespond(['success' => false, 'error' => recipeText($lang, 'error_pantry_empty')]);
         return;
     }
 
@@ -8384,7 +8627,7 @@ PROMPT;
 
     if ($httpCode !== 200) {
         $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => $errDetail]);
+        recipeRespond(['success' => false, 'error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => $errDetail]);
         return;
     }
 
@@ -8399,10 +8642,10 @@ PROMPT;
         }
 
         EverLog::info('recipe generated', ['title' => $recipe['title'] ?? '?', 'meal' => $mealType, 'persons' => $persons, 'ingredients' => count($recipe['ingredients'] ?? []), 'shopping_suggestions' => count($removed)]);
-        echo json_encode(['success' => true, 'recipe' => $recipe]);
+        recipeRespond(['success' => true, 'recipe' => $recipe]);
     } else {
         EverLog::warn('recipe generation failed, empty parse', ['raw_len' => strlen($text)]);
-        echo json_encode(['success' => false, 'error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
+        recipeRespond(['success' => false, 'error' => recipeText($lang, 'error_cannot_generate'), 'raw' => $text]);
     }
 }
 function chatToRecipe(PDO $db): void {
@@ -12045,6 +12288,99 @@ function internalShoppingAutoAddCritical(PDO $db): array {
     return ['added' => $added, 'deduped' => $dedupe['removed'] ?? 0];
 }
 
+/**
+ * Remove auto-added internal shopping rows that are no longer critical/high in smart cache,
+ * or whose shopping_name family already has stock (e.g. "Uova" while "uova medie" = 9).
+ * Only touches ⚡/🟠 (urgent) markers — leaves 🟡/🔵 planning rows alone.
+ */
+function internalShoppingCleanupObsolete(PDO $db): array {
+    if (isShoppingBringMode()) {
+        return ['skipped' => 'bring_mode'];
+    }
+    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
+    if (!file_exists($cacheFile)) {
+        return ['skipped' => 'no_cache'];
+    }
+    $smartData = json_decode(file_get_contents($cacheFile), true);
+    $smartItems = $smartData['items'] ?? [];
+
+    $urgentByName = [];
+    foreach ($smartItems as $si) {
+        if (!smartItemShouldSyncToBring($si)) {
+            continue;
+        }
+        foreach ([(string)($si['shopping_name'] ?? ''), (string)($si['name'] ?? '')] as $n) {
+            $k = mb_strtolower(trim($n));
+            if ($k !== '') {
+                $urgentByName[$k] = true;
+            }
+        }
+    }
+
+    // Only clean hard urgency markers auto-stamped by EverShelf
+    $urgentMarkers = ['⚡', '🟠'];
+    $removed = 0;
+    $candidates = 0;
+    $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
+    $del = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
+
+    foreach ($rows as $row) {
+        $spec = (string)($row['specification'] ?? '');
+        $isUrgentMarked = false;
+        foreach ($urgentMarkers as $m) {
+            if (mb_strpos($spec, $m) !== false) {
+                $isUrgentMarked = true;
+                break;
+            }
+        }
+        if (!$isUrgentMarked) {
+            continue;
+        }
+        if (mb_strpos($spec, '🛒 Esaurito') !== false || mb_strpos($spec, '🛒 Finished') !== false) {
+            continue;
+        }
+
+        $name = trim((string)($row['name'] ?? ''));
+        $raw  = trim((string)($row['raw_name'] ?? ''));
+        $keys = array_unique(array_filter([
+            mb_strtolower($name),
+            mb_strtolower($raw),
+        ]));
+        // Resolve generic shopping family (Uovo medio → Uova)
+        $computed = $name !== '' ? computeShoppingName($name, '', '', false) : '';
+        if ($computed !== '') {
+            $keys[] = mb_strtolower($computed);
+        }
+        if ($raw !== '' && $raw !== $name) {
+            $c2 = computeShoppingName($raw, '', '', false);
+            if ($c2 !== '') {
+                $keys[] = mb_strtolower($c2);
+            }
+        }
+        $keys = array_unique(array_filter($keys));
+
+        $stillUrgent = false;
+        foreach ($keys as $k) {
+            if ($k !== '' && isset($urgentByName[$k])) {
+                $stillUrgent = true;
+                break;
+            }
+        }
+        if ($stillUrgent) {
+            continue;
+        }
+
+        // Stale ⚡/🟠 — smart shopping no longer says buy now (stocked family or dropped)
+        $candidates++;
+        $del->execute([(int)$row['id']]);
+        if ($del->rowCount() > 0) {
+            $removed++;
+        }
+    }
+
+    return ['candidates' => $candidates, 'removed' => $removed];
+}
+
 function bringGetList(): void {
     $auth = bringAuth();
     if (!$auth) {
@@ -13124,14 +13460,17 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                                 'bianco','rosso','nero','giallo','verde','misto','dolce','light'];
             $pToks = array_diff($nameTokens($p['name']), $coverageGeneric);
             $coveredByEquivalent = false;
+            // Loose any-token match: only when NOT recently exhausted (avoids hiding a just-finished
+            // product behind a vaguely related in-stock name).
             if (!$recentlyExhausted) {
                 foreach ($pToks as $tok) {
                     if (($stockByAnyToken[$tok] ?? 0) > 0) { $coveredByEquivalent = true; break; }
                 }
             }
-            // Same shopping_name family: suppress only when not recently exhausted
-            // (e.g. still show "Yogurt fragola" even if another yogurt flavor is in stock).
-            if (!$coveredByEquivalent && !$recentlyExhausted) {
+            // Same shopping_name family ALWAYS covers depleted rows (generic list philosophy).
+            // Example: "Uova" confirmed empty 4 days ago must not stay Urgente while "uova medie" = 9.
+            // Flavor-specific restock (yogurt) is intentional via manual add — family stock = no buy.
+            if (!$coveredByEquivalent) {
                 $sName = strtolower(trim($p['shopping_name'] ?? ''));
                 if ($sName !== '' && ($stockByShoppingName[$sName] ?? 0) > 0) {
                     $coveredByEquivalent = true;
@@ -13365,19 +13704,17 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         if ($urgency === 'none') continue;
 
         // Family stock coverage: suppress items covered by other products in the same generic family.
-        // For non-expired items: suppress if family has other stock (already bought an equivalent).
-        // For expired items: suppress if the family has FRESH stock >= the expired qty in other products
-        //   e.g. Minestrone tradizione (expired 1/5) but Minesteone 12 verdure + Buon Minestrone = 590g → suppress
-        // Critical-without-family-cover always shows so user knows something needs replacing.
+        // For non-expired items (including critical/empty): suppress if family has other stock.
+        // For expired items: suppress if the family has FRESH stock from other products.
         $sNameFamily = strtolower(trim($p['shopping_name'] ?? ''));
         if ($sNameFamily !== '') {
-            if (!$isExpired && $urgency !== 'critical' && !($qty <= 0 && $recentlyExhausted)) {
+            if (!$isExpired) {
                 $familyTotal = $stockByShoppingName[$sNameFamily] ?? 0;
                 $otherFamilyQty = $familyTotal - $qty;
                 if ($otherFamilyQty > 0) {
                     continue;
                 }
-            } elseif ($isExpired) {
+            } else {
                 // For expired: check if OTHER family members have fresh stock covering the expired amount
                 $familyFreshTotal = $freshStockByShoppingName[$sNameFamily] ?? 0;
                 // freshStockByShoppingName counts this product's fresh_qty too (which is 0 if all expired)

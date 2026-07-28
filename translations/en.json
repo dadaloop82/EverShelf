@@ -381,7 +381,11 @@
         "use_all_safety_headline": "ALL of this product will be used",
         "use_all_safety_warn": "Stock will be removed from inventory. This is hard to undo. Prefer entering a partial quantity unless the pack is really empty.",
         "use_all_safety_ack": "I understand — use ALL remaining stock",
-        "use_all_slide_label": "Slide to confirm →"
+        "use_all_slide_label": "Slide to confirm →",
+        "throw_all_safety_banner": "⚠ Warning",
+        "throw_all_safety_headline": "ALL of this product will be discarded",
+        "throw_all_safety_warn": "Stock will be removed from inventory as waste. This is hard to undo.",
+        "throw_all_safety_ack": "I understand — discard ALL remaining stock"
     },
     "waste": {
         "reason_title": "Why are you discarding it?",
@@ -509,6 +513,10 @@
         "use_all_stock_confirm_title": "Use all stock?",
         "use_all_stock_confirm_msg": "You are about to use {qty} ({unit}) — this will finish everything in {location}. Confirm?",
         "use_all_stock_confirm_btn": "Yes, use all",
+        "use_all_safety_banner": "⚠ Warning",
+        "use_all_safety_headline": "ALL stock of this ingredient will be used",
+        "use_all_safety_warn": "Everything at the selected location will be deducted. Hard to undo if you only needed the recipe amount.",
+        "use_all_safety_ack": "I understand — use ALL remaining stock here",
         "location_fallback_toast": "Stock found in {location} (not in {requested})",
         "finished_added_bring_toast": "🛒 Finished product → added to Bring!",
         "load_error": "Loading error",
