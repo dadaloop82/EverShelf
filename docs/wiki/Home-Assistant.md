@@ -7,6 +7,7 @@ EverShelf integrates natively with [Home Assistant](https://www.home-assistant.i
 - 🔔 **Webhooks** — trigger HA automations on pantry events (expiry alerts, shopping additions, stock updates)
 - 📣 **Push notifications** — send alerts to your phone via any HA `notify.*` service
 - 🔊 **TTS on smart speakers** — read recipe steps aloud on any HA `media_player` entity
+- 🍳 **Generate recipes from HA** — `evershelf.generate_recipe` (HACS integration ≥ 1.3.0) with fuel / veloce / scadenze / …; returns title + main ingredients
 - ⚙️ **In-app config panel** — configure everything from Settings → 🏠 tab (no need to edit `.env` manually)
 
 ---
@@ -136,6 +137,31 @@ Field details:
 | `days_remaining` | int\|null | Days until expiry (negative = already expired) |
 | `opened_at` | string\|null | ISO date when the package was opened |
 | `vacuum_sealed` | bool | Whether the item is vacuum-sealed |
+
+---
+
+## Generate a recipe from Home Assistant
+
+With the [HACS integration](https://github.com/dadaloop82/ha-evershelf) **≥ 1.3.0** and EverShelf **≥ 1.7.68**:
+
+```yaml
+service: evershelf.generate_recipe
+data:
+  meal: pranzo          # or auto / colazione / cena / …
+  persons: 2
+  fuel: true            # “a ritmo mio” (requires Health)
+  veloce: true
+  scadenze: true
+response_variable: recipe
+```
+
+**Service response / event `evershelf_recipe_generated`:** `title`, `main_ingredients`, `summary`, `meal`, `persons`, …
+
+**API (without the custom component):**
+
+`POST /api/index.php?action=ha_generate_recipe` with JSON body (same fields). Returns structured JSON including `title` and `main_ingredients`.
+
+Legacy free-text: `GET ?action=ha_suggest_recipe`.
 
 ---
 

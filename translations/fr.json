@@ -381,7 +381,11 @@
         "use_all_safety_headline": "TOUT ce produit sera consommé",
         "use_all_safety_warn": "Le stock disparaîtra de l’inventaire. Difficile à annuler. Si le paquet n’est pas vide, saisissez une quantité partielle.",
         "use_all_safety_ack": "Je comprends — utiliser TOUT le stock restant",
-        "use_all_slide_label": "Glisser pour confirmer →"
+        "use_all_slide_label": "Glisser pour confirmer →",
+        "throw_all_safety_banner": "⚠ Attention",
+        "throw_all_safety_headline": "TOUT ce produit sera jeté",
+        "throw_all_safety_warn": "Le stock disparaîtra de l’inventaire comme gaspillage. Difficile à annuler.",
+        "throw_all_safety_ack": "Je comprends — jeter TOUT le stock restant"
     },
     "waste": {
         "reason_title": "Pourquoi le jetez-vous ?",
@@ -525,6 +529,10 @@
         "use_all_stock_confirm_title": "Use all stock?",
         "use_all_stock_confirm_msg": "You are about to use {qty} ({unit}) — this will finish everything in {location}. Confirm?",
         "use_all_stock_confirm_btn": "Yes, use all",
+        "use_all_safety_banner": "⚠ Attention",
+        "use_all_safety_headline": "TOUT le stock de cet ingrédient sera consommé",
+        "use_all_safety_warn": "Tout à l’emplacement choisi sera déduit. Difficile à annuler si seule la quantité de la recette était nécessaire.",
+        "use_all_safety_ack": "Je comprends — utiliser TOUT le stock restant ici",
         "location_fallback_toast": "Stock found in {location} (not in {requested})",
         "frozen_badge": "surgelé — du congélateur",
         "from_recipe": "Depuis une recette",

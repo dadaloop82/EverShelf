@@ -381,7 +381,11 @@
         "use_all_safety_headline": "Verrà usato TUTTO il prodotto",
         "use_all_safety_warn": "Lo stock sparirà dall’inventario. Difficile da annullare. Se non è davvero finito, inserisci una quantità parziale.",
         "use_all_safety_ack": "Ho capito — uso TUTTO lo stock rimasto",
-        "use_all_slide_label": "Scorri per confermare →"
+        "use_all_slide_label": "Scorri per confermare →",
+        "throw_all_safety_banner": "⚠ Attenzione",
+        "throw_all_safety_headline": "Verrà buttato TUTTO il prodotto",
+        "throw_all_safety_warn": "Lo stock sparirà dall’inventario come spreco. Difficile da annullare.",
+        "throw_all_safety_ack": "Ho capito — butto TUTTO lo stock rimasto"
     },
     "waste": {
         "reason_title": "Perché lo butti?",
@@ -510,6 +514,10 @@
         "use_all_stock_confirm_title": "Usare tutto lo stock?",
         "use_all_stock_confirm_msg": "Stai per usare {qty} ({unit}) — finirà tutto ciò che hai in {location}. Confermi?",
         "use_all_stock_confirm_btn": "Sì, usa tutto",
+        "use_all_safety_banner": "⚠ Attenzione",
+        "use_all_safety_headline": "Verrà usato TUTTO lo stock di questo ingrediente",
+        "use_all_safety_warn": "Tutto alla posizione selezionata verrà scalato. Difficile da annullare se ti serviva solo la dose della ricetta.",
+        "use_all_safety_ack": "Ho capito — uso TUTTO lo stock rimasto qui",
         "location_fallback_toast": "Stock trovato in {location} (non in {requested})",
         "finished_added_bring_toast": "🛒 Prodotto finito → aggiunto a Bring!",
         "load_error": "Errore nel caricamento",
