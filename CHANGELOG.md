@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.69] - 2026-07-28
+
+### Fixed
+- **HA recipes → Ricette archive** — `ha_generate_recipe` now saves the generated recipe into the EverShelf Ricette tab (same upsert as the app: one recipe per meal per day). Pass `save: false` to skip.
+
 ## [1.7.68] - 2026-07-28
 
 ### Added

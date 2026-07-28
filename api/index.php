@@ -1983,6 +1983,8 @@ function haParseRecipeGenerateInput(): array {
         'meal_plan_type' => trim((string)($input['meal_plan_type'] ?? '')),
         'variation' => max(0, (int)($input['variation'] ?? 0)),
         'rejected_ingredients' => is_array($input['rejected_ingredients'] ?? null) ? $input['rejected_ingredients'] : [],
+        // Persist into EverShelf "Ricette" archive (default on)
+        'save' => !isset($input['save']) || !in_array($input['save'], [false, 0, '0', 'false', 'no'], true),
     ];
 }
 
@@ -2059,6 +2061,37 @@ function haGenerateRecipe(PDO $db): void {
     }
 
     $recipe = $result['recipe'];
+    if (empty($recipe['source'])) {
+        $recipe['source'] = 'home_assistant';
+    }
+    if (empty($recipe['meal'])) {
+        $recipe['meal'] = $input['meal'];
+    }
+    if (empty($recipe['persons']) && !empty($input['persons'])) {
+        $recipe['persons'] = $input['persons'];
+    }
+
+    // Save into EverShelf "Ricette" (same archive as the app) unless save=false
+    $save = !empty($input['save']);
+    $archiveId = null;
+    if ($save) {
+        try {
+            $archiveId = recipesArchiveUpsert(
+                $db,
+                $recipe,
+                (string)($recipe['meal'] ?? $input['meal']),
+                date('Y-m-d')
+            );
+            EverLog::info('ha_generate_recipe archived', [
+                'id' => $archiveId,
+                'title' => $recipe['title'] ?? '?',
+                'meal' => $recipe['meal'] ?? '',
+            ]);
+        } catch (Throwable $e) {
+            EverLog::warn('ha_generate_recipe archive failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     $ings = is_array($recipe['ingredients'] ?? null) ? $recipe['ingredients'] : [];
     $main = haRecipeMainIngredients($ings);
     $title = trim((string)($recipe['title'] ?? ''));
@@ -2091,6 +2124,8 @@ function haGenerateRecipe(PDO $db): void {
         'steps_count' => is_array($recipe['steps'] ?? null) ? count($recipe['steps']) : 0,
         'nutrition' => $recipe['nutrition'] ?? null,
         'fuel_why' => $recipe['fuel_why'] ?? null,
+        'saved' => $save,
+        'archive_id' => $archiveId,
         'recipe' => $recipe,
     ], JSON_UNESCAPED_UNICODE);
 }
@@ -14547,12 +14582,45 @@ function recipesSave(PDO $db): void {
         return;
     }
 
-    // UPSERT: one recipe per meal per day (last one wins)
+    $id = recipesArchiveUpsert($db, $recipe, $meal, $date);
+    echo json_encode(['success' => true, 'id' => $id]);
+}
+
+/**
+ * Persist a recipe into the EverShelf archive (one slot per meal per day).
+ * Same storage as the app "Ricette" tab.
+ *
+ * @param array|object $recipe
+ */
+function recipesArchiveUpsert(PDO $db, $recipe, string $meal = '', string $date = ''): int {
+    if (!is_array($recipe)) {
+        $recipe = (array)$recipe;
+    }
+    $date = $date !== '' ? $date : date('Y-m-d');
+    if (trim($meal) === '') {
+        $meal = trim((string)($recipe['meal'] ?? ''));
+    }
+    if ($meal === '') {
+        $meal = 'libero';
+    }
+    // Normalize meal slots used by HA / UI
+    $allowed = ['colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo', 'libero'];
+    if (!in_array($meal, $allowed, true)) {
+        $meal = 'libero';
+    }
+
     $stmt = $db->prepare("INSERT INTO recipes (date, meal, recipe_json, created_at) VALUES (?, ?, ?, datetime('now'))
                           ON CONFLICT(date, meal) DO UPDATE SET recipe_json = excluded.recipe_json, created_at = excluded.created_at");
-    $stmt->execute([$date, $meal, json_encode($recipe)]);
+    $stmt->execute([$date, $meal, json_encode($recipe, JSON_UNESCAPED_UNICODE)]);
 
-    echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+    // lastInsertId is 0 on UPDATE — resolve id
+    $id = (int)$db->lastInsertId();
+    if ($id <= 0) {
+        $q = $db->prepare("SELECT id FROM recipes WHERE date = ? AND meal = ? LIMIT 1");
+        $q->execute([$date, $meal]);
+        $id = (int)$q->fetchColumn();
+    }
+    return $id;
 }
 
 function recipesDelete(PDO $db): void {
