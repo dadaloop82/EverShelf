@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.70] - 2026-07-29
+
+### Fixed
+- **Recipe “Use ALL”** — now uses the same checkbox + slide-to-confirm safety as the main Use page (previously only a one-tap danger button).
+
 ## [1.7.69] - 2026-07-28
 
 ### Fixed
