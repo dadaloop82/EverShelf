@@ -538,7 +538,22 @@
         "from_recipe": "Da ricetta",
         "from_recipe_qty": "Da ricetta · {qty}",
         "fuel_eaten_today": "già consumato oggi ~{kcal} kcal",
-        "fuel_remaining": "restano {kcal} kcal oggi"
+        "fuel_remaining": "restano {kcal} kcal oggi",
+        "share_btn": "📤 Condividi ricetta",
+        "share_title": "Condividi ricetta",
+        "share_hint": "Invia ingredienti e procedimento su WhatsApp, oppure copia il testo.",
+        "share_whatsapp": "💬 WhatsApp",
+        "share_copy": "📋 Copia testo",
+        "share_copied": "Ricetta copiata — incollala su WhatsApp o in un’altra app",
+        "share_failed": "Impossibile condividere la ricetta",
+        "share_no_recipe": "Nessuna ricetta da condividere",
+        "share_whatsapp_long": "Ricetta lunga — testo copiato; incollalo su WhatsApp",
+        "share_ingredients": "🧾 Ingredienti",
+        "share_also_need": "🛒 Utile anche (opzionale)",
+        "share_steps": "👨‍🍳 Procedimento",
+        "share_storage": "🥡 Avanzi",
+        "share_no_ingredients": "(nessun ingrediente elencato)",
+        "share_footer": "— Condiviso con EverShelf"
     },
     "shopping": {
         "title": "🛒 Lista della Spesa",

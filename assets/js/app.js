@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260727a'; // bump when translations change
+const _I18N_VERSION = '20260729c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -17916,6 +17916,177 @@ function scaleRecipePersons(delta) {
     _updateRecipeStockHintsAfterScale(ratio);
 }
 
+/** Scale an ingredient qty string for the current persons count. */
+function _scaledRecipeIngQty(ing, ratio) {
+    const baseStr = String(ing.qty || '').trim();
+    const baseQty = parseFloat(ing.qty_number || 0);
+    if (!(baseQty > 0) || !ratio || ratio === 1) return baseStr;
+    const m = baseStr.match(/^(\d+(?:[.,]\d+)?)\s*(.*)/);
+    const unitSuffix = m ? m[2].trim() : String(ing.unit || '').trim();
+    const scaled = baseQty * ratio;
+    const rounded = scaled < 10 ? (Math.round(scaled * 10) / 10) : Math.round(scaled);
+    return unitSuffix ? `${rounded} ${unitSuffix}` : String(rounded);
+}
+
+/** Plain-text recipe for WhatsApp / system share / clipboard. */
+function formatRecipeShareText(r) {
+    if (!r) return '';
+    const lines = [];
+    const title = String(r.title || '').trim() || t('recipes.dialog_title');
+    lines.push(`🍳 ${title}`);
+    lines.push('');
+
+    const meta = [];
+    if (r.meal) meta.push(_mealLabel(r.meal));
+    const persons = _recipeCurrentPersons || r.persons || 0;
+    if (persons) meta.push(`👥 ${persons} ${t('recipes.persons_short')}`);
+    if (r.prep_time) meta.push(`🔪 ${r.prep_time}`);
+    if (r.cook_time) meta.push(`🔥 ${r.cook_time}`);
+    if ((r.tags || []).length) meta.push(r.tags.map(tag => String(tag)).join(', '));
+    if (meta.length) {
+        lines.push(meta.join(' · '));
+        lines.push('');
+    }
+
+    const ratio = (_recipeBasePersons > 0 && _recipeCurrentPersons)
+        ? (_recipeCurrentPersons / _recipeBasePersons)
+        : 1;
+
+    lines.push(t('recipes.share_ingredients'));
+    const ings = (r.ingredients || []).filter(ing => ing && ing.name);
+    if (ings.length) {
+        ings.forEach(ing => {
+            const qty = _scaledRecipeIngQty(ing, ratio);
+            lines.push(qty ? `• ${ing.name} — ${qty}` : `• ${ing.name}`);
+        });
+    } else {
+        lines.push(`• ${t('recipes.share_no_ingredients')}`);
+    }
+
+    const shopSug = (r.shopping_suggestions || []).filter(s => s && s.name);
+    if (shopSug.length) {
+        lines.push('');
+        lines.push(t('recipes.share_also_need'));
+        shopSug.forEach(s => {
+            lines.push(s.qty ? `• ${s.name} — ${s.qty}` : `• ${s.name}`);
+        });
+    }
+
+    const steps = r.steps || [];
+    if (steps.length) {
+        lines.push('');
+        lines.push(t('recipes.share_steps'));
+        steps.forEach((step, i) => {
+            const text = _stepStr(step);
+            if (!text) return;
+            const appliance = _stepAppliance(step);
+            lines.push(appliance ? `${i + 1}. ${text} (${appliance})` : `${i + 1}. ${text}`);
+        });
+    }
+
+    if (r.storage && (r.storage.where || r.storage.tips || r.storage.days)) {
+        lines.push('');
+        lines.push(t('recipes.share_storage'));
+        const bits = [];
+        if (r.storage.where) bits.push(String(r.storage.where));
+        if (r.storage.days > 0) bits.push(t('recipes.storage_days', { n: r.storage.days }));
+        else if (r.storage.days === 0) bits.push(t('recipes.storage_immediately'));
+        if (bits.length) lines.push(bits.join(' · '));
+        if (r.storage.tips) lines.push(String(r.storage.tips));
+    }
+
+    lines.push('');
+    lines.push(t('recipes.share_footer'));
+    return lines.join('\n').trim();
+}
+
+function _closeRecipeShareSheet() {
+    const el = document.getElementById('recipe-share-sheet');
+    if (el) el.remove();
+}
+
+async function copyRecipeShareText() {
+    const text = window._pendingRecipeShareText || '';
+    _closeRecipeShareSheet();
+    if (!text) return;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+        showToast(t('recipes.share_copied'), 'success');
+    } catch (e) {
+        console.error('copyRecipeShareText:', e);
+        showToast(t('recipes.share_failed'), 'error');
+    }
+}
+
+function shareRecipeViaWhatsApp() {
+    const text = window._pendingRecipeShareText || '';
+    _closeRecipeShareSheet();
+    if (!text) return;
+    // wa.me URL length limits — very long recipes: copy instead
+    if (encodeURIComponent(text).length > 1800) {
+        window._pendingRecipeShareText = text;
+        copyRecipeShareText().then(() => {
+            showToast(t('recipes.share_whatsapp_long'), 'info');
+        });
+        return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+}
+
+function _showRecipeShareSheet(text) {
+    window._pendingRecipeShareText = text;
+    _closeRecipeShareSheet();
+    const overlay = document.createElement('div');
+    overlay.id = 'recipe-share-sheet';
+    overlay.className = 'modal-overlay recipe-share-overlay';
+    overlay.style.display = 'flex';
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) _closeRecipeShareSheet();
+    });
+    overlay.innerHTML = `<div class="modal-content recipe-share-sheet" onclick="event.stopPropagation()">
+        <h3>${escapeHtml(t('recipes.share_title'))}</h3>
+        <p class="recipe-share-hint">${escapeHtml(t('recipes.share_hint'))}</p>
+        <button type="button" class="btn btn-large full-width btn-share-whatsapp" onclick="shareRecipeViaWhatsApp()">${escapeHtml(t('recipes.share_whatsapp'))}</button>
+        <button type="button" class="btn btn-large btn-secondary full-width mt-2" onclick="copyRecipeShareText()">${escapeHtml(t('recipes.share_copy'))}</button>
+        <button type="button" class="btn btn-secondary full-width mt-2" onclick="_closeRecipeShareSheet()">${escapeHtml(t('btn.cancel'))}</button>
+    </div>`;
+    document.body.appendChild(overlay);
+}
+
+/** Share current recipe via system sheet, WhatsApp, or clipboard. */
+async function shareRecipe() {
+    const r = _cachedRecipe && _cachedRecipe.recipe ? _cachedRecipe.recipe : null;
+    if (!r) {
+        showToast(t('recipes.share_no_recipe'), 'error');
+        return;
+    }
+    const text = formatRecipeShareText(r);
+    const title = String(r.title || '').trim() || t('recipes.share_btn');
+
+    if (typeof navigator.share === 'function') {
+        try {
+            await navigator.share({ title, text });
+            return;
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            // Fall through to WhatsApp / copy sheet
+        }
+    }
+    _showRecipeShareSheet(text);
+}
+
 async function addRecipeShoppingSuggestions() {
     const items = (_recipeShoppingSuggestions || []).filter(s => s && s.name);
     if (!items.length) return;
@@ -18047,8 +18218,11 @@ async function renderRecipe(r) {
     });
     html += '</ul>';
 
-    // Cooking mode action between ingredients and steps
-    html += `<button class="btn btn-large btn-cooking full-width mt-2" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>`;
+    // Cooking mode + share between ingredients and steps
+    html += `<div class="recipe-primary-actions mt-2">
+        <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
+        <button type="button" class="btn btn-large btn-secondary btn-recipe-share" onclick="shareRecipe()">${t('recipes.share_btn')}</button>
+    </div>`;
 
     // Steps
     html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
