@@ -12396,28 +12396,71 @@ async function submitUseAll() {
 }
 
 /**
+ * Hard-to-misclick confirm for depleting ALL stock (use / throw / recipe).
+ * Requires acknowledge checkbox + slide-to-end. Returns Promise<boolean>.
+ *
+ * @param {string} productName
+ * @param {string} qtyStr
+ * @param {{variant?: 'use'|'throw'|'recipe'}} [opts]
+ */
+function _confirmDepleteSafety(productName, qtyStr, opts = {}) {
+    const variant = opts.variant || 'use';
+    const prefix = variant === 'throw' ? 'use.throw_all_safety'
+        : (variant === 'recipe' ? 'recipes.use_all_safety' : 'use.use_all_safety');
+    const tx = (suffix) => {
+        const k = `${prefix}_${suffix}`;
+        const v = t(k);
+        if (v && v !== k) return v;
+        return t(`use.use_all_safety_${suffix}`);
+    };
+    return new Promise(resolve => {
+        const slideKey = `${prefix}_slide_label`;
+        let slide = t(slideKey);
+        if (!slide || slide === slideKey) slide = t('use.use_all_slide_label');
+        _showUseAllSlideConfirm(productName, qtyStr, () => resolve(true), {
+            banner: tx('banner'),
+            headline: tx('headline'),
+            warn: tx('warn'),
+            ack: tx('ack'),
+            slide,
+            onCancel: () => resolve(false),
+        });
+    });
+}
+
+/**
  * Hard-to-misclick confirm for “use ALL / finished”.
  * Requires: acknowledge checkbox + slide gesture to the end.
+ *
+ * @param {string} productName
+ * @param {string} qtyStr
+ * @param {() => void} onConfirm
+ * @param {{banner?:string,headline?:string,warn?:string,ack?:string,slide?:string,onCancel?:()=>void}} [opts]
  */
-function _showUseAllSlideConfirm(productName, qtyStr, onConfirm) {
+function _showUseAllSlideConfirm(productName, qtyStr, onConfirm, opts = {}) {
     const contentEl = document.getElementById('modal-content');
     const overlayEl = document.getElementById('modal-overlay');
     let done = false;
+    const banner = opts.banner || t('use.use_all_safety_banner');
+    const headline = opts.headline || t('use.use_all_safety_headline');
+    const warn = opts.warn || t('use.use_all_safety_warn');
+    const ackLabel = opts.ack || t('use.use_all_safety_ack');
+    const slideLabel = opts.slide || t('use.use_all_slide_label');
 
     contentEl.innerHTML = `
         <div class="use-all-safety">
-            <div class="use-all-safety-banner" role="alert">${escapeHtml(t('use.use_all_safety_banner'))}</div>
-            <p class="use-all-safety-headline">${escapeHtml(t('use.use_all_safety_headline'))}</p>
+            <div class="use-all-safety-banner" role="alert">${escapeHtml(banner)}</div>
+            <p class="use-all-safety-headline">${escapeHtml(headline)}</p>
             <p class="use-all-safety-product">${escapeHtml(productName)}</p>
             <p class="use-all-safety-qty">${escapeHtml(qtyStr)}</p>
-            <p class="use-all-safety-warn">${escapeHtml(t('use.use_all_safety_warn'))}</p>
+            <p class="use-all-safety-warn">${escapeHtml(warn)}</p>
             <label class="use-all-safety-check">
                 <input type="checkbox" id="use-all-ack">
-                <span>${escapeHtml(t('use.use_all_safety_ack'))}</span>
+                <span>${escapeHtml(ackLabel)}</span>
             </label>
             <div class="slide-confirm is-disabled" id="use-all-slide" aria-disabled="true">
                 <div class="slide-confirm-track">
-                    <span class="slide-confirm-label">${escapeHtml(t('use.use_all_slide_label'))}</span>
+                    <span class="slide-confirm-label">${escapeHtml(slideLabel)}</span>
                     <div class="slide-confirm-fill" id="use-all-slide-fill"></div>
                     <div class="slide-confirm-thumb" id="use-all-slide-thumb" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">→</div>
                 </div>
@@ -12514,6 +12557,7 @@ function _showUseAllSlideConfirm(productName, qtyStr, onConfirm) {
         done = true;
         cleanupListeners();
         closeModal();
+        if (typeof opts.onCancel === 'function') opts.onCancel();
     });
 
     thumb.addEventListener('pointerdown', onPointerDown);
@@ -17617,16 +17661,27 @@ async function submitRecipeUse(useAll) {
     const totalAtLoc = locItems.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
     const consumesAllAtLoc = totalAtLoc > 0 && qty >= totalAtLoc * 0.999;
     if (useAll || consumesAllAtLoc) {
+        const locInfo = LOCATIONS[location] || { label: location };
         const qtyLabel = stripHtml(formatQuantity(qty, unit, pkgSize, pkgUnit));
-        const productName = cachedItems[0]?.name
-            || _cachedRecipe?.recipe?.ingredients?.[idx]?.name
-            || '';
-        const confirmed = await _confirmDepleteSafety(productName, qtyLabel, { variant: 'recipe' });
+        const confirmed = await new Promise(resolve => {
+            document.getElementById('modal-content').innerHTML = `
+                <div class="modal-header">
+                    <h3>${escapeHtml(t('recipes.use_all_stock_confirm_title'))}</h3>
+                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <p style="margin:12px 0 18px;color:var(--text-muted)">${escapeHtml(t('recipes.use_all_stock_confirm_msg', { qty: qtyLabel, unit, location: locInfo.label }))}</p>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <button type="button" class="btn btn-large btn-danger full-width" id="ruse-stock-confirm">${escapeHtml(t('recipes.use_all_stock_confirm_btn'))}</button>
+                    <button type="button" class="btn btn-secondary full-width" id="ruse-stock-cancel">${escapeHtml(t('confirm.cancel'))}</button>
+                </div>`;
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.getElementById('ruse-stock-confirm').onclick = () => { closeModal(); resolve(true); };
+            document.getElementById('ruse-stock-cancel').onclick = () => { closeModal(); resolve(false); };
+        });
         if (!confirmed) return;
-    } else {
-        closeModal();
     }
-
+    
+    closeModal();
     btn.disabled = true;
     btn.textContent = '⏳...';
     
