@@ -17617,27 +17617,16 @@ async function submitRecipeUse(useAll) {
     const totalAtLoc = locItems.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
     const consumesAllAtLoc = totalAtLoc > 0 && qty >= totalAtLoc * 0.999;
     if (useAll || consumesAllAtLoc) {
-        const locInfo = LOCATIONS[location] || { label: location };
         const qtyLabel = stripHtml(formatQuantity(qty, unit, pkgSize, pkgUnit));
-        const confirmed = await new Promise(resolve => {
-            document.getElementById('modal-content').innerHTML = `
-                <div class="modal-header">
-                    <h3>${escapeHtml(t('recipes.use_all_stock_confirm_title'))}</h3>
-                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
-                </div>
-                <p style="margin:12px 0 18px;color:var(--text-muted)">${escapeHtml(t('recipes.use_all_stock_confirm_msg', { qty: qtyLabel, unit, location: locInfo.label }))}</p>
-                <div style="display:flex;flex-direction:column;gap:10px">
-                    <button type="button" class="btn btn-large btn-danger full-width" id="ruse-stock-confirm">${escapeHtml(t('recipes.use_all_stock_confirm_btn'))}</button>
-                    <button type="button" class="btn btn-secondary full-width" id="ruse-stock-cancel">${escapeHtml(t('confirm.cancel'))}</button>
-                </div>`;
-            document.getElementById('modal-overlay').style.display = 'flex';
-            document.getElementById('ruse-stock-confirm').onclick = () => { closeModal(); resolve(true); };
-            document.getElementById('ruse-stock-cancel').onclick = () => { closeModal(); resolve(false); };
-        });
+        const productName = cachedItems[0]?.name
+            || _cachedRecipe?.recipe?.ingredients?.[idx]?.name
+            || '';
+        const confirmed = await _confirmDepleteSafety(productName, qtyLabel, { variant: 'recipe' });
         if (!confirmed) return;
+    } else {
+        closeModal();
     }
-    
-    closeModal();
+
     btn.disabled = true;
     btn.textContent = '⏳...';
     
