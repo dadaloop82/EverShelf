@@ -6737,6 +6737,41 @@ body.cooking-mode-active .app-header {
     opacity: 0.9;
 }
 
+.recipe-primary-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recipe-primary-actions .btn {
+    width: 100%;
+}
+
+.recipe-share-overlay {
+    z-index: 280;
+}
+
+.recipe-share-sheet h3 {
+    margin: 0 0 8px;
+}
+
+.recipe-share-hint {
+    margin: 0 0 16px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+
+.btn-share-whatsapp {
+    background: #25d366;
+    color: #fff;
+    border: none;
+}
+
+.btn-share-whatsapp:hover,
+.btn-share-whatsapp:active {
+    opacity: 0.92;
+}
+
 /* ===== LOG PAGE ===== */
 .log-list {
     display: flex;
