@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730g'; // bump when translations change
+const _I18N_VERSION = '20260730h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3359,7 +3359,7 @@ async function syncSettingsFromDB() {
  */
 function _applySyncedSettings(serverSettings) {
     if (!serverSettings) return;
-    _geminiAvailable = !!(serverSettings.gemini_key_set);
+    _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
     _demoMode = !!serverSettings.demo_mode;
     _updateGeminiButtonState();
@@ -3368,6 +3368,7 @@ function _applySyncedSettings(serverSettings) {
     const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
         'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
         'custom_locations',
+        'ai_provider','openai_base_url','openai_model',
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
@@ -3959,7 +3960,16 @@ async function _submitBugReport() {
 
 async function loadSettingsUI() {
     const s = getSettings();
+    const aiProvEl = document.getElementById('setting-ai-provider');
+    if (aiProvEl) aiProvEl.value = s.ai_provider || 'gemini';
     document.getElementById('setting-gemini-key').value = s.gemini_key || '';
+    const oaiUrl = document.getElementById('setting-openai-base-url');
+    if (oaiUrl) oaiUrl.value = s.openai_base_url || '';
+    const oaiModel = document.getElementById('setting-openai-model');
+    if (oaiModel) oaiModel.value = s.openai_model || '';
+    const oaiKey = document.getElementById('setting-openai-api-key');
+    if (oaiKey) oaiKey.value = s.openai_api_key || '';
+    _syncAiProviderUi();
     document.getElementById('setting-bring-email').value = s.bring_email || '';
     document.getElementById('setting-bring-password').value = s.bring_password || '';
     document.getElementById('setting-default-persons').value = s.default_persons || 1;
@@ -4083,6 +4093,7 @@ async function loadSettingsUI() {
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
             'custom_locations',
+            'ai_provider','openai_base_url','openai_model',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
@@ -4113,6 +4124,13 @@ async function loadSettingsUI() {
             _applyKioskTtsOverrides(s);
             // Re-populate UI with merged values
             document.getElementById('setting-gemini-key').value = s.gemini_key || '';
+            const aiProvEl2 = document.getElementById('setting-ai-provider');
+            if (aiProvEl2) aiProvEl2.value = s.ai_provider || 'gemini';
+            const oaiUrl2 = document.getElementById('setting-openai-base-url');
+            if (oaiUrl2) oaiUrl2.value = s.openai_base_url || '';
+            const oaiModel2 = document.getElementById('setting-openai-model');
+            if (oaiModel2) oaiModel2.value = s.openai_model || '';
+            _syncAiProviderUi();
             document.getElementById('setting-bring-email').value = s.bring_email || '';
             document.getElementById('setting-bring-password').value = s.bring_password || '';
             document.getElementById('setting-default-persons').value = s.default_persons || 1;
@@ -4609,6 +4627,14 @@ async function saveSettings() {
     // Only update gemini_key if user actually typed something; preserve existing key otherwise
     const _newGeminiKey = document.getElementById('setting-gemini-key').value.trim();
     if (_newGeminiKey) s.gemini_key = _newGeminiKey;
+    const aiProvSave = document.getElementById('setting-ai-provider');
+    if (aiProvSave) s.ai_provider = aiProvSave.value || 'gemini';
+    const oaiUrlSave = document.getElementById('setting-openai-base-url');
+    if (oaiUrlSave) s.openai_base_url = oaiUrlSave.value.trim();
+    const oaiModelSave = document.getElementById('setting-openai-model');
+    if (oaiModelSave) s.openai_model = oaiModelSave.value.trim();
+    const oaiKeySave = document.getElementById('setting-openai-api-key');
+    if (oaiKeySave && oaiKeySave.value.trim()) s.openai_api_key = oaiKeySave.value.trim();
     s.bring_email = document.getElementById('setting-bring-email').value.trim();
     s.bring_password = document.getElementById('setting-bring-password').value.trim();
     s.default_persons = parseInt(document.getElementById('setting-default-persons').value) || 1;
@@ -4738,6 +4764,10 @@ async function saveSettings() {
         const tokenHeader = settingsToken ? { 'X-API-Token': settingsToken } : (typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {});
         const result = await api('save_settings', {}, 'POST', {
             ...(s.gemini_key ? { gemini_key: s.gemini_key } : {}),
+            ai_provider: s.ai_provider || 'gemini',
+            openai_base_url: s.openai_base_url || '',
+            openai_model: s.openai_model || '',
+            ...(s.openai_api_key ? { openai_api_key: s.openai_api_key } : {}),
             bring_email: s.bring_email,
             ...(s.bring_password ? { bring_password: s.bring_password } : {}),
             default_persons: s.default_persons,
@@ -4866,6 +4896,14 @@ function switchSettingsTab(btn, tabId) {
     document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(tabId).classList.add('active');
+}
+
+function _syncAiProviderUi() {
+    const prov = document.getElementById('setting-ai-provider')?.value || 'gemini';
+    const gemCard = document.getElementById('settings-ai-gemini-card');
+    const oaiCard = document.getElementById('settings-ai-openai-card');
+    if (gemCard) gemCard.style.display = prov === 'openai' ? 'none' : '';
+    if (oaiCard) oaiCard.style.display = prov === 'openai' ? '' : 'none';
 }
 
 function togglePasswordVisibility(inputId) {
@@ -23735,7 +23773,7 @@ async function _initApp() {
         // are taken into account before deciding which wizard steps to show.
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
-        _geminiAvailable = !!(serverSettings.gemini_key_set);
+        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
         _demoMode = !!serverSettings.demo_mode;
         _updateGeminiButtonState();

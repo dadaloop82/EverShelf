@@ -1,5 +1,7 @@
 services:
   evershelf:
+    # Pre-built image from GHCR (#209). Rebuild locally with: docker compose build
+    image: ghcr.io/dadaloop82/evershelf:latest
     build: .
     container_name: evershelf
     ports:

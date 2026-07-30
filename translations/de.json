@@ -1327,6 +1327,21 @@
             "added": "Ort hinzugefügt — Speichern tippen zum Sync",
             "reserved": "Name ist für einen Standardort reserviert",
             "in_use": "„{name}“ kann nicht entfernt werden: noch {n} Artikel dort"
+        },
+        "ai": {
+            "title": "🤖 KI-Anbieter",
+            "hint": "Google Gemini (Cloud) oder OpenAI-kompatiblen Endpunkt nutzen (OpenAI, Ollama, vLLM, llama.cpp…).",
+            "provider_label": "Anbieter",
+            "provider_gemini": "Google Gemini",
+            "provider_openai": "OpenAI-kompatibel"
+        },
+        "openai": {
+            "title": "🔌 OpenAI-kompatibler Endpunkt",
+            "hint": "Basis-URL mit /v1 am Ende. API-Schlüssel bei vielen lokalen Servern optional (z. B. Ollama).",
+            "base_url_label": "Basis-URL",
+            "base_url_placeholder": "http://127.0.0.1:11434/v1",
+            "model_label": "Modell",
+            "key_label": "API-Schlüssel (optional)"
         }
     },
     "expiry": {

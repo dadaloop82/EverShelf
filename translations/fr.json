@@ -1327,6 +1327,21 @@
             "added": "Emplacement ajouté — enregistrez pour synchroniser",
             "reserved": "Nom réservé à un emplacement prédéfini",
             "in_use": "Impossible de supprimer « {name} » : {n} article(s) encore stocké(s)"
+        },
+        "ai": {
+            "title": "🤖 Fournisseur IA",
+            "hint": "Utilisez Google Gemini (cloud) ou un endpoint compatible OpenAI (OpenAI, Ollama, vLLM, llama.cpp…).",
+            "provider_label": "Fournisseur",
+            "provider_gemini": "Google Gemini",
+            "provider_openai": "Compatible OpenAI"
+        },
+        "openai": {
+            "title": "🔌 Endpoint compatible OpenAI",
+            "hint": "URL de base se terminant par /v1. Clé API optionnelle pour beaucoup de serveurs locaux (ex. Ollama).",
+            "base_url_label": "URL de base",
+            "base_url_placeholder": "http://127.0.0.1:11434/v1",
+            "model_label": "Modèle",
+            "key_label": "Clé API (optionnelle)"
         }
     },
     "expiry": {

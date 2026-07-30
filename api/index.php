@@ -549,14 +549,24 @@ if (($_GET['action'] ?? '') === 'health_check') {
         'hint'     => !$envExists ? 'File .env mancante — copia .env.example in .env e configura i valori' : null,
     ];
 
-    // ── 10. Gemini AI — solo se GEMINI_API_KEY è impostata ───────────────────
-    $geminiKey = $envGet('GEMINI_API_KEY');
-    if (!empty($geminiKey)) {
-        $checks['gemini_key'] = ['ok' => strlen($geminiKey) > 20, 'optional' => true,
-            'hint' => strlen($geminiKey) <= 20 ? 'Gemini AI key looks too short — check the value in .env' : null];
+    // ── 10. AI provider (Gemini or OpenAI-compatible) ───────────────────────
+    if (aiProvider() === 'openai') {
+        $base = aiOpenAiBaseUrl();
+        $checks['ai_provider'] = [
+            'ok' => $base !== '',
+            'optional' => true,
+            'value' => $base !== '' ? ('openai @ ' . $base) : 'openai (not configured)',
+            'hint' => $base === '' ? 'Set OPENAI_BASE_URL in .env (e.g. http://127.0.0.1:11434/v1)' : null,
+        ];
     } else {
-        $checks['gemini_key'] = ['ok' => true, 'optional' => true,
-            'value' => 'not configured', 'hint' => 'Set GEMINI_API_KEY in .env to enable AI features'];
+        $geminiKey = $envGet('GEMINI_API_KEY');
+        if (!empty($geminiKey)) {
+            $checks['gemini_key'] = ['ok' => strlen($geminiKey) > 20, 'optional' => true,
+                'hint' => strlen($geminiKey) <= 20 ? 'Gemini AI key looks too short — check the value in .env' : null];
+        } else {
+            $checks['gemini_key'] = ['ok' => true, 'optional' => true,
+                'value' => 'not configured', 'hint' => 'Set GEMINI_API_KEY in .env, or AI_PROVIDER=openai + OPENAI_BASE_URL'];
+        }
     }
 
     // ── 11. Bring! — solo se EMAIL+PASSWORD sono impostate ───────────────────
@@ -2910,7 +2920,7 @@ function haGenerateRecipe(PDO $db): void {
  */
 function haSuggestRecipe(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
-    $apiKey = env('GEMINI_API_KEY', '');
+    $apiKey = aiCredential();
     if (!$apiKey) {
         http_response_code(503);
         echo json_encode(['error' => 'GEMINI_API_KEY not configured']);
@@ -3761,7 +3771,7 @@ function barcodeResolveExternal(PDO $db, string $barcode, bool $forceRefresh = f
         }
     }
 
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if ($apiKey && env('BARCODE_AI_FALLBACK', 'false') === 'true') {
         $geminiProduct = _barcodeLookupGemini($barcode, $apiKey);
         if ($geminiProduct !== null) {
@@ -7143,11 +7153,15 @@ function getKioskUpdate(): void {
 
 function getServerSettings(): void {
     EverLog::debug('getServerSettings');
-    $geminiKey = env('GEMINI_API_KEY');
     $bringEmail = env('BRING_EMAIL');
     
     echo json_encode([
-        'gemini_key_set' => !empty($geminiKey),
+        'gemini_key_set' => aiIsConfigured(),
+        'ai_provider' => aiProvider(),
+        'ai_configured' => aiIsConfigured(),
+        'openai_base_url' => env('OPENAI_BASE_URL', ''),
+        'openai_model' => env('OPENAI_MODEL', ''),
+        'openai_key_set' => trim((string)env('OPENAI_API_KEY', '')) !== '',
         'api_token_required' => evershelfApiTokenRequired(),
         'bring_email' => $bringEmail,
         'settings_token_set' => evershelfApiTokenRequired(),
@@ -7277,6 +7291,10 @@ function saveSettings(): void {
     // Map of input key → .env key — only update if present in input
     $keyMap = [
         'gemini_key'      => 'GEMINI_API_KEY',
+        'ai_provider'     => 'AI_PROVIDER',
+        'openai_base_url' => 'OPENAI_BASE_URL',
+        'openai_api_key'  => 'OPENAI_API_KEY',
+        'openai_model'    => 'OPENAI_MODEL',
         'bring_email'     => 'BRING_EMAIL',
         'bring_password'  => 'BRING_PASSWORD',
         'tts_url'         => 'TTS_URL',
@@ -7626,11 +7644,24 @@ function geminiModelUnavailable(int $httpCode, ?array $data): bool {
 
 /**
  * Like callGemini() but walks geminiModelChain() on quota or unavailable-model errors.
+ * When AI_PROVIDER=openai (or ollama/vllm/local), routes to an OpenAI-compatible
+ * /v1/chat/completions endpoint and normalizes the response to Gemini shape.
  * @param string $tier 'default' | 'lite'
  */
 function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = '', string $tier = 'default'): array {
+    $payload = geminiEnsureNoThinking($payload);
+
+    if (aiProvider() === 'openai') {
+        $model = aiOpenAiModel();
+        EverLog::aiCall($model, strlen(json_encode($payload)), false);
+        $last = aiOpenAiChatCompletions($payload, $timeout);
+        if ($last['http_code'] === 200) {
+            _recordAiUsage($model, $last['tokens_in'], $last['tokens_out'], $usageAction);
+        }
+        return $last;
+    }
+
     $models    = geminiModelChain($tier);
-    $payload   = geminiEnsureNoThinking($payload);
     $last      = ['http_code' => 0, 'body' => '', 'data' => null, 'tokens_in' => 0, 'tokens_out' => 0];
     $promptLen = strlen(json_encode($payload));
     foreach ($models as $idx => $model) {
@@ -7721,7 +7752,7 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
     }
 
     // Try Gemini AI (only when explicitly allowed — NOT during bulk stats loops)
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     $days   = 0;
     if ($allowAI && !empty($apiKey)) {
         $locLabel = match($location) {
@@ -7973,7 +8004,7 @@ function geminiReadExpiry(): void {
     }
 
     // ── Step 2: Fall back to Gemini Vision ────────────────────────────────
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         // No Gemini key and OCR failed/unavailable
         echo json_encode([
@@ -8045,7 +8076,7 @@ function geminiReadExpiry(): void {
 
 // ===== GEMINI CHAT =====
 function geminiChat(PDO $db): void {
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::info('geminiChat');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -9232,7 +9263,7 @@ function recipeRespond(array $payload): void {
 
 function generateRecipe(PDO $db): void {
     EverLog::debug('generateRecipe start');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         recipeRespond(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -9647,7 +9678,7 @@ PROMPT;
     }
 }
 function chatToRecipe(PDO $db): void {
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::debug('chatToRecipe');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -9785,7 +9816,7 @@ function recipeFromIngredient(PDO $db): void {
         }
     }
 
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
@@ -9937,7 +9968,7 @@ function generateRecipeStream(PDO $db): void {
         }
     }
 
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) { $send('error', ['error' => 'no_api_key']); return; }
 
     // ── AGENTE PASSO 1: Analisi dispensa (Gemini) ─────────────────────────────
@@ -10232,6 +10263,40 @@ PROMPT;
     $genConfig = recipeGeminiGenerationConfig(min(1.4, 0.7 + $variation * 0.25), 4096);
     $payload   = ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => $genConfig];
 
+    // OpenAI-compatible: reuse shared client (no Gemini-specific SSE loop)
+    if (aiProvider() === 'openai') {
+        $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_creating_full_recipe')]);
+        $result = callGeminiWithFallback($apiKey, $payload, 90, 'recipe');
+        $httpCode = $result['http_code'];
+        if ($httpCode !== 200) {
+            $errDetail = $result['data']['error']['message'] ?? substr((string)$result['body'], 0, 300);
+            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'detail' => $errDetail]);
+            return;
+        }
+        $text = $result['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        $recipe = recipeParseGeminiJson($text);
+        if (!$recipe || empty($recipe['title'])) {
+            EverLog::warn('generateRecipeStream openai parse failed', ['raw' => mb_substr($text, 0, 500)]);
+            $send('error', ['error' => recipeText($lang, 'error_cannot_generate'), 'raw' => mb_substr($text, 0, 500)]);
+            return;
+        }
+        recipePostProcessGenerated($db, $recipe, $items);
+        if (!empty($fuelBudget)) {
+            $recipe['fuel_budget'] = $fuelBudget;
+        }
+        if (!empty($weatherCtx)) {
+            $recipe['weather'] = [
+                'city' => $weatherCtx['city'] ?? '',
+                'temp_c' => $weatherCtx['temp_c'] ?? null,
+                'bucket' => $weatherCtx['bucket'] ?? null,
+                'source' => 'Open-Meteo',
+            ];
+        }
+        $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
+        $send('recipe', ['recipe' => $recipe]);
+        return;
+    }
+
     // A: retry SSE-aware con feedback live; C: fallback automatico su quota / modello spento
     $models = geminiModelChain();
 
@@ -10369,7 +10434,7 @@ PROMPT;
 
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====
 function geminiIdentifyProduct(): void {
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::info('geminiIdentifyProduct');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -10870,7 +10935,7 @@ function _classifyDailyBump(): void {
 
 function _geminiClassifyProduct(string $name, string $brand, string $category): ?string {
     EverLog::debug('_geminiClassifyProduct');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         return null;
     }
@@ -14961,7 +15026,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
 function bringSuggestItems(PDO $db): void {
     EverLog::info('bringSuggestItems');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
 
     // 1. Load smart shopping data from cache or compute fresh
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
@@ -16324,7 +16389,7 @@ function _phpErrorReport(string $message, string $file, int $line, string $trace
  */
 function geminiProductHint(): void {
     EverLog::info('geminiProductHint');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::info('geminiProductHint');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -16416,7 +16481,7 @@ function geminiProductHint(): void {
  */
 function geminiShoppingEnrich(PDO $db): void {
     EverLog::info('geminiShoppingEnrich');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::info('geminiShoppingEnrich');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -16509,7 +16574,7 @@ function geminiShoppingEnrich(PDO $db): void {
  */
 function geminiNumberOCR(): void {
     EverLog::info('geminiNumberOCR');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) { echo json_encode(['success' => false, 'error' => 'no_api_key']); return; }
     EverLog::info('geminiNumberOCR');
 
@@ -16550,7 +16615,7 @@ function geminiNumberOCR(): void {
  */
 function geminiBarcodeVisual(): void {
     EverLog::info('geminiBarcodeVisual');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         echo json_encode(['found' => false, 'error' => 'no_api_key']);
         return;
@@ -16644,7 +16709,7 @@ function geminiBarcodeVisual(): void {
  */
 function geminiAnomalyExplain(): void {
     EverLog::info('geminiAnomalyExplain');
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey)) {
         EverLog::info('geminiAnomalyExplain');
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
@@ -17068,7 +17133,7 @@ function _fetchPriceFromAI(string $name, string $country, string $currency, stri
  * Items that could not be priced are omitted from the result.
  */
 function _fetchPricesBatchFromAI(array $names, string $country, string $currency, string $lang): array {
-    $apiKey = env('GEMINI_API_KEY');
+    $apiKey = aiCredential();
     if (empty($apiKey) || empty($names)) return [];
     EverLog::info('price_batch_ai start', ['count' => count($names), 'country' => $country]);
 
@@ -17144,7 +17209,7 @@ function guessCategoryFromAI(): void {
     $key = md5(mb_strtolower($name));
     if (isset($cache[$key])) { echo json_encode(['category' => $cache[$key]]); return; }
 
-    $apiKey = env('GEMINI_API_KEY', '');
+    $apiKey = aiCredential();
     if ($apiKey === '') { echo json_encode(['category' => 'altro']); return; }
 
     $cats   = 'latticini, carne, pesce, frutta, verdura, pasta, pane, surgelati, bevande, condimenti, snack, conserve, cereali, igiene, pulizia, altro';
@@ -17205,7 +17270,7 @@ function getShoppingPrice(PDO $db): void {
     }
 
     // Guard: price estimation requires Gemini API key
-    if (empty(env('GEMINI_API_KEY'))) {
+    if (empty(aiCredential())) {
         echo json_encode(['success' => false, 'error' => 'no_api_key']);
         return;
     }

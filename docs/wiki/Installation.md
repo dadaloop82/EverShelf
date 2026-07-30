@@ -18,29 +18,33 @@ EverShelf runs on any server with PHP 8.0+ and SQLite. Docker is the recommended
 
 ## Option A: Docker (recommended)
 
-The fastest way to get started.
+The fastest way to get started. Pre-built multi-arch images (`amd64` / `arm64`) are published to **GHCR**: `ghcr.io/dadaloop82/evershelf`.
 
 ```bash
-# 1. Clone the repository
+# 1. Clone the repository (compose file + .env.example)
 git clone https://github.com/dadaloop82/EverShelf.git
 cd EverShelf
 
 # 2. Create your configuration
 cp .env.example .env
-nano .env          # set GEMINI_API_KEY and other options
+nano .env          # set GEMINI_API_KEY, or AI_PROVIDER=openai + OPENAI_BASE_URL
 
-# 3. Start
+# 3. Pull the published image and start
+docker compose pull
 docker compose up -d
 
 # 4. Open in browser
 # → http://localhost:8080
 ```
 
+To build locally instead of pulling: `docker compose build && docker compose up -d`.
+
 The Docker image:
-- Uses PHP-Apache on Debian Bookworm slim
+- Uses PHP-Apache on Debian Bookworm
 - Auto-creates the `data/` directory with correct permissions
 - Exposes port `8080` by default (configurable in `docker-compose.yml`)
 - Persists data in a named Docker volume
+- Tags: `latest` (main), `vX.Y.Z` (releases), `sha-…`
 
 ### Changing the port
 
@@ -226,7 +230,7 @@ docker compose up -d
 Once the app is running, open it in your browser and:
 
 1. Go to **Settings** (⚙️ icon in the header)
-2. Enter your **Gemini API key** (get one free at [aistudio.google.com](https://aistudio.google.com/app/apikey))
+2. Open **API Keys** — choose **Google Gemini** or an **OpenAI-compatible** endpoint (Ollama, vLLM, …)
 3. Optionally configure Bring!, TTS, and scale settings
 4. Add your first product via the ➕ button or barcode scan
 
