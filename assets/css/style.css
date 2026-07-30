@@ -9223,8 +9223,14 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== PAGE HEADER ACTION BUTTON (export etc.) ===== */
-.page-header-action-btn {
+.page-header-actions {
     margin-left: auto;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.page-header-action-btn {
+    margin-left: 0;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -9238,6 +9244,129 @@ body.cooking-mode-active .app-header {
     transform: scale(0.95);
     opacity: 0.8;
 }
+
+/* ===== CSV IMPORT MODAL ===== */
+.import-modal {
+    padding: 0 4px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.import-schema {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 0.82rem;
+}
+.import-schema h4 {
+    margin: 0 0 8px;
+    font-size: 0.9rem;
+}
+.import-schema-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.import-schema-cols code {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+}
+.import-schema-cols code.required {
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+}
+.import-schema ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-light);
+    line-height: 1.45;
+}
+.import-file-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.import-file-row input[type="file"] {
+    font-size: 0.9rem;
+}
+.import-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+.import-pill {
+    border-radius: 999px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+}
+.import-pill.ok { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.import-pill.warn { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.import-pill.err { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+.import-preview-wrap {
+    max-height: 36vh;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.import-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.import-preview-table th,
+.import-preview-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+.import-preview-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-card);
+    z-index: 1;
+}
+.import-preview-table tr.status-error td { background: #fef2f2; }
+.import-preview-table tr.status-warning td { background: #fffbeb; }
+.import-status-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.import-status-badge.ok { background: #dcfce7; color: #166534; }
+.import-status-badge.warning { background: #fef3c7; color: #92400e; }
+.import-status-badge.error { background: #fee2e2; color: #991b1b; }
+.import-row-issues {
+    color: var(--text-light);
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+.import-error-box {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #991b1b;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 0.88rem;
+}
+[data-theme="dark"] .import-pill.ok { background: #14532d; color: #bbf7d0; border-color: #166534; }
+[data-theme="dark"] .import-pill.warn { background: #78350f; color: #fde68a; border-color: #92400e; }
+[data-theme="dark"] .import-pill.err { background: #7f1d1d; color: #fecaca; border-color: #991b1b; }
+[data-theme="dark"] .import-preview-table tr.status-error td { background: rgba(127, 29, 29, 0.35); }
+[data-theme="dark"] .import-preview-table tr.status-warning td { background: rgba(120, 53, 15, 0.35); }
+[data-theme="dark"] .import-error-box { background: rgba(127, 29, 29, 0.4); color: #fecaca; }
 
 /* ===== ZERO-WASTE TIP CARD (cooking mode) ===== */
 .cooking-zerowaste-tip {

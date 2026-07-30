@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260729c'; // bump when translations change
+const _I18N_VERSION = '20260730b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1375,6 +1375,243 @@ function _showExportModal() {
         </div>`;
     document.getElementById('modal-content').innerHTML = html;
     document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+// ===== IMPORT INVENTORY (CSV) =====
+let _importPreviewState = null;
+
+const _IMPORT_SCHEMA_COLS = [
+    'Name', 'Brand', 'Category', 'Location', 'Quantity', 'Unit',
+    'Expiry Date', 'Added', 'Opened At', 'Vacuum Sealed', 'Barcode', 'Notes',
+];
+
+function _importIssueLabel(code, data = null) {
+    const key = `import.issue_${code}`;
+    const params = {};
+    if (code === 'location_defaulted') {
+        params.location = t('locations.dispensa') || 'dispensa';
+        params.key = 'dispensa';
+    }
+    if (code === 'unit_defaulted') {
+        params.unit = 'pz';
+    }
+    const label = t(key, params);
+    return label && label !== key ? label : code;
+}
+
+function _importErrLabel(errorCode) {
+    const key = `import.err_${errorCode || 'invalid_schema'}`;
+    const label = t(key);
+    return (label && label !== key) ? label : t('import.schema_invalid');
+}
+
+function _importLocationLabel(key) {
+    const k = String(key || '');
+    const label = t(`locations.${k}`);
+    return (label && label !== `locations.${k}`) ? label : k;
+}
+
+function _showImportModal() {
+    _importPreviewState = null;
+    const colsHtml = _IMPORT_SCHEMA_COLS.map(c =>
+        `<code class="${c === 'Name' ? 'required' : ''}">${escapeHtml(c)}</code>`
+    ).join('');
+    const locValues = ['dispensa', 'frigo', 'freezer', 'altro']
+        .map(k => `${k} (${_importLocationLabel(k)})`)
+        .join(', ');
+    const html = `
+        <div class="modal-header">
+            <h3>📥 ${escapeHtml(t('import.title'))}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="import-modal">
+            <p style="color:var(--text-light);font-size:0.9rem;margin:0">${escapeHtml(t('import.hint'))}</p>
+            <div class="import-schema">
+                <h4>${escapeHtml(t('import.schema_title'))}</h4>
+                <div class="import-schema-cols">${colsHtml}</div>
+                <ul>
+                    <li>${escapeHtml(t('import.schema_required'))}</li>
+                    <li>${escapeHtml(t('import.schema_location', { values: locValues, default: 'dispensa' }))}</li>
+                    <li>${escapeHtml(t('import.schema_unit'))}</li>
+                    <li>${escapeHtml(t('import.schema_dates'))}</li>
+                    <li>${escapeHtml(t('import.schema_vacuum'))}</li>
+                    <li>${escapeHtml(t('import.schema_match'))}</li>
+                </ul>
+            </div>
+            <div class="import-file-row">
+                <label class="btn btn-outline full-width" style="cursor:pointer;text-align:center">
+                    📄 ${escapeHtml(t('import.choose_file'))}
+                    <input type="file" id="import-csv-input" accept=".csv,text/csv,text/plain" style="display:none" onchange="_onImportFileSelected(event)">
+                </label>
+                <div id="import-file-name" style="font-size:0.85rem;color:var(--text-light)"></div>
+            </div>
+            <div id="import-feedback"></div>
+            <div id="import-actions" style="display:none;flex-direction:column;gap:8px"></div>
+        </div>`;
+    document.getElementById('modal-content').innerHTML = html;
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+async function _onImportFileSelected(event) {
+    const file = event.target?.files?.[0];
+    const feedback = document.getElementById('import-feedback');
+    const actions = document.getElementById('import-actions');
+    const nameEl = document.getElementById('import-file-name');
+    _importPreviewState = null;
+    if (actions) {
+        actions.style.display = 'none';
+        actions.innerHTML = '';
+    }
+    if (!file) {
+        if (nameEl) nameEl.textContent = '';
+        if (feedback) feedback.innerHTML = '';
+        return;
+    }
+    if (nameEl) nameEl.textContent = file.name;
+    if (feedback) {
+        feedback.innerHTML = `<p style="color:var(--text-light);font-size:0.9rem">${escapeHtml(t('import.validating'))}</p>`;
+    }
+    let csv;
+    try {
+        csv = await file.text();
+    } catch (e) {
+        if (feedback) {
+            feedback.innerHTML = `<div class="import-error-box">${escapeHtml(t('import.read_error'))}</div>`;
+        }
+        return;
+    }
+    try {
+        const res = await api('import_inventory', {}, 'POST', { mode: 'validate', csv });
+        if (!res || !res.success || !res.schema_ok) {
+            const msg = _importErrLabel(res?.error);
+            const unknown = (res?.unknown_columns || []).map(c => escapeHtml(c)).join(', ');
+            feedback.innerHTML = `
+                <div class="import-error-box">
+                    <strong>${escapeHtml(t('import.schema_invalid'))}</strong><br>
+                    ${escapeHtml(msg)}${unknown ? `<br>${escapeHtml(t('import.unknown_cols'))}: ${unknown}` : ''}
+                </div>`;
+            return;
+        }
+        _importPreviewState = { csv, rows: res.rows || [], summary: res.summary || {} };
+        _renderImportPreview(res);
+    } catch (e) {
+        feedback.innerHTML = `<div class="import-error-box">${escapeHtml(t('import.validate_error'))}</div>`;
+    }
+}
+
+function _renderImportPreview(res) {
+    const feedback = document.getElementById('import-feedback');
+    const actions = document.getElementById('import-actions');
+    if (!feedback || !actions) return;
+    const s = res.summary || {};
+    const rows = res.rows || [];
+    const importable = s.importable || 0;
+
+    const summaryHtml = `
+        <div class="import-summary">
+            <span class="import-pill">${escapeHtml(t('import.summary_total', { n: s.total || 0 }))}</span>
+            <span class="import-pill ok">${escapeHtml(t('import.summary_ok', { n: s.ok || 0 }))}</span>
+            <span class="import-pill warn">${escapeHtml(t('import.summary_warn', { n: s.warning || 0 }))}</span>
+            <span class="import-pill err">${escapeHtml(t('import.summary_err', { n: s.error || 0 }))}</span>
+        </div>`;
+
+    const bodyRows = rows.map(r => {
+        const d = r.data || {};
+        const issues = [...(r.errors || []), ...(r.warnings || [])]
+            .map(code => escapeHtml(_importIssueLabel(code, d)))
+            .join(' · ');
+        const locLabel = _importLocationLabel(d.location);
+        return `<tr class="status-${escapeHtml(r.status)}">
+            <td>${r.line || ''}</td>
+            <td><span class="import-status-badge ${escapeHtml(r.status)}">${escapeHtml(t('import.status_' + r.status))}</span>
+                ${issues ? `<div class="import-row-issues">${issues}</div>` : ''}
+            </td>
+            <td>${escapeHtml(d.name || '')}${d.brand ? `<div class="import-row-issues">${escapeHtml(d.brand)}</div>` : ''}</td>
+            <td>${escapeHtml(locLabel)}</td>
+            <td>${escapeHtml(String(d.quantity ?? ''))} ${escapeHtml(d.unit || '')}</td>
+            <td>${escapeHtml(d.expiry_date || '—')}</td>
+        </tr>`;
+    }).join('');
+
+    feedback.innerHTML = `
+        ${summaryHtml}
+        <div class="import-preview-wrap">
+            <table class="import-preview-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>${escapeHtml(t('import.col_status'))}</th>
+                        <th>${escapeHtml(t('import.col_name'))}</th>
+                        <th>${escapeHtml(t('import.col_location'))}</th>
+                        <th>${escapeHtml(t('import.col_qty'))}</th>
+                        <th>${escapeHtml(t('import.col_expiry'))}</th>
+                    </tr>
+                </thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        </div>
+        ${importable === 0 ? `<div class="import-error-box">${escapeHtml(t('import.nothing_importable'))}</div>` : ''}
+    `;
+
+    if (importable > 0) {
+        actions.style.display = 'flex';
+        actions.innerHTML = `
+            <button class="btn btn-primary full-width" id="import-commit-btn" onclick="_confirmImportInventory()">
+                📥 ${escapeHtml(t('import.btn_import', { n: importable }))}
+            </button>
+            <p style="margin:0;font-size:0.8rem;color:var(--text-light)">${escapeHtml(t('import.confirm_hint'))}</p>
+        `;
+    } else {
+        actions.style.display = 'none';
+        actions.innerHTML = '';
+    }
+}
+
+async function _confirmImportInventory() {
+    if (!_importPreviewState) return;
+    const importableRows = (_importPreviewState.rows || []).filter(r => r.importable);
+    if (!importableRows.length) return;
+
+    const msg = t('import.confirm_msg', { n: importableRows.length });
+    if (!confirm(msg)) return;
+
+    const btn = document.getElementById('import-commit-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = t('import.importing');
+    }
+
+    try {
+        const res = await api('import_inventory', {}, 'POST', {
+            mode: 'commit',
+            confirm: true,
+            rows: importableRows,
+        });
+        if (!res || !res.success) {
+            showToast(_importErrLabel(res?.error) || t('import.commit_error'), 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = `📥 ${t('import.btn_import', { n: importableRows.length })}`;
+            }
+            return;
+        }
+        const imported = res.imported || 0;
+        const failed = res.failed || 0;
+        closeModal();
+        showToast(
+            failed > 0
+                ? t('import.done_partial', { ok: imported, fail: failed })
+                : t('import.done', { n: imported }),
+            failed > 0 ? 'warning' : 'success'
+        );
+        if (typeof loadInventory === 'function') loadInventory();
+    } catch (e) {
+        showToast(t('import.commit_error'), 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = `📥 ${t('import.btn_import', { n: importableRows.length })}`;
+        }
+    }
 }
 
 const LOCATIONS = {
