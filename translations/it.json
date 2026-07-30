@@ -1317,6 +1317,16 @@
             "preview": "Ora a {place}: {temp}°C — {bucket}",
             "preview_error": "Impossibile caricare il meteo.",
             "attribution": "Dati meteo: Open-Meteo.com (CC BY 4.0)"
+        },
+        "custom_locations": {
+            "title": "📍 Luoghi di conservazione",
+            "hint": "Aggiungi posti oltre a Dispensa, Frigo, Freezer e Altro (es. Cantina, Garage). I nomi restano così come li scrivi.",
+            "builtin_hint": "Predefiniti (non rimovibili): Dispensa, Frigo, Freezer, Altro.",
+            "placeholder": "Es: Cantina, Box garage…",
+            "empty": "Nessun luogo personalizzato",
+            "added": "Luogo aggiunto — premi Salva per sincronizzare",
+            "reserved": "Nome riservato a un luogo predefinito",
+            "in_use": "Impossibile rimuovere “{name}”: ci sono ancora {n} prodotti"
         }
     },
     "expiry": {
@@ -1918,5 +1928,29 @@
     },
     "common": {
         "uncategorized": "Non categorizzato"
+    },
+    "templates": {
+        "btn": "📋 Template",
+        "title": "Template spesa",
+        "hint": "Salva bundle di prodotti (es. essenziali settimanali) e aggiungili alla lista o in dispensa con un tap.",
+        "create": "➕ Nuovo template",
+        "edit": "Modifica template",
+        "empty": "Nessun template",
+        "items_count": "prodotti",
+        "apply_shopping": "→ Lista spesa",
+        "apply_inventory": "→ Inventario",
+        "confirm_inventory": "Aggiungere tutti i prodotti del template all’inventario?",
+        "confirm_delete": "Eliminare questo template?",
+        "applied_shopping": "Template applicato: {added} aggiunti, {skipped} già in lista",
+        "applied_inventory": "Template applicato: {added} in inventario, {skipped} saltati",
+        "deleted": "Template eliminato",
+        "saved": "Template salvato",
+        "name_label": "Nome template",
+        "add_from_inventory": "Aggiungi dalla dispensa",
+        "add_manual": "Oppure digita un nome",
+        "manual_placeholder": "Nome prodotto…",
+        "draft_empty": "Nessun prodotto in questo template",
+        "name_required": "Inserisci un nome",
+        "items_required": "Aggiungi almeno un prodotto"
     }
 }

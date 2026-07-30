@@ -199,6 +199,7 @@ function evershelfDemoReadOnlyActions(): array {
         'consumption_predictions', 'inventory_anomalies', 'inventory_duplicate_loss_checks',
         'recent_popular_products', 'expiry_history', 'food_facts', 'opened_shelf_life',
         'bring_list', 'bring_suggest', 'shopping_list', 'shopping_suggest', 'smart_shopping',
+        'templates_list',
         'recipes_list', 'chat_list', 'app_settings_get', 'health_status',
         'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
         'ha_refresh_prices',

@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.76] - 2026-07-30
+
+### Added
+- **Custom storage locations** (#79) — Settings → Generali: add places beyond Pantry/Fridge/Freezer/Other (stored as `CUSTOM_LOCATIONS` in `.env`). They appear in inventory tabs and location pickers.
+- **Shopping/restocking templates** (#101) — Shopping page → Templates: create named product bundles and apply to the shopping list or inventory in one tap.
+
+### Fixed
+- **Recipe steps vs ingredients** — cooking steps no longer keep mentioning foods (e.g. butter) that were stripped from the ingredients list or never in the pantry; prompts tightened + post-process scrub.
+
 ## [1.7.75] - 2026-07-30
 
 ### Added

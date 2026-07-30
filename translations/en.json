@@ -1317,6 +1317,16 @@
             "preview": "Now in {place}: {temp}°C — {bucket}",
             "preview_error": "Could not load weather.",
             "attribution": "Weather data: Open-Meteo.com (CC BY 4.0)"
+        },
+        "custom_locations": {
+            "title": "📍 Custom storage locations",
+            "hint": "Add places beyond Pantry, Fridge, Freezer and Other (e.g. Cellar, Garage). Names are kept as you type them.",
+            "builtin_hint": "Built-in (not removable): Pantry, Fridge, Freezer, Other.",
+            "placeholder": "E.g.: Cellar, Garage box…",
+            "empty": "No custom locations yet",
+            "added": "Location added — tap Save to sync",
+            "reserved": "That name is reserved for a built-in location",
+            "in_use": "Cannot remove “{name}”: {n} item(s) still stored there"
         }
     },
     "expiry": {
@@ -1918,5 +1928,29 @@
     },
     "common": {
         "uncategorized": "Uncategorized"
+    },
+    "templates": {
+        "btn": "📋 Templates",
+        "title": "Shopping templates",
+        "hint": "Save product bundles (e.g. weekly essentials) and add them to the shopping list or inventory in one tap.",
+        "create": "➕ New template",
+        "edit": "Edit template",
+        "empty": "No templates yet",
+        "items_count": "items",
+        "apply_shopping": "→ Shopping list",
+        "apply_inventory": "→ Inventory",
+        "confirm_inventory": "Add all template products to inventory?",
+        "confirm_delete": "Delete this template?",
+        "applied_shopping": "Template applied: {added} added, {skipped} already on list",
+        "applied_inventory": "Template applied: {added} added to inventory, {skipped} skipped",
+        "deleted": "Template deleted",
+        "saved": "Template saved",
+        "name_label": "Template name",
+        "add_from_inventory": "Add from inventory",
+        "add_manual": "Or type a product name",
+        "manual_placeholder": "Product name…",
+        "draft_empty": "No products in this template yet",
+        "name_required": "Enter a template name",
+        "items_required": "Add at least one product"
     }
 }

@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730f'; // bump when translations change
+const _I18N_VERSION = '20260730g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -1229,9 +1229,11 @@ async function loadTranslations(lang) {
 // Update LOCATIONS / SHOPPING_SECTIONS labels from translations
 function _applyI18nToLabels() {
     if (!_i18nStrings) return;
+    mergeCustomLocations(getSettings().custom_locations || []);
     for (const key of Object.keys(LOCATIONS)) {
-        const tKey = `locations.${key}`;
-        if (_i18nStrings[tKey]) LOCATIONS[key].label = _i18nStrings[tKey];
+        if (BUILTIN_LOCATIONS[key]) {
+            LOCATIONS[key].label = t(BUILTIN_LOCATIONS[key].labelKey);
+        }
     }
     for (const key of Object.keys(CATEGORY_LABELS)) {
         const tKey = `categories.${key}`;
@@ -1614,12 +1616,131 @@ async function _confirmImportInventory() {
     }
 }
 
-const LOCATIONS = {
+const BUILTIN_LOCATIONS = {
+    'dispensa': { icon: '🗄️', labelKey: 'locations.dispensa' },
+    'frigo': { icon: '🧊', labelKey: 'locations.frigo' },
+    'freezer': { icon: '❄️', labelKey: 'locations.freezer' },
+    'altro': { icon: '📦', labelKey: 'locations.altro' },
+};
+let LOCATIONS = {
     'dispensa': { icon: '🗄️', label: t('locations.dispensa') },
     'frigo': { icon: '🧊', label: t('locations.frigo') },
     'freezer': { icon: '❄️', label: t('locations.freezer') },
     'altro': { icon: '📦', label: t('locations.altro') },
 };
+
+function slugifyCustomLocation(name) {
+    let s = String(name || '').trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+    if (!s) s = 'loc';
+    return s.startsWith('custom_') ? s : 'custom_' + s;
+}
+
+function mergeCustomLocations(names) {
+    const next = {};
+    for (const [key, meta] of Object.entries(BUILTIN_LOCATIONS)) {
+        next[key] = { icon: meta.icon, label: t(meta.labelKey) };
+    }
+    (names || []).forEach(label => {
+        const name = String(label || '').trim();
+        if (!name) return;
+        const key = slugifyCustomLocation(name);
+        if (BUILTIN_LOCATIONS[key] || BUILTIN_LOCATIONS[name]) return;
+        next[key] = { icon: '📦', label: name };
+    });
+    LOCATIONS = next;
+    rebuildLocationPickers();
+}
+
+function rebuildLocationPickers() {
+    const activeLoc = currentLocation || '';
+    const tabs = document.getElementById('location-tabs');
+    if (tabs) {
+        let html = `<button class="tab${activeLoc === '' ? ' active' : ''}" onclick="filterLocation('')" data-loc="" data-i18n="inventory.filter_all">${t('inventory.filter_all')}</button>`;
+        for (const [key, meta] of Object.entries(LOCATIONS)) {
+            html += `<button class="tab${activeLoc === key ? ' active' : ''}" onclick="filterLocation('${key}')" data-loc="${key}">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
+        }
+        tabs.innerHTML = html;
+    }
+    const renderSelector = (sel, hiddenId, clickFn, currentVal) => {
+        const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+        if (!el) return;
+        const cur = currentVal || document.getElementById(hiddenId)?.value || 'dispensa';
+        el.innerHTML = Object.entries(LOCATIONS).map(([key, meta], idx) => {
+            const active = key === cur || (!LOCATIONS[cur] && idx === 0);
+            return `<button type="button" class="loc-btn${active ? ' active' : ''}" onclick="${clickFn}(this, '${key}')">${meta.icon} <span>${escapeHtml(meta.label)}</span></button>`;
+        }).join('');
+        const hidden = document.getElementById(hiddenId);
+        if (hidden && !LOCATIONS[hidden.value]) hidden.value = Object.keys(LOCATIONS)[0] || 'dispensa';
+    };
+    renderSelector('#page-add .location-selector', 'add-location', 'selectLocation', document.getElementById('add-location')?.value);
+    renderSelector('#use-location-selector', 'use-location', 'selectUseLocation', document.getElementById('use-location')?.value);
+}
+
+function renderCustomLocations(list) {
+    const container = document.getElementById('custom-locations-list');
+    if (!container) return;
+    const items = list || getSettings().custom_locations || [];
+    if (!items.length) {
+        container.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">${t('settings.custom_locations.empty')}</p>`;
+        return;
+    }
+    container.innerHTML = items.map((name, i) => `
+        <div class="appliance-item">
+            <span>📦 ${escapeHtml(name)}</span>
+            <button class="appliance-remove" onclick="removeCustomLocation(${i})" title="${t('btn.delete')}">✕</button>
+        </div>
+    `).join('');
+}
+
+function addCustomLocation() {
+    const input = document.getElementById('new-custom-location-input');
+    const name = (input?.value || '').trim();
+    if (!name) return;
+    const s = getSettings();
+    if (!s.custom_locations) s.custom_locations = [];
+    const builtins = ['dispensa', 'frigo', 'freezer', 'altro', t('locations.dispensa'), t('locations.frigo'), t('locations.freezer'), t('locations.altro')];
+    if (builtins.some(b => String(b).toLowerCase() === name.toLowerCase())) {
+        showToast(t('settings.custom_locations.reserved'), 'error');
+        return;
+    }
+    if (s.custom_locations.some(a => a.toLowerCase() === name.toLowerCase())) {
+        showToast(t('error.already_exists'), 'error');
+        return;
+    }
+    s.custom_locations.push(name);
+    saveSettingsToStorage(s);
+    mergeCustomLocations(s.custom_locations);
+    renderCustomLocations(s.custom_locations);
+    if (input) input.value = '';
+    showToast(t('settings.custom_locations.added'), 'success');
+}
+
+async function removeCustomLocation(idx) {
+    const s = getSettings();
+    if (!s.custom_locations || !s.custom_locations[idx]) return;
+    const name = s.custom_locations[idx];
+    const slug = slugifyCustomLocation(name);
+    let pool = _inventoryVisibleItems(_allInventoryCache.length ? _allInventoryCache : currentInventory);
+    if (!pool.length) {
+        try {
+            const data = await api('inventory_list');
+            pool = data.inventory || [];
+        } catch (_) { pool = []; }
+    }
+    const count = pool.filter(i => i.location === slug).length;
+    if (count > 0) {
+        showToast(t('settings.custom_locations.in_use').replace('{n}', count).replace('{name}', name), 'error');
+        return;
+    }
+    s.custom_locations.splice(idx, 1);
+    saveSettingsToStorage(s);
+    mergeCustomLocations(s.custom_locations);
+    renderCustomLocations(s.custom_locations);
+}
+
 const CATEGORY_ICONS = {
     'latticini': '🥛', 'carne': '🥩', 'pesce': '🐟', 'frutta': '🍎',
     'verdura': '🥬', 'pasta': '🍝', 'pane': '🍞', 'surgelati': '🧊',
@@ -3246,6 +3367,7 @@ function _applySyncedSettings(serverSettings) {
     const s = getSettings();
     const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
         'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
+        'custom_locations',
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
@@ -3269,9 +3391,14 @@ function _applySyncedSettings(serverSettings) {
             changed = true;
         }
     }
+    if (Array.isArray(serverSettings.custom_locations)) {
+        s.custom_locations = serverSettings.custom_locations;
+        changed = true;
+    }
     if (changed) {
         _settingsCache = s;
         _applyKioskTtsOverrides(s);
+        mergeCustomLocations(s.custom_locations || []);
         // Update localStorage hint for _earlyTheme() IIFE on next load
         try { localStorage.setItem('evershelf_dark_mode', s.dark_mode || 'auto'); } catch(_) {}
     }
@@ -3874,6 +4001,8 @@ async function loadSettingsUI() {
     if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
     loadCameraDevices();
     renderAppliances(s.appliances || []);
+    renderCustomLocations(s.custom_locations || []);
+    mergeCustomLocations(s.custom_locations || []);
     const mealPlanEnabled = s.meal_plan_enabled !== false;
     const mpEnabledEl = document.getElementById('setting-meal-plan-enabled');
     if (mpEnabledEl) mpEnabledEl.checked = mealPlanEnabled;
@@ -3953,6 +4082,7 @@ async function loadSettingsUI() {
         const serverKeys = ['bring_email',
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
+            'custom_locations',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
@@ -4002,6 +4132,8 @@ async function loadSettingsUI() {
             if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
             if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
             renderAppliances(s.appliances || []);
+            renderCustomLocations(s.custom_locations || []);
+            mergeCustomLocations(s.custom_locations || []);
             if (ttsEnabledEl) ttsEnabledEl.checked = s.tts_enabled === true;
             if (ttsUrlEl) ttsUrlEl.value = s.tts_url || '';
             if (ttsTokenEl) ttsTokenEl.value = s.tts_token || '';
@@ -4623,6 +4755,7 @@ async function saveSettings() {
             weather_city: s.weather_city || '',
             dietary: s.dietary,
             appliances: s.appliances,
+            custom_locations: s.custom_locations || [],
             camera_facing: s.camera_facing,
             scale_enabled: s.scale_enabled,
             scale_gateway_url: s.scale_gateway_url,
@@ -16347,6 +16480,188 @@ async function removeBringItem(idx) {
     } catch (err) {
         showToast(t('shopping.remove_error'), 'error');
     }
+}
+
+let _shoppingTemplatesCache = [];
+let _templateDraftItems = [];
+
+async function openShoppingTemplates() {
+    const data = await api('templates_list');
+    _shoppingTemplatesCache = data.templates || [];
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>${escapeHtml(t('templates.title'))}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p class="settings-hint" style="margin:0 0 12px">${escapeHtml(t('templates.hint'))}</p>
+        <button class="btn btn-accent full-width" onclick="openTemplateEditor()" style="margin-bottom:12px">${escapeHtml(t('templates.create'))}</button>
+        <div id="templates-list-body"></div>
+    `;
+    _renderTemplatesListBody();
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function _renderTemplatesListBody() {
+    const body = document.getElementById('templates-list-body');
+    if (!body) return;
+    if (!_shoppingTemplatesCache.length) {
+        body.innerHTML = `<div class="empty-state" style="padding:16px"><p>${escapeHtml(t('templates.empty'))}</p></div>`;
+        return;
+    }
+    body.innerHTML = _shoppingTemplatesCache.map(tpl => {
+        const n = (tpl.items || []).length;
+        return `<div class="appliance-item" style="flex-wrap:wrap;gap:8px;align-items:flex-start">
+            <div style="flex:1;min-width:140px">
+                <strong>${escapeHtml(tpl.name)}</strong>
+                <div style="font-size:0.8rem;color:var(--text-muted)">${n} ${escapeHtml(t('templates.items_count'))}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <button class="btn btn-small btn-success" onclick="applyShoppingTemplate(${tpl.id}, 'shopping')">${escapeHtml(t('templates.apply_shopping'))}</button>
+                <button class="btn btn-small btn-secondary" onclick="applyShoppingTemplate(${tpl.id}, 'inventory')">${escapeHtml(t('templates.apply_inventory'))}</button>
+                <button class="btn btn-small btn-secondary" onclick="openTemplateEditor(${tpl.id})">${escapeHtml(t('btn.edit'))}</button>
+                <button class="btn btn-small btn-danger" onclick="deleteShoppingTemplate(${tpl.id})">${escapeHtml(t('btn.delete'))}</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function applyShoppingTemplate(id, target) {
+    if (target === 'inventory') {
+        const ok = confirm(t('templates.confirm_inventory'));
+        if (!ok) return;
+    }
+    const res = await api('templates_apply', {}, 'POST', { id, target });
+    if (!res || !res.success) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
+    if (target === 'shopping') {
+        showToast(t('templates.applied_shopping').replace('{added}', res.added || 0).replace('{skipped}', res.skipped || 0), 'success');
+        if (typeof loadShoppingList === 'function') loadShoppingList();
+        if (typeof loadShoppingCount === 'function') loadShoppingCount();
+    } else {
+        showToast(t('templates.applied_inventory').replace('{added}', res.added || 0).replace('{skipped}', res.skipped || 0), 'success');
+        if (typeof loadInventory === 'function') loadInventory();
+    }
+    closeModal();
+}
+
+async function deleteShoppingTemplate(id) {
+    if (!confirm(t('templates.confirm_delete'))) return;
+    await api('templates_delete', {}, 'POST', { id });
+    _shoppingTemplatesCache = _shoppingTemplatesCache.filter(t => t.id !== id);
+    _renderTemplatesListBody();
+    showToast(t('templates.deleted'), 'success');
+}
+
+function openTemplateEditor(id) {
+    const existing = id ? _shoppingTemplatesCache.find(t => t.id == id) : null;
+    _templateDraftItems = existing ? JSON.parse(JSON.stringify(existing.items || [])) : [];
+    const invOpts = (_allInventoryCache.length ? _allInventoryCache : currentInventory)
+        .reduce((acc, item) => {
+            if (!acc.find(x => x.product_id == item.product_id)) {
+                acc.push({ product_id: item.product_id, name: item.name, unit: item.unit || 'pz' });
+            }
+            return acc;
+        }, []);
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>${escapeHtml(existing ? t('templates.edit') : t('templates.create'))}</h3>
+            <button class="modal-close" onclick="openShoppingTemplates()">✕</button>
+        </div>
+        <div class="form-group">
+            <label>${escapeHtml(t('templates.name_label'))}</label>
+            <input type="text" id="template-name-input" class="form-input" value="${escapeHtml(existing?.name || '')}">
+        </div>
+        <div class="form-group">
+            <label>${escapeHtml(t('templates.add_from_inventory'))}</label>
+            <select id="template-product-pick" class="form-input">
+                <option value="">${escapeHtml(t('form.select_placeholder'))}</option>
+                ${invOpts.map(p => `<option value="${p.product_id}" data-name="${escapeHtml(p.name)}" data-unit="${escapeHtml(p.unit)}">${escapeHtml(p.name)}</option>`).join('')}
+            </select>
+            <div class="barcode-input-row" style="margin-top:8px">
+                <input type="number" id="template-qty-input" class="form-input" value="1" min="0.1" step="any" style="max-width:100px">
+                <button class="btn btn-accent" type="button" onclick="templateDraftAddPicked()">➕</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>${escapeHtml(t('templates.add_manual'))}</label>
+            <div class="barcode-input-row">
+                <input type="text" id="template-manual-name" class="form-input" placeholder="${escapeHtml(t('templates.manual_placeholder'))}">
+                <button class="btn btn-secondary" type="button" onclick="templateDraftAddManual()">➕</button>
+            </div>
+        </div>
+        <div id="template-draft-items"></div>
+        <button class="btn btn-large btn-success full-width" style="margin-top:12px" onclick="saveShoppingTemplate(${existing ? existing.id : 'null'})">${escapeHtml(t('btn.save'))}</button>
+        <button class="btn btn-secondary full-width" style="margin-top:8px" onclick="openShoppingTemplates()">${escapeHtml(t('btn.back'))}</button>
+    `;
+    _renderTemplateDraftItems();
+}
+
+function _renderTemplateDraftItems() {
+    const el = document.getElementById('template-draft-items');
+    if (!el) return;
+    if (!_templateDraftItems.length) {
+        el.innerHTML = `<p class="settings-hint">${escapeHtml(t('templates.draft_empty'))}</p>`;
+        return;
+    }
+    el.innerHTML = _templateDraftItems.map((it, i) => `
+        <div class="appliance-item">
+            <span>${escapeHtml(it.name)} · ${it.quantity || 1} ${escapeHtml(it.unit || 'pz')}</span>
+            <button class="appliance-remove" onclick="templateDraftRemove(${i})">✕</button>
+        </div>
+    `).join('');
+}
+
+function templateDraftAddPicked() {
+    const sel = document.getElementById('template-product-pick');
+    if (!sel || !sel.value) return;
+    const opt = sel.options[sel.selectedIndex];
+    const qty = parseFloat(document.getElementById('template-qty-input')?.value) || 1;
+    _templateDraftItems.push({
+        product_id: parseInt(sel.value, 10),
+        name: opt.dataset.name || opt.textContent,
+        quantity: qty,
+        unit: opt.dataset.unit || 'pz',
+        location: 'dispensa',
+    });
+    _renderTemplateDraftItems();
+}
+
+function templateDraftAddManual() {
+    const input = document.getElementById('template-manual-name');
+    const name = (input?.value || '').trim();
+    if (!name) return;
+    const qty = parseFloat(document.getElementById('template-qty-input')?.value) || 1;
+    _templateDraftItems.push({ product_id: null, name, quantity: qty, unit: 'pz', location: 'dispensa' });
+    if (input) input.value = '';
+    _renderTemplateDraftItems();
+}
+
+function templateDraftRemove(idx) {
+    _templateDraftItems.splice(idx, 1);
+    _renderTemplateDraftItems();
+}
+
+async function saveShoppingTemplate(id) {
+    const name = (document.getElementById('template-name-input')?.value || '').trim();
+    if (!name) {
+        showToast(t('templates.name_required'), 'error');
+        return;
+    }
+    if (!_templateDraftItems.length) {
+        showToast(t('templates.items_required'), 'error');
+        return;
+    }
+    const payload = { name, items: _templateDraftItems };
+    if (id) payload.id = id;
+    const res = await api('templates_save', {}, 'POST', payload);
+    if (!res || !res.success) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
+    showToast(t('templates.saved'), 'success');
+    openShoppingTemplates();
 }
 
 async function generateSuggestions() {

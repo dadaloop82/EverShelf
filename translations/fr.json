@@ -1317,6 +1317,16 @@
             "preview": "Maintenant à {place} : {temp}°C — {bucket}",
             "preview_error": "Impossible de charger la météo.",
             "attribution": "Données météo : Open-Meteo.com (CC BY 4.0)"
+        },
+        "custom_locations": {
+            "title": "📍 Emplacements personnalisés",
+            "hint": "Ajoutez des lieux en plus du Garde-manger, Frigo, Congélateur et Autre (ex. Cave, Garage). Les noms restent tels quels.",
+            "builtin_hint": "Prédéfinis (non supprimables) : Garde-manger, Frigo, Congélateur, Autre.",
+            "placeholder": "Ex. : Cave, Box garage…",
+            "empty": "Aucun emplacement personnalisé",
+            "added": "Emplacement ajouté — enregistrez pour synchroniser",
+            "reserved": "Nom réservé à un emplacement prédéfini",
+            "in_use": "Impossible de supprimer « {name} » : {n} article(s) encore stocké(s)"
         }
     },
     "expiry": {
@@ -1918,5 +1928,29 @@
     },
     "common": {
         "uncategorized": "Sans catégorie"
+    },
+    "templates": {
+        "btn": "📋 Modèles",
+        "title": "Modèles de courses",
+        "hint": "Enregistrez des lots de produits (ex. essentiels hebdo) et ajoutez-les à la liste ou au stock en un tap.",
+        "create": "➕ Nouveau modèle",
+        "edit": "Modifier le modèle",
+        "empty": "Aucun modèle",
+        "items_count": "articles",
+        "apply_shopping": "→ Liste de courses",
+        "apply_inventory": "→ Inventaire",
+        "confirm_inventory": "Ajouter tous les produits du modèle à l’inventaire ?",
+        "confirm_delete": "Supprimer ce modèle ?",
+        "applied_shopping": "Modèle appliqué : {added} ajoutés, {skipped} déjà sur la liste",
+        "applied_inventory": "Modèle appliqué : {added} en inventaire, {skipped} ignorés",
+        "deleted": "Modèle supprimé",
+        "saved": "Modèle enregistré",
+        "name_label": "Nom du modèle",
+        "add_from_inventory": "Ajouter depuis le stock",
+        "add_manual": "Ou saisir un nom",
+        "manual_placeholder": "Nom du produit…",
+        "draft_empty": "Aucun produit dans ce modèle",
+        "name_required": "Saisissez un nom",
+        "items_required": "Ajoutez au moins un produit"
     }
 }

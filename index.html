@@ -814,6 +814,9 @@
                     <button class="btn btn-large btn-accent" onclick="generateSuggestions()" id="btn-suggest" data-i18n="shopping.suggest_btn">
                         Suggerisci cosa comprare
                     </button>
+                    <button class="btn btn-secondary" onclick="openShoppingTemplates()" style="margin-top:4px" data-i18n="templates.btn">
+                        📋 Templates
+                    </button>
                     <button class="btn btn-secondary" onclick="forceSyncBring()" style="margin-top:4px" data-i18n="shopping.force_sync">
                         🔄 Forza sincronizzazione Bring!
                     </button>
@@ -955,6 +958,21 @@
                             <option value="DKK">kr Corona Danese</option>
                             <option value="PLN">zł Zloty Polacco</option>
                         </select>
+                    </div>
+                    <div class="form-group" style="margin-top:10px">
+                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <h4 data-i18n="settings.custom_locations.title">📍 Luoghi di conservazione</h4>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo, Freezer e Altro (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.builtin_hint">Predefiniti (non rimovibili): Dispensa, Frigo, Freezer, Altro.</p>
+                    <div class="appliances-list" id="custom-locations-list"></div>
+                    <div class="form-group mt-2">
+                        <div class="barcode-input-row">
+                            <input type="text" id="new-custom-location-input" class="form-input" data-i18n-placeholder="settings.custom_locations.placeholder" placeholder="Es: Cantina, Box garage…" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomLocation()}">
+                            <button class="btn btn-accent" onclick="addCustomLocation()">➕</button>
+                        </div>
                     </div>
                     <div class="form-group" style="margin-top:10px">
                         <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
