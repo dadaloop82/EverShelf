@@ -1470,7 +1470,6 @@
         "copy_failed": "Kopieren in die Zwischenablage fehlgeschlagen",
         "invalid_quantity": "Ungültige Menge"
     },
-    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Möchtest du dieses Produkt wirklich aus dem Bestand entfernen?",
         "kiosk_exit": "Kioskmodus verlassen?",

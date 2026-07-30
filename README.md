@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.71-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.75-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -117,11 +117,14 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 
 ### 📦 Inventory Management
 - **Corporate list UX** — Unified row cards with swipe backgrounds; tap or swipe left opens **Use**; swipe right opens **edit**; product detail sheet (2×2 actions) from dashboard and quick-access chips
+- **Edit from everywhere** — Pencil on the **Use** page (and discard modal) opens the same inventory edit sheet as the list / home detail flows
+- **Favourite products** — Star on each inventory row; favourites stay pinned in a **Favourites** section at the top of the list (state on the product, survives restocks)
 - **Piece fractions** — Use form accepts ¼-piece steps for produce sold by the piece (e.g. ½ avocado); server keeps fruit/veg in **pcs**, not grams
-- **Export inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; export button always visible in the inventory page header
+- **Export / import inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; **CSV import** with schema legend, validation preview, and double confirm before writing
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS; last 20 scanned products saved as tappable chips so you can re-select them without rescanning
+- **Continuous scan** — Add several barcodes in a row without leaving the camera (shopping / continuous mode); sealed packs with different best-before dates stay as separate stock rows
 - **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
-- **Smart locations** — Track items across Pantry, Fridge, Freezer, and custom locations
+- **Smart locations** — Track items across Pantry, Fridge, Freezer, and Other
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
 - **Opened product tracking** — Reduced shelf-life calculation when packages are opened; opened-product expiry is now also checked when building banner alerts (not just the dashboard section)
 - **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items; products sealed under vacuum are only flagged as expired after a configurable grace period past the printed date (`VACUUM_EXPIRY_EXTENSION_DAYS`, default 30 days, configurable in `.env`)

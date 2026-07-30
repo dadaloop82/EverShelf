@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730e'; // bump when translations change
+const _I18N_VERSION = '20260730f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10635,7 +10635,7 @@ function showThrowForm() {
                 </button>
                 <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${t('use.throw_qty_hint')}</div>
                 <div class="form-group">
-                    <label>📍 Da dove?</label>
+                    <label>${t('use.location_label')}</label>
                     <div class="location-selector" id="throw-location-selector">
                         ${items.map((inv, idx) => {
                             const locInfo = LOCATIONS[inv.location] || { icon: '📦', label: inv.location };
