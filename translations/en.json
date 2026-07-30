@@ -1327,6 +1327,21 @@
             "added": "Location added — tap Save to sync",
             "reserved": "That name is reserved for a built-in location",
             "in_use": "Cannot remove “{name}”: {n} item(s) still stored there"
+        },
+        "ai": {
+            "title": "🤖 AI provider",
+            "hint": "Use Google Gemini (cloud) or an OpenAI-compatible endpoint (OpenAI, Ollama, vLLM, llama.cpp…).",
+            "provider_label": "Provider",
+            "provider_gemini": "Google Gemini",
+            "provider_openai": "OpenAI-compatible"
+        },
+        "openai": {
+            "title": "🔌 OpenAI-compatible endpoint",
+            "hint": "Base URL ending with /v1. API key is optional for many local servers (e.g. Ollama).",
+            "base_url_label": "Base URL",
+            "base_url_placeholder": "http://127.0.0.1:11434/v1",
+            "model_label": "Model",
+            "key_label": "API key (optional)"
         }
     },
     "expiry": {

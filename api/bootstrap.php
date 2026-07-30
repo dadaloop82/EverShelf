@@ -19,3 +19,4 @@ require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/lib/shopping_guards.php';
 require_once __DIR__ . '/lib/health.php';
 require_once __DIR__ . '/lib/weather.php';
+require_once __DIR__ . '/lib/ai_provider.php';

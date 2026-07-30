@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.76-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.77-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -255,20 +255,25 @@ App-wide visual system documented in [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.
 
 #### Option A: Docker (recommended)
 
+Pre-built images are published to **GHCR** ([ghcr.io/dadaloop82/evershelf](https://github.com/dadaloop82/EverShelf/pkgs/container/evershelf)).
+
 ```bash
-# 1. Clone the repository
+# 1. Clone the repository (for compose + .env)
 git clone https://github.com/dadaloop82/EverShelf.git
 cd EverShelf
 
 # 2. Create configuration file
 cp .env.example .env
-nano .env
+nano .env   # set GEMINI_API_KEY, or AI_PROVIDER=openai + OPENAI_BASE_URL
 
-# 3. Start with Docker Compose
+# 3. Pull the pre-built image and start
+docker compose pull
 docker compose up -d
 
 # → Open http://localhost:8080
 ```
+
+To rebuild from source instead: `docker compose build --no-cache && docker compose up -d`.
 
 #### Option B: Manual
 
@@ -292,8 +297,12 @@ nano .env
 ### Configuration (.env)
 
 ```ini
-# Required for AI features (get a key at https://aistudio.google.com/app/apikey)
+# AI — Gemini (default) or OpenAI-compatible (Ollama, vLLM, …)
+AI_PROVIDER=gemini
 GEMINI_API_KEY=your_api_key_here
+# OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+# OPENAI_MODEL=llama3.2
+# OPENAI_API_KEY=
 
 # Optional: Bring! shopping list integration
 BRING_EMAIL=your_email@example.com

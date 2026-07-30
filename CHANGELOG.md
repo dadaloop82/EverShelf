@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.77] - 2026-07-30
+
+### Added
+- **Pre-built Docker images on GHCR** (#209) — `ghcr.io/dadaloop82/evershelf` (`latest`, semver tags, multi-arch amd64/arm64). `docker compose pull` works; local `build:` still available for contributors.
+- **OpenAI-compatible AI provider** (#205) — set `AI_PROVIDER=openai` plus `OPENAI_BASE_URL` / `OPENAI_MODEL` (and optional `OPENAI_API_KEY`) to use OpenAI, Ollama, vLLM, llama.cpp, etc. Existing Gemini-shaped callers are routed through `/v1/chat/completions`; vision payloads are mapped to OpenAI image parts. Settings → API Keys includes the provider switch.
+
 ## [1.7.76] - 2026-07-30
 
 ### Added
