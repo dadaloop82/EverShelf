@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.74] - 2026-07-30
+
+### Added
+- **Weather influence for “A ritmo mio”** — optional setting (off by default) under Recipes. Pick a city via Open-Meteo geocoding (no API key); when Fuel Mode generates a recipe, local conditions (hot/cold/rain…) bias dish style. Preview in settings; badge on the recipe result. Attribution: Open-Meteo (CC BY 4.0).
+
 ## [1.7.73] - 2026-07-30
 
 ### Added

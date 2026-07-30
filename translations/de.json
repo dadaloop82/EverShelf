@@ -555,7 +555,17 @@
         "share_steps": "👨‍🍳 Zubereitung",
         "share_storage": "🥡 Reste",
         "share_no_ingredients": "(keine Zutaten aufgeführt)",
-        "share_footer": "— Geteilt mit EverShelf"
+        "share_footer": "— Geteilt mit EverShelf",
+        "weather_badge": "Wetter",
+        "weather_bucket_hot": "sehr heiß",
+        "weather_bucket_warm": "warm",
+        "weather_bucket_mild": "mild",
+        "weather_bucket_chilly": "kühl",
+        "weather_bucket_cold": "kalt",
+        "weather_bucket_rainy": "regnerisch",
+        "weather_bucket_snowy": "schneereich",
+        "weather_bucket_foggy": "neblig",
+        "weather_bucket_stormy": "gewittrig"
     },
     "shopping": {
         "title": "🛒 Einkaufsliste",
@@ -1284,6 +1294,26 @@
             "bridge_unlink": "Entkoppeln / Tokens widerrufen",
             "bridge_unlinked": "Bridge entkoppelt",
             "bridge_unlink_confirm": "Alle Health-Bridge-Tokens widerrufen?"
+        },
+        "weather": {
+            "title": "🌤 Wetter für „In meinem Tempo“",
+            "hint": "Optional und standardmäßig aus. Wenn aktiv, passen sich „In meinem Tempo“-Rezepte an das lokale Wetter an (z. B. Hitze → frische Gerichte). Daten von Open-Meteo, ohne API-Schlüssel.",
+            "enabled": "Wettereinfluss aktivieren",
+            "enabled_on": "Wettereinfluss aktiviert",
+            "city_label": "Stadt / Gebiet",
+            "city_placeholder": "z. B. Mailand, Rom…",
+            "search": "Suchen",
+            "searching": "Suche…",
+            "no_results": "Keine Orte gefunden.",
+            "search_error": "Suche fehlgeschlagen. Verbindung prüfen.",
+            "query_short": "Mindestens 2 Zeichen eingeben.",
+            "location_none": "Noch kein Ort gewählt.",
+            "location_set": "Gewählt: {place} ({lat}, {lon})",
+            "location_saved": "Ort gespeichert",
+            "loading": "Wetter wird geladen…",
+            "preview": "Jetzt in {place}: {temp}°C — {bucket}",
+            "preview_error": "Wetter konnte nicht geladen werden.",
+            "attribution": "Wetterdaten: Open-Meteo.com (CC BY 4.0)"
         }
     },
     "expiry": {

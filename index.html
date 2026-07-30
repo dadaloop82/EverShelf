@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260730a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260730d">
     <link rel="stylesheet" href="assets/css/corporate.css?v=20260709a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20260603a"></script>
@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.73</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.74</span>
     </div>
 </div>
 
@@ -1261,6 +1261,36 @@
                         <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
                     </div>
                 </div>
+
+                <div class="settings-card">
+                    <h4 data-i18n="settings.weather.title">🌤 Meteo per «A ritmo mio»</h4>
+                    <p class="settings-hint" data-i18n="settings.weather.hint">Opzionale e disattivo di default. Se attivo, le ricette «A ritmo mio» tengono conto del meteo nella zona scelta (es. caldo → piatti freschi). Dati da Open-Meteo, senza API key.</p>
+                    <div class="form-group" style="margin-bottom:14px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.weather.enabled">Abilita influenza meteo</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-weather-enabled" onchange="onWeatherEnabledChange()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="weather-settings-body" class="weather-settings-body" style="opacity:0.45;pointer-events:none">
+                        <div class="form-group">
+                            <label data-i18n="settings.weather.city_label">Città / zona</label>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                                <input type="text" id="setting-weather-city-search" class="form-input" style="flex:1;min-width:160px" autocomplete="off" data-i18n-placeholder="settings.weather.city_placeholder" placeholder="Es: Milano, Roma…">
+                                <button type="button" class="btn btn-secondary" onclick="searchWeatherCity()" data-i18n="settings.weather.search">Cerca</button>
+                            </div>
+                            <div id="weather-geocode-results" class="weather-geocode-results" style="display:none;margin-top:8px"></div>
+                        </div>
+                        <input type="hidden" id="setting-weather-lat">
+                        <input type="hidden" id="setting-weather-lon">
+                        <input type="hidden" id="setting-weather-city">
+                        <p id="weather-location-label" class="settings-hint" style="margin-top:4px"></p>
+                        <div id="weather-preview" class="settings-hint" style="margin-top:8px"></div>
+                        <p class="settings-hint" style="margin-top:10px;font-size:0.78rem" data-i18n="settings.weather.attribution">Dati meteo: Open-Meteo.com (CC BY 4.0)</p>
+                    </div>
+                </div>
             </div>
             <!-- Health / personal biology Tab -->
             <div class="settings-panel" id="tab-health">
@@ -2164,6 +2194,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260730c"></script>
+<script src="assets/js/app.js?v=20260730d"></script>
 </body>
 </html>

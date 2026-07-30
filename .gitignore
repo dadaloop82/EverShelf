@@ -59,6 +59,7 @@ data/error_reports.log
 data/latest_release_cache.json
 data/food_facts_cache.json
 data/category_ai_cache.json
+data/weather_cache_*.json
 assets/img/logo/*_backup.*
 logs/*.log
 assets/vendor/transformers/Xenova/

@@ -907,6 +907,14 @@ try {
             generateRecipeStream($db);
             break;
 
+        case 'weather_get':
+            weatherApiGet();
+            break;
+
+        case 'weather_geocode':
+            weatherApiGeocode();
+            break;
+
         case 'gemini_identify':
             geminiIdentifyProduct();
             break;
@@ -7052,6 +7060,10 @@ function getServerSettings(): void {
         'pref_zerowaste' => env('PREF_ZEROWASTE', 'false') === 'true',
         'pref_fuel' => env('PREF_FUEL', 'false') === 'true',
         'health_enabled' => env('HEALTH_ENABLED', 'false') === 'true',
+        'weather_enabled' => env('WEATHER_ENABLED', 'false') === 'true',
+        'weather_lat' => env('WEATHER_LAT', ''),
+        'weather_lon' => env('WEATHER_LON', ''),
+        'weather_city' => env('WEATHER_CITY', ''),
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? explode(',', env('APPLIANCES', '')) : [],
         'camera_facing' => env('CAMERA_FACING', 'environment'),
@@ -7182,6 +7194,9 @@ function saveSettings(): void {
         'mealie_url'         => 'MEALIE_URL',
         'mealie_api_token'   => 'MEALIE_API_TOKEN',
         'mealie_offline'     => 'MEALIE_OFFLINE',
+        'weather_lat'        => 'WEATHER_LAT',
+        'weather_lon'        => 'WEATHER_LON',
+        'weather_city'       => 'WEATHER_CITY',
     ];
     // Boolean keys
     $boolMap = [
@@ -7194,6 +7209,7 @@ function saveSettings(): void {
         'pref_zerowaste'  => 'PREF_ZEROWASTE',
         'pref_fuel'       => 'PREF_FUEL',
         'health_enabled'  => 'HEALTH_ENABLED',
+        'weather_enabled' => 'WEATHER_ENABLED',
         'scale_enabled'   => 'SCALE_ENABLED',
         'meal_plan_enabled' => 'MEAL_PLAN_ENABLED',
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
@@ -9173,9 +9189,14 @@ function generateRecipe(PDO $db): void {
 
     $fuelBudget = null;
     $fuelText = '';
+    $weatherCtx = null;
     if (in_array('fuel', $options, true) && env('HEALTH_ENABLED', 'false') === 'true') {
         $fuelBudget = computeMealBudget($db, $mealType, $options);
         $fuelText = healthFuelPromptBlock($fuelBudget);
+        $weatherCtx = weatherGetForRecipes();
+        if ($weatherCtx) {
+            $fuelText .= weatherFuelPromptBlock($weatherCtx, $lang);
+        }
     }
     
     // Appliances
@@ -9367,6 +9388,14 @@ PROMPT;
         $removed = recipePostProcessGenerated($db, $recipe, $items);
         if ($fuelBudget) {
             $recipe['fuel_budget'] = $fuelBudget;
+        }
+        if ($weatherCtx) {
+            $recipe['weather'] = [
+                'city' => $weatherCtx['city'] ?? '',
+                'temp_c' => $weatherCtx['temp_c'] ?? null,
+                'bucket' => $weatherCtx['bucket'] ?? null,
+                'source' => 'Open-Meteo',
+            ];
         }
 
         EverLog::info('recipe generated', ['title' => $recipe['title'] ?? '?', 'meal' => $mealType, 'persons' => $persons, 'ingredients' => count($recipe['ingredients'] ?? []), 'shopping_suggestions' => count($removed)]);
@@ -9808,9 +9837,14 @@ function generateRecipeStream(PDO $db): void {
     $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
     $fuelBudget = null;
     $fuelText = '';
+    $weatherCtx = null;
     if (in_array('fuel', $options, true) && env('HEALTH_ENABLED', 'false') === 'true') {
         $fuelBudget = computeMealBudget($db, $mealType, $options);
         $fuelText = healthFuelPromptBlock($fuelBudget);
+        $weatherCtx = weatherGetForRecipes();
+        if ($weatherCtx) {
+            $fuelText .= weatherFuelPromptBlock($weatherCtx, $lang);
+        }
     }
     $appliancesText = _buildAppliancesPrompt($appliances, compact: false);
     $dietaryText    = !empty($dietaryRestrictions) ? "\n\nRESTRIZIONI ALIMENTARI:\n{$dietaryRestrictions}\nRispetta SEMPRE queste restrizioni." : '';
@@ -10068,6 +10102,14 @@ PROMPT;
     recipePostProcessGenerated($db, $recipe, $items);
     if (!empty($fuelBudget)) {
         $recipe['fuel_budget'] = $fuelBudget;
+    }
+    if (!empty($weatherCtx)) {
+        $recipe['weather'] = [
+            'city' => $weatherCtx['city'] ?? '',
+            'temp_c' => $weatherCtx['temp_c'] ?? null,
+            'bucket' => $weatherCtx['bucket'] ?? null,
+            'source' => 'Open-Meteo',
+        ];
     }
 
     $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);

@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730c'; // bump when translations change
+const _I18N_VERSION = '20260730d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3258,6 +3258,7 @@ function _applySyncedSettings(serverSettings) {
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
+        'weather_enabled','weather_lat','weather_lon','weather_city',
         // Home Assistant
         'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
         'ha_notify_service','ha_expiry_days'];
@@ -3846,6 +3847,7 @@ async function loadSettingsUI() {
     const healthEnEl = document.getElementById('setting-health-enabled');
     if (healthEnEl) healthEnEl.checked = !!s.health_enabled;
     applyHealthUiState();
+    _loadWeatherSettingsIntoForm(s);
     const ssEl = document.getElementById('setting-screensaver-enabled');
     if (ssEl) ssEl.checked = s.screensaver_enabled === true;
     const ssTimeout = document.getElementById('setting-screensaver-timeout');
@@ -3958,6 +3960,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
+            'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
         // Note: gemini_key is never sent from server; settings_token_set is metadata only
@@ -3994,6 +3997,7 @@ async function loadSettingsUI() {
             const healthEnEl2 = document.getElementById('setting-health-enabled');
             if (healthEnEl2) healthEnEl2.checked = !!s.health_enabled;
             applyHealthUiState();
+            _loadWeatherSettingsIntoForm(s);
             document.getElementById('setting-dietary').value = s.dietary || '';
             if (typeof loadHealthProfileIntoSettings === 'function') loadHealthProfileIntoSettings();
             if (cameraSelect) cameraSelect.value = s.camera_facing || 'environment';
@@ -4486,6 +4490,14 @@ async function saveSettings() {
     if (fuelSaveEl) s.pref_fuel = fuelSaveEl.checked;
     const healthEnSave = document.getElementById('setting-health-enabled');
     if (healthEnSave) s.health_enabled = healthEnSave.checked;
+    const weatherEnSave = document.getElementById('setting-weather-enabled');
+    if (weatherEnSave) s.weather_enabled = weatherEnSave.checked;
+    const wLat = document.getElementById('setting-weather-lat');
+    const wLon = document.getElementById('setting-weather-lon');
+    const wCity = document.getElementById('setting-weather-city');
+    if (wLat) s.weather_lat = wLat.value.trim();
+    if (wLon) s.weather_lon = wLon.value.trim();
+    if (wCity) s.weather_city = wCity.value.trim();
     s.dietary = document.getElementById('setting-dietary').value.trim();
     // Camera
     s.camera_facing = document.getElementById('setting-camera-facing').value;
@@ -4605,6 +4617,10 @@ async function saveSettings() {
             pref_zerowaste: s.pref_zerowaste,
             pref_fuel: !!s.pref_fuel,
             health_enabled: !!s.health_enabled,
+            weather_enabled: !!s.weather_enabled,
+            weather_lat: s.weather_lat || '',
+            weather_lon: s.weather_lon || '',
+            weather_city: s.weather_city || '',
             dietary: s.dietary,
             appliances: s.appliances,
             camera_facing: s.camera_facing,
@@ -17344,6 +17360,145 @@ function applyHealthUiState() {
     if (typeof updateRecipeFuelGenerateBtn === 'function') updateRecipeFuelGenerateBtn();
 }
 
+// ===== WEATHER (Open-Meteo) for A ritmo mio =====
+function _loadWeatherSettingsIntoForm(s) {
+    const en = document.getElementById('setting-weather-enabled');
+    if (en) en.checked = !!s.weather_enabled;
+    const lat = document.getElementById('setting-weather-lat');
+    const lon = document.getElementById('setting-weather-lon');
+    const city = document.getElementById('setting-weather-city');
+    if (lat) lat.value = s.weather_lat || '';
+    if (lon) lon.value = s.weather_lon || '';
+    if (city) city.value = s.weather_city || '';
+    _updateWeatherLocationLabel();
+    applyWeatherUiState();
+    if (s.weather_enabled && s.weather_lat && s.weather_lon) {
+        refreshWeatherPreview();
+    }
+}
+
+function applyWeatherUiState() {
+    const on = !!(document.getElementById('setting-weather-enabled')?.checked);
+    const body = document.getElementById('weather-settings-body');
+    if (body) {
+        body.style.opacity = on ? '1' : '0.45';
+        body.style.pointerEvents = on ? '' : 'none';
+    }
+}
+
+async function onWeatherEnabledChange() {
+    const el = document.getElementById('setting-weather-enabled');
+    const s = getSettings();
+    s.weather_enabled = !!(el && el.checked);
+    saveSettingsToStorage(s);
+    applyWeatherUiState();
+    await _saveSettingToServer({ weather_enabled: s.weather_enabled });
+    if (s.weather_enabled) {
+        showToast(t('settings.weather.enabled_on'), 'success');
+        if (s.weather_lat && s.weather_lon) refreshWeatherPreview();
+    } else {
+        const prev = document.getElementById('weather-preview');
+        if (prev) prev.textContent = '';
+    }
+}
+
+function _updateWeatherLocationLabel() {
+    const el = document.getElementById('weather-location-label');
+    if (!el) return;
+    const city = document.getElementById('setting-weather-city')?.value?.trim() || '';
+    const lat = document.getElementById('setting-weather-lat')?.value?.trim() || '';
+    const lon = document.getElementById('setting-weather-lon')?.value?.trim() || '';
+    if (!lat || !lon) {
+        el.textContent = t('settings.weather.location_none');
+        return;
+    }
+    el.textContent = t('settings.weather.location_set', {
+        place: city || `${lat}, ${lon}`,
+        lat,
+        lon,
+    });
+}
+
+async function searchWeatherCity() {
+    const q = document.getElementById('setting-weather-city-search')?.value?.trim() || '';
+    const box = document.getElementById('weather-geocode-results');
+    if (!box) return;
+    if (q.length < 2) {
+        showToast(t('settings.weather.query_short'), 'warning');
+        return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = `<p class="settings-hint">${escapeHtml(t('settings.weather.searching'))}</p>`;
+    try {
+        const res = await api('weather_geocode', { q, lang: _currentLang || 'en' });
+        const results = res?.results || [];
+        if (!res?.success || !results.length) {
+            box.innerHTML = `<p class="settings-hint">${escapeHtml(t('settings.weather.no_results'))}</p>`;
+            return;
+        }
+        box.innerHTML = results.map((r, i) =>
+            `<button type="button" class="btn btn-outline full-width weather-geocode-item" style="margin-bottom:6px;text-align:left"
+                onclick="pickWeatherCity(${i})">${escapeHtml(r.label || r.name)}</button>`
+        ).join('');
+        window._weatherGeocodeResults = results;
+    } catch (_) {
+        box.innerHTML = `<p class="settings-hint">${escapeHtml(t('settings.weather.search_error'))}</p>`;
+    }
+}
+
+async function pickWeatherCity(idx) {
+    const r = (window._weatherGeocodeResults || [])[idx];
+    if (!r) return;
+    document.getElementById('setting-weather-lat').value = String(r.lat);
+    document.getElementById('setting-weather-lon').value = String(r.lon);
+    document.getElementById('setting-weather-city').value = r.label || r.name || '';
+    const search = document.getElementById('setting-weather-city-search');
+    if (search) search.value = r.name || '';
+    const box = document.getElementById('weather-geocode-results');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    _updateWeatherLocationLabel();
+    const s = getSettings();
+    s.weather_lat = String(r.lat);
+    s.weather_lon = String(r.lon);
+    s.weather_city = r.label || r.name || '';
+    saveSettingsToStorage(s);
+    await _saveSettingToServer({
+        weather_lat: s.weather_lat,
+        weather_lon: s.weather_lon,
+        weather_city: s.weather_city,
+    });
+    showToast(t('settings.weather.location_saved'), 'success');
+    refreshWeatherPreview();
+}
+
+async function refreshWeatherPreview() {
+    const prev = document.getElementById('weather-preview');
+    if (!prev) return;
+    if (!document.getElementById('setting-weather-enabled')?.checked) {
+        prev.textContent = '';
+        return;
+    }
+    prev.textContent = t('settings.weather.loading');
+    try {
+        const res = await api('weather_get');
+        if (!res?.success || !res.weather) {
+            prev.textContent = t('settings.weather.preview_error');
+            return;
+        }
+        const w = res.weather;
+        const bucketKey = `recipes.weather_bucket_${w.bucket || 'mild'}`;
+        const bucket = t(bucketKey);
+        const bucketLabel = (bucket && bucket !== bucketKey) ? bucket : (w.bucket || '');
+        prev.textContent = t('settings.weather.preview', {
+            temp: w.temp_c,
+            bucket: bucketLabel,
+            place: w.city || '',
+        });
+    } catch (_) {
+        prev.textContent = t('settings.weather.preview_error');
+    }
+}
+
 async function onHealthEnabledChange() {
     const el = document.getElementById('setting-health-enabled');
     const s = getSettings();
@@ -18493,6 +18648,17 @@ async function renderRecipe(r) {
     if (r.fuel_why || (r.fuel_budget && r.fuel_rationale)) {
         const why = r.fuel_why || r.fuel_rationale;
         html += `<div class="recipe-fuel-why"><strong>${escapeHtml(t('recipes.fuel_why_title') || 'Perché questi ingredienti')}</strong>${escapeHtml(why)}</div>`;
+    }
+
+    // Weather influence badge (A ritmo mio + Open-Meteo)
+    if (r.weather && (r.weather.temp_c != null || r.weather.bucket)) {
+        const place = r.weather.city || '';
+        const temp = r.weather.temp_c != null ? `${r.weather.temp_c}°C` : '';
+        const bucketKey = `recipes.weather_bucket_${r.weather.bucket || 'mild'}`;
+        const bucketLabel = t(bucketKey);
+        const bucket = (bucketLabel && bucketLabel !== bucketKey) ? bucketLabel : (r.weather.bucket || '');
+        const bits = [place, temp, bucket].filter(Boolean).join(' · ');
+        html += `<div class="recipe-weather-badge">🌤 ${escapeHtml(t('recipes.weather_badge') || 'Weather')}${bits ? ': ' + escapeHtml(bits) : ''}</div>`;
     }
 
     // Tools/appliances banner (shown only when specific equipment is needed)

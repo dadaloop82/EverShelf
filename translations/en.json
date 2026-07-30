@@ -555,7 +555,17 @@
         "share_steps": "👨‍🍳 Steps",
         "share_storage": "🥡 Leftovers",
         "share_no_ingredients": "(no ingredients listed)",
-        "share_footer": "— Shared with EverShelf"
+        "share_footer": "— Shared with EverShelf",
+        "weather_badge": "Weather",
+        "weather_bucket_hot": "hot",
+        "weather_bucket_warm": "warm",
+        "weather_bucket_mild": "mild",
+        "weather_bucket_chilly": "chilly",
+        "weather_bucket_cold": "cold",
+        "weather_bucket_rainy": "rainy",
+        "weather_bucket_snowy": "snowy",
+        "weather_bucket_foggy": "foggy",
+        "weather_bucket_stormy": "stormy"
     },
     "shopping": {
         "title": "🛒 Shopping List",
@@ -1284,7 +1294,27 @@
             "save_btn": "Save HA settings",
             "ha_hint": "If you use Home Assistant, use the Home Assistant tab to configure TTS, webhooks and sensors."
         },
-        "kiosk_update_required": "⚠️ Update the kiosk app to use this feature"
+        "kiosk_update_required": "⚠️ Update the kiosk app to use this feature",
+        "weather": {
+            "title": "🌤 Weather for “At my pace”",
+            "hint": "Optional and off by default. When enabled, “At my pace” recipes adapt to local weather (e.g. hot → fresh dishes). Data from Open-Meteo, no API key.",
+            "enabled": "Enable weather influence",
+            "enabled_on": "Weather influence enabled",
+            "city_label": "City / area",
+            "city_placeholder": "E.g. Milan, Rome…",
+            "search": "Search",
+            "searching": "Searching…",
+            "no_results": "No places found.",
+            "search_error": "Search failed. Check your connection.",
+            "query_short": "Type at least 2 characters.",
+            "location_none": "No location selected yet.",
+            "location_set": "Selected: {place} ({lat}, {lon})",
+            "location_saved": "Location saved",
+            "loading": "Loading weather…",
+            "preview": "Now in {place}: {temp}°C — {bucket}",
+            "preview_error": "Could not load weather.",
+            "attribution": "Weather data: Open-Meteo.com (CC BY 4.0)"
+        }
     },
     "expiry": {
         "today": "TODAY",

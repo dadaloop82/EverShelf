@@ -7294,6 +7294,25 @@ body.cooking-mode-active .app-header {
     font-size: 0.82rem;
     font-weight: 600;
 }
+.recipe-weather-badge {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: rgba(14, 165, 233, 0.10);
+    border: 1px solid rgba(14, 165, 233, 0.28);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0369a1;
+}
+[data-theme="dark"] .recipe-weather-badge {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: #7dd3fc;
+}
+.weather-geocode-results {
+    max-height: 200px;
+    overflow-y: auto;
+}
 .health-settings-body.is-disabled {
     opacity: 0.45;
     filter: grayscale(0.85);

@@ -555,7 +555,17 @@
         "share_steps": "👨‍🍳 Procedimento",
         "share_storage": "🥡 Avanzi",
         "share_no_ingredients": "(nessun ingrediente elencato)",
-        "share_footer": "— Condiviso con EverShelf"
+        "share_footer": "— Condiviso con EverShelf",
+        "weather_badge": "Meteo",
+        "weather_bucket_hot": "molto caldo",
+        "weather_bucket_warm": "caldo",
+        "weather_bucket_mild": "mite",
+        "weather_bucket_chilly": "fresco",
+        "weather_bucket_cold": "freddo",
+        "weather_bucket_rainy": "piovoso",
+        "weather_bucket_snowy": "nevoso",
+        "weather_bucket_foggy": "nebbioso",
+        "weather_bucket_stormy": "temporalesco"
     },
     "shopping": {
         "title": "🛒 Lista della Spesa",
@@ -1284,7 +1294,27 @@
             "save_btn": "Salva impostazioni HA",
             "ha_hint": "Se usi Home Assistant, usa il tab Home Assistant per configurare TTS, webhook e sensori."
         },
-        "kiosk_update_required": "⚠️ Aggiorna il kiosk per usare questa funzione"
+        "kiosk_update_required": "⚠️ Aggiorna il kiosk per usare questa funzione",
+        "weather": {
+            "title": "🌤 Meteo per «A ritmo mio»",
+            "hint": "Opzionale e disattivo di default. Se attivo, le ricette «A ritmo mio» tengono conto del meteo nella zona scelta (es. caldo → piatti freschi). Dati da Open-Meteo, senza API key.",
+            "enabled": "Abilita influenza meteo",
+            "enabled_on": "Influenza meteo attivata",
+            "city_label": "Città / zona",
+            "city_placeholder": "Es: Milano, Roma…",
+            "search": "Cerca",
+            "searching": "Ricerca…",
+            "no_results": "Nessun luogo trovato.",
+            "search_error": "Ricerca non riuscita. Controlla la connessione.",
+            "query_short": "Digita almeno 2 caratteri.",
+            "location_none": "Nessuna zona selezionata.",
+            "location_set": "Selezionato: {place} ({lat}, {lon})",
+            "location_saved": "Zona salvata",
+            "loading": "Caricamento meteo…",
+            "preview": "Ora a {place}: {temp}°C — {bucket}",
+            "preview_error": "Impossibile caricare il meteo.",
+            "attribution": "Dati meteo: Open-Meteo.com (CC BY 4.0)"
+        }
     },
     "expiry": {
         "today": "OGGI",
