@@ -1470,7 +1470,6 @@
         "invalid_quantity": "Quantité invalide",
         "no_recipe_engine": "Configure Gemini or Mealie in recipe settings"
     },
-    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Voulez-vous vraiment supprimer ce produit de l'inventaire ?",
         "kiosk_exit": "Quitter le mode kiosque ?",

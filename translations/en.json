@@ -1470,7 +1470,6 @@
         "copy_failed": "Copy to clipboard failed",
         "invalid_quantity": "Invalid quantity"
     },
-    "confirm_placeholder_search": null,
     "confirm": {
         "remove_item": "Do you really want to remove this product from inventory?",
         "kiosk_exit": "Exit kiosk mode?",
