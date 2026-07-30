@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730i'; // bump when translations change
+const _I18N_VERSION = '20260730j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14233,6 +14233,28 @@ function _maxSuggestedPieces(planDays) {
     return Math.max(2, Math.min(30, Math.ceil(planDays * 2.5)));
 }
 
+/** Floor piece suggestions to a believable trip (avg past buy or small pack). */
+function _floorPieceSuggestion(suggestedQty, avgBuy, usesPerMonth, planDays, emptyOrOnList) {
+    if (!emptyOrOnList) return { qty: suggestedQty, approx: false };
+    const maxPieces = _maxSuggestedPieces(planDays);
+    let floor = 0;
+    let approx = false;
+    if (avgBuy >= 2) {
+        floor = Math.round(avgBuy * Math.min(1.25, Math.max(1, planDays / 7)));
+        floor = Math.max(2, Math.min(maxPieces, floor));
+    } else if (usesPerMonth >= 2) {
+        floor = Math.max(4, Math.ceil(usesPerMonth * planDays / 30));
+        floor = Math.min(maxPieces, floor);
+        approx = true;
+    } else if (usesPerMonth >= 0.5) {
+        floor = 3;
+        approx = true;
+    }
+    if (floor <= 0) return { qty: suggestedQty, approx: false };
+    const base = suggestedQty > 0 ? suggestedQty : 0;
+    return { qty: Math.max(base, floor), approx };
+}
+
 /** Mirror api/lib/shopping_guards.php — cap qty sent to price API (one trip). */
 function _capPricePayloadQty(qty, unit, defQty, pkgUnit, planDays = 7) {
     const u = String(unit || 'conf').toLowerCase();
@@ -14246,8 +14268,12 @@ function _capPricePayloadQty(qty, unit, defQty, pkgUnit, planDays = 7) {
         const maxByPlan = perDay * Math.min(Math.max(1, planDays), 7);
         return { quantity: Math.min(qty, maxByPack, maxByPlan), unit: u };
     }
-    if (u === 'conf' || u === 'pz') {
+    if (u === 'conf') {
         return { quantity: Math.min(qty, maxPkgs), unit: u };
+    }
+    if (u === 'pz') {
+        const maxPz = Math.max(maxPkgs, Math.min(12, Math.ceil(Math.max(1, planDays) * 1.5)));
+        return { quantity: Math.min(qty, maxPz), unit: u };
     }
     return { quantity: qty, unit: u };
 }
@@ -14304,6 +14330,17 @@ function _computeSuggestedQtyForPlanDays(smartData) {
 
     if (needBase <= 0) {
         if (onBring) {
+            const avgBuy0 = parseFloat(smartData.avg_buy_qty) || 0;
+            const floored0 = _floorPieceSuggestion(
+                1,
+                avgBuy0,
+                usesPerMonth,
+                planDays,
+                true
+            );
+            if (unit === 'pz' && floored0.qty > 1) {
+                return { suggested_qty: floored0.qty, suggested_unit: 'pz', suggested_approx: true };
+            }
             return { suggested_qty: 1, suggested_unit: unit === 'pz' ? 'pz' : 'conf', suggested_approx: true };
         }
         return null;
@@ -14340,6 +14377,22 @@ function _computeSuggestedQtyForPlanDays(smartData) {
         const rounded = _ceilDiscreteQty(needBase);
         suggestedQty = Math.max(1, Math.min(_maxSuggestedPieces(planDays), rounded));
         suggestedUnit = 'pz';
+    }
+
+    if (unit === 'pz') {
+        const avgBuy = parseFloat(smartData.avg_buy_qty) || 0;
+        const floored = _floorPieceSuggestion(
+            suggestedQty,
+            avgBuy,
+            usesPerMonth,
+            planDays,
+            stock <= 0 || onBring || urgency === 'critical' || urgency === 'high'
+        );
+        if (floored.qty > 0) {
+            suggestedQty = floored.qty;
+            suggestedUnit = 'pz';
+            if (floored.approx) suggestedApprox = true;
+        }
     }
 
     if (suggestedQty == null) return null;
@@ -15399,7 +15452,8 @@ function startBgShoppingRefresh() {
 function getShoppingPlanDaysDefault() {
     const now = new Date();
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    return Math.max(1, lastDay - now.getDate() + 1);
+    // Never fewer than 7 days — month-end would otherwise suggest "1 apple"
+    return Math.max(7, lastDay - now.getDate() + 1);
 }
 
 function getShoppingPlanDays() {

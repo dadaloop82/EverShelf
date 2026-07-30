@@ -695,7 +695,7 @@
         "swipe_scan": "Gekauft · scannen",
         "bought_later_toast": "«{name}» von der Liste entfernt — Inventar fügst du zuhause hinzu",
         "plan_days_label": "Mengen für {days} Tage",
-        "plan_days_auto": "Standard: Tage bis Monatsende ({days})",
+        "plan_days_auto": "Standard: bis Monatsende, mind. 7 Tage ({days})",
         "plan_days_custom": "Eigener Zeitraum ({days} Tage)",
         "plan_days_unit": "T",
         "plan_days_reset": "Monatsende",

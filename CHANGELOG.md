@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.79] - 2026-07-30
+
+### Fixed
+- **Shopping list qty “1 apple / 1 orange”** — near month-end the plan horizon collapsed to 1–2 days, so piece goods (fruit/veg) always suggested **1 pz**. Default horizon is now **at least 7 days**; empty/on-list piece items use **average past purchase size** (or a small pack from use frequency). Piece suggestions can go up to ~12 per line (packages still capped at 3).
+
 ## [1.7.78] - 2026-07-30
 
 ### Added

@@ -14173,12 +14173,14 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
 }
 
 /**
- * Days from today through end of current calendar month (inclusive).
+ * Default shopping horizon: days left in the current month, but never fewer
+ * than 7 — otherwise near month-end every piece-good suggestion collapses to "1 pz".
  */
 function smartDefaultPlanDays(): int {
     $today = new DateTime('today');
     $last  = new DateTime('last day of this month');
-    return max(1, (int)$today->diff($last)->days + 1);
+    $untilMonthEnd = max(1, (int)$today->diff($last)->days + 1);
+    return max(7, $untilMonthEnd);
 }
 
 /** Resolve planning horizon (1–31 days). Null/empty → days until month end. */
@@ -14267,6 +14269,51 @@ function smartSanitizePieceDailyRate(float $dailyRate, int $useCount, float $use
         $dailyRate = min($dailyRate, max(0.2, $cap));
     }
     return min($dailyRate, 1.5);
+}
+
+/** Typical purchase size from buy history (pieces / packages). */
+function smartAvgPurchaseQty(float $totalBought, int $buyCount): float {
+    if ($buyCount <= 0 || $totalBought <= 0) {
+        return 0.0;
+    }
+    return $totalBought / $buyCount;
+}
+
+/**
+ * Floor piece suggestions to a believable trip size (bag/bunch), not a single fruit.
+ * Uses average past purchase when available; otherwise a small pack from use frequency.
+ */
+function smartFloorPieceSuggestion(
+    ?float $suggestedQty,
+    float $avgBuy,
+    float $usesPerMonth,
+    int $planDays,
+    bool $emptyOrOnList
+): array {
+    if (!$emptyOrOnList) {
+        return ['qty' => $suggestedQty, 'approx' => false];
+    }
+    $maxPieces = smartMaxSuggestedPieces($planDays);
+    $floor = 0;
+    $approx = false;
+    if ($avgBuy >= 2) {
+        // Typical trip size, slightly scaled if planning more than a week
+        $floor = (int) round($avgBuy * min(1.25, max(1.0, $planDays / 7.0)));
+        $floor = max(2, min($maxPieces, $floor));
+    } elseif ($usesPerMonth >= 2) {
+        // No buy history: at least a small pack (~4) or weekly use × horizon
+        $floor = max(4, (int) ceil($usesPerMonth * $planDays / 30.0));
+        $floor = min($maxPieces, $floor);
+        $approx = true;
+    } elseif ($usesPerMonth >= 0.5) {
+        $floor = 3;
+        $approx = true;
+    }
+    if ($floor <= 0) {
+        return ['qty' => $suggestedQty, 'approx' => false];
+    }
+    $base = $suggestedQty !== null ? (float)$suggestedQty : 0.0;
+    return ['qty' => (float) max($base, $floor), 'approx' => $approx];
 }
 
 /** Max suggested pieces for a planning window (scales with days). */
@@ -14945,6 +14992,25 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
         }
 
+        // Piece goods: never suggest a single fruit when the user normally buys a bunch/bag.
+        if ($unit === 'pz') {
+            $avgBuy = smartAvgPurchaseQty($totalBought, $buyCount);
+            $floored = smartFloorPieceSuggestion(
+                $suggestedQty !== null ? (float)$suggestedQty : null,
+                $avgBuy,
+                $usesPerMonth,
+                $planDays,
+                ($qty <= 0 || $onBring || in_array($urgency, ['critical', 'high'], true))
+            );
+            if ($floored['qty'] !== null && (float)$floored['qty'] > 0) {
+                $suggestedQty = (float)$floored['qty'];
+                $suggestedUnit = 'pz';
+                if (!empty($floored['approx'])) {
+                    $suggestedApprox = true;
+                }
+            }
+        }
+
         // If stock is still >50% suggest minimum purchase — but NOT when on the shopping list / urgent.
         $needsRestock = $onBring || in_array($urgency, ['critical', 'high'], true) || $qty <= 0;
         if ($suggestedQty !== null && $pctLeft > 50 && !$needsRestock) {
@@ -14974,7 +15040,12 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $suggestedQty = 1;
                 $suggestedUnit = 'conf';
             } elseif ($unit === 'pz') {
-                $suggestedQty = min(3, max(2, (int)ceil($usesPerMonth / 4)));
+                $avgBuyFallback = smartAvgPurchaseQty($totalBought, $buyCount);
+                if ($avgBuyFallback >= 2) {
+                    $suggestedQty = min(smartMaxSuggestedPieces($planDays), max(2, (int)round($avgBuyFallback)));
+                } else {
+                    $suggestedQty = min(smartMaxSuggestedPieces($planDays), max(3, (int)ceil($usesPerMonth / 3)));
+                }
                 $suggestedUnit = 'pz';
                 $suggestedApprox = true;
             } elseif ($defQty > 0) {
@@ -15009,6 +15080,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'pct_left' => round($pctLeft),
             'use_count' => $useCount,
             'buy_count' => $buyCount,
+            'avg_buy_qty' => round(smartAvgPurchaseQty($totalBought, $buyCount), 1),
             'daily_rate' => round($dailyRate, 2),
             'uses_per_month' => round($usesPerMonth, 1),
             'days_since_last_use' => round($daysSinceLastUse),

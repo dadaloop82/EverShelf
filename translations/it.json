@@ -695,7 +695,7 @@
         "swipe_scan": "Comprato · scansiona",
         "bought_later_toast": "«{name}» tolto dalla lista — in inventario lo aggiungerai a casa",
         "plan_days_label": "Quantità calcolate per {days} giorni",
-        "plan_days_auto": "Default: giorni fino a fine mese ({days})",
+        "plan_days_auto": "Default: fino a fine mese, minimo 7 giorni ({days})",
         "plan_days_custom": "Periodo personalizzato ({days} giorni)",
         "plan_days_unit": "gg",
         "plan_days_reset": "Fine mese",
