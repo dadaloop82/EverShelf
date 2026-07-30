@@ -549,14 +549,28 @@ if (($_GET['action'] ?? '') === 'health_check') {
         'hint'     => !$envExists ? 'File .env mancante — copia .env.example in .env e configura i valori' : null,
     ];
 
-    // ── 10. AI provider (Gemini or OpenAI-compatible) ───────────────────────
-    if (aiProvider() === 'openai') {
+    // ── 10. AI provider (Gemini / OpenAI / Llama) ───────────────────────────
+    if (!aiIsEnabled()) {
+        $checks['ai'] = [
+            'ok' => true,
+            'optional' => true,
+            'value' => 'disabled',
+            'hint' => 'AI is turned off in Settings (AI_ENABLED=false)',
+        ];
+    } elseif (aiProvider() === 'openai') {
+        $checks['ai_provider'] = [
+            'ok' => aiProviderConfigured(),
+            'optional' => true,
+            'value' => 'openai @ ' . (aiOpenAiBaseUrl() ?: 'api.openai.com'),
+            'hint' => aiProviderConfigured() ? null : 'Set OPENAI_API_KEY in .env',
+        ];
+    } elseif (aiProvider() === 'llama') {
         $base = aiOpenAiBaseUrl();
         $checks['ai_provider'] = [
             'ok' => $base !== '',
             'optional' => true,
-            'value' => $base !== '' ? ('openai @ ' . $base) : 'openai (not configured)',
-            'hint' => $base === '' ? 'Set OPENAI_BASE_URL in .env (e.g. http://127.0.0.1:11434/v1)' : null,
+            'value' => $base !== '' ? ('llama @ ' . $base) : 'llama (not configured)',
+            'hint' => $base === '' ? 'Set LLAMA_BASE_URL (e.g. http://127.0.0.1:11434/v1)' : null,
         ];
     } else {
         $geminiKey = $envGet('GEMINI_API_KEY');
@@ -565,7 +579,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
                 'hint' => strlen($geminiKey) <= 20 ? 'Gemini AI key looks too short — check the value in .env' : null];
         } else {
             $checks['gemini_key'] = ['ok' => true, 'optional' => true,
-                'value' => 'not configured', 'hint' => 'Set GEMINI_API_KEY in .env, or AI_PROVIDER=openai + OPENAI_BASE_URL'];
+                'value' => 'not configured', 'hint' => 'Set GEMINI_API_KEY, or switch AI provider to OpenAI / Llama'];
         }
     }
 
@@ -748,6 +762,7 @@ $_writeActions = [
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
     'templates_save','templates_delete','templates_apply',
+    'ai_test',
     'dismiss_anomaly','save_settings','mealie_import','mealie_install','mealie_configure',
 ];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeActions, true)) {
@@ -1022,6 +1037,10 @@ try {
 
         case 'get_settings':
             getServerSettings();
+            break;
+
+        case 'ai_test':
+            aiTestConnection();
             break;
 
         case 'client_log':
@@ -7156,12 +7175,16 @@ function getServerSettings(): void {
     $bringEmail = env('BRING_EMAIL');
     
     echo json_encode([
-        'gemini_key_set' => aiIsConfigured(),
+        'gemini_key_set' => aiProvider() === 'gemini' && trim((string)env('GEMINI_API_KEY', '')) !== '',
+        'ai_enabled' => aiIsEnabled(),
         'ai_provider' => aiProvider(),
         'ai_configured' => aiIsConfigured(),
         'openai_base_url' => env('OPENAI_BASE_URL', ''),
         'openai_model' => env('OPENAI_MODEL', ''),
         'openai_key_set' => trim((string)env('OPENAI_API_KEY', '')) !== '',
+        'llama_base_url' => env('LLAMA_BASE_URL', ''),
+        'llama_model' => env('LLAMA_MODEL', ''),
+        'llama_key_set' => trim((string)env('LLAMA_API_KEY', '')) !== '',
         'api_token_required' => evershelfApiTokenRequired(),
         'bring_email' => $bringEmail,
         'settings_token_set' => evershelfApiTokenRequired(),
@@ -7250,6 +7273,18 @@ function getServerSettings(): void {
     ]);
 }
 
+/** POST ai_test — ping active AI provider and return latency. */
+function aiTestConnection(): void {
+    EverLog::info('aiTestConnection', ['provider' => aiProvider(), 'enabled' => aiIsEnabled()]);
+    $result = aiRunConnectionTest(25);
+    if (!empty($result['success'])) {
+        echo json_encode(['success' => true] + $result);
+        return;
+    }
+    http_response_code(($result['error'] ?? '') === 'ai_disabled' ? 503 : 400);
+    echo json_encode(['success' => false] + $result);
+}
+
 function dbCleanup(?PDO $db = null): void {
     $recipeDays = max(1, (int)env('RECIPE_RETENTION_DAYS', '7'));
     // Minimum 90 days: smart shopping needs months of history to compute frequencies.
@@ -7295,6 +7330,9 @@ function saveSettings(): void {
         'openai_base_url' => 'OPENAI_BASE_URL',
         'openai_api_key'  => 'OPENAI_API_KEY',
         'openai_model'    => 'OPENAI_MODEL',
+        'llama_base_url'  => 'LLAMA_BASE_URL',
+        'llama_api_key'   => 'LLAMA_API_KEY',
+        'llama_model'     => 'LLAMA_MODEL',
         'bring_email'     => 'BRING_EMAIL',
         'bring_password'  => 'BRING_PASSWORD',
         'tts_url'         => 'TTS_URL',
@@ -7335,6 +7373,7 @@ function saveSettings(): void {
     ];
     // Boolean keys
     $boolMap = [
+        'ai_enabled'      => 'AI_ENABLED',
         'tts_enabled'     => 'TTS_ENABLED',
         'pref_veloce'     => 'PREF_VELOCE',
         'pref_pocafame'   => 'PREF_POCAFAME',
@@ -7384,6 +7423,17 @@ function saveSettings(): void {
         if (array_key_exists($inKey, $input)) {
             $envVars[$envKey] = (string)$input[$inKey];
         }
+    }
+    // Exclusive AI provider: only gemini | openai | llama
+    if (array_key_exists('AI_PROVIDER', $envVars)) {
+        $p = strtolower(trim((string)$envVars['AI_PROVIDER']));
+        if (in_array($p, ['ollama', 'vllm', 'local', 'llama.cpp', 'llamacpp'], true)) {
+            $p = 'llama';
+        }
+        if (!in_array($p, ['gemini', 'openai', 'llama'], true)) {
+            $p = 'gemini';
+        }
+        $envVars['AI_PROVIDER'] = $p;
     }
     foreach ($boolMap as $inKey => $envKey) {
         if (array_key_exists($inKey, $input)) {
@@ -7644,14 +7694,24 @@ function geminiModelUnavailable(int $httpCode, ?array $data): bool {
 
 /**
  * Like callGemini() but walks geminiModelChain() on quota or unavailable-model errors.
- * When AI_PROVIDER=openai (or ollama/vllm/local), routes to an OpenAI-compatible
+ * When AI_PROVIDER is openai or llama, routes to an OpenAI-compatible
  * /v1/chat/completions endpoint and normalizes the response to Gemini shape.
  * @param string $tier 'default' | 'lite'
  */
 function callGeminiWithFallback(string $apiKey, array $payload, int $timeout = 30, string $usageAction = '', string $tier = 'default'): array {
     $payload = geminiEnsureNoThinking($payload);
 
-    if (aiProvider() === 'openai') {
+    if (!aiIsEnabled()) {
+        return [
+            'http_code' => 503,
+            'body' => '{"error":{"message":"AI disabled"}}',
+            'data' => ['error' => ['message' => 'AI disabled']],
+            'tokens_in' => 0,
+            'tokens_out' => 0,
+        ];
+    }
+
+    if (aiUsesOpenAiProtocol()) {
         $model = aiOpenAiModel();
         EverLog::aiCall($model, strlen(json_encode($payload)), false);
         $last = aiOpenAiChatCompletions($payload, $timeout);
@@ -10263,8 +10323,8 @@ PROMPT;
     $genConfig = recipeGeminiGenerationConfig(min(1.4, 0.7 + $variation * 0.25), 4096);
     $payload   = ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => $genConfig];
 
-    // OpenAI-compatible: reuse shared client (no Gemini-specific SSE loop)
-    if (aiProvider() === 'openai') {
+    // OpenAI-compatible (openai / llama): reuse shared client (no Gemini-specific SSE loop)
+    if (aiUsesOpenAiProtocol()) {
         $send('status', ['step' => 3, 'message' => recipeText($lang, 'status_creating_full_recipe')]);
         $result = callGeminiWithFallback($apiKey, $payload, 90, 'recipe');
         $httpCode = $result['http_code'];

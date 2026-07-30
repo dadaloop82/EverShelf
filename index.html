@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.74</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.78</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.71</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.78</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1050,18 +1050,37 @@
             <!-- API Keys Tab -->
             <div class="settings-panel" id="tab-api">
                 <div class="settings-card">
-                    <h4 data-i18n="settings.ai.title">🤖 AI provider</h4>
-                    <p class="settings-hint" data-i18n="settings.ai.hint">Use Google Gemini (cloud) or an OpenAI-compatible endpoint (OpenAI, Ollama, vLLM, llama.cpp…).</p>
+                    <h4 data-i18n="settings.ai.title">🤖 Intelligenza artificiale</h4>
+                    <p class="settings-hint" data-i18n="settings.ai.hint">Scegli un solo provider. Se l’AI è disattivata, nessun servizio che la usa funziona.</p>
                     <div class="form-group">
-                        <label data-i18n="settings.ai.provider_label">Provider</label>
-                        <select id="setting-ai-provider" class="form-input" onchange="_syncAiProviderUi()">
-                            <option value="gemini" data-i18n="settings.ai.provider_gemini">Google Gemini</option>
-                            <option value="openai" data-i18n="settings.ai.provider_openai">OpenAI-compatible</option>
-                        </select>
+                        <label class="toggle-row">
+                            <span data-i18n="settings.ai.enabled_label">Abilita AI</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-ai-enabled" checked onchange="_syncAiProviderUi()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group" id="ai-provider-group">
+                        <label data-i18n="settings.ai.provider_label">Provider (una sola scelta)</label>
+                        <div class="radio-group" style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+                            <label class="radio-option">
+                                <input type="radio" name="ai-provider" value="gemini" checked onchange="_onAiProviderChange(this.value)">
+                                <span data-i18n="settings.ai.provider_gemini">Google Gemini</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="ai-provider" value="openai" onchange="_onAiProviderChange(this.value)">
+                                <span data-i18n="settings.ai.provider_openai">OpenAI (cloud)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="ai-provider" value="llama" onchange="_onAiProviderChange(this.value)">
+                                <span data-i18n="settings.ai.provider_llama">Llama (locale / remoto)</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-card" id="settings-ai-gemini-card">
-                    <h4 data-i18n="settings.gemini.title">🤖 Google Gemini AI</h4>
+                    <h4 data-i18n="settings.gemini.title">🤖 Google Gemini</h4>
                     <p class="settings-hint" data-i18n="settings.gemini.hint">Chiave API per identificazione prodotti, scadenze e ricette.</p>
                     <div class="form-group">
                         <label data-i18n="settings.gemini.key_label">API Key Gemini</label>
@@ -1070,21 +1089,44 @@
                     </div>
                 </div>
                 <div class="settings-card" id="settings-ai-openai-card" style="display:none">
-                    <h4 data-i18n="settings.openai.title">🔌 OpenAI-compatible endpoint</h4>
-                    <p class="settings-hint" data-i18n="settings.openai.hint">Base URL ending with /v1 (optional for some local servers). API key optional for Ollama/local.</p>
+                    <h4 data-i18n="settings.openai.title">☁️ OpenAI</h4>
+                    <p class="settings-hint" data-i18n="settings.openai.hint">Account OpenAI ufficiale. URL predefinito: https://api.openai.com/v1</p>
                     <div class="form-group">
                         <label data-i18n="settings.openai.base_url_label">Base URL</label>
-                        <input type="text" id="setting-openai-base-url" class="form-input" placeholder="http://127.0.0.1:11434/v1" data-i18n-placeholder="settings.openai.base_url_placeholder">
+                        <input type="text" id="setting-openai-base-url" class="form-input" placeholder="https://api.openai.com/v1" data-i18n-placeholder="settings.openai.base_url_placeholder">
                     </div>
                     <div class="form-group">
-                        <label data-i18n="settings.openai.model_label">Model</label>
-                        <input type="text" id="setting-openai-model" class="form-input" placeholder="gpt-4o-mini / llama3.2 / …">
+                        <label data-i18n="settings.openai.model_label">Modello</label>
+                        <input type="text" id="setting-openai-model" class="form-input" placeholder="gpt-4o-mini">
                     </div>
                     <div class="form-group">
-                        <label data-i18n="settings.openai.key_label">API key (optional)</label>
+                        <label data-i18n="settings.openai.key_label">API key</label>
                         <input type="password" id="setting-openai-api-key" class="form-input" placeholder="sk-…">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-openai-api-key')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
                     </div>
+                </div>
+                <div class="settings-card" id="settings-ai-llama-card" style="display:none">
+                    <h4 data-i18n="settings.llama.title">🦙 Llama (locale / remoto)</h4>
+                    <p class="settings-hint" data-i18n="settings.llama.hint">Server OpenAI-compatibile: Ollama, llama.cpp, vLLM… locale o su un’altra macchina in rete.</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.llama.base_url_label">Base URL</label>
+                        <input type="text" id="setting-llama-base-url" class="form-input" placeholder="http://127.0.0.1:11434/v1" data-i18n-placeholder="settings.llama.base_url_placeholder">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.llama.model_label">Modello</label>
+                        <input type="text" id="setting-llama-model" class="form-input" placeholder="llama3.2">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.llama.key_label">API key (opzionale)</label>
+                        <input type="password" id="setting-llama-api-key" class="form-input" placeholder="">
+                        <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-llama-api-key')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
+                    </div>
+                </div>
+                <div class="settings-card" id="settings-ai-test-card">
+                    <h4 data-i18n="settings.ai.test_title">🔌 Test connessione</h4>
+                    <p class="settings-hint" data-i18n="settings.ai.test_hint">Invia una richiesta minima al provider selezionato e misura il tempo di risposta.</p>
+                    <button type="button" class="btn btn-accent" id="btn-ai-test" onclick="testAiConnection()" data-i18n="settings.ai.test_btn">▶ Esegui test</button>
+                    <div id="ai-test-result" class="settings-hint" style="margin-top:10px;display:none" role="status" aria-live="polite"></div>
                 </div>
             </div>
             <!-- Bring! Tab -->
