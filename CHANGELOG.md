@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.75] - 2026-07-30
+
+### Added
+- **Edit from Use / discard** (#215) — pencil on the Use page hero (and discard modal) opens the same inventory edit sheet as elsewhere.
+- **Pin favourite products** (#98) — star on each inventory row; favourites stay in a **Favourites** section at the top of the list. State is stored on the product and survives restocks.
+
 ## [1.7.74] - 2026-07-30
 
 ### Added

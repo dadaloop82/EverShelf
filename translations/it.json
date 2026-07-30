@@ -207,7 +207,10 @@
         "item_detail_use_all": "Usato tutto",
         "item_detail_recipe": "Crea ricetta",
         "item_detail_throw": "Butta",
-        "item_detail_edit": "Modifica prodotto"
+        "item_detail_edit": "Modifica prodotto",
+        "favorite": "Aggiungi ai preferiti",
+        "unfavorite": "Rimuovi dai preferiti",
+        "favorites_section": "Preferiti"
     },
     "scan": {
         "title": "Scansiona",
