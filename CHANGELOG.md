@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.73] - 2026-07-30
+
+### Added
+- **Continuous barcode scanning** (#217) — tap **Continuous** on the scan page (or long-press the header camera). Each barcode is added automatically with smart location/expiry defaults, then the camera reopens for the next item. Tap **Done** to exit. Unknown products still open the full add form.
+
+### Fixed
+- **Same product, different best-before dates** (#214) — sealed stock rows now merge only when location **and** expiry date match. Two packs of the same barcode with different BB dates stay as separate inventory rows (also applies to multi-batch add and CSV import).
+
 ## [1.7.72] - 2026-07-30
 
 ### Added

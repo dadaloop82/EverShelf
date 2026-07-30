@@ -211,10 +211,10 @@
     },
     "scan": {
         "title": "Escáner",
-        "mode_shopping": "🛒 Modo compras",
-        "mode_shopping_end": "✅ Finalizar compras",
-        "spesa_btn": "🛒 Compras",
-        "spesa_camera_hint": "Enfoca el código con la cámara. ¿Sin código? Pulsa «Identificar con IA» abajo.",
+        "mode_shopping": "📷 Escaneo continuo",
+        "mode_shopping_end": "✅ Listo",
+        "spesa_btn": "📷 Continuo",
+        "spesa_camera_hint": "Escanea códigos de barras uno tras otro — cada artículo se añade automáticamente. Toca Listo al terminar. ¿Necesitas el formulario completo? Sal del modo continuo y escanea con normalidad.",
         "zoom": "Zoom",
         "tab_barcode": "Código de barras",
         "tab_name": "Nombre",
@@ -281,8 +281,10 @@
         "ai_match_or_similar": "O elige un producto similar:",
         "ai_detected_label": "IA detecto",
         "stock_in_pantry": "Ya en despensa:",
-        "mode_shopping_activated": "🛒 ¡Modo compras activado!",
-        "status_lookup": "Identificando…"
+        "mode_shopping_activated": "📷 Escaneo continuo activo — ¡sigue escaneando!",
+        "status_lookup": "Identificando…",
+        "continuous_added": "Añadido {name} → {location}",
+        "status_adding": "Añadiendo…"
     },
     "action": {
         "title": "¿Qué quieres hacer?",

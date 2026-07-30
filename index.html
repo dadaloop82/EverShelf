@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.72</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.73</span>
     </div>
 </div>
 
@@ -262,14 +262,14 @@
         <div class="page-header">
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="scan.title">Scansiona</h2>
-            <button class="scan-spesa-chip" id="scan-spesa-btn" onclick="startSpesaMode()" data-i18n="scan.spesa_btn">🛒 Spesa</button>
+            <button class="scan-spesa-chip" id="scan-spesa-btn" onclick="startSpesaMode()" data-i18n="scan.spesa_btn">📷 Continua</button>
         </div>
         <div class="spesa-mode-banner" id="spesa-mode-banner" style="display:none">
             <div class="spesa-banner-left">
-                <span data-i18n="scan.mode_shopping">🛒 Modalità Spesa</span>
+                <span data-i18n="scan.mode_shopping">📷 Scansione continua</span>
                 <span class="spesa-stat"></span>
             </div>
-            <button class="btn btn-small" onclick="endSpesaMode()" data-i18n="scan.mode_shopping_end">✅ Fine spesa</button>
+            <button class="btn btn-small" onclick="endSpesaMode()" data-i18n="scan.mode_shopping_end">✅ Fine</button>
         </div>
         <div class="scan-container">
             <!-- Camera viewport -->
@@ -2164,6 +2164,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260730b"></script>
+<script src="assets/js/app.js?v=20260730c"></script>
 </body>
 </html>
