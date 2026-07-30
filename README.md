@@ -56,6 +56,7 @@ EverShelf can sync **daily activity from your phone** and use it to generate rec
 | **QR pairing** | Settings → **Health** generates a QR with server URL + token — scan once from the phone; same Wi‑Fi as the server |
 | **Keep-alive** | Persistent notification + battery-optimization exemption so OEM killers don’t stop background sync |
 | **Fuel Mode (“at my pace”)** | Recipe generation uses biological profile + today’s activity + pantry stock; silent intake from pantry “use” and cooked recipes only |
+| **Weather influence (optional)** | Off by default. Settings → **Recipes**: pick a city (Open-Meteo, no API key). When Fuel Mode generates a recipe, local conditions (hot / cold / rain…) bias dish style — e.g. heat → fresh, cold plates |
 | **Settings → Health** | Profile (sex, age, height, weight, goal, activity), master enable switch, bridge download / unlink |
 
 **Download (always latest build):**  
