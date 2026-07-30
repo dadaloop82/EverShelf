@@ -379,6 +379,13 @@ function migrateDB(PDO $db): void {
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 
+    // Pin favourite products at top of inventory (#98)
+    $prodFavCols = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
+    if (!in_array('is_favorite', $prodFavCols)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+
     // Add nutriments_json column to products if missing (#118)
     $prodCols2 = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
     if (!in_array('nutriments_json', $prodCols2)) {

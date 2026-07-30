@@ -8405,6 +8405,38 @@ body.cooking-mode-active .app-header {
 .btn-recipe-fav:hover { color: #f59e0b; transform: scale(1.2); }
 .btn-recipe-fav.active { color: #f59e0b; }
 
+.btn-inv-fav {
+    flex-shrink: 0;
+    align-self: center;
+    background: none;
+    border: none;
+    font-size: 1.45rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 6px 4px;
+    line-height: 1;
+    transition: color 0.2s, transform 0.15s;
+    z-index: 3;
+}
+.btn-inv-fav:hover { color: #f59e0b; transform: scale(1.15); }
+.btn-inv-fav.active { color: #f59e0b; }
+
+.inv-section-header.inv-fav-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px 4px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #b45309;
+    border-bottom: 1px solid var(--border);
+    margin-top: 0;
+}
+
+.inventory-item.inv-item-fav {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), var(--shadow);
+}
+
 /* ===== PORTION RESCALER (#123) ===== */
 .recipe-persons-ctrl {
     display: inline-flex;

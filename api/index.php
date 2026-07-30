@@ -802,6 +802,9 @@ try {
         case 'product_save':
             saveProduct($db);
             break;
+        case 'products_toggle_favorite':
+            productToggleFavorite($db);
+            break;
         case 'product_get':
             getProduct($db);
             break;
@@ -4191,7 +4194,8 @@ function listInventory(PDO $db): void {
     $location = $_GET['location'] ?? '';
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name,
+               COALESCE(p.is_favorite, 0) as is_favorite
         FROM inventory i
         JOIN products p ON i.product_id = p.id
         WHERE i.quantity > 0
@@ -4201,13 +4205,35 @@ function listInventory(PDO $db): void {
         $query .= " AND i.location = ?";
         $params[] = $location;
     }
-    $query .= " ORDER BY p.name ASC";
+    $query .= " ORDER BY COALESCE(p.is_favorite, 0) DESC, p.name ASC";
     $stmt = $db->prepare($query);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     $rows = array_values(array_filter($rows, fn(array $r): bool => !isInventoryDepleted($r)));
     EverLog::debug('inventory_list fetched', ['rows' => count($rows), 'location' => $location ?: 'all']);
     echo json_encode(['inventory' => $rows]);
+}
+
+function productToggleFavorite(PDO $db): void {
+    EverLog::info('productToggleFavorite');
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? $input['product_id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid id']);
+        return;
+    }
+    $stmt = $db->prepare('UPDATE products SET is_favorite = 1 - COALESCE(is_favorite, 0), updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([$id]);
+    if ($stmt->rowCount() === 0) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+        return;
+    }
+    $q = $db->prepare('SELECT COALESCE(is_favorite, 0) FROM products WHERE id = ?');
+    $q->execute([$id]);
+    $fav = (int)$q->fetchColumn();
+    echo json_encode(['success' => true, 'id' => $id, 'is_favorite' => (bool)$fav]);
 }
 
 function addToInventory(PDO $db): void {

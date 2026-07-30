@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730d'; // bump when translations change
+const _I18N_VERSION = '20260730e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7254,9 +7254,11 @@ function renderInventoryItem(item) {
     
     const vacuumBadge = item.vacuum_sealed ? `<span class="vacuum-badge">${t('inventory.vacuum_badge')}</span>` : '';
     const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
+    const isFav = !!Number(item.is_favorite);
+    const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
     
     return `
-    <div class="inventory-item" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" onclick="invRowTap(event)">
+    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" onclick="invRowTap(event)">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
@@ -7274,6 +7276,7 @@ function renderInventoryItem(item) {
                     ${vacuumBadge}
                 </div>
             </div>
+            <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
             <div class="inv-qty-col">
                 <span class="inv-qty-number">${parts.mainQty}</span>
                 <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
@@ -7285,6 +7288,7 @@ function renderInventoryItem(item) {
 
 /** Tap riga inventario → Usa. Swipe gestito a parte. */
 function invRowTap(ev) {
+    if (ev?.target?.closest?.('.btn-inv-fav')) return;
     const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
     if (!row || row.dataset.invSwipeDone === '1') return;
     const invId = parseInt(row.dataset.invId, 10);
@@ -7329,6 +7333,7 @@ function _initInventoryRowSwipe(container) {
 
     const onStart = (e) => {
         if (e.type.startsWith('pointer') && e.button !== 0) return;
+        if (e.target.closest('.btn-inv-fav')) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
         const content = row.querySelector('.inv-row-content');
@@ -7454,12 +7459,49 @@ function renderInventory(items, options = {}) {
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         return;
     }
-    container.innerHTML = options.flat
-        ? visible.map(item => renderInventoryItem(item)).join('')
-        : renderGroupedByCategory(visible, false);
+    if (options.flat) {
+        container.innerHTML = visible.map(item => renderInventoryItem(item)).join('');
+    } else {
+        const favs = visible.filter(i => Number(i.is_favorite));
+        const rest = visible.filter(i => !Number(i.is_favorite));
+        let html = '';
+        if (favs.length) {
+            html += `<div class="inv-section-header inv-fav-section">★ ${escapeHtml(t('inventory.favorites_section'))}</div>`;
+            html += favs.map(item => renderInventoryItem(item)).join('');
+        }
+        html += rest.length ? renderGroupedByCategory(rest, false) : '';
+        container.innerHTML = html;
+    }
     _refineCategoryBadgesAsync();
     _initInventoryRowSwipe(container);
     _playInventorySwipeDemo(container);
+}
+
+/** Pin / unpin product so it stays in Favourites at top of inventory (#98). */
+async function toggleInventoryFavorite(ev, productId) {
+    if (ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+    }
+    const id = parseInt(productId, 10);
+    if (!id) return;
+    const res = await api('products_toggle_favorite', {}, 'POST', { id });
+    if (!res || !res.success) {
+        showToast(t('error.generic'), 'error');
+        return;
+    }
+    const fav = !!res.is_favorite;
+    const patch = (arr) => {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(item => {
+            if (item.product_id == id) item.is_favorite = fav ? 1 : 0;
+        });
+    };
+    patch(currentInventory);
+    patch(_allInventoryCache);
+    const q = (_inventorySearchQuery || document.getElementById('inventory-search')?.value || '').trim();
+    if (q) filterInventory();
+    else renderInventory(currentInventory);
 }
 
 /** Relevance score for dispensa search (higher = better match). */
@@ -10573,15 +10615,16 @@ function showThrowForm() {
                 <h3>${t('use.throw_title')}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
-            <div class="product-preview-small" style="margin-bottom:12px">
+            <div class="product-preview-small" style="margin-bottom:12px;position:relative">
                 ${currentProduct.image_url ?
                     `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
                     `<span style="font-size:2rem">${CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦'}</span>`
                 }
                 <div class="product-preview-info">
                     <h3>${escapeHtml(currentProduct.name)}</h3>
-                    <p>Disponibile: <strong>${qtyDisplay}</strong></p>
+                    <p>${escapeHtml(t('inventory.label_quantity').replace(/^📦\s*/, ''))}: <strong>${qtyDisplay}</strong></p>
                 </div>
+                ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
             </div>
             <div class="inventory-status-bar" style="margin-bottom:16px">
                 <div class="inv-status-items">${locOptionsHtml}</div>
@@ -11572,7 +11615,35 @@ function renderUsePreview() {
             ${currentProduct?.brand ? `<div class="use-hero-brand">${escapeHtml(currentProduct.brand)}</div>` : ''}
             <div class="use-hero-meta" id="use-hero-meta"></div>
         </div>
+        <button type="button" class="btn-edit-inline" onclick="openUseInventoryEdit()" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>
     `;
+}
+
+/** Edit inventory row from Use page (#215) — pick soonest-expiring stock of current product. */
+function openUseInventoryEdit() {
+    let items = Array.isArray(_useCurrentItems) ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
+    if (!items.length && currentProduct?.id) {
+        items = (currentInventory || []).filter(i => i.product_id == currentProduct.id && parseFloat(i.quantity) > 0);
+    }
+    if (!items.length && currentProduct?.id) {
+        api('inventory_list').then(data => {
+            currentInventory = data.inventory || [];
+            _useCurrentItems = currentInventory.filter(i => i.product_id == currentProduct.id);
+            openUseInventoryEdit();
+        });
+        return;
+    }
+    if (!items.length) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return;
+    }
+    items = [...items].sort((a, b) => {
+        if (!a.expiry_date && !b.expiry_date) return 0;
+        if (!a.expiry_date) return 1;
+        if (!b.expiry_date) return -1;
+        return String(a.expiry_date).localeCompare(String(b.expiry_date));
+    });
+    editInventoryItem(items[0].id);
 }
 
 /**
