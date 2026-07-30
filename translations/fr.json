@@ -1329,15 +1329,32 @@
             "in_use": "Impossible de supprimer « {name} » : {n} article(s) encore stocké(s)"
         },
         "ai": {
-            "title": "🤖 Fournisseur IA",
-            "hint": "Utilisez Google Gemini (cloud) ou un endpoint compatible OpenAI (OpenAI, Ollama, vLLM, llama.cpp…).",
-            "provider_label": "Fournisseur",
+            "title": "🤖 Intelligence artificielle",
+            "hint": "Choisissez un seul fournisseur. Si l’IA est désactivée, aucun service qui l’utilise ne fonctionne.",
+            "enabled_label": "Activer l’IA",
+            "provider_label": "Fournisseur (un seul choix)",
             "provider_gemini": "Google Gemini",
-            "provider_openai": "Compatible OpenAI"
+            "provider_openai": "OpenAI (cloud)",
+            "provider_llama": "Llama (local / distant)",
+            "test_title": "🔌 Test de connexion",
+            "test_hint": "Envoie une requête minimale au fournisseur sélectionné et mesure le temps de réponse.",
+            "test_btn": "▶ Lancer le test",
+            "test_running": "Test en cours…",
+            "test_disabled": "Activez d’abord l’IA, puis lancez le test.",
+            "test_ok": "OK — {ms} ms ({provider}): {reply}",
+            "test_fail": "Échec — {ms} ms : {error}"
         },
         "openai": {
-            "title": "🔌 Endpoint compatible OpenAI",
-            "hint": "URL de base se terminant par /v1. Clé API optionnelle pour beaucoup de serveurs locaux (ex. Ollama).",
+            "title": "☁️ OpenAI",
+            "hint": "Compte OpenAI officiel. URL par défaut : https://api.openai.com/v1",
+            "base_url_label": "URL de base",
+            "base_url_placeholder": "https://api.openai.com/v1",
+            "model_label": "Modèle",
+            "key_label": "Clé API"
+        },
+        "llama": {
+            "title": "🦙 Llama (local / distant)",
+            "hint": "Serveur compatible OpenAI : Ollama, llama.cpp, vLLM… en local ou sur le réseau.",
             "base_url_label": "URL de base",
             "base_url_placeholder": "http://127.0.0.1:11434/v1",
             "model_label": "Modèle",

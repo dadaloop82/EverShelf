@@ -1329,15 +1329,32 @@
             "in_use": "Cannot remove “{name}”: {n} item(s) still stored there"
         },
         "ai": {
-            "title": "🤖 AI provider",
-            "hint": "Use Google Gemini (cloud) or an OpenAI-compatible endpoint (OpenAI, Ollama, vLLM, llama.cpp…).",
-            "provider_label": "Provider",
+            "title": "🤖 Artificial intelligence",
+            "hint": "Pick exactly one provider. If AI is off, no feature that uses it will run.",
+            "enabled_label": "Enable AI",
+            "provider_label": "Provider (choose one)",
             "provider_gemini": "Google Gemini",
-            "provider_openai": "OpenAI-compatible"
+            "provider_openai": "OpenAI (cloud)",
+            "provider_llama": "Llama (local / remote)",
+            "test_title": "🔌 Connection test",
+            "test_hint": "Send a minimal request to the selected provider and measure response time.",
+            "test_btn": "▶ Run test",
+            "test_running": "Testing…",
+            "test_disabled": "Enable AI first, then run the test.",
+            "test_ok": "OK — {ms} ms ({provider}): {reply}",
+            "test_fail": "Failed — {ms} ms: {error}"
         },
         "openai": {
-            "title": "🔌 OpenAI-compatible endpoint",
-            "hint": "Base URL ending with /v1. API key is optional for many local servers (e.g. Ollama).",
+            "title": "☁️ OpenAI",
+            "hint": "Official OpenAI account. Default URL: https://api.openai.com/v1",
+            "base_url_label": "Base URL",
+            "base_url_placeholder": "https://api.openai.com/v1",
+            "model_label": "Model",
+            "key_label": "API key"
+        },
+        "llama": {
+            "title": "🦙 Llama (local / remote)",
+            "hint": "OpenAI-compatible server: Ollama, llama.cpp, vLLM… on this machine or another host on the network.",
             "base_url_label": "Base URL",
             "base_url_placeholder": "http://127.0.0.1:11434/v1",
             "model_label": "Model",

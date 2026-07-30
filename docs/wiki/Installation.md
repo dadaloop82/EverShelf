@@ -27,7 +27,7 @@ cd EverShelf
 
 # 2. Create your configuration
 cp .env.example .env
-nano .env          # set GEMINI_API_KEY, or AI_PROVIDER=openai + OPENAI_BASE_URL
+nano .env          # set AI_ENABLED, AI_PROVIDER (gemini|openai|llama), and provider credentials
 
 # 3. Pull the published image and start
 docker compose pull
@@ -230,7 +230,7 @@ docker compose up -d
 Once the app is running, open it in your browser and:
 
 1. Go to **Settings** (⚙️ icon in the header)
-2. Open **API Keys** — choose **Google Gemini** or an **OpenAI-compatible** endpoint (Ollama, vLLM, …)
+2. Open **API Keys** — enable AI, choose exactly one of **Gemini**, **OpenAI (cloud)**, or **Llama** (local/remote), then use **Run test** to check latency
 3. Optionally configure Bring!, TTS, and scale settings
 4. Add your first product via the ➕ button or barcode scan
 

@@ -1329,15 +1329,32 @@
             "in_use": "„{name}“ kann nicht entfernt werden: noch {n} Artikel dort"
         },
         "ai": {
-            "title": "🤖 KI-Anbieter",
-            "hint": "Google Gemini (Cloud) oder OpenAI-kompatiblen Endpunkt nutzen (OpenAI, Ollama, vLLM, llama.cpp…).",
-            "provider_label": "Anbieter",
+            "title": "🤖 Künstliche Intelligenz",
+            "hint": "Genau einen Anbieter wählen. Ist die KI aus, laufen keine KI-Funktionen.",
+            "enabled_label": "KI aktivieren",
+            "provider_label": "Anbieter (nur eine Wahl)",
             "provider_gemini": "Google Gemini",
-            "provider_openai": "OpenAI-kompatibel"
+            "provider_openai": "OpenAI (Cloud)",
+            "provider_llama": "Llama (lokal / remote)",
+            "test_title": "🔌 Verbindungstest",
+            "test_hint": "Minimale Anfrage an den gewählten Anbieter senden und Antwortzeit messen.",
+            "test_btn": "▶ Test starten",
+            "test_running": "Test läuft…",
+            "test_disabled": "Zuerst KI aktivieren, dann testen.",
+            "test_ok": "OK — {ms} ms ({provider}): {reply}",
+            "test_fail": "Fehlgeschlagen — {ms} ms: {error}"
         },
         "openai": {
-            "title": "🔌 OpenAI-kompatibler Endpunkt",
-            "hint": "Basis-URL mit /v1 am Ende. API-Schlüssel bei vielen lokalen Servern optional (z. B. Ollama).",
+            "title": "☁️ OpenAI",
+            "hint": "Offizielles OpenAI-Konto. Standard-URL: https://api.openai.com/v1",
+            "base_url_label": "Basis-URL",
+            "base_url_placeholder": "https://api.openai.com/v1",
+            "model_label": "Modell",
+            "key_label": "API-Schlüssel"
+        },
+        "llama": {
+            "title": "🦙 Llama (lokal / remote)",
+            "hint": "OpenAI-kompatibler Server: Ollama, llama.cpp, vLLM… lokal oder im Netzwerk.",
             "base_url_label": "Basis-URL",
             "base_url_placeholder": "http://127.0.0.1:11434/v1",
             "model_label": "Modell",

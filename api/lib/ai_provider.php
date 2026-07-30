@@ -1,55 +1,116 @@
 <?php
 /**
- * AI provider abstraction — Gemini (default) or OpenAI-compatible endpoints
- * (OpenAI, Ollama, vLLM, llama.cpp server, etc.).
+ * AI provider abstraction — exclusive providers:
+ *   gemini | openai (cloud) | llama (local/remote OpenAI-compatible)
+ * Master switch: AI_ENABLED (false → all AI features off).
  *
  * Callers keep building Gemini-shaped payloads; callGeminiWithFallback() routes
- * and normalizes OpenAI responses back to the Gemini candidates[] shape.
+ * openai/llama through /v1/chat/completions and normalizes to Gemini shape.
  */
 
-/** @return 'gemini'|'openai' */
+function aiIsEnabled(): bool {
+    $v = strtolower(trim((string)env('AI_ENABLED', 'true')));
+    return !in_array($v, ['0', 'false', 'off', 'no'], true);
+}
+
+/** @return 'gemini'|'openai'|'llama' */
 function aiProvider(): string {
     $p = strtolower(trim((string)env('AI_PROVIDER', 'gemini')));
-    if (in_array($p, ['openai', 'openai_compatible', 'ollama', 'vllm', 'local'], true)) {
+    // Legacy aliases → openai / llama
+    if (in_array($p, ['openai_compatible'], true)) {
         return 'openai';
+    }
+    if (in_array($p, ['ollama', 'vllm', 'local', 'llama.cpp', 'llamacpp'], true)) {
+        return 'llama';
+    }
+    if (in_array($p, ['openai', 'llama', 'gemini'], true)) {
+        return $p;
     }
     return 'gemini';
 }
 
-function aiOpenAiBaseUrl(): string {
-    $base = rtrim(trim((string)env('OPENAI_BASE_URL', '')), '/');
+/** True when the active provider speaks OpenAI chat-completions protocol. */
+function aiUsesOpenAiProtocol(): bool {
+    return in_array(aiProvider(), ['openai', 'llama'], true);
+}
+
+function aiNormalizeBaseUrl(string $base): string {
+    $base = rtrim(trim($base), '/');
     if ($base === '') {
         return '';
     }
-    // Accept https://host/v1 or https://host
     if (!preg_match('#/v1$#', $base)) {
         $base .= '/v1';
     }
     return $base;
 }
 
-function aiOpenAiModel(): string {
-    $m = trim((string)env('OPENAI_MODEL', ''));
-    return $m !== '' ? $m : 'gpt-4o-mini';
+function aiOpenAiBaseUrl(): string {
+    if (aiProvider() === 'llama') {
+        return aiNormalizeBaseUrl((string)env('LLAMA_BASE_URL', env('OPENAI_BASE_URL', '')));
+    }
+    if (aiProvider() === 'openai') {
+        $base = trim((string)env('OPENAI_BASE_URL', ''));
+        if ($base === '') {
+            $base = 'https://api.openai.com/v1';
+        }
+        return aiNormalizeBaseUrl($base);
+    }
+    return '';
 }
 
-function aiIsConfigured(): bool {
+function aiOpenAiModel(): string {
+    if (aiProvider() === 'llama') {
+        $m = trim((string)env('LLAMA_MODEL', env('OPENAI_MODEL', '')));
+        return $m !== '' ? $m : 'llama3.2';
+    }
     if (aiProvider() === 'openai') {
+        $m = trim((string)env('OPENAI_MODEL', ''));
+        return $m !== '' ? $m : 'gpt-4o-mini';
+    }
+    return '';
+}
+
+function aiOpenAiApiKey(): string {
+    if (aiProvider() === 'llama') {
+        return trim((string)env('LLAMA_API_KEY', env('OPENAI_API_KEY', '')));
+    }
+    return trim((string)env('OPENAI_API_KEY', ''));
+}
+
+/**
+ * Provider credentials are present (ignores AI_ENABLED).
+ */
+function aiProviderConfigured(): bool {
+    $p = aiProvider();
+    if ($p === 'openai') {
+        // Cloud OpenAI needs an API key; base URL has a default
+        return aiOpenAiApiKey() !== '';
+    }
+    if ($p === 'llama') {
         return aiOpenAiBaseUrl() !== '';
     }
     return trim((string)env('GEMINI_API_KEY', '')) !== '';
 }
 
+/** Enabled + credentials OK → AI features may run. */
+function aiIsConfigured(): bool {
+    return aiIsEnabled() && aiProviderConfigured();
+}
+
 /**
  * Credential for legacy gates that still read “API key”.
- * OpenAI-compatible local servers often need no key — return a placeholder.
+ * Llama local servers often need no key — return a placeholder when URL is set.
  */
 function aiCredential(): string {
-    if (aiProvider() === 'openai') {
-        if (!aiIsConfigured()) {
+    if (!aiIsEnabled()) {
+        return '';
+    }
+    if (aiUsesOpenAiProtocol()) {
+        if (!aiProviderConfigured()) {
             return '';
         }
-        $k = trim((string)env('OPENAI_API_KEY', ''));
+        $k = aiOpenAiApiKey();
         return $k !== '' ? $k : 'no-key';
     }
     return trim((string)env('GEMINI_API_KEY', ''));
@@ -110,8 +171,8 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     if ($base === '') {
         return [
             'http_code' => 400,
-            'body' => '{"error":{"message":"OPENAI_BASE_URL not configured"}}',
-            'data' => ['error' => ['message' => 'OPENAI_BASE_URL not configured']],
+            'body' => '{"error":{"message":"Base URL not configured"}}',
+            'data' => ['error' => ['message' => 'Base URL not configured']],
             'tokens_in' => 0,
             'tokens_out' => 0,
         ];
@@ -126,11 +187,10 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     if (!empty($gen['maxOutputTokens'])) {
         $body['max_tokens'] = (int)$gen['maxOutputTokens'];
     }
-    // json_object is not supported by all local servers — omit; prompt already asks for JSON
 
     $url = $base . '/chat/completions';
     $headers = ['Content-Type: application/json'];
-    $key = trim((string)env('OPENAI_API_KEY', ''));
+    $key = aiOpenAiApiKey();
     if ($key !== '') {
         $headers[] = 'Authorization: Bearer ' . $key;
     }
@@ -150,15 +210,16 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     curl_close($ch);
 
     $elapsed = microtime(true) - $t0;
+    $label = aiProvider();
     if ($raw === false) {
         $raw = json_encode(['error' => ['message' => $err ?: 'curl_failed']]);
         $code = $code ?: 500;
     }
     $data = json_decode($raw, true);
     if ($code === 200) {
-        EverLog::aiResponse('openai', strlen($raw), $elapsed, true);
+        EverLog::aiResponse($label, strlen($raw), $elapsed, true);
     } else {
-        EverLog::aiResponse('openai', strlen($raw), $elapsed, false, "HTTP {$code}: " . substr((string)$raw, 0, 300));
+        EverLog::aiResponse($label, strlen($raw), $elapsed, false, "HTTP {$code}: " . substr((string)$raw, 0, 300));
     }
 
     $text = '';
@@ -167,7 +228,6 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
         if (is_string($content)) {
             $text = $content;
         } elseif (is_array($content)) {
-            // Some servers return content parts
             foreach ($content as $p) {
                 if (is_string($p)) {
                     $text .= $p;
@@ -180,7 +240,6 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     $tokIn = (int)($data['usage']['prompt_tokens'] ?? 0);
     $tokOut = (int)($data['usage']['completion_tokens'] ?? 0);
 
-    // Normalize to Gemini-shaped response so existing parsers keep working
     $normalized = [
         'candidates' => [
             [
@@ -207,5 +266,76 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
         'data' => $normalized,
         'tokens_in' => $tokIn,
         'tokens_out' => $tokOut,
+        'latency_ms' => (int)round($elapsed * 1000),
+    ];
+}
+
+/**
+ * Lightweight connectivity test for the active provider.
+ * @return array{success:bool,provider:string,latency_ms:int,reply?:string,error?:string}
+ */
+function aiRunConnectionTest(int $timeout = 25): array {
+    $provider = aiProvider();
+    if (!aiIsEnabled()) {
+        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'error' => 'ai_disabled'];
+    }
+    if (!aiProviderConfigured()) {
+        return ['success' => false, 'provider' => $provider, 'latency_ms' => 0, 'error' => 'not_configured'];
+    }
+
+    $payload = [
+        'contents' => [[
+            'role' => 'user',
+            'parts' => [['text' => 'Reply with exactly this single word and nothing else: PONG']],
+        ]],
+        'generationConfig' => [
+            'temperature' => 0,
+            'maxOutputTokens' => 16,
+        ],
+    ];
+
+    $t0 = microtime(true);
+    if (aiUsesOpenAiProtocol()) {
+        $result = aiOpenAiChatCompletions($payload, $timeout);
+        $latency = (int)($result['latency_ms'] ?? round((microtime(true) - $t0) * 1000));
+    } else {
+        $key = trim((string)env('GEMINI_API_KEY', ''));
+        $models = function_exists('geminiModelChain') ? geminiModelChain('lite') : ['gemini-2.5-flash-lite'];
+        $result = ['http_code' => 0, 'data' => null, 'body' => ''];
+        foreach ($models as $model) {
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}";
+            if (function_exists('callGemini')) {
+                $result = callGemini($url, function_exists('geminiEnsureNoThinking') ? geminiEnsureNoThinking($payload) : $payload, $timeout);
+            } else {
+                break;
+            }
+            if (($result['http_code'] ?? 0) === 200) {
+                break;
+            }
+            if (function_exists('geminiModelUnavailable') && geminiModelUnavailable((int)$result['http_code'], $result['data'] ?? null)) {
+                continue;
+            }
+            break;
+        }
+        $latency = (int)round((microtime(true) - $t0) * 1000);
+    }
+
+    $text = trim((string)($result['data']['candidates'][0]['content']['parts'][0]['text'] ?? ''));
+    if (($result['http_code'] ?? 0) === 200 && $text !== '') {
+        return [
+            'success' => true,
+            'provider' => $provider,
+            'latency_ms' => $latency,
+            'reply' => mb_substr($text, 0, 120),
+            'model' => aiUsesOpenAiProtocol() ? aiOpenAiModel() : 'gemini',
+        ];
+    }
+
+    $err = $result['data']['error']['message'] ?? substr((string)($result['body'] ?? ''), 0, 200);
+    return [
+        'success' => false,
+        'provider' => $provider,
+        'latency_ms' => $latency,
+        'error' => $err !== '' ? $err : ('HTTP ' . ($result['http_code'] ?? 0)),
     ];
 }

@@ -1329,15 +1329,32 @@
             "in_use": "No se puede quitar “{name}”: quedan {n} producto(s)"
         },
         "ai": {
-            "title": "🤖 Proveedor de IA",
-            "hint": "Usa Google Gemini (nube) o un endpoint compatible con OpenAI (OpenAI, Ollama, vLLM, llama.cpp…).",
-            "provider_label": "Proveedor",
+            "title": "🤖 Inteligencia artificial",
+            "hint": "Elige un solo proveedor. Si la IA está desactivada, ningún servicio que la use funcionará.",
+            "enabled_label": "Activar IA",
+            "provider_label": "Proveedor (solo una opción)",
             "provider_gemini": "Google Gemini",
-            "provider_openai": "Compatible OpenAI"
+            "provider_openai": "OpenAI (nube)",
+            "provider_llama": "Llama (local / remoto)",
+            "test_title": "🔌 Prueba de conexión",
+            "test_hint": "Envía una petición mínima al proveedor seleccionado y mide el tiempo de respuesta.",
+            "test_btn": "▶ Ejecutar prueba",
+            "test_running": "Probando…",
+            "test_disabled": "Activa primero la IA y luego ejecuta la prueba.",
+            "test_ok": "OK — {ms} ms ({provider}): {reply}",
+            "test_fail": "Error — {ms} ms: {error}"
         },
         "openai": {
-            "title": "🔌 Endpoint compatible OpenAI",
-            "hint": "URL base terminada en /v1. La API key es opcional en muchos servidores locales (p. ej. Ollama).",
+            "title": "☁️ OpenAI",
+            "hint": "Cuenta oficial de OpenAI. URL por defecto: https://api.openai.com/v1",
+            "base_url_label": "URL base",
+            "base_url_placeholder": "https://api.openai.com/v1",
+            "model_label": "Modelo",
+            "key_label": "API key"
+        },
+        "llama": {
+            "title": "🦙 Llama (local / remoto)",
+            "hint": "Servidor compatible con OpenAI: Ollama, llama.cpp, vLLM… local o en la red.",
             "base_url_label": "URL base",
             "base_url_placeholder": "http://127.0.0.1:11434/v1",
             "model_label": "Modelo",

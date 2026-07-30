@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730h'; // bump when translations change
+const _I18N_VERSION = '20260730i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3359,7 +3359,7 @@ async function syncSettingsFromDB() {
  */
 function _applySyncedSettings(serverSettings) {
     if (!serverSettings) return;
-    _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.ai_configured);
+    _geminiAvailable = !!(serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
     _demoMode = !!serverSettings.demo_mode;
     _updateGeminiButtonState();
@@ -3368,7 +3368,7 @@ function _applySyncedSettings(serverSettings) {
     const serverKeys = ['default_persons','pref_veloce','pref_pocafame','pref_scadenze',
         'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
         'custom_locations',
-        'ai_provider','openai_base_url','openai_model',
+        'ai_provider','ai_enabled','openai_base_url','openai_model','llama_base_url','llama_model',
         'camera_facing','scale_enabled','scale_gateway_url',
         'meal_plan_enabled','tts_enabled','tts_url','tts_token',
         'tts_method','tts_auth_type','tts_content_type','tts_payload_key',
@@ -3960,8 +3960,9 @@ async function _submitBugReport() {
 
 async function loadSettingsUI() {
     const s = getSettings();
-    const aiProvEl = document.getElementById('setting-ai-provider');
-    if (aiProvEl) aiProvEl.value = s.ai_provider || 'gemini';
+    const aiEnEl = document.getElementById('setting-ai-enabled');
+    if (aiEnEl) aiEnEl.checked = s.ai_enabled !== false;
+    _setSelectedAiProvider(s.ai_provider || 'gemini');
     document.getElementById('setting-gemini-key').value = s.gemini_key || '';
     const oaiUrl = document.getElementById('setting-openai-base-url');
     if (oaiUrl) oaiUrl.value = s.openai_base_url || '';
@@ -3969,6 +3970,12 @@ async function loadSettingsUI() {
     if (oaiModel) oaiModel.value = s.openai_model || '';
     const oaiKey = document.getElementById('setting-openai-api-key');
     if (oaiKey) oaiKey.value = s.openai_api_key || '';
+    const llamaUrl = document.getElementById('setting-llama-base-url');
+    if (llamaUrl) llamaUrl.value = s.llama_base_url || '';
+    const llamaModel = document.getElementById('setting-llama-model');
+    if (llamaModel) llamaModel.value = s.llama_model || '';
+    const llamaKey = document.getElementById('setting-llama-api-key');
+    if (llamaKey) llamaKey.value = s.llama_api_key || '';
     _syncAiProviderUi();
     document.getElementById('setting-bring-email').value = s.bring_email || '';
     document.getElementById('setting-bring-password').value = s.bring_password || '';
@@ -4093,7 +4100,7 @@ async function loadSettingsUI() {
             'default_persons','pref_veloce','pref_pocafame','pref_scadenze',
             'pref_healthy','pref_opened','pref_zerowaste','pref_fuel','health_enabled','dietary','appliances',
             'custom_locations',
-            'ai_provider','openai_base_url','openai_model',
+            'ai_provider','ai_enabled','openai_base_url','openai_model','llama_base_url','llama_model',
             'camera_facing','scale_enabled','scale_gateway_url',
             'meal_plan_enabled',
             'tts_enabled','tts_url','tts_token','tts_method','tts_auth_type',
@@ -4124,12 +4131,17 @@ async function loadSettingsUI() {
             _applyKioskTtsOverrides(s);
             // Re-populate UI with merged values
             document.getElementById('setting-gemini-key').value = s.gemini_key || '';
-            const aiProvEl2 = document.getElementById('setting-ai-provider');
-            if (aiProvEl2) aiProvEl2.value = s.ai_provider || 'gemini';
+            const aiEnEl2 = document.getElementById('setting-ai-enabled');
+            if (aiEnEl2) aiEnEl2.checked = s.ai_enabled !== false;
+            _setSelectedAiProvider(s.ai_provider || 'gemini');
             const oaiUrl2 = document.getElementById('setting-openai-base-url');
             if (oaiUrl2) oaiUrl2.value = s.openai_base_url || '';
             const oaiModel2 = document.getElementById('setting-openai-model');
             if (oaiModel2) oaiModel2.value = s.openai_model || '';
+            const llamaUrl2 = document.getElementById('setting-llama-base-url');
+            if (llamaUrl2) llamaUrl2.value = s.llama_base_url || '';
+            const llamaModel2 = document.getElementById('setting-llama-model');
+            if (llamaModel2) llamaModel2.value = s.llama_model || '';
             _syncAiProviderUi();
             document.getElementById('setting-bring-email').value = s.bring_email || '';
             document.getElementById('setting-bring-password').value = s.bring_password || '';
@@ -4627,14 +4639,21 @@ async function saveSettings() {
     // Only update gemini_key if user actually typed something; preserve existing key otherwise
     const _newGeminiKey = document.getElementById('setting-gemini-key').value.trim();
     if (_newGeminiKey) s.gemini_key = _newGeminiKey;
-    const aiProvSave = document.getElementById('setting-ai-provider');
-    if (aiProvSave) s.ai_provider = aiProvSave.value || 'gemini';
+    const aiEnSave = document.getElementById('setting-ai-enabled');
+    if (aiEnSave) s.ai_enabled = !!aiEnSave.checked;
+    s.ai_provider = _getSelectedAiProvider();
     const oaiUrlSave = document.getElementById('setting-openai-base-url');
     if (oaiUrlSave) s.openai_base_url = oaiUrlSave.value.trim();
     const oaiModelSave = document.getElementById('setting-openai-model');
     if (oaiModelSave) s.openai_model = oaiModelSave.value.trim();
     const oaiKeySave = document.getElementById('setting-openai-api-key');
     if (oaiKeySave && oaiKeySave.value.trim()) s.openai_api_key = oaiKeySave.value.trim();
+    const llamaUrlSave = document.getElementById('setting-llama-base-url');
+    if (llamaUrlSave) s.llama_base_url = llamaUrlSave.value.trim();
+    const llamaModelSave = document.getElementById('setting-llama-model');
+    if (llamaModelSave) s.llama_model = llamaModelSave.value.trim();
+    const llamaKeySave = document.getElementById('setting-llama-api-key');
+    if (llamaKeySave && llamaKeySave.value.trim()) s.llama_api_key = llamaKeySave.value.trim();
     s.bring_email = document.getElementById('setting-bring-email').value.trim();
     s.bring_password = document.getElementById('setting-bring-password').value.trim();
     s.default_persons = parseInt(document.getElementById('setting-default-persons').value) || 1;
@@ -4764,10 +4783,14 @@ async function saveSettings() {
         const tokenHeader = settingsToken ? { 'X-API-Token': settingsToken } : (typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {});
         const result = await api('save_settings', {}, 'POST', {
             ...(s.gemini_key ? { gemini_key: s.gemini_key } : {}),
+            ai_enabled: s.ai_enabled !== false,
             ai_provider: s.ai_provider || 'gemini',
             openai_base_url: s.openai_base_url || '',
             openai_model: s.openai_model || '',
             ...(s.openai_api_key ? { openai_api_key: s.openai_api_key } : {}),
+            llama_base_url: s.llama_base_url || '',
+            llama_model: s.llama_model || '',
+            ...(s.llama_api_key ? { llama_api_key: s.llama_api_key } : {}),
             bring_email: s.bring_email,
             ...(s.bring_password ? { bring_password: s.bring_password } : {}),
             default_persons: s.default_persons,
@@ -4864,15 +4887,19 @@ async function saveSettings() {
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
-    // Re-sync _geminiAvailable after save (key may have been set/confirmed on server)
+    // Re-sync AI availability after save (provider / enabled / credentials)
     try {
         const refreshed = await api('get_settings');
-        if (refreshed && refreshed.gemini_key_set !== undefined) {
-            _geminiAvailable = !!(refreshed.gemini_key_set);
+        if (refreshed) {
+            if (refreshed.ai_configured !== undefined) {
+                _geminiAvailable = !!refreshed.ai_configured;
+            } else if (refreshed.gemini_key_set !== undefined) {
+                _geminiAvailable = !!(refreshed.gemini_key_set);
+            }
             _updateGeminiButtonState();
-        }
-        if (refreshed && refreshed.mealie_usable !== undefined) {
-            _mealieAvailable = !!refreshed.mealie_usable;
+            if (refreshed.mealie_usable !== undefined) {
+                _mealieAvailable = !!refreshed.mealie_usable;
+            }
         }
     } catch(e) {}
     // Persist meal_plan and tts_voice to SQLite for cross-device sync
@@ -4898,12 +4925,83 @@ function switchSettingsTab(btn, tabId) {
     document.getElementById(tabId).classList.add('active');
 }
 
+function _getSelectedAiProvider() {
+    const checked = document.querySelector('input[name="ai-provider"]:checked');
+    return checked ? checked.value : (getSettings().ai_provider || 'gemini');
+}
+
+function _setSelectedAiProvider(prov) {
+    const p = ['gemini', 'openai', 'llama'].includes(prov) ? prov : 'gemini';
+    document.querySelectorAll('input[name="ai-provider"]').forEach(r => {
+        r.checked = r.value === p;
+    });
+}
+
+function _onAiProviderChange(prov) {
+    const s = getSettings();
+    s.ai_provider = prov;
+    saveSettingsToStorage(s);
+    _syncAiProviderUi();
+}
+
 function _syncAiProviderUi() {
-    const prov = document.getElementById('setting-ai-provider')?.value || 'gemini';
+    const enabled = document.getElementById('setting-ai-enabled')?.checked !== false;
+    const prov = _getSelectedAiProvider();
+    const provGroup = document.getElementById('ai-provider-group');
+    if (provGroup) provGroup.style.opacity = enabled ? '1' : '0.45';
+    document.querySelectorAll('input[name="ai-provider"]').forEach(r => { r.disabled = !enabled; });
+
     const gemCard = document.getElementById('settings-ai-gemini-card');
     const oaiCard = document.getElementById('settings-ai-openai-card');
-    if (gemCard) gemCard.style.display = prov === 'openai' ? 'none' : '';
-    if (oaiCard) oaiCard.style.display = prov === 'openai' ? '' : 'none';
+    const llamaCard = document.getElementById('settings-ai-llama-card');
+    const testCard = document.getElementById('settings-ai-test-card');
+    if (gemCard) gemCard.style.display = (enabled && prov === 'gemini') ? '' : 'none';
+    if (oaiCard) oaiCard.style.display = (enabled && prov === 'openai') ? '' : 'none';
+    if (llamaCard) llamaCard.style.display = (enabled && prov === 'llama') ? '' : 'none';
+    if (testCard) testCard.style.display = enabled ? '' : 'none';
+}
+
+async function testAiConnection() {
+    const btn = document.getElementById('btn-ai-test');
+    const out = document.getElementById('ai-test-result');
+    if (!btn || !out) return;
+    const enabled = document.getElementById('setting-ai-enabled')?.checked !== false;
+    if (!enabled) {
+        out.style.display = '';
+        out.style.color = 'var(--danger, #c0392b)';
+        out.textContent = t('settings.ai.test_disabled');
+        return;
+    }
+    // Persist current form values first so the server tests what the user sees
+    try { await saveSettings(); } catch (_) {}
+    btn.disabled = true;
+    const prev = btn.textContent;
+    btn.textContent = t('settings.ai.test_running');
+    out.style.display = '';
+    out.style.color = 'var(--text-muted)';
+    out.textContent = t('settings.ai.test_running');
+    try {
+        const res = await api('ai_test', {}, 'POST', {});
+        if (res && res.success) {
+            out.style.color = 'var(--success, #1a7f37)';
+            out.textContent = t('settings.ai.test_ok')
+                .replace('{ms}', String(res.latency_ms ?? '—'))
+                .replace('{provider}', res.provider || '')
+                .replace('{reply}', res.reply || '');
+        } else {
+            out.style.color = 'var(--danger, #c0392b)';
+            const err = res?.error || 'error';
+            out.textContent = t('settings.ai.test_fail')
+                .replace('{ms}', String(res?.latency_ms ?? '—'))
+                .replace('{error}', err);
+        }
+    } catch (e) {
+        out.style.color = 'var(--danger, #c0392b)';
+        out.textContent = t('settings.ai.test_fail').replace('{ms}', '—').replace('{error}', e.message || 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+    }
 }
 
 function togglePasswordVisibility(inputId) {
@@ -23773,7 +23871,7 @@ async function _initApp() {
         // are taken into account before deciding which wizard steps to show.
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
-        _geminiAvailable = !!(serverSettings.gemini_key_set || serverSettings.ai_configured);
+        _geminiAvailable = !!(serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
         _demoMode = !!serverSettings.demo_mode;
         _updateGeminiButtonState();

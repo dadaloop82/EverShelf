@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.78] - 2026-07-30
+
+### Added
+- **AI master switch + exclusive providers** — Settings → API Keys: enable/disable all AI; choose exactly one of Gemini, OpenAI (cloud), or Llama (local/remote OpenAI-compatible). Connection test button reports latency in ms.
+
+### Changed
+- OpenAI cloud vs Llama are separate providers (`OPENAI_*` vs `LLAMA_*`); legacy `AI_PROVIDER=ollama|vllm|local` maps to `llama`.
+
 ## [1.7.77] - 2026-07-30
 
 ### Added

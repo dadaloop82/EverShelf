@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.77-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.78-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -297,12 +297,18 @@ nano .env
 ### Configuration (.env)
 
 ```ini
-# AI — Gemini (default) or OpenAI-compatible (Ollama, vLLM, …)
+# AI — master switch + exclusive provider: gemini | openai | llama
+AI_ENABLED=true
 AI_PROVIDER=gemini
 GEMINI_API_KEY=your_api_key_here
-# OPENAI_BASE_URL=http://127.0.0.1:11434/v1
-# OPENAI_MODEL=llama3.2
-# OPENAI_API_KEY=
+# OpenAI cloud:
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# OPENAI_MODEL=gpt-4o-mini
+# OPENAI_API_KEY=sk-…
+# Llama local/remote (Ollama, llama.cpp, vLLM…):
+# LLAMA_BASE_URL=http://127.0.0.1:11434/v1
+# LLAMA_MODEL=llama3.2
+# LLAMA_API_KEY=
 
 # Optional: Bring! shopping list integration
 BRING_EMAIL=your_email@example.com
