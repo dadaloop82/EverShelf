@@ -1277,6 +1277,10 @@ try {
             exportInventory($db);
             break;
 
+        case 'import_inventory':
+            importInventory($db);
+            break;
+
         default:
             EverLog::warn('unknown action', ['action' => $action]);
             http_response_code(404);
@@ -1390,6 +1394,660 @@ HTML;
     }
     fclose($out);
     exit;
+}
+
+// ===== IMPORT INVENTORY (CSV) =====
+
+function inventoryImportExpectedColumns(): array {
+    return [
+        'Name', 'Brand', 'Category', 'Location', 'Quantity', 'Unit',
+        'Expiry Date', 'Added', 'Opened At', 'Vacuum Sealed', 'Barcode', 'Notes',
+    ];
+}
+
+function inventoryImportNormalizeHeader(string $h): string {
+    $h = trim($h);
+    $h = preg_replace('/^\xEF\xBB\xBF/', '', $h) ?? $h; // BOM
+    $h = preg_replace('/\s+/', ' ', $h) ?? $h;
+    return mb_strtolower($h);
+}
+
+/** Map normalized header → canonical export column name. */
+function inventoryImportHeaderAliases(): array {
+    $map = [];
+    foreach (inventoryImportExpectedColumns() as $col) {
+        $map[inventoryImportNormalizeHeader($col)] = $col;
+    }
+    // Common aliases
+    $map['expiry'] = 'Expiry Date';
+    $map['expiry_date'] = 'Expiry Date';
+    $map['scadenza'] = 'Expiry Date';
+    $map['qty'] = 'Quantity';
+    $map['quantità'] = 'Quantity';
+    $map['quantita'] = 'Quantity';
+    $map['opened'] = 'Opened At';
+    $map['opened_at'] = 'Opened At';
+    $map['vacuum'] = 'Vacuum Sealed';
+    $map['vacuum_sealed'] = 'Vacuum Sealed';
+    $map['sottovuoto'] = 'Vacuum Sealed';
+    $map['added_at'] = 'Added';
+    $map['nome'] = 'Name';
+    $map['marca'] = 'Brand';
+    $map['categoria'] = 'Category';
+    $map['ubicazione'] = 'Location';
+    $map['posizione'] = 'Location';
+    $map['unità'] = 'Unit';
+    $map['unita'] = 'Unit';
+    $map['note'] = 'Notes';
+    $map['codice a barre'] = 'Barcode';
+    $map['ean'] = 'Barcode';
+    return $map;
+}
+
+function inventoryImportParseCsv(string $csv): array {
+    $csv = str_replace(["\r\n", "\r"], "\n", $csv);
+    $csv = preg_replace('/^\xEF\xBB\xBF/', '', $csv) ?? $csv;
+    if (trim($csv) === '') {
+        return ['ok' => false, 'error' => 'empty_csv', 'message' => 'CSV is empty'];
+    }
+
+    $stream = fopen('php://temp', 'r+');
+    fwrite($stream, $csv);
+    rewind($stream);
+
+    $rawHeader = fgetcsv($stream);
+    if ($rawHeader === false || $rawHeader === [null] || count(array_filter($rawHeader, static fn($c) => trim((string)$c) !== '')) === 0) {
+        fclose($stream);
+        return ['ok' => false, 'error' => 'missing_header', 'message' => 'CSV header row is missing'];
+    }
+
+    $aliases = inventoryImportHeaderAliases();
+    $colIndex = []; // canonical => index
+    $unknown = [];
+    foreach ($rawHeader as $i => $raw) {
+        $norm = inventoryImportNormalizeHeader((string)$raw);
+        if ($norm === '') {
+            continue;
+        }
+        if (!isset($aliases[$norm])) {
+            $unknown[] = trim((string)$raw);
+            continue;
+        }
+        $canonical = $aliases[$norm];
+        if (!isset($colIndex[$canonical])) {
+            $colIndex[$canonical] = $i;
+        }
+    }
+
+    if (!isset($colIndex['Name'])) {
+        fclose($stream);
+        return [
+            'ok' => false,
+            'error' => 'invalid_schema',
+            'message' => 'Required column "Name" is missing',
+            'expected' => inventoryImportExpectedColumns(),
+            'received' => array_map(static fn($c) => trim((string)$c), $rawHeader),
+            'unknown_columns' => $unknown,
+        ];
+    }
+
+    if ($unknown) {
+        fclose($stream);
+        return [
+            'ok' => false,
+            'error' => 'invalid_schema',
+            'message' => 'Unknown columns: ' . implode(', ', $unknown),
+            'expected' => inventoryImportExpectedColumns(),
+            'received' => array_map(static fn($c) => trim((string)$c), $rawHeader),
+            'unknown_columns' => $unknown,
+        ];
+    }
+
+    $rows = [];
+    $lineNo = 1; // header
+    while (($cells = fgetcsv($stream)) !== false) {
+        $lineNo++;
+        if ($cells === [null] || count(array_filter($cells, static fn($c) => trim((string)$c) !== '')) === 0) {
+            continue; // skip blank lines
+        }
+        $assoc = [];
+        foreach ($colIndex as $canonical => $idx) {
+            $assoc[$canonical] = isset($cells[$idx]) ? trim((string)$cells[$idx]) : '';
+        }
+        $assoc['_line'] = $lineNo;
+        $rows[] = $assoc;
+    }
+    fclose($stream);
+
+    if (!$rows) {
+        return [
+            'ok' => false,
+            'error' => 'no_rows',
+            'message' => 'CSV has a header but no data rows',
+            'expected' => inventoryImportExpectedColumns(),
+            'columns' => array_keys($colIndex),
+        ];
+    }
+
+    if (count($rows) > 2000) {
+        return [
+            'ok' => false,
+            'error' => 'too_many_rows',
+            'message' => 'Maximum 2000 rows per import',
+            'row_count' => count($rows),
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'columns' => array_keys($colIndex),
+        'expected' => inventoryImportExpectedColumns(),
+        'rows' => $rows,
+    ];
+}
+
+function inventoryImportNormalizeLocation(string $raw): ?string {
+    $v = mb_strtolower(trim($raw));
+    if ($v === '') {
+        return 'dispensa';
+    }
+    $map = [
+        'dispensa' => 'dispensa', 'pantry' => 'dispensa', 'cabinet' => 'dispensa', 'cupboard' => 'dispensa',
+        'frigo' => 'frigo', 'fridge' => 'frigo', 'refrigerator' => 'frigo', 'frigorifero' => 'frigo',
+        'freezer' => 'freezer', 'congelatore' => 'freezer', 'frost' => 'freezer',
+        'altro' => 'altro', 'other' => 'altro', 'elsewhere' => 'altro',
+    ];
+    return $map[$v] ?? null;
+}
+
+function inventoryImportNormalizeUnit(string $raw): ?string {
+    $v = mb_strtolower(trim($raw));
+    if ($v === '') {
+        return 'pz';
+    }
+    $map = [
+        'pz' => 'pz', 'pcs' => 'pz', 'pc' => 'pz', 'piece' => 'pz', 'pieces' => 'pz',
+        'pezzi' => 'pz', 'pezzo' => 'pz', 'n' => 'pz',
+        'g' => 'g', 'gr' => 'g', 'gram' => 'g', 'grams' => 'g', 'grammi' => 'g',
+        'ml' => 'ml', 'milliliter' => 'ml', 'millilitre' => 'ml', 'millilitri' => 'ml',
+        'conf' => 'conf', 'pack' => 'conf', 'confezione' => 'conf', 'pkg' => 'conf',
+    ];
+    return $map[$v] ?? null;
+}
+
+function inventoryImportParseBool(string $raw): ?bool {
+    $v = mb_strtolower(trim($raw));
+    if ($v === '') {
+        return false;
+    }
+    if (in_array($v, ['1', 'yes', 'y', 'true', 'si', 'sì', 'oui', 'ja', 'sí'], true)) {
+        return true;
+    }
+    if (in_array($v, ['0', 'no', 'n', 'false', 'non'], true)) {
+        return false;
+    }
+    return null;
+}
+
+function inventoryImportParseDate(string $raw): array {
+    $raw = trim($raw);
+    if ($raw === '') {
+        return ['ok' => true, 'value' => null];
+    }
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $raw, $m)) {
+        if (!checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
+            return ['ok' => false, 'error' => 'invalid_expiry_date'];
+        }
+        return ['ok' => true, 'value' => $raw];
+    }
+    if (preg_match('/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/', $raw, $m)) {
+        $d = (int)$m[1];
+        $mo = (int)$m[2];
+        $y = (int)$m[3];
+        // Prefer DD/MM/YYYY; if day > 12 it's unambiguous
+        if ($d > 12 && $mo <= 12 && checkdate($mo, $d, $y)) {
+            return ['ok' => true, 'value' => sprintf('%04d-%02d-%02d', $y, $mo, $d)];
+        }
+        if ($mo > 12 && $d <= 12 && checkdate($d, $mo, $y)) {
+            // MM/DD swapped interpretation unlikely for EU; treat as invalid
+            return ['ok' => false, 'error' => 'invalid_expiry_date'];
+        }
+        if (checkdate($mo, $d, $y)) {
+            return ['ok' => true, 'value' => sprintf('%04d-%02d-%02d', $y, $mo, $d)];
+        }
+    }
+    return ['ok' => false, 'error' => 'invalid_expiry_date'];
+}
+
+function inventoryImportValidateRow(array $raw): array {
+    $errors = [];
+    $warnings = [];
+    $line = (int)($raw['_line'] ?? 0);
+
+    $name = trim((string)($raw['Name'] ?? ''));
+    if ($name === '') {
+        $errors[] = 'missing_name';
+    } elseif (mb_strlen($name) > 200) {
+        $errors[] = 'name_too_long';
+    }
+
+    $brand = trim((string)($raw['Brand'] ?? ''));
+    if (mb_strlen($brand) > 120) {
+        $warnings[] = 'brand_truncated';
+        $brand = mb_substr($brand, 0, 120);
+    }
+
+    $categoryRaw = trim((string)($raw['Category'] ?? ''));
+    $category = $name !== '' ? sanitizeProductCategory($categoryRaw, $name, $brand) : 'altro';
+    if ($categoryRaw !== '' && mb_strtolower($categoryRaw) !== $category) {
+        $warnings[] = 'category_normalized';
+    }
+
+    $locRaw = (string)($raw['Location'] ?? '');
+    $location = inventoryImportNormalizeLocation($locRaw);
+    if ($location === null) {
+        $errors[] = 'invalid_location';
+        $location = 'dispensa';
+    } elseif (trim($locRaw) === '') {
+        $warnings[] = 'location_defaulted';
+    }
+
+    $qtyRaw = trim((string)($raw['Quantity'] ?? ''));
+    if ($qtyRaw === '') {
+        $quantity = 1.0;
+        $warnings[] = 'quantity_defaulted';
+    } else {
+        $qtyRawNorm = str_replace(',', '.', $qtyRaw);
+        if (!is_numeric($qtyRawNorm)) {
+            $errors[] = 'invalid_quantity';
+            $quantity = 0.0;
+        } else {
+            $quantity = (float)$qtyRawNorm;
+            if ($quantity <= 0 || $quantity > 100000) {
+                $errors[] = 'invalid_quantity';
+            }
+        }
+    }
+
+    $unitRaw = (string)($raw['Unit'] ?? '');
+    $unit = inventoryImportNormalizeUnit($unitRaw);
+    if ($unit === null) {
+        $errors[] = 'invalid_unit';
+        $unit = 'pz';
+    } elseif (trim($unitRaw) === '') {
+        $warnings[] = 'unit_defaulted';
+    }
+
+    $expiryParsed = inventoryImportParseDate((string)($raw['Expiry Date'] ?? ''));
+    $expiry = null;
+    if (!$expiryParsed['ok']) {
+        $errors[] = 'invalid_expiry_date';
+    } else {
+        $expiry = $expiryParsed['value'];
+    }
+
+    $openedParsed = inventoryImportParseDate((string)($raw['Opened At'] ?? ''));
+    $openedAt = null;
+    if (!$openedParsed['ok']) {
+        $errors[] = 'invalid_opened_at';
+    } else {
+        $openedAt = $openedParsed['value'];
+    }
+
+    $vacRaw = (string)($raw['Vacuum Sealed'] ?? '');
+    $vacuum = inventoryImportParseBool($vacRaw);
+    if ($vacuum === null) {
+        $errors[] = 'invalid_vacuum_sealed';
+        $vacuum = false;
+    }
+
+    $barcode = normalizeProductBarcode($raw['Barcode'] ?? null);
+    $notes = trim((string)($raw['Notes'] ?? ''));
+    if (mb_strlen($notes) > 2000) {
+        $warnings[] = 'notes_truncated';
+        $notes = mb_substr($notes, 0, 2000);
+    }
+
+    $added = trim((string)($raw['Added'] ?? ''));
+    if ($added !== '') {
+        $warnings[] = 'added_ignored';
+    }
+
+    $status = $errors ? 'error' : ($warnings ? 'warning' : 'ok');
+    $data = [
+        'name' => $name,
+        'brand' => $brand,
+        'category' => $category,
+        'location' => $location,
+        'quantity' => $quantity,
+        'unit' => $unit,
+        'expiry_date' => $expiry,
+        'opened_at' => $openedAt,
+        'vacuum_sealed' => $vacuum ? 1 : 0,
+        'barcode' => $barcode,
+        'notes' => $notes,
+    ];
+
+    return [
+        'line' => $line,
+        'status' => $status,
+        'errors' => $errors,
+        'warnings' => $warnings,
+        'raw' => [
+            'Name' => $raw['Name'] ?? '',
+            'Brand' => $raw['Brand'] ?? '',
+            'Category' => $raw['Category'] ?? '',
+            'Location' => $raw['Location'] ?? '',
+            'Quantity' => $raw['Quantity'] ?? '',
+            'Unit' => $raw['Unit'] ?? '',
+            'Expiry Date' => $raw['Expiry Date'] ?? '',
+            'Barcode' => $raw['Barcode'] ?? '',
+        ],
+        'data' => $data,
+        'importable' => $status !== 'error',
+    ];
+}
+
+function inventoryImportUpsertProduct(PDO $db, array $data): array {
+    $input = [
+        'name' => $data['name'],
+        'brand' => $data['brand'] ?? '',
+        'category' => $data['category'] ?? 'altro',
+        'unit' => $data['unit'] ?? 'pz',
+        'barcode' => $data['barcode'] ?? null,
+        'notes' => $data['notes'] ?? '',
+        'name_user_set' => 1,
+        'force_name' => 1,
+    ];
+    $barcode = normalizeProductBarcode($input['barcode'] ?? null);
+    $id = 0;
+    $merged = false;
+
+    if ($barcode !== null) {
+        $barcodeOwner = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, null);
+        if ($barcodeOwner) {
+            $id = $barcodeOwner;
+            $merged = true;
+        }
+    }
+    if (!$id) {
+        $dupId = findDuplicateProductId($db, $input['name'], $input['brand'] ?? '', $barcode, null);
+        if ($dupId) {
+            $id = $dupId;
+            $merged = true;
+        }
+    }
+
+    $existing = $id ? loadProductRow($db, $id) : null;
+    $fields = mergeIncomingProductFields($existing, $input, $barcode);
+    $invConvert = $fields['_inventory_convert'] ?? null;
+    $fields = _stripPieceProductInternalKeys($fields);
+
+    if ($id) {
+        executeProductUpdate($db, $fields, $id);
+        applyPieceProductInventoryRepair($db, $id, $existing, $invConvert);
+        $consolidated = safeConsolidateDuplicateProducts($db, $id);
+        if ($consolidated['merged']) {
+            $merged = true;
+            $id = $consolidated['id'];
+        }
+    } else {
+        $stmt = $db->prepare('
+            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, name_user_set)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $stmt->execute(productSaveParams($fields));
+        $id = (int)$db->lastInsertId();
+        $consolidated = safeConsolidateDuplicateProducts($db, $id);
+        if ($consolidated['merged']) {
+            $merged = true;
+            $id = $consolidated['id'];
+        }
+    }
+
+    return ['id' => $id, 'merged' => $merged];
+}
+
+function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
+    $quantity = (float)$data['quantity'];
+    $location = $data['location'];
+    $expiry = $data['expiry_date'] ?? null;
+    $unit = $data['unit'] ?? null;
+    $vacuumSealed = (int)($data['vacuum_sealed'] ?? 0);
+    $openedAt = $data['opened_at'] ?? null;
+
+    $consolidated = safeConsolidateDuplicateProducts($db, $productId);
+    $productId = $consolidated['id'];
+
+    if ($unit) {
+        $stmt = $db->prepare('UPDATE products SET unit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $stmt->execute([$unit, $productId]);
+    }
+
+    $expiryUserSet = $expiry ? 1 : 0;
+
+    if ($openedAt) {
+        // Opened packs must stay separate — never merge into sealed stock
+        $stmt = $db->prepare('INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, expiry_user_set, opened_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$productId, $location, $quantity, $expiry, $vacuumSealed, $expiryUserSet, $openedAt]);
+        $invId = (int)$db->lastInsertId();
+        $newQty = $quantity;
+    } else {
+        $stmt = $db->prepare('
+            SELECT id, quantity FROM inventory
+            WHERE product_id = ? AND location = ? AND opened_at IS NULL
+            ORDER BY added_at ASC LIMIT 1
+        ');
+        $stmt->execute([$productId, $location]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            $newQty = (float)$existing['quantity'] + $quantity;
+            $stmt = $db->prepare('UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), vacuum_sealed = ?, expiry_user_set = CASE WHEN ? = 1 THEN 1 ELSE expiry_user_set END, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $stmt->execute([$newQty, $expiry, $vacuumSealed, $expiryUserSet, $existing['id']]);
+            $invId = (int)$existing['id'];
+        } else {
+            $newQty = $quantity;
+            $stmt = $db->prepare('INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, expiry_user_set) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$productId, $location, $quantity, $expiry, $vacuumSealed, $expiryUserSet]);
+            $invId = (int)$db->lastInsertId();
+        }
+    }
+
+    $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'in', ?, ?)");
+    $stmt->execute([$productId, $quantity, $location]);
+
+    shoppingRemoveProductFromList($db, $productId);
+
+    return ['inventory_id' => $invId, 'product_id' => $productId, 'new_qty' => $newQty];
+}
+
+function importInventory(PDO $db): void {
+    EverLog::info('importInventory');
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_json']);
+        return;
+    }
+
+    $mode = strtolower(trim((string)($input['mode'] ?? 'validate')));
+    if (!in_array($mode, ['validate', 'commit'], true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_mode']);
+        return;
+    }
+
+    // Schema legend always available to the UI (column keys only — UI text is i18n)
+    $schema = [
+        'columns' => inventoryImportExpectedColumns(),
+        'required' => ['Name'],
+    ];
+
+    if ($mode === 'validate') {
+        $csv = (string)($input['csv'] ?? '');
+        if (strlen($csv) > 2 * 1024 * 1024) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'csv_too_large', 'schema' => $schema]);
+            return;
+        }
+        $parsed = inventoryImportParseCsv($csv);
+        if (!$parsed['ok']) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'schema_ok' => false,
+                'error' => $parsed['error'],
+                'message' => $parsed['message'] ?? '',
+                'expected' => $parsed['expected'] ?? $schema['columns'],
+                'received' => $parsed['received'] ?? [],
+                'unknown_columns' => $parsed['unknown_columns'] ?? [],
+                'schema' => $schema,
+            ]);
+            return;
+        }
+
+        $preview = [];
+        $summary = ['total' => 0, 'ok' => 0, 'warning' => 0, 'error' => 0, 'importable' => 0];
+        foreach ($parsed['rows'] as $raw) {
+            $row = inventoryImportValidateRow($raw);
+            $preview[] = $row;
+            $summary['total']++;
+            $summary[$row['status']]++;
+            if ($row['importable']) {
+                $summary['importable']++;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'schema_ok' => true,
+            'schema' => $schema,
+            'columns' => $parsed['columns'],
+            'summary' => $summary,
+            'rows' => $preview,
+        ]);
+        return;
+    }
+
+    // mode = commit
+    if (empty($input['confirm'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'confirm_required', 'schema' => $schema]);
+        return;
+    }
+
+    $rowsIn = $input['rows'] ?? null;
+    if (!is_array($rowsIn) || !$rowsIn) {
+        // Allow re-sending CSV
+        $csv = (string)($input['csv'] ?? '');
+        if ($csv === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'no_rows', 'schema' => $schema]);
+            return;
+        }
+        $parsed = inventoryImportParseCsv($csv);
+        if (!$parsed['ok']) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'schema_ok' => false, 'error' => $parsed['error'], 'message' => $parsed['message'] ?? '', 'schema' => $schema]);
+            return;
+        }
+        $validated = [];
+        foreach ($parsed['rows'] as $raw) {
+            $validated[] = inventoryImportValidateRow($raw);
+        }
+    } else {
+        if (count($rowsIn) > 2000) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'too_many_rows', 'schema' => $schema]);
+            return;
+        }
+        $validated = [];
+        foreach ($rowsIn as $i => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            // Accept either preview row shape {data:{...}} or flat data
+            $data = isset($item['data']) && is_array($item['data']) ? $item['data'] : $item;
+            $raw = [
+                'Name' => (string)($data['name'] ?? $item['Name'] ?? ''),
+                'Brand' => (string)($data['brand'] ?? $item['Brand'] ?? ''),
+                'Category' => (string)($data['category'] ?? $item['Category'] ?? ''),
+                'Location' => (string)($data['location'] ?? $item['Location'] ?? ''),
+                'Quantity' => (string)($data['quantity'] ?? $item['Quantity'] ?? ''),
+                'Unit' => (string)($data['unit'] ?? $item['Unit'] ?? ''),
+                'Expiry Date' => (string)($data['expiry_date'] ?? $item['Expiry Date'] ?? ''),
+                'Opened At' => (string)($data['opened_at'] ?? $item['Opened At'] ?? ''),
+                'Vacuum Sealed' => isset($data['vacuum_sealed'])
+                    ? (((int)$data['vacuum_sealed']) ? 'Yes' : 'No')
+                    : (string)($item['Vacuum Sealed'] ?? ''),
+                'Barcode' => (string)($data['barcode'] ?? $item['Barcode'] ?? ''),
+                'Notes' => (string)($data['notes'] ?? $item['Notes'] ?? ''),
+                'Added' => '',
+                '_line' => (int)($item['line'] ?? ($i + 2)),
+            ];
+            $validated[] = inventoryImportValidateRow($raw);
+        }
+    }
+
+    $toImport = array_values(array_filter($validated, static fn($r) => !empty($r['importable'])));
+    if (!$toImport) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'nothing_importable', 'schema' => $schema]);
+        return;
+    }
+
+    $imported = 0;
+    $failed = 0;
+    $results = [];
+    $db->beginTransaction();
+    try {
+        foreach ($toImport as $row) {
+            try {
+                $prod = inventoryImportUpsertProduct($db, $row['data']);
+                $stock = inventoryImportAddStock($db, $prod['id'], $row['data']);
+                $imported++;
+                $results[] = [
+                    'line' => $row['line'],
+                    'success' => true,
+                    'product_id' => $stock['product_id'],
+                    'inventory_id' => $stock['inventory_id'],
+                    'merged_product' => $prod['merged'],
+                ];
+            } catch (Throwable $e) {
+                $failed++;
+                $results[] = [
+                    'line' => $row['line'],
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                ];
+                EverLog::error('importInventory row failed: ' . $e->getMessage(), ['line' => $row['line']]);
+            }
+        }
+        if ($failed > 0 && $imported === 0) {
+            $db->rollBack();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'import_failed', 'results' => $results]);
+            return;
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        EverLog::error('importInventory failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'import_failed', 'message' => $e->getMessage()]);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'imported' => $imported,
+        'failed' => $failed,
+        'skipped' => count($validated) - count($toImport),
+        'results' => $results,
+    ]);
 }
 
 // ===== TTS PROXY =====

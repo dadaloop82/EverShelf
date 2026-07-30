@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.72] - 2026-07-30
+
+### Added
+- **CSV inventory import** — 📥 button next to Export on the inventory list (and in Settings). Upload a CSV matching the export schema, review validation + preview, then confirm twice before writing. Unknown columns / invalid rows are rejected; importable rows upsert products and add stock. Fully localized (en/it/de/fr/es).
+
 ## [1.7.71] - 2026-07-29
 
 ### Added
