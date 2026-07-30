@@ -203,7 +203,7 @@ function evershelfDemoReadOnlyActions(): array {
         'ha_sensor', 'ha_info', 'ha_shopping_items', 'ha_test', 'ha_calendar',
         'ha_refresh_prices',
         'guess_category', 'get_shopping_price', 'get_all_shopping_prices',
-        'backup_list', 'export_inventory',
+        'backup_list', 'export_inventory', 'weather_get', 'weather_geocode',
     ];
 }
 

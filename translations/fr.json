@@ -555,7 +555,17 @@
         "share_steps": "👨‍🍳 Préparation",
         "share_storage": "🥡 Restes",
         "share_no_ingredients": "(aucun ingrédient listé)",
-        "share_footer": "— Partagé avec EverShelf"
+        "share_footer": "— Partagé avec EverShelf",
+        "weather_badge": "Météo",
+        "weather_bucket_hot": "très chaud",
+        "weather_bucket_warm": "chaud",
+        "weather_bucket_mild": "doux",
+        "weather_bucket_chilly": "frais",
+        "weather_bucket_cold": "froid",
+        "weather_bucket_rainy": "pluvieux",
+        "weather_bucket_snowy": "neigeux",
+        "weather_bucket_foggy": "brumeux",
+        "weather_bucket_stormy": "orageux"
     },
     "shopping": {
         "title": "🛒 Liste de courses",
@@ -1284,6 +1294,26 @@
             "err_env": "Could not save configuration (.env)",
             "err_compose_write": "Could not write Docker config (data/mealie folder)",
             "err_token": "Mealie started but API token generation failed — enter token manually"
+        },
+        "weather": {
+            "title": "🌤 Météo pour « À mon rythme »",
+            "hint": "Optionnel et désactivé par défaut. Si activé, les recettes « À mon rythme » tiennent compte de la météo locale (ex. chaleur → plats frais). Données Open-Meteo, sans clé API.",
+            "enabled": "Activer l’influence météo",
+            "enabled_on": "Influence météo activée",
+            "city_label": "Ville / zone",
+            "city_placeholder": "Ex. : Milan, Rome…",
+            "search": "Rechercher",
+            "searching": "Recherche…",
+            "no_results": "Aucun lieu trouvé.",
+            "search_error": "Échec de la recherche. Vérifiez la connexion.",
+            "query_short": "Saisissez au moins 2 caractères.",
+            "location_none": "Aucune zone sélectionnée.",
+            "location_set": "Sélectionné : {place} ({lat}, {lon})",
+            "location_saved": "Zone enregistrée",
+            "loading": "Chargement météo…",
+            "preview": "Maintenant à {place} : {temp}°C — {bucket}",
+            "preview_error": "Impossible de charger la météo.",
+            "attribution": "Données météo : Open-Meteo.com (CC BY 4.0)"
         }
     },
     "expiry": {
