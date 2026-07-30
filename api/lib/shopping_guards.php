@@ -12,6 +12,9 @@ const SHOPPING_GUARD_MAX_LINE_EUR = 25.0;
 /** Max retail packs priced per line (one supermarket trip). */
 const SHOPPING_GUARD_MAX_PRICE_PACKS = 3;
 
+/** Max pieces suggested per line (fruit/veg bags — higher than retail packs). */
+const SHOPPING_GUARD_MAX_PIECES = 12;
+
 /** Absolute daily consumption ceiling (household). */
 const SHOPPING_GUARD_MAX_G_PER_DAY = 250.0;
 const SHOPPING_GUARD_MAX_ML_PER_DAY = 2000.0;
@@ -130,8 +133,13 @@ function shoppingCapSuggestedQty(
         return ['quantity' => min($qty, $maxByPack, $maxByPlan), 'unit' => $u];
     }
 
-    if ($u === 'conf' || $u === 'pz') {
+    if ($u === 'conf') {
         return ['quantity' => min($qty, (float) SHOPPING_GUARD_MAX_PRICE_PACKS), 'unit' => $u];
+    }
+
+    if ($u === 'pz') {
+        $maxPz = max(SHOPPING_GUARD_MAX_PRICE_PACKS, min(SHOPPING_GUARD_MAX_PIECES, (int) ceil($planDays * 1.5)));
+        return ['quantity' => min($qty, (float) $maxPz), 'unit' => $u];
     }
 
     return ['quantity' => $qty, 'unit' => $unit];
