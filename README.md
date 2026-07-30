@@ -66,6 +66,22 @@ Setup notes: [`evershelf-health-bridge/README.md`](evershelf-health-bridge/READM
 
 ---
 
+### 🧠 NEW — AI providers (pick exactly one)
+
+EverShelf AI features (product ID, expiry OCR, recipes, chat, prices…) all go through **one** configured backend. Settings → **API Keys** (or `.env`):
+
+| | |
+|---|---|
+| **Master switch** | `AI_ENABLED` — if off, **no** AI feature runs |
+| **Google Gemini** | Cloud default — set `GEMINI_API_KEY` |
+| **OpenAI (cloud)** | Official OpenAI API — `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL` / `OPENAI_MODEL`) |
+| **Llama (local / remote)** | Any OpenAI-compatible server: **Ollama**, llama.cpp, vLLM… — set `LLAMA_BASE_URL` (+ optional `LLAMA_MODEL` / `LLAMA_API_KEY`) |
+| **Connection test** | In Settings → API Keys: run a ping and see **latency in ms** |
+
+Providers are **mutually exclusive** (`AI_PROVIDER=gemini|openai|llama`). Credentials for inactive providers are ignored.
+
+---
+
 ### 🤖 NEW — MCP Server (AI Agent Integration)
 
 EverShelf ships a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so Claude Desktop, Cursor, Home Assistant LLM, Open WebUI, and other MCP hosts can query and update your pantry in natural language.
@@ -124,25 +140,26 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 - **Export / import inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; **CSV import** with schema legend, validation preview, and double confirm before writing
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS; last 20 scanned products saved as tappable chips so you can re-select them without rescanning
 - **Continuous scan** — Add several barcodes in a row without leaving the camera (shopping / continuous mode); sealed packs with different best-before dates stay as separate stock rows
-- **AI identification** — Take a photo and let Google Gemini identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
+- **AI identification** — Take a photo and let the configured AI provider identify the product, with suggestions from your existing inventory; gracefully shows a friendly message when AI quota is exhausted instead of a raw API error
 - **Smart locations** — Track items across Pantry, Fridge, Freezer, and Other
 - **Expiry tracking** — Automatic shelf-life estimation based on product type and storage
 - **Opened product tracking** — Reduced shelf-life calculation when packages are opened; opened-product expiry is now also checked when building banner alerts (not just the dashboard section)
 - **Vacuum-sealed support** — Extended expiry dates for vacuum-sealed items; products sealed under vacuum are only flagged as expired after a configurable grace period past the printed date (`VACUUM_EXPIRY_EXTENSION_DAYS`, default 30 days, configurable in `.env`)
 - **Anomaly detection** — Banner alerts for suspicious quantities and consumption predictions with inline correction; dismiss button now shows the current inventory quantity so the action is unambiguous ("Quantity is correct (2 pcs)")
 
-### 🤖 AI-Powered (Google Gemini)
+### 🤖 AI-Powered (Gemini · OpenAI · Llama)
+Works with the provider chosen above — same features whether you use Gemini cloud, OpenAI cloud, or a local/remote Llama-compatible endpoint.
 - **Expiry date reading** — Photograph a label and extract the expiry date automatically
 - **Product identification** — Point your camera at any product for instant recognition
 - **Existing product matching** — AI scan shows matching products already in your pantry before suggesting new ones
-- **Storage & shelf-life hint** — When adding a new product, Gemini suggests the optimal storage location and shelf-life in the background; shown as an inline AI badge next to the expiry estimate
-- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated. With **Mealie** configured, EverShelf picks from your saved cookbook first (offline cache supported) before falling back to Gemini in Auto mode
+- **Storage & shelf-life hint** — When adding a new product, AI suggests the optimal storage location and shelf-life in the background; shown as an inline AI badge next to the expiry estimate
+- **Recipe generation** — Get personalized recipes based on what's in your pantry; streams live via Server-Sent Events so results appear as they are generated. With **Mealie** configured, EverShelf picks from your saved cookbook first (offline cache supported) before falling back to AI in Auto mode
 - **Recipe stock hints** — Each pantry ingredient shows how much you have and what remains after use; when the leftover would be less than 5% of the full sealed package (10% for an already-opened partial pack), the recipe automatically uses everything on hand to avoid waste
 - **Smart chat assistant** — Ask questions about your inventory, get cooking tips
 - **Shopping suggestions with tips** — AI-powered purchase recommendations, each enriched with a short practical buying/storing tip
 - **Anomaly explanation** — "Explain" button on anomaly banners explains in plain language why a discrepancy likely occurred and what to do
-- **Model fallback** — AI endpoints walk a model chain (`gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-flash-lite`) on quota or unavailable-model errors
-- **Graceful no-key state** — When no Gemini key is configured, AI entry points show a friendly message; the header button is visually greyed with an amber dot
+- **Model fallback (Gemini)** — Gemini endpoints walk a model chain on quota or unavailable-model errors
+- **Graceful no-key / AI-off state** — When AI is disabled or credentials are missing, AI entry points show a friendly message; the header button is visually greyed with an amber dot
 
 ### 🛒 Shopping List
 - **EverShelf built-in list (default)** — Shopping list is stored on the server (`shopping_list`); no external app required (`SHOPPING_MODE=internal`)
@@ -157,7 +174,7 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
   - **Bring catalog keys** — When mirroring to Bring!, product types resolve to a German catalog key for icon/category display
 
 ### 🍳 Cooking Mode
-- **♻️ Zero-waste tips** — For each cooking step that generates reusable scraps (peels, cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.), a dismissible ♻️ tip card appears with a practical reuse idea; tips are generated by Gemini as part of the recipe at no extra API cost; opt-in toggle in Settings (default OFF)
+- **♻️ Zero-waste tips** — For each cooking step that generates reusable scraps (peels, cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.), a dismissible ♻️ tip card appears with a practical reuse idea; tips are generated by the AI provider as part of the recipe; opt-in toggle in Settings (default OFF)
 - **Step-by-step guidance** — Follow recipes with a hands-free cooking interface
 - **Text-to-Speech** — Voice readout of recipe steps; browser Web Speech API, native Android TTS via kiosk `_kioskBridge.speak()` (main-thread safe), or custom REST endpoint (Home Assistant); kiosk tablets always prefer the native bridge over server-side TTS; retries voice loading for up to 10 seconds with a fallback refresh button
 - **Auto-read on navigate** — Each step is read aloud automatically when you tap Next or Previous; the first step is read when entering cooking mode
@@ -211,7 +228,7 @@ App-wide visual system documented in [`docs/CORPORATE-UI.md`](docs/CORPORATE-UI.
 - **Write queue** — Add, use, update and delete operations performed while offline are queued locally and synced to the server automatically on reconnect (including after a page refresh)
 - **Optimistic UI** — Queued writes are applied immediately to the local cache so the interface stays responsive
 - **Offline-computed stats** — Expiring and expired items are derived client-side from the cache; dashboard stat cards show real counts instead of zeros
-- **AI/network sections hidden** — Anti-waste chart, nutrition analysis, recipe generator, price fetching, and Gemini chat are hidden in offline mode; the inventory, history, and manually-managed shopping list remain fully functional
+- **AI/network sections hidden** — Anti-waste chart, nutrition analysis, recipe generator, price fetching, and AI chat are hidden in offline mode; the inventory, history, and manually-managed shopping list remain fully functional
 - **Broken image fallback** — External product images (Open Food Facts, etc.) that fail to load are replaced with a neutral grey placeholder, keeping the layout intact
 - **Startup recovery** — If the page is refreshed while operations are queued, they are detected and synced automatically on the next successful startup
 - **Buffered error reporting** — `remoteLog` and `reportError` calls made while offline are stored locally and flushed to the server (and to GitHub issues) when the connection is restored
@@ -264,7 +281,7 @@ cd EverShelf
 
 # 2. Create configuration file
 cp .env.example .env
-nano .env   # set GEMINI_API_KEY, or AI_PROVIDER=openai + OPENAI_BASE_URL
+nano .env   # AI_ENABLED + AI_PROVIDER=gemini|openai|llama + provider credentials
 
 # 3. Pull the pre-built image and start
 docker compose pull
