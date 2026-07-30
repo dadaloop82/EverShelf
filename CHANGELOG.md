@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.78] - 2026-07-30
 
 ### Added
-- **AI master switch + exclusive providers** — Settings → API Keys: enable/disable all AI; choose exactly one of Gemini, OpenAI (cloud), or Llama (local/remote OpenAI-compatible). Connection test button reports latency in ms.
+- **AI master switch + exclusive providers** (#205) — Settings → API Keys: enable/disable all AI; choose exactly one of **Gemini**, **OpenAI (cloud)**, or **Llama** (local/remote OpenAI-compatible: Ollama, llama.cpp, vLLM…). Connection test button reports latency in ms.
+- Documented in the main **README** (feature table + `.env` examples) and Installation wiki.
 
 ### Changed
 - OpenAI cloud vs Llama are separate providers (`OPENAI_*` vs `LLAMA_*`); legacy `AI_PROVIDER=ollama|vllm|local` maps to `llama`.
@@ -23,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Pre-built Docker images on GHCR** (#209) — `ghcr.io/dadaloop82/evershelf` (`latest`, semver tags, multi-arch amd64/arm64). `docker compose pull` works; local `build:` still available for contributors.
-- **OpenAI-compatible AI provider** (#205) — set `AI_PROVIDER=openai` plus `OPENAI_BASE_URL` / `OPENAI_MODEL` (and optional `OPENAI_API_KEY`) to use OpenAI, Ollama, vLLM, llama.cpp, etc. Existing Gemini-shaped callers are routed through `/v1/chat/completions`; vision payloads are mapped to OpenAI image parts. Settings → API Keys includes the provider switch.
+- **OpenAI-compatible AI routing** (#205, MVP) — first cut of `/v1/chat/completions` routing for non-Gemini backends (expanded in **1.7.78** with exclusive Gemini / OpenAI / Llama + master switch + latency test).
 
 ## [1.7.76] - 2026-07-30
 
