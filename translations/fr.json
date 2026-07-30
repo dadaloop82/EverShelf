@@ -713,7 +713,7 @@
         "swipe_scan": "Bought · scan",
         "bought_later_toast": "«{name}» removed from the list — you'll add it to inventory at home",
         "plan_days_label": "Quantities for {days} days",
-        "plan_days_auto": "Default: days until month end ({days})",
+        "plan_days_auto": "Par défaut : jusqu’à fin de mois, min. 7 jours ({days})",
         "plan_days_custom": "Custom period ({days} days)",
         "plan_days_unit": "d",
         "plan_days_reset": "Month end"
