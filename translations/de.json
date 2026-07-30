@@ -1317,6 +1317,16 @@
             "preview": "Jetzt in {place}: {temp}°C — {bucket}",
             "preview_error": "Wetter konnte nicht geladen werden.",
             "attribution": "Wetterdaten: Open-Meteo.com (CC BY 4.0)"
+        },
+        "custom_locations": {
+            "title": "📍 Eigene Lagerorte",
+            "hint": "Orte zusätzlich zu Vorrat, Kühlschrank, Gefrierfach und Sonstiges (z. B. Keller, Garage). Namen bleiben unverändert.",
+            "builtin_hint": "Vordefiniert (nicht entfernbar): Vorrat, Kühlschrank, Gefrierfach, Sonstiges.",
+            "placeholder": "Z. B.: Keller, Garage…",
+            "empty": "Noch keine eigenen Orte",
+            "added": "Ort hinzugefügt — Speichern tippen zum Sync",
+            "reserved": "Name ist für einen Standardort reserviert",
+            "in_use": "„{name}“ kann nicht entfernt werden: noch {n} Artikel dort"
         }
     },
     "expiry": {
@@ -1918,5 +1928,29 @@
     },
     "common": {
         "uncategorized": "Unkategorisiert"
+    },
+    "templates": {
+        "btn": "📋 Vorlagen",
+        "title": "Einkaufsvorlagen",
+        "hint": "Produktbündel speichern (z. B. Wochenvorrat) und mit einem Tippen zur Liste oder ins Inventar hinzufügen.",
+        "create": "➕ Neue Vorlage",
+        "edit": "Vorlage bearbeiten",
+        "empty": "Keine Vorlagen",
+        "items_count": "Artikel",
+        "apply_shopping": "→ Einkaufsliste",
+        "apply_inventory": "→ Inventar",
+        "confirm_inventory": "Alle Vorlagenprodukte zum Inventar hinzufügen?",
+        "confirm_delete": "Diese Vorlage löschen?",
+        "applied_shopping": "Vorlage angewandt: {added} hinzugefügt, {skipped} schon auf der Liste",
+        "applied_inventory": "Vorlage angewandt: {added} ins Inventar, {skipped} übersprungen",
+        "deleted": "Vorlage gelöscht",
+        "saved": "Vorlage gespeichert",
+        "name_label": "Vorlagenname",
+        "add_from_inventory": "Aus Inventar hinzufügen",
+        "add_manual": "Oder Namen eingeben",
+        "manual_placeholder": "Produktname…",
+        "draft_empty": "Noch keine Produkte in dieser Vorlage",
+        "name_required": "Namen eingeben",
+        "items_required": "Mindestens ein Produkt hinzufügen"
     }
 }

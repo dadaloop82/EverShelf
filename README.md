@@ -25,7 +25,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-3-blue.svg)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 [![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR%20%7C%20ES-orange.svg)](translations/)
-[![Version](https://img.shields.io/badge/version-1.7.75-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.7.76-brightgreen.svg)](CHANGELOG.md)
 [![GitHub stars](https://img.shields.io/github/stars/dadaloop82/EverShelf?style=social)](https://github.com/dadaloop82/EverShelf/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/dadaloop82/EverShelf/main)](https://github.com/dadaloop82/EverShelf/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/dadaloop82/EverShelf)](https://github.com/dadaloop82/EverShelf/graphs/contributors)
@@ -119,6 +119,7 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 - **Corporate list UX** — Unified row cards with swipe backgrounds; tap or swipe left opens **Use**; swipe right opens **edit**; product detail sheet (2×2 actions) from dashboard and quick-access chips
 - **Edit from everywhere** — Pencil on the **Use** page (and discard modal) opens the same inventory edit sheet as the list / home detail flows
 - **Favourite products** — Star on each inventory row; favourites stay pinned in a **Favourites** section at the top of the list (state on the product, survives restocks)
+- **Custom storage locations** — Settings → add places beyond Pantry / Fridge / Freezer / Other (e.g. Cellar, Garage); they appear in filters and location pickers
 - **Piece fractions** — Use form accepts ¼-piece steps for produce sold by the piece (e.g. ½ avocado); server keeps fruit/veg in **pcs**, not grams
 - **Export / import inventory** — Download the full inventory as a UTF-8 CSV (Excel-compatible) or open a print-ready page to save as PDF; **CSV import** with schema legend, validation preview, and double confirm before writing
 - **Barcode scanning** — Scan products with your phone camera using QuaggaJS; last 20 scanned products saved as tappable chips so you can re-select them without rescanning
@@ -150,6 +151,7 @@ Connect your pantry to your smart home in minutes — no YAML, no manual sensor 
 - **Optional Bring! mirror** — Set `SHOPPING_MODE=bring` plus Bring credentials to sync the same list to the [Bring!](https://www.getbring.com/) app; disabling Bring does not disable the EverShelf list
 - **Smart predictions** — Know what you'll need before you run out
 - **Auto-remove on scan** — Products are removed from the shopping list when scanned in shopping mode
+- **Restocking templates** — Save named product bundles and apply them to the shopping list or inventory in one tap
 - **15-day remove block** — After *Bought* / remove, cron will not silently re-add that family for `SHOPPING_REMOVED_BLOCK_DAYS` (default 15); finishing the product again clears the block
 - **List deduplication** — Generic + specific names merge into one row
   - **Bring catalog keys** — When mirroring to Bring!, product types resolve to a German catalog key for icon/category display

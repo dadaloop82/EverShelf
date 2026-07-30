@@ -242,6 +242,14 @@ function migrateDB(PDO $db): void {
     require_once __DIR__ . '/lib/barcode_catalog.php';
     barcodeCatalogEnsureTable($db);
 
+    $db->exec("CREATE TABLE IF NOT EXISTS shopping_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        items_json TEXT NOT NULL DEFAULT '[]',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+
     // Migrate transactions CHECK constraint to allow 'waste' type
     $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();
     if ($sql && strpos($sql, "'waste'") === false) {

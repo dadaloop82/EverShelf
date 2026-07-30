@@ -737,6 +737,7 @@ $_writeActions = [
     'product_save','product_delete','product_merge',
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
+    'templates_save','templates_delete','templates_apply',
     'dismiss_anomaly','save_settings','mealie_import','mealie_install','mealie_configure',
 ];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeActions, true)) {
@@ -988,6 +989,18 @@ try {
             break;
         case 'shopping_suggest':
             bringSuggestItems($db);
+            break;
+        case 'templates_list':
+            templatesList($db);
+            break;
+        case 'templates_save':
+            templatesSave($db);
+            break;
+        case 'templates_delete':
+            templatesDelete($db);
+            break;
+        case 'templates_apply':
+            templatesApply($db);
             break;
         case 'smart_shopping':
             smartShoppingCached($db);
@@ -1568,7 +1581,84 @@ function inventoryImportNormalizeLocation(string $raw): ?string {
         'freezer' => 'freezer', 'congelatore' => 'freezer', 'frost' => 'freezer',
         'altro' => 'altro', 'other' => 'altro', 'elsewhere' => 'altro',
     ];
-    return $map[$v] ?? null;
+    if (isset($map[$v])) {
+        return $map[$v];
+    }
+    // Custom locations: accept slug or display name
+    foreach (inventoryCustomLocationMap() as $slug => $label) {
+        if ($v === $slug || $v === mb_strtolower($label, 'UTF-8') || $v === 'custom_' . $v) {
+            return $slug;
+        }
+        if ($slug === inventorySlugifyCustomLocation($raw)) {
+            return $slug;
+        }
+    }
+    $slug = inventorySlugifyCustomLocation($raw);
+    if (isset(inventoryCustomLocationMap()[$slug])) {
+        return $slug;
+    }
+    return null;
+}
+
+/** Built-in inventory location keys. */
+function inventoryBuiltinLocations(): array {
+    return ['dispensa', 'frigo', 'freezer', 'altro'];
+}
+
+/** Slug for a custom location display name → custom_cantina */
+function inventorySlugifyCustomLocation(string $name): string {
+    $s = mb_strtolower(trim($name), 'UTF-8');
+    if (function_exists('iconv')) {
+        $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+        if (is_string($t) && $t !== '') {
+            $s = $t;
+        }
+    }
+    $s = preg_replace('/[^a-z0-9]+/', '_', $s) ?? '';
+    $s = trim($s, '_');
+    if ($s === '') {
+        $s = 'loc';
+    }
+    if (str_starts_with($s, 'custom_')) {
+        return $s;
+    }
+    return 'custom_' . $s;
+}
+
+/**
+ * @return array<string,string> slug => display label
+ */
+function inventoryCustomLocationMap(): array {
+    $raw = env('CUSTOM_LOCATIONS', '');
+    if ($raw === '') {
+        return [];
+    }
+    $out = [];
+    foreach (explode(',', $raw) as $part) {
+        $label = trim($part);
+        if ($label === '') {
+            continue;
+        }
+        $slug = inventorySlugifyCustomLocation($label);
+        if (in_array($slug, inventoryBuiltinLocations(), true) || in_array($label, inventoryBuiltinLocations(), true)) {
+            continue;
+        }
+        $out[$slug] = $label;
+    }
+    return $out;
+}
+
+/** All allowed inventory location keys (built-in + custom). */
+function validInventoryLocations(): array {
+    return array_values(array_unique(array_merge(
+        inventoryBuiltinLocations(),
+        array_keys(inventoryCustomLocationMap())
+    )));
+}
+
+/** Display names only (for settings UI / .env). */
+function inventoryCustomLocationLabels(): array {
+    return array_values(inventoryCustomLocationMap());
 }
 
 function inventoryImportNormalizeUnit(string $raw): ?string {
@@ -4265,8 +4355,8 @@ function addToInventory(PDO $db): void {
     }
 
     // Validate location
-    $validLocations = ['dispensa', 'frigo', 'freezer', 'altro'];
-    if (!in_array($location, $validLocations)) {
+    $validLocations = validInventoryLocations();
+    if (!in_array($location, $validLocations, true)) {
         EverLog::warn('addToInventory: invalid location (400)');
         http_response_code(400);
         echo json_encode(['error' => 'Invalid location']);
@@ -7091,7 +7181,8 @@ function getServerSettings(): void {
         'weather_lon' => env('WEATHER_LON', ''),
         'weather_city' => env('WEATHER_CITY', ''),
         'dietary' => env('DIETARY', ''),
-        'appliances' => env('APPLIANCES', '') ? explode(',', env('APPLIANCES', '')) : [],
+        'appliances' => env('APPLIANCES', '') ? array_values(array_filter(array_map('trim', explode(',', env('APPLIANCES', ''))))) : [],
+        'custom_locations' => inventoryCustomLocationLabels(),
         'camera_facing' => env('CAMERA_FACING', 'environment'),
         'scale_enabled' => env('SCALE_ENABLED', 'false') === 'true',
         'scale_gateway_url' => env('SCALE_GATEWAY_URL', ''),
@@ -7295,6 +7386,15 @@ function saveSettings(): void {
     if (array_key_exists('appliances', $input)) {
         $envVars['APPLIANCES'] = is_array($input['appliances']) ? implode(',', $input['appliances']) : (string)$input['appliances'];
     }
+    if (array_key_exists('custom_locations', $input)) {
+        $locs = $input['custom_locations'];
+        if (is_array($locs)) {
+            $locs = array_values(array_filter(array_map('trim', $locs), static fn($x) => $x !== ''));
+            $envVars['CUSTOM_LOCATIONS'] = implode(',', $locs);
+        } else {
+            $envVars['CUSTOM_LOCATIONS'] = (string)$locs;
+        }
+    }
 
     // Write .env file
     $lines = [];
@@ -7311,6 +7411,9 @@ function saveSettings(): void {
     }
     if (array_key_exists('appliances', $input ?? [])) {
         $changedEnvKeys[] = 'APPLIANCES';
+    }
+    if (array_key_exists('custom_locations', $input ?? [])) {
+        $changedEnvKeys[] = 'CUSTOM_LOCATIONS';
     }
     $changedEnvKeys = array_values(array_unique($changedEnvKeys));
 
@@ -8472,6 +8575,115 @@ function recipeEnforcePantryOnly(array &$recipe): array {
     return $removed;
 }
 
+/**
+ * Significant tokens from an ingredient name for step scrubbing
+ * (e.g. "Burro di arachidi" → burro, arachidi; skip stop-words).
+ */
+function recipeStepMentionTokensFromName(string $name): array {
+    $n = recipeNormalizeName($name);
+    if ($n === '') {
+        return [];
+    }
+    $stop = [
+        'medio', 'media', 'medi', 'medie', 'fresco', 'fresca', 'freschi', 'fresche',
+        'grande', 'grandi', 'piccolo', 'piccola', 'piccoli', 'piccole',
+        'bio', 'integrale', 'intero', 'intera', 'interi', 'intere',
+        'confezione', 'conf', 'pack', 'pz', 'grammi', 'ml',
+    ];
+    $out = [];
+    if (mb_strlen($n) >= 4 && mb_strlen($n) <= 48) {
+        $out[] = $n;
+    }
+    foreach (preg_split('/[\s,.\-\/()+]+/u', $n, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $w) {
+        if (mb_strlen($w) >= 4 && !in_array($w, $stop, true)) {
+            $out[] = $w;
+        }
+    }
+    return array_values(array_unique($out));
+}
+
+/** Common “invented staple” words that must appear in ingredients if used in steps. */
+function recipeMustListStepTokens(): array {
+    return [
+        'burro', 'butter', 'beurre', 'butterschmalz', 'margarina', 'margarine',
+        'panna', 'cream', 'crème', 'creme', 'sahne',
+        'latte', 'milk', 'milch', 'lait',
+        'uovo', 'uova', 'egg', 'eggs', 'oeuf', 'œuf', 'eier', 'ei',
+        'yogurt', 'yoghurt', 'joghurt',
+    ];
+}
+
+function recipeAllowedStepTokens(array $recipe): array {
+    $allowed = [];
+    foreach ($recipe['ingredients'] ?? [] as $ing) {
+        if (!is_array($ing)) {
+            continue;
+        }
+        foreach (recipeStepMentionTokensFromName((string)($ing['name'] ?? '')) as $tok) {
+            $allowed[$tok] = true;
+        }
+    }
+    foreach (['acqua', 'water', 'sale', 'salt', 'salz', 'sel', 'pepe', 'pepper', 'pfeffer', 'poivre',
+              'olio', 'oil', 'öl', 'huile', 'extravergine', 'evoo',
+              'prezzemolo', 'parsley', 'origano', 'oregano', 'basilico', 'basil', 'basilikum'] as $staple) {
+        $allowed[$staple] = true;
+    }
+    return $allowed;
+}
+
+/**
+ * Remove mentions of pantry-missing / invented staples from cooking steps
+ * so steps stay consistent with the ingredients list.
+ */
+function recipeScrubUnavailableMentionsInSteps(array &$recipe, array $removed): void {
+    if (empty($recipe['steps']) || !is_array($recipe['steps'])) {
+        return;
+    }
+    $allowed = recipeAllowedStepTokens($recipe);
+    $banned = [];
+    foreach ($removed as $row) {
+        foreach (recipeStepMentionTokensFromName((string)($row['name'] ?? '')) as $tok) {
+            if (!isset($allowed[$tok])) {
+                $banned[$tok] = true;
+            }
+        }
+    }
+    foreach (recipeMustListStepTokens() as $tok) {
+        if (!isset($allowed[$tok])) {
+            $banned[$tok] = true;
+        }
+    }
+    if (empty($banned)) {
+        return;
+    }
+    // Longer tokens first so "burro di arachidi" beats "burro"
+    $tokens = array_keys($banned);
+    usort($tokens, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+    $article = '(?:con|il|lo|la|i|gli|le|del|della|dello|dei|degli|delle|al|allo|alla|ai|agli|alle|un|uno|una|e|ed|di|nel|nella|nello|nei|negli|nelle|sul|sulla|sullo|the|a|an|with|and|of|du|de|des|le|les|un|une|mit|und|dem|der|die)\s+';
+    $elision = "(?:[ldnLDN]')";
+    foreach ($recipe['steps'] as &$step) {
+        if (!is_string($step) || $step === '') {
+            continue;
+        }
+        foreach ($tokens as $tok) {
+            $q = preg_quote($tok, '/');
+            $step = preg_replace('/\b(?:' . $article . ')?' . $elision . '?' . $q . '\b/iu', '', $step) ?? $step;
+        }
+        $step = preg_replace('/\s{2,}/u', ' ', $step) ?? $step;
+        $step = preg_replace('/\s+([,.;:!?\x{2026}])/u', '$1', $step) ?? $step;
+        $step = preg_replace('/([,;])\s*\1+/u', '$1', $step) ?? $step;
+        $step = preg_replace('/^\s*[,.;:\-–—]+\s*/u', '', $step) ?? $step;
+        $step = preg_replace('/\b(l|d|n)\s+([,.;])/iu', '$2', $step) ?? $step;
+        $step = trim($step);
+    }
+    unset($step);
+    $recipe['steps'] = array_values(array_filter(
+        $recipe['steps'],
+        static fn($s): bool => is_string($s) && trim($s) !== ''
+    ));
+}
+
 /** Merge removed ingredients into recipe shopping_suggestions (deduped by name). */
 function recipeAttachShoppingSuggestions(array &$recipe, array $removed): void {
     if (recipeShoppingMode() === 'off' || empty($removed)) {
@@ -8618,14 +8830,16 @@ function recipeParseGeminiJson(string $text): ?array {
 }
 
 function recipePostProcessGenerated(PDO $db, array &$recipe, array $pantryItems): array {
+    $removed = [];
     if (!empty($recipe['ingredients'])) {
         recipeEnrichIngredientsFromPantry($db, $recipe['ingredients'], $pantryItems);
         recipeApplyStockHintsToRecipe($db, $recipe);
         $removed = recipeEnforcePantryOnly($recipe);
         recipeAttachShoppingSuggestions($recipe, $removed);
-        return $removed;
     }
-    return [];
+    // Always scrub steps: removed pantry items + invented staples (e.g. burro in steps only)
+    recipeScrubUnavailableMentionsInSteps($recipe, $removed);
+    return $removed;
 }
 
 function recipeNormalizeName(string $name): string {
@@ -9368,6 +9582,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
+7b. COERENZA PASSI↔INGREDIENTI: ogni alimento nominato nei `steps` DEVE comparire in `ingredients`, OPPURE essere esattamente acqua/sale/pepe/olio o erbe in pizzico. VIETATO scrivere nei passi burro/panna/uova/latte/yogurt/formaggio/ecc. se quel prodotto non è in DISPENSA e quindi non è in `ingredients`. Se ti serve il burro e non c’è in dispensa, cambia tecnica (olio, oppure ricetta diversa).
 8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullateur"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
@@ -9608,6 +9823,7 @@ REGOLE:
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf). Per unità "pz" usa PEZZI (anche 0.5 = mezzo).
 5. "name": usa ESATTAMENTE il nome dalla lista dispensa (copia-incolla). Tutti gli ingredienti con from_pantry:true.
 6. NON mettere in ingredients nulla che non è in DISPENSA. Se manca un carboidrato usa quello presente in lista.
+6b. COERENZA: ogni alimento nei `steps` deve essere in `ingredients` oppure acqua/sale/pepe/olio. Mai citare burro/panna/uova/latte nei passi se non sono in DISPENSA.
 7. Language: {$langName} for all text fields. Keep "meal" as English meal key (colazione/pranzo/cena/snack/dolce/libero).
 8. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers.
 9. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` in target language (frigo / freezer / dispensa / temperatura ambiente). `days` = integer. `tips` = one concise sentence.
@@ -9993,6 +10209,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
+7b. COERENZA PASSI↔INGREDIENTI: ogni alimento nominato nei `steps` DEVE comparire in `ingredients`, OPPURE essere esattamente acqua/sale/pepe/olio o erbe in pizzico. VIETATO scrivere nei passi burro/panna/uova/latte/yogurt/formaggio/ecc. se quel prodotto non è in DISPENSA e quindi non è in `ingredients`. Se ti serve il burro e non c’è in dispensa, cambia tecnica (olio, oppure ricetta diversa).
 8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullatore"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `zero_waste_tips`: array of zero-waste tips for steps that generate reusable scraps (peels, leftover cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.). Each entry: {"step": 0-based_step_index, "scrap": "scrap name", "tip": "short practical reuse tip (max 20 words)"}. Use the same language as other text fields. Empty array [] if no reusable scraps are generated.
@@ -15085,7 +15302,15 @@ function shoppingAdd(PDO $db): void {
 }
 
 function shoppingAddInternal(PDO $db, array $input): void {
-    $items = $input['items'] ?? [];
+    $result = shoppingAddItemsCore($db, $input['items'] ?? []);
+    echo json_encode(['success' => true] + $result);
+}
+
+/**
+ * Core shopping-list upsert used by shopping_add and templates_apply.
+ * @return array{added:int,updated:int,skipped:int,errors:array}
+ */
+function shoppingAddItemsCore(PDO $db, array $items): array {
     $added = 0; $updated = 0; $skipped = 0;
     foreach ($items as $item) {
         $name    = trim($item['name'] ?? '');
@@ -15110,7 +15335,6 @@ function shoppingAddInternal(PDO $db, array $input): void {
                 $skipped++;
             }
         } else {
-            // Explicit user add always wins over the 15-day remove/purchase blocklist.
             $generic = shoppingResolveGenericName($db, $name, $rawName) ?: $name;
             if (bringIsPurchasedBlocked($db, $name, $generic)) {
                 bringClearPurchasedNames($db, [$name, $rawName, $generic]);
@@ -15121,7 +15345,159 @@ function shoppingAddInternal(PDO $db, array $input): void {
             _fireHaWebhook('shopping_add', ['item' => $name, 'specification' => $spec]);
         }
     }
-    echo json_encode(['success' => true, 'added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => []]);
+    return ['added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => []];
+}
+
+function templatesList(PDO $db): void {
+    $rows = $db->query('SELECT id, name, items_json, created_at, updated_at FROM shopping_templates ORDER BY name COLLATE NOCASE ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $out = [];
+    foreach ($rows as $row) {
+        $items = json_decode((string)$row['items_json'], true);
+        $out[] = [
+            'id' => (int)$row['id'],
+            'name' => $row['name'],
+            'items' => is_array($items) ? $items : [],
+            'created_at' => $row['created_at'],
+            'updated_at' => $row['updated_at'],
+        ];
+    }
+    echo json_encode(['success' => true, 'templates' => $out]);
+}
+
+function templatesSave(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? 0);
+    $name = trim((string)($input['name'] ?? ''));
+    $items = $input['items'] ?? [];
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'name_required']);
+        return;
+    }
+    if (!is_array($items)) {
+        $items = [];
+    }
+    $clean = [];
+    foreach ($items as $it) {
+        if (!is_array($it)) continue;
+        $n = trim((string)($it['name'] ?? ''));
+        if ($n === '') continue;
+        $clean[] = [
+            'product_id' => (int)($it['product_id'] ?? 0) ?: null,
+            'name' => $n,
+            'quantity' => isset($it['quantity']) ? (float)$it['quantity'] : 1,
+            'unit' => trim((string)($it['unit'] ?? 'pz')) ?: 'pz',
+            'location' => trim((string)($it['location'] ?? 'dispensa')) ?: 'dispensa',
+        ];
+    }
+    $json = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    if ($id > 0) {
+        $stmt = $db->prepare('UPDATE shopping_templates SET name = ?, items_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+        $stmt->execute([$name, $json, $id]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'not_found']);
+            return;
+        }
+    } else {
+        $db->prepare('INSERT INTO shopping_templates (name, items_json) VALUES (?, ?)')->execute([$name, $json]);
+        $id = (int)$db->lastInsertId();
+    }
+    echo json_encode(['success' => true, 'id' => $id]);
+}
+
+function templatesDelete(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? 0);
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_id']);
+        return;
+    }
+    $db->prepare('DELETE FROM shopping_templates WHERE id = ?')->execute([$id]);
+    echo json_encode(['success' => true]);
+}
+
+function templatesApply(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = (int)($input['id'] ?? 0);
+    $target = trim((string)($input['target'] ?? 'shopping'));
+    if ($id <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_id']);
+        return;
+    }
+    $stmt = $db->prepare('SELECT name, items_json FROM shopping_templates WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'not_found']);
+        return;
+    }
+    $items = json_decode((string)$row['items_json'], true);
+    if (!is_array($items) || empty($items)) {
+        echo json_encode(['success' => true, 'added' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []]);
+        return;
+    }
+    if ($target === 'inventory') {
+        $added = 0; $skipped = 0; $errors = [];
+        $validLocs = validInventoryLocations();
+        foreach ($items as $it) {
+            $productId = (int)($it['product_id'] ?? 0);
+            $name = trim((string)($it['name'] ?? ''));
+            if ($productId <= 0 && $name !== '') {
+                $q = $db->prepare('SELECT id FROM products WHERE lower(name) = lower(?) LIMIT 1');
+                $q->execute([$name]);
+                $productId = (int)($q->fetchColumn() ?: 0);
+            }
+            if ($productId <= 0) {
+                $errors[] = $name !== '' ? $name : 'unknown';
+                $skipped++;
+                continue;
+            }
+            $qty = (float)($it['quantity'] ?? 1);
+            if ($qty <= 0) $qty = 1;
+            $loc = trim((string)($it['location'] ?? 'dispensa')) ?: 'dispensa';
+            if (!in_array($loc, $validLocs, true)) $loc = 'dispensa';
+            // Merge into existing sealed row at same location (no expiry → treat as match)
+            $find = $db->prepare('SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 AND (expiry_date IS NULL OR expiry_date = "") AND COALESCE(vacuum_sealed,0)=0 AND opened_at IS NULL LIMIT 1');
+            $find->execute([$productId, $loc]);
+            $exist = $find->fetch(PDO::FETCH_ASSOC);
+            if ($exist) {
+                $db->prepare('UPDATE inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                    ->execute([$qty, (int)$exist['id']]);
+            } else {
+                $db->prepare('INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)')
+                    ->execute([$productId, $loc, $qty]);
+            }
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'in', ?, ?, ?)")
+                ->execute([$productId, $qty, $loc, 'template:' . $row['name']]);
+            $added++;
+        }
+        echo json_encode(['success' => true, 'target' => 'inventory', 'added' => $added, 'skipped' => $skipped, 'errors' => $errors]);
+        return;
+    }
+
+    // Default: shopping list
+    $shopItems = [];
+    foreach ($items as $it) {
+        $name = trim((string)($it['name'] ?? ''));
+        if ($name === '') continue;
+        $qty = $it['quantity'] ?? null;
+        $unit = trim((string)($it['unit'] ?? ''));
+        $spec = '';
+        if ($qty !== null && $qty !== '' && (float)$qty > 0) {
+            $spec = rtrim(rtrim((string)(float)$qty, '0'), '.') . ($unit !== '' ? ' ' . $unit : '');
+        }
+        $shopItems[] = ['name' => $name, 'rawName' => $name, 'specification' => $spec, 'update_spec' => $spec !== ''];
+    }
+    if (isShoppingBringMode()) {
+        // Fall back to internal add core for consistency; Bring mode users still get internal list via shopping_add path usually
+        // Use shoppingAdd path: build request for bringAddItems is complex — use internal core + note
+    }
+    $result = shoppingAddItemsCore($db, $shopItems);
+    echo json_encode(['success' => true, 'target' => 'shopping'] + $result);
 }
 
 function shoppingRemove(PDO $db): void {

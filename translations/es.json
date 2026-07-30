@@ -1317,6 +1317,16 @@
             "preview": "Ahora en {place}: {temp}°C — {bucket}",
             "preview_error": "No se pudo cargar el tiempo.",
             "attribution": "Datos meteorológicos: Open-Meteo.com (CC BY 4.0)"
+        },
+        "custom_locations": {
+            "title": "📍 Ubicaciones personalizadas",
+            "hint": "Añade sitios además de Despensa, Nevera, Congelador y Otro (p. ej. Bodega, Garaje). Los nombres se conservan tal cual.",
+            "builtin_hint": "Predefinidos (no eliminables): Despensa, Nevera, Congelador, Otro.",
+            "placeholder": "Ej.: Bodega, Box garaje…",
+            "empty": "Sin ubicaciones personalizadas",
+            "added": "Ubicación añadida — pulsa Guardar para sincronizar",
+            "reserved": "Nombre reservado para una ubicación predefinida",
+            "in_use": "No se puede quitar “{name}”: quedan {n} producto(s)"
         }
     },
     "expiry": {
@@ -1918,5 +1928,29 @@
     },
     "common": {
         "uncategorized": "Sin categoría"
+    },
+    "templates": {
+        "btn": "📋 Plantillas",
+        "title": "Plantillas de compra",
+        "hint": "Guarda paquetes de productos (p. ej. esenciales semanales) y añádelos a la lista o al inventario en un toque.",
+        "create": "➕ Nueva plantilla",
+        "edit": "Editar plantilla",
+        "empty": "Sin plantillas",
+        "items_count": "productos",
+        "apply_shopping": "→ Lista de compra",
+        "apply_inventory": "→ Inventario",
+        "confirm_inventory": "¿Añadir todos los productos de la plantilla al inventario?",
+        "confirm_delete": "¿Eliminar esta plantilla?",
+        "applied_shopping": "Plantilla aplicada: {added} añadidos, {skipped} ya en la lista",
+        "applied_inventory": "Plantilla aplicada: {added} al inventario, {skipped} omitidos",
+        "deleted": "Plantilla eliminada",
+        "saved": "Plantilla guardada",
+        "name_label": "Nombre de la plantilla",
+        "add_from_inventory": "Añadir desde inventario",
+        "add_manual": "O escribe un nombre",
+        "manual_placeholder": "Nombre del producto…",
+        "draft_empty": "Sin productos en esta plantilla",
+        "name_required": "Introduce un nombre",
+        "items_required": "Añade al menos un producto"
     }
 }
