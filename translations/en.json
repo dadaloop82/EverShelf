@@ -211,10 +211,10 @@
     },
     "scan": {
         "title": "Scan",
-        "mode_shopping": "🛒 Shopping Mode",
-        "mode_shopping_end": "✅ End shopping",
-        "spesa_btn": "🛒 Shopping",
-        "spesa_camera_hint": "Point the camera at the barcode. No barcode? Tap «Identify with AI» below.",
+        "mode_shopping": "📷 Continuous scan",
+        "mode_shopping_end": "✅ Done",
+        "spesa_btn": "📷 Continuous",
+        "spesa_camera_hint": "Scan barcodes one after another — each item is added automatically. Tap Done when finished. Need full details? Exit continuous mode and use a normal scan.",
         "zoom": "Zoom",
         "tab_barcode": "Barcode",
         "tab_name": "Name",
@@ -281,8 +281,10 @@
         "ai_match_action_hint": "Tap the green button to add this product",
         "ai_match_or_similar": "Or pick a similar product:",
         "ai_detected_label": "AI detected",
-        "mode_shopping_activated": "🛒 Shopping mode activated!",
-        "status_lookup": "Identifying…"
+        "mode_shopping_activated": "📷 Continuous scan on — keep scanning!",
+        "status_lookup": "Identifying…",
+        "continuous_added": "Added {name} → {location}",
+        "status_adding": "Adding…"
     },
     "action": {
         "title": "What do you want to do?",

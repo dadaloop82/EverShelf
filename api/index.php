@@ -1833,18 +1833,31 @@ function inventoryImportAddStock(PDO $db, int $productId, array $data): array {
         $invId = (int)$db->lastInsertId();
         $newQty = $quantity;
     } else {
-        $stmt = $db->prepare('
-            SELECT id, quantity FROM inventory
-            WHERE product_id = ? AND location = ? AND opened_at IS NULL
-            ORDER BY added_at ASC LIMIT 1
-        ');
-        $stmt->execute([$productId, $location]);
+        // Merge sealed stock only when location + expiry_date match (#214)
+        if ($expiry === null || $expiry === '') {
+            $expiry = null;
+            $stmt = $db->prepare('
+                SELECT id, quantity FROM inventory
+                WHERE product_id = ? AND location = ? AND opened_at IS NULL
+                  AND expiry_date IS NULL
+                ORDER BY added_at ASC LIMIT 1
+            ');
+            $stmt->execute([$productId, $location]);
+        } else {
+            $stmt = $db->prepare('
+                SELECT id, quantity FROM inventory
+                WHERE product_id = ? AND location = ? AND opened_at IS NULL
+                  AND expiry_date = ?
+                ORDER BY added_at ASC LIMIT 1
+            ');
+            $stmt->execute([$productId, $location, $expiry]);
+        }
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existing) {
             $newQty = (float)$existing['quantity'] + $quantity;
-            $stmt = $db->prepare('UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), vacuum_sealed = ?, expiry_user_set = CASE WHEN ? = 1 THEN 1 ELSE expiry_user_set END, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $stmt->execute([$newQty, $expiry, $vacuumSealed, $expiryUserSet, $existing['id']]);
+            $stmt = $db->prepare('UPDATE inventory SET quantity = ?, vacuum_sealed = ?, expiry_user_set = CASE WHEN ? = 1 THEN 1 ELSE expiry_user_set END, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $stmt->execute([$newQty, $vacuumSealed, $expiryUserSet, $existing['id']]);
             $invId = (int)$existing['id'];
         } else {
             $newQty = $quantity;
@@ -4253,29 +4266,47 @@ function addToInventory(PDO $db): void {
     
     $vacuumSealed = (int)($input['vacuum_sealed'] ?? 0);
     $expiryUserSet = (int)($input['expiry_user_set'] ?? 0);
+
+    // Normalize empty expiry to null so NULL matches NULL
+    if ($expiry === '' || $expiry === false) {
+        $expiry = null;
+    }
     
-    // Check if a SEALED (not yet opened) row exists for this product+location.
-    // We merge new stock into a sealed row only — never into an already-opened
-    // pack, because that would conflate two physically distinct containers and
-    // corrupt the opened_at timestamp tracking.
-    $stmt = $db->prepare("
-        SELECT id, quantity FROM inventory
-        WHERE product_id = ? AND location = ? AND opened_at IS NULL
-        ORDER BY added_at ASC LIMIT 1
-    ");
-    $stmt->execute([$productId, $location]);
+    // Merge only into a SEALED row with the SAME location AND SAME expiry_date.
+    // Different best-before dates are physically distinct packs and must stay
+    // separate (#214). Never merge into an already-opened pack.
+    if ($expiry === null) {
+        $stmt = $db->prepare("
+            SELECT id, quantity FROM inventory
+            WHERE product_id = ? AND location = ? AND opened_at IS NULL
+              AND expiry_date IS NULL
+            ORDER BY added_at ASC LIMIT 1
+        ");
+        $stmt->execute([$productId, $location]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT id, quantity FROM inventory
+            WHERE product_id = ? AND location = ? AND opened_at IS NULL
+              AND expiry_date = ?
+            ORDER BY added_at ASC LIMIT 1
+        ");
+        $stmt->execute([$productId, $location, $expiry]);
+    }
     $existing = $stmt->fetch();
 
+    $newRow = false;
     if ($existing) {
-        // Merge into the existing sealed row
+        // Merge into the existing sealed row (same expiry)
         $newQty = $existing['quantity'] + $quantity;
-        $stmt = $db->prepare("UPDATE inventory SET quantity = ?, expiry_date = COALESCE(?, expiry_date), vacuum_sealed = ?, expiry_user_set = CASE WHEN ? = 1 THEN 1 ELSE expiry_user_set END, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$newQty, $expiry, $vacuumSealed, $expiryUserSet, $existing['id']]);
+        $stmt = $db->prepare("UPDATE inventory SET quantity = ?, vacuum_sealed = ?, expiry_user_set = CASE WHEN ? = 1 THEN 1 ELSE expiry_user_set END, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$newQty, $vacuumSealed, $expiryUserSet, $existing['id']]);
+        $inventoryId = (int)$existing['id'];
     } else {
         $newQty = $quantity;
-        // All existing rows (if any) are opened packs — insert a new sealed row
+        $newRow = true;
         $stmt = $db->prepare("INSERT INTO inventory (product_id, location, quantity, expiry_date, vacuum_sealed, expiry_user_set) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$productId, $location, $quantity, $expiry, $vacuumSealed, $expiryUserSet]);
+        $inventoryId = (int)$db->lastInsertId();
     }
     
     // Get total across all locations
@@ -4305,6 +4336,10 @@ function addToInventory(PDO $db): void {
         'removed_names' => $bringRemoval['removed_names'] ?? [],
         'canonical_product_id' => $productId,
         'catalog_merged' => $catalogMerged,
+        'inventory_id' => $inventoryId,
+        'new_row' => $newRow,
+        'expiry_date' => $expiry,
+        'location' => $location,
     ]);
     EverLog::info('inventory_add ok', [
         'product_id' => $productId,

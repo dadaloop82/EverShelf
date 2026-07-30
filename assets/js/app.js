@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260730b'; // bump when translations change
+const _I18N_VERSION = '20260730c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9229,12 +9229,115 @@ async function _finishBarcodeResolved(barcode) {
         }
     }
     addToScanRecents(currentProduct);
-    const fastPath = _spesaMode || _shoppingBoughtFlow;
+    // Continuous / Spesa mode: quick-add and keep scanning (#217)
+    if (_spesaMode && !_shoppingBoughtFlow) {
+        stopScanner();
+        await _spesaQuickAddFromScan();
+        return;
+    }
+    const fastPath = _shoppingBoughtFlow;
     if (!fastPath) _showScanConfirm(currentProduct.name);
     stopScanner();
     const next = fastPath ? showAddForm : showProductAction;
     if (fastPath) next();
     else setTimeout(() => next(), 300);
+}
+
+/**
+ * Continuous scan (#217): add with smart defaults and return to the camera
+ * without opening the full add form. Falls back to the form if the product
+ * cannot be resolved yet.
+ */
+async function _spesaQuickAddFromScan() {
+    _setScanStatus(t('scan.status_adding') || t('scan.status_lookup'), '', '');
+    try {
+        if (_pendingBarcodeSave) {
+            const saveResult = await _pendingBarcodeSave;
+            if (saveResult?.id) currentProduct.id = saveResult.id;
+            if (saveResult?.canonical_product_id) currentProduct.id = saveResult.canonical_product_id;
+            if (saveResult?.existing_id && !currentProduct.id) currentProduct.id = saveResult.existing_id;
+            _pendingBarcodeSave = null;
+        }
+        if (!currentProduct?.id) {
+            // Unknown / unresolved — need the full form
+            showAddForm();
+            return;
+        }
+
+        const location = guessLocation(currentProduct) || 'dispensa';
+        const unit = currentProduct.unit || 'pz';
+        let quantity = 1;
+        if (unit === 'conf') {
+            quantity = currentProduct._confCount || currentProduct.last_qty || 1;
+        } else if (unit === 'pz') {
+            quantity = 1;
+        } else {
+            // g / ml — one package = default_quantity when known, else 1
+            quantity = (parseFloat(currentProduct.default_quantity) > 0)
+                ? parseFloat(currentProduct.default_quantity)
+                : 1;
+        }
+
+        const estimatedDays = estimateExpiryDays(currentProduct, location);
+        const expiry = addDays(estimatedDays);
+
+        const body = {
+            product_id: currentProduct.id,
+            quantity,
+            location,
+            expiry_date: expiry || null,
+            expiry_user_set: 0,
+            vacuum_sealed: 0,
+        };
+        if (unit === 'conf' && currentProduct.package_unit && currentProduct.default_quantity > 0) {
+            body.package_unit = currentProduct.package_unit;
+            body.package_size = currentProduct.default_quantity;
+        }
+
+        const result = await api('inventory_add', {}, 'POST', body);
+        if (!result?.success) {
+            showToast(result?.error || t('error.generic'), 'error');
+            showAddForm();
+            return;
+        }
+
+        if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
+            currentProduct.id = result.canonical_product_id;
+        }
+        _recordRecentInventoryAdd({
+            productId: currentProduct.id,
+            location,
+            qty: quantity,
+            unit: result.unit || unit,
+            defaultQty: result.default_quantity,
+            packageUnit: result.package_unit,
+            totalQty: result.total_qty,
+            ts: Date.now(),
+        });
+
+        const locLabel = (typeof LOCATIONS !== 'undefined' && LOCATIONS[location])
+            ? `${LOCATIONS[location].icon} ${LOCATIONS[location].label}`
+            : location;
+        showToast(
+            t('scan.continuous_added', {
+                name: currentProduct.name || '',
+                location: locLabel,
+            }),
+            'success'
+        );
+
+        await spesaModeAfterAdd(result, { skipFamilySuggest: true });
+        // Brief cooldown so the same barcode is not re-read immediately
+        setTimeout(() => {
+            if (_spesaMode && _currentPageId === 'scan') {
+                resumeScanner();
+            }
+        }, 700);
+    } catch (err) {
+        console.error('[spesa quick add]', err);
+        showToast(t('error.connection'), 'error');
+        showAddForm();
+    }
 }
 
 async function _saveExternalBarcodeProduct(code, p) {
@@ -22119,7 +22222,7 @@ async function shoppingBoughtAfterAdd(addResult) {
 }
 
 // Called after successful add — returns true if spesa mode handled navigation
-async function spesaModeAfterAdd(addResult) {
+async function spesaModeAfterAdd(addResult, opts = {}) {
     if (!_spesaMode) return false;
     if (currentProduct) {
         _spesaSession.push({
@@ -22130,8 +22233,10 @@ async function spesaModeAfterAdd(addResult) {
         updateSpesaBanner();
         _shoppingInventoryCache = null;
         await _spesaRemovePurchasedFromList(currentProduct, addResult);
-        const addLoc = document.getElementById('add-location')?.value || 'dispensa';
-        _showFamilySiblingSuggest(currentProduct.id, addLoc);
+        if (!opts.skipFamilySuggest) {
+            const addLoc = document.getElementById('add-location')?.value || 'dispensa';
+            _showFamilySiblingSuggest(currentProduct.id, addLoc);
+        }
     }
     showPage('scan');
     return true;
