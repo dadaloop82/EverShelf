@@ -1155,7 +1155,7 @@ let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
 let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
-const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español' };
+const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
 if (!_SUPPORTED_LANGS[_currentLang]) _currentLang = 'en';
 
 // Apply theme IMMEDIATELY to prevent flash of unstyled content
@@ -11293,7 +11293,7 @@ function recalculateAddExpiry() {
     let suffix = '';
     if (window._historyExpiryDays) suffix = t('product.from_history');
     else if (loc === 'freezer' && isVacuum) suffix = ' ' + t('add.suffix_freezer_vacuum');
-    else if (loc === 'freezer') suffix = ' (freezer)';
+    else if (loc === 'freezer') suffix = ' ' + t('add.suffix_freezer');
     else if (isVacuum) suffix = ' ' + t('add.suffix_vacuum');
     
     const expiryInput = document.getElementById('add-expiry');
