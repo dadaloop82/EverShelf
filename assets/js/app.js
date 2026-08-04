@@ -3671,7 +3671,7 @@ async function _renderInfoTab() {
         const s = getSettings();
 
         // ── Locale & helpers ─────────────────────────────────────────────────
-        const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES'};
+        const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', zh:'zh-CN'};
         const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'it-IT';
         const [yr, mo] = (d.month || '').split('-');
         const monthLabel = new Intl.DateTimeFormat(locale, {month:'long', year:'numeric'})
@@ -5766,7 +5766,7 @@ function _renderMonthlyStatsSection(data) {
 
     // Month label from 'YYYY-MM' → formatted locale string
     const [yr, mo] = data.month.split('-').map(Number);
-    const localeMap = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', en: 'en-GB', it: 'it-IT' };
+    const localeMap = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', en: 'en-GB', it: 'it-IT', zh: 'zh-CN' };
     const locale = localeMap[_currentLang] || 'it-IT';
     const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
     const prevLabel  = new Date(yr, mo - 2, 1).toLocaleDateString(locale, { month: 'long' });
@@ -5880,7 +5880,7 @@ function _renderMacrosSection(data) {
             <div class="macro-bar-wrap">
                 <div class="macro-bar-fill" style="background:${m.color}" data-target="${barPct}"></div>
             </div>
-            <span class="macro-val">${m.value.toLocaleString(_currentLang === 'de' ? 'de-DE' : 'it-IT')}${m.unit}${m.pct !== null ? ` <small>(${m.pct}%)</small>` : ''}</span>
+            <span class="macro-val">${m.value.toLocaleString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT')}${m.unit}${m.pct !== null ? ` <small>(${m.pct}%)</small>` : ''}</span>
         </div>`;
     }).join('');
 
@@ -8652,7 +8652,7 @@ let _scanLogTimer = null;
 function scanLog(msg) {
     const el = document.getElementById('scan-debug-log');
     if (el) {
-        const _scanLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        const _scanLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
         const ts = new Date().toLocaleTimeString(_scanLocale, {hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:1});
         el.textContent += `[${ts}] ${msg}\n`;
         el.scrollTop = el.scrollHeight;
@@ -11932,7 +11932,7 @@ function _updateUseHeroMeta(items) {
         const expDate = new Date(soonest.expiry_date + 'T12:00:00');
         const today = new Date(); today.setHours(0,0,0,0);
         const days = Math.round((expDate - today) / 86400000);
-        const locale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        const locale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
         const dateStr = expDate.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
 
         let cls, label;
@@ -12005,7 +12005,7 @@ function _renderUseExpiryHint(items) {
     const diffDays = Math.round((expDate - today) / 86400000);
 
     const locInfo  = LOCATIONS[soonest.location] || { icon: '📦', label: soonest.location };
-    const dateStr  = expDate.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT', { day: '2-digit', month: '2-digit' });
+    const dateStr  = expDate.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT', { day: '2-digit', month: '2-digit' });
 
     let whenStr;
     if (diffDays < 0)       whenStr = t('use.when_expired').replace('{n}', -diffDays);
@@ -17187,14 +17187,14 @@ function stripHtml(str) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
-    const _loc1 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    const _loc1 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
     return d.toLocaleDateString(_loc1, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatDateTime(dtStr) {
     if (!dtStr) return '';
     const d = new Date(dtStr.replace(' ', 'T'));
-    const _loc2 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    const _loc2 = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
     return d.toLocaleDateString(_loc2, { day: '2-digit', month: 'short' }) + ' ' + 
            d.toLocaleTimeString(_loc2, { hour: '2-digit', minute: '2-digit' });
 }
@@ -17264,7 +17264,7 @@ async function loadLog(more = false) {
             html = `<p style="text-align:center;color:var(--text-muted)">${t('log.empty')}</p>`;
         } else {
             let lastDate = more ? '' : null;
-            const _logLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+            const _logLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
             txns.forEach(tx => {
                 const dt = new Date(tx.created_at + 'Z');
                 const dateStr = dt.toLocaleDateString(_logLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -17739,7 +17739,7 @@ async function loadRecipeArchive() {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     
     for (const [date, entries] of Object.entries(byDate)) {
-        const _mealLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+        const _mealLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
         let dateLabel = new Date(date + 'T12:00:00').toLocaleDateString(_mealLocale, { weekday: 'long', day: 'numeric', month: 'long' });
         if (date === today) dateLabel = t('date.today');
         else if (date === yesterday) dateLabel = t('date.yesterday');
@@ -19283,7 +19283,7 @@ async function renderRecipe(r) {
                 if (diffDays < 0) details.push(t('expiry.badge_expired_ago').replace('{n}', Math.abs(diffDays)));
                 else if (diffDays <= 3) details.push(t('expiry.badge_expires_red').replace('{n}', diffDays));
                 else if (diffDays <= 7) details.push(t('expiry.badge_expires_yellow').replace('{n}', diffDays));
-                else details.push('📅 ' + exp.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT'));
+                else details.push('📅 ' + exp.toLocaleDateString(_currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT'));
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
             const stockLine = _recipeIngStockHintHtml(ing);
@@ -20244,7 +20244,7 @@ function _speakBrowser(text) {
                 utt.lang  = chosen.lang;
             } else {
                 // No voices loaded yet — set lang and let the browser decide
-                utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : 'it-IT';
+                utt.lang = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-US' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
             }
         }
         // Chrome quirks:
@@ -22258,7 +22258,7 @@ function activateScreensaver() {
 
 function updateScreensaverClock() {
     const now = new Date();
-    const _ssLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    const _ssLocale = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
     const time = now.toLocaleTimeString(_ssLocale, { hour: '2-digit', minute: '2-digit' });
     const date = now.toLocaleDateString(_ssLocale, { weekday: 'long', day: 'numeric', month: 'long' });
     const el = document.getElementById('screensaver-clock');
@@ -23064,7 +23064,7 @@ function _formatFamilySiblingDate(dtStr) {
     if (!dtStr) return '';
     const d = new Date(String(dtStr).replace(' ', 'T'));
     if (isNaN(d.getTime())) return '';
-    const loc = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : 'it-IT';
+    const loc = _currentLang === 'de' ? 'de-DE' : _currentLang === 'en' ? 'en-GB' : _currentLang === 'zh' ? 'zh-CN' : 'it-IT';
     return d.toLocaleDateString(loc, { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
