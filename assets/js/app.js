@@ -18429,30 +18429,102 @@ function _recipeIngStockHintHtml(ing) {
     return line;
 }
 
+function _recipeQtyThresholdForCook(unit) {
+    const u = String(unit || 'pz').toLowerCase();
+    const t = { g: 5, ml: 5, kg: 0.005, l: 0.005, conf: 0.05, pz: 0.25 };
+    return t[u] ?? 0.25;
+}
+
+function _isDepletedForRecipe(row) {
+    const q = parseFloat(row?.quantity);
+    if (!(q > 0)) return true;
+    return q <= _recipeQtyThresholdForCook(row.unit);
+}
+
 async function enrichRecipeIngredientsStock(recipe) {
     if (!recipe || !recipe.ingredients) return recipe;
     try {
-        const data = await api('inventory_list');
-        const inv = data.inventory || [];
+        // include_depleted: keep residual weight (e.g. 19 g butter) visible when already linked.
+        // Healing / new links use only cookable stock (excludes finished crumbs like 0.2 pz salad).
+        const data = await api('inventory_list', { include_depleted: 1, for_recipe: 1 });
+        const invAll = (data.inventory || []).filter(i => parseFloat(i.quantity) > 0);
+        const invCookable = invAll.filter(i => !_isDepletedForRecipe(i));
+
+        const matchScore = (ingName, productName) => {
+            const a = String(ingName || '').trim().toLowerCase();
+            const b = String(productName || '').trim().toLowerCase();
+            if (!a || !b) return 0;
+            if (a === b) return 100;
+            if (a.includes(b) && b.length >= 4) return 92;
+            if (b.includes(a) && a.length >= 4) return 88;
+            const aw = a.split(/[\s,.\-\/]+/).filter(Boolean)[0];
+            const bw = b.split(/[\s,.\-\/]+/).filter(Boolean)[0];
+            if (aw && bw && aw.length >= 4 && aw === bw) return 80;
+            return 0;
+        };
+
         for (const ing of recipe.ingredients) {
-            if (!ing.from_pantry || !ing.product_id) continue;
-            const rows = inv.filter(i => i.product_id == ing.product_id);
-            const activeRows = rows.filter(i => parseFloat(i.quantity) > 0);
-            if (!activeRows.length) {
-                ing.from_pantry = false;
-                delete ing.product_id;
-                delete ing.stock_have;
-                delete ing.stock_remain;
+            let rows = [];
+            if (ing.product_id) {
+                rows = invCookable.filter(i => i.product_id == ing.product_id);
+                // Historical recipes may still show a nearly-empty linked item
+                if (!rows.length && ing.from_pantry) {
+                    rows = invAll.filter(i => i.product_id == ing.product_id);
+                }
+            }
+            // Heal orphans only onto cookable stock — never revive finished salad crumbs
+            if (!rows.length && ing.name) {
+                let best = null;
+                let bestScore = 0;
+                const byPid = new Map();
+                for (const row of invCookable) {
+                    const pid = row.product_id;
+                    if (!byPid.has(pid)) byPid.set(pid, { name: row.name, rows: [] });
+                    byPid.get(pid).rows.push(row);
+                }
+                for (const [pid, meta] of byPid) {
+                    const score = matchScore(ing.name, meta.name);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = { pid, meta };
+                    }
+                }
+                if (best && bestScore >= 80) {
+                    ing.product_id = best.pid;
+                    ing.from_pantry = true;
+                    ing.name = best.meta.name;
+                    rows = best.meta.rows;
+                    const pick0 = rows[0];
+                    if (pick0) {
+                        ing.location = pick0.location || ing.location;
+                        ing.inventory_unit = pick0.unit;
+                        ing.default_quantity = pick0.default_quantity;
+                        ing.package_unit = pick0.package_unit;
+                        if (pick0.brand) ing.brand = pick0.brand;
+                        if (pick0.expiry_date) ing.expiry_date = pick0.expiry_date;
+                    }
+                }
+            }
+
+            if (!rows.length) {
+                if (ing.from_pantry && ing.product_id) {
+                    delete ing.stock_have;
+                    delete ing.stock_remain;
+                }
                 continue;
             }
-            const totalStock = activeRows.reduce((s, i) => s + parseFloat(i.quantity), 0);
+
+            ing.from_pantry = true;
+            const totalStock = rows.reduce((s, i) => s + parseFloat(i.quantity), 0);
             ing.inventory_qty_total = totalStock;
-            const opened = activeRows.find(_isOpenedInventoryItem);
-            const pick = opened || activeRows.find(r => r.location === ing.location) || activeRows[0];
+            const opened = rows.find(_isOpenedInventoryItem);
+            const pick = opened || rows.find(r => r.location === ing.location) || rows[0];
             if (pick) {
+                ing.product_id = pick.product_id;
                 ing.inventory_unit = pick.unit;
                 ing.default_quantity = pick.default_quantity;
                 ing.package_unit = pick.package_unit;
+                if (pick.location) ing.location = pick.location;
             }
             _computeRecipeIngStockHint(ing, totalStock);
             _recipeClampQtyForServings(ing, Math.max(1, parseInt(recipe.persons, 10) || 1));
@@ -19196,7 +19268,12 @@ async function renderRecipe(r) {
 
     const isFav = !!(_cachedRecipe && _cachedRecipe.is_favorite);
 
-    let html = `<h2>${escapeHtml(r.title)}</h2>`;
+    let html = `<div class="recipe-title-row">
+        <h2>${escapeHtml(r.title)}</h2>
+        <button type="button" class="btn-recipe-share-icon" onclick="shareRecipe()" title="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}" aria-label="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
+    </div>`;
 
     // Meta tags + star (#124) + persons rescaler (#123)
     html += '<div class="recipe-meta">';
@@ -19300,10 +19377,9 @@ async function renderRecipe(r) {
     });
     html += '</ul>';
 
-    // Cooking mode + share between ingredients and steps
+    // Cooking mode between ingredients and steps
     html += `<div class="recipe-primary-actions mt-2">
         <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
-        <button type="button" class="btn btn-large btn-secondary btn-recipe-share" onclick="shareRecipe()">${t('recipes.share_btn')}</button>
     </div>`;
 
     // Steps
