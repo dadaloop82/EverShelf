@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.83] - 2026-08-05
+
+### Added
+- **Simplified Chinese (`zh`)** — full UI translation by [@duetonever](https://github.com/duetonever) (#228, refs #93), language picker entry `简体中文`, and `zh-CN` date/number formatting. Recipe AI status strings and language rule also support Chinese (plus French/Spanish recipe status locales).
+
 ## [1.7.82] - 2026-08-05
 
 ### Security
