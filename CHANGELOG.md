@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.82] - 2026-08-05
+
+### Security
+- **mcp-server npm overrides** — bump transitive `hono` (≥4.12.34), `ip-address` (≥10.4.0), and `fast-uri` (≥3.1.5) to clear Dependabot alerts (CORS ReDoS, SSRF/trust-boundary issues in address parsing, host confusion).
+
 ## [1.7.81] - 2026-08-05
 
 ### Fixed
