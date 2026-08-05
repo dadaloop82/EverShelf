@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.81] - 2026-08-05
+
+### Fixed
+- **Recipes with finished salad / crumbs** — leftovers below the cookable threshold (e.g. **0.2 pz** Iceberg) were still sent to the AI and rounded up to ¼. New recipes now exclude unfinished crumbs; piece rounding no longer invents a usable quarter from scraps.
+
+## [1.7.80] - 2026-07-31
+
+### Fixed
+- **Recipe ingredients vs steps (butter)** — residual stock below the inventory “crumb” threshold (e.g. 19 g butter ≤ 20 g) was hidden from `inventory_list`, so the client unlinked the ingredient while steps still said to use it. Recipe enrich now includes residual stock, re-links orphans, and no longer drops pantry links for crumbs; step scrub only allows pantry-linked ingredient words; `chat_to_recipe` runs full post-process.
+
+### Changed
+- **Share recipe** — replaced the large “Condividi ricetta” button with a discreet share icon at the top-right of the recipe title.
+
 ## [1.7.79] - 2026-07-30
 
 ### Fixed

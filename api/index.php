@@ -4311,6 +4311,9 @@ function aiProductSuggest(PDO $db): void {
 function listInventory(PDO $db): void {
     EverLog::debug('listInventory');
     $location = $_GET['location'] ?? '';
+    // Recipes need residual stock (e.g. 19 g butter) even when the inventory UI
+    // hides "crumb" rows via isInventoryDepleted (≤20 g / ≤20 ml).
+    $includeDepleted = !empty($_GET['include_depleted']) || !empty($_GET['for_recipe']);
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name,
@@ -4328,8 +4331,14 @@ function listInventory(PDO $db): void {
     $stmt = $db->prepare($query);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
-    $rows = array_values(array_filter($rows, fn(array $r): bool => !isInventoryDepleted($r)));
-    EverLog::debug('inventory_list fetched', ['rows' => count($rows), 'location' => $location ?: 'all']);
+    if (!$includeDepleted) {
+        $rows = array_values(array_filter($rows, fn(array $r): bool => !isInventoryDepleted($r)));
+    }
+    EverLog::debug('inventory_list fetched', [
+        'rows' => count($rows),
+        'location' => $location ?: 'all',
+        'include_depleted' => $includeDepleted,
+    ]);
     echo json_encode(['inventory' => $rows]);
 }
 
@@ -5278,6 +5287,24 @@ function productQtyThreshold(string $unit): float {
     return $thresholds[$unit] ?? 0.5;
 }
 
+/**
+ * Cookable-stock threshold for recipes.
+ * Pieces/packs match the UI (¼ lettuce head = finished). Weight/volume is more
+ * lenient than the UI restock crumb (20 g) so e.g. 19 g butter can still cook.
+ */
+function productQtyThresholdForRecipe(string $unit): float {
+    static $thresholds = [
+        'g' => 5,
+        'ml' => 5,
+        'kg' => 0.005,
+        'l' => 0.005,
+        'conf' => 0.05,
+        'pz' => 0.25,
+    ];
+    $u = strtolower($unit);
+    return $thresholds[$u] ?? 0.25;
+}
+
 /** True when stock is at/below the depletion threshold (finished — not an expiry alert). */
 function isInventoryDepleted(array $item): bool {
     $q = (float)($item['quantity'] ?? 0);
@@ -5286,6 +5313,16 @@ function isInventoryDepleted(array $item): bool {
     }
     $unit = strtolower((string)($item['unit'] ?? 'pz'));
     return $q <= productQtyThreshold($unit);
+}
+
+/** True when stock is too small to use in a new recipe. */
+function isInventoryDepletedForRecipe(array $item): bool {
+    $q = (float)($item['quantity'] ?? 0);
+    if ($q <= 0) {
+        return true;
+    }
+    $unit = strtolower((string)($item['unit'] ?? 'pz'));
+    return $q <= productQtyThresholdForRecipe($unit);
 }
 
 function normalizeProductBarcode($barcode): ?string {
@@ -8156,17 +8193,8 @@ function geminiChat(PDO $db): void {
         return;
     }
 
-    // Fetch inventory context (calendar-day expiry — never julianday('now') with time)
-    $daysSql = inventoryExpiryDaysLeftSql();
-    $stmt = $db->query("
-        SELECT p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
-               {$daysSql} AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY days_left ASC
-    ");
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch cookable inventory context for the chat assistant
+    $items = recipeFetchPantryItems($db);
 
     $ingredientLines = [];
     foreach ($items as $item) {
@@ -8387,14 +8415,49 @@ function recipeParseQtyString(string $qty): array {
 }
 
 function recipeGetProductTotalStock(PDO $db, int $productId): float {
-    $stmt = $db->prepare('SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ? AND quantity > 0');
+    $stmt = $db->prepare(
+        'SELECT i.quantity, p.unit
+         FROM inventory i
+         JOIN products p ON p.id = i.product_id
+         WHERE i.product_id = ? AND i.quantity > 0'
+    );
     $stmt->execute([$productId]);
-    return (float)$stmt->fetchColumn();
+    $sum = 0.0;
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if (!isInventoryDepletedForRecipe($row)) {
+            $sum += (float)$row['quantity'];
+        }
+    }
+    return $sum;
 }
 
-/** Round to nearest quarter-piece (½, ¼, ¾). */
+/**
+ * In-stock pantry rows usable for cooking (excludes finished crumbs like 0.2 pz salad).
+ */
+function recipeFetchPantryItems(PDO $db): array {
+    $daysSql = inventoryExpiryDaysLeftSql();
+    $stmt = $db->query("
+        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
+               {$daysSql} AS days_left
+        FROM inventory i
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+        ORDER BY days_left ASC
+    ");
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return array_values(array_filter(
+        $items,
+        static fn(array $row): bool => !isInventoryDepletedForRecipe($row)
+    ));
+}
+
+/** Round to nearest quarter-piece (½, ¼, ¾). Below ¼ → 0 (not cookable). */
 function recipeRoundPieceQty(float $n): float {
-    return max(0.25, round($n * 4) / 4);
+    // Guard BEFORE rounding: round(0.2*4)/4 becomes 0.25 and would invent stock.
+    if ($n < 0.25) {
+        return 0.0;
+    }
+    return round($n * 4) / 4;
 }
 
 /** Display piece count with optional fractions (1½ pz, ¼ pz). */
@@ -8708,6 +8771,11 @@ function recipeAllowedStepTokens(array $recipe): array {
     $allowed = [];
     foreach ($recipe['ingredients'] ?? [] as $ing) {
         if (!is_array($ing)) {
+            continue;
+        }
+        // Only pantry-linked (or free staple) ingredients may appear in steps.
+        // Unlinked leftovers must not keep words like "burro" allowed after scrub.
+        if (recipeIsUnavailableIngredient($ing)) {
             continue;
         }
         foreach (recipeStepMentionTokensFromName((string)($ing['name'] ?? '')) as $tok) {
@@ -9094,6 +9162,7 @@ function recipeEnrichIngredientsFromPantry(PDO $db, array &$ingredients, array $
     $catalog = [];
     foreach ($items as $item) {
         if ((float)($item['quantity'] ?? 0) <= 0) continue;
+        if (isInventoryDepletedForRecipe($item)) continue;
         $pid = (int)$item['product_id'];
         if (!isset($catalog[$pid])) {
             $catalog[$pid] = ['name' => $item['name'], 'rows' => []];
@@ -9348,17 +9417,8 @@ function generateRecipe(PDO $db): void {
     $variation    = max(0, intval($input['variation'] ?? 0)); // 0=first attempt, 1+=re-generation
     $rejectedIngredients = $input['rejected_ingredients'] ?? [];  // ingredient names from previous rejected recipes
 
-    // Fetch all inventory items with expiry info (calendar days only)
-    $daysSql = inventoryExpiryDaysLeftSql();
-    $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
-               {$daysSql} AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY days_left ASC
-    ");
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch cookable inventory (excludes finished crumbs e.g. 0.2 pz salad)
+    $items = recipeFetchPantryItems($db);
 
     if (empty($items)) {
         recipeRespond(['success' => false, 'error' => recipeText($lang, 'error_pantry_empty')]);
@@ -9754,17 +9814,8 @@ function chatToRecipe(PDO $db): void {
         return;
     }
 
-    // Fetch full inventory — same query as generateRecipe
-    $daysSql = inventoryExpiryDaysLeftSql();
-    $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
-               {$daysSql} AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY days_left ASC
-    ");
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch cookable inventory — same as generateRecipe (no finished crumbs)
+    $items = recipeFetchPantryItems($db);
 
     // Ask Gemini to convert the chat recipe text into the full structured recipe JSON.
     // Prompt is tiny — no inventory sent to Gemini (PHP does all the matching below).
@@ -9811,12 +9862,7 @@ PROMPT;
         return;
     }
 
-    if (!empty($recipe['ingredients'])) {
-        recipeEnrichIngredientsFromPantry($db, $recipe['ingredients'], $items);
-    }
-    recipeApplyStockHintsToRecipe($db, $recipe);
-    $removed = recipeEnforcePantryOnly($recipe);
-    recipeAttachShoppingSuggestions($recipe, $removed);
+    recipePostProcessGenerated($db, $recipe, $items);
 
     echo json_encode(['success' => true, 'recipe' => $recipe]);
 }
@@ -9850,16 +9896,7 @@ function recipeFromIngredient(PDO $db): void {
     $lang = recipeNormalizeLang($input['lang'] ?? 'it');
     $persons = max(1, intval($input['persons'] ?? 1));
 
-    $daysSql = inventoryExpiryDaysLeftSql();
-    $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
-               {$daysSql} AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY days_left ASC
-    ");
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $items = recipeFetchPantryItems($db);
     $ingredientName = recipeResolveIngredientQuery($ingredientName, $items);
 
     $source = recipeEffectiveSource();
@@ -9998,16 +10035,7 @@ function generateRecipeStream(PDO $db): void {
     // ── AGENTE PASSO 1: Analisi dispensa ─────────────────────────────────────
     $send('status', ['step' => 1, 'message' => recipeText($lang, 'status_analyze_pantry')]);
 
-    $daysSql = inventoryExpiryDaysLeftSql();
-    $stmt = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.category, i.quantity, p.unit, p.default_quantity, p.package_unit, i.location, i.expiry_date, i.opened_at,
-               {$daysSql} AS days_left
-        FROM inventory i
-        JOIN products p ON p.id = i.product_id
-        WHERE i.quantity > 0
-        ORDER BY days_left ASC
-    ");
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $items = recipeFetchPantryItems($db);
 
     if (empty($items)) { $send('error', ['error' => recipeText($lang, 'error_pantry_empty')]); return; }
 
