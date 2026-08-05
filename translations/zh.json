@@ -1774,7 +1774,7 @@
         "duplicates_one": "1 件重复商品（同一商品添加了两次）",
         "duplicates_many": "{n} 件重复商品（多次添加）",
         "top_category": "最多分类：{cat}（{count}×）",
-        "items_fallback": "已添加 {n} 件商品"
+        "items_fallback": "已添加 {n} 件商品{plural}"
     },
     "kiosk": {
         "check_btn": "🔍 检查更新",

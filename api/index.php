@@ -8300,7 +8300,13 @@ PROMPT;
 
     function recipeNormalizeLang($lang): string {
         $lang = is_string($lang) ? strtolower(trim($lang)) : 'it';
-        return in_array($lang, ['it', 'en', 'de'], true) ? $lang : 'it';
+        // Accept zh-CN / zh_cn → zh
+        if (str_starts_with($lang, 'zh')) {
+            $lang = 'zh';
+        } else {
+            $lang = substr($lang, 0, 2);
+        }
+        return in_array($lang, ['it', 'en', 'de', 'fr', 'es', 'zh'], true) ? $lang : 'it';
     }
 
     function recipeLangName(string $lang): string {
@@ -8308,6 +8314,9 @@ PROMPT;
             'it' => 'Italian',
             'en' => 'English',
             'de' => 'German',
+            'fr' => 'French',
+            'es' => 'Spanish',
+            'zh' => 'Simplified Chinese',
         ][$lang] ?? 'Italian';
     }
 
@@ -8388,8 +8397,83 @@ PROMPT;
                 'prompt_step_example' => 'Schritt 1…',
                 'tools_title' => 'Benötigte Geräte',
             ],
+            'fr' => [
+                'status_analyze_pantry' => '📦 Analyse du garde-manger...',
+                'status_products_found' => '{n} produits trouvés',
+                'status_passed_ai' => ' ({n} envoyés à l\'IA)',
+                'status_all_passed_ai' => ' — tous envoyés à l\'IA',
+                'status_urgent' => '⚠️ {n} urgents : {items}',
+                'status_evaluate_ingredients' => '🧠 Évaluation des ingrédients disponibles...',
+                'status_preparing_recipe' => '👨‍🍳 Préparation de la recette...',
+                'status_recipe_with' => '🥘 Recette avec {a} et {b}',
+                'status_variant' => ' — variante #{n}',
+                'status_dish_based_on' => '🎯 Plat à base de {type}',
+                'status_creating_full_recipe' => '✍️ Création de la recette complète...',
+                'status_quota_wait' => '⏳ Quota TPM atteint ({model}), attente {s}s... (essai {a}/{m})',
+                'status_retry_generation' => '✍️ Nouvelle tentative...',
+                'status_switch_model' => '🔄 Changement de modèle → {model}...',
+                'status_mealie_search' => '📚 Recherche de recettes Mealie…',
+                'status_mealie_found' => '✅ Recette trouvée dans Mealie',
+                'error_pantry_empty' => 'Le garde-manger est vide !',
+                'error_gemini_api' => 'Erreur API Gemini',
+                'error_cannot_generate' => 'Impossible de générer la recette',
+                'error_empty_reply' => 'Réponse vide de Gemini',
+                'prompt_lang_rule' => 'IMPORTANT : écris tous les champs textuels de la recette uniquement en français.',
+                'prompt_step_example' => 'Étape 1…',
+                'tools_title' => 'Ustensiles nécessaires',
+            ],
+            'es' => [
+                'status_analyze_pantry' => '📦 Analizando la despensa...',
+                'status_products_found' => '{n} productos encontrados',
+                'status_passed_ai' => ' ({n} enviados a la IA)',
+                'status_all_passed_ai' => ' — todos enviados a la IA',
+                'status_urgent' => '⚠️ {n} urgentes: {items}',
+                'status_evaluate_ingredients' => '🧠 Evaluando ingredientes disponibles...',
+                'status_preparing_recipe' => '👨‍🍳 Preparando la receta...',
+                'status_recipe_with' => '🥘 Receta con {a} y {b}',
+                'status_variant' => ' — variante #{n}',
+                'status_dish_based_on' => '🎯 Plato a base de {type}',
+                'status_creating_full_recipe' => '✍️ Creando la receta completa...',
+                'status_quota_wait' => '⏳ Cuota TPM alcanzada ({model}), esperando {s}s... (intento {a}/{m})',
+                'status_retry_generation' => '✍️ Reintentando generación...',
+                'status_switch_model' => '🔄 Cambiando modelo → {model}...',
+                'status_mealie_search' => '📚 Buscando recetas en Mealie…',
+                'status_mealie_found' => '✅ Receta encontrada en Mealie',
+                'error_pantry_empty' => '¡La despensa está vacía!',
+                'error_gemini_api' => 'Error de la API de Gemini',
+                'error_cannot_generate' => 'No se pudo generar la receta',
+                'error_empty_reply' => 'Respuesta vacía de Gemini',
+                'prompt_lang_rule' => 'IMPORTANTE: escribe todos los campos de texto de la receta solo en español.',
+                'prompt_step_example' => 'Paso 1…',
+                'tools_title' => 'Utensilios necesarios',
+            ],
+            'zh' => [
+                'status_analyze_pantry' => '📦 正在分析库存...',
+                'status_products_found' => '找到 {n} 种产品',
+                'status_passed_ai' => '（已向 AI 发送 {n} 项）',
+                'status_all_passed_ai' => ' — 已全部发送给 AI',
+                'status_urgent' => '⚠️ {n} 项紧急：{items}',
+                'status_evaluate_ingredients' => '🧠 正在评估可用食材...',
+                'status_preparing_recipe' => '👨‍🍳 正在准备食谱...',
+                'status_recipe_with' => '🥘 使用 {a} 和 {b} 的食谱',
+                'status_variant' => ' — 变体 #{n}',
+                'status_dish_based_on' => '🎯 以 {type} 为主的菜肴',
+                'status_creating_full_recipe' => '✍️ 正在生成完整食谱...',
+                'status_quota_wait' => '⏳ TPM 配额已用尽（{model}），等待 {s} 秒...（第 {a}/{m} 次）',
+                'status_retry_generation' => '✍️ 正在重试生成...',
+                'status_switch_model' => '🔄 切换模型 → {model}...',
+                'status_mealie_search' => '📚 正在 Mealie 中搜索食谱…',
+                'status_mealie_found' => '✅ 已在 Mealie 中找到食谱',
+                'error_pantry_empty' => '库存为空！',
+                'error_gemini_api' => 'Gemini API 错误',
+                'error_cannot_generate' => '无法生成食谱',
+                'error_empty_reply' => 'Gemini 返回为空',
+                'prompt_lang_rule' => '重要：所有食谱文本字段必须使用简体中文撰写。',
+                'prompt_step_example' => '步骤 1…',
+                'tools_title' => '所需工具',
+            ],
         ];
-        $text = $dict[$lang][$key] ?? $dict['it'][$key] ?? $key;
+        $text = $dict[$lang][$key] ?? $dict['en'][$key] ?? $dict['it'][$key] ?? $key;
         foreach ($vars as $name => $value) {
             $text = str_replace('{' . $name . '}', (string)$value, $text);
         }
