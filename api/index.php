@@ -4485,7 +4485,7 @@ function addToInventory(PDO $db): void {
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'in', ?, ?)");
     $stmt->execute([$productId, $quantity, $location]);
     
-    $bringRemoval = shoppingRemoveProductFromList($db, $productId);
+    $restock = shoppingHandleRestockAfterAdd($db, $productId);
 
     echo json_encode([
         'success' => true,
@@ -4494,8 +4494,10 @@ function addToInventory(PDO $db): void {
         'unit' => $prodInfo['unit'] ?? 'pz',
         'default_quantity' => (float)($prodInfo['default_quantity'] ?? 0),
         'package_unit' => $prodInfo['package_unit'] ?? null,
-        'removed_from_bring' => !empty($bringRemoval['removed']),
-        'removed_names' => $bringRemoval['removed_names'] ?? [],
+        'removed_from_bring' => !empty($restock['removed']),
+        'removed_names' => $restock['removed_names'] ?? [],
+        'shopping_kept' => !empty($restock['shopping_kept']),
+        'remaining_need' => $restock['remaining'] ?? null,
         'canonical_product_id' => $productId,
         'catalog_merged' => $catalogMerged,
         'inventory_id' => $inventoryId,
@@ -4507,10 +4509,15 @@ function addToInventory(PDO $db): void {
         'product_id' => $productId,
         'qty' => $quantity,
         'location' => $location,
-        'removed_from_bring' => !empty($bringRemoval['removed']),
-        'removed_names' => $bringRemoval['removed_names'] ?? [],
+        'removed_from_bring' => !empty($restock['removed']),
+        'shopping_kept' => !empty($restock['shopping_kept']),
+        'remaining_need' => $restock['remaining']['need_base'] ?? null,
+        'removed_names' => $restock['removed_names'] ?? [],
     ]);
-    bringMarkPurchasedForProduct($db, $productId);
+    // Only blocklist when the shopping need is fully covered
+    if (!empty($restock['removed'])) {
+        bringMarkPurchasedForProduct($db, $productId);
+    }
     invalidateSmartShoppingCache();
 }
 
@@ -11598,9 +11605,19 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
             EverLog::info('bringQuickSync: added to Bring!', ['product_id' => $productId, 'name' => $bringName]);
         } elseif ($totalQty > 0 && $onBring
             && !familyHasRecentlyDepletedSiblings($db, $productId, $genericName)) {
-            bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
-                http_build_query(['uuid' => $listUUID, 'remove' => $bringName]));
-            EverLog::info('bringQuickSync: removed from Bring!', ['product_id' => $productId, 'name' => $bringName]);
+            $eval = shoppingEvaluateFamilyRestock($db, $productId);
+            if (!empty($eval['covered'])) {
+                bringRequest('PUT', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+                    http_build_query(['uuid' => $listUUID, 'remove' => $bringName]));
+                EverLog::info('bringQuickSync: removed from Bring!', ['product_id' => $productId, 'name' => $bringName]);
+            } else {
+                shoppingUpdateRemainingNeedOnList($db, $eval);
+                EverLog::info('bringQuickSync: kept on Bring with remaining need', [
+                    'product_id' => $productId,
+                    'name' => $bringName,
+                    'need_base' => $eval['need_base'],
+                ]);
+            }
         }
     } else {
         // Internal mode
@@ -11626,8 +11643,19 @@ function bringQuickSyncProduct(PDO $db, int $productId): void {
                ->execute([$genericName, $prod['name'], $spec]);
             EverLog::info('shoppingQuickSync: added to internal list', ['product_id' => $productId, 'name' => $genericName]);
         } elseif ($totalQty > $threshold && $onList) {
-            $db->prepare("DELETE FROM shopping_list WHERE lower(name) = lower(?)")->execute([$genericName]);
-            EverLog::info('shoppingQuickSync: removed from internal list', ['product_id' => $productId, 'name' => $genericName]);
+            // Only remove when remaining family need is covered (partial restock keeps the row)
+            $eval = shoppingEvaluateFamilyRestock($db, $productId);
+            if (!empty($eval['covered'])) {
+                $db->prepare("DELETE FROM shopping_list WHERE lower(name) = lower(?)")->execute([$genericName]);
+                EverLog::info('shoppingQuickSync: removed from internal list', ['product_id' => $productId, 'name' => $genericName]);
+            } else {
+                shoppingUpdateRemainingNeedOnList($db, $eval);
+                EverLog::info('shoppingQuickSync: kept on list with remaining need', [
+                    'product_id' => $productId,
+                    'name' => $genericName,
+                    'need_base' => $eval['need_base'],
+                ]);
+            }
         }
     }
 }
@@ -12527,6 +12555,307 @@ function shoppingRemoveProductFromList(PDO $db, int $productId): array {
         return bringRemoveProductFromList($db, $productId);
     }
     return internalShoppingRemoveProductFromList($db, $productId);
+}
+
+/**
+ * Estimate remaining shopping need for a product family after stock changed.
+ * Uses smart-cache period_usage when available; otherwise TX history.
+ *
+ * @return array{
+ *   generic:string,covered:bool,period_need:float,stock_base:float,need_base:float,
+ *   suggested_qty:?float,suggested_unit:string,family_qty:float,unit:string,
+ *   def_qty:float,package_unit:string,has_history:bool
+ * }
+ */
+function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
+    $stmt = $db->prepare(
+        "SELECT id, name, brand, category, unit, default_quantity, package_unit, shopping_name
+         FROM products WHERE id = ?"
+    );
+    $stmt->execute([$productId]);
+    $prod = $stmt->fetch(PDO::FETCH_ASSOC);
+    $empty = [
+        'generic' => '', 'covered' => true, 'period_need' => 0.0, 'stock_base' => 0.0,
+        'need_base' => 0.0, 'suggested_qty' => null, 'suggested_unit' => 'conf',
+        'family_qty' => 0.0, 'unit' => 'conf', 'def_qty' => 0.0, 'package_unit' => '',
+        'has_history' => false,
+    ];
+    if (!$prod) {
+        return $empty;
+    }
+
+    $generic = trim((string)($prod['shopping_name'] ?? ''));
+    if ($generic === '') {
+        $generic = computeShoppingName(
+            (string)$prod['name'],
+            (string)($prod['category'] ?? ''),
+            (string)($prod['brand'] ?? '')
+        );
+    }
+    $unit = (string)($prod['unit'] ?: 'conf');
+    $defQty = (float)($prod['default_quantity'] ?? 0);
+    $pkgUnit = (string)($prod['package_unit'] ?? '');
+
+    // Family = same shopping_name (fallback: this product only)
+    $famIds = [(int)$productId];
+    if ($generic !== '') {
+        $fam = $db->prepare(
+            "SELECT id, unit, default_quantity, package_unit FROM products
+             WHERE lower(trim(coalesce(shopping_name,''))) = lower(?)"
+        );
+        $fam->execute([$generic]);
+        $famRows = $fam->fetchAll(PDO::FETCH_ASSOC);
+        if ($famRows) {
+            $famIds = array_map(static fn($r) => (int)$r['id'], $famRows);
+            // Prefer representative packaging from the heaviest-stock / matching unit row
+            foreach ($famRows as $fr) {
+                if (($fr['unit'] ?: 'pz') === 'conf' && (float)($fr['default_quantity'] ?? 0) > 0) {
+                    $unit = (string)($fr['unit'] ?: $unit);
+                    $defQty = (float)$fr['default_quantity'];
+                    $pkgUnit = (string)($fr['package_unit'] ?? $pkgUnit);
+                    break;
+                }
+            }
+        }
+    }
+
+    $placeholders = implode(',', array_fill(0, count($famIds), '?'));
+    $stockStmt = $db->prepare(
+        "SELECT COALESCE(SUM(quantity),0) FROM inventory
+         WHERE product_id IN ($placeholders) AND quantity > 0"
+    );
+    $stockStmt->execute($famIds);
+    $familyQty = (float)$stockStmt->fetchColumn();
+    $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
+
+    $planDays = smartDefaultPlanDays();
+    $periodNeed = 0.0;
+    $hasHistory = false;
+
+    // Prefer smart-cache period_usage (same unit as stockBase after gap fix)
+    $si = findSmartItemForProduct(loadSmartShoppingCacheItems(), $productId);
+    if ($si === null && $generic !== '') {
+        foreach (loadSmartShoppingCacheItems() as $row) {
+            if (strcasecmp((string)($row['shopping_name'] ?? ''), $generic) === 0) {
+                $si = $row;
+                break;
+            }
+        }
+    }
+    if ($si) {
+        $periodNeed = (float)($si['period_usage'] ?? 0);
+        if ($periodNeed <= 0 && (float)($si['monthly_usage'] ?? 0) > 0) {
+            $periodNeed = (float)$si['monthly_usage'] * ($planDays / 30.0);
+        }
+        if ($periodNeed <= 0 && (float)($si['daily_rate'] ?? 0) > 0) {
+            $periodNeed = (float)$si['daily_rate'] * $planDays;
+        }
+        $hasHistory = $periodNeed > 0.001
+            || (int)($si['use_count'] ?? 0) > 0
+            || (float)($si['monthly_usage'] ?? 0) > 0;
+        if (($si['unit'] ?? '') !== '') {
+            $unit = (string)$si['unit'];
+        }
+        if ((float)($si['default_qty'] ?? 0) > 0) {
+            $defQty = (float)$si['default_qty'];
+        }
+        if (($si['package_unit'] ?? '') !== '') {
+            $pkgUnit = (string)$si['package_unit'];
+        }
+        $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
+    }
+
+    if ($periodNeed <= 0.001) {
+        $txReal = shoppingTxNotMoveNotesSql('notes');
+        $txStmt = $db->prepare(
+            "SELECT
+                COALESCE(SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
+                    AND datetime(created_at) >= datetime('now','-30 days') THEN quantity ELSE 0 END),0) AS used_30d,
+                COALESCE(SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
+                    AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now','-1 month')
+                    THEN quantity ELSE 0 END),0) AS used_prev_month,
+                COUNT(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal} THEN 1 END) AS use_count
+             FROM transactions WHERE product_id IN ($placeholders)"
+        );
+        $txStmt->execute($famIds);
+        $tx = $txStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $daily = 0.0;
+        $used30 = (float)($tx['used_30d'] ?? 0);
+        $usedPrev = (float)($tx['used_prev_month'] ?? 0);
+        if ($used30 > 0) {
+            $daily = $used30 / 30.0;
+        }
+        $monthlyMeta = smartMonthlyConsumptionNeed(
+            ['used_prev_month' => $usedPrev, 'used_30d' => $used30],
+            $daily
+        );
+        $periodMeta = smartConsumptionForPlanDays(
+            (float)$monthlyMeta['amount'],
+            $daily,
+            (string)$monthlyMeta['source'],
+            $planDays,
+            0.0,
+            $unit
+        );
+        $periodNeed = (float)$periodMeta['amount'];
+        $hasHistory = $periodNeed > 0.001 || (int)($tx['use_count'] ?? 0) > 0;
+    }
+
+    $needBase = max(0.0, $periodNeed - $stockBase);
+    $suggestedQty = null;
+    $suggestedUnit = $unit;
+    if ($needBase > 0.001) {
+        if ($unit === 'conf') {
+            [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit, 24);
+        } elseif ($unit === 'pz') {
+            $suggestedQty = (float) max(1, min(smartMaxSuggestedPieces($planDays), smartCeilDiscreteQty($needBase)));
+            $suggestedUnit = 'pz';
+        } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0) {
+            $pkgs = max(1, min(24, (int) ceil($needBase / $defQty)));
+            $suggestedQty = (float) ($pkgs * $defQty);
+            $suggestedUnit = $unit;
+        } else {
+            $suggestedQty = round($needBase, 1);
+            $suggestedUnit = $unit;
+        }
+    }
+
+    // Covered when we have no remaining need. If no history, any positive stock covers
+    // (keeps prior behaviour for unknown products).
+    $covered = $needBase <= 0.001;
+    if (!$hasHistory && $familyQty > 0) {
+        $covered = true;
+    }
+
+    return [
+        'generic' => $generic,
+        'covered' => $covered,
+        'period_need' => round($periodNeed, 3),
+        'stock_base' => round($stockBase, 3),
+        'need_base' => round($needBase, 3),
+        'suggested_qty' => $suggestedQty,
+        'suggested_unit' => $suggestedUnit,
+        'family_qty' => round($familyQty, 3),
+        'unit' => $unit,
+        'def_qty' => $defQty,
+        'package_unit' => $pkgUnit,
+        'has_history' => $hasHistory,
+    ];
+}
+
+/** Update shopping-list row specification with remaining "Compra: N …" qty. */
+function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
+    $generic = trim((string)($eval['generic'] ?? ''));
+    if ($generic === '' || ($eval['suggested_qty'] ?? null) === null) {
+        return;
+    }
+    $si = [
+        'shopping_name' => $generic,
+        'name' => $generic,
+        'suggested_qty' => $eval['suggested_qty'],
+        'suggested_unit' => $eval['suggested_unit'] ?? 'conf',
+        'suggested_approx' => true,
+        'urgency' => 'high',
+    ];
+    $qtyLabel = formatSmartSuggestQty($si);
+    $newBit = $qtyLabel !== null ? ('🛒 ' . $qtyLabel) : '';
+
+    if (isShoppingBringMode()) {
+        $auth = bringAuth();
+        if (!$auth) {
+            return;
+        }
+        $listUUID = $auth['bringListUUID'] ?? '';
+        if ($listUUID === '') {
+            return;
+        }
+        $bringName = italianToBring($generic);
+        $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
+        if (!$listData || empty($listData['purchase'])) {
+            return;
+        }
+        foreach ($listData['purchase'] as $item) {
+            $rawName = (string)($item['name'] ?? '');
+            if ($rawName === '' || !bringListItemMatchesProduct($rawName, $generic, $generic, $bringName)) {
+                continue;
+            }
+            $oldSpec = (string)($item['specification'] ?? '');
+            $spec = preg_replace('/(?:^|\s·\s)?🛒\s*(?:Compra|Almeno):\s*[^·]*/u', '', $oldSpec) ?? $oldSpec;
+            $spec = trim($spec, " ·");
+            if ($newBit !== '') {
+                $spec = $spec !== '' ? ($spec . ' · ' . $newBit) : $newBit;
+            }
+            bringRequest(
+                'PUT',
+                "https://api.getbring.com/rest/v2/bringlists/{$listUUID}",
+                http_build_query([
+                    'uuid' => $listUUID,
+                    'purchase' => $rawName,
+                    'specification' => dedupeBringSpec($spec),
+                ])
+            );
+            break;
+        }
+        return;
+    }
+
+    $rows = $db->query(
+        "SELECT id, name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
+    )->fetchAll(PDO::FETCH_ASSOC);
+    $bringKey = italianToBring($generic);
+    foreach ($rows as $row) {
+        $listName = (string)($row['name'] ?? '');
+        if ($listName === '') {
+            continue;
+        }
+        if (!bringListItemMatchesProduct($listName, $generic, $generic, $bringKey)) {
+            continue;
+        }
+        $oldSpec = (string)($row['specification'] ?? '');
+        $spec = preg_replace('/(?:^|\s·\s)?🛒\s*(?:Compra|Almeno):\s*[^·]*/u', '', $oldSpec) ?? $oldSpec;
+        $spec = trim($spec, " ·");
+        if ($newBit !== '') {
+            $spec = $spec !== '' ? ($spec . ' · ' . $newBit) : $newBit;
+        }
+        $db->prepare("UPDATE shopping_list SET specification=? WHERE id=?")
+            ->execute([dedupeBringSpec($spec), (int)$row['id']]);
+        break;
+    }
+}
+
+/**
+ * After inventory_add: remove from shopping list only when the family need is covered;
+ * otherwise keep the row and refresh remaining qty.
+ *
+ * @return array{removed:bool,removed_names:string[],shopping_kept:bool,remaining:?array}
+ */
+function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
+    $eval = shoppingEvaluateFamilyRestock($db, $productId);
+    if (!empty($eval['covered'])) {
+        $removal = shoppingRemoveProductFromList($db, $productId);
+        return [
+            'removed' => !empty($removal['removed']),
+            'removed_names' => $removal['removed_names'] ?? [],
+            'shopping_kept' => false,
+            'remaining' => $eval,
+        ];
+    }
+
+    // Still need more — keep on list, update suggested qty, do NOT blocklist.
+    shoppingUpdateRemainingNeedOnList($db, $eval);
+    EverLog::info('shoppingHandleRestockAfterAdd: kept on list', [
+        'product_id' => $productId,
+        'generic' => $eval['generic'],
+        'need_base' => $eval['need_base'],
+        'suggested_qty' => $eval['suggested_qty'],
+        'suggested_unit' => $eval['suggested_unit'],
+    ]);
+    return [
+        'removed' => false,
+        'removed_names' => [],
+        'shopping_kept' => true,
+        'remaining' => $eval,
+    ];
 }
 
 /**
@@ -14441,34 +14770,23 @@ function smartCeilDiscreteQty(float $need): int {
     return max(1, (int) ceil($need));
 }
 
+/** Stock quantity in the same base unit as monthly consumption / transactions.
+ *  For conf products, inventory qty is already package-count (or fraction of a pack) —
+ *  do NOT multiply by ml/g package size or the gap vs periodNeed becomes nonsense.
+ */
+function smartStockBaseForGap(float $qty, string $unit, float $defQty, string $pkgUnit): float {
+    return max(0.0, $qty);
+}
+
 /**
- * Suggested purchase for products tracked as conf (always returns conf, never g/ml).
+ * Suggested purchase for products tracked as conf (always returns conf).
+ * $needBase is already in package counts for unit=conf.
  *
  * @return array{0:float,1:string}
  */
-function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, int $maxPkgs = 6): array {
-    $pu = strtolower(trim($pkgUnit));
-    if ($defQty > 0 && in_array($pu, ['g', 'ml'], true)) {
-        $pkgs = smartCeilDiscreteQty($needBase / $defQty);
-        return [(float) max(1, min($maxPkgs, $pkgs)), 'conf'];
-    }
+function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, int $maxPkgs = 24): array {
     $qty = smartCeilDiscreteQty($needBase);
     return [(float) max(1, min($maxPkgs, $qty)), 'conf'];
-}
-
-/** Stock quantity in the same base unit used for monthly consumption (conf count or weight). */
-function smartStockBaseForGap(float $qty, string $unit, float $defQty, string $pkgUnit): float {
-    if ($unit !== 'conf' || $defQty <= 0) {
-        return $qty;
-    }
-    $pu = strtolower(trim($pkgUnit));
-    if (in_array($pu, ['g', 'ml'], true)) {
-        return $qty * $defQty;
-    }
-    if (in_array($pu, ['kg', 'l', 'lt'], true)) {
-        return $qty * $defQty * 1000;
-    }
-    return $qty;
 }
 
 function smartShopping(PDO $db, ?int $planDays = null): void {
@@ -15035,15 +15353,6 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             continue;
         }
 
-        // Just restocked (≤7 days): family has stock → skip predictions until next shopping cycle.
-        if ($justRestocked && !$isExpired) {
-            $sNameRestock = strtolower(trim($shoppingName));
-            $familyStockNow = $sNameRestock !== '' ? ($stockByShoppingName[$sNameRestock] ?? 0) : $qty;
-            if ($familyStockNow > 0) {
-                continue;
-            }
-        }
-
         // --- Suggested purchase quantity (1-month need; prev calendar month first) ---
         $suggestedQty    = null;
         $suggestedUnit   = $unit;
@@ -15057,6 +15366,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         $pkgUnit = trim($p['package_unit'] ?? '');
         $stockBase = smartStockBaseForGap($qty, $unit, $defQty, $pkgUnit);
+
+        // Just restocked (≤7 days): only hide when stock already covers the planning need.
+        // Partial buys (e.g. 3L of ~12L milk) must stay with remaining qty.
+        if ($justRestocked && !$isExpired && $periodNeed > 0 && $stockBase >= $periodNeed) {
+            $sNameRestock = strtolower(trim($shoppingName));
+            $familyStockNow = $sNameRestock !== '' ? ($stockByShoppingName[$sNameRestock] ?? 0) : $qty;
+            if ($familyStockNow > 0) {
+                continue;
+            }
+        }
 
         if ($periodNeed > 0 || $dailyRate > 0) {
             $needBase = max(0, $periodNeed - $stockBase);
@@ -15644,14 +15963,20 @@ function shoppingAddItemsCore(PDO $db, array $items): array {
                 $skipped++;
             }
         } else {
-            $generic = shoppingResolveGenericName($db, $name, $rawName) ?: $name;
+            $generic = shoppingResolveGenericName($db, $name, $rawName) ?: computeShoppingName($name);
             if (bringIsPurchasedBlocked($db, $name, $generic)) {
                 bringClearPurchasedNames($db, [$name, $rawName, $generic]);
             }
+            // Always store the generic as list title; keep brand/specific in raw_name
+            $listName = $generic !== '' ? $generic : $name;
+            $listRaw  = ($rawName !== '' && strcasecmp($rawName, $listName) !== 0) ? $rawName : $name;
+            if (strcasecmp($listRaw, $listName) === 0) {
+                $listRaw = $name !== $listName ? $name : $rawName;
+            }
             $db->prepare("INSERT INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)")
-               ->execute([$name, $rawName, dedupeBringSpec($spec)]);
+               ->execute([$listName, $listRaw, dedupeBringSpec($spec)]);
             $added++;
-            _fireHaWebhook('shopping_add', ['item' => $name, 'specification' => $spec]);
+            _fireHaWebhook('shopping_add', ['item' => $listName, 'specification' => $spec]);
         }
     }
     return ['added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => []];
