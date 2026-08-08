@@ -163,7 +163,20 @@ jobs:
           fi
 
           git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
-          git push origin main
+
+          # Retry push: concurrent develop pushes can race on main (fetch-first rejection)
+          for attempt in 1 2 3; do
+            if git push origin main; then
+              echo "Pushed main (attempt ${attempt})"
+              exit 0
+            fi
+            echo "::warning::Push to main rejected (attempt ${attempt}) — refetch and retry"
+            git fetch origin main
+            git merge --no-edit origin/main || true
+            sleep $((attempt * 2))
+          done
+          echo "::error::Failed to push main after retries"
+          exit 1
 
   # ── Auto-create GitHub Release on main ───────────────────────────────────
   # Runs after auto-merge succeeds. Reads version from index.html,
