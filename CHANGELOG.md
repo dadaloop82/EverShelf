@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.85] - 2026-08-08
+
+### Fixed
+- **Shopping list stays after partial restock** — buying less than the planned need (e.g. 3 L of milk when ~12 L are needed) no longer removes the item; the list keeps the generic name and updates remaining qty (“still need N”).
+- **Generic shopping titles** — new list rows store `shopping_name` (e.g. Latte) instead of brand-specific product titles.
+- **Conf/ml quantity math** — package stock is compared in package counts (not ml×packs), so suggestions like “Compra: 9 conf” are realistic again.
+
 ## [1.7.84] - 2026-08-08
 
 ### Fixed

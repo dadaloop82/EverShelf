@@ -134,7 +134,8 @@ function shoppingCapSuggestedQty(
     }
 
     if ($u === 'conf') {
-        return ['quantity' => min($qty, (float) SHOPPING_GUARD_MAX_PRICE_PACKS), 'unit' => $u];
+        $maxConf = max(SHOPPING_GUARD_MAX_PRICE_PACKS, min(24, (int) ceil($planDays * 2)));
+        return ['quantity' => min($qty, (float) $maxConf), 'unit' => $u];
     }
 
     if ($u === 'pz') {

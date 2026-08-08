@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260808a'; // bump when translations change
+const _I18N_VERSION = '20260808b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -11692,9 +11692,22 @@ async function submitAdd(e) {
             }
             const mergedNote = result.catalog_merged ? ` — ${t('scan.ai_match_merged_existing')}` : '';
             showToast(t('add.product_added').replace('{name}', currentProduct.name).replace('{qty}', qtyInfo) + mergedNote, result.catalog_merged ? 'info' : 'success');
+            if (result.shopping_kept && result.remaining_need?.suggested_qty) {
+                const rem = result.remaining_need;
+                const remLabel = _formatSuggestQty(rem.suggested_qty, rem.suggested_unit || 'conf');
+                setTimeout(() => showToast(
+                    t('shopping.remaining_after_buy')
+                        .replace('{name}', rem.generic || currentProduct.shopping_name || currentProduct.name)
+                        .replace('{qty}', remLabel || String(rem.suggested_qty)),
+                    'info'
+                ), 1200);
+            }
             if (await shoppingBoughtAfterAdd(result)) return;
             if (!(await spesaModeAfterAdd(result))) {
-                if (result.removed_from_bring) {
+                if (result.shopping_kept) {
+                    // Partial restock — leave shopping list row; refresh to show remaining qty
+                    try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
+                } else if (result.removed_from_bring) {
                     _applyShoppingListRemovals(result.removed_names || []);
                     setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
                 } else if (shoppingListUUID) {
@@ -11714,6 +11727,8 @@ async function submitAdd(e) {
                 showPage('dashboard');
             } else if (result.removed_from_bring) {
                 setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
+            } else if (result.shopping_kept) {
+                try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
             }
 
             // Submit extra batches (different expiry dates) in the background, silently
@@ -14079,15 +14094,8 @@ function toggleShoppingTag(itemIdx, tag) {
 
 // ===== SCAN FROM SHOPPING LIST =====
 function _stockBaseForGap(qty, unit, defQty, pkgUnit) {
-    const q = parseFloat(qty) || 0;
-    if (q <= 0) return 0;
-    const u = unit || 'conf';
-    const def = parseFloat(defQty) || 0;
-    const pu = (pkgUnit || '').toLowerCase();
-    if (u !== 'conf' || def <= 0) return q;
-    if (pu === 'g' || pu === 'ml') return q * def;
-    if (pu === 'kg' || pu === 'l' || pu === 'lt') return q * def * 1000;
-    return q;
+    // Inventory qty is already in the same unit as consumption (conf count / g / ml)
+    return Math.max(0, parseFloat(qty) || 0);
 }
 
 /** Recompute suggested purchase qty for the current plan-days horizon (client-side). */
@@ -14168,7 +14176,8 @@ function _capPricePayloadQty(qty, unit, defQty, pkgUnit, planDays = 7) {
         return { quantity: Math.min(qty, maxByPack, maxByPlan), unit: u };
     }
     if (u === 'conf') {
-        return { quantity: Math.min(qty, maxPkgs), unit: u };
+        const maxConf = Math.max(maxPkgs, Math.min(24, Math.ceil(Math.max(1, planDays) * 2)));
+        return { quantity: Math.min(qty, maxConf), unit: u };
     }
     if (u === 'pz') {
         const maxPz = Math.max(maxPkgs, Math.min(12, Math.ceil(Math.max(1, planDays) * 1.5)));
@@ -14183,12 +14192,8 @@ function _ceilDiscreteQty(need) {
     return Math.max(1, Math.ceil(need));
 }
 
-function _suggestedConfQty(needBase, defQty, pkgUnit, maxPkgs = 6) {
-    const pu = (pkgUnit || '').toLowerCase();
-    if (defQty > 0 && (pu === 'g' || pu === 'ml')) {
-        const pkgs = _ceilDiscreteQty(needBase / defQty);
-        return { suggested_qty: Math.max(1, Math.min(maxPkgs, pkgs)), suggested_unit: 'conf' };
-    }
+function _suggestedConfQty(needBase, defQty, pkgUnit, maxPkgs = 24) {
+    // needBase is already in package counts for unit=conf
     const qty = _ceilDiscreteQty(needBase);
     return { suggested_qty: Math.max(1, Math.min(maxPkgs, qty)), suggested_unit: 'conf' };
 }
@@ -14444,7 +14449,29 @@ function _urgencyToSpec(urgency) {
 /** Generic label for a shopping-list row (never a specific product or brand). */
 function _shoppingListGenericTitle(item, smartData) {
     if (smartData?.shopping_name) return smartData.shopping_name.trim();
+    // Prefer catalog shopping_name when the list row still has a brand-specific title
+    const fromCatalog = _lookupCatalogShoppingName(item?.name, item?.rawName);
+    if (fromCatalog) return fromCatalog;
     return _resolveShoppingDisplayName(item, smartData);
+}
+
+/** Resolve generic shopping_name from in-memory inventory/products if available. */
+function _lookupCatalogShoppingName(name, rawName) {
+    const candidates = [name, rawName].map(n => String(n || '').trim().toLowerCase()).filter(Boolean);
+    if (!candidates.length) return '';
+    const pools = [];
+    if (typeof inventory !== 'undefined' && Array.isArray(inventory)) pools.push(inventory);
+    if (typeof allProducts !== 'undefined' && Array.isArray(allProducts)) pools.push(allProducts);
+    if (typeof _productsCache !== 'undefined' && Array.isArray(_productsCache)) pools.push(_productsCache);
+    for (const pool of pools) {
+        for (const p of pool) {
+            const pn = String(p?.name || '').trim().toLowerCase();
+            const sn = String(p?.shopping_name || '').trim();
+            if (!sn) continue;
+            if (candidates.includes(pn) || candidates.includes(sn.toLowerCase())) return sn;
+        }
+    }
+    return '';
 }
 
 /**
@@ -22930,7 +22957,16 @@ async function shoppingBoughtAfterAdd(addResult) {
         const addLoc = document.getElementById('add-location')?.value || 'dispensa';
         _showFamilySiblingSuggest(currentProduct.id, addLoc);
     }
-    if (addResult?.removed_from_bring) {
+    if (addResult?.shopping_kept && addResult.remaining_need?.suggested_qty) {
+        const rem = addResult.remaining_need;
+        const remLabel = _formatSuggestQty(rem.suggested_qty, rem.suggested_unit || 'conf');
+        setTimeout(() => showToast(
+            t('shopping.remaining_after_buy')
+                .replace('{name}', rem.generic || currentProduct?.shopping_name || currentProduct?.name || targetName)
+                .replace('{qty}', remLabel || String(rem.suggested_qty)),
+            'info'
+        ), 800);
+    } else if (addResult?.removed_from_bring) {
         setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 800);
     }
     showPage('shopping');
@@ -22961,6 +22997,12 @@ async function spesaModeAfterAdd(addResult, opts = {}) {
 
 /** Remove matching shopping-list / Bring entry after a spesa-mode purchase. */
 async function _spesaRemovePurchasedFromList(product, addResult) {
+    // Partial restock: server kept the row with remaining need — do not remove/blocklist
+    if (addResult?.shopping_kept) {
+        try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
+        return;
+    }
+
     const namesToMark = [product.name];
     if (product.shopping_name) namesToMark.push(product.shopping_name);
 

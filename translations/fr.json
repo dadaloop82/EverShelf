@@ -712,6 +712,7 @@
         "swipe_home": "Bought · add at home",
         "swipe_scan": "Bought · scan",
         "bought_later_toast": "«{name}» removed from the list — you'll add it to inventory at home",
+        "remaining_after_buy": "Il reste {qty} de {name}",
         "plan_days_label": "Quantities for {days} days",
         "plan_days_auto": "Par défaut : jusqu’à fin de mois, min. 7 jours ({days})",
         "plan_days_custom": "Custom period ({days} days)",
