@@ -217,7 +217,7 @@
         "mode_shopping": "📷 Continuous scan",
         "mode_shopping_end": "✅ Done",
         "spesa_btn": "📷 Continuous",
-        "spesa_camera_hint": "Scan barcodes one after another — each item is added automatically. Tap Done when finished. Need full details? Exit continuous mode and use a normal scan.",
+        "spesa_camera_hint": "Scan barcodes one after another — confirm quantity and expiry for each item, then the camera reopens. Tap Done when finished.",
         "zoom": "Zoom",
         "tab_barcode": "Barcode",
         "tab_name": "Name",
@@ -284,7 +284,7 @@
         "ai_match_action_hint": "Tap the green button to add this product",
         "ai_match_or_similar": "Or pick a similar product:",
         "ai_detected_label": "AI detected",
-        "mode_shopping_activated": "📷 Continuous scan on — keep scanning!",
+        "mode_shopping_activated": "📷 Continuous scan on — confirm each item, then keep scanning!",
         "status_lookup": "Identifying…",
         "continuous_added": "Added {name} → {location}",
         "status_adding": "Adding…"

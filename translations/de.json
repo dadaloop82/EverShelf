@@ -217,7 +217,7 @@
         "mode_shopping": "📷 Dauerhaftes Scannen",
         "mode_shopping_end": "✅ Fertig",
         "spesa_btn": "📷 Dauerhaft",
-        "spesa_camera_hint": "Barcodes nacheinander scannen — jeder Artikel wird automatisch hinzugefügt. Tippe auf Fertig, wenn du fertig bist. Volle Details nötig? Beende den Dauer-Modus und scanne normal.",
+        "spesa_camera_hint": "Barcodes nacheinander scannen — Menge und MHD für jeden Artikel bestätigen, dann öffnet sich die Kamera wieder. Tippe auf Fertig, wenn du fertig bist.",
         "zoom": "Zoom",
         "tab_barcode": "Barcode",
         "tab_name": "Name",
@@ -284,7 +284,7 @@
         "ai_match_action_hint": "Tippe auf den gruenen Button, um dieses Produkt hinzuzufuegen",
         "ai_match_or_similar": "Oder waehle ein aehnliches Produkt:",
         "ai_detected_label": "KI erkannt",
-        "mode_shopping_activated": "📷 Dauerhaftes Scannen aktiv — weiter scannen!",
+        "mode_shopping_activated": "📷 Dauerhaftes Scannen aktiv — jeden Artikel bestätigen und weiter scannen!",
         "status_lookup": "Wird erkannt…",
         "continuous_added": "{name} hinzugefügt → {location}",
         "status_adding": "Wird hinzugefügt…"

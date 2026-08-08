@@ -217,7 +217,7 @@
         "mode_shopping": "📷 连续扫描",
         "mode_shopping_end": "✅ 完成",
         "spesa_btn": "📷 连续扫描",
-        "spesa_camera_hint": "依次扫描条形码，每件商品都会自动添加。完成后点击“完成”。如需填写完整信息，请退出连续模式并使用普通扫描。",
+        "spesa_camera_hint": "依次扫描条形码——每件商品确认数量和保质期后相机会重新打开。完成后点击“完成”。",
         "zoom": "缩放",
         "tab_barcode": "条形码",
         "tab_name": "名称",
@@ -284,7 +284,7 @@
         "ai_match_action_hint": "点击绿色按钮添加此商品",
         "ai_match_or_similar": "或选择相似商品：",
         "ai_detected_label": "AI 检测结果",
-        "mode_shopping_activated": "📷 已开启连续扫描——请继续扫描！",
+        "mode_shopping_activated": "📷 已开启连续扫描——确认每件商品后继续扫描！",
         "status_lookup": "正在识别…",
         "continuous_added": "已添加 {name} → {location}",
         "status_adding": "正在添加…"

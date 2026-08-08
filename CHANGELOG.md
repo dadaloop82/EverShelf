@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.84] - 2026-08-08
+
+### Fixed
+- **Spesa / continuous scan confirmation** — scanning in continuous mode again opens the add form (quantity, expiry, location) before saving; the camera reopens after confirm. Silent auto-add without the popup was reverted.
+
 ## [1.7.83] - 2026-08-05
 
 ### Added
