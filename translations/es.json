@@ -217,7 +217,7 @@
         "mode_shopping": "📷 Escaneo continuo",
         "mode_shopping_end": "✅ Listo",
         "spesa_btn": "📷 Continuo",
-        "spesa_camera_hint": "Escanea códigos de barras uno tras otro — cada artículo se añade automáticamente. Toca Listo al terminar. ¿Necesitas el formulario completo? Sal del modo continuo y escanea con normalidad.",
+        "spesa_camera_hint": "Escanea códigos de barras uno tras otro — confirma cantidad y caducidad de cada artículo; luego se reabre la cámara. Toca Listo al terminar.",
         "zoom": "Zoom",
         "tab_barcode": "Código de barras",
         "tab_name": "Nombre",
@@ -284,7 +284,7 @@
         "ai_match_or_similar": "O elige un producto similar:",
         "ai_detected_label": "IA detecto",
         "stock_in_pantry": "Ya en despensa:",
-        "mode_shopping_activated": "📷 Escaneo continuo activo — ¡sigue escaneando!",
+        "mode_shopping_activated": "📷 Escaneo continuo activo — confirma cada artículo y sigue escaneando!",
         "status_lookup": "Identificando…",
         "continuous_added": "Añadido {name} → {location}",
         "status_adding": "Añadiendo…"
