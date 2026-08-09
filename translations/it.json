@@ -695,6 +695,7 @@
         "swipe_scan": "Comprato · scansiona",
         "bought_later_toast": "«{name}» tolto dalla lista — in inventario lo aggiungerai a casa",
         "remaining_after_buy": "Ne servono ancora {qty} di {name}",
+        "anti_waste_shelf": "Anti-spreco: finibili in ~{days}gg",
         "plan_days_label": "Quantità calcolate per {days} giorni",
         "plan_days_auto": "Default: fino a fine mese, minimo 7 giorni ({days})",
         "plan_days_custom": "Periodo personalizzato ({days} giorni)",
