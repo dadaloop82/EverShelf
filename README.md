@@ -164,6 +164,8 @@ Works with the provider chosen above — same features whether you use Gemini cl
 ### 🛒 Shopping List
 - **EverShelf built-in list (default)** — Shopping list is stored on the server (`shopping_list`); no external app required (`SHOPPING_MODE=internal`)
 - **Generic shopping names** — Products are grouped by type (e.g. “Milk”, “Cold cuts”, “Cooking cream”) rather than brand
+- **Anti-waste purchase qty** — For perishables (typical sealed shelf life ≤21 days), suggested and list quantities use an *edible horizon*: `min(plan days, shelf life)`. You are not asked to buy a month of zucchini or fresh milk that would spoil mid-plan; long-life staples (pasta, cans) still use the full plan window. List rows show a ♻️ hint when the qty was capped; “Compra:” / “Almeno:” specs and remaining need after a partial buy follow the same rule
+- **Partial restock keeps the need** — Buying less than planned (e.g. 3 L of milk when ~12 L are still needed) leaves the generic row on the list with the updated remaining qty instead of clearing it
 - **Auto-add on depletion** — When a product (and its generic family) reaches zero, it is added to the EverShelf list automatically
 - **Optional Bring! mirror** — Set `SHOPPING_MODE=bring` plus Bring credentials to sync the same list to the [Bring!](https://www.getbring.com/) app; disabling Bring does not disable the EverShelf list
 - **Smart predictions** — Know what you'll need before you run out
