@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.87] - 2026-08-09
+
+### Changed
+- **Shopping list uses anti-waste qty** — list row badges recompute from the edible shelf-life horizon; specs synced/added include `Compra:`/`Almeno:` with that capped qty; ♻️ hint on perishable rows; remaining need after partial buy also respects the edible window.
+
 ## [1.7.86] - 2026-08-09
 
 ### Added
