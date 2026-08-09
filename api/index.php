@@ -14723,31 +14723,44 @@ function smartAvgPurchaseQty(float $totalBought, int $buyCount): float {
 /**
  * Floor piece suggestions to a believable trip size (bag/bunch), not a single fruit.
  * Uses average past purchase when available; otherwise a small pack from use frequency.
+ * When $shelfCapped, never inflate above what is finishable in the edible horizon.
  */
 function smartFloorPieceSuggestion(
     ?float $suggestedQty,
     float $avgBuy,
     float $usesPerMonth,
     int $planDays,
-    bool $emptyOrOnList
+    bool $emptyOrOnList,
+    bool $shelfCapped = false
 ): array {
     if (!$emptyOrOnList) {
         return ['qty' => $suggestedQty, 'approx' => false];
     }
     $maxPieces = smartMaxSuggestedPieces($planDays);
+    $useBased = $usesPerMonth > 0
+        ? max(1, (int) ceil($usesPerMonth * $planDays / 30.0))
+        : 0;
     $floor = 0;
     $approx = false;
     if ($avgBuy >= 2) {
         // Typical trip size, slightly scaled if planning more than a week
         $floor = (int) round($avgBuy * min(1.25, max(1.0, $planDays / 7.0)));
         $floor = max(2, min($maxPieces, $floor));
+        if ($shelfCapped && $useBased > 0) {
+            // Don't force a bag bigger than edible-window consumption
+            $floor = min($floor, max($useBased, 1));
+        }
     } elseif ($usesPerMonth >= 2) {
-        // No buy history: at least a small pack (~4) or weekly use × horizon
-        $floor = max(4, (int) ceil($usesPerMonth * $planDays / 30.0));
-        $floor = min($maxPieces, $floor);
+        if ($shelfCapped) {
+            $floor = max(1, min(2, $useBased > 0 ? $useBased : 2));
+        } else {
+            // No buy history: at least a small pack (~4) or weekly use × horizon
+            $floor = max(4, (int) ceil($usesPerMonth * $planDays / 30.0));
+            $floor = min($maxPieces, $floor);
+        }
         $approx = true;
     } elseif ($usesPerMonth >= 0.5) {
-        $floor = 3;
+        $floor = $shelfCapped ? 1 : 3;
         $approx = true;
     }
     if ($floor <= 0) {
@@ -14755,6 +14768,55 @@ function smartFloorPieceSuggestion(
     }
     $base = $suggestedQty !== null ? (float)$suggestedQty : 0.0;
     return ['qty' => (float) max($base, $floor), 'approx' => $approx];
+}
+
+/**
+ * Storage location used when estimating shelf life for purchase quantity caps.
+ * Prefer waste-learned location; otherwise fridge for produce / fresh foods.
+ */
+function smartPurchaseStorageLocation(string $name, string $category, array $wasteHint = []): string {
+    if (!empty($wasteHint['preferred_location'])) {
+        return (string)$wasteHint['preferred_location'];
+    }
+    $blob = mb_strtolower(trim($name . ' ' . $category));
+    if (preg_match('/frutta|verdura|insalata|rucola|zucchina|zucchine|peperon|melanzan|broccoli|spinaci|carota|pomodor|mela|banana|arancia|fragol|uva|kiwi|pera/', $blob)) {
+        return 'frigo';
+    }
+    return _guessPreferredStorageLocation($name, $category);
+}
+
+/**
+ * Shopping qty horizon: for perishables, only count days you can finish before spoil.
+ *
+ * @return array{days:int,shelf_days:int,capped:bool,location:string}
+ */
+function smartPurchaseHorizonDays(
+    string $name,
+    string $category,
+    int $planDays,
+    array $wasteHint = []
+): array {
+    $planDays = max(1, min(31, $planDays));
+    $loc = smartPurchaseStorageLocation($name, $category, $wasteHint);
+    $shelf = 180;
+    if (function_exists('estimateSealedExpiryDaysPHP')) {
+        $shelf = max(1, estimateSealedExpiryDaysPHP($name, $category, $loc));
+    }
+    // Cap only when shelf life is short enough that a month-long plan would overshoot
+    if ($shelf < $planDays && $shelf <= 21) {
+        return [
+            'days' => max(1, $shelf),
+            'shelf_days' => $shelf,
+            'capped' => true,
+            'location' => $loc,
+        ];
+    }
+    return [
+        'days' => $planDays,
+        'shelf_days' => $shelf,
+        'capped' => false,
+        'location' => $loc,
+    ];
 }
 
 /** Max suggested pieces for a planning window (scales with days). */
@@ -15353,14 +15415,24 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             continue;
         }
 
-        // --- Suggested purchase quantity (1-month need; prev calendar month first) ---
+        // --- Suggested purchase quantity (edible horizon for perishables) ---
         $suggestedQty    = null;
         $suggestedUnit   = $unit;
         $suggestedApprox = false;
+        $wHintEarly = $wasteLearning[(string)$pid] ?? [];
+        $horizonMeta = smartPurchaseHorizonDays(
+            (string)$p['name'],
+            (string)($p['category'] ?? ''),
+            $planDays,
+            is_array($wHintEarly) ? $wHintEarly : []
+        );
+        $qtyHorizon = (int)$horizonMeta['days'];
+        $shelfCapped = !empty($horizonMeta['capped']);
+
         $monthlyMeta     = smartMonthlyConsumptionNeed($tx, $dailyRate);
         $monthlyNeed     = smartSanitizePieceMonthly($monthlyMeta['amount'], $useCount, $usesPerMonth, $unit);
         $monthlySource   = $monthlyMeta['source'];
-        $periodMeta      = smartConsumptionForPlanDays($monthlyNeed, $dailyRate, $monthlySource, $planDays, $usesPerMonth, $unit);
+        $periodMeta      = smartConsumptionForPlanDays($monthlyNeed, $dailyRate, $monthlySource, $qtyHorizon, $usesPerMonth, $unit);
         $periodNeed      = $periodMeta['amount'];
         $periodSource    = $periodMeta['source'];
 
@@ -15388,7 +15460,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             if ($needBase > 0) {
                 if ($unit === 'conf') {
                     if ($buyCount > 0 && $totalUsed > $buyCount * 5 && $daysSinceFirst < 999 && $periodSource === 'plan_days_rate') {
-                        $needBase = max($needBase, ($buyCount / max(1, $daysSinceFirst / 30)) * $planDays);
+                        $needBase = max($needBase, ($buyCount / max(1, $daysSinceFirst / 30)) * $qtyHorizon);
                     }
                     [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit);
                     $suggestedApprox = $periodSource !== 'prev_month' && $monthlySource !== 'prev_month';
@@ -15416,7 +15488,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                     }
                 } elseif ($unit === 'pz') {
                     $rounded = smartCeilDiscreteQty($needBase);
-                    $suggestedQty    = (int) max(1, min(smartMaxSuggestedPieces($planDays), $rounded));
+                    $suggestedQty    = (int) max(1, min(smartMaxSuggestedPieces($qtyHorizon), $rounded));
                     $suggestedUnit   = 'pz';
                     $suggestedApprox = $periodSource !== 'plan_days_rate' && $monthlySource !== 'prev_month';
                 }
@@ -15424,14 +15496,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         }
 
         // Piece goods: never suggest a single fruit when the user normally buys a bunch/bag.
+        // Soften the floor when shelf-life capped (anti-waste).
         if ($unit === 'pz') {
             $avgBuy = smartAvgPurchaseQty($totalBought, $buyCount);
             $floored = smartFloorPieceSuggestion(
                 $suggestedQty !== null ? (float)$suggestedQty : null,
                 $avgBuy,
                 $usesPerMonth,
-                $planDays,
-                ($qty <= 0 || $onBring || in_array($urgency, ['critical', 'high'], true))
+                $qtyHorizon,
+                ($qty <= 0 || $onBring || in_array($urgency, ['critical', 'high'], true)),
+                $shelfCapped
             );
             if ($floored['qty'] !== null && (float)$floored['qty'] > 0) {
                 $suggestedQty = (float)$floored['qty'];
@@ -15472,10 +15546,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $suggestedUnit = 'conf';
             } elseif ($unit === 'pz') {
                 $avgBuyFallback = smartAvgPurchaseQty($totalBought, $buyCount);
-                if ($avgBuyFallback >= 2) {
-                    $suggestedQty = min(smartMaxSuggestedPieces($planDays), max(2, (int)round($avgBuyFallback)));
+                if ($shelfCapped) {
+                    $suggestedQty = min(
+                        smartMaxSuggestedPieces($qtyHorizon),
+                        max(1, (int) ceil($usesPerMonth * $qtyHorizon / 30.0))
+                    );
+                } elseif ($avgBuyFallback >= 2) {
+                    $suggestedQty = min(smartMaxSuggestedPieces($qtyHorizon), max(2, (int)round($avgBuyFallback)));
                 } else {
-                    $suggestedQty = min(smartMaxSuggestedPieces($planDays), max(3, (int)ceil($usesPerMonth / 3)));
+                    $suggestedQty = min(smartMaxSuggestedPieces($qtyHorizon), max(3, (int)ceil($usesPerMonth / 3)));
                 }
                 $suggestedUnit = 'pz';
                 $suggestedApprox = true;
@@ -15488,7 +15567,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         [$suggestedQty, $suggestedUnit] = _applyWasteHintsToSuggestion($pid, $suggestedQty, $suggestedUnit ?? $unit, $wasteLearning);
         if ($suggestedQty !== null) {
-            $capped = shoppingCapSuggestedQty($suggestedQty, $suggestedUnit ?? $unit, $defQty, $pkgUnit, $planDays);
+            $capped = shoppingCapSuggestedQty($suggestedQty, $suggestedUnit ?? $unit, $defQty, $pkgUnit, $qtyHorizon);
             $suggestedQty = $capped['quantity'];
             $suggestedUnit = $capped['unit'];
         }
@@ -15496,6 +15575,10 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
             $reasons[] = "Past waste: store in {$locLabel}";
+        }
+        if ($shelfCapped) {
+            $reasons[] = 'anti_waste_shelf:' . (int)$horizonMeta['shelf_days'];
+            $suggestedApprox = true;
         }
 
         $items[] = [
@@ -15532,6 +15615,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             'monthly_usage_source' => $monthlySource,
             'period_usage'    => round($periodNeed, 2),
             'period_usage_source' => $periodSource,
+            'edible_days'     => $qtyHorizon,
+            'shelf_days'      => (int)$horizonMeta['shelf_days'],
+            'qty_shelf_capped'=> $shelfCapped,
         ];
     }
 

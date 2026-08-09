@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.86] - 2026-08-09
+
+### Added
+- **Anti-waste purchase horizon** — for perishables (produce, fresh foods with shelf life ≤21 days), shopping suggested qty uses `min(plan_days, shelf_life)` so items like zucchini are sized to what you can finish before they spoil, not the full month. Softens “bag/bunch” floors when capped; shows reason “Anti-waste: finishable in ~N days”.
+
 ## [1.7.85] - 2026-08-08
 
 ### Fixed

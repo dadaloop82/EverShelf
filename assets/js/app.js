@@ -1150,7 +1150,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260808b'; // bump when translations change
+const _I18N_VERSION = '20260809a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -14140,26 +14140,60 @@ function _maxSuggestedPieces(planDays) {
     return Math.max(2, Math.min(30, Math.ceil(planDays * 2.5)));
 }
 
-/** Floor piece suggestions to a believable trip (avg past buy or small pack). */
-function _floorPieceSuggestion(suggestedQty, avgBuy, usesPerMonth, planDays, emptyOrOnList) {
+/** Floor piece suggestions to a believable trip (avg past buy or small pack).
+ *  When shelfCapped, never inflate above what is finishable in the edible horizon. */
+function _floorPieceSuggestion(suggestedQty, avgBuy, usesPerMonth, planDays, emptyOrOnList, shelfCapped = false) {
     if (!emptyOrOnList) return { qty: suggestedQty, approx: false };
     const maxPieces = _maxSuggestedPieces(planDays);
+    const useBased = usesPerMonth > 0 ? Math.max(1, Math.ceil(usesPerMonth * planDays / 30)) : 0;
     let floor = 0;
     let approx = false;
     if (avgBuy >= 2) {
         floor = Math.round(avgBuy * Math.min(1.25, Math.max(1, planDays / 7)));
         floor = Math.max(2, Math.min(maxPieces, floor));
+        if (shelfCapped && useBased > 0) {
+            floor = Math.min(floor, Math.max(useBased, 1));
+        }
     } else if (usesPerMonth >= 2) {
-        floor = Math.max(4, Math.ceil(usesPerMonth * planDays / 30));
-        floor = Math.min(maxPieces, floor);
+        if (shelfCapped) {
+            floor = Math.max(1, Math.min(2, useBased || 2));
+        } else {
+            floor = Math.max(4, Math.ceil(usesPerMonth * planDays / 30));
+            floor = Math.min(maxPieces, floor);
+        }
         approx = true;
     } else if (usesPerMonth >= 0.5) {
-        floor = 3;
+        floor = shelfCapped ? 1 : 3;
         approx = true;
     }
     if (floor <= 0) return { qty: suggestedQty, approx: false };
     const base = suggestedQty > 0 ? suggestedQty : 0;
     return { qty: Math.max(base, floor), approx };
+}
+
+/** Edible purchase horizon: perishables capped to shelf life (mirrors PHP smartPurchaseHorizonDays). */
+function _purchaseHorizonDays(smartData, planDays) {
+    const plan = Math.max(1, Math.min(31, planDays || getShoppingPlanDays()));
+    if (smartData?.qty_shelf_capped && smartData.edible_days > 0) {
+        return {
+            days: Math.max(1, parseInt(smartData.edible_days, 10) || plan),
+            shelfDays: parseInt(smartData.shelf_days, 10) || smartData.edible_days,
+            capped: true,
+        };
+    }
+    const name = smartData?.name || smartData?.shopping_name || '';
+    const cat = smartData?.category || '';
+    const blob = `${name} ${cat}`.toLowerCase();
+    const loc = /frutta|verdura|insalata|rucola|zucchina|zucchine|peperon|melanzan|broccoli|spinaci|carota|pomodor|mela|banana|arancia|fragol|uva|kiwi|pera/.test(blob)
+        ? 'frigo'
+        : (typeof guessLocation === 'function' ? (guessLocation({ name, category: cat }) || 'dispensa') : 'dispensa');
+    const shelf = typeof estimateExpiryDays === 'function'
+        ? Math.max(1, estimateExpiryDays({ name, category: cat }, loc))
+        : 180;
+    if (shelf < plan && shelf <= 21) {
+        return { days: Math.max(1, shelf), shelfDays: shelf, capped: true };
+    }
+    return { days: plan, shelfDays: shelf, capped: false };
 }
 
 /** Mirror api/lib/shopping_guards.php — cap qty sent to price API (one trip). */
@@ -14201,6 +14235,9 @@ function _suggestedConfQty(needBase, defQty, pkgUnit, maxPkgs = 24) {
 function _computeSuggestedQtyForPlanDays(smartData) {
     if (!smartData) return null;
     const planDays = getShoppingPlanDays();
+    const horizon = _purchaseHorizonDays(smartData, planDays);
+    const qtyHorizon = horizon.days;
+    const shelfCapped = !!horizon.capped;
     const useCount = parseInt(smartData.use_count, 10) || 0;
     const usesPerMonth = parseFloat(smartData.uses_per_month) || 0;
     const unit = smartData.unit || 'conf';
@@ -14216,7 +14253,7 @@ function _computeSuggestedQtyForPlanDays(smartData) {
     const onBring = !!smartData.on_bring;
     const urgency = smartData.urgency || '';
 
-    let periodNeed = _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit);
+    let periodNeed = _periodNeedForPlanDays(monthly, daily, qtyHorizon, usesPerMonth, unit);
 
     if (periodNeed <= 0 && daily <= 0 && monthly <= 0) {
         return smartData.suggested_qty > 0
@@ -14239,8 +14276,9 @@ function _computeSuggestedQtyForPlanDays(smartData) {
                 1,
                 avgBuy0,
                 usesPerMonth,
-                planDays,
-                true
+                qtyHorizon,
+                true,
+                shelfCapped
             );
             if (unit === 'pz' && floored0.qty > 1) {
                 return { suggested_qty: floored0.qty, suggested_unit: 'pz', suggested_approx: true };
@@ -14252,7 +14290,7 @@ function _computeSuggestedQtyForPlanDays(smartData) {
 
     let suggestedQty = null;
     let suggestedUnit = unit;
-    let suggestedApprox = planDays !== getShoppingPlanDaysDefault() || daily <= 0;
+    let suggestedApprox = planDays !== getShoppingPlanDaysDefault() || daily <= 0 || shelfCapped;
 
     if (unit === 'conf') {
         const conf = _suggestedConfQty(needBase, defQty, pkgUnit);
@@ -14279,7 +14317,7 @@ function _computeSuggestedQtyForPlanDays(smartData) {
         }
     } else if (unit === 'pz') {
         const rounded = _ceilDiscreteQty(needBase);
-        suggestedQty = Math.max(1, Math.min(_maxSuggestedPieces(planDays), rounded));
+        suggestedQty = Math.max(1, Math.min(_maxSuggestedPieces(qtyHorizon), rounded));
         suggestedUnit = 'pz';
     }
 
@@ -14289,8 +14327,9 @@ function _computeSuggestedQtyForPlanDays(smartData) {
             suggestedQty,
             avgBuy,
             usesPerMonth,
-            planDays,
-            stock <= 0 || onBring || urgency === 'critical' || urgency === 'high'
+            qtyHorizon,
+            stock <= 0 || onBring || urgency === 'critical' || urgency === 'high',
+            shelfCapped
         );
         if (floored.qty > 0) {
             suggestedQty = floored.qty;
@@ -15736,7 +15775,7 @@ function renderSmartItem(item) {
                 <div class="smart-item-info">
                     ${nameLine}
                     ${specificLine}
-                    <div class="smart-item-reasons">${item.reasons.map(r => `<span>${escapeHtml(r)}</span>`).join(' · ')}</div>
+                    <div class="smart-item-reasons">${item.reasons.map(r => `<span>${escapeHtml(_localizeSmartReason(r))}</span>`).join(' · ')}</div>
                     <div class="smart-item-badges">
                         <span class="smart-urgency-badge" style="color:${u.color}">${u.icon} ${u.label}</span>
                         ${freqBadge}${predBadge}${expiryBadge}${suggestBadge}
@@ -15905,6 +15944,15 @@ function _syncTagsFromBringSpec() {
  * - ml ≥ 1000 → l ("2 l")
  * Returns null if qty is null/zero (badge should be hidden).
  */
+function _localizeSmartReason(reason) {
+    const r = String(reason || '');
+    const m = r.match(/^anti_waste_shelf:(\d+)$/);
+    if (m) {
+        return t('shopping.anti_waste_shelf').replace('{days}', m[1]);
+    }
+    return r;
+}
+
 function _formatSuggestQty(qty, unit) {
     if (!qty || qty <= 0) return null;
     if (unit === 'conf') return `${qty} conf`;
