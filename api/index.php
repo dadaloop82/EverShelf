@@ -12629,10 +12629,17 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
     $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
 
     $planDays = smartDefaultPlanDays();
+    $horizon = smartPurchaseHorizonDays(
+        (string)($prod['name'] ?? ''),
+        (string)($prod['category'] ?? ''),
+        $planDays,
+        []
+    );
+    $qtyHorizon = (int)$horizon['days'];
     $periodNeed = 0.0;
     $hasHistory = false;
 
-    // Prefer smart-cache period_usage (same unit as stockBase after gap fix)
+    // Prefer smart-cache period_usage (already edible-capped when cache is fresh)
     $si = findSmartItemForProduct(loadSmartShoppingCacheItems(), $productId);
     if ($si === null && $generic !== '') {
         foreach (loadSmartShoppingCacheItems() as $row) {
@@ -12643,12 +12650,15 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
         }
     }
     if ($si) {
+        if (!empty($si['edible_days'])) {
+            $qtyHorizon = max(1, (int)$si['edible_days']);
+        }
         $periodNeed = (float)($si['period_usage'] ?? 0);
         if ($periodNeed <= 0 && (float)($si['monthly_usage'] ?? 0) > 0) {
-            $periodNeed = (float)$si['monthly_usage'] * ($planDays / 30.0);
+            $periodNeed = (float)$si['monthly_usage'] * ($qtyHorizon / 30.0);
         }
         if ($periodNeed <= 0 && (float)($si['daily_rate'] ?? 0) > 0) {
-            $periodNeed = (float)$si['daily_rate'] * $planDays;
+            $periodNeed = (float)$si['daily_rate'] * $qtyHorizon;
         }
         $hasHistory = $periodNeed > 0.001
             || (int)($si['use_count'] ?? 0) > 0
@@ -12693,7 +12703,7 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
             (float)$monthlyMeta['amount'],
             $daily,
             (string)$monthlyMeta['source'],
-            $planDays,
+            $qtyHorizon,
             0.0,
             $unit
         );
@@ -12708,7 +12718,7 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
         if ($unit === 'conf') {
             [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit, 24);
         } elseif ($unit === 'pz') {
-            $suggestedQty = (float) max(1, min(smartMaxSuggestedPieces($planDays), smartCeilDiscreteQty($needBase)));
+            $suggestedQty = (float) max(1, min(smartMaxSuggestedPieces($qtyHorizon), smartCeilDiscreteQty($needBase)));
             $suggestedUnit = 'pz';
         } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0) {
             $pkgs = max(1, min(24, (int) ceil($needBase / $defQty)));

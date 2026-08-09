@@ -15969,12 +15969,22 @@ function _formatSuggestQty(qty, unit) {
 }
 
 /**
- * Build the full Bring! specification string for a matched smart item.
- * Combines urgency label + suggested quantity so both appear in the Bring app.
- * Returns empty string for low/medium urgency items with no useful extra info.
+ * Build the full Bring!/list specification for a matched smart item.
+ * Urgency + edible-capped suggested qty (anti-waste horizon).
  */
 function _buildSmartSpec(smartMatch) {
-    return _urgencyToSpec(smartMatch.urgency);
+    const parts = [];
+    const urg = _urgencyToSpec(smartMatch?.urgency);
+    if (urg) parts.push(urg);
+    const eff = _effectiveSmartQty(smartMatch);
+    if (eff?.suggested_qty > 0) {
+        const qtyCore = _formatSuggestQty(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
+        if (qtyCore) {
+            const prefix = (eff.suggested_approx || smartMatch.qty_shelf_capped) ? 'Almeno: ' : 'Compra: ';
+            parts.push('🛒 ' + prefix + qtyCore);
+        }
+    }
+    return parts.join(' · ');
 }
 
 /** True if Bring spec still contains product/brand text beyond urgency markers. */
@@ -16228,7 +16238,7 @@ async function addSmartItemQuick(globalIdx) {
     if (!item || item.on_bring) return;
     loadShoppingList._lastUserInteraction = Date.now();
     const apiName = item.shopping_name || item.name;
-    const spec = _urgencyToSpec(item.urgency);
+    const spec = _buildSmartSpec(item);
     const panel = document.getElementById('tab-panel-acquisto');
     const scrollY = panel?.scrollTop || 0;
 
@@ -16259,7 +16269,13 @@ async function addSmartItemQuick(globalIdx) {
 function _shopRowQtyHtml(smartData) {
     const buyQty = _shoppingBuyQtyDisplay(smartData);
     if (!buyQty) return '';
-    return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}</span>`;
+    let anti = '';
+    const horizon = smartData ? _purchaseHorizonDays(smartData, getShoppingPlanDays()) : null;
+    if (horizon?.capped) {
+        const tip = t('shopping.anti_waste_shelf').replace('{days}', String(horizon.shelfDays || horizon.days));
+        anti = ` <span class="shop-row-qty-antiwaste" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">♻️</span>`;
+    }
+    return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}${anti}</span>`;
 }
 
 function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
