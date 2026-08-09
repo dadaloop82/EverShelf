@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Shopping list uses anti-waste qty** — list row badges recompute from the edible shelf-life horizon; specs synced/added include `Compra:`/`Almeno:` with that capped qty; ♻️ hint on perishable rows; remaining need after partial buy also respects the edible window.
+- **README** — Shopping List section documents anti-waste purchase qty and partial restock behaviour.
 
 ## [1.7.86] - 2026-08-09
 
