@@ -153,7 +153,7 @@ EverShelf uses a fingerprint to deduplicate — the same error from the same dev
 
 - **Open an issue:** [github.com/dadaloop82/EverShelf/issues](https://github.com/dadaloop82/EverShelf/issues)
 - **Email:** [evershelfproject@gmail.com](mailto:evershelfproject@gmail.com)
-- **Try the demo:** [evershelfproject.dadaloop.it/demo](https://evershelfproject.dadaloop.it/demo)
+- **Try the demo:** [evershelf.site/demo](https://evershelf.site/demo)
 
 When reporting a bug, include:
 1. EverShelf version (shown in the header as `v1.x.x`)

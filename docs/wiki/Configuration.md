@@ -113,7 +113,7 @@ Users will be prompted for this token before any Settings save. If the token doe
 Two ways to enable demo mode:
 
 1. **Permanent:** Set `DEMO_MODE=true` in `.env`
-2. **Per-session:** Append `?demo=1` to any URL (e.g. `https://evershelfproject.dadaloop.it/demo`)
+2. **Per-session:** Append `?demo=1` to any URL (e.g. `https://evershelf.site/demo`)
 
 In demo mode:
 - All POST/write API calls return success without touching the database

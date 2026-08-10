@@ -6,8 +6,8 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 
 ## 🚀 Try it now
 
-> **[▶ Live Demo](https://evershelfproject.dadaloop.it/demo)** — no installation, no login, full AI enabled  
-> **[🌐 Project Website](https://evershelfproject.dadaloop.it/)**
+> **[▶ Live Demo](https://evershelf.site/demo)** — no installation, no login, full AI enabled  
+> **[🌐 Project Website](https://evershelf.site/)**
 
 ---
 
