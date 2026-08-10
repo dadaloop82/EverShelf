@@ -6,15 +6,15 @@
 
 <div align="center">
 
-### 🚀 Try the live demo — no installation required!
+### 🌐 Official website — [evershelf.site](https://evershelf.site/)
 
-**[▶ Open Live Demo](https://evershelfproject.dadaloop.it/demo)**
+**[🌐 Project Website](https://evershelf.site/)**
 &nbsp;·&nbsp;
-[🌐 Project Website](https://evershelfproject.dadaloop.it/)
+[▶ Live Demo](https://evershelf.site/demo)
 &nbsp;·&nbsp;
 [📖 Wiki](https://github.com/dadaloop82/EverShelf/wiki)
 
-*The demo runs with mock pantry data. AI features are fully enabled. All write operations are safely sandboxed.*
+*Install guides, video, and project info on the website. The interactive demo uses mock pantry data with AI enabled and sandboxed writes.*
 
 </div>
 
@@ -644,7 +644,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 **Stimpfl Daniel** — [evershelfproject@gmail.com](mailto:evershelfproject@gmail.com)
 
-- Website: [evershelfproject.dadaloop.it](https://evershelfproject.dadaloop.it/)
+- Website: [evershelf.site](https://evershelf.site/)
 - GitHub: [@dadaloop82](https://github.com/dadaloop82)
 
 ---
@@ -657,7 +657,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 </div>
 
-For a live walkthrough with real data and full AI enabled, visit the **[live demo](https://evershelfproject.dadaloop.it/demo)** — no installation required.
+For a live walkthrough with real data and full AI enabled, visit the **[live demo](https://evershelf.site/demo)** — no installation required.
 
 Corporate UI screenshots (List page, product sheet, dashboard cards): see [assets/img/screenshots/README.md](assets/img/screenshots/README.md).
 

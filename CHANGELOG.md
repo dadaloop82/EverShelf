@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.88] - 2026-08-10
+
+### Changed
+- **Project website** — all docs/README/wiki/OpenAPI links now point to **[https://evershelf.site/](https://evershelf.site/)** (replacing `evershelfproject.dadaloop.it`).
+
 ## [1.7.87] - 2026-08-09
 
 ### Changed
