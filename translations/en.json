@@ -810,7 +810,10 @@
         "finish": "✅ Finish",
         "step_fallback": "Step {n}",
         "zerowaste_label": "♻️ Scrap",
-        "zerowaste_tip_title": "Zero-waste tip"
+        "zerowaste_tip_title": "Zero-waste tip",
+        "restart_title": "Restart from the beginning",
+        "replay_title": "Replay this step",
+        "wheel_aria": "Recipe step navigation"
     },
     "settings": {
         "title": "⚙️ Settings",
@@ -1085,7 +1088,11 @@
             "heard_yes": "Yes, I heard it",
             "heard_no": "No, I didn't hear it",
             "test_ok_kiosk": "TTS is working.",
-            "test_fail_steps": "Check: 1) media volume is not 0; 2) Google Text-to-Speech is installed and updated; 3) Italian voice package is downloaded in Android TTS settings."
+            "test_fail_steps": "Check: 1) media volume is not 0; 2) Google Text-to-Speech is installed and updated; 3) Italian voice package is downloaded in Android TTS settings.",
+            "no_voice_package": "No voice available — install a speech package in system settings.",
+            "no_voice_response": "No voice response — if you heard the beep, TTS may be blocked. Try reloading or changing voice.",
+            "android_error": "Android TTS error ({msg}) — install or update Google Text-to-Speech from the Play Store.",
+            "browser_error": "TTS error: {error} — try restarting the browser or changing voice."
         },
         "language": {
             "title": "🌐 Language",
@@ -1205,7 +1212,11 @@
             "gdrive_oauth_not_authorized": "Not authorized yet",
             "gdrive_oauth_window_opened": "Browser window opened — authorize and come back",
             "gdrive_oauth_how_to": "How to set up OAuth 2.0 (step by step)",
-            "gdrive_oauth_steps": "<li>Go to <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> and select your project</li><li>Enable the <strong>Google Drive API</strong>: <em>APIs &amp; Services → Enable APIs → Google Drive API</em></li><li>Go to <em>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</em></li><li>Application type: <strong>Web application</strong>; add <strong>http://localhost</strong> as an <em>Authorized redirect URI</em></li><li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> into the fields above and save</li><li>Click <strong>Authorize with Google</strong>, sign in and grant access</li><li>The browser will open <code>http://localhost</code> (a connection error is expected): copy the URL from the address bar and paste it in the field that appears below</li>"
+            "gdrive_oauth_steps": "<li>Go to <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> and select your project</li><li>Enable the <strong>Google Drive API</strong>: <em>APIs &amp; Services → Enable APIs → Google Drive API</em></li><li>Go to <em>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</em></li><li>Application type: <strong>Web application</strong>; add <strong>http://localhost</strong> as an <em>Authorized redirect URI</em></li><li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> into the fields above and save</li><li>Click <strong>Authorize with Google</strong>, sign in and grant access</li><li>The browser will open <code>http://localhost</code> (a connection error is expected): copy the URL from the address bar and paste it in the field that appears below</li>",
+            "restore_warning": "WARNING: all current data will be REPLACED. This action cannot be undone.",
+            "restore_done": "Restore complete!",
+            "reload_hint": "The page will reload.",
+            "restoring": "Restoring…"
         },
         "info": {
             "tab": "Info",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "Recipes",
-        "scan_btn": "Scan product"
+        "scan_btn": "Scan product",
+        "scan_long_hint": "Scan product (long-press for shopping mode)"
     },
     "days": {
         "mon": "Monday",
@@ -2013,5 +2025,9 @@
         "draft_empty": "No products in this template yet",
         "name_required": "Enter a template name",
         "items_required": "Add at least one product"
+    },
+    "setup": {
+        "complete_desc": "Setup is complete. You can change these settings anytime from Settings.",
+        "ready_title": "All set!"
     }
 }

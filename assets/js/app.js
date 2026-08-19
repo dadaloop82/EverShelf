@@ -551,7 +551,7 @@ function _scaleUpdateLiveBox(msg) {
         if (valEl) valEl.textContent = displayVal + stIcon;
         if (lblEl) {
             const targetLbl = getUnitDisplayLabel(getActiveUseUnitLabel());
-            lblEl.textContent = targetLbl ? (t('qty.enter_in') + ' ' + targetLbl) : '';
+            lblEl.textContent = targetLbl ? ((t('qty.enter_in')) + ' ' + targetLbl) : '';
         }
     }
 }
@@ -711,7 +711,7 @@ function _scaleAutoFillRecipeUse(msg) {
     // Update live hint in modal with the raw scale reading always
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
-        hint.textContent = `${t('scale.reading_hint', { value: msg.value, unit: msg.unit || 'kg' })}${msg.stable ? ' ✓' : ' …'}`;
+        hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
         if (unit === 'ml' && srcUnit !== 'ml') {
             hint.textContent += ' ' + t('scale.ml_hint');
         }
@@ -742,7 +742,7 @@ function _scaleAutoFillRecipeUse(msg) {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
             if (hint) {
-                hint.textContent = `${t('scale.weight_hint', { val, unit })}${hintExtra}`;
+                hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
                 hint.style.display = '';
             }
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
@@ -1029,7 +1029,7 @@ function _scaleShowReadingModal(targetInputId, unit) {
         <div style="padding:16px;text-align:center">
             <p style="margin-bottom:16px">${t('scale.place_on_scale')}</p>
             <div id="scale-reading-live" class="scale-reading-live">— — —</div>
-            <p style="margin-top:8px;font-weight:700;color:var(--primary)">${escapeHtml(t('qty.enter_in') + ' ' + getUnitDisplayLabel(unit))}</p>
+            <p style="margin-top:8px;font-weight:700;color:var(--primary)">${escapeHtml((t('qty.enter_in')) + ' ' + getUnitDisplayLabel(unit))}</p>
             <p class="settings-hint" style="margin-top:12px">${t('scale.waiting_stable')}</p>
         </div>
     `;
@@ -1394,7 +1394,7 @@ function _importIssueLabel(code, data = null) {
     const key = `import.issue_${code}`;
     const params = {};
     if (code === 'location_defaulted') {
-        params.location = t('locations.dispensa');
+        params.location = t('locations.dispensa') || 'dispensa';
         params.key = 'dispensa';
     }
     if (code === 'unit_defaulted') {
@@ -3118,7 +3118,7 @@ async function _tryGeminiVisualBarcode() {
     try {
         const result = await api('gemini_barcode_visual', {}, 'POST', {
             image: imageBase64,
-            lang: _currentLang || 'en',
+            lang: _currentLang || 'it',
         });
 
         if (myGen !== _aiVisualGen) {
@@ -3259,12 +3259,12 @@ async function _saveSettingToServer(data) {
     try {
         const result = await api('save_settings', {}, 'POST', data);
         if (result && result.success === false) {
-            showToast(result.error || t('error.settings_save'), 'error');
+            showToast(result.error || t('error.save'), 'error');
             return false;
         }
         return true;
     } catch (e) {
-        showToast(t('error.settings_save'), 'error');
+        showToast(t('error.save'), 'error');
         return false;
     }
 }
@@ -3447,8 +3447,8 @@ async function _loadBackupTab() {
             const oauthStatusEl = document.getElementById('gdrive-oauth-token-status');
             if (oauthStatusEl) {
                 oauthStatusEl.textContent = ss.gdrive_refresh_token_set
-                    ? ('✅ ' + (t('settings.backup.gdrive_oauth_authorized')))
-                    : ('⚠️ ' + (t('settings.backup.gdrive_oauth_not_authorized')));
+                    ? ('✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized'))
+                    : ('⚠️ ' + (t('settings.backup.gdrive_oauth_not_authorized') || 'Not authorized yet'));
                 oauthStatusEl.style.color = ss.gdrive_refresh_token_set ? '#15803d' : '#b45309';
             }
             // Redirect URI for OAuth setup — always http://localhost for self-hosted compat
@@ -3498,7 +3498,7 @@ async function _renderBackupTab() {
                         <button class="btn btn-small btn-danger" onclick="_backupDelete('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.delete_btn')}">🗑</button>
                     </div>`;
                 }).join('');
-                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info')} ${data.retention_days} ${t('settings.backup.retention_days')}</p>${rows}`;
+                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info') || ''} ${data.retention_days} ${t('settings.backup.retention_days') || 'gg'}</p>${rows}`;
             }
         }
     } catch(e) {
@@ -3535,13 +3535,13 @@ async function _backupDelete(filename) {
 }
 
 async function _backupRestore(filename) {
-    if (!confirm(`${t('settings.backup.restore_confirm', { filename })}\n\n${t('settings.backup.restore_warning')}`)) return;
+    if (!confirm(`${t('settings.backup.restore_confirm')} "${filename}"?\n\n⚠️ ${t('settings.backup.restore_warning')}`)) return;
     const statusEl = document.getElementById('backup-status');
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.restoring'); statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = '⏳ ' + t('settings.backup.restoring'); statusEl.style.display = 'block'; }
     try {
         const r = await api('backup_restore', {}, 'POST', { filename });
         if (r && r.success) {
-            alert(`✅ ${r.message || t('settings.backup.restore_complete')}\n\n${t('settings.backup.page_reload')}`);
+            alert(`✅ ${r.message || t('settings.backup.restore_done')}\n\n${t('settings.backup.reload_hint')}`);
             location.reload();
         } else {
             if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
@@ -3555,7 +3555,7 @@ async function _gdriveTest() {
     const btn = document.getElementById('btn-gdrive-test');
     const statusEl = document.getElementById('gdrive-test-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.gdrive_testing'); statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Test connessione…'; statusEl.style.display = 'block'; }
     try {
         // Save current settings first so the server has the latest JSON/folder
         await saveSettings();
@@ -3626,7 +3626,7 @@ async function _gdriveSubmitCode() {
     const inputEl = document.getElementById('gdrive-code-input');
     const btn     = document.getElementById('btn-gdrive-submit-code');
     const raw     = (inputEl?.value || '').trim();
-    if (!raw) { alert(t('settings.backup.gdrive_code_empty')); return; }
+    if (!raw) { alert(t('settings.backup.gdrive_code_empty') || 'Paste the URL or code first'); return; }
 
     // Accept either a full URL (extract code param) or just the bare code
     let code = raw;
@@ -3645,7 +3645,7 @@ async function _gdriveSubmitCode() {
         if (r && r.success) {
             const statusEl = document.getElementById('gdrive-oauth-token-status');
             if (statusEl) {
-                statusEl.textContent = '✅ ' + (t('settings.backup.gdrive_oauth_authorized'));
+                statusEl.textContent = '✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized');
                 statusEl.style.color = '#15803d';
             }
             const codeSection = document.getElementById('gdrive-code-section');
@@ -3681,7 +3681,7 @@ async function _renderInfoTab() {
 
         // ── Locale & helpers ─────────────────────────────────────────────────
         const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', zh:'zh-CN'};
-        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'en-US';
+        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'it-IT';
         const [yr, mo] = (d.month || '').split('-');
         const monthLabel = new Intl.DateTimeFormat(locale, {month:'long', year:'numeric'})
             .format(new Date(parseInt(yr), parseInt(mo)-1, 1));
@@ -3946,7 +3946,7 @@ async function _submitBugReport() {
             user_agent: navigator.userAgent,
             url: location.href,
             version: _loadedVersion || '',
-            lang: _currentLang || 'en',
+            lang: _currentLang || 'it',
         });
 
         if (res.ok) {
@@ -4192,7 +4192,7 @@ async function loadSettingsUI() {
                 const pSub = document.getElementById('price-settings-sub');
                 if (pSub) pSub.style.display = s.price_enabled ? '' : 'none';
             }
-            if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italy';
+            if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italia';
             if (priceCurrencyEl) priceCurrencyEl.value = s.price_currency || 'EUR';
             if (priceMonthsEl) priceMonthsEl.value = s.price_update_months || 3;
             // Shopping settings (server merge)
@@ -4213,7 +4213,7 @@ async function loadSettingsUI() {
         };
     }
     const priceCountryEl = document.getElementById('setting-price-country');
-    if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italy';
+    if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italia';
     const priceCurrencyEl = document.getElementById('setting-price-currency');
     if (priceCurrencyEl) priceCurrencyEl.value = s.price_currency || 'EUR';
     const priceMonthsEl = document.getElementById('setting-price-update-months');
@@ -4566,11 +4566,7 @@ function addAppliance() {
     showToast(t('toast.appliance_added'), 'success');
 }
 
-function addApplianceQuick(keyOrName) {
-    const resolved = keyOrName.startsWith('settings.appliances.')
-        ? t(keyOrName).replace(/^[^\p{L}]+/u, '').trim()
-        : keyOrName;
-    const name = resolved || keyOrName;
+function addApplianceQuick(name) {
     const s = getSettings();
     if (!s.appliances) s.appliances = [];
     if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
@@ -5374,7 +5370,7 @@ async function _awLoadFacts() {
 /** Return current facts array for the active language. */
 function _awGetFacts() {
     const src = _awLiveFacts || AW_FACTS_FALLBACK;
-    return src[_currentLang] || src['it'] || AW_FACTS_FALLBACK['it'];
+    return src[_currentLang] || src['en'] || src['it'] || AW_FACTS_FALLBACK['en'] || AW_FACTS_FALLBACK['it'];
 }
 
 /** Fetch fresh stats and re-render the anti-waste section. */
@@ -5471,7 +5467,7 @@ function _renderAntiWasteSection(used30, wasted30, usedP30, wastedP30, usedP60, 
     // Show only if the alternation phase allows it (or before alternation starts)
     section.style.display = (!_insightPhase || _insightPhase === 'waste') ? 'block' : 'none';
 
-    const bm      = WASTE_BENCHMARKS[_currentLang] || WASTE_BENCHMARKS['it'];
+    const bm      = WASTE_BENCHMARKS[_currentLang] || WASTE_BENCHMARKS['en'] || WASTE_BENCHMARKS['it'];
     const country = t(bm.countryKey);
     const myRate  = Math.round((wasted30 / total30) * 100);
     const avgRate = bm.avgWasteRate;
@@ -5804,7 +5800,7 @@ function _renderMonthlyStatsSection(data) {
     // Month label from 'YYYY-MM' → formatted locale string
     const [yr, mo] = data.month.split('-').map(Number);
     const localeMap = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', en: 'en-GB', it: 'it-IT', zh: 'zh-CN' };
-    const locale = localeMap[_currentLang] || 'en-US';
+    const locale = localeMap[_currentLang] || 'it-IT';
     const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
     const prevLabel  = new Date(yr, mo - 2, 1).toLocaleDateString(locale, { month: 'long' });
 
@@ -6247,8 +6243,9 @@ async function loadDashboard() {
             // Sorted server-side by days_to_expiry ASC
             openedSection.style.display = 'block';
             const MAX_SHOWN = 20;
-            const visible = statsData.opened.slice(0, MAX_SHOWN);
-            const extra = statsData.opened.length - visible.length;
+            const openedVisible = statsData.opened.filter(item => !isInventoryDepleted(item));
+            const visible = openedVisible.slice(0, MAX_SHOWN);
+            const extra = openedVisible.length - visible.length;
             openedList.innerHTML = visible.map(item => {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
@@ -6265,9 +6262,9 @@ async function loadDashboard() {
                     // Only show remainder if it rounds to at least 1 unit
                     const remainderText = remainderAmt >= 0.5 ? formatSubRemainder(remainderAmt, pkgUnit) : '';
                     if (wholeConf > 0 && remainderText) {
-                        qtyText = `${wholeConf} ${t('units.conf') || 'conf'}${pkgLabel ? ` (${t('units.from') || 'da'} ${pkgSize}${pkgLabel})` : ''} + ${remainderText}`;
+                        qtyText = `${wholeConf} ${t('units.conf') || 'conf'}${pkgLabel ? ` (${t('units.from')} ${pkgSize}${pkgLabel})` : ''} + ${remainderText}`;
                     } else if (wholeConf > 0) {
-                        qtyText = `${wholeConf} ${t('units.conf') || 'conf'}${pkgLabel ? ` (${t('units.from') || 'da'} ${pkgSize}${pkgLabel})` : ''}`;
+                        qtyText = `${wholeConf} ${t('units.conf') || 'conf'}${pkgLabel ? ` (${t('units.from')} ${pkgSize}${pkgLabel})` : ''}`;
                     } else if (remainderText) {
                         qtyText = remainderAmt >= 1 ? remainderText : t('inventory.qty_trace') || '< 1' + (pkgLabel || '');
                     } else {
@@ -6578,11 +6575,10 @@ async function loadBannerAlerts() {
                 if (siblings.length > 0) return;
             }
 
-            let warning;
-            if (suspDq && !isLow && !isHigh) warning = '📦 ' + t('dashboard.banner_suspicious_pkg');
-            else if (isLow) warning = '⬇️ ' + t('dashboard.banner_too_little');
-            else warning = '⬆️ ' + t('dashboard.banner_too_much');
-            _bannerQueue.push({ type: 'review', data: { ...item, warning, _isLow: isLow } });
+            let reviewKind = 'high';
+            if (suspDq && !isLow && !isHigh) reviewKind = 'pkg';
+            else if (isLow) reviewKind = 'low';
+            _bannerQueue.push({ type: 'review', data: { ...item, _reviewKind: reviewKind, _isLow: isLow } });
             _queuedItemIds.add(item.id);
         });
 
@@ -6684,10 +6680,9 @@ function _bannerPriority(entry) {
             return 1000 + Math.min(d, 500);
         }
         case 'review': {
-            const w = entry.data.warning || '';
-            // Low stock is more urgent than too-much
-            if (w.includes(t('dashboard.banner_too_little'))) return 400;
-            if (w.includes(t('dashboard.banner_too_much'))) return 300;
+            const k = entry.data._reviewKind || 'pkg';
+            if (k === 'low') return 400;
+            if (k === 'high') return 300;
             return 200; // package suspicion
         }
         case 'prediction': {
@@ -7337,7 +7332,7 @@ function renderGroupedByCategory(items, compact = false) {
     let html = '';
     for (const cat of sortedCats) {
         const catItems = catGroups[cat];
-        const label = CATEGORY_LABELS[cat] || ('📦 ' + t('categories.altro'));
+        const label = CATEGORY_LABELS[cat] || '📦 Altro';
         html += `<div class="cat-group-header">${label} <span class="cat-group-count">${catItems.length}</span></div>`;
         html += catItems.map(item => compact ? renderDashItem(item) : renderInventoryItem(item)).join('');
     }
@@ -7386,8 +7381,8 @@ function dashItemTap(inventoryId, productId) {
 }
 
 function showAlertItemDetail(inventoryId, productId) {
-    // Load full inventory so modal works (same pattern as dashItemTap)
-    api('inventory_list').then(data => {
+    // Include depleted crumbs so opened/expired alerts can still open Use / Finish actions
+    api('inventory_list', { include_depleted: 1 }).then(data => {
         currentInventory = data.inventory || [];
         showItemDetail(inventoryId, productId);
     });
@@ -7446,11 +7441,11 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from') || 'da'} ${defaultQty}${pkgLabel})</span>`;
+            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from') || 'da'} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
+            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
         }
         return remainderText;
     }
@@ -7505,7 +7500,7 @@ function setQtyInputUnitLabel(inputId, unit, muted = false) {
     if (!badge) return;
     badge.textContent = getUnitDisplayLabel(unit);
     badge.classList.toggle('qty-unit-muted', !!muted);
-    badge.title = t('qty.unit_for_input') + ': ' + badge.textContent;
+    badge.title = (t('qty.unit_for_input')) + ': ' + badge.textContent;
 }
 
 function getActiveUseUnitLabel() {
@@ -7546,11 +7541,11 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from') || 'da'} ${defaultQty}${pkgLabel}`, fraction: '' };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
         }
         const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
         if (wholeConf > 0) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from') || 'da'} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
         }
         return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
     }
@@ -8479,9 +8474,9 @@ function editInventoryItem(id, _retried) {
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header edit-modal-header">
             <h3 class="edit-modal-heading">
-                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item') || t('btn.edit'))}</span>
+                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item'))}</span>
                 <button type="button" id="edit-title-display" class="edit-title-tap" onclick="startEditProductTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(item.name)}</button>
-                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name'))}">
+                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
             </h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
@@ -8546,7 +8541,7 @@ function editInventoryItem(id, _retried) {
             <button type="submit" class="btn btn-large btn-primary full-width">${t('btn.save')}</button>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn'))}</button>
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe'))}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -10443,11 +10438,11 @@ function showProductAction() {
             <div class="edit-unknown-form">
                 <div class="form-group">
                     <label>${t('edit.label_name')}</label>
-                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="${escapeHtml(t('product.name_placeholder'))}" required>
+                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
                 </div>
                 <div class="form-group">
                     <label>${t('product.brand_label')}</label>
-                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="${escapeHtml(t('product.brand_placeholder'))}">
+                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
                 </div>
                 <div class="form-group">
                     <label>${t('product.category_label')}</label>
@@ -10831,7 +10826,7 @@ function editActionInventoryItem(inventoryId) {
             </div>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn'))}</button>
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe'))}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -11218,7 +11213,7 @@ function showAddForm() {
     // Show weight info if product has it
     const weightInfoEl = document.getElementById('add-weight-info');
     if (currentProduct.weight_info) {
-        weightInfoEl.textContent = `📦 Confezione: ${currentProduct.weight_info}`;
+        weightInfoEl.textContent = t('product.package_info', { info: currentProduct.weight_info });
         weightInfoEl.style.display = 'block';
     } else {
         weightInfoEl.style.display = 'none';
@@ -13303,7 +13298,7 @@ function _showUseAllSlideConfirm(productName, qtyStr, onConfirm, opts = {}) {
                     <div class="slide-confirm-thumb" id="use-all-slide-thumb" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">→</div>
                 </div>
             </div>
-            <button type="button" class="btn btn-secondary full-width" id="use-all-cancel">${escapeHtml(t('confirm.cancel'))}</button>
+            <button type="button" class="btn btn-secondary full-width" id="use-all-cancel">${escapeHtml(t('confirm.cancel') || 'Cancel')}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
@@ -13633,7 +13628,7 @@ async function submitUse(e) {
             // Check low stock → Bring! prompt, then move/vacuum modal
             showLowStockBringPrompt(result, moveCallback);
         } else if (result.duplicate) {
-            showToast(result.error || t('use.duplicate_recent'), 'info');
+            showToast(result.duplicate ? t('use.duplicate_recent') : (result.error || t('error.generic')), 'info');
             loadUseInventoryInfo();
         } else {
             showToast(result.error || t('error.generic'), 'error');
@@ -15320,7 +15315,7 @@ async function fetchAllPrices(forceRefresh = false) {
     if (loadingInner) { loadingInner.style.transition = 'none'; loadingInner.style.width = '5%'; }
 
     const lang     = s.language    || 'it';
-    const country  = s.price_country  || 'Italy';
+    const country  = s.price_country  || 'Italia';
     const currency = s.price_currency || 'EUR';
 
     // Send qty/unit aligned to plan-days (server uses these for price totals)
@@ -16022,11 +16017,11 @@ function renderSmartItem(item) {
 async function migrateBringNames(btn) {
     const statusEl = document.getElementById('bring-migrate-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = t('status.in_progress'); }
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = '⏳ In corso…'; }
     try {
         const data = await api('bring_migrate_names', {}, 'POST', {});
         if (data.success) {
-            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} ${t('status.errors')}` : '');
+            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} errori` : '');
             if (statusEl) statusEl.textContent = msg;
             if (data.migrated > 0) {
                 showToast(t('shopping.bring_names_migrated', { n: data.migrated }), 'success');
@@ -17299,7 +17294,7 @@ async function scanExpiryWithAI() {
     } catch (err) {
         console.error('Expiry camera error:', err);
         document.getElementById('expiry-cam-container').innerHTML = `
-            <p style="color:var(--danger);text-align:center;padding:20px">⚠️ ${t('error.camera_access')}</p>
+            <p style="color:var(--danger);text-align:center;padding:20px">⚠️ ${escapeHtml(t('error.camera'))}</p>
         `;
     }
 }
@@ -17511,7 +17506,7 @@ async function loadLog(more = false) {
                 const loc = tx.location || '';
                 const locLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
                 const locStr = tx.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
-                const isAnnotation = (tx.notes || '').includes('[Annullato]');
+                const isAnnotation = ((tx.notes || '').includes('[Undone]') || (tx.notes || '').includes('[Annullato]'));
                 const isRecipeNote = !isAnnotation && (tx.notes || '').startsWith('Ricetta:');
                 const notes = tx.notes && !isAnnotation && !isRecipeNote ? ` · ${tx.notes}` : '';
                 const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(tx.notes)}</div>` : '';
@@ -18099,8 +18094,8 @@ function updateRecipeFuelGenerateBtn() {
     if (!btn) return;
     const fuelOn = !!(document.getElementById('recipe-opt-fuel')?.checked) && !!(getSettings().health_enabled);
     btn.textContent = fuelOn
-        ? t('recipes.generate_fuel_btn')
-        : t('recipes.generate_btn');
+        ? (t('recipes.generate_fuel_btn'))
+        : (t('recipes.generate_btn'));
 }
 
 /** Silent: once per recipe/day when you use an ingredient from that recipe. */
@@ -18148,7 +18143,7 @@ function applyHealthUiState() {
     const wrap = document.getElementById('recipe-opt-fuel-wrap');
     if (wrap) {
         wrap.classList.toggle('is-disabled', !on);
-        wrap.title = on ? '' : (t('settings.health.disabled_toast'));
+        wrap.title = on ? '' : t('settings.health.disabled_toast');
     }
     const fuelCb = document.getElementById('recipe-opt-fuel');
     if (fuelCb && !on) {
@@ -18315,7 +18310,7 @@ async function loadHealthSettingsTab() {
     await loadHealthProfileIntoSettings();
     const urlEl = document.getElementById('health-pairing-url');
     if (urlEl) {
-        urlEl.textContent = (t('settings.health.server_url') || 'URL server') + ': ' + (window.location.origin + window.location.pathname.replace(/\/?$/, '/'));
+        urlEl.textContent = (t('settings.health.server_url')) + ': ' + (window.location.origin + window.location.pathname.replace(/\/?$/, '/'));
     }
     try {
         const res = await api('health_status');
@@ -18323,7 +18318,7 @@ async function loadHealthSettingsTab() {
         if (st && res && res.success) {
             const d = res.daily;
             if (d) {
-                st.textContent = `${t('settings.health.today')}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min != null ? Math.round(d.exercise_min) : '—'} min${d.distance_m ? ` · ${Math.round(d.distance_m/100)/10} km` : ''} · (${d.source || '?'})`;
+                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min != null ? Math.round(d.exercise_min) : '—'} min${d.distance_m ? ` · ${Math.round(d.distance_m/100)/10} km` : ''} · (${d.source || '?'})`;
             } else {
                 st.textContent = t('recipes.fuel_no_daily');
             }
@@ -18397,7 +18392,7 @@ async function createHealthBridgeToken() {
                     t('settings.health.qr_scan_now') +
                     '</p><img alt="QR pairing" width="240" height="240" src="' + qrUrl + '" style="background:#fff;border-radius:12px;padding:8px">' +
                     '<p class="settings-hint" style="margin-top:8px">' +
-                    (t('settings.health.qr_hint')) +
+                    t('settings.health.qr_hint') +
                     '</p>';
             }
             showToast(t('settings.health.bridge_created'), 'success');
@@ -19222,7 +19217,7 @@ function _extractToolsFromSteps(steps) {
         { re: /\bmacchina\s+del\s+pane\b|bread\s*machine|brotbackautomat/, it: 'Macchina del pane', en: 'Bread machine', de: 'Brotbackautomat' },
         { re: /\bessiccator[ei]\b|dehydrator\b|dörrgerät/, it: 'Essiccatore',  en: 'Dehydrator',        de: 'Dörrgerät' },
     ];
-    const lang = _currentLang || 'en';
+    const lang = _currentLang || 'it';
     const found = [];
     for (const p of patterns) {
         if (p.re.test(text)) found.push(p[lang] || p.it);
@@ -19532,7 +19527,7 @@ async function renderRecipe(r) {
         const bucketLabel = t(bucketKey);
         const bucket = (bucketLabel && bucketLabel !== bucketKey) ? bucketLabel : (r.weather.bucket || '');
         const bits = [place, temp, bucket].filter(Boolean).join(' · ');
-        html += `<div class="recipe-weather-badge">🌤 ${escapeHtml(t('recipes.weather_badge'))}${bits ? ': ' + escapeHtml(bits) : ''}</div>`;
+        html += `<div class="recipe-weather-badge">🌤 ${escapeHtml(t('recipes.weather_badge') || 'Weather')}${bits ? ': ' + escapeHtml(bits) : ''}</div>`;
     }
 
     // Tools/appliances banner (shown only when specific equipment is needed)
@@ -20580,7 +20575,7 @@ function testSound() {
     if (statusEl) {
         statusEl.style.display = 'block';
         statusEl.className = 'settings-status success';
-        statusEl.textContent = t('settings.tts.beep_sent');
+        statusEl.textContent = '🔔 Suono inviato — hai sentito un beep?';
     }
 }
 
@@ -20599,14 +20594,14 @@ async function testTTS() {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {
-                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_android_not_init'); }
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
                 return;
             }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
             saveSettingsToStorage(s);
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('tts.android_sending'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio al motore TTS Android...'; }
             // Register callbacks: Android will call these after speak completes/fails
             let _ttsTestTimer = null;
             window._kioskTtsDone = (uid) => {
@@ -20617,8 +20612,8 @@ async function testTTS() {
             window._kioskTtsError = (uid, code) => {
                 clearTimeout(_ttsTestTimer);
                 window._kioskTtsDone = null; window._kioskTtsError = null;
-                const msg = code == -1 ? t('tts.error_synthesis') : code == -2 ? t('tts.error_lang') : code == -3 ? t('tts.error_unavailable') : (t('tts.error_code') + ' ' + code);
-                if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_android', { msg }); }
+                const msg = code == -1 ? 'sintesi non riuscita' : code == -2 ? 'lingua non supportata' : code == -3 ? 'servizio non disponibile' : ('codice ' + code);
+                if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.android_error', { msg }); }
             };
             // Timeout: if Android doesn't callback within 10s, ask user if they heard the voice
             // (speech can take 6-8 s; UtteranceProgressListener may not fire on all firmware)
@@ -20642,11 +20637,11 @@ async function testTTS() {
                     if (statusEl) { statusEl.className = 'settings-status error'; statusEl.innerHTML = '❌ ' + t('settings.tts.test_fail_steps'); }
                 };
             }, 10000);
-            _speakBrowser(t('tts.test_message'));
+            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
             return;
         }
         if (!window.speechSynthesis) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_no_speech_api'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
             return;
         }
         // ── Audio beep test (AudioContext — works even if TTS is broken) ─────
@@ -20662,22 +20657,22 @@ async function testTTS() {
         // Diagnostic: surface problems before attempting TTS
         const voices = window.speechSynthesis.getVoices();
         if (!voices.length) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_no_voices'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.no_voice_package'); }
             return;
         }
         // Warn if only cloud voices are available (won't work offline)
         const itLocal  = voices.find(v => v.lang && v.lang.startsWith('it') && v.localService);
         const anyLocal = voices.find(v => v.localService);
         if (!itLocal && !anyLocal) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_cloud_only'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Solo voci cloud disponibili — la sintesi vocale offline richiede una voce locale installata sul dispositivo (es. Google Text-to-Speech → Scarica voci offline).'; }
             return;
         }
         // onerror callback: update status if speak() fails
         const _ttsErrHandler = (evt) => {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_generic', { error: evt.error || t('tts.error_unknown') }); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.browser_error', { error: evt.error || t('error.unknown') }); }
         };
         // Temporarily hook onerror via a custom utterance
-        const testUtt = new SpeechSynthesisUtterance(t('tts.test_message'));
+        const testUtt = new SpeechSynthesisUtterance('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
         testUtt.rate  = s.tts_rate;
         testUtt.pitch = s.tts_pitch;
         const chosenVoice = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
@@ -20686,7 +20681,7 @@ async function testTTS() {
         if (testVoice) { testUtt.voice = testVoice; testUtt.lang = testVoice.lang; }
         testUtt.onerror = _ttsErrHandler;
         testUtt.onstart = () => {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ ' + t('tts.voice_active') + ': ' + (testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Voce attiva: ' + (testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'); }
         };
         window.speechSynthesis.cancel();
         setTimeout(() => {
@@ -20698,11 +20693,11 @@ async function testTTS() {
                 if (!statusEl?.className.includes('error')) {
                     statusEl.style.display = 'block';
                     statusEl.className = 'settings-status error';
-                    statusEl.textContent = '❌ ' + t('tts.error_no_response');
+                    statusEl.textContent = '❌ ' + t('settings.tts.no_voice_response');
                 }
             }, 2000);
         }, 50);
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('tts.test_in_progress'); }
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '🔊 Beep + TTS in corso...'; }
         return;
     }
     // Server engine
@@ -20725,7 +20720,7 @@ async function testTTS() {
     }
     if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('settings.tts.test_sending'); }
     try {
-        const req = _buildTtsRequest(t('tts.test_label'), formSettings);
+        const req = _buildTtsRequest('Test vocale EverShelf', formSettings);
         const res = await _ttsViaProxy(req);
         const data = await res.json().catch(() => ({}));
         const httpCode = data.status || res.status;
@@ -21787,7 +21782,7 @@ async function chatTransferToRecipes(btn, replyText) {
         const settings = getSettings();
         const result = await api('chat_to_recipe', {}, 'POST', {
             text: replyText,
-            lang: settings.lang || 'en'
+            lang: settings.lang || 'it'
         });
         if (!result || !result.success || !result.recipe) {
             resetBtn();
@@ -23921,35 +23916,31 @@ function _setupSteps() {
         },
         {
             title: '☁️ Google Drive Backup',
-            desc: t('settings.backup.gdrive_wizard_hint'),
+            desc: t('settings.backup.gdrive_wizard_hint') || 'Optional: automatically back up to Google Drive daily.',
             render: () => `
                 <details style="margin-bottom:14px;background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:10px 14px">
-                    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--text-primary)">${t('settings.backup.gdrive_oauth_how_to')}</summary>
+                    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--text-primary)">${t('settings.backup.gdrive_oauth_how_to') || '📋 Setup guide'}</summary>
                     <ol style="margin:10px 0 0 16px;font-size:0.8rem;color:var(--text-secondary);line-height:1.8">${t('settings.backup.gdrive_oauth_steps') || ''}</ol>
                 </details>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_folder_id')}</label>
+                    <label>${t('settings.backup.gdrive_folder_id') || 'Folder ID Drive'}</label>
                     <input type="text" id="setup-gdrive-folder" class="form-input" placeholder="1ABCdef_xyz…" value="${_setupData.gdrive_folder_id}">
                 </div>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_client_id')}</label>
+                    <label>${t('settings.backup.gdrive_client_id') || 'Client ID'}</label>
                     <input type="text" id="setup-gdrive-client-id" class="form-input" placeholder="1234567890-abc….apps.googleusercontent.com" value="${_setupData.gdrive_client_id}">
                 </div>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_client_secret')}</label>
+                    <label>${t('settings.backup.gdrive_client_secret') || 'Client Secret'}</label>
                     <input type="password" id="setup-gdrive-client-secret" class="form-input" placeholder="GOCSPX-…" value="${_setupData.gdrive_client_secret}">
                 </div>
-                <p class="settings-hint" style="font-size:0.78rem">${t('settings.backup.gdrive_redirect_uri_label')} <code>http://localhost</code></p>
-                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip')}</span>
+                <p class="settings-hint" style="font-size:0.78rem">${t('settings.backup.gdrive_redirect_uri_label') || 'Redirect URI:'} <code>http://localhost</code></p>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip') || 'Skip — configure later in Settings'}</span>
             `
         },
         {
-            title: '✅ ' + (_currentLang === 'it' ? 'Tutto pronto!' : _currentLang === 'de' ? 'Alles bereit!' : _currentLang === 'fr' ? 'Tout est prêt !' : _currentLang === 'es' ? '¡Todo listo!' : 'All set!'),
-            desc: _currentLang === 'it' ? 'La configurazione è completata. Puoi sempre modificare queste impostazioni dalla pagina Configurazione.'
-                 : _currentLang === 'de' ? 'Die Konfiguration ist abgeschlossen. Du kannst diese Einstellungen jederzeit ändern.'
-                 : _currentLang === 'fr' ? 'La configuration est terminée. Vous pouvez toujours modifier ces paramètres depuis la page Paramètres.'
-                 : _currentLang === 'es' ? 'La configuración está completa. Puedes cambiar estos ajustes desde la página Ajustes.'
-                 : 'Setup is complete. You can always change these settings from the Settings page.',
+            title: '✅ ' + t('setup.ready_title'),
+            desc: t('setup.complete_desc'),
             render: () => {
                 let summary = '<div style="text-align:center;font-size:2.5rem;margin:12px 0">🎉</div>';
                 return summary;
@@ -24274,11 +24265,11 @@ async function _runStartupCheck() {
     } catch(e) {
         clearInterval(slowAnim);
         _showStartupErrorPopup(
-            tl('error_network', 'Cannot reach server'),
-            tl('error_network_detail', 'The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nCheck that the server is running and try again.'),
+            tl('error_network', 'Cannot reach the server.'),
+            tl('error_network_detail', 'The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nMake sure the server is started and try again.'),
             errorEl, retryBtn
         );
-        setProgress(100, tl('error_network', 'Server unreachable'), 'error');
+        setProgress(100, tl('error_network', 'Cannot reach the server.'), 'error');
         return false;
     }
     clearInterval(slowAnim);
@@ -24296,20 +24287,20 @@ async function _runStartupCheck() {
         { key: 'ext_fileinfo',      label: 'Fileinfo',                                      critical: false },
         { key: 'ext_zip',           label: 'ZIP',                                           critical: false },
         { key: 'ext_intl',          label: 'Intl',                                          critical: false },
-        { key: 'php_memory',        label: tl('check_php_memory',  'PHP memory'),          critical: false },
+        { key: 'php_memory',        label: tl('check_php_memory',  'Memoria PHP'),          critical: false },
         { key: 'php_max_exec',      label: tl('check_php_timeout', 'Timeout PHP'),          critical: false },
         { key: 'php_upload',        label: tl('check_php_upload',  'Upload PHP'),           critical: false },
         // Filesystem
         { key: 'data_dir',          label: tl('check_data_dir',    'Cartella dati'),        critical: true  },
         { key: 'data_rate_limits',  label: tl('check_rate_limits', 'Rate limits dir'),      critical: false },
         { key: 'data_backups',      label: tl('check_backups',     'Backup dir'),           critical: false },
-        { key: 'data_write_test',   label: tl('check_write_test',  'Write test'),       critical: true  },
-        { key: 'disk_space',        label: tl('check_disk_space',  'Disk space'),         critical: false },
+        { key: 'data_write_test',   label: tl('check_write_test',  'Test scrittura'),       critical: true  },
+        { key: 'disk_space',        label: tl('check_disk_space',  'Spazio disco'),         critical: false },
         // Database
         { key: 'db_legacy',         label: tl('check_db_legacy',   'DB legacy'),            critical: false },
-        { key: 'db_connect',        label: tl('check_db_connect',  'DB connection'),       critical: true  },
-        { key: 'db_tables',         label: tl('check_db_tables',   'DB tables'),           critical: true  },
-        { key: 'db_integrity',      label: tl('check_db_integrity','Integrità DB'),         critical: true  },
+        { key: 'db_connect',        label: tl('check_db_connect',  'Database connection'),       critical: true  },
+        { key: 'db_tables',         label: tl('check_db_tables',   'Tabelle DB'),           critical: true  },
+        { key: 'db_integrity',      label: tl('check_db_integrity','Database integrity'),         critical: true  },
         { key: 'db_wal',            label: tl('check_db_wal',      'WAL mode'),             critical: false },
         { key: 'db_size',           label: tl('check_db_size',     'Dimensione DB'),        critical: false },
         { key: 'db_row_count',      label: tl('check_db_rows',     'Dati inventario'),      critical: false },
@@ -24347,7 +24338,7 @@ async function _runStartupCheck() {
         if (c.value)            lbl += ` (${c.value})`;
         if (isFresh)            lbl += ` — ${tl('fresh_install', 'fresh install')}`;
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
-        if (!isOk && c.missing?.length) lbl += ` — ${t('startup.missing')}: ${c.missing.join(', ')}`;
+        if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
 
         setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
@@ -24376,7 +24367,7 @@ async function _runStartupCheck() {
 
     // ── Warnings → amber bar + warning popup auto-close 5s ───────────────────
     if (warnings.length > 0) {
-        setProgress(100, `${warnings.length} ${tl('warnings_found', 'warnings')}`, 'warn');
+        setProgress(100, `${warnings.length} ${tl('warnings_found', 'warnings found')}`, 'warn');
         await new Promise(r => setTimeout(r, 200));
 
         // Build warning popup (auto-close 5s)
@@ -24432,7 +24423,7 @@ function _showStartupWarningPopup(warnings, container, tl) {
     container.innerHTML = `
         <div class="startup-popup startup-popup-warn">
             <div class="startup-popup-header">
-                <span>⚠️ ${warnings.length} ${tl('warnings_found', 'warning(s) found')}</span>
+                <span>⚠️ ${warnings.length} ${tl('warnings_found', 'warnings found')}</span>
                 <span class="startup-popup-countdown" id="startup-countdown">5</span>
             </div>
             <div class="startup-popup-body">${lines}</div>

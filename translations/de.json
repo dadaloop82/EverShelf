@@ -810,7 +810,10 @@
         "finish": "✅ Fertig",
         "step_fallback": "Schritt {n}",
         "zerowaste_label": "♻️ Abfall",
-        "zerowaste_tip_title": "Zero-Waste-Tipp"
+        "zerowaste_tip_title": "Zero-Waste-Tipp",
+        "restart_title": "Von Anfang an neu starten",
+        "replay_title": "Diesen Schritt wiederholen",
+        "wheel_aria": "Rezeptschritt-Navigation"
     },
     "settings": {
         "title": "⚙️ Einstellungen",
@@ -1043,7 +1046,11 @@
             "heard_yes": "Ja, ich habe es gehört",
             "heard_no": "Nein, ich habe nichts gehört",
             "test_ok_kiosk": "TTS funktioniert.",
-            "test_fail_steps": "Prüfe: 1) Medienvolume ist nicht 0; 2) Google Text-to-Speech installiert und aktualisiert; 3) Deutsches Sprachpaket in den Android TTS-Einstellungen heruntergeladen."
+            "test_fail_steps": "Prüfe: 1) Medienvolume ist nicht 0; 2) Google Text-to-Speech installiert und aktualisiert; 3) Deutsches Sprachpaket in den Android TTS-Einstellungen heruntergeladen.",
+            "no_voice_package": "Keine Stimme verfügbar — installieren Sie ein Sprachpaket in den Systemeinstellungen.",
+            "no_voice_response": "Keine Sprachausgabe — wenn der Piepton hörbar war, ist TTS möglicherweise blockiert. Seite neu laden oder Stimme wechseln.",
+            "android_error": "Android-TTS-Fehler ({msg}) — Google Text-to-Speech im Play Store installieren oder aktualisieren.",
+            "browser_error": "TTS-Fehler: {error} — Browser neu starten oder Stimme wechseln."
         },
         "language": {
             "title": "🌐 Sprache",
@@ -1163,7 +1170,11 @@
             "gdrive_oauth_not_authorized": "Noch nicht autorisiert",
             "gdrive_oauth_window_opened": "Browserfenster geöffnet — autorisieren und zurückkehren",
             "gdrive_oauth_how_to": "OAuth 2.0 einrichten (Schritt für Schritt)",
-            "gdrive_oauth_steps": "<li>Gehe zu <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> und wähle dein Projekt</li><li>Aktiviere die <strong>Google Drive API</strong>: <em>APIs &amp; Dienste → APIs aktivieren → Google Drive API</em></li><li>Gehe zu <em>APIs &amp; Dienste → Anmeldedaten → Anmeldedaten erstellen → OAuth-Client-ID</em></li><li>Anwendungstyp: <strong>Webanwendung</strong>; füge die unten angezeigte URL als <em>Autorisierter Weiterleitungs-URI</em> hinzu</li><li>Kopiere <strong>Client-ID</strong> und <strong>Client-Secret</strong> in die Felder oben und speichere</li><li>Klicke auf <strong>Mit Google autorisieren</strong>: melde dich an und erteile den Zugriff</li><li>Das Fenster schließt sich automatisch und Backups sind bereit</li>"
+            "gdrive_oauth_steps": "<li>Gehe zu <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> und wähle dein Projekt</li><li>Aktiviere die <strong>Google Drive API</strong>: <em>APIs &amp; Dienste → APIs aktivieren → Google Drive API</em></li><li>Gehe zu <em>APIs &amp; Dienste → Anmeldedaten → Anmeldedaten erstellen → OAuth-Client-ID</em></li><li>Anwendungstyp: <strong>Webanwendung</strong>; füge die unten angezeigte URL als <em>Autorisierter Weiterleitungs-URI</em> hinzu</li><li>Kopiere <strong>Client-ID</strong> und <strong>Client-Secret</strong> in die Felder oben und speichere</li><li>Klicke auf <strong>Mit Google autorisieren</strong>: melde dich an und erteile den Zugriff</li><li>Das Fenster schließt sich automatisch und Backups sind bereit</li>",
+            "restore_warning": "WARNUNG: Alle aktuellen Daten werden ERSETZT. Diese Aktion kann nicht rückgängig gemacht werden.",
+            "restore_done": "Wiederherstellung abgeschlossen!",
+            "reload_hint": "Die Seite wird neu geladen.",
+            "restoring": "Wiederherstellung läuft…"
         },
         "info": {
             "tab": "Info",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "Rezepte",
-        "scan_btn": "Produkt scannen"
+        "scan_btn": "Produkt scannen",
+        "scan_long_hint": "Produkt scannen (lange drücken für Einkaufsmodus)"
     },
     "days": {
         "mon": "Montag",
@@ -2013,5 +2025,9 @@
         "draft_empty": "Noch keine Produkte in dieser Vorlage",
         "name_required": "Namen eingeben",
         "items_required": "Mindestens ein Produkt hinzufügen"
+    },
+    "setup": {
+        "complete_desc": "Einrichtung abgeschlossen. Sie können diese Einstellungen jederzeit unter Einstellungen ändern.",
+        "ready_title": "Alles bereit!"
     }
 }

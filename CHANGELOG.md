@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.92] - 2026-08-19
+
+### Fixed
+- **i18n hardcoded strings** — Removed Italian fallbacks and hardcoded UI text from `app.js`, `index.html`, and API error responses; all user-facing strings now go through translation keys in **it, en, de, fr, es, zh** (1853 keys each).
+
+## [1.7.91] - 2026-08-19
+
+### Fixed
+- **Depleted products stuck in Opened alerts** — Trace leftovers (e.g. 19 g butter) were hidden from the inventory list but still shown under Opened; tapping them opened “already exhausted” and **Mark finished** did nothing because `confirmFinished` only deleted zero-qty rows. Crumbs are now cleared (logged as out + removed), Opened filters them out, and alert detail loads depleted stock for Use / Finish actions.
+
 ## [1.7.90] - 2026-08-19
 
 ### Fixed
@@ -19,19 +29,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.89] - 2026-08-19
 
 ### Added
-- **Modalità spesa dall'header** — pulsante 🛒 in barra superiore (accanto a fotocamera) per attivare/disattivare la scansione continua senza long-press.
-- **Fallback AI in modalità spesa** — se il barcode non viene letto entro 5 s, compare un countdown annullabile (5 s) prima di avviare l'identificazione Gemini Vision.
-- **Conferma uscita form Aggiungi** — se lasci la pagina con un prodotto non ancora salvato, chiede se aggiungere o scartare (6 lingue).
-- **Tracciamento spesa opzionale** — alla fine di una sessione spesa puoi registrare l'importo totale; pannello mese su dashboard con trend.
-- **Gemini nella bottom nav** — tab centrale elevata subito dopo Ricette; rimosso dall'header per liberare spazio su mobile.
+- **Shopping mode from header** — 🛒 button in the top bar (next to the camera) toggles continuous scan without long-press.
+- **AI fallback in shopping mode** — if the barcode is not read within 5 s, a cancellable 5 s countdown runs before Gemini Vision identification starts.
+- **Add-form exit confirmation** — leaving the add page with an unsaved product prompts to save or discard (6 languages).
+- **Optional spend tracking** — at the end of a shopping session you can record the total amount; monthly panel on the dashboard with trend.
+- **Gemini in bottom nav** — elevated center tab right after Recipes; removed from the header to free space on mobile.
 
 ### Fixed
-- **Modal spesa vs AI** — il countdown AI non partiva più sopra la domanda “Quanto hai speso?”; Annulla blocca davvero l'AI; al massimo un fallback per prodotto scansionato.
-- **Banner “Confezione insolita” falsi positivi** — prodotti a pezzi (`pz`) con peso etichetta (400 g pane, 500 g nettarine) non generano più avvisi confezione.
-- **Banner quantità latte** — corretta interpretazione ml vs confezioni nelle soglie di review.
+- **Shopping modal vs AI** — the AI countdown no longer starts over the “How much did you spend?” prompt; Cancel truly blocks AI; at most one fallback per scanned product.
+- **False “Unusual package” banners** — piece goods (`pz`) with label weight (400 g bread, 500 g nectarines) no longer trigger package alerts.
+- **Milk quantity banners** — corrected ml vs pack interpretation in review thresholds.
 
 ### Changed
-- Tooltip fotocamera header semplificato (`scan.hint_short`); etichette spesa/AI/add form in **it, en, de, fr, es, zh**.
+- Simplified header camera tooltip (`scan.hint_short`); shopping/AI/add-form labels in **it, en, de, fr, es, zh**.
 - PWA cache bump (`evershelf-v9`).
 
 ## [1.7.88] - 2026-08-10
@@ -429,7 +439,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.41] - 2026-06-08
 
 ### Fixed
-- **Docker/Traefik “Impossibile contattare il server”** — PHP 8.2 deprecation notices (`LoggingPDO::prepare`) were emitted as HTML before JSON, breaking `fetch().json()` on the startup health check; API bootstrap now suppresses HTML error output in production.
+- **Docker/Traefik server unreachable** — PHP 8.2 deprecation notices (`LoggingPDO::prepare`) were emitted as HTML before JSON, breaking `fetch().json()` on the startup health check; API bootstrap now suppresses HTML error output in production.
 - **Traefik HTTPS redirect loop** — `.htaccess` skips the HTTPS redirect when `X-Forwarded-Proto: https` is already set (compatible with Traefik `sslheader` middleware); no need to disable `.htaccess` manually.
 - **LoggingPDO PHP 8.2** — `#[\ReturnTypeWillChange]` on `prepare()` to eliminate deprecation noise in error logs.
 
@@ -461,7 +471,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shopping scan barcode fast path** — In shopping mode, a successful scan opens the **add form directly** (skips the intermediate action page).
 - **Session barcode cache** — In-memory cache avoids duplicate API calls when scanning many items in one trip.
 - **Manual expiry flag (`expiry_user_set`)** — User-entered expiry dates are kept when changing location, vacuum seal, or moving stock; only auto-estimated dates are recalculated.
-- **Family sibling 24h dedup** — After confirming “Sì, tutto ok” on a similar in-stock product, the check prompt is suppressed for the same `shopping_name` family for 24 hours (synced via `family_sibling_confirmed` in app settings).
+- **Family sibling 24h dedup** — After confirming a similar in-stock product is OK, the check prompt is suppressed for the same `shopping_name` family for 24 hours (synced via `family_sibling_confirmed` in app settings).
 - **Family sibling stock line** — Shopping scan prompt shows readable stock (e.g. `4 conf (20g each)`); new `family_sibling_check` / `family_sibling_stock` strings in IT/EN/DE/FR/ES.
 - **Quick-edit product notes** — Notes field in the inline name/brand editor on the product action page.
 
@@ -930,16 +940,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Expired banner for opened products** — Products whose opened-product shelf-life has passed (e.g. fridge cream opened 6 days ago) now appear in the top notification banner, not just the dashboard list
-- **Safety-aware expired banner** — Each expired banner item shows a contextual safety tip (from `getExpiredSafety()`); danger-level items (fridge dairy/meat/fish) get an intense red banner and "L'ho buttato" as the primary button; safe/warning items keep the original button order
+- **Safety-aware expired banner** — Each expired banner item shows a contextual safety tip (from `getExpiredSafety()`); danger-level items (fridge dairy/meat/fish) get an intense red banner and **Discard** as the primary button; safe/warning items keep the original button order
 - **AI model fallback** — All Gemini API endpoints (expiry scan, product identification, chat, recipe non-streaming, shopping name classifier) now try `gemini-2.5-flash` first and fall back to `gemini-2.0-flash` automatically, matching the resilience already in place for recipe streaming
 - **Friendly AI quota message** — When the AI returns a quota/rate-limit error the user sees "Quota AI esaurita. Riprova tra qualche minuto." instead of the raw API error string
 - **Cooking TTS auto-read** — Each recipe step is read aloud automatically when navigating forward or backward; the first step is also read when entering cooking mode
 - **Cooking timer 10-second warning** — When a cooking timer reaches 10 seconds the TTS announces "Attenzione! [label]: mancano 10 secondi!"
-- **Cooking recipe completion announcement** — "Ricetta completata! Buon appetito!" is spoken via TTS when the last step is confirmed
+- **Cooking recipe completion announcement** — "Recipe complete! Enjoy your meal!" is spoken via TTS when the last step is confirmed
 
 ### Fixed
 - **Cooking TTS gate** — `speakCookingStep()` was blocked by the global `tts_enabled` setting; the `_cookingTTS` toggle (🔊/🔇 button) is now the only gate; browser Web Speech API is used by default without requiring TTS configuration in Settings
-- **Anomaly dismiss label** — The "La quantità è giusta" button now appends the current inventory quantity, e.g. "La quantità è giusta (2 pz)", so the action is unambiguous
+- **Anomaly dismiss label** — The "Quantity is correct" button now appends the current inventory quantity, e.g. "Quantity is correct (2 pcs)", so the action is unambiguous
 - **i18n sync** — Added `timer_warning_tts`, `recipe_done_tts`, `error.ai_quota` keys to all three language files (IT/EN/DE)
 
 
