@@ -11695,12 +11695,29 @@ async function submitAdd(e) {
             if (result.shopping_kept && result.remaining_need?.suggested_qty) {
                 const rem = result.remaining_need;
                 const remLabel = _formatSuggestQty(rem.suggested_qty, rem.suggested_unit || 'conf');
-                setTimeout(() => showToast(
-                    t('shopping.remaining_after_buy')
-                        .replace('{name}', rem.generic || currentProduct.shopping_name || currentProduct.name)
-                        .replace('{qty}', remLabel || String(rem.suggested_qty)),
-                    'info'
-                ), 1200);
+                const listName = rem.generic || currentProduct.shopping_name || currentProduct.name;
+
+                // In modalità spesa vogliamo messaggi espliciti solo quando il prodotto
+                // era davvero presente nella lista della spesa (in-memory).
+                const inSpesaList = _spesaMode && _spesaModeHasShoppingItem(currentProduct);
+
+                if (inSpesaList) {
+                    const boughtLabel = _formatSuggestQty(result.total_qty, result.unit || 'pz');
+                    setTimeout(() => showToast(
+                        t('shopping.spesa_partial_recommend')
+                            .replace('{bought}', boughtLabel || String(result.total_qty || 1))
+                            .replace('{name}', listName)
+                            .replace('{remaining}', remLabel || String(rem.suggested_qty)),
+                        'info'
+                    ), 1200);
+                } else {
+                    setTimeout(() => showToast(
+                        t('shopping.remaining_after_buy')
+                            .replace('{name}', listName)
+                            .replace('{qty}', remLabel || String(rem.suggested_qty)),
+                        'info'
+                    ), 1200);
+                }
             }
             if (await shoppingBoughtAfterAdd(result)) return;
             if (!(await spesaModeAfterAdd(result))) {
@@ -17706,6 +17723,9 @@ async function getTodayRecipeTitles() {
 let _recipeArchiveEntries = [];
 
 async function loadRecipeArchive() {
+    // Sempre refetch: altrimenti altri device non vedono ricette create altrove
+    // finché non si ricarica tutta la pagina (cache in-memory).
+    _recipeArchiveCache = null;
     const container = document.getElementById('recipe-archive');
     if (!container) return;
     const archive = await getRecipeArchive();
@@ -22899,6 +22919,30 @@ let _shoppingBoughtFlow = false;
 let _longPressTimer = null;
 let _spesaSession = []; // { name, qty, unit } per ogni prodotto aggiunto
 
+function toggleSpesaModeFromCamera() {
+    if (_spesaMode) return endSpesaMode();
+    return startSpesaMode();
+}
+
+/** True se il prodotto sembra presente nella lista spesa in-memory. */
+function _spesaModeHasShoppingItem(product) {
+    if (!_spesaMode) return false;
+    if (!product) return false;
+    const list = shoppingItems || [];
+    if (!Array.isArray(list) || list.length === 0) return false;
+
+    const generic = product.shopping_name || product.name || '';
+    if (!generic) return false;
+    return !!(_findSimilarItem(generic, list) || _findSimilarItem(product.name, list));
+}
+
+function _syncSpesaQuickBtn() {
+    const btn = document.getElementById('scan-spesa-quick-btn');
+    if (!btn) return;
+    btn.classList.toggle('spesa-on', !!_spesaMode);
+    btn.setAttribute('aria-pressed', _spesaMode ? 'true' : 'false');
+}
+
 function initSpesaMode() {
     const btn = document.getElementById('btn-header-scan');
     if (!btn) return;
@@ -22934,6 +22978,12 @@ function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
     preloadBarcodeEngines();
+    _syncSpesaQuickBtn();
+
+    // Carica la lista in background così i messaggi "rimossa / consigliata"
+    // possono verificare davvero se l'articolo era presente in lista.
+    try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
+
     showToast(t('scan.mode_shopping_activated'), 'success');
     showPage('scan');
     updateSpesaBanner();
@@ -22941,6 +22991,7 @@ function startSpesaMode() {
 
 function endSpesaMode() {
     _spesaMode = false;
+    _syncSpesaQuickBtn();
     updateSpesaBanner();
     stopScanner();
     showPage('dashboard');
@@ -22953,6 +23004,7 @@ function updateSpesaBanner() {
     const statEl = banner.querySelector('.spesa-stat');
     if (statEl) statEl.textContent = _spesaBannerStat();
     _applySpesaScanUI();
+    _syncSpesaQuickBtn();
 }
 
 /** Spesa mode: keep tabs + normal camera size — only hide manual barcode input. */
@@ -23049,7 +23101,19 @@ async function spesaModeAfterAdd(addResult, opts = {}) {
         });
         updateSpesaBanner();
         _shoppingInventoryCache = null;
+        const inSpesaList = _spesaModeHasShoppingItem(currentProduct);
+        const listName = currentProduct.shopping_name || currentProduct.name;
         await _spesaRemovePurchasedFromList(currentProduct, addResult);
+
+        // Se in lista, e la necessità risulta coperta, mostriamo esplicitamente
+        // che la riga è stata rimossa.
+        if (inSpesaList && !addResult?.shopping_kept) {
+            setTimeout(() => showToast(
+                t('shopping.spesa_removed_all').replace('{name}', listName),
+                'info'
+            ), 900);
+        }
+
         if (!opts.skipFamilySuggest) {
             const addLoc = document.getElementById('add-location')?.value || 'dispensa';
             _showFamilySiblingSuggest(currentProduct.id, addLoc);
@@ -24091,6 +24155,13 @@ async function _initApp() {
     setInterval(() => {
         if (!_screensaverActive) refreshCurrentPage();
     }, 5 * 60 * 1000);
+
+    // 1b) Ricette: poll più frequente mentre la tab è aperta (sync multi-device)
+    setInterval(() => {
+        if (!_screensaverActive && _currentPageId === 'recipe' && !document.hidden) {
+            loadRecipeArchive();
+        }
+    }, 60 * 1000);
 
     // 2) Ogni 5 min: contatore spesa (non ricaricare la lista se l'utente sta navigando)
     setInterval(() => {
