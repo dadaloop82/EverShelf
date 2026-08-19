@@ -118,15 +118,15 @@ class GatewayService : Service(), BleScaleListener, ServerEventListener {
 
     private fun connectToSavedScale() {
         if (!bleManager.hasRequiredPermissions()) {
-            updateNotification("⚠️ Permessi Bluetooth mancanti")
+            updateNotification(getString(R.string.gateway_bt_perms_missing))
             return
         }
         val addr = bleManager.getSavedDeviceAddress() ?: run {
-            updateNotification("Nessuna bilancia configurata")
+            updateNotification(getString(R.string.gateway_no_scale))
             return
         }
         val name = bleManager.getSavedDeviceName() ?: addr
-        updateNotification("🔍 Connessione a $name…")
+        updateNotification(getString(R.string.gateway_connecting_to, name))
         // Enable auto-connect: the scan callback will connect when the saved device is found
         bleManager.enableAutoConnect()
         bleManager.startScan()

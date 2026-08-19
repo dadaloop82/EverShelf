@@ -412,7 +412,7 @@ function healthMealsCoveredTypes(array $meals): array {
  *
  * @return array{available:bool,reason?:string,intent:string,label:string,target_kcal:int,protein_g:int,carbs:string,fat:string,notes:string[],daily:?array,tdee:int,meal_share:float,eaten_today?:array,remaining_kcal?:int,target_kcal_raw?:int}
  */
-function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []): array {
+function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = [], string $lang = 'en'): array {
     healthEnsureTables($db);
     $profile = healthGetProfile($db);
     $daily = healthGetDaily($db, healthTodayDate());
@@ -455,20 +455,30 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
     $noData = $daily === null
         || ($burned === null && $active <= 0 && $steps <= 0 && $exMin <= 0);
 
+    $healthLabels = [
+        'it' => ['equilibrio_limited' => 'Equilibrio (dati limitati)', 'no_health_data' => 'Nessun dato salute fresco: budget stimato dal profilo. Inserisci kcal/passi o collega Health Bridge.', 'ricarica' => 'Ricarica post-attività', 'high_activity' => 'Attività elevata oggi → pasto più energetico e ricco di proteine.', 'leggero' => 'Giorno leggero', 'low_activity' => 'Poca attività → densità calorica moderata, più volume da verdure.'],
+        'en' => ['equilibrio_limited' => 'Balance (limited data)', 'no_health_data' => 'No fresh health data: budget estimated from profile. Enter kcal/steps or connect Health Bridge.', 'ricarica' => 'Post-activity recharge', 'high_activity' => 'High activity today → more energetic and protein-rich meal.', 'leggero' => 'Light day', 'low_activity' => 'Low activity → moderate caloric density, more volume from vegetables.'],
+        'de' => ['equilibrio_limited' => 'Gleichgewicht (begrenzte Daten)', 'no_health_data' => 'Keine frischen Gesundheitsdaten: Budget aus Profil geschätzt. Gib kcal/Schritte ein oder verbinde Health Bridge.', 'ricarica' => 'Erholung nach Aktivität', 'high_activity' => 'Hohe Aktivität heute → energiereichere und proteinreichere Mahlzeit.', 'leggero' => 'Leichter Tag', 'low_activity' => 'Wenig Aktivität → moderate Kaloriendichte, mehr Gemüsevolumen.'],
+        'fr' => ['equilibrio_limited' => 'Équilibre (données limitées)', 'no_health_data' => 'Pas de données santé récentes : budget estimé du profil. Entrez kcal/pas ou connectez Health Bridge.', 'ricarica' => 'Recharge post-activité', 'high_activity' => 'Activité élevée aujourd\'hui → repas plus énergétique et riche en protéines.', 'leggero' => 'Journée légère', 'low_activity' => 'Peu d\'activité → densité calorique modérée, plus de volume en légumes.'],
+        'es' => ['equilibrio_limited' => 'Equilibrio (datos limitados)', 'no_health_data' => 'Sin datos de salud recientes: presupuesto estimado del perfil. Ingresa kcal/pasos o conecta Health Bridge.', 'ricarica' => 'Recarga post-actividad', 'high_activity' => 'Actividad elevada hoy → comida más energética y rica en proteínas.', 'leggero' => 'Día ligero', 'low_activity' => 'Poca actividad → densidad calórica moderada, más volumen de verduras.'],
+        'zh' => ['equilibrio_limited' => '平衡（数据有限）', 'no_health_data' => '没有最新健康数据：根据个人资料估算预算。请输入 kcal/步数或连接 Health Bridge。', 'ricarica' => '活动后补充', 'high_activity' => '今天活动量大 → 更高能量和蛋白质的餐食。', 'leggero' => '轻食日', 'low_activity' => '活动量少 → 适度热量密度，多吃蔬菜增加体积。'],
+    ];
+    $hl = $healthLabels[$lang] ?? $healthLabels['en'];
+
     if ($noData) {
         $intent = 'equilibrio';
-        $label = 'Equilibrio (dati limitati)';
-        $notes[] = 'Nessun dato salute fresco: budget stimato dal profilo. Inserisci kcal/passi o collega Health Bridge.';
+        $label = $hl['equilibrio_limited'];
+        $notes[] = $hl['no_health_data'];
     } elseif ($highActivity) {
         $intent = 'ricarica';
-        $label = 'Ricarica post-attività';
+        $label = $hl['ricarica'];
         $share = min(0.42, $share + 0.05);
-        $notes[] = 'Attività elevata oggi → pasto più energetico e ricco di proteine.';
+        $notes[] = $hl['high_activity'];
     } elseif ($lowActivity) {
         $intent = 'leggero';
-        $label = 'Giorno leggero';
+        $label = $hl['leggero'];
         $share = max(0.22, $share - 0.05);
-        $notes[] = 'Poca attività → densità calorica moderata, più volume da verdure.';
+        $notes[] = $hl['low_activity'];
     }
 
     if ($sleep !== null && $sleep < 6) {
@@ -605,7 +615,7 @@ function computeMealBudget(PDO $db, string $meal = 'pranzo', array $options = []
 }
 
 /** Prompt block for Gemini when Fuel Mode is on. */
-function healthFuelPromptBlock(array $budget): string {
+function healthFuelPromptBlock(array $budget, string $lang = 'en'): string {
     if (empty($budget)) {
         return '';
     }
@@ -668,25 +678,105 @@ function healthFuelPromptBlock(array $budget): string {
     $lo = (int)round($kcal * 0.85);
     $hi = (int)round($kcal * 1.15);
     $goal = $budget['goal'] ?? 'maintain';
+    $goalLines = [
+        'it' => ['lose' => 'obiettivo profilo: DIMAGRIMENTO (deficit controllato, priorità proteine e volume verdure)', 'gain' => 'obiettivo profilo: MASSA (surplus leggero, proteine alte, carb sufficienti)', 'maintain' => 'obiettivo profilo: MANTENIMENTO (equilibrio kcal/macro)'],
+        'en' => ['lose' => 'profile goal: WEIGHT LOSS (controlled deficit, prioritize protein and vegetable volume)', 'gain' => 'profile goal: MUSCLE GAIN (slight surplus, high protein, sufficient carbs)', 'maintain' => 'profile goal: MAINTENANCE (kcal/macro balance)'],
+        'de' => ['lose' => 'Profilziel: ABNEHMEN (kontrolliertes Defizit, Proteine und Gemüsevolumen priorisieren)', 'gain' => 'Profilziel: MUSKELAUFBAU (leichter Überschuss, hohe Proteinzufuhr, ausreichend Kohlenhydrate)', 'maintain' => 'Profilziel: ERHALTUNG (kcal/Makro-Gleichgewicht)'],
+        'fr' => ['lose' => 'objectif profil : PERTE DE POIDS (déficit contrôlé, priorité protéines et volume légumes)', 'gain' => 'objectif profil : PRISE DE MASSE (léger surplus, protéines élevées, glucides suffisants)', 'maintain' => 'objectif profil : MAINTIEN (équilibre kcal/macros)'],
+        'es' => ['lose' => 'objetivo perfil: PÉRDIDA DE PESO (déficit controlado, priorizar proteínas y volumen de verduras)', 'gain' => 'objetivo perfil: GANANCIA MUSCULAR (superávit ligero, proteínas altas, carbohidratos suficientes)', 'maintain' => 'objetivo perfil: MANTENIMIENTO (equilibrio kcal/macros)'],
+        'zh' => ['lose' => '个人目标：减重（控制热量缺口，优先蛋白质和蔬菜体积）', 'gain' => '个人目标：增肌（轻微热量盈余，高蛋白，足够碳水）', 'maintain' => '个人目标：维持（kcal/营养素平衡）'],
+    ];
+    $gl = $goalLines[$lang] ?? $goalLines['en'];
     $goalLine = match ($goal) {
-        'lose' => 'obiettivo profilo: DIMAGRIMENTO (deficit controllato, priorità proteine e volume verdure)',
-        'gain' => 'obiettivo profilo: MASSA (surplus leggero, proteine alte, carb sufficienti)',
-        default => 'obiettivo profilo: MANTENIMENTO (equilibrio kcal/macro)',
+        'lose' => $gl['lose'],
+        'gain' => $gl['gain'],
+        default => $gl['maintain'],
     };
-    return "\n\nMEAL BUDGET / A RITMO MIO (obbligatorio: ricetta guidata da profilo biologico + obiettivo + attività di oggi + ciò che HAI GIÀ MANGIATO OGGI; rispetta ±15% sulle kcal; non inventare dati salute):\n"
+
+    $fuelLabels = [
+        'it' => [
+            'header' => "MEAL BUDGET / A RITMO MIO (obbligatorio: ricetta guidata da profilo biologico + obiettivo + attività di oggi + ciò che HAI GIÀ MANGIATO OGGI; rispetta ±15% sulle kcal; non inventare dati salute):",
+            'intent' => 'intent pasto oggi',
+            'target' => 'target_kcal per QUESTO pasto (già scontato i consumi di oggi)',
+            'acceptable' => 'accettabile',
+            'tdee' => 'TDEE / budget giornaliero',
+            'build' => 'Costruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico).',
+            'no_overload' => 'NON sovraccaricare: se già hai consumato molto oggi, fai un pasto più leggero e bilancia i macro rimanenti.',
+            'fuel_why' => 'Obbligatorio: campo `fuel_why` (2–4 frasi nella lingua della ricetta) che spiega PERCHÉ hai scelto QUEGLI ingredienti in base a: obiettivo profilo, attività/sonno di oggi, cosa già mangiato oggi, intent del pasto, e vincoli dispensa/scadenze. Cita 2–4 ingredienti concreti e il motivo (es. proteine post-allenamento, carb per ricarica, verdure per volume a basso kcal).',
+            'nutrition_note' => 'In nutrition_note una frase sul match kcal/macro. I valori in `nutrition` devono avvicinarsi al target.',
+        ],
+        'en' => [
+            'header' => "MEAL BUDGET / MY PACE (mandatory: recipe driven by biological profile + goal + today's activity + what you HAVE ALREADY EATEN TODAY; respect ±15% on kcal; do not invent health data):",
+            'intent' => 'meal intent today',
+            'target' => 'target_kcal for THIS meal (already deducted today\'s consumption)',
+            'acceptable' => 'acceptable',
+            'tdee' => 'TDEE / daily budget',
+            'build' => 'Build the dish EXPLICITLY for this budget (not a generic dish).',
+            'no_overload' => 'DO NOT overload: if you have already consumed a lot today, make a lighter meal and balance remaining macros.',
+            'fuel_why' => 'Mandatory: `fuel_why` field (2–4 sentences in recipe language) explaining WHY you chose THOSE ingredients based on: profile goal, today\'s activity/sleep, what already eaten today, meal intent, and pantry/expiry constraints. Cite 2–4 specific ingredients and the reason (e.g. protein post-workout, carbs for recharge, vegetables for low-kcal volume).',
+            'nutrition_note' => 'In nutrition_note one sentence about kcal/macro match. Values in `nutrition` must approach the target.',
+        ],
+        'de' => [
+            'header' => "MEAL BUDGET / MEIN TEMPO (Pflicht: Rezept gesteuert durch biologisches Profil + Ziel + heutige Aktivität + was du HEUTE SCHON GEGESSEN HAST; ±15% bei kcal einhalten; keine Gesundheitsdaten erfinden):",
+            'intent' => 'Mahlzeit-Intent heute',
+            'target' => 'target_kcal für DIESE Mahlzeit (bereits abzüglich heutiger Konsum)',
+            'acceptable' => 'akzeptabel',
+            'tdee' => 'TDEE / Tagesbudget',
+            'build' => 'Baue das Gericht EXPLIZIT für dieses Budget (kein generisches Gericht).',
+            'no_overload' => 'NICHT überladen: wenn du heute bereits viel gegessen hast, mache eine leichtere Mahlzeit und gleiche die restlichen Makros aus.',
+            'fuel_why' => 'Pflicht: `fuel_why`-Feld (2–4 Sätze in Rezeptsprache) das erklärt WARUM du DIESE Zutaten gewählt hast.',
+            'nutrition_note' => 'In nutrition_note ein Satz zum kcal/Makro-Match. Werte in `nutrition` müssen sich dem Ziel nähern.',
+        ],
+        'fr' => [
+            'header' => "MEAL BUDGET / MON RYTHME (obligatoire : recette guidée par profil biologique + objectif + activité du jour + ce que vous AVEZ DÉJÀ MANGÉ AUJOURD'HUI ; respecter ±15% sur les kcal ; ne pas inventer de données santé) :",
+            'intent' => 'intention repas aujourd\'hui',
+            'target' => 'target_kcal pour CE repas (déjà déduit la consommation d\'aujourd\'hui)',
+            'acceptable' => 'acceptable',
+            'tdee' => 'TDEE / budget journalier',
+            'build' => 'Construis le plat EXPLICITEMENT pour ce budget (pas un plat générique).',
+            'no_overload' => 'NE PAS surcharger : si vous avez déjà beaucoup consommé aujourd\'hui, faites un repas plus léger et équilibrez les macros restantes.',
+            'fuel_why' => 'Obligatoire : champ `fuel_why` (2–4 phrases dans la langue de la recette) expliquant POURQUOI vous avez choisi CES ingrédients.',
+            'nutrition_note' => 'Dans nutrition_note une phrase sur le match kcal/macros. Les valeurs dans `nutrition` doivent se rapprocher de la cible.',
+        ],
+        'es' => [
+            'header' => "MEAL BUDGET / MI RITMO (obligatorio: receta guiada por perfil biológico + objetivo + actividad de hoy + lo que YA HAS COMIDO HOY; respetar ±15% en kcal; no inventar datos de salud):",
+            'intent' => 'intención de comida hoy',
+            'target' => 'target_kcal para ESTA comida (ya descontado el consumo de hoy)',
+            'acceptable' => 'aceptable',
+            'tdee' => 'TDEE / presupuesto diario',
+            'build' => 'Construye el plato EXPLÍCITAMENTE para este presupuesto (no un plato genérico).',
+            'no_overload' => 'NO sobrecargar: si ya has consumido mucho hoy, haz una comida más ligera y equilibra los macros restantes.',
+            'fuel_why' => 'Obligatorio: campo `fuel_why` (2–4 frases en el idioma de la receta) explicando POR QUÉ elegiste ESOS ingredientes.',
+            'nutrition_note' => 'En nutrition_note una frase sobre el ajuste kcal/macros. Los valores en `nutrition` deben acercarse al objetivo.',
+        ],
+        'zh' => [
+            'header' => "MEAL BUDGET / 我的节奏（必填：根据生物档案 + 目标 + 今天的活动 + 你今天已经吃了什么来指导食谱；遵守 ±15% 热量；不要编造健康数据）：",
+            'intent' => '今日餐食意图',
+            'target' => '此餐 target_kcal（已扣除今日消耗）',
+            'acceptable' => '可接受',
+            'tdee' => 'TDEE / 每日预算',
+            'build' => '明确按此预算构建菜肴（不是通用菜肴）。',
+            'no_overload' => '不要超载：如果今天已经吃了很多，做一顿更轻的餐并平衡剩余的营养素。',
+            'fuel_why' => '必填：`fuel_why` 字段（2-4 句，使用食谱语言）解释为什么选择这些食材。',
+            'nutrition_note' => '在 nutrition_note 中写一句关于 kcal/营养素匹配的话。`nutrition` 中的值必须接近目标。',
+        ],
+    ];
+    $fl = $fuelLabels[$lang] ?? $fuelLabels['en'];
+
+    return "\n\n🍽 {$fl['header']}\n"
         . "- {$goalLine}\n"
-        . "- intent pasto oggi: {$budget['intent']} ({$budget['label']})\n"
-        . "- target_kcal per QUESTO pasto (già scontato i consumi di oggi): {$kcal} (accettabile {$lo}–{$hi})\n"
+        . "- {$fl['intent']}: {$budget['intent']} ({$budget['label']})\n"
+        . "- {$fl['target']}: {$kcal} ({$fl['acceptable']} {$lo}–{$hi})\n"
         . "- protein_g: ≥{$prot}\n"
         . "- carbs: {$budget['carbs']}; fat: {$budget['fat']}\n"
-        . "- TDEE / budget giornaliero: {$budget['tdee']} kcal"
+        . "- {$fl['tdee']}: {$budget['tdee']} kcal"
         . $todayLine
         . $eatenLine
         . $notes
-        . "\nCostruisci il piatto ESPLICITAMENTE per questo budget (non un piatto generico)."
-        . "\nNON sovraccaricare: se già hai consumato molto oggi, fai un pasto più leggero e bilancia i macro rimanenti."
-        . "\nObbligatorio: campo `fuel_why` (2–4 frasi nella lingua della ricetta) che spiega PERCHÉ hai scelto QUEGLI ingredienti in base a: obiettivo profilo, attività/sonno di oggi, cosa già mangiato oggi, intent del pasto, e vincoli dispensa/scadenze. Cita 2–4 ingredienti concreti e il motivo (es. proteine post-allenamento, carb per ricarica, verdure per volume a basso kcal)."
-        . "\nIn nutrition_note una frase sul match kcal/macro. I valori in `nutrition` devono avvicinarsi al target.";
+        . "\n{$fl['build']}"
+        . "\n{$fl['no_overload']}"
+        . "\n{$fl['fuel_why']}"
+        . "\n{$fl['nutrition_note']}";
 }
 
 function healthHashToken(string $token): string {

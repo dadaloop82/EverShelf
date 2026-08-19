@@ -254,7 +254,7 @@ function weatherGetForRecipes(): ?array {
 /**
  * Prompt block for Gemini when Fuel Mode + weather are active.
  */
-function weatherFuelPromptBlock(?array $weather, string $lang = 'it'): string {
+function weatherFuelPromptBlock(?array $weather, string $lang = 'en'): string {
     if (!$weather) {
         return '';
     }
@@ -265,13 +265,22 @@ function weatherFuelPromptBlock(?array $weather, string $lang = 'it'): string {
     $place = $city !== '' ? $city : sprintf('lat %.2f, lon %.2f', $weather['lat'] ?? 0, $weather['lon'] ?? 0);
     $temp = $weather['temp_c'] ?? '?';
     $app = $weather['apparent_c'] ?? null;
-    $appTxt = $app !== null ? " (percepita {$app}°C)" : '';
+    $weatherPrompt = [
+        'it' => ['apparent' => 'percepita', 'header' => 'METEO LOCALE (Open-Meteo) — obbligatorio per «A ritmo mio»:', 'zone' => 'Zona', 'conditions' => 'Condizioni', 'adapt' => 'Adatta stile e cottura', 'cite' => 'In `fuel_why` cita brevemente come il meteo ha influenzato la scelta (1 frase).'],
+        'en' => ['apparent' => 'feels like', 'header' => 'LOCAL WEATHER (Open-Meteo) — mandatory for "My Pace":', 'zone' => 'Area', 'conditions' => 'Conditions', 'adapt' => 'Adapt style and cooking', 'cite' => 'In `fuel_why` briefly mention how the weather influenced your choice (1 sentence).'],
+        'de' => ['apparent' => 'gefühlt', 'header' => 'LOKALES WETTER (Open-Meteo) — Pflicht für „Mein Tempo":', 'zone' => 'Gebiet', 'conditions' => 'Bedingungen', 'adapt' => 'Stil und Kochen anpassen', 'cite' => 'In `fuel_why` kurz erwähnen, wie das Wetter die Wahl beeinflusst hat (1 Satz).'],
+        'fr' => ['apparent' => 'ressentie', 'header' => 'MÉTÉO LOCALE (Open-Meteo) — obligatoire pour « Mon rythme » :', 'zone' => 'Zone', 'conditions' => 'Conditions', 'adapt' => 'Adapter style et cuisson', 'cite' => 'Dans `fuel_why` mentionner brièvement comment la météo a influencé le choix (1 phrase).'],
+        'es' => ['apparent' => 'sensación', 'header' => 'CLIMA LOCAL (Open-Meteo) — obligatorio para «Mi ritmo»:', 'zone' => 'Zona', 'conditions' => 'Condiciones', 'adapt' => 'Adaptar estilo y cocción', 'cite' => 'En `fuel_why` mencionar brevemente cómo el clima influyó en la elección (1 frase).'],
+        'zh' => ['apparent' => '体感', 'header' => '本地天气（Open-Meteo）— "我的节奏" 必填：', 'zone' => '区域', 'conditions' => '天气状况', 'adapt' => '调整风格和烹饪方式', 'cite' => '在 `fuel_why` 中简要提及天气如何影响了你的选择（1句话）。'],
+    ];
+    $wp = $weatherPrompt[$lang] ?? $weatherPrompt['en'];
+    $appTxt = $app !== null ? " ({$wp['apparent']} {$app}°C)" : '';
 
-    return "\n\n🌤 METEO LOCALE (Open-Meteo) — obbligatorio per «A ritmo mio»:\n"
-        . "→ Zona: {$place}\n"
-        . "→ Condizioni: {$label}, {$temp}°C{$appTxt}\n"
-        . "→ Adatta stile e cottura: {$hint}\n"
-        . "→ In `fuel_why` cita brevemente come il meteo ha influenzato la scelta (1 frase).";
+    return "\n\n🌤 {$wp['header']}\n"
+        . "→ {$wp['zone']}: {$place}\n"
+        . "→ {$wp['conditions']}: {$label}, {$temp}°C{$appTxt}\n"
+        . "→ {$wp['adapt']}: {$hint}\n"
+        . "→ {$wp['cite']}";
 }
 
 function weatherApiGet(): void {

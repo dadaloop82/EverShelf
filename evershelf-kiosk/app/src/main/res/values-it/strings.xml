@@ -97,4 +97,50 @@
     <string name="ble_connecting">🔗 Connessione in corso…</string>
     <string name="summary_scale_ok">Bilancia: %s</string>
     <string name="summary_scale_warn">Bilancia: da configurare</string>
+
+    <!-- ── Settings ───────────────────────────────────────────────────────── -->
+    <string name="scale_not_configured">Non configurata</string>
+    <string name="scale_no_scale_hint">Nessuna bilancia configurata — riesegui il wizard per aggiungerne una</string>
+    <string name="scale_configure">⚙️  Configura bilancia</string>
+    <string name="scale_configured">Configurata</string>
+    <string name="scale_restart_service">🔄  Riavvia servizio bilancia</string>
+    <string name="scale_service_restarted">Servizio bilancia riavviato</string>
+    <string name="settings_saved">Impostazioni salvate</string>
+    <string name="scale_active">Attivo ✅</string>
+    <string name="scale_not_started">Non avviato ⚠️</string>
+    <string name="scale_device_default">Bilancia</string>
+    <string name="scale_ws_running">%s — ws://127.0.0.1:8765</string>
+    <string name="scale_ws_not_running">%s — servizio non in esecuzione</string>
+
+    <!-- ── BLE errors ─────────────────────────────────────────────────────── -->
+    <string name="ble_not_available">Bluetooth non disponibile</string>
+    <string name="ble_disabled">Bluetooth disabilitato</string>
+    <string name="ble_no_weight_characteristic">Nessuna caratteristica peso trovata</string>
+
+    <!-- ── Gateway ────────────────────────────────────────────────────────── -->
+    <string name="gateway_no_scale">Nessuna bilancia configurata</string>
+    <string name="gateway_bt_perms_missing">⚠️ Permessi Bluetooth mancanti</string>
+    <string name="gateway_connecting_to">🔍 Connessione a %s…</string>
+
+    <!-- ── Kiosk / updates ────────────────────────────────────────────────── -->
+    <string name="update_available">⬆️ Aggiornamento disponibile:  %s</string>
+    <string name="apk_signature_conflict_title">⚠️ Conflitto firma APK</string>
+    <string name="apk_signature_conflict_msg">L\'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l\'installazione riparte automaticamente.</string>
+    <string name="btn_uninstall">Disinstalla</string>
+    <string name="install_failed_title">⚠️ Installazione fallita (status=%d)</string>
+    <string name="btn_uninstall_retry">Disinstalla e riprova</string>
+    <string name="install_failed_prompt_title">⚠️ Installazione non riuscita</string>
+    <string name="install_failed_prompt_msg">Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora?</string>
+    <string name="install_hint_generic">Errore generico (APK incompatibile con questo dispositivo o versione Android)</string>
+    <string name="install_hint_policy">Bloccato da policy o da un\'altra app in corso</string>
+    <string name="install_hint_aborted">Annullato dall\'utente</string>
+    <string name="install_hint_invalid">APK non valido o corrotto</string>
+    <string name="install_hint_conflict">Conflitto: versione precedente con firma diversa</string>
+    <string name="install_hint_storage">Spazio insufficiente</string>
+    <string name="install_hint_incompatible">Incompatibile con questa versione di Android</string>
+    <string name="install_hint_unknown">Errore sconosciuto</string>
+    <string name="download_title">EverShelf — Aggiornamento</string>
+    <string name="btn_download">⬇ Scarica</string>
+    <string name="install_apk_not_found">File APK non trovato sul dispositivo.</string>
+    <string name="install_apk_invalid">Il file scaricato non è un APK valido.</string>
 </resources>

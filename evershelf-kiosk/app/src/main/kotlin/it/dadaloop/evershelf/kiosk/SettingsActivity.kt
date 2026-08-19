@@ -62,11 +62,11 @@ class SettingsActivity : AppCompatActivity() {
 
         when {
             !hasScale || deviceAddr == null -> {
-                statusView.text = "Non configurata"
+                statusView.text = getString(R.string.scale_not_configured)
                 statusView.setTextColor(0xFF94a3b8.toInt())
-                deviceView.text = "Nessuna bilancia configurata — riesegui il wizard per aggiungerne una"
+                deviceView.text = getString(R.string.scale_no_scale_hint)
                 btnScaleAction.visibility = android.view.View.VISIBLE
-                btnScaleAction.text = "⚙️  Configura bilancia"
+                btnScaleAction.text = getString(R.string.scale_configure)
                 btnScaleAction.setOnClickListener {
                     prefs.edit().putBoolean(KEY_SETUP_COMPLETE, false).apply()
                     startActivity(Intent(this, SetupActivity::class.java))
@@ -74,15 +74,15 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             else -> {
-                statusView.text = "Configurata"
+                statusView.text = getString(R.string.scale_configured)
                 statusView.setTextColor(0xFF34d399.toInt())
                 deviceView.text = deviceName ?: deviceAddr
                 btnScaleAction.visibility = android.view.View.VISIBLE
-                btnScaleAction.text = "🔄  Riavvia servizio bilancia"
+                btnScaleAction.text = getString(R.string.scale_restart_service)
                 btnScaleAction.setOnClickListener {
                     GatewayService.stop(this)
                     GatewayService.start(this)
-                    Toast.makeText(this, "Servizio bilancia riavviato", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.scale_service_restarted), Toast.LENGTH_SHORT).show()
                 }
                 btnReconfigureScale.visibility = android.view.View.VISIBLE
                 btnReconfigureScale.setOnClickListener {
@@ -106,14 +106,15 @@ class SettingsActivity : AppCompatActivity() {
                         }
                     } catch (_: Exception) { false }
                     runOnUiThread {
+                        val displayName = deviceName ?: getString(R.string.scale_device_default)
                         if (running) {
-                            statusView.text = "Attivo ✅"
+                            statusView.text = getString(R.string.scale_active)
                             statusView.setTextColor(0xFF34d399.toInt())
-                            deviceView.text = "${deviceName ?: "Bilancia"} — ws://127.0.0.1:8765"
+                            deviceView.text = getString(R.string.scale_ws_running, displayName)
                         } else {
-                            statusView.text = "Non avviato ⚠️"
+                            statusView.text = getString(R.string.scale_not_started)
                             statusView.setTextColor(0xFFfbbf24.toInt())
-                            deviceView.text = "${deviceName ?: "Bilancia"} — servizio non in esecuzione"
+                            deviceView.text = getString(R.string.scale_ws_not_running, displayName)
                         }
                     }
                 }.start()
@@ -166,7 +167,7 @@ class SettingsActivity : AppCompatActivity() {
                     conn.disconnect()
                 } catch (_: Exception) {}
             }.start()
-            Toast.makeText(this, "Impostazioni salvate", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.settings_saved), Toast.LENGTH_SHORT).show()
             finish()
         }
     }

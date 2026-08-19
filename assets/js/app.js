@@ -548,7 +548,7 @@ function _scaleUpdateLiveBox(msg) {
         if (valEl) valEl.textContent = displayVal + stIcon;
         if (lblEl) {
             const targetLbl = getUnitDisplayLabel(getActiveUseUnitLabel());
-            lblEl.textContent = targetLbl ? ((t('qty.enter_in') || 'Inserimento in') + ' ' + targetLbl) : '';
+            lblEl.textContent = targetLbl ? (t('qty.enter_in') + ' ' + targetLbl) : '';
         }
     }
 }
@@ -708,7 +708,7 @@ function _scaleAutoFillRecipeUse(msg) {
     // Update live hint in modal with the raw scale reading always
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
-        hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        hint.textContent = `${t('scale.reading_hint', { value: msg.value, unit: msg.unit || 'kg' })}${msg.stable ? ' ✓' : ' …'}`;
         if (unit === 'ml' && srcUnit !== 'ml') {
             hint.textContent += ' ' + t('scale.ml_hint');
         }
@@ -739,7 +739,7 @@ function _scaleAutoFillRecipeUse(msg) {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
             if (hint) {
-                hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
+                hint.textContent = `${t('scale.weight_hint', { val, unit })}${hintExtra}`;
                 hint.style.display = '';
             }
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
@@ -1026,7 +1026,7 @@ function _scaleShowReadingModal(targetInputId, unit) {
         <div style="padding:16px;text-align:center">
             <p style="margin-bottom:16px">${t('scale.place_on_scale')}</p>
             <div id="scale-reading-live" class="scale-reading-live">— — —</div>
-            <p style="margin-top:8px;font-weight:700;color:var(--primary)">${escapeHtml((t('qty.enter_in') || 'Inserimento in') + ' ' + getUnitDisplayLabel(unit))}</p>
+            <p style="margin-top:8px;font-weight:700;color:var(--primary)">${escapeHtml(t('qty.enter_in') + ' ' + getUnitDisplayLabel(unit))}</p>
             <p class="settings-hint" style="margin-top:12px">${t('scale.waiting_stable')}</p>
         </div>
     `;
@@ -1391,7 +1391,7 @@ function _importIssueLabel(code, data = null) {
     const key = `import.issue_${code}`;
     const params = {};
     if (code === 'location_defaulted') {
-        params.location = t('locations.dispensa') || 'dispensa';
+        params.location = t('locations.dispensa');
         params.key = 'dispensa';
     }
     if (code === 'unit_defaulted') {
@@ -3109,7 +3109,7 @@ async function _tryGeminiVisualBarcode() {
     try {
         const result = await api('gemini_barcode_visual', {}, 'POST', {
             image: imageBase64,
-            lang: _currentLang || 'it',
+            lang: _currentLang || 'en',
         });
 
         if (myGen !== _aiVisualGen) {
@@ -3255,7 +3255,7 @@ async function _saveSettingToServer(data) {
         }
         return true;
     } catch (e) {
-        showToast(t('error.settings_save') || 'Impossibile salvare le impostazioni', 'error');
+        showToast(t('error.settings_save'), 'error');
         return false;
     }
 }
@@ -3438,8 +3438,8 @@ async function _loadBackupTab() {
             const oauthStatusEl = document.getElementById('gdrive-oauth-token-status');
             if (oauthStatusEl) {
                 oauthStatusEl.textContent = ss.gdrive_refresh_token_set
-                    ? ('✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized'))
-                    : ('⚠️ ' + (t('settings.backup.gdrive_oauth_not_authorized') || 'Not authorized yet'));
+                    ? ('✅ ' + (t('settings.backup.gdrive_oauth_authorized')))
+                    : ('⚠️ ' + (t('settings.backup.gdrive_oauth_not_authorized')));
                 oauthStatusEl.style.color = ss.gdrive_refresh_token_set ? '#15803d' : '#b45309';
             }
             // Redirect URI for OAuth setup — always http://localhost for self-hosted compat
@@ -3469,15 +3469,15 @@ async function _renderBackupTab() {
                 else if (secsAgo < 86400)    ago = t('time.hours_ago', { n: Math.floor(secsAgo / 3600) });
                 else                         ago = t('time.days_ago', { n: Math.floor(secsAgo / 86400) });
                 const name = data.last_backup_file || '';
-                lastInfoEl.innerHTML = `<strong>${t('settings.backup.last_backup') || 'Ultimo backup'}</strong>: ${ago} <span style="color:#94a3b8;font-size:0.78rem">(${name})</span>`;
+                lastInfoEl.innerHTML = `<strong>${t('settings.backup.last_backup')}</strong>: ${ago} <span style="color:#94a3b8;font-size:0.78rem">(${name})</span>`;
             } else {
-                lastInfoEl.innerHTML = `<em style="color:#f59e0b">${t('settings.backup.no_backup_yet') || 'Nessun backup ancora'}</em>`;
+                lastInfoEl.innerHTML = `<em style="color:#f59e0b">${t('settings.backup.no_backup_yet')}</em>`;
             }
         }
         // Backup list
         if (listEl) {
             if (!data.backups || data.backups.length === 0) {
-                listEl.innerHTML = `<p class="settings-hint" style="text-align:center;padding:12px">${t('settings.backup.list_empty') || 'Nessun backup disponibile'}</p>`;
+                listEl.innerHTML = `<p class="settings-hint" style="text-align:center;padding:12px">${t('settings.backup.list_empty')}</p>`;
             } else {
                 const rows = data.backups.map(b => {
                     const d = new Date(b.created_at);
@@ -3485,11 +3485,11 @@ async function _renderBackupTab() {
                     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-color,#e2e8f0);font-size:0.83rem">
                         <span style="flex:1;color:var(--text-primary)">${b.filename}</span>
                         <span style="color:#94a3b8;white-space:nowrap">${b.size_kb} KB · ${dateStr}</span>
-                        <button class="btn btn-small btn-secondary" onclick="_backupRestore('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.restore_btn') || 'Ripristina'}">${t('settings.backup.restore_btn') || '↩ Ripristina'}</button>
-                        <button class="btn btn-small btn-danger" onclick="_backupDelete('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.delete_btn') || 'Elimina'}">🗑</button>
+                        <button class="btn btn-small btn-secondary" onclick="_backupRestore('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.restore_btn')}">${t('settings.backup.restore_btn')}</button>
+                        <button class="btn btn-small btn-danger" onclick="_backupDelete('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.delete_btn')}">🗑</button>
                     </div>`;
                 }).join('');
-                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info') || ''} ${data.retention_days} ${t('settings.backup.retention_days') || 'gg'}</p>${rows}`;
+                listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info')} ${data.retention_days} ${t('settings.backup.retention_days')}</p>${rows}`;
             }
         }
     } catch(e) {
@@ -3501,7 +3501,7 @@ async function _backupNow() {
     const btn = document.getElementById('btn-backup-now');
     const statusEl = document.getElementById('backup-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.backing_up') || '⏳ Backup in corso…'; statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.backing_up'); statusEl.style.display = 'block'; }
     try {
         const r = await api('backup_now');
         if (r && r.success) {
@@ -3519,20 +3519,20 @@ async function _backupNow() {
 }
 
 async function _backupDelete(filename) {
-    if (!confirm(`${t('settings.backup.delete_confirm') || 'Eliminare il backup'} ${filename}?`)) return;
+    if (!confirm(`${t('settings.backup.delete_confirm')} ${filename}?`)) return;
     const r = await api('backup_delete', {}, 'POST', { filename });
     if (r && r.success) await _renderBackupTab();
     else alert(`❌ ${r?.error || 'Error deleting backup'}`);
 }
 
 async function _backupRestore(filename) {
-    if (!confirm(`${t('settings.backup.restore_confirm') || 'Ripristinare il backup'} "${filename}"?\n\n⚠️ ATTENZIONE: tutti i dati attuali verranno SOSTITUITI. Questa azione è irreversibile.`)) return;
+    if (!confirm(`${t('settings.backup.restore_confirm', { filename })}\n\n${t('settings.backup.restore_warning')}`)) return;
     const statusEl = document.getElementById('backup-status');
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Ripristino in corso…'; statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.restoring'); statusEl.style.display = 'block'; }
     try {
         const r = await api('backup_restore', {}, 'POST', { filename });
         if (r && r.success) {
-            alert(`✅ ${r.message || 'Ripristino completato!'}\n\nLa pagina verrà ricaricata.`);
+            alert(`✅ ${r.message || t('settings.backup.restore_complete')}\n\n${t('settings.backup.page_reload')}`);
             location.reload();
         } else {
             if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
@@ -3546,13 +3546,13 @@ async function _gdriveTest() {
     const btn = document.getElementById('btn-gdrive-test');
     const statusEl = document.getElementById('gdrive-test-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Test connessione…'; statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.gdrive_testing'); statusEl.style.display = 'block'; }
     try {
         // Save current settings first so the server has the latest JSON/folder
         await saveSettings();
         const r = await api('gdrive_test');
         if (r && r.success) {
-            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ ${t('settings.backup.gdrive_ok') || 'Connessione riuscita!'}`; }
+            if (statusEl) { statusEl.className = 'settings-status success'; statusEl.textContent = `✅ ${t('settings.backup.gdrive_ok')}`; }
         } else {
             if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${r?.error || 'Error'}`; }
         }
@@ -3568,7 +3568,7 @@ async function _gdrivePushNow() {
     const btn = document.getElementById('btn-gdrive-push');
     const statusEl = document.getElementById('gdrive-test-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.gdrive_pushing') || '⏳ Upload in corso…'; statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('settings.backup.gdrive_pushing'); statusEl.style.display = 'block'; }
     try {
         await saveSettings();
         const r = await api('gdrive_push');
@@ -3617,7 +3617,7 @@ async function _gdriveSubmitCode() {
     const inputEl = document.getElementById('gdrive-code-input');
     const btn     = document.getElementById('btn-gdrive-submit-code');
     const raw     = (inputEl?.value || '').trim();
-    if (!raw) { alert(t('settings.backup.gdrive_code_empty') || 'Paste the URL or code first'); return; }
+    if (!raw) { alert(t('settings.backup.gdrive_code_empty')); return; }
 
     // Accept either a full URL (extract code param) or just the bare code
     let code = raw;
@@ -3636,7 +3636,7 @@ async function _gdriveSubmitCode() {
         if (r && r.success) {
             const statusEl = document.getElementById('gdrive-oauth-token-status');
             if (statusEl) {
-                statusEl.textContent = '✅ ' + (t('settings.backup.gdrive_oauth_authorized') || 'Authorized');
+                statusEl.textContent = '✅ ' + (t('settings.backup.gdrive_oauth_authorized'));
                 statusEl.style.color = '#15803d';
             }
             const codeSection = document.getElementById('gdrive-code-section');
@@ -3672,7 +3672,7 @@ async function _renderInfoTab() {
 
         // ── Locale & helpers ─────────────────────────────────────────────────
         const langMap = {it:'it-IT', en:'en-US', de:'de-DE', fr:'fr-FR', es:'es-ES', zh:'zh-CN'};
-        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'it-IT';
+        const locale  = langMap[s.language] || langMap[navigator.language?.slice(0,2)] || 'en-US';
         const [yr, mo] = (d.month || '').split('-');
         const monthLabel = new Intl.DateTimeFormat(locale, {month:'long', year:'numeric'})
             .format(new Date(parseInt(yr), parseInt(mo)-1, 1));
@@ -3937,7 +3937,7 @@ async function _submitBugReport() {
             user_agent: navigator.userAgent,
             url: location.href,
             version: _loadedVersion || '',
-            lang: _currentLang || 'it',
+            lang: _currentLang || 'en',
         });
 
         if (res.ok) {
@@ -4183,7 +4183,7 @@ async function loadSettingsUI() {
                 const pSub = document.getElementById('price-settings-sub');
                 if (pSub) pSub.style.display = s.price_enabled ? '' : 'none';
             }
-            if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italia';
+            if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italy';
             if (priceCurrencyEl) priceCurrencyEl.value = s.price_currency || 'EUR';
             if (priceMonthsEl) priceMonthsEl.value = s.price_update_months || 3;
             // Shopping settings (server merge)
@@ -4204,7 +4204,7 @@ async function loadSettingsUI() {
         };
     }
     const priceCountryEl = document.getElementById('setting-price-country');
-    if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italia';
+    if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italy';
     const priceCurrencyEl = document.getElementById('setting-price-currency');
     if (priceCurrencyEl) priceCurrencyEl.value = s.price_currency || 'EUR';
     const priceMonthsEl = document.getElementById('setting-price-update-months');
@@ -4411,7 +4411,7 @@ function _injectKioskOverlay() {
             const sBtn = document.createElement('button');
             sBtn.id = '_kiosk_settings_btn';
             sBtn.textContent = '⚙️';
-            sBtn.title = t('settings.title') || 'Impostazioni';
+            sBtn.title = t('settings.title');
             sBtn.style.cssText = btnStyle;
             sBtn.addEventListener('click', (e) => { e.stopPropagation(); showPage('settings'); });
             existing.appendChild(sBtn);
@@ -4452,7 +4452,7 @@ function _injectKioskOverlay() {
     const settingsBtn = document.createElement('button');
     settingsBtn.id = '_kiosk_settings_btn';
     settingsBtn.textContent = '⚙️';
-    settingsBtn.title = t('settings.title') || 'Impostazioni';
+    settingsBtn.title = t('settings.title');
     settingsBtn.style.cssText = btnStyle;
     settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); showPage('settings'); });
 
@@ -4557,7 +4557,11 @@ function addAppliance() {
     showToast(t('toast.appliance_added'), 'success');
 }
 
-function addApplianceQuick(name) {
+function addApplianceQuick(keyOrName) {
+    const resolved = keyOrName.startsWith('settings.appliances.')
+        ? t(keyOrName).replace(/^[^\p{L}]+/u, '').trim()
+        : keyOrName;
+    const name = resolved || keyOrName;
     const s = getSettings();
     if (!s.appliances) s.appliances = [];
     if (s.appliances.some(a => a.toLowerCase() === name.toLowerCase())) {
@@ -5767,7 +5771,7 @@ function _renderMonthlyStatsSection(data) {
     // Month label from 'YYYY-MM' → formatted locale string
     const [yr, mo] = data.month.split('-').map(Number);
     const localeMap = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', en: 'en-GB', it: 'it-IT', zh: 'zh-CN' };
-    const locale = localeMap[_currentLang] || 'it-IT';
+    const locale = localeMap[_currentLang] || 'en-US';
     const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
     const prevLabel  = new Date(yr, mo - 2, 1).toLocaleDateString(locale, { month: 'long' });
 
@@ -6247,7 +6251,7 @@ function quickRecipeSuggestion() {
     // Navigate to chat and auto-send a prompt about expiring products
     showPage('chat');
     setTimeout(() => {
-        document.getElementById('chat-input').value = t('chat.quick_recipe_prompt') || 'Suggeriscimi una ricetta veloce PER UNA PERSONA usando i prodotti che scadono prima! Ignora i prodotti in freezer (hanno scadenze molto lunghe), concentrati su frigo e dispensa.';
+        document.getElementById('chat-input').value = t('chat.quick_recipe_prompt');
         sendChatMessage();
     }, 500);
 }
@@ -6455,9 +6459,9 @@ async function loadBannerAlerts() {
             }
 
             let warning;
-            if (suspDq && !isLow && !isHigh) warning = '📦 Conf. sospetta';
-            else if (isLow) warning = '⬇️ Troppo poco';
-            else warning = '⬆️ Troppo';
+            if (suspDq && !isLow && !isHigh) warning = '📦 ' + t('dashboard.banner_suspicious_pkg');
+            else if (isLow) warning = '⬇️ ' + t('dashboard.banner_too_little');
+            else warning = '⬆️ ' + t('dashboard.banner_too_much');
             _bannerQueue.push({ type: 'review', data: { ...item, warning, _isLow: isLow } });
             _queuedItemIds.add(item.id);
         });
@@ -6562,8 +6566,8 @@ function _bannerPriority(entry) {
         case 'review': {
             const w = entry.data.warning || '';
             // Low stock is more urgent than too-much
-            if (w.includes('Troppo poco')) return 400;
-            if (w.includes('Troppo')) return 300;
+            if (w.includes(t('dashboard.banner_too_little'))) return 400;
+            if (w.includes(t('dashboard.banner_too_much'))) return 300;
             return 200; // package suspicion
         }
         case 'prediction': {
@@ -7213,7 +7217,7 @@ function renderGroupedByCategory(items, compact = false) {
     let html = '';
     for (const cat of sortedCats) {
         const catItems = catGroups[cat];
-        const label = CATEGORY_LABELS[cat] || '📦 Altro';
+        const label = CATEGORY_LABELS[cat] || ('📦 ' + t('categories.altro'));
         html += `<div class="cat-group-header">${label} <span class="cat-group-count">${catItems.length}</span></div>`;
         html += catItems.map(item => compact ? renderDashItem(item) : renderInventoryItem(item)).join('');
     }
@@ -7381,7 +7385,7 @@ function setQtyInputUnitLabel(inputId, unit, muted = false) {
     if (!badge) return;
     badge.textContent = getUnitDisplayLabel(unit);
     badge.classList.toggle('qty-unit-muted', !!muted);
-    badge.title = (t('qty.unit_for_input') || 'Unità di misura') + ': ' + badge.textContent;
+    badge.title = t('qty.unit_for_input') + ': ' + badge.textContent;
 }
 
 function getActiveUseUnitLabel() {
@@ -8355,9 +8359,9 @@ function editInventoryItem(id, _retried) {
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header edit-modal-header">
             <h3 class="edit-modal-heading">
-                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item') || t('btn.edit') || 'Modifica')}</span>
+                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item') || t('btn.edit'))}</span>
                 <button type="button" id="edit-title-display" class="edit-title-tap" onclick="startEditProductTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(item.name)}</button>
-                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name'))}">
             </h3>
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
@@ -8422,7 +8426,7 @@ function editInventoryItem(id, _retried) {
             <button type="submit" class="btn btn-large btn-primary full-width">${t('btn.save')}</button>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn') || 'Crea ricetta')}</button>
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn'))}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -10301,11 +10305,11 @@ function showProductAction() {
             <div class="edit-unknown-form">
                 <div class="form-group">
                     <label>${t('edit.label_name')}</label>
-                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
+                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="${escapeHtml(t('product.name_placeholder'))}" required>
                 </div>
                 <div class="form-group">
                     <label>${t('product.brand_label')}</label>
-                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
+                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="${escapeHtml(t('product.brand_placeholder'))}">
                 </div>
                 <div class="form-group">
                     <label>${t('product.category_label')}</label>
@@ -10415,7 +10419,7 @@ function showProductAction() {
                     <span class="btn-text">${t('product.modify_details')}<br><small>${t('action.edit_sub')}</small></span>
                 </button>
                 <button class="btn btn-recipe-from-ingredient" data-name="${escapeHtml(currentProduct.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
-                    👨‍🍳 ${t('action.create_recipe_btn') || 'Crea una ricetta'}
+                    👨‍🍳 ${t('action.create_recipe_btn')}
                 </button>
             `;
             // Secondary: catalog edit link below the buttons (one instance only)
@@ -10581,7 +10585,7 @@ function editProductFromAction() {
 function openInventoryEdit() {
     const items = _actionInventoryItems;
     if (!items || items.length === 0) {
-        showToast(t('error.no_inventory_entry') || 'Nessuna voce di inventario trovata', 'error');
+        showToast(t('error.no_inventory_entry'), 'error');
         return;
     }
     if (items.length === 1) {
@@ -10689,7 +10693,7 @@ function editActionInventoryItem(inventoryId) {
             </div>
             <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
                 data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn') || 'Crea ricetta')}</button>
+                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe') || t('action.create_recipe_btn'))}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -10848,8 +10852,8 @@ function selectThrowLocation(btn, loc) {
  */
 function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
     const DURATION = 5000;
-    const btnLabel = confirmLabel || t('confirm.proceed') || 'Conferma';
-    const cancelLabel = t('confirm.cancel') || 'Annulla';
+    const btnLabel = confirmLabel || t('confirm.proceed');
+    const cancelLabel = t('confirm.cancel');
     let rafHandle = null;
     let timerHandle = null;
     let resolved = false;
@@ -10912,7 +10916,7 @@ async function throwAll() {
     const name = currentProduct ? currentProduct.name : '';
     _showDestructiveConfirm(
         t('use.throw_all_confirm_title') || '🗑️ Butta tutto',
-        (t('use.throw_all_confirm_msg') || 'Vuoi davvero buttare via tutto il prodotto?') + (name ? `\n"${name}"` : ''),
+        (t('use.throw_all_confirm_msg')) + (name ? `\n"${name}"` : ''),
         async () => {
             try {
                 const result = await _inventoryWaste({
@@ -11308,7 +11312,7 @@ async function _applyAIProductHint() {
 
         // Show a toast only if location changed
         if (locChanged) {
-            const locLabels = { dispensa: t('location.dispensa') || 'Dispensa', frigo: t('location.frigo') || 'Frigo', freezer: t('location.freezer') || 'Freezer' };
+            const locLabels = { dispensa: t('location.dispensa'), frigo: t('location.frigo'), freezer: t('location.freezer') };
             showToast(t('ai.conservation_hint', { location: locLabels[data.location] || data.location }), 'info', 4000);
         }
     } catch (e) {
@@ -13075,7 +13079,7 @@ function _showUseAllSlideConfirm(productName, qtyStr, onConfirm, opts = {}) {
                     <div class="slide-confirm-thumb" id="use-all-slide-thumb" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">→</div>
                 </div>
             </div>
-            <button type="button" class="btn btn-secondary full-width" id="use-all-cancel">${escapeHtml(t('confirm.cancel') || 'Cancel')}</button>
+            <button type="button" class="btn btn-secondary full-width" id="use-all-cancel">${escapeHtml(t('confirm.cancel'))}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
@@ -15092,7 +15096,7 @@ async function fetchAllPrices(forceRefresh = false) {
     if (loadingInner) { loadingInner.style.transition = 'none'; loadingInner.style.width = '5%'; }
 
     const lang     = s.language    || 'it';
-    const country  = s.price_country  || 'Italia';
+    const country  = s.price_country  || 'Italy';
     const currency = s.price_currency || 'EUR';
 
     // Send qty/unit aligned to plan-days (server uses these for price totals)
@@ -15794,11 +15798,11 @@ function renderSmartItem(item) {
 async function migrateBringNames(btn) {
     const statusEl = document.getElementById('bring-migrate-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = '⏳ In corso…'; }
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = t('status.in_progress'); }
     try {
         const data = await api('bring_migrate_names', {}, 'POST', {});
         if (data.success) {
-            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} errori` : '');
+            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} ${t('status.errors')}` : '');
             if (statusEl) statusEl.textContent = msg;
             if (data.migrated > 0) {
                 showToast(t('shopping.bring_names_migrated', { n: data.migrated }), 'success');
@@ -16084,7 +16088,7 @@ async function loadShoppingList() {
             statusEl.style.display = 'block';
             const isMissingCreds = data.error && data.error.toLowerCase().includes('credenziali bring');
             if (isMissingCreds) {
-                statusEl.innerHTML = `<div class="bring-error">🔑 ${t('shopping.bring_not_configured') || 'Bring! non è configurato. Aggiungi email e password nelle <a href="#" onclick="showPage(\'settings\');return false;">impostazioni</a>.'}</div>`;
+                statusEl.innerHTML = `<div class="bring-error">🔑 ${t('shopping.bring_not_configured')}</div>`;
             } else {
                 statusEl.innerHTML = `<div class="bring-error">⚠️ ${escapeHtml(data.error || t('error.bring_connection'))}</div>`;
             }
@@ -17071,7 +17075,7 @@ async function scanExpiryWithAI() {
     } catch (err) {
         console.error('Expiry camera error:', err);
         document.getElementById('expiry-cam-container').innerHTML = `
-            <p style="color:var(--danger);text-align:center;padding:20px">⚠️ Impossibile accedere alla fotocamera</p>
+            <p style="color:var(--danger);text-align:center;padding:20px">⚠️ ${t('error.camera_access')}</p>
         `;
     }
 }
@@ -17329,7 +17333,7 @@ async function undoTransactionEntry(id, type, name) {
     const action = type === 'in' ? t('log.undo_action_remove') : t('log.undo_action_restore');
     const msg = t('log.undo_confirm').replace('{action}', action).replace('{name}', name);
     _showDestructiveConfirm(
-        t('log.undo_title') || '↩ Annulla operazione',
+        t('log.undo_title'),
         msg,
         () => _doUndoTransaction(id, type, name)
     );
@@ -17856,7 +17860,7 @@ async function onRecipeFuelToggle() {
     if (!healthOn) {
         if (cb) cb.checked = false;
         updateRecipeFuelGenerateBtn();
-        showToast(t('settings.health.disabled_toast') || 'Abilita i dati salute in Configurazione → Salute', 'warning');
+        showToast(t('settings.health.disabled_toast'), 'warning');
         return;
     }
     updateRecipeFuelGenerateBtn();
@@ -17917,7 +17921,7 @@ function applyHealthUiState() {
     const wrap = document.getElementById('recipe-opt-fuel-wrap');
     if (wrap) {
         wrap.classList.toggle('is-disabled', !on);
-        wrap.title = on ? '' : (t('settings.health.disabled_toast') || 'Funzione salute disattivata');
+        wrap.title = on ? '' : (t('settings.health.disabled_toast'));
     }
     const fuelCb = document.getElementById('recipe-opt-fuel');
     if (fuelCb && !on) {
@@ -18073,9 +18077,9 @@ async function onHealthEnabledChange() {
     applyHealthUiState();
     await _saveSettingToServer({ health_enabled: s.health_enabled });
     if (s.health_enabled) {
-        showToast(t('settings.health.enabled_on') || 'Dati salute attivati', 'success');
+        showToast(t('settings.health.enabled_on'), 'success');
     } else {
-        showToast(t('settings.health.enabled_off') || 'Dati salute disattivati', 'info');
+        showToast(t('settings.health.enabled_off'), 'info');
     }
 }
 
@@ -18092,9 +18096,9 @@ async function loadHealthSettingsTab() {
         if (st && res && res.success) {
             const d = res.daily;
             if (d) {
-                st.textContent = `${t('settings.health.today') || 'Oggi'}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min != null ? Math.round(d.exercise_min) : '—'} min${d.distance_m ? ` · ${Math.round(d.distance_m/100)/10} km` : ''} · (${d.source || '?'})`;
+                st.textContent = `${t('settings.health.today')}: 🔥 ${d.burned_kcal != null ? Math.round(d.burned_kcal) : '—'} kcal · 👟 ${d.steps ?? '—'} · ⏱ ${d.exercise_min != null ? Math.round(d.exercise_min) : '—'} min${d.distance_m ? ` · ${Math.round(d.distance_m/100)/10} km` : ''} · (${d.source || '?'})`;
             } else {
-                st.textContent = t('recipes.fuel_no_daily') || 'Nessun dato oggi';
+                st.textContent = t('recipes.fuel_no_daily');
             }
         }
     } catch (_) { /* ignore */ }
@@ -18130,12 +18134,12 @@ async function saveHealthProfileFromSettings() {
     try {
         const res = await api('health_profile_save', {}, 'POST', payload);
         if (res && res.success) {
-            showToast(t('settings.health.saved') || 'Profilo salute salvato', 'success');
+            showToast(t('settings.health.saved'), 'success');
         } else {
-            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+            showToast((res && res.error) || t('error.generic'), 'error');
         }
     } catch (e) {
-        showToast(t('error.generic') || 'Errore', 'error');
+        showToast(t('error.generic'), 'error');
     }
 }
 
@@ -18163,23 +18167,23 @@ async function createHealthBridgeToken() {
                 const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=' + encodeURIComponent(pairing);
                 qrBox.innerHTML =
                     '<p class="settings-hint" style="font-weight:600;margin-bottom:8px">' +
-                    (t('settings.health.qr_scan_now') || 'Scansiona questo QR dall’app Health Bridge') +
+                    t('settings.health.qr_scan_now') +
                     '</p><img alt="QR pairing" width="240" height="240" src="' + qrUrl + '" style="background:#fff;border-radius:12px;padding:8px">' +
                     '<p class="settings-hint" style="margin-top:8px">' +
-                    (t('settings.health.qr_hint') || 'Il QR contiene URL e token. Non condividere lo schermo.') +
+                    (t('settings.health.qr_hint')) +
                     '</p>';
             }
             showToast(t('settings.health.bridge_created') || 'QR pronto — scansiona dal telefono', 'success');
         } else {
-            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+            showToast((res && res.error) || t('error.generic'), 'error');
         }
     } catch (e) {
-        showToast(t('error.generic') || 'Errore', 'error');
+        showToast(t('error.generic'), 'error');
     }
 }
 
 async function unlinkHealthBridge() {
-    if (!confirm(t('settings.health.bridge_unlink_confirm') || 'Revocare tutti i token Health Bridge?')) return;
+    if (!confirm(t('settings.health.bridge_unlink_confirm'))) return;
     try {
         const res = await api('health_unlink', {}, 'POST', {});
         const out = document.getElementById('health-bridge-token-out');
@@ -18187,12 +18191,12 @@ async function unlinkHealthBridge() {
         if (out) { out.style.display = 'none'; out.textContent = ''; }
         if (qrBox) { qrBox.style.display = 'none'; qrBox.innerHTML = ''; }
         if (res && res.success) {
-            showToast(t('settings.health.bridge_unlinked') || 'Bridge scollegato', 'success');
+            showToast(t('settings.health.bridge_unlinked'), 'success');
         } else {
-            showToast((res && res.error) || t('error.generic') || 'Errore', 'error');
+            showToast((res && res.error) || t('error.generic'), 'error');
         }
     } catch (e) {
-        showToast(t('error.generic') || 'Errore', 'error');
+        showToast(t('error.generic'), 'error');
     }
 }
 
@@ -18991,7 +18995,7 @@ function _extractToolsFromSteps(steps) {
         { re: /\bmacchina\s+del\s+pane\b|bread\s*machine|brotbackautomat/, it: 'Macchina del pane', en: 'Bread machine', de: 'Brotbackautomat' },
         { re: /\bessiccator[ei]\b|dehydrator\b|dörrgerät/, it: 'Essiccatore',  en: 'Dehydrator',        de: 'Dörrgerät' },
     ];
-    const lang = _currentLang || 'it';
+    const lang = _currentLang || 'en';
     const found = [];
     for (const p of patterns) {
         if (p.re.test(text)) found.push(p[lang] || p.it);
@@ -19290,7 +19294,7 @@ async function renderRecipe(r) {
     // Fuel Mode: why these ingredients (bio + activity)
     if (r.fuel_why || (r.fuel_budget && r.fuel_rationale)) {
         const why = r.fuel_why || r.fuel_rationale;
-        html += `<div class="recipe-fuel-why"><strong>${escapeHtml(t('recipes.fuel_why_title') || 'Perché questi ingredienti')}</strong>${escapeHtml(why)}</div>`;
+        html += `<div class="recipe-fuel-why"><strong>${escapeHtml(t('recipes.fuel_why_title'))}</strong>${escapeHtml(why)}</div>`;
     }
 
     // Weather influence badge (A ritmo mio + Open-Meteo)
@@ -19301,7 +19305,7 @@ async function renderRecipe(r) {
         const bucketLabel = t(bucketKey);
         const bucket = (bucketLabel && bucketLabel !== bucketKey) ? bucketLabel : (r.weather.bucket || '');
         const bits = [place, temp, bucket].filter(Boolean).join(' · ');
-        html += `<div class="recipe-weather-badge">🌤 ${escapeHtml(t('recipes.weather_badge') || 'Weather')}${bits ? ': ' + escapeHtml(bits) : ''}</div>`;
+        html += `<div class="recipe-weather-badge">🌤 ${escapeHtml(t('recipes.weather_badge'))}${bits ? ': ' + escapeHtml(bits) : ''}</div>`;
     }
 
     // Tools/appliances banner (shown only when specific equipment is needed)
@@ -20349,7 +20353,7 @@ function testSound() {
     if (statusEl) {
         statusEl.style.display = 'block';
         statusEl.className = 'settings-status success';
-        statusEl.textContent = '🔔 Suono inviato — hai sentito un beep?';
+        statusEl.textContent = t('settings.tts.beep_sent');
     }
 }
 
@@ -20368,14 +20372,14 @@ async function testTTS() {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {
-                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_android_not_init'); }
                 return;
             }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
             saveSettingsToStorage(s);
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio al motore TTS Android...'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('tts.android_sending'); }
             // Register callbacks: Android will call these after speak completes/fails
             let _ttsTestTimer = null;
             window._kioskTtsDone = (uid) => {
@@ -20386,8 +20390,8 @@ async function testTTS() {
             window._kioskTtsError = (uid, code) => {
                 clearTimeout(_ttsTestTimer);
                 window._kioskTtsDone = null; window._kioskTtsError = null;
-                const msg = code == -1 ? 'sintesi non riuscita' : code == -2 ? 'lingua non supportata' : code == -3 ? 'servizio non disponibile' : ('codice ' + code);
-                if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Errore TTS Android (' + msg + ') — installa o aggiorna Google Text-to-Speech dal Play Store.'; }
+                const msg = code == -1 ? t('tts.error_synthesis') : code == -2 ? t('tts.error_lang') : code == -3 ? t('tts.error_unavailable') : (t('tts.error_code') + ' ' + code);
+                if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_android', { msg }); }
             };
             // Timeout: if Android doesn't callback within 10s, ask user if they heard the voice
             // (speech can take 6-8 s; UtteranceProgressListener may not fire on all firmware)
@@ -20411,11 +20415,11 @@ async function testTTS() {
                     if (statusEl) { statusEl.className = 'settings-status error'; statusEl.innerHTML = '❌ ' + t('settings.tts.test_fail_steps'); }
                 };
             }, 10000);
-            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+            _speakBrowser(t('tts.test_message'));
             return;
         }
         if (!window.speechSynthesis) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_no_speech_api'); }
             return;
         }
         // ── Audio beep test (AudioContext — works even if TTS is broken) ─────
@@ -20431,22 +20435,22 @@ async function testTTS() {
         // Diagnostic: surface problems before attempting TTS
         const voices = window.speechSynthesis.getVoices();
         if (!voices.length) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Nessuna voce disponibile — installa un pacchetto vocale nelle impostazioni di sistema.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_no_voices'); }
             return;
         }
         // Warn if only cloud voices are available (won't work offline)
         const itLocal  = voices.find(v => v.lang && v.lang.startsWith('it') && v.localService);
         const anyLocal = voices.find(v => v.localService);
         if (!itLocal && !anyLocal) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Solo voci cloud disponibili — la sintesi vocale offline richiede una voce locale installata sul dispositivo (es. Google Text-to-Speech → Scarica voci offline).'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_cloud_only'); }
             return;
         }
         // onerror callback: update status if speak() fails
         const _ttsErrHandler = (evt) => {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Errore TTS: ' + (evt.error || 'sconosciuto') + ' — prova a riavviare il browser o a cambiare voce.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('tts.error_generic', { error: evt.error || t('tts.error_unknown') }); }
         };
         // Temporarily hook onerror via a custom utterance
-        const testUtt = new SpeechSynthesisUtterance('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+        const testUtt = new SpeechSynthesisUtterance(t('tts.test_message'));
         testUtt.rate  = s.tts_rate;
         testUtt.pitch = s.tts_pitch;
         const chosenVoice = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
@@ -20455,7 +20459,7 @@ async function testTTS() {
         if (testVoice) { testUtt.voice = testVoice; testUtt.lang = testVoice.lang; }
         testUtt.onerror = _ttsErrHandler;
         testUtt.onstart = () => {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Voce attiva: ' + (testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ ' + t('tts.voice_active') + ': ' + (testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'); }
         };
         window.speechSynthesis.cancel();
         setTimeout(() => {
@@ -20467,11 +20471,11 @@ async function testTTS() {
                 if (!statusEl?.className.includes('error')) {
                     statusEl.style.display = 'block';
                     statusEl.className = 'settings-status error';
-                    statusEl.textContent = '❌ Nessuna risposta dalla voce — se il beep era udibile, il TTS è bloccato. Prova a ricaricare la pagina o a cambiare voce.';
+                    statusEl.textContent = '❌ ' + t('tts.error_no_response');
                 }
             }, 2000);
         }, 50);
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '🔊 Beep + TTS in corso...'; }
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('tts.test_in_progress'); }
         return;
     }
     // Server engine
@@ -20494,7 +20498,7 @@ async function testTTS() {
     }
     if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('settings.tts.test_sending'); }
     try {
-        const req = _buildTtsRequest('Test vocale EverShelf', formSettings);
+        const req = _buildTtsRequest(t('tts.test_label'), formSettings);
         const res = await _ttsViaProxy(req);
         const data = await res.json().catch(() => ({}));
         const httpCode = data.status || res.status;
@@ -21428,7 +21432,7 @@ async function generateRecipe() {
             if (response.status === 401) {
                 window._apiTokenRequired = true;
                 if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
-                showToast(t('startup.token_required') || 'Token API richiesto', 'warning');
+                showToast(t('startup.token_required'), 'warning');
             } else if (data.error === 'no_api_key') {
                 showToast(t('error.no_api_key'), 'warning');
             } else {
@@ -21547,16 +21551,16 @@ function _looksLikeRecipe(text) {
 
 async function chatTransferToRecipes(btn, replyText) {
     btn.disabled = true;
-    btn.textContent = '⏳ ' + (t('chat.transferring') || 'Trasferimento in corso...');
+    btn.textContent = '⏳ ' + (t('chat.transferring'));
     const resetBtn = () => {
         btn.disabled = false;
-        btn.textContent = '📥 ' + (t('chat.transfer_to_recipes') || 'Trasferisci a Ricette');
+        btn.textContent = '📥 ' + (t('chat.transfer_to_recipes'));
     };
     try {
         const settings = getSettings();
         const result = await api('chat_to_recipe', {}, 'POST', {
             text: replyText,
-            lang: settings.lang || 'it'
+            lang: settings.lang || 'en'
         });
         if (!result || !result.success || !result.recipe) {
             resetBtn();
@@ -21572,14 +21576,14 @@ async function chatTransferToRecipes(btn, replyText) {
         await renderRecipe(recipe);
         // Transform the transfer button into "Apri la ricetta"
         btn.disabled = false;
-        btn.textContent = '📖 ' + (t('chat.open_recipe') || 'Apri la ricetta');
+        btn.textContent = '📖 ' + (t('chat.open_recipe'));
         btn.onclick = () => {
             document.getElementById('recipe-overlay').style.display = 'flex';
             document.getElementById('recipe-ask').style.display = 'none';
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-result').style.display = '';
         };
-        showToast('✅ ' + (t('chat.transferred') || 'Aggiunta alle Ricette!'), 'success');
+        showToast('✅ ' + (t('chat.transferred')), 'success');
     } catch (err) {
         console.error('[chatTransferToRecipes]', err);
         resetBtn();
@@ -21617,7 +21621,7 @@ async function generateRecipeForIngredient(ingredientName) {
     document.getElementById('recipe-loading').style.display = '';
     document.getElementById('recipe-result').style.display = 'none';
     const loadingMsg = document.getElementById('recipe-loading-msg');
-    if (loadingMsg) loadingMsg.textContent = '👨‍🍳 ' + (t('recipes.loading_msg') || 'Sto preparando la ricetta...');
+    if (loadingMsg) loadingMsg.textContent = '👨‍🍳 ' + (t('recipes.loading_msg'));
     try {
         const result = await api('recipe_from_ingredient', {}, 'POST', { ingredient: ingredientName, lang: _currentLang });
         if (!result || !result.success || !result.recipe) {
@@ -21697,7 +21701,7 @@ async function sendChatMessage() {
                 const container = document.getElementById('chat-messages');
                 const transferBtn = document.createElement('button');
                 transferBtn.className = 'btn-chat-use-recipe';
-                transferBtn.textContent = '📥 ' + (t('chat.transfer_to_recipes') || 'Trasferisci a Ricette');
+                transferBtn.textContent = '📥 ' + (t('chat.transfer_to_recipes'));
                 transferBtn.onclick = () => chatTransferToRecipes(transferBtn, replyText);
                 container.appendChild(transferBtn);
                 scrollChatBottom();
@@ -23425,26 +23429,26 @@ function _setupSteps() {
         },
         {
             title: '☁️ Google Drive Backup',
-            desc: t('settings.backup.gdrive_wizard_hint') || 'Optional: automatically back up to Google Drive daily.',
+            desc: t('settings.backup.gdrive_wizard_hint'),
             render: () => `
                 <details style="margin-bottom:14px;background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:10px 14px">
-                    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--text-primary)">${t('settings.backup.gdrive_oauth_how_to') || '📋 Setup guide'}</summary>
+                    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--text-primary)">${t('settings.backup.gdrive_oauth_how_to')}</summary>
                     <ol style="margin:10px 0 0 16px;font-size:0.8rem;color:var(--text-secondary);line-height:1.8">${t('settings.backup.gdrive_oauth_steps') || ''}</ol>
                 </details>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_folder_id') || 'Folder ID Drive'}</label>
+                    <label>${t('settings.backup.gdrive_folder_id')}</label>
                     <input type="text" id="setup-gdrive-folder" class="form-input" placeholder="1ABCdef_xyz…" value="${_setupData.gdrive_folder_id}">
                 </div>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_client_id') || 'Client ID'}</label>
+                    <label>${t('settings.backup.gdrive_client_id')}</label>
                     <input type="text" id="setup-gdrive-client-id" class="form-input" placeholder="1234567890-abc….apps.googleusercontent.com" value="${_setupData.gdrive_client_id}">
                 </div>
                 <div class="form-group">
-                    <label>${t('settings.backup.gdrive_client_secret') || 'Client Secret'}</label>
+                    <label>${t('settings.backup.gdrive_client_secret')}</label>
                     <input type="password" id="setup-gdrive-client-secret" class="form-input" placeholder="GOCSPX-…" value="${_setupData.gdrive_client_secret}">
                 </div>
-                <p class="settings-hint" style="font-size:0.78rem">${t('settings.backup.gdrive_redirect_uri_label') || 'Redirect URI:'} <code>http://localhost</code></p>
-                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip') || 'Skip — configure later in Settings'}</span>
+                <p class="settings-hint" style="font-size:0.78rem">${t('settings.backup.gdrive_redirect_uri_label')} <code>http://localhost</code></p>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip')}</span>
             `
         },
         {
@@ -23740,12 +23744,12 @@ async function _runStartupCheck() {
 
     // Auto-provision API token for same-origin browser sessions
     if (typeof ensureApiToken === 'function') {
-        setProgress(5, tl('token_autoconfig', 'Configurazione accesso...'), 'ok');
+        setProgress(5, tl('token_autoconfig', 'Configuring access...'), 'ok');
         await ensureApiToken();
     }
 
     // Phase 1: animate 0→15% while fetching (so it never looks stuck)
-    setProgress(0, tl('connecting', 'Connessione al server...'));
+    setProgress(0, tl('connecting', 'Connecting to server...'));
     let _fetchDone = false;
     const slowAnim = setInterval(() => {
         if (!_fetchDone && _curPct < 13) {
@@ -23768,7 +23772,7 @@ async function _runStartupCheck() {
         if (result.public && result.api_token_required && typeof getApiToken === 'function' && !getApiToken()) {
             window._apiTokenRequired = true;
             if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
-            setProgress(100, tl('token_required', 'Token API richiesto'), 'warn');
+            setProgress(100, tl('token_required', 'API token required'), 'warn');
             return false;
         }
         if (result.public && result.api_token_required && typeof getApiToken === 'function' && getApiToken()) {
@@ -23778,11 +23782,11 @@ async function _runStartupCheck() {
     } catch(e) {
         clearInterval(slowAnim);
         _showStartupErrorPopup(
-            tl('error_network', 'Impossibile contattare il server'),
-            tl('error_network_detail', 'Il browser non riesce a raggiungere il server PHP.\n\nPossibili cause:\n• Il server Apache/PHP non è in esecuzione\n• Problema di rete o firewall\n• URL dell\'app non corretta\n\nControlla che il server sia avviato e riprova.'),
+            tl('error_network', 'Cannot reach server'),
+            tl('error_network_detail', 'The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nCheck that the server is running and try again.'),
             errorEl, retryBtn
         );
-        setProgress(100, tl('error_network', 'Server non raggiungibile'), 'error');
+        setProgress(100, tl('error_network', 'Server unreachable'), 'error');
         return false;
     }
     clearInterval(slowAnim);
@@ -23800,19 +23804,19 @@ async function _runStartupCheck() {
         { key: 'ext_fileinfo',      label: 'Fileinfo',                                      critical: false },
         { key: 'ext_zip',           label: 'ZIP',                                           critical: false },
         { key: 'ext_intl',          label: 'Intl',                                          critical: false },
-        { key: 'php_memory',        label: tl('check_php_memory',  'Memoria PHP'),          critical: false },
+        { key: 'php_memory',        label: tl('check_php_memory',  'PHP memory'),          critical: false },
         { key: 'php_max_exec',      label: tl('check_php_timeout', 'Timeout PHP'),          critical: false },
         { key: 'php_upload',        label: tl('check_php_upload',  'Upload PHP'),           critical: false },
         // Filesystem
         { key: 'data_dir',          label: tl('check_data_dir',    'Cartella dati'),        critical: true  },
         { key: 'data_rate_limits',  label: tl('check_rate_limits', 'Rate limits dir'),      critical: false },
         { key: 'data_backups',      label: tl('check_backups',     'Backup dir'),           critical: false },
-        { key: 'data_write_test',   label: tl('check_write_test',  'Test scrittura'),       critical: true  },
-        { key: 'disk_space',        label: tl('check_disk_space',  'Spazio disco'),         critical: false },
+        { key: 'data_write_test',   label: tl('check_write_test',  'Write test'),       critical: true  },
+        { key: 'disk_space',        label: tl('check_disk_space',  'Disk space'),         critical: false },
         // Database
         { key: 'db_legacy',         label: tl('check_db_legacy',   'DB legacy'),            critical: false },
-        { key: 'db_connect',        label: tl('check_db_connect',  'Connessione DB'),       critical: true  },
-        { key: 'db_tables',         label: tl('check_db_tables',   'Tabelle DB'),           critical: true  },
+        { key: 'db_connect',        label: tl('check_db_connect',  'DB connection'),       critical: true  },
+        { key: 'db_tables',         label: tl('check_db_tables',   'DB tables'),           critical: true  },
         { key: 'db_integrity',      label: tl('check_db_integrity','Integrità DB'),         critical: true  },
         { key: 'db_wal',            label: tl('check_db_wal',      'WAL mode'),             critical: false },
         { key: 'db_size',           label: tl('check_db_size',     'Dimensione DB'),        critical: false },
@@ -23820,7 +23824,7 @@ async function _runStartupCheck() {
         // Config & optional features
         { key: 'env_file',          label: tl('check_env',         'File .env'),            critical: false },
         { key: 'gemini_key',        label: tl('check_gemini',      'Gemini AI key'),        critical: false },
-        { key: 'bring_credentials', label: tl('check_bring_creds', 'Bring! credenziali'),   critical: false },
+        { key: 'bring_credentials', label: tl('check_bring_creds', 'Bring! credentials'),   critical: false },
         { key: 'bring_token',       label: tl('check_bring_token', 'Bring! token'),         critical: false },
         { key: 'tts_url',           label: tl('check_tts',         'TTS URL'),              critical: false },
         { key: 'scale_gateway',     label: tl('check_scale',       'Scale gateway'),        critical: false },
@@ -23849,9 +23853,9 @@ async function _runStartupCheck() {
         // Build label with value
         let lbl = def.label;
         if (c.value)            lbl += ` (${c.value})`;
-        if (isFresh)            lbl += ` — ${tl('fresh_install', 'nuovo impianto')}`;
+        if (isFresh)            lbl += ` — ${tl('fresh_install', 'fresh install')}`;
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
-        if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
+        if (!isOk && c.missing?.length) lbl += ` — ${t('startup.missing')}: ${c.missing.join(', ')}`;
 
         setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
@@ -23864,15 +23868,15 @@ async function _runStartupCheck() {
 
     // ── Errors → red bar + blocking popup ────────────────────────────────────
     if (errors.length > 0) {
-        setProgress(100, tl('critical_error_short', 'Errore critico'), 'error');
+        setProgress(100, tl('critical_error_short', 'Critical error'), 'error');
         await new Promise(r => setTimeout(r, 300));
         const errLines = errors.map(e => {
             const hint = e.c.hint || (e.c.error ? e.c.error : null);
             return `❌ ${e.def.label}${hint ? '\n   → ' + hint : ''}`;
         }).join('\n\n');
         _showStartupErrorPopup(
-            tl('critical_error_short', 'Errore critico'),
-            tl('critical_error_intro', 'L\'app non può avviarsi a causa dei seguenti problemi:') + '\n\n' + errLines,
+            tl('critical_error_short', 'Critical error'),
+            tl('critical_error_intro', 'The app cannot start due to the following issues:') + '\n\n' + errLines,
             errorEl, retryBtn
         );
         return false;
@@ -23880,7 +23884,7 @@ async function _runStartupCheck() {
 
     // ── Warnings → amber bar + warning popup auto-close 5s ───────────────────
     if (warnings.length > 0) {
-        setProgress(100, `${warnings.length} ${tl('warnings_found', 'avvisi')}`, 'warn');
+        setProgress(100, `${warnings.length} ${tl('warnings_found', 'warnings')}`, 'warn');
         await new Promise(r => setTimeout(r, 200));
 
         // Build warning popup (auto-close 5s)
@@ -23892,7 +23896,7 @@ async function _runStartupCheck() {
         // Hide warning popup
         warningsEl.style.display = 'none';
     } else {
-        setProgress(100, tl('all_ok', 'Sistema OK'), 'ok');
+        setProgress(100, tl('all_ok', 'System OK'), 'ok');
         await new Promise(r => setTimeout(r, 600));
     }
 
@@ -23900,7 +23904,7 @@ async function _runStartupCheck() {
     // This ensures the offline copy is always fresh at startup while connected.
     // The bar already shows 100%; we just update the label for a moment.
     try {
-        setProgress(100, tl('syncing_local', 'Sincronizzazione dati locali...'), 'ok');
+        setProgress(100, tl('syncing_local', 'Syncing local data...'), 'ok');
         const authH = typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {};
         const [invData, settingsData, productsData] = await Promise.all([
             fetch('api/index.php?action=inventory_list', { headers: authH }).then(r => r.json()).catch(() => null),
@@ -23910,7 +23914,7 @@ async function _runStartupCheck() {
         if (invData && Array.isArray(invData.inventory)) _offlineCacheSet(invData.inventory);
         if (settingsData && settingsData.success !== false) _offlineCacheSetSettings(settingsData);
         if (productsData && Array.isArray(productsData.products)) _offlineProductsSet(productsData.products);
-        setProgress(100, tl('sync_done', 'Dati locali aggiornati'), 'ok');
+        setProgress(100, tl('sync_done', 'Local data synced'), 'ok');
         await new Promise(r => setTimeout(r, 400));
     } catch(e) {
         // Non-critical — app continues normally; cache may be stale or empty
@@ -23936,7 +23940,7 @@ function _showStartupWarningPopup(warnings, container, tl) {
     container.innerHTML = `
         <div class="startup-popup startup-popup-warn">
             <div class="startup-popup-header">
-                <span>⚠️ ${warnings.length} ${tl('warnings_found', 'avviso/i rilevato/i')}</span>
+                <span>⚠️ ${warnings.length} ${tl('warnings_found', 'warning(s) found')}</span>
                 <span class="startup-popup-countdown" id="startup-countdown">5</span>
             </div>
             <div class="startup-popup-body">${lines}</div>

@@ -542,7 +542,7 @@
             <div class="form-group">
                 <label data-i18n="product.name_label">🏷️ Nome Prodotto *</label>
                 <input type="text" id="pf-name" class="form-input" required placeholder="Es: Latte intero, Pasta penne rigate..."
-                    list="common-products" autocomplete="off">
+                    list="common-products" autocomplete="off" data-i18n-placeholder="product.name_placeholder">
                 <datalist id="common-products">
                     <option value="Latte intero">
                     <option value="Latte parzialmente scremato">
@@ -609,7 +609,7 @@
             <div class="form-group">
                 <label data-i18n="product.brand_label">🏢 Marca</label>
                 <input type="text" id="pf-brand" class="form-input" placeholder="Es: Barilla, Granarolo, Mutti..."
-                    list="common-brands" autocomplete="off">
+                    list="common-brands" autocomplete="off" data-i18n-placeholder="product.brand_placeholder">
                 <datalist id="common-brands">
                     <option value="Barilla">
                     <option value="De Cecco">
@@ -650,22 +650,22 @@
                 <label data-i18n="product.category_label">📂 Categoria</label>
                 <select id="pf-category" class="form-input" onchange="onCategoryChange(false)">
                     <option value="" data-i18n="form.select_placeholder">-- Seleziona --</option>
-                    <option value="latticini">🥛 Latticini</option>
-                    <option value="carne">🥩 Carne</option>
-                    <option value="pesce">🐟 Pesce</option>
-                    <option value="frutta">🍎 Frutta</option>
-                    <option value="verdura">🥬 Verdura</option>
-                    <option value="pasta">🍝 Pasta & Riso</option>
-                    <option value="pane">🍞 Pane & Forno</option>
-                    <option value="surgelati">🧊 Surgelati</option>
-                    <option value="bevande">🥤 Bevande</option>
-                    <option value="condimenti">🧂 Condimenti</option>
-                    <option value="snack">🍪 Snack & Dolci</option>
-                    <option value="conserve">🥫 Conserve</option>
-                    <option value="cereali">🌾 Cereali & Legumi</option>
-                    <option value="igiene">🧴 Igiene</option>
-                    <option value="pulizia">🧹 Pulizia Casa</option>
-                    <option value="altro">📦 Altro</option>
+                    <option value="latticini" data-i18n="categories.latticini">🥛 Latticini</option>
+                    <option value="carne" data-i18n="categories.carne">🥩 Carne</option>
+                    <option value="pesce" data-i18n="categories.pesce">🐟 Pesce</option>
+                    <option value="frutta" data-i18n="categories.frutta">🍎 Frutta</option>
+                    <option value="verdura" data-i18n="categories.verdura">🥬 Verdura</option>
+                    <option value="pasta" data-i18n="categories.pasta">🍝 Pasta & Riso</option>
+                    <option value="pane" data-i18n="categories.pane">🍞 Pane & Forno</option>
+                    <option value="surgelati" data-i18n="categories.surgelati">🧊 Surgelati</option>
+                    <option value="bevande" data-i18n="categories.bevande">🥤 Bevande</option>
+                    <option value="condimenti" data-i18n="categories.condimenti">🧂 Condimenti</option>
+                    <option value="snack" data-i18n="categories.snack">🍪 Snack & Dolci</option>
+                    <option value="conserve" data-i18n="categories.conserve">🥫 Conserve</option>
+                    <option value="cereali" data-i18n="categories.cereali">🌾 Cereali & Legumi</option>
+                    <option value="igiene" data-i18n="categories.igiene">🧴 Igiene</option>
+                    <option value="pulizia" data-i18n="categories.pulizia">🧹 Pulizia Casa</option>
+                    <option value="altro" data-i18n="categories.altro">📦 Altro</option>
                 </select>
             </div>
             <div class="form-row">
@@ -695,7 +695,7 @@
             </div>
             <div class="form-group">
                 <label data-i18n="product.notes_label">📝 Note</label>
-                <textarea id="pf-notes" class="form-input" rows="2" placeholder="Es: senza lattosio, bio, conservare in frigo dopo apertura..."></textarea>
+                <textarea id="pf-notes" class="form-input" rows="2" placeholder="Es: senza lattosio, bio, conservare in frigo dopo apertura..." data-i18n-placeholder="product.notes_placeholder"></textarea>
             </div>
             <div class="form-group">
                 <label data-i18n="product.barcode_label">🔖 Barcode</label>
@@ -1346,7 +1346,7 @@
                     </div>
                     <div class="form-group">
                         <label data-i18n="settings.recipe.dietary_label">🚫 Intolleranze / Restrizioni</label>
-                        <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..."></textarea>
+                        <textarea id="setting-dietary" class="form-input" rows="2" placeholder="Es: senza glutine, senza lattosio, vegetariano..." data-i18n-placeholder="settings.recipe.dietary_placeholder"></textarea>
                     </div>
                 </div>
 
@@ -1485,23 +1485,23 @@
                     <div class="appliances-list" id="appliances-list"></div>
                     <div class="form-group mt-2">
                         <div class="barcode-input-row">
-                            <input type="text" id="new-appliance-input" class="form-input" placeholder="Es: Macchina del pane, Bimby, Friggitrice ad aria..." onkeydown="if(event.key==='Enter'){event.preventDefault();addAppliance()}">
+                            <input type="text" id="new-appliance-input" class="form-input" placeholder="Es: Macchina del pane, Bimby, Friggitrice ad aria..." data-i18n-placeholder="settings.appliances.new_placeholder" onkeydown="if(event.key==='Enter'){event.preventDefault();addAppliance()}">
                             <button class="btn btn-accent" onclick="addAppliance()">➕</button>
                         </div>
                     </div>
                     <div class="common-appliances mt-2">
                         <p class="settings-hint" data-i18n="settings.appliances.quick_title">Aggiungi velocemente:</p>
                         <div class="appliance-quick-tags">
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Forno')" data-i18n="settings.appliances.oven">🔥 Forno</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Microonde')" data-i18n="settings.appliances.microwave">📡 Microonde</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Friggitrice ad aria')" data-i18n="settings.appliances.air_fryer">🍟 Friggitrice ad aria</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Macchina del pane')" data-i18n="settings.appliances.bread_maker">🍞 Macchina pane</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Bimby/Moulinex Cookeo')" data-i18n="settings.appliances.bimby">🤖 Bimby/Cookeo</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Planetaria')" data-i18n="settings.appliances.mixer">🌀 Planetaria</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Vaporiera')" data-i18n="settings.appliances.steamer">♨️ Vaporiera</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Pentola a pressione')" data-i18n="settings.appliances.pressure_cooker">🫕 Pentola pressione</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Tostapane')" data-i18n="settings.appliances.toaster">🍞 Tostapane</button>
-                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('Frullatore/Mixer')" data-i18n="settings.appliances.blender">🍹 Frullatore</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.oven')" data-i18n="settings.appliances.oven">🔥 Forno</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.microwave')" data-i18n="settings.appliances.microwave">📡 Microonde</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.air_fryer')" data-i18n="settings.appliances.air_fryer">🍟 Friggitrice ad aria</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.bread_maker')" data-i18n="settings.appliances.bread_maker">🍞 Macchina pane</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.bimby')" data-i18n="settings.appliances.bimby">🤖 Bimby/Cookeo</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.mixer')" data-i18n="settings.appliances.mixer">🌀 Planetaria</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.steamer')" data-i18n="settings.appliances.steamer">♨️ Vaporiera</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.pressure_cooker')" data-i18n="settings.appliances.pressure_cooker">🫕 Pentola pressione</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.toaster')" data-i18n="settings.appliances.toaster">🍞 Tostapane</button>
+                            <button class="btn btn-small btn-secondary" onclick="addApplianceQuick('settings.appliances.blender')" data-i18n="settings.appliances.blender">🍹 Frullatore</button>
                         </div>
                     </div>
                 </div>

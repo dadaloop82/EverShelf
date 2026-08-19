@@ -121,4 +121,50 @@
     <string name="ble_connecting">🔗 Connecting…</string>
     <string name="summary_scale_ok">Scale: %s</string>
     <string name="summary_scale_warn">Scale: not confirmed</string>
+
+    <!-- ── Settings ───────────────────────────────────────────────────────── -->
+    <string name="scale_not_configured">Not configured</string>
+    <string name="scale_no_scale_hint">No scale configured — re-run the wizard to add one</string>
+    <string name="scale_configure">⚙️  Configure scale</string>
+    <string name="scale_configured">Configured</string>
+    <string name="scale_restart_service">🔄  Restart scale service</string>
+    <string name="scale_service_restarted">Scale service restarted</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="scale_active">Active ✅</string>
+    <string name="scale_not_started">Not started ⚠️</string>
+    <string name="scale_device_default">Scale</string>
+    <string name="scale_ws_running">%s — ws://127.0.0.1:8765</string>
+    <string name="scale_ws_not_running">%s — service not running</string>
+
+    <!-- ── BLE errors ─────────────────────────────────────────────────────── -->
+    <string name="ble_not_available">Bluetooth not available</string>
+    <string name="ble_disabled">Bluetooth disabled</string>
+    <string name="ble_no_weight_characteristic">No weight characteristic found</string>
+
+    <!-- ── Gateway ────────────────────────────────────────────────────────── -->
+    <string name="gateway_no_scale">No scale configured</string>
+    <string name="gateway_bt_perms_missing">⚠️ Bluetooth permissions missing</string>
+    <string name="gateway_connecting_to">🔍 Connecting to %s…</string>
+
+    <!-- ── Kiosk / updates ────────────────────────────────────────────────── -->
+    <string name="update_available">⬆️ Update available:  %s</string>
+    <string name="apk_signature_conflict_title">⚠️ APK signature conflict</string>
+    <string name="apk_signature_conflict_msg">The installed app uses a different signature.\n\nUninstall the previous version: installation will restart automatically when done.</string>
+    <string name="btn_uninstall">Uninstall</string>
+    <string name="install_failed_title">⚠️ Installation failed (status=%d)</string>
+    <string name="btn_uninstall_retry">Uninstall and retry</string>
+    <string name="install_failed_prompt_title">⚠️ Installation failed</string>
+    <string name="install_failed_prompt_msg">If you saw a signature conflict error, you need to uninstall the previous version.\n\nUninstall now?</string>
+    <string name="install_hint_generic">Generic error (APK incompatible with this device or Android version)</string>
+    <string name="install_hint_policy">Blocked by policy or another ongoing install</string>
+    <string name="install_hint_aborted">Cancelled by user</string>
+    <string name="install_hint_invalid">Invalid or corrupted APK</string>
+    <string name="install_hint_conflict">Conflict: previous version with different signature</string>
+    <string name="install_hint_storage">Not enough storage space</string>
+    <string name="install_hint_incompatible">Incompatible with this Android version</string>
+    <string name="install_hint_unknown">Unknown error</string>
+    <string name="download_title">EverShelf — Update</string>
+    <string name="btn_download">⬇ Download</string>
+    <string name="install_apk_not_found">APK file not found on device.</string>
+    <string name="install_apk_invalid">Downloaded file is not a valid APK.</string>
 </resources>

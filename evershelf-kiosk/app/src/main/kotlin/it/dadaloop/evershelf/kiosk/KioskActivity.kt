@@ -823,10 +823,10 @@ class KioskActivity : AppCompatActivity() {
 
     private fun showNativeUpdateBanner(message: String, apkDownloadUrl: String) {
         pendingApkDownloadUrl = apkDownloadUrl
-        tvUpdateMessage.text = "⬆️ Aggiornamento disponibile:  $message"
+        tvUpdateMessage.text = getString(R.string.update_available, message)
         // Reset button to initial state so user can confirm before download starts
         btnInstallUpdate.isEnabled = true
-        btnInstallUpdate.text = "⬇ Scarica"
+        btnInstallUpdate.text = getString(R.string.btn_download)
         updateBanner.visibility = View.VISIBLE
         // Download starts only when the user taps btnInstallUpdate
     }
@@ -850,7 +850,7 @@ class KioskActivity : AppCompatActivity() {
         val destFile = java.io.File(destDir, "evershelf-update.apk")
         val dm  = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
         val req = DownloadManager.Request(Uri.parse(apkUrl)).apply {
-            setTitle("EverShelf — Aggiornamento")
+            setTitle(getString(R.string.download_title))
             setDescription(getString(R.string.install_downloading))
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             setDestinationUri(Uri.fromFile(destFile))
@@ -902,14 +902,14 @@ class KioskActivity : AppCompatActivity() {
 
     private fun installApk(file: java.io.File) {
         if (!file.exists() || file.length() == 0L) {
-            setInstallUI("\u274C", getString(R.string.install_error_download), "File APK non trovato sul dispositivo.", 0xFFf87171.toInt(), btnEnabled = true)
+            setInstallUI("\u274C", getString(R.string.install_error_download), getString(R.string.install_apk_not_found), 0xFFf87171.toInt(), btnEnabled = true)
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             return
         }
         val magic: ByteArray? = try { file.inputStream().use { s -> val b = ByteArray(4); s.read(b); b } } catch (_: Exception) { null }
         val isApk = magic != null && magic[0] == 0x50.toByte() && magic[1] == 0x4B.toByte()
         if (!isApk) {
-            setInstallUI("\u274C", getString(R.string.install_error_download), "Il file scaricato non è un APK valido.", 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
+            setInstallUI("\u274C", getString(R.string.install_error_download), getString(R.string.install_apk_invalid), 0xFFf87171.toInt(), btnEnabled = true, progress = -2)
             runOnUiThread { activeInstallBtn?.text = getString(R.string.install_btn_retry) }
             ErrorReporter.reportMessage("install_invalid_apk", "Downloaded file is not a valid APK. URL=$pendingApkDownloadUrl size=${file.length()}")
             file.delete()
@@ -1028,14 +1028,14 @@ class KioskActivity : AppCompatActivity() {
                                 pendingInstallFile = file
                                 pendingInstallPkg  = targetPkg
                                 androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
-                                    .setTitle("⚠️ Conflitto firma APK")
-                                    .setMessage("L'app installata usa una firma diversa.\n\nDisinstalla la versione precedente: al termine l'installazione riparte automaticamente.")
-                                    .setPositiveButton("Disinstalla") { _, _ ->
+                                    .setTitle(getString(R.string.apk_signature_conflict_title))
+                                    .setMessage(getString(R.string.apk_signature_conflict_msg))
+                                    .setPositiveButton(getString(R.string.btn_uninstall)) { _, _ ->
                                         disableKioskLock()
                                         @Suppress("DEPRECATION")
                                         startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
                                     }
-                                    .setNegativeButton("Annulla", null).show()
+                                    .setNegativeButton(android.R.string.cancel, null).show()
                             }
                         }
                         -1 /* STATUS_FAILURE_ABORTED */ -> {
@@ -1076,14 +1076,14 @@ class KioskActivity : AppCompatActivity() {
                                     pendingInstallFile = file
                                     pendingInstallPkg  = targetPkg
                                     androidx.appcompat.app.AlertDialog.Builder(this@KioskActivity)
-                                        .setTitle("⚠️ Installazione fallita (status=$status)")
+                                        .setTitle(getString(R.string.install_failed_title, status))
                                         .setMessage(diagInfo.trim())
-                                        .setPositiveButton("Disinstalla e riprova") { _, _ ->
+                                        .setPositiveButton(getString(R.string.btn_uninstall_retry)) { _, _ ->
                                             disableKioskLock()
                                             @Suppress("DEPRECATION")
                                             startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$targetPkg")), UNINSTALL_REQUEST)
                                         }
-                                        .setNegativeButton("Annulla", null).show()
+                                        .setNegativeButton(android.R.string.cancel, null).show()
                                 }
                             }
                         }
@@ -1129,14 +1129,14 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun installStatusHint(status: Int): String = when (status) {
-        1    -> "Errore generico (APK incompatibile con questo dispositivo o versione Android)"
-        2    -> "Bloccato da policy o da un'altra app in corso"
-        3    -> "Annullato dall'utente"
-        4    -> "APK non valido o corrotto"
-        5    -> "Conflitto: versione precedente con firma diversa"
-        6    -> "Spazio insufficiente"
-        7    -> "Incompatibile con questa versione di Android"
-        else -> "Errore sconosciuto"
+        1    -> getString(R.string.install_hint_generic)
+        2    -> getString(R.string.install_hint_policy)
+        3    -> getString(R.string.install_hint_aborted)
+        4    -> getString(R.string.install_hint_invalid)
+        5    -> getString(R.string.install_hint_conflict)
+        6    -> getString(R.string.install_hint_storage)
+        7    -> getString(R.string.install_hint_incompatible)
+        else -> getString(R.string.install_hint_unknown)
     }
 
     // ── Error Page ────────────────────────────────────────────────────────
@@ -1247,13 +1247,13 @@ class KioskActivity : AppCompatActivity() {
             if (f != null && f.exists() && pkg.isNotEmpty()) {
                 runOnUiThread {
                     androidx.appcompat.app.AlertDialog.Builder(this)
-                        .setTitle("⚠️ Installazione non riuscita")
-                        .setMessage("Se hai visto un errore di conflitto firma, devi disinstallare la versione precedente.\n\nDisinstalla ora?")
-                        .setPositiveButton("Disinstalla") { _, _ ->
+                        .setTitle(getString(R.string.install_failed_prompt_title))
+                        .setMessage(getString(R.string.install_failed_prompt_msg))
+                        .setPositiveButton(getString(R.string.btn_uninstall)) { _, _ ->
                             disableKioskLock()
                             startActivityForResult(Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg")), UNINSTALL_REQUEST)
                         }
-                        .setNegativeButton("Annulla", null).show()
+                        .setNegativeButton(android.R.string.cancel, null).show()
                 }
             }
         }

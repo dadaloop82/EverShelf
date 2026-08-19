@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
+import it.dadaloop.evershelf.kiosk.R
 
 private const val TAG = "BleScaleManager"
 private const val SCAN_PERIOD_MS = 20_000L
@@ -92,8 +93,8 @@ class BleScaleManager(
     }
 
     fun startScan() {
-        val adapter = bluetoothAdapter ?: run { listener.onError("Bluetooth non disponibile"); return }
-        if (!adapter.isEnabled) { listener.onError("Bluetooth disabilitato"); return }
+        val adapter = bluetoothAdapter ?: run { listener.onError(context.getString(R.string.ble_not_available)); return }
+        if (!adapter.isEnabled) { listener.onError(context.getString(R.string.ble_disabled)); return }
         if (isScanning) stopScan()
         leScanner = adapter.bluetoothLeScanner
         val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
@@ -220,7 +221,7 @@ class BleScaleManager(
                 }
             }
             if (targetChars.isEmpty()) {
-                mainHandler.post { listener.onError("Nessuna caratteristica peso trovata") }
+                mainHandler.post { listener.onError(context.getString(R.string.ble_no_weight_characteristic)) }
                 return
             }
             gatt.getService(BleUuids.BATTERY_SERVICE)?.getCharacteristic(BleUuids.BATTERY_LEVEL_CHAR)?.let { targetChars.add(it) }

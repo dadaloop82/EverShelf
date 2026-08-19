@@ -2770,7 +2770,7 @@ function haParseRecipeGenerateInput(): array {
 
     $dietary = $input['dietary_restrictions'] ?? $input['dietary'] ?? env('DIETARY', '');
 
-    $lang = $input['lang'] ?? env('APP_LANG', 'it');
+    $lang = $input['lang'] ?? env('APP_LANG', 'en');
 
     return [
         'meal' => $meal,
@@ -3026,7 +3026,7 @@ function haRefreshPrices(PDO $db): void {
     try {
         $country  = env('PRICE_COUNTRY', 'Italia');
         $currency = env('PRICE_CURRENCY', 'EUR');
-        $lang     = 'it';
+        $lang     = env('APP_LANG', 'en');
 
         $clientItems = [];
         if (isShoppingBringMode()) {
@@ -8192,7 +8192,7 @@ function geminiChat(PDO $db): void {
     $history = $input['history'] ?? [];
     $appliances = $input['appliances'] ?? [];
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
-    $lang = recipeNormalizeLang($input['lang'] ?? 'it');
+    $lang = recipeNormalizeLang($input['lang'] ?? 'en');
     $langName = recipeLangName($lang);
 
     if (empty($message)) {
@@ -8306,14 +8306,14 @@ PROMPT;
 }
 
     function recipeNormalizeLang($lang): string {
-        $lang = is_string($lang) ? strtolower(trim($lang)) : 'it';
+        $lang = is_string($lang) ? strtolower(trim($lang)) : 'en';
         // Accept zh-CN / zh_cn → zh
         if (str_starts_with($lang, 'zh')) {
             $lang = 'zh';
         } else {
             $lang = substr($lang, 0, 2);
         }
-        return in_array($lang, ['it', 'en', 'de', 'fr', 'es', 'zh'], true) ? $lang : 'it';
+        return in_array($lang, ['it', 'en', 'de', 'fr', 'es', 'zh'], true) ? $lang : 'en';
     }
 
     function recipeLangName(string $lang): string {
@@ -8324,7 +8324,7 @@ PROMPT;
             'fr' => 'French',
             'es' => 'Spanish',
             'zh' => 'Simplified Chinese',
-        ][$lang] ?? 'Italian';
+        ][$lang] ?? 'English';
     }
 
     function recipeText(string $lang, string $key, array $vars = []): string {
@@ -8353,6 +8353,26 @@ PROMPT;
                 'prompt_lang_rule' => 'IMPORTANTE: scrivi tutti i campi testuali della ricetta in Italiano.',
                 'prompt_step_example' => 'Passo 1…',
                 'tools_title' => 'Strumenti necessari',
+                'prompt_option_veloce' => 'VELOCE: max 15-20 min totali.',
+                'prompt_option_pocafame' => 'POCA FAME: porzione leggera, snack o insalata.',
+                'prompt_option_scadenze' => 'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
+                'prompt_option_salutare' => 'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
+                'prompt_option_opened' => 'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
+                'prompt_option_zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
+                'prompt_option_fuel' => 'A RITMO MIO (Fuel Mode): genera la ricetta dai dati biologici (profilo), dall\'OBIETTIVO (maintain/lose/gain) e dall\'attività fisica di oggi. Adatta calorie/macro al MEAL BUDGET sotto.',
+                'prompt_preferences_header' => '⚠️ PREFERENZE OBBLIGATORIE (RISPETTALE SEMPRE, non sono suggerimenti):',
+                'prompt_no_match' => 'Nessun ingrediente perfettamente corrispondente trovato — usa la cosa più affine disponibile e segnalalo in nutrition_note.',
+                'prompt_match_header' => 'Ingredienti disponibili in dispensa compatibili con questa tipologia (usa almeno uno di questi come BASE della ricetta):',
+                'prompt_required_type' => '🎯 TIPO OBBLIGATORIO:',
+                'prompt_required_type_rule' => 'La ricetta DEVE essere: {hint}. Usa gli ingredienti compatibili come base.',
+                'prompt_done_today' => 'GIÀ FATTO OGGI: {list} — proponi qualcosa di DIVERSO.',
+                'prompt_last_7d' => 'ULTIMI 7GG: {list} — varia.',
+                'prompt_regen' => '🔁 RIGENERA #{n}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).',
+                'prompt_regen_avoid' => 'Evita come ingrediente principale: {list}.',
+                'prompt_frozen_rule' => 'Ingredienti con [❄️ SURGELATO]: sono congelati. Nei passi scrivi esplicitamente come usarli (verdure/piatti pronti surgelati: dal freezer direttamente in pentola/padella calda, senza scongelare; carne/pesce grossi: scongela in frigo se serve). Aggiungi 2-5 min di cottura rispetto al fresco. NON trattarli come prodotti freschi di frigo.',
+                'prompt_coerenza' => 'COERENZA PASSI↔INGREDIENTI: ogni alimento nominato nei `steps` DEVE comparire in `ingredients`, OPPURE essere esattamente acqua/sale/pepe/olio o erbe in pizzico. VIETATO scrivere nei passi burro/panna/uova/latte/yogurt/formaggio/ecc. se quel prodotto non è in DISPENSA e quindi non è in `ingredients`. Se ti serve il burro e non c\'è in dispensa, cambia tecnica (olio, oppure ricetta diversa).',
+                'prompt_user_prefs' => 'PREFERENZE DELL\'UTENTE:',
+                'prompt_respond_json' => 'Rispondi SOLO JSON valido (no markdown):',
             ],
             'en' => [
                 'status_analyze_pantry' => '📦 Analyzing pantry...',
@@ -8378,6 +8398,26 @@ PROMPT;
                 'prompt_lang_rule' => 'IMPORTANT: write all textual recipe fields in English only. Do not use Italian or German.',
                 'prompt_step_example' => 'Step 1…',
                 'tools_title' => 'Equipment needed',
+                'prompt_option_veloce' => 'QUICK: max 15-20 min total.',
+                'prompt_option_pocafame' => 'SMALL APPETITE: light portion, snack or salad.',
+                'prompt_option_scadenze' => 'EXPIRY PRIORITY: use products expiring soon first.',
+                'prompt_option_salutare' => 'HEALTHY: whole ingredients, vegetables, low fat.',
+                'prompt_option_opened' => 'OPENED PRIORITY: use [OPENED] products first.',
+                'prompt_option_zerowaste' => 'ZERO WASTE: use as many expiring ingredients as possible.',
+                'prompt_option_fuel' => 'MY PACE (Fuel Mode): generate recipe from biometric data (profile), GOAL (maintain/lose/gain) and today\'s physical activity. Adapt calories/macros to MEAL BUDGET below.',
+                'prompt_preferences_header' => '⚠️ MANDATORY PREFERENCES (ALWAYS respect these, they are not suggestions):',
+                'prompt_no_match' => 'No perfectly matching ingredient found — use the closest available and note it in nutrition_note.',
+                'prompt_match_header' => 'Available pantry ingredients compatible with this type (use at least one as the BASE of the recipe):',
+                'prompt_required_type' => '🎯 REQUIRED TYPE:',
+                'prompt_required_type_rule' => 'The recipe MUST be: {hint}. Use compatible ingredients as base.',
+                'prompt_done_today' => 'ALREADY MADE TODAY: {list} — suggest something DIFFERENT.',
+                'prompt_last_7d' => 'LAST 7 DAYS: {list} — vary.',
+                'prompt_regen' => '🔁 REGENERATE #{n}: suggest something COMPLETELY DIFFERENT (different style, different main ingredient, different technique).',
+                'prompt_regen_avoid' => 'Avoid as main ingredient: {list}.',
+                'prompt_frozen_rule' => 'Ingredients with [❄️ FROZEN]: they are frozen. In steps explicitly describe how to use them (frozen vegetables/ready meals: from freezer directly into hot pot/pan, no thawing; large meat/fish: thaw in fridge if needed). Add 2-5 min cooking time vs fresh. Do NOT treat them as fresh fridge products.',
+                'prompt_coerenza' => 'STEPS↔INGREDIENTS CONSISTENCY: every food mentioned in `steps` MUST appear in `ingredients`, OR be exactly water/salt/pepper/oil or a pinch of herbs. FORBIDDEN to write butter/cream/eggs/milk/yogurt/cheese/etc. in steps if that product is not in PANTRY and therefore not in `ingredients`. If you need butter and it\'s not in pantry, change technique (oil, or different recipe).',
+                'prompt_user_prefs' => 'USER PREFERENCES:',
+                'prompt_respond_json' => 'Respond ONLY with valid JSON (no markdown):',
             ],
             'de' => [
                 'status_analyze_pantry' => '📦 Vorrat wird analysiert...',
@@ -8403,6 +8443,26 @@ PROMPT;
                 'prompt_lang_rule' => 'WICHTIG: schreibe alle textuellen Rezeptfelder nur auf Deutsch. Verwende kein Italienisch oder Englisch.',
                 'prompt_step_example' => 'Schritt 1…',
                 'tools_title' => 'Benötigte Geräte',
+                'prompt_option_veloce' => 'SCHNELL: max. 15-20 Min. gesamt.',
+                'prompt_option_pocafame' => 'WENIG HUNGER: leichte Portion, Snack oder Salat.',
+                'prompt_option_scadenze' => 'ABLAUF-PRIORITÄT: bald ablaufende Produkte zuerst verwenden.',
+                'prompt_option_salutare' => 'GESUND: Vollkornzutaten, Gemüse, wenig Fett.',
+                'prompt_option_opened' => 'GEÖFFNET-PRIORITÄT: [GEÖFFNET]-Produkte zuerst verwenden.',
+                'prompt_option_zerowaste' => 'ZERO WASTE: möglichst viele ablaufende Zutaten verwenden.',
+                'prompt_option_fuel' => 'MEIN TEMPO (Fuel Mode): Rezept aus biometrischen Daten (Profil), ZIEL (halten/abnehmen/zunehmen) und heutiger Aktivität generieren. Kalorien/Makros an MEAL BUDGET unten anpassen.',
+                'prompt_preferences_header' => '⚠️ VERBINDLICHE PRÄFERENZEN (IMMER beachten, keine Vorschläge):',
+                'prompt_no_match' => 'Keine perfekt passende Zutat gefunden — verwende die ähnlichste und vermerke es in nutrition_note.',
+                'prompt_match_header' => 'Verfügbare kompatible Vorratszutaten (mindestens eine als BASIS verwenden):',
+                'prompt_required_type' => '🎯 PFLICHTTYP:',
+                'prompt_required_type_rule' => 'Das Rezept MUSS sein: {hint}. Verwende kompatible Zutaten als Basis.',
+                'prompt_done_today' => 'HEUTE SCHON GEMACHT: {list} — schlage etwas ANDERES vor.',
+                'prompt_last_7d' => 'LETZTE 7 TAGE: {list} — variiere.',
+                'prompt_regen' => '🔁 NEUGENERATION #{n}: schlage etwas KOMPLETT ANDERES vor (anderer Stil, andere Hauptzutat, andere Technik).',
+                'prompt_regen_avoid' => 'Vermeide als Hauptzutat: {list}.',
+                'prompt_frozen_rule' => 'Zutaten mit [❄️ TIEFGEKÜHLT]: sind eingefroren. In den Schritten explizit beschreiben, wie sie verwendet werden (tiefgekühltes Gemüse/Fertiggerichte: direkt vom Gefrierfach in heißen Topf/Pfanne, ohne Auftauen; großes Fleisch/Fisch: im Kühlschrank auftauen falls nötig). 2-5 Min. mehr Garzeit als frisch. NICHT als frische Kühlschrankprodukte behandeln.',
+                'prompt_coerenza' => 'KONSISTENZ SCHRITTE↔ZUTATEN: jedes in `steps` genannte Lebensmittel MUSS in `ingredients` vorkommen, ODER genau Wasser/Salz/Pfeffer/Öl oder eine Prise Kräuter sein. VERBOTEN in den Schritten Butter/Sahne/Eier/Milch/Joghurt/Käse/etc. zu schreiben, wenn das Produkt nicht im VORRAT ist.',
+                'prompt_user_prefs' => 'BENUTZERPRÄFERENZEN:',
+                'prompt_respond_json' => 'Antworte NUR mit gültigem JSON (kein Markdown):',
             ],
             'fr' => [
                 'status_analyze_pantry' => '📦 Analyse du garde-manger...',
@@ -8428,6 +8488,26 @@ PROMPT;
                 'prompt_lang_rule' => 'IMPORTANT : écris tous les champs textuels de la recette uniquement en français.',
                 'prompt_step_example' => 'Étape 1…',
                 'tools_title' => 'Ustensiles nécessaires',
+                'prompt_option_veloce' => 'RAPIDE : max 15-20 min au total.',
+                'prompt_option_pocafame' => 'PEU D\'APPÉTIT : portion légère, snack ou salade.',
+                'prompt_option_scadenze' => 'PRIORITÉ PÉREMPTION : utiliser d\'abord les produits bientôt périmés.',
+                'prompt_option_salutare' => 'SAIN : ingrédients complets, légumes, peu de gras.',
+                'prompt_option_opened' => 'PRIORITÉ OUVERTS : utiliser d\'abord les produits [OUVERT].',
+                'prompt_option_zerowaste' => 'ZÉRO DÉCHET : utiliser le plus possible d\'ingrédients bientôt périmés.',
+                'prompt_option_fuel' => 'MON RYTHME (Fuel Mode) : générer la recette à partir des données biométriques (profil), de l\'OBJECTIF (maintien/perte/prise) et de l\'activité physique du jour. Adapter calories/macros au MEAL BUDGET ci-dessous.',
+                'prompt_preferences_header' => '⚠️ PRÉFÉRENCES OBLIGATOIRES (TOUJOURS les respecter, ce ne sont pas des suggestions) :',
+                'prompt_no_match' => 'Aucun ingrédient parfaitement correspondant trouvé — utilise le plus proche disponible et note-le dans nutrition_note.',
+                'prompt_match_header' => 'Ingrédients disponibles au garde-manger compatibles avec ce type (utilise au moins un comme BASE de la recette) :',
+                'prompt_required_type' => '🎯 TYPE OBLIGATOIRE :',
+                'prompt_required_type_rule' => 'La recette DOIT être : {hint}. Utilise les ingrédients compatibles comme base.',
+                'prompt_done_today' => 'DÉJÀ FAIT AUJOURD\'HUI : {list} — propose quelque chose de DIFFÉRENT.',
+                'prompt_last_7d' => '7 DERNIERS JOURS : {list} — varie.',
+                'prompt_regen' => '🔁 RÉGÉNÉRER #{n} : propose quelque chose de COMPLÈTEMENT DIFFÉRENT (autre style, autre ingrédient principal, autre technique).',
+                'prompt_regen_avoid' => 'Évite comme ingrédient principal : {list}.',
+                'prompt_frozen_rule' => 'Ingrédients avec [❄️ SURGELÉ] : ils sont congelés. Dans les étapes, décris explicitement comment les utiliser. Ajoute 2-5 min de cuisson par rapport au frais. NE PAS les traiter comme des produits frais du frigo.',
+                'prompt_coerenza' => 'COHÉRENCE ÉTAPES↔INGRÉDIENTS : chaque aliment mentionné dans `steps` DOIT figurer dans `ingredients`, OU être exactement eau/sel/poivre/huile ou une pincée d\'herbes. INTERDIT d\'écrire beurre/crème/œufs/lait/yaourt/fromage/etc. dans les étapes si ce produit n\'est pas au GARDE-MANGER.',
+                'prompt_user_prefs' => 'PRÉFÉRENCES UTILISATEUR :',
+                'prompt_respond_json' => 'Répondre UNIQUEMENT en JSON valide (pas de markdown) :',
             ],
             'es' => [
                 'status_analyze_pantry' => '📦 Analizando la despensa...',
@@ -8453,6 +8533,26 @@ PROMPT;
                 'prompt_lang_rule' => 'IMPORTANTE: escribe todos los campos de texto de la receta solo en español.',
                 'prompt_step_example' => 'Paso 1…',
                 'tools_title' => 'Utensilios necesarios',
+                'prompt_option_veloce' => 'RÁPIDO: máx. 15-20 min en total.',
+                'prompt_option_pocafame' => 'POCO APETITO: porción ligera, snack o ensalada.',
+                'prompt_option_scadenze' => 'PRIORIDAD CADUCIDAD: usar primero los productos que caducan pronto.',
+                'prompt_option_salutare' => 'SALUDABLE: ingredientes integrales, verduras, poca grasa.',
+                'prompt_option_opened' => 'PRIORIDAD ABIERTOS: usar primero los productos [ABIERTO].',
+                'prompt_option_zerowaste' => 'CERO DESPERDICIO: usar la mayor cantidad posible de ingredientes próximos a caducar.',
+                'prompt_option_fuel' => 'MI RITMO (Fuel Mode): genera la receta a partir de datos biométricos (perfil), OBJETIVO (mantener/perder/ganar) y actividad física de hoy. Adapta calorías/macros al MEAL BUDGET abajo.',
+                'prompt_preferences_header' => '⚠️ PREFERENCIAS OBLIGATORIAS (SIEMPRE respétalas, no son sugerencias):',
+                'prompt_no_match' => 'Ningún ingrediente perfectamente compatible encontrado — usa el más similar disponible y anótalo en nutrition_note.',
+                'prompt_match_header' => 'Ingredientes disponibles en despensa compatibles con este tipo (usa al menos uno como BASE de la receta):',
+                'prompt_required_type' => '🎯 TIPO OBLIGATORIO:',
+                'prompt_required_type_rule' => 'La receta DEBE ser: {hint}. Usa los ingredientes compatibles como base.',
+                'prompt_done_today' => 'YA HECHO HOY: {list} — sugiere algo DIFERENTE.',
+                'prompt_last_7d' => 'ÚLTIMOS 7 DÍAS: {list} — varía.',
+                'prompt_regen' => '🔁 REGENERAR #{n}: sugiere algo COMPLETAMENTE DIFERENTE (otro estilo, otro ingrediente principal, otra técnica).',
+                'prompt_regen_avoid' => 'Evita como ingrediente principal: {list}.',
+                'prompt_frozen_rule' => 'Ingredientes con [❄️ CONGELADO]: están congelados. En los pasos describe explícitamente cómo usarlos. Añade 2-5 min de cocción respecto al fresco. NO tratarlos como productos frescos de nevera.',
+                'prompt_coerenza' => 'COHERENCIA PASOS↔INGREDIENTES: cada alimento mencionado en `steps` DEBE aparecer en `ingredients`, O ser exactamente agua/sal/pimienta/aceite o una pizca de hierbas. PROHIBIDO escribir mantequilla/nata/huevos/leche/yogur/queso/etc. en los pasos si ese producto no está en la DESPENSA.',
+                'prompt_user_prefs' => 'PREFERENCIAS DEL USUARIO:',
+                'prompt_respond_json' => 'Responde SOLO con JSON válido (sin markdown):',
             ],
             'zh' => [
                 'status_analyze_pantry' => '📦 正在分析库存...',
@@ -8478,6 +8578,26 @@ PROMPT;
                 'prompt_lang_rule' => '重要：所有食谱文本字段必须使用简体中文撰写。',
                 'prompt_step_example' => '步骤 1…',
                 'tools_title' => '所需工具',
+                'prompt_option_veloce' => '快速：总计最多 15-20 分钟。',
+                'prompt_option_pocafame' => '少量进食：轻食、零食或沙拉。',
+                'prompt_option_scadenze' => '临期优先：优先使用即将过期的产品。',
+                'prompt_option_salutare' => '健康：全谷物食材、蔬菜、低脂。',
+                'prompt_option_opened' => '已开封优先：优先使用 [已开封] 的产品。',
+                'prompt_option_zerowaste' => '零浪费：尽可能多地使用即将过期的食材。',
+                'prompt_option_fuel' => '我的节奏（Fuel Mode）：根据生物数据（个人资料）、目标（维持/减重/增重）和今天的体力活动生成食谱。根据下方 MEAL BUDGET 调整热量/营养素。',
+                'prompt_preferences_header' => '⚠️ 强制偏好（必须始终遵守，不是建议）：',
+                'prompt_no_match' => '未找到完全匹配的食材 — 使用最相近的可用食材并在 nutrition_note 中注明。',
+                'prompt_match_header' => '储藏室中与此类型兼容的可用食材（至少使用一个作为食谱基础）：',
+                'prompt_required_type' => '🎯 必选类型：',
+                'prompt_required_type_rule' => '食谱必须是：{hint}。使用兼容的食材作为基础。',
+                'prompt_done_today' => '今天已做过：{list} — 推荐不同的。',
+                'prompt_last_7d' => '最近 7 天：{list} — 换换花样。',
+                'prompt_regen' => '🔁 重新生成 #{n}：推荐完全不同的（不同风格、不同主要食材、不同技法）。',
+                'prompt_regen_avoid' => '避免作为主要食材：{list}。',
+                'prompt_frozen_rule' => '标有 [❄️ 冷冻] 的食材：已冷冻。在步骤中明确说明如何使用。比新鲜食材多煮 2-5 分钟。不要当作冰箱中的新鲜产品。',
+                'prompt_coerenza' => '步骤↔食材一致性：`steps` 中提到的每种食材必须出现在 `ingredients` 中，或者是水/盐/胡椒/油或少量香草。禁止在步骤中写黄油/奶油/鸡蛋/牛奶/酸奶/奶酪等，如果该产品不在储藏室中。',
+                'prompt_user_prefs' => '用户偏好：',
+                'prompt_respond_json' => '仅回复有效 JSON（无 markdown）：',
             ],
         ];
         $text = $dict[$lang][$key] ?? $dict['en'][$key] ?? $dict['it'][$key] ?? $key;
@@ -9495,7 +9615,7 @@ function generateRecipe(PDO $db): void {
     if (!is_array($input)) {
         $input = [];
     }
-    $lang = recipeNormalizeLang($input['lang'] ?? 'it');
+    $lang = recipeNormalizeLang($input['lang'] ?? 'en');
     $recipeLangName = recipeLangName($lang);
     $mealType = $input['meal'] ?? 'pranzo';
     $persons = max(1, intval($input['persons'] ?? 1));
@@ -9650,13 +9770,13 @@ function generateRecipe(PDO $db): void {
     // Build extra rules from options
     $extraRules = [];
     $optionLabels = [
-        'veloce' => 'VELOCE: max 15-20 min totali.',
-        'pocafame' => 'POCA FAME: porzione leggera, snack o insalata.',
-        'scadenze' => 'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
-        'salutare' => 'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
-        'opened' => 'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
-        'zerowaste' => 'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
-        'fuel' => 'A RITMO MIO (Fuel Mode): genera la ricetta dai dati biologici (profilo), dall’OBIETTIVO (maintain/lose/gain) e dall’attività fisica di oggi. Adatta calorie/macro al MEAL BUDGET sotto.',
+        'veloce' => recipeText($lang, 'prompt_option_veloce'),
+        'pocafame' => recipeText($lang, 'prompt_option_pocafame'),
+        'scadenze' => recipeText($lang, 'prompt_option_scadenze'),
+        'salutare' => recipeText($lang, 'prompt_option_salutare'),
+        'opened' => recipeText($lang, 'prompt_option_opened'),
+        'zerowaste' => recipeText($lang, 'prompt_option_zerowaste'),
+        'fuel' => recipeText($lang, 'prompt_option_fuel'),
     ];
     foreach ($options as $opt) {
         if (isset($optionLabels[$opt])) {
@@ -9666,7 +9786,7 @@ function generateRecipe(PDO $db): void {
     
     $extraRulesText = '';
     if (!empty($extraRules)) {
-        $extraRulesText = "\n\n⚠️ PREFERENZE OBBLIGATORIE (RISPETTALE SEMPRE, non sono suggerimenti):\n" . implode("\n", array_map(fn($r) => "→ $r", $extraRules));
+        $extraRulesText = "\n\n" . recipeText($lang, 'prompt_preferences_header') . "\n" . implode("\n", array_map(fn($r) => "→ $r", $extraRules));
     }
 
     $fuelBudget = null;
@@ -9754,13 +9874,13 @@ function generateRecipe(PDO $db): void {
 
         if (!empty($matchingItems)) {
             $matchingList = implode("\n", $matchingItems);
-            $matchingBlock = "Ingredienti disponibili in dispensa compatibili con questa tipologia (usa almeno uno di questi come BASE della ricetta):\n{$matchingList}";
+            $matchingBlock = recipeText($lang, 'prompt_match_header') . "\n{$matchingList}";
         } else {
-            $matchingBlock = "Nessun ingrediente perfettamente corrispondente trovato — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
+            $matchingBlock = recipeText($lang, 'prompt_no_match');
         }
 
-        $mealPlanText = "\n\n🎯 TIPO OBBLIGATORIO: {$hint}\n{$matchingBlock}";
-        $mealPlanRule = "0. La ricetta DEVE essere: {$hint}. Usa gli ingredienti compatibili come base.\n   ";
+        $mealPlanText = "\n\n" . recipeText($lang, 'prompt_required_type') . " {$hint}\n{$matchingBlock}";
+        $mealPlanRule = "0. " . recipeText($lang, 'prompt_required_type_rule', ['hint' => $hint]) . "\n   ";
     }
 
     // Today's previous recipes from DB - avoid repetition
@@ -9791,26 +9911,30 @@ function generateRecipe(PDO $db): void {
     $varietyText = '';
     if (!empty($todayTitles)) {
         $todayList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, $todayTitles));
-        $varietyText .= "\n\nGIÀ FATTO OGGI: {$todayList} — proponi qualcosa di DIVERSO.";
+        $varietyText .= "\n\n" . recipeText($lang, 'prompt_done_today', ['list' => $todayList]);
     }
     // Weekly variety: list all recent recipes so AI avoids repetition
     $weekOnly = array_diff($weekTitles, $todayTitles);
     if (!empty($weekOnly)) {
         $weekList = implode(', ', array_map(function($t) { return '"' . $t . '"'; }, array_values($weekOnly)));
-        $varietyText .= "\n\nULTIMI 7GG: {$weekList} — varia.";
+        $varietyText .= "\n\n" . recipeText($lang, 'prompt_last_7d', ['list' => $weekList]);
     }
     // If this is a re-generation, stress the need for a truly different recipe
     $regenText = '';
     if ($variation > 0) {
-        $regenText = "\n\n🔁 RIGENERA #{$variation}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).";
+        $regenText = "\n\n" . recipeText($lang, 'prompt_regen', ['n' => $variation]);
         if (!empty($rejectedIngredients)) {
             $rejList = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
-            $regenText .= " Evita come ingrediente principale: {$rejList}.";
+            $regenText .= ' ' . recipeText($lang, 'prompt_regen_avoid', ['list' => $rejList]);
         }
     }
 
     $promptLanguageRule = recipeText($lang, 'prompt_lang_rule');
     $promptStepExample = recipeText($lang, 'prompt_step_example');
+
+    $promptCoerenza = recipeText($lang, 'prompt_coerenza');
+    $promptFrozenRule = recipeText($lang, 'prompt_frozen_rule');
+    $promptRespondJson = recipeText($lang, 'prompt_respond_json');
 
     $prompt = <<<PROMPT
 You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.
@@ -9824,7 +9948,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
-7b. COERENZA PASSI↔INGREDIENTI: ogni alimento nominato nei `steps` DEVE comparire in `ingredients`, OPPURE essere esattamente acqua/sale/pepe/olio o erbe in pizzico. VIETATO scrivere nei passi burro/panna/uova/latte/yogurt/formaggio/ecc. se quel prodotto non è in DISPENSA e quindi non è in `ingredients`. Se ti serve il burro e non c’è in dispensa, cambia tecnica (olio, oppure ricetta diversa).
+7b. {$promptCoerenza}
 8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullateur"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `steps`: array of PLAIN TEXT STRINGS only — no objects, no JSON, no sub-fields. Each step is a single readable string. If appliances are used, include the appliance/mode information directly in the step text (e.g. "Nel Cookeo, modalità Rosolare: aggiungere la cipolla…"). NEVER output steps as objects like {"instruction":…, "appliance_function":…}.
@@ -9832,13 +9956,13 @@ REGOLE:
 12. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers. Estimate realistically based on the ingredients and quantities used.
 13. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 14. VIETATO mettere in `ingredients` qualcosa che non è in DISPENSA (no from_pantry:false, no ingredienti inventati). Acqua, sale, pepe e olio NON vanno in ingredients (solo nei passi).
-15. Ingredienti con [❄️ SURGELATO]: sono congelati. Nei passi scrivi esplicitamente come usarli (verdure/piatti pronti surgelati: dal freezer direttamente in pentola/padella calda, senza scongelare; carne/pesce grossi: scongela in frigo se serve). Aggiungi 2-5 min di cottura rispetto al fresco. NON trattarli come prodotti freschi di frigo.
+15. {$promptFrozenRule}
 16. `fuel_why`: se A RITMO MIO è attivo, stringa obbligatoria (2–4 frasi) che spiega perché hai scelto quegli ingredienti in base a obiettivo/attività/budget; altrimenti "".
 
 DISPENSA:
 $ingredientsText
 
-Rispondi SOLO JSON valido (no markdown):
+{$promptRespondJson}
 {$promptLanguageRule}
 {"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","fuel_why":"…","nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
@@ -9898,7 +10022,7 @@ function chatToRecipe(PDO $db): void {
 
     $input = json_decode(file_get_contents('php://input'), true);
     $replyText = trim($input['text'] ?? '');
-    $lang = recipeNormalizeLang($input['lang'] ?? 'it');
+    $lang = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($replyText)) {
         echo json_encode(['success' => false, 'error' => 'empty_text']);
@@ -9984,7 +10108,7 @@ function recipeFromIngredient(PDO $db): void {
         echo json_encode(['success' => false, 'error' => 'empty_ingredient']);
         return;
     }
-    $lang = recipeNormalizeLang($input['lang'] ?? 'it');
+    $lang = recipeNormalizeLang($input['lang'] ?? 'en');
     $persons = max(1, intval($input['persons'] ?? 1));
 
     $items = recipeFetchPantryItems($db);
@@ -10110,7 +10234,7 @@ function generateRecipeStream(PDO $db): void {
     try {
 
     $input               = json_decode(file_get_contents('php://input'), true) ?? [];
-    $lang                = recipeNormalizeLang($input['lang'] ?? 'it');
+    $lang                = recipeNormalizeLang($input['lang'] ?? 'en');
     $recipeLangName      = recipeLangName($lang);
     $mealType            = $input['meal'] ?? 'pranzo';
     $persons             = max(1, intval($input['persons'] ?? 1));
@@ -10277,16 +10401,16 @@ function generateRecipeStream(PDO $db): void {
 
     $extraRules = [];
     $optionLabels = [
-        'veloce'=>'VELOCE: max 15-20 min totali.',
-        'pocafame'=>'POCA FAME: porzione leggera, snack o insalata.',
-        'scadenze'=>'PRIORITÀ SCADENZE: usa per primi i prodotti in scadenza.',
-        'salutare'=>'SALUTARE: ingredienti integrali, verdure, pochi grassi.',
-        'opened'=>'PRIORITÀ APERTI: usa per primi i prodotti [APERTO].',
-        'zerowaste'=>'ZERO SPRECHI: usa il più possibile ingredienti in scadenza.',
-        'fuel'=>'A RITMO MIO (Fuel Mode): genera la ricetta dai dati biologici (profilo), dall’OBIETTIVO (maintain/lose/gain) e dall’attività fisica di oggi. Adatta calorie/macro al MEAL BUDGET sotto.',
+        'veloce' => recipeText($lang, 'prompt_option_veloce'),
+        'pocafame' => recipeText($lang, 'prompt_option_pocafame'),
+        'scadenze' => recipeText($lang, 'prompt_option_scadenze'),
+        'salutare' => recipeText($lang, 'prompt_option_salutare'),
+        'opened' => recipeText($lang, 'prompt_option_opened'),
+        'zerowaste' => recipeText($lang, 'prompt_option_zerowaste'),
+        'fuel' => recipeText($lang, 'prompt_option_fuel'),
     ];
     foreach ($options as $opt) { if (isset($optionLabels[$opt])) $extraRules[] = $optionLabels[$opt]; }
-    $extraRulesText = !empty($extraRules)         ? "\n\nPREFERENZE DELL'UTENTE:\n" . implode("\n", $extraRules) : '';
+    $extraRulesText = !empty($extraRules) ? "\n\n" . recipeText($lang, 'prompt_user_prefs') . "\n" . implode("\n", $extraRules) : '';
     $fuelBudget = null;
     $fuelText = '';
     $weatherCtx = null;
@@ -10324,10 +10448,10 @@ function generateRecipeStream(PDO $db): void {
             $matchingItems = array_unique($matchingItems);
         }
         $matchingBlock = !empty($matchingItems)
-            ? "Ingredienti disponibili compatibili (usa almeno uno come BASE):\n" . implode("\n", $matchingItems)
-            : "Nessun ingrediente perfettamente corrispondente — usa la cosa più affine disponibile e segnalalo in nutrition_note.";
-        $mealPlanText = "\n\n🎯 TIPO OBBLIGATORIO: {$hint}\n{$matchingBlock}";
-        $mealPlanRule = "0. La ricetta DEVE essere: {$hint}. Usa gli ingredienti compatibili come base.\n   ";
+            ? recipeText($lang, 'prompt_match_header') . "\n" . implode("\n", $matchingItems)
+            : recipeText($lang, 'prompt_no_match');
+        $mealPlanText = "\n\n" . recipeText($lang, 'prompt_required_type') . " {$hint}\n{$matchingBlock}";
+        $mealPlanRule = "0. " . recipeText($lang, 'prompt_required_type_rule', ['hint' => $hint]) . "\n   ";
     }
 
     $varietyText = '';
@@ -10343,20 +10467,20 @@ function generateRecipeStream(PDO $db): void {
     if (!empty($todayRecipes)) $todayTitles = array_unique(array_merge($todayTitles, $todayRecipes));
     if (!empty($todayTitles)) {
         $todayList    = implode(', ', array_map(fn($t) => '"' . $t . '"', $todayTitles));
-        $varietyText .= "\n\nGIÀ FATTO OGGI: {$todayList} — proponi qualcosa di DIVERSO.";
+        $varietyText .= "\n\n" . recipeText($lang, 'prompt_done_today', ['list' => $todayList]);
     }
     $weekOnly = array_diff($weekTitles, $todayTitles);
     if (!empty($weekOnly)) {
         $weekList     = implode(', ', array_map(fn($t) => '"' . $t . '"', array_values($weekOnly)));
-        $varietyText .= "\n\nULTIMI 7GG: {$weekList} — varia.";
+        $varietyText .= "\n\n" . recipeText($lang, 'prompt_last_7d', ['list' => $weekList]);
     }
 
     $regenText = '';
     if ($variation > 0) {
-        $regenText = "\n\n🔁 RIGENERA #{$variation}: proponi qualcosa di COMPLETAMENTE DIVERSO (altro stile, altro ingrediente principale, altra tecnica).";
+        $regenText = "\n\n" . recipeText($lang, 'prompt_regen', ['n' => $variation]);
         if (!empty($rejectedIngredients)) {
             $rejList    = implode(', ', array_map(fn($n) => '"' . $n . '"', $rejectedIngredients));
-            $regenText .= " Evita come ingrediente principale: {$rejList}.";
+            $regenText .= ' ' . recipeText($lang, 'prompt_regen_avoid', ['list' => $rejList]);
         }
     }
 
@@ -10408,6 +10532,10 @@ function generateRecipeStream(PDO $db): void {
 
     $promptLanguageRule = recipeText($lang, 'prompt_lang_rule');
     $promptStepExample = recipeText($lang, 'prompt_step_example');
+    $promptCoerenza = recipeText($lang, 'prompt_coerenza');
+    $promptFrozenRule = recipeText($lang, 'prompt_frozen_rule');
+    $promptRespondJson = recipeText($lang, 'prompt_respond_json');
+
     $prompt = <<<PROMPT
 You are an expert home chef. Generate ONE recipe for $mealLabel for $persons person(s) using the available ingredients below.{$extraRulesText}{$fuelText}{$appliancesText}{$dietaryText}{$subTypeText}{$mealPlanText}{$varietyText}{$regenText}{$mustUseText}
 
@@ -10419,7 +10547,7 @@ REGOLE:
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
-7b. COERENZA PASSI↔INGREDIENTI: ogni alimento nominato nei `steps` DEVE comparire in `ingredients`, OPPURE essere esattamente acqua/sale/pepe/olio o erbe in pizzico. VIETATO scrivere nei passi burro/panna/uova/latte/yogurt/formaggio/ecc. se quel prodotto non è in DISPENSA e quindi non è in `ingredients`. Se ti serve il burro e non c’è in dispensa, cambia tecnica (olio, oppure ricetta diversa).
+7b. {$promptCoerenza}
 8. Language rule: {$recipeLangName} only for all textual fields (`title`, `tags`, `expiry_note`, `ingredients.qty`, `steps`, `nutrition_note`, `fuel_why`, `tools_needed`). Keep `meal` unchanged.
 9. `tools_needed`: array of kitchen tools/appliances actually required by this recipe (e.g. ["Forno","Frullatore"]). Use the same language as all other text fields. Empty array [] if only stovetop/knife/pan needed.
 10. `zero_waste_tips`: array of zero-waste tips for steps that generate reusable scraps (peels, leftover cooking water, egg whites, cheese rinds, bread crusts, vegetable tops, etc.). Each entry: {"step": 0-based_step_index, "scrap": "scrap name", "tip": "short practical reuse tip (max 20 words)"}. Use the same language as other text fields. Empty array [] if no reusable scraps are generated.
@@ -10428,13 +10556,13 @@ REGOLE:
 13. `nutrition`: object with estimated macro values PER SERVING for the finished dish: {"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15}. All values are integers. Estimate realistically based on the ingredients and quantities used.
 14. `storage`: object describing how to store leftovers: {"where":"frigo","days":3,"tips":"…"}. `where` = one of: frigo / freezer / dispensa / temperatura ambiente (in target language). `days` = integer max days safe to keep. `tips` = one concise sentence in target language. If the dish is best eaten immediately, set days=0 and tips accordingly.
 15. VIETATO mettere in `ingredients` qualcosa che non è in DISPENSA (no from_pantry:false, no ingredienti inventati). Acqua, sale, pepe e olio NON vanno in ingredients (solo nei passi).
-16. Ingredienti con [❄️ SURGELATO]: sono congelati. Nei passi scrivi esplicitamente come usarli (verdure/piatti pronti surgelati: dal freezer direttamente in pentola/padella calda, senza scongelare; carne/pesce grossi: scongela in frigo se serve). Aggiungi 2-5 min di cottura rispetto al fresco. NON trattarli come prodotti freschi di frigo.
+16. {$promptFrozenRule}
 17. `fuel_why`: se A RITMO MIO è attivo, stringa obbligatoria (2–4 frasi) che spiega perché hai scelto quegli ingredienti in base a obiettivo/attività/budget; altrimenti "".
 
 DISPENSA:
 $ingredientsText
 
-Rispondi SOLO JSON valido (no markdown):
+{$promptRespondJson}
 {$promptLanguageRule}
 {"title":"…","meal":"$mealType","persons":$persons,"prep_time":"…","cook_time":"…","tags":["…"],"expiry_note":"…","tools_needed":["…"],"ingredients":[{"name":"…","qty":"200 g","qty_number":200,"from_pantry":true}],"steps":["{$promptStepExample}"],"nutrition_note":"…","fuel_why":"…","zero_waste_tips":[{"step":0,"scrap":"…","tip":"…"}],"nutrition":{"kcal":450,"protein_g":25,"carbs_g":40,"fat_g":15},"storage":{"where":"frigo","days":3,"tips":"…"}}
 PROMPT;
@@ -15739,20 +15867,95 @@ function bringSuggestItems(PDO $db): void {
     }
 
     // 4. Seasonal tip (fallback static, overridden by Gemini below)
-    $monthTips = [
-        1  => 'Gennaio: arance, mandarini, kiwi, carciofi e verze sono di stagione.',
-        2  => 'Febbraio: radicchio, finocchi, pere e agrumi da non perdere.',
-        3  => 'Marzo: arrivano gli asparagi! Ottimo anche con piselli freschi e spinaci.',
-        4  => 'Aprile: stagione di asparagi, carciofi, fave e fragole.',
-        5  => 'Maggio: zucchine, fragole, ciliegie — ottimo mese per frutta e verdura fresca.',
-        6  => 'Giugno: albicocche, pesche, pomodori freschi, melanzane — estate in arrivo.',
-        7  => 'Luglio: cocomero, pesche, melanzane e pomodori sono al loro meglio.',
-        8  => 'Agosto: prugne, fichi, peperoni e basilico fresco di stagione.',
-        9  => 'Settembre: uva, fichi, funghi porcini, melograno e more.',
-        10 => 'Ottobre: melograni, castagne, funghi, mele e pere autunnali.',
-        11 => 'Novembre: cachi, melograni, cavoli, broccoli e radicchio tardivo.',
-        12 => 'Dicembre: arance, mandarini, cachi, verze e cavolfiori.',
+    $lang = env('APP_LANG', 'en');
+    $monthTipsAll = [
+        'it' => [
+            1  => 'Gennaio: arance, mandarini, kiwi, carciofi e verze sono di stagione.',
+            2  => 'Febbraio: radicchio, finocchi, pere e agrumi da non perdere.',
+            3  => 'Marzo: arrivano gli asparagi! Ottimo anche con piselli freschi e spinaci.',
+            4  => 'Aprile: stagione di asparagi, carciofi, fave e fragole.',
+            5  => 'Maggio: zucchine, fragole, ciliegie — ottimo mese per frutta e verdura fresca.',
+            6  => 'Giugno: albicocche, pesche, pomodori freschi, melanzane — estate in arrivo.',
+            7  => 'Luglio: cocomero, pesche, melanzane e pomodori sono al loro meglio.',
+            8  => 'Agosto: prugne, fichi, peperoni e basilico fresco di stagione.',
+            9  => 'Settembre: uva, fichi, funghi porcini, melograno e more.',
+            10 => 'Ottobre: melograni, castagne, funghi, mele e pere autunnali.',
+            11 => 'Novembre: cachi, melograni, cavoli, broccoli e radicchio tardivo.',
+            12 => 'Dicembre: arance, mandarini, cachi, verze e cavolfiori.',
+        ],
+        'en' => [
+            1  => 'January: oranges, mandarins, kiwis, artichokes and cabbages are in season.',
+            2  => 'February: radicchio, fennel, pears and citrus fruits not to miss.',
+            3  => 'March: asparagus is here! Great with fresh peas and spinach too.',
+            4  => 'April: season for asparagus, artichokes, fava beans and strawberries.',
+            5  => 'May: zucchini, strawberries, cherries — great month for fresh produce.',
+            6  => 'June: apricots, peaches, fresh tomatoes, eggplant — summer is coming.',
+            7  => 'July: watermelon, peaches, eggplant and tomatoes at their best.',
+            8  => 'August: plums, figs, peppers and fresh basil in season.',
+            9  => 'September: grapes, figs, porcini mushrooms, pomegranate and blackberries.',
+            10 => 'October: pomegranates, chestnuts, mushrooms, apples and autumn pears.',
+            11 => 'November: persimmons, pomegranates, cabbages, broccoli and late radicchio.',
+            12 => 'December: oranges, mandarins, persimmons, cabbages and cauliflowers.',
+        ],
+        'de' => [
+            1  => 'Januar: Orangen, Mandarinen, Kiwis, Artischocken und Kohl haben Saison.',
+            2  => 'Februar: Radicchio, Fenchel, Birnen und Zitrusfrüchte nicht verpassen.',
+            3  => 'März: Spargel ist da! Auch toll mit frischen Erbsen und Spinat.',
+            4  => 'April: Saison für Spargel, Artischocken, Saubohnen und Erdbeeren.',
+            5  => 'Mai: Zucchini, Erdbeeren, Kirschen — toller Monat für frisches Obst und Gemüse.',
+            6  => 'Juni: Aprikosen, Pfirsiche, frische Tomaten, Auberginen — der Sommer kommt.',
+            7  => 'Juli: Wassermelone, Pfirsiche, Auberginen und Tomaten sind auf ihrem Höhepunkt.',
+            8  => 'August: Pflaumen, Feigen, Paprika und frisches Basilikum haben Saison.',
+            9  => 'September: Trauben, Feigen, Steinpilze, Granatapfel und Brombeeren.',
+            10 => 'Oktober: Granatäpfel, Kastanien, Pilze, Äpfel und Herbstbirnen.',
+            11 => 'November: Kakis, Granatäpfel, Kohl, Brokkoli und später Radicchio.',
+            12 => 'Dezember: Orangen, Mandarinen, Kakis, Kohl und Blumenkohl.',
+        ],
+        'fr' => [
+            1  => 'Janvier : oranges, mandarines, kiwis, artichauts et choux de saison.',
+            2  => 'Février : radicchio, fenouil, poires et agrumes à ne pas manquer.',
+            3  => 'Mars : les asperges arrivent ! Excellent aussi avec petits pois frais et épinards.',
+            4  => 'Avril : saison des asperges, artichauts, fèves et fraises.',
+            5  => 'Mai : courgettes, fraises, cerises — excellent mois pour les produits frais.',
+            6  => 'Juin : abricots, pêches, tomates fraîches, aubergines — l\'été arrive.',
+            7  => 'Juillet : pastèque, pêches, aubergines et tomates à leur meilleur.',
+            8  => 'Août : prunes, figues, poivrons et basilic frais de saison.',
+            9  => 'Septembre : raisins, figues, cèpes, grenade et mûres.',
+            10 => 'Octobre : grenades, châtaignes, champignons, pommes et poires d\'automne.',
+            11 => 'Novembre : kakis, grenades, choux, brocolis et radicchio tardif.',
+            12 => 'Décembre : oranges, mandarines, kakis, choux et choux-fleurs.',
+        ],
+        'es' => [
+            1  => 'Enero: naranjas, mandarinas, kiwis, alcachofas y coles de temporada.',
+            2  => 'Febrero: radicchio, hinojo, peras y cítricos que no te puedes perder.',
+            3  => 'Marzo: ¡llegan los espárragos! Genial también con guisantes frescos y espinacas.',
+            4  => 'Abril: temporada de espárragos, alcachofas, habas y fresas.',
+            5  => 'Mayo: calabacines, fresas, cerezas — gran mes para frutas y verduras frescas.',
+            6  => 'Junio: albaricoques, melocotones, tomates frescos, berenjenas — llega el verano.',
+            7  => 'Julio: sandía, melocotones, berenjenas y tomates en su mejor momento.',
+            8  => 'Agosto: ciruelas, higos, pimientos y albahaca fresca de temporada.',
+            9  => 'Septiembre: uvas, higos, setas porcini, granada y moras.',
+            10 => 'Octubre: granadas, castañas, setas, manzanas y peras de otoño.',
+            11 => 'Noviembre: caquis, granadas, coles, brócoli y radicchio tardío.',
+            12 => 'Diciembre: naranjas, mandarinas, caquis, coles y coliflores.',
+        ],
+        'zh' => [
+            1  => '一月：橙子、柑橘、猕猴桃、朝鲜蓟和卷心菜当季。',
+            2  => '二月：菊苣、茴香、梨和柑橘类水果不容错过。',
+            3  => '三月：芦笋来了！搭配新鲜豌豆和菠菜也很棒。',
+            4  => '四月：芦笋、朝鲜蓟、蚕豆和草莓的季节。',
+            5  => '五月：西葫芦、草莓、樱桃——新鲜果蔬的好月份。',
+            6  => '六月：杏、桃、新鲜番茄、茄子——夏天来了。',
+            7  => '七月：西瓜、桃、茄子和番茄正当时。',
+            8  => '八月：李子、无花果、辣椒和新鲜罗勒当季。',
+            9  => '九月：葡萄、无花果、牛肝菌、石榴和黑莓。',
+            10 => '十月：石榴、栗子、蘑菇、苹果和秋梨。',
+            11 => '十一月：柿子、石榴、卷心菜、西兰花和晚季菊苣。',
+            12 => '十二月：橙子、柑橘、柿子、卷心菜和花椰菜。',
+        ],
     ];
+    $tipLang = in_array($lang, ['it', 'en', 'de', 'fr', 'es', 'zh'], true) ? $lang : 'en';
+    $monthTips = $monthTipsAll[$tipLang];
     $seasonalTip = $monthTips[(int)date('n')] ?? '';
 
     // 5. Try to enrich with Gemini: generate ADDITIONAL seasonal / complementary suggestions
@@ -15773,13 +15976,21 @@ function bringSuggestItems(PDO $db): void {
             // Build inventory snapshot for Gemini (what the user already has)
             $inStockNames = array_map(fn($i) => $i['name'], array_filter($smartItems, fn($i) => ($i['current_qty'] ?? 0) > 0));
             $dietary  = trim(env('DIETARY') ?? '');
-            $monthName = [1=>'Gennaio',2=>'Febbraio',3=>'Marzo',4=>'Aprile',5=>'Maggio',6=>'Giugno',
-                          7=>'Luglio',8=>'Agosto',9=>'Settembre',10=>'Ottobre',11=>'Novembre',12=>'Dicembre'][(int)date('n')];
+            $monthNames = [
+                'it' => [1=>'Gennaio',2=>'Febbraio',3=>'Marzo',4=>'Aprile',5=>'Maggio',6=>'Giugno',7=>'Luglio',8=>'Agosto',9=>'Settembre',10=>'Ottobre',11=>'Novembre',12=>'Dicembre'],
+                'en' => [1=>'January',2=>'February',3=>'March',4=>'April',5=>'May',6=>'June',7=>'July',8=>'August',9=>'September',10=>'October',11=>'November',12=>'December'],
+                'de' => [1=>'Januar',2=>'Februar',3=>'März',4=>'April',5=>'Mai',6=>'Juni',7=>'Juli',8=>'August',9=>'September',10=>'Oktober',11=>'November',12=>'Dezember'],
+                'fr' => [1=>'Janvier',2=>'Février',3=>'Mars',4=>'Avril',5=>'Mai',6=>'Juin',7=>'Juillet',8=>'Août',9=>'Septembre',10=>'Octobre',11=>'Novembre',12=>'Décembre'],
+                'es' => [1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre'],
+                'zh' => [1=>'一月',2=>'二月',3=>'三月',4=>'四月',5=>'五月',6=>'六月',7=>'七月',8=>'八月',9=>'九月',10=>'十月',11=>'十一月',12=>'十二月'],
+            ];
+            $monthName = ($monthNames[$tipLang] ?? $monthNames['en'])[(int)date('n')];
             $inStockJson  = json_encode(array_values(array_slice($inStockNames, 0, 40)), JSON_UNESCAPED_UNICODE);
             $alreadyJson  = json_encode(array_values($knownNames), JSON_UNESCAPED_UNICODE);
             $dietaryLine  = $dietary ? "- Dietary preferences: {$dietary}" : '';
 
-            $prompt = "You are a helpful Italian household shopping assistant.\n"
+            $langAdj = ['it'=>'Italian','en'=>'English','de'=>'German','fr'=>'French','es'=>'Spanish','zh'=>'Chinese'][$tipLang] ?? 'English';
+            $prompt = "You are a helpful {$langAdj} household shopping assistant.\n"
                 . "Today is {$monthName} " . date('Y') . ".\n"
                 . "The user already has these products in stock: {$inStockJson}\n"
                 . "The following products are already in the shopping list: {$alreadyJson}\n"
@@ -16673,7 +16884,7 @@ function reportBugManual(): void {
     $ua    = substr(trim($input['user_agent']  ?? ($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 300);
     $url   = substr(trim($input['url']         ?? ''), 0, 300);
     $ver   = substr(trim($input['version']     ?? ''), 0, 50);
-    $lang  = preg_replace('/[^a-z\-]/', '', strtolower($input['lang'] ?? 'it'));
+    $lang  = preg_replace('/[^a-z\-]/', '', strtolower($input['lang'] ?? 'en'));
 
     if (empty($title) || empty($desc)) {
         echo json_encode(['ok' => false, 'error' => 'title and description required']);
@@ -17064,7 +17275,7 @@ function geminiProductHint(): void {
     $input    = json_decode(file_get_contents('php://input'), true) ?? [];
     $name     = trim($input['name']    ?? '');
     $category = trim($input['category'] ?? '');
-    $lang     = trim($input['lang']    ?? 'it');
+    $lang     = trim($input['lang']    ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
@@ -17155,7 +17366,7 @@ function geminiShoppingEnrich(PDO $db): void {
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $items = $input['items'] ?? [];
-    $lang  = trim($input['lang'] ?? 'it');
+    $lang  = trim($input['lang'] ?? 'en');
 
     if (empty($items)) {
         echo json_encode(['success' => true, 'items' => []]);
@@ -17288,7 +17499,7 @@ function geminiBarcodeVisual(): void {
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $imageBase64 = $input['image'] ?? '';
-    $lang = $input['lang'] ?? 'it';
+    $lang = $input['lang'] ?? 'en';
     if (empty($imageBase64)) {
         echo json_encode(['found' => false, 'error' => 'no_image']);
         return;
@@ -17388,7 +17599,7 @@ function geminiAnomalyExplain(): void {
     $diff      = $input['diff']              ?? 0;
     $direction = $input['direction']         ?? 'missing';
     $unit      = $input['unit']              ?? 'pz';
-    $lang      = trim($input['lang']         ?? 'it');
+    $lang      = trim($input['lang']         ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
@@ -17925,7 +18136,7 @@ function getShoppingPrice(PDO $db): void {
     $pkgUnit = trim($input['package_unit']     ?? '');
     $country = trim($input['country']          ?? env('PRICE_COUNTRY', 'Italia'));
     $currency= trim($input['currency']         ?? env('PRICE_CURRENCY', 'EUR'));
-    $lang    = trim($input['lang']             ?? 'it');
+    $lang    = trim($input['lang']             ?? 'en');
     $forceRefresh = !empty($input['force_refresh']);
     $maxAge = _shoppingPriceMaxAgeSeconds();
 
@@ -17999,7 +18210,7 @@ function getAllShoppingPrices(PDO $db): void {
     $clientItems = $input['items'] ?? [];
     $country  = trim($input['country']  ?? env('PRICE_COUNTRY', 'Italia'));
     $currency = trim($input['currency'] ?? env('PRICE_CURRENCY', 'EUR'));
-    $lang     = trim($input['lang']     ?? 'it');
+    $lang     = trim($input['lang']     ?? 'en');
     $forceRefresh = !empty($input['force_refresh']);
 
     $result = _computeAllShoppingPrices($clientItems, $country, $currency, $lang, $forceRefresh);
