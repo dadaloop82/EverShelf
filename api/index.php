@@ -903,6 +903,14 @@ try {
             getMonthlyStats($db);
             break;
 
+        case 'spend_add':
+            spendAdd();
+            break;
+
+        case 'spend_stats':
+            getSpendStats();
+            break;
+
         case 'consumption_predictions':
             getConsumptionPredictions($db);
             break;
@@ -4670,11 +4678,46 @@ function useFromInventory(PDO $db): void {
  * @return array{row:array,location:string,fallback:bool,requested:string}|null
  */
 function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?array {
-    $order = "(quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC";
+    // Prefer ALWAYS already-opened packs anywhere (es. latte aperto in frigo)
+    // before opening a sealed pack in the requested location (es. dispensa).
+    $fracFirst = "(quantity != CAST(CAST(quantity AS INTEGER) AS REAL)) DESC, quantity ASC";
+
+    // 1) Opened packs in any location (oldest open first)
+    $stmt = $db->prepare(
+        "SELECT id, quantity, opened_at, vacuum_sealed, location FROM inventory
+         WHERE product_id = ? AND quantity > 0
+           AND opened_at IS NOT NULL AND opened_at != ''
+         ORDER BY opened_at ASC, quantity ASC
+         LIMIT 1"
+    );
+    $stmt->execute([$productId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        $resolvedLoc = (string)$row['location'];
+        $fallback = ($resolvedLoc !== $location);
+        if ($fallback) {
+            EverLog::info('useFromInventory prefer opened pack', [
+                'product_id' => $productId,
+                'requested' => $location,
+                'resolved' => $resolvedLoc,
+                'inventory_id' => $row['id'],
+            ]);
+        }
+        return [
+            'row'       => $row,
+            'location'  => $resolvedLoc,
+            'fallback'  => $fallback,
+            'requested' => $location,
+        ];
+    }
+
+    // 2) Sealed stock in the requested location
     $stmt = $db->prepare(
         "SELECT id, quantity, opened_at, vacuum_sealed, location FROM inventory
          WHERE product_id = ? AND location = ? AND quantity > 0
-         ORDER BY $order"
+           AND (opened_at IS NULL OR opened_at = '')
+         ORDER BY $fracFirst
+         LIMIT 1"
     );
     $stmt->execute([$productId, $location]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -4682,10 +4725,12 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
         return ['row' => $row, 'location' => $location, 'fallback' => false, 'requested' => $location];
     }
 
+    // 3) Any remaining stock elsewhere
     $stmt = $db->prepare(
         "SELECT id, quantity, opened_at, vacuum_sealed, location FROM inventory
          WHERE product_id = ? AND quantity > 0
-         ORDER BY (opened_at IS NOT NULL AND opened_at != '') DESC, $order"
+         ORDER BY $fracFirst
+         LIMIT 1"
     );
     $stmt->execute([$productId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -6860,6 +6905,125 @@ function getMonthlyStats(PDO $db): void {
             'count' => (int)$r['cnt'],
         ], $topProds),
     ]);
+}
+
+// ===== SHOPPING SPEND TRACKING =====
+function _spendHistoryPath(): string {
+    return __DIR__ . '/../data/shopping_spend.json';
+}
+
+function _spendLoadHistory(): array {
+    $path = _spendHistoryPath();
+    if (!file_exists($path)) return [];
+    $raw = file_get_contents($path);
+    $arr = json_decode($raw, true);
+    if (!is_array($arr)) return [];
+    // Normalize entries
+    $out = [];
+    foreach ($arr as $e) {
+        if (!is_array($e)) continue;
+        $amount = isset($e['amount']) ? (float)$e['amount'] : 0.0;
+        $ts = isset($e['ts']) ? (int)$e['ts'] : 0;
+        $currency = isset($e['currency']) ? trim((string)$e['currency']) : '€';
+        if ($amount <= 0 || $ts <= 0) continue;
+        $out[] = ['ts' => $ts, 'amount' => round($amount, 2), 'currency' => $currency !== '' ? $currency : '€'];
+    }
+    // Keep last ~24 months
+    $cut = time() - 24 * 30 * 86400;
+    return array_values(array_filter($out, fn($e) => ($e['ts'] ?? 0) >= $cut));
+}
+
+function _spendSaveHistory(array $hist): void {
+    $path = _spendHistoryPath();
+    file_put_contents($path, json_encode(array_values($hist), JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/**
+ * Store one optional "how much you spent" event for the current spesa session.
+ * Input: { amount: number, currency: string }
+ */
+function spendAdd(): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $amount = isset($input['amount']) ? (float)$input['amount'] : 0.0;
+    $currency = trim((string)($input['currency'] ?? '€'));
+    if ($currency === '') $currency = '€';
+
+    if ($amount <= 0.0001) {
+        echo json_encode(['success' => true, 'ignored' => true]);
+        return;
+    }
+
+    $hist = _spendLoadHistory();
+    $ts = time();
+    $hist[] = ['ts' => $ts, 'amount' => round($amount, 2), 'currency' => $currency];
+    _spendSaveHistory($hist);
+
+    $month = date('Y-m', $ts);
+    echo json_encode(['success' => true, 'month' => $month, 'currency_symbol' => $currency, 'amount' => round($amount, 2)]);
+}
+
+/**
+ * Aggregate spend events month-by-month for the dashboard.
+ * Returns last 6 months totals + current/previous comparison.
+ */
+function getSpendStats(PDO $db): void {
+    $hist = _spendLoadHistory();
+    if (empty($hist)) {
+        echo json_encode([
+            'success'             => true,
+            'currency_symbol'    => '€',
+            'month'               => date('Y-m'),
+            'current_amount'     => 0.0,
+            'prev_amount'        => 0.0,
+            'current_month_label'=> date('Y-m'),
+            'totals'             => [],
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+    $byMonth = [];
+    $curSym = '€';
+    foreach ($hist as $e) {
+        $ts = (int)($e['ts'] ?? 0);
+        $amt = (float)($e['amount'] ?? 0);
+        $sym = (string)($e['currency'] ?? '€');
+        if ($amt <= 0 || $ts <= 0) continue;
+        $curSym = $sym !== '' ? $sym : $curSym;
+        $m = date('Y-m', $ts);
+        if (!isset($byMonth[$m])) $byMonth[$m] = ['amount' => 0.0, 'count' => 0];
+        $byMonth[$m]['amount'] += $amt;
+        $byMonth[$m]['count'] += 1;
+    }
+
+    $now = new DateTime('now');
+    $totals = [];
+    for ($i = 5; $i >= 0; $i--) {
+        $dt = clone $now;
+        $dt->modify("-{$i} months");
+        $m = $dt->format('Y-m');
+        $amt = isset($byMonth[$m]) ? (float)$byMonth[$m]['amount'] : 0.0;
+        $cnt = isset($byMonth[$m]) ? (int)$byMonth[$m]['count'] : 0;
+        $totals[] = ['month' => $m, 'amount' => round($amt, 2), 'count' => $cnt];
+    }
+
+    $currMonth = date('Y-m');
+    $current = 0.0; $prev = 0.0;
+    foreach ($totals as $t) {
+        if ($t['month'] === $currMonth) $current = (float)$t['amount'];
+    }
+    // Previous month = second last element if we keep 6 months
+    if (count($totals) >= 2) {
+        $prev = (float)$totals[count($totals) - 2]['amount'];
+    }
+
+    echo json_encode([
+        'success'             => true,
+        'currency_symbol'    => $curSym,
+        'month'               => $currMonth,
+        'current_amount'     => round($current, 2),
+        'prev_amount'        => round($prev, 2),
+        'current_month_label'=> $currMonth,
+        'totals'             => $totals,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== MACRO STATS (#118) =====
@@ -14376,11 +14540,14 @@ function bringRemoveItem(): void {
     }
 
     $rawName = trim((string)($input['rawName'] ?? ''));
+    $asPurchased = shoppingInputAsPurchased($input);
     $db = getDB();
     $ok = bringRemoveByNames($db, $name, $rawName);
-    // Always block re-add for 15 days — even if the row was already gone from Bring!
-    bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name));
-    echo json_encode(['success' => true, 'removed' => $ok]);
+    // Block re-add for 15 days only when marked as purchased (Comprato).
+    if ($asPurchased) {
+        bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name));
+    }
+    echo json_encode(['success' => true, 'removed' => $ok, 'purchased' => $asPurchased]);
 }
 
 function bringCleanSpecs(): void {
@@ -16239,8 +16406,28 @@ function shoppingRemove(PDO $db): void {
     shoppingRemoveInternal($db, $input);
 }
 
-/** Remove row(s) from internal shopping_list and block auto re-add (15 days default). */
+/**
+ * Whether this removal should be treated as a purchase (block auto re-add).
+ * Default true for backward compatibility. Pass purchased=false for "Non lo compro".
+ */
+function shoppingInputAsPurchased(array $input): bool {
+    if (!array_key_exists('purchased', $input)) {
+        return true;
+    }
+    $raw = $input['purchased'];
+    if (is_bool($raw)) {
+        return $raw;
+    }
+    if (is_int($raw) || is_float($raw)) {
+        return ((int)$raw) !== 0;
+    }
+    $s = strtolower(trim((string)$raw));
+    return !in_array($s, ['0', 'false', 'no', 'off', ''], true);
+}
+
+/** Remove row(s) from internal shopping_list; optionally block auto re-add (15 days default). */
 function shoppingRemoveInternal(PDO $db, array $input): void {
+    $asPurchased = shoppingInputAsPurchased($input);
     $batch = [];
     if (!empty($input['items']) && is_array($input['items'])) {
         foreach ($input['items'] as $it) {
@@ -16279,11 +16466,13 @@ function shoppingRemoveInternal(PDO $db, array $input): void {
             $stmt->execute([$name]);
             $removed += $stmt->rowCount();
         }
-        bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName));
+        if ($asPurchased) {
+            bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName));
+        }
     }
 
     @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
-    echo json_encode(['success' => true, 'removed' => $removed]);
+    echo json_encode(['success' => true, 'removed' => $removed, 'purchased' => $asPurchased]);
 }
 
 /**
