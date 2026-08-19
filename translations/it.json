@@ -8,6 +8,7 @@
         "home": "Home",
         "inventory": "Lista",
         "recipes": "Ricette",
+        "gemini": "Gemini",
         "shopping": "Spesa",
         "log": "Storico",
         "settings": "Config"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ Inserimento Manuale",
         "ai_identify": "🤖 Identifica con AI",
         "hint": "Scansiona il barcode, scrivi il nome del prodotto, oppure usa l'AI per identificarlo",
+        "hint_short": "Scansiona prodotto",
         "debug_toggle": "🐛 Debug Log",
         "barcode_acquired": "🔖 Barcode acquisito: {code}",
         "scan_barcode": "🔖 Scansiona Barcode",
@@ -287,6 +289,8 @@
         "ai_match_or_similar": "Oppure scegli un prodotto simile:",
         "ai_detected_label": "AI ha trovato",
         "mode_shopping_activated": "📷 Scansione continua attiva — conferma ogni articolo e continua!",
+        "spesa_ai_fallback_modal_title": "Scansione Barcode fallita, procedo al identificazione AI",
+        "spesa_ai_fallback_countdown": "Avvio identificazione AI tra {n} secondi… Puoi annullare in qualsiasi momento.",
         "continuous_added": "Aggiunto {name} → {location}",
         "status_adding": "Aggiunta…"
     },
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "(freezer + sotto vuoto)",
         "history_badge_tip": "Media degli ultimi {n} inserimenti — si aggiorna ad ogni nuovo acquisto",
         "vacuum_question": "Messo sotto vuoto?",
-        "vacuum_saved": "🔒 Sotto vuoto registrato"
+        "vacuum_saved": "🔒 Sotto vuoto registrato",
+        "leave_title": "Prodotto non ancora aggiunto",
+        "leave_message": "«{name}» non è ancora in dispensa. Vuoi aggiungerlo prima di uscire o scartare le modifiche?",
+        "leave_add_btn": "✅ Aggiungi ora",
+        "leave_discard_btn": "🗑️ Scarta e esci",
+        "leave_unsaved": "Hai un prodotto da aggiungere non salvato."
     },
     "use": {
         "title": "Usa / Consuma",
@@ -698,6 +707,14 @@
         "remaining_after_buy": "Ne servono ancora {qty} di {name}",
         "spesa_partial_recommend": "Hai comprato {bought} di {name} ma ti consiglio di prenderne altri {remaining}",
         "spesa_removed_all": "Ho rimosso {name} dalla lista della spesa",
+        "spend_modal_title": "🧾 Quanto hai speso?",
+        "spend_modal_hint": "Opzionale: puoi inserire la spesa totale di questa sessione per tracciare i grafici mese per mese.",
+        "spend_amount_label": "Importo ({sym})",
+        "spend_amount_placeholder": "Es. 45.50",
+        "spend_skip_btn": "Non ora",
+        "spend_save_btn": "Salva",
+        "spend_tracked_toast": "Tracciata spesa: {sym}{amount}",
+        "spend_track_error": "Impossibile tracciare la spesa",
         "anti_waste_shelf": "Anti-spreco: finibili in ~{days}gg",
         "plan_days_label": "Quantità calcolate per {days} giorni",
         "plan_days_auto": "Default: fino a fine mese, minimo 7 giorni ({days})",
@@ -1955,6 +1972,13 @@
         "top_used": "più usato",
         "top_cats": "Categorie principali",
         "source": "Storico transazioni · mese corrente"
+    },
+    "stats_spend": {
+        "title": "Spesa tracciata",
+        "month_label": "Spesa del mese",
+        "trend_up": "↑ {pct}% vs mese scorso",
+        "trend_down": "↓ {pct}% vs mese scorso",
+        "trend_same": "→ ~uguale al mese scorso"
     },
     "time": {
         "just_now": "adesso",

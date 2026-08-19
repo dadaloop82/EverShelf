@@ -1,5 +1,5 @@
 /* EverShelf PWA service worker — caches app shell for offline read */
-const CACHE = 'evershelf-v3';
+const CACHE = 'evershelf-v9';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';

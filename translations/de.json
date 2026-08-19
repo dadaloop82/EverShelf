@@ -8,6 +8,7 @@
         "home": "Home",
         "inventory": "Liste",
         "recipes": "Rezepte",
+        "gemini": "Gemini",
         "shopping": "Einkauf",
         "log": "Verlauf",
         "settings": "Einstellungen"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ Manuelle Eingabe",
         "ai_identify": "🤖 Mit KI identifizieren",
         "hint": "Barcode scannen, Produktname eingeben oder KI zur Identifikation nutzen",
+        "hint_short": "Produkt scannen",
         "debug_toggle": "🐛 Debug Log",
         "barcode_acquired": "🔖 Barcode gescannt: {code}",
         "scan_barcode": "🔖 Barcode scannen",
@@ -286,6 +288,8 @@
         "ai_match_or_similar": "Oder waehle ein aehnliches Produkt:",
         "ai_detected_label": "KI erkannt",
         "mode_shopping_activated": "📷 Dauerhaftes Scannen aktiv — jeden Artikel bestätigen und weiter scannen!",
+        "spesa_ai_fallback_modal_title": "Fehler beim Scannen des Barcodes — ich starte die KI-Identifikation",
+        "spesa_ai_fallback_countdown": "KI-Identifikation startet in {n} Sekunden… Du kannst jederzeit abbrechen.",
         "status_lookup": "Wird erkannt…",
         "continuous_added": "{name} hinzugefügt → {location}",
         "status_adding": "Wird hinzugefügt…"
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "(Tiefkühler + vakuumversiegelt)",
         "history_badge_tip": "Durchschnitt der letzten {n} Einträge — wird bei jedem Kauf aktualisiert",
         "vacuum_question": "Vakuumiert?",
-        "vacuum_saved": "🔒 Als vakuumiert gespeichert"
+        "vacuum_saved": "🔒 Als vakuumiert gespeichert",
+        "leave_title": "Produkt noch nicht hinzugefügt",
+        "leave_message": "«{name}» ist noch nicht im Vorrat. Vor dem Verlassen hinzufügen oder Änderungen verwerfen?",
+        "leave_add_btn": "✅ Jetzt hinzufügen",
+        "leave_discard_btn": "🗑️ Verwerfen und verlassen",
+        "leave_unsaved": "Du hast ein ungespeichertes Produkt zum Hinzufügen."
     },
     "use": {
         "title": "Verwenden / Verbrauchen",
@@ -698,6 +707,14 @@
         "remaining_after_buy": "Noch {qty} {name} nötig",
         "spesa_partial_recommend": "Du hast {bought} von {name} gekauft, aber ich empfehle, noch {remaining} mitzunehmen",
         "spesa_removed_all": "Ich habe {name} von der Einkaufsliste entfernt",
+        "spend_modal_title": "🧾 Wie viel hast du ausgegeben?",
+        "spend_modal_hint": "Optional: Gesamtausgaben dieser Session eingeben, um Monatsdiagramme zu verfolgen.",
+        "spend_amount_label": "Betrag ({sym})",
+        "spend_amount_placeholder": "z. B. 45,50",
+        "spend_skip_btn": "Nicht jetzt",
+        "spend_save_btn": "Speichern",
+        "spend_tracked_toast": "Ausgabe erfasst: {sym}{amount}",
+        "spend_track_error": "Ausgabe konnte nicht erfasst werden",
         "anti_waste_shelf": "Anti-Abfall: verzehrbar in ~{days} T.",
         "plan_days_label": "Mengen für {days} Tage",
         "plan_days_auto": "Standard: bis Monatsende, mind. 7 Tage ({days})",
@@ -1955,6 +1972,13 @@
         "top_used": "meistbenutzt",
         "top_cats": "Hauptkategorien",
         "source": "Transaktionsverlauf · aktueller Monat"
+    },
+    "stats_spend": {
+        "title": "Erfasste Ausgaben",
+        "month_label": "Ausgaben diesen Monat",
+        "trend_up": "↑ {pct}% vs. letzter Monat",
+        "trend_down": "↓ {pct}% vs. letzter Monat",
+        "trend_same": "→ ~gleich wie letzter Monat"
     },
     "time": {
         "just_now": "gerade eben",

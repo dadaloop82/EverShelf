@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.89] - 2026-08-19
+
+### Added
+- **Modalità spesa dall'header** — pulsante 🛒 in barra superiore (accanto a fotocamera) per attivare/disattivare la scansione continua senza long-press.
+- **Fallback AI in modalità spesa** — se il barcode non viene letto entro 5 s, compare un countdown annullabile (5 s) prima di avviare l'identificazione Gemini Vision.
+- **Conferma uscita form Aggiungi** — se lasci la pagina con un prodotto non ancora salvato, chiede se aggiungere o scartare (6 lingue).
+- **Tracciamento spesa opzionale** — alla fine di una sessione spesa puoi registrare l'importo totale; pannello mese su dashboard con trend.
+- **Gemini nella bottom nav** — tab centrale elevata subito dopo Ricette; rimosso dall'header per liberare spazio su mobile.
+
+### Fixed
+- **Modal spesa vs AI** — il countdown AI non partiva più sopra la domanda “Quanto hai speso?”; Annulla blocca davvero l'AI; al massimo un fallback per prodotto scansionato.
+- **Banner “Confezione insolita” falsi positivi** — prodotti a pezzi (`pz`) con peso etichetta (400 g pane, 500 g nettarine) non generano più avvisi confezione.
+- **Banner quantità latte** — corretta interpretazione ml vs confezioni nelle soglie di review.
+
+### Changed
+- Tooltip fotocamera header semplificato (`scan.hint_short`); etichette spesa/AI/add form in **it, en, de, fr, es, zh**.
+- PWA cache bump (`evershelf-v9`).
+
 ## [1.7.88] - 2026-08-10
 
 ### Changed

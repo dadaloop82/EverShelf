@@ -8,6 +8,7 @@
         "home": "Home",
         "inventory": "List",
         "recipes": "Recipes",
+        "gemini": "Gemini",
         "shopping": "Shopping",
         "log": "Log",
         "settings": "Settings"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ Manual Entry",
         "ai_identify": "🤖 Identify with AI",
         "hint": "Scan the barcode, type the product name, or use AI to identify it",
+        "hint_short": "Scan product",
         "debug_toggle": "🐛 Debug Log",
         "barcode_acquired": "🔖 Barcode scanned: {code}",
         "scan_barcode": "🔖 Scan Barcode",
@@ -286,6 +288,8 @@
         "ai_match_or_similar": "Or pick a similar product:",
         "ai_detected_label": "AI detected",
         "mode_shopping_activated": "📷 Continuous scan on — confirm each item, then keep scanning!",
+        "spesa_ai_fallback_modal_title": "Barcode scan failed — proceeding to AI identification",
+        "spesa_ai_fallback_countdown": "Starting AI identification in {n} seconds… You can cancel at any time.",
         "status_lookup": "Identifying…",
         "continuous_added": "Added {name} → {location}",
         "status_adding": "Adding…"
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "(freezer + vacuum sealed)",
         "history_badge_tip": "Average of the last {n} entries — updates with each new purchase",
         "vacuum_question": "Vacuum sealed?",
-        "vacuum_saved": "🔒 Vacuum sealed!"
+        "vacuum_saved": "🔒 Vacuum sealed!",
+        "leave_title": "Product not added yet",
+        "leave_message": "\"{name}\" is not in the pantry yet. Add it before leaving or discard your changes?",
+        "leave_add_btn": "✅ Add now",
+        "leave_discard_btn": "🗑️ Discard and leave",
+        "leave_unsaved": "You have an unsaved product to add."
     },
     "use": {
         "title": "Use / Consume",
@@ -698,6 +707,14 @@
         "remaining_after_buy": "Still need {qty} of {name}",
         "spesa_partial_recommend": "You bought {bought} of {name}, but I suggest taking {remaining} more",
         "spesa_removed_all": "Removed {name} from the shopping list",
+        "spend_modal_title": "🧾 How much did you spend?",
+        "spend_modal_hint": "Optional: enter the total spend for this session to track month-by-month charts.",
+        "spend_amount_label": "Amount ({sym})",
+        "spend_amount_placeholder": "e.g. 45.50",
+        "spend_skip_btn": "Not now",
+        "spend_save_btn": "Save",
+        "spend_tracked_toast": "Spend tracked: {sym}{amount}",
+        "spend_track_error": "Could not track spend",
         "anti_waste_shelf": "Anti-waste: finishable in ~{days}d",
         "plan_days_label": "Quantities for {days} days",
         "plan_days_auto": "Default: until month end, min. 7 days ({days})",
@@ -1955,6 +1972,13 @@
         "top_used": "top used",
         "top_cats": "Top categories",
         "source": "Transaction history · current month"
+    },
+    "stats_spend": {
+        "title": "Tracked spend",
+        "month_label": "Spend this month",
+        "trend_up": "↑ {pct}% vs last month",
+        "trend_down": "↓ {pct}% vs last month",
+        "trend_same": "→ ~same as last month"
     },
     "time": {
         "just_now": "just now",
