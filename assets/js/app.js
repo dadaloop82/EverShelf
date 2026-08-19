@@ -10915,7 +10915,7 @@ function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
 async function throwAll() {
     const name = currentProduct ? currentProduct.name : '';
     _showDestructiveConfirm(
-        t('use.throw_all_confirm_title') || '🗑️ Butta tutto',
+        t('use.throw_all_confirm_title'),
         (t('use.throw_all_confirm_msg')) + (name ? `\n"${name}"` : ''),
         async () => {
             try {
@@ -10934,7 +10934,7 @@ async function throwAll() {
                 showToast(t('error.connection'), 'error');
             }
         },
-        t('use.throw_all_confirm_btn') || '🗑️ Sì, butta'
+        t('use.throw_all_confirm_btn')
     );
 }
 
@@ -17872,8 +17872,8 @@ function updateRecipeFuelGenerateBtn() {
     if (!btn) return;
     const fuelOn = !!(document.getElementById('recipe-opt-fuel')?.checked) && !!(getSettings().health_enabled);
     btn.textContent = fuelOn
-        ? (t('recipes.generate_fuel_btn') || '🔥 Genera a ritmo mio')
-        : (t('recipes.generate_btn') || '✨ Genera Ricetta');
+        ? t('recipes.generate_fuel_btn')
+        : t('recipes.generate_btn');
 }
 
 /** Silent: once per recipe/day when you use an ingredient from that recipe. */
@@ -18173,7 +18173,7 @@ async function createHealthBridgeToken() {
                     (t('settings.health.qr_hint')) +
                     '</p>';
             }
-            showToast(t('settings.health.bridge_created') || 'QR pronto — scansiona dal telefono', 'success');
+            showToast(t('settings.health.bridge_created'), 'success');
         } else {
             showToast((res && res.error) || t('error.generic'), 'error');
         }
@@ -19345,7 +19345,7 @@ async function renderRecipe(r) {
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
             details.push(ingredientLocLabels[ing.location] || ('📍 ' + ing.location));
             if (ing.location === 'freezer') {
-                details.push(t('recipes.frozen_badge') || '❄️ Surgelato');
+                details.push(t('recipes.frozen_badge'));
             }
             if (ing.expiry_date) {
                 const exp = new Date(ing.expiry_date);
@@ -21013,7 +21013,7 @@ function _renderMealPlanHint(mealSlot) {
     _checkMealPlanIngredientAvailable(typeId).then(available => {
         if (!available && chipWrap && chipWrap.style.display !== 'none') {
             if (chipCb) { chipCb.checked = false; chipCb.disabled = true; }
-            if (chipLabel) chipLabel.textContent = `${mpt.icon} ${mpt.label} ⚠️ ${t('meal_plan.not_available') || 'non disponibile'}`;
+            if (chipLabel) chipLabel.textContent = `${mpt.icon} ${mpt.label} ⚠️ ${t('meal_plan.not_available')}`;
             chipWrap.style.opacity = '0.5';
             if (banner) banner.style.display = 'none';
         }
@@ -22357,7 +22357,7 @@ function updateScreensaverShopping() {
             priceCol = `<div class="ss-shop-sep"></div>
             <div class="ss-shop-col">
                 <div class="ss-shop-value">${escapeHtml(label.replace(/^ca\.\s*/, ''))}</div>
-                <div class="ss-shop-label">💰 ${escapeHtml(t('shopping.price_total_short') || 'spesa stimata')}</div>
+                <div class="ss-shop-label">💰 ${escapeHtml(t('shopping.price_total_short'))}</div>
             </div>`;
         }
     }
