@@ -5022,6 +5022,13 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
         if (BRING_WRITE_ACTIONS.includes(action)) {
             return { success: true, added: 0, removed: 0, skipped: 0, _demo: true };
         }
+        if (action === 'spend_add') {
+            return { success: true, ignored: true, _demo: true };
+        }
+        if (action === 'spend_stats') {
+            const month = new Date().toISOString().slice(0, 7);
+            return { success: true, currency_symbol: '€', month, current_amount: 0, prev_amount: 0, totals: [], _demo: true };
+        }
         // shopping_list / bring_list return the in-memory demo list
         if (action === 'shopping_list' || action === 'bring_list') {
             return { success: true, purchase: shoppingItems, listUUID: 'demo-list', _demo: true };
@@ -5856,6 +5863,78 @@ function _renderMonthlyStatsSection(data) {
     section.style.display = (_insightPhase === 'monthly') ? 'block' : 'none';
 }
 
+// ===== SPEND SECTION =====
+// Panel in dashboard insight rotation (month-to-month shopping spend).
+function _renderSpendSection(data) {
+    const section = document.getElementById('spend-section');
+    if (!section) return;
+
+    if (!data || !data.success || !Array.isArray(data.totals) || data.totals.length === 0) {
+        section.innerHTML = '';
+        section.style.display = 'none';
+        return;
+    }
+
+    const sym = data.currency_symbol || '€';
+    const localeMap = { de: 'de-DE', fr: 'fr-FR', es: 'es-ES', en: 'en-GB', it: 'it-IT', zh: 'zh-CN' };
+    const locale = localeMap[_currentLang] || 'it-IT';
+
+    const amounts = data.totals.map(t => Number(t.amount || 0));
+    const maxAmt = Math.max(...amounts, 1);
+
+    const curr = Number(data.current_amount || 0);
+    const prev = Number(data.prev_amount || 0);
+    let trendHTML = '';
+    if (prev > 0.0001) {
+        const diffPct = Math.round((curr - prev) / prev * 100);
+        if (diffPct > 3) trendHTML = `↑ ${diffPct}% vs mese scorso`;
+        else if (diffPct < -3) trendHTML = `↓ ${Math.abs(diffPct)}% vs mese scorso`;
+        else trendHTML = `→ ~uguale al mese scorso`;
+    }
+
+    const bars = data.totals.map(t => {
+        const [yr, mo] = String(t.month || '').split('-').map(Number);
+        const label = (yr && mo)
+            ? new Date(yr, mo - 1, 1).toLocaleDateString(locale, { month: 'short' })
+            : String(t.month || '');
+        const amt = Number(t.amount || 0);
+        const pct = Math.round(amt / maxAmt * 100);
+        return `
+            <div class="spend-bar-col">
+                <div class="spend-bar-rail">
+                    <div class="spend-bar-fill" data-target="${pct}" style="height:0%"></div>
+                </div>
+                <div class="spend-bar-month">${escapeHtml(label)}</div>
+            </div>`;
+    }).join('');
+
+    section.innerHTML = `
+        <div class="nutr-card spend-card">
+            <div class="aw-header">
+                <div class="aw-title-row">
+                    <span class="aw-live-dot aw-live-on"></span>
+                    <h3 class="aw-title">Spesa tracciata</h3>
+                </div>
+                <span class="aw-grade" style="background:#6366f1;font-size:.75rem;padding:4px 10px">
+                    ${escapeHtml(data.current_month_label || data.month || '')}
+                </span>
+            </div>
+
+            <div class="ms-main-row" style="margin-top:0">
+                <div class="ms-main-num" style="color:#6366f1">${sym}${curr.toFixed(2)}</div>
+                <div class="ms-main-info">
+                    <div class="ms-main-label">Spesa del mese</div>
+                    <div class="ms-trend">${trendHTML || '—'}</div>
+                </div>
+            </div>
+
+            <div class="spend-bars">${bars}</div>
+        </div>
+    `;
+
+    section.style.display = (_insightPhase === 'spend') ? 'block' : 'none';
+}
+
 // ===== MACROS SECTION (#118) =====
 /**
  * Render the macronutrient breakdown panel into #macros-section.
@@ -5907,8 +5986,8 @@ function _renderMacrosSection(data) {
 /**
  * Start the waste ↔ nutrition ↔ monthly stats alternation on the dashboard.
  */
-let _insightPhase = null; // 'waste' | 'nutrition' | 'monthly' | 'macros'
-const _INSIGHT_PHASES = ['waste', 'nutrition', 'monthly', 'macros'];
+let _insightPhase = null; // 'waste' | 'nutrition' | 'monthly' | 'spend' | 'macros'
+const _INSIGHT_PHASES = ['waste', 'nutrition', 'monthly', 'spend', 'macros'];
 
 function _startInsightAlternation() {
     clearInterval(_insightFlipTimer);
@@ -5928,6 +6007,7 @@ function _applyInsightPhase() {
     const nutrEl    = document.getElementById('nutrition-section');
     const monthlyEl = document.getElementById('monthly-stats-section');
     const macrosEl  = document.getElementById('macros-section');
+    const spendEl   = document.getElementById('spend-section');
     if (!wasteEl || !nutrEl) return;
 
     // Map of which panels actually have rendered content
@@ -5936,6 +6016,7 @@ function _applyInsightPhase() {
         'nutrition': nutrEl.innerHTML.trim()     !== '',
         'monthly':   !!monthlyEl && monthlyEl.innerHTML.trim() !== '',
         'macros':    !!macrosEl  && macrosEl.innerHTML.trim()  !== '',
+        'spend':     !!spendEl && spendEl.innerHTML.trim()  !== '',
     };
 
     // If the intended phase has no content, advance to the next one that does
@@ -5949,15 +6030,17 @@ function _applyInsightPhase() {
     const showNutr    = phase === 'nutrition';
     const showMonthly = phase === 'monthly';
     const showMacros  = phase === 'macros';
+    const showSpend   = phase === 'spend';
 
-    // Fade-swap all four panels
-    const els = [wasteEl, nutrEl, ...(monthlyEl ? [monthlyEl] : []), ...(macrosEl ? [macrosEl] : [])];
+    // Fade-swap all panels
+    const els = [wasteEl, nutrEl, ...(monthlyEl ? [monthlyEl] : []), ...(macrosEl ? [macrosEl] : []), ...(spendEl ? [spendEl] : [])];
     els.forEach(el => { el.style.opacity = '0'; el.style.transition = 'opacity .6s'; });
     setTimeout(() => {
         wasteEl.style.display   = showWaste   ? 'block' : 'none';
         nutrEl.style.display    = showNutr    ? 'block' : 'none';
         if (monthlyEl) monthlyEl.style.display = showMonthly ? 'block' : 'none';
         if (macrosEl)  macrosEl.style.display  = showMacros  ? 'block' : 'none';
+        if (spendEl)   spendEl.style.display   = showSpend   ? 'block' : 'none';
         requestAnimationFrame(() => {
             els.forEach(el => { el.style.opacity = '1'; });
             if (showNutr) {
@@ -5975,6 +6058,11 @@ function _applyInsightPhase() {
                 macrosEl.querySelectorAll('.macro-bar-fill').forEach(bar => {
                     bar.style.transition = 'width 0.6s ease';
                     bar.style.width = (bar.dataset.target || 0) + '%';
+                });
+            }
+            if (showSpend && spendEl) {
+                spendEl.querySelectorAll('.spend-bar-fill').forEach(bar => {
+                    bar.style.height = (bar.dataset.target || 0) + '%';
                 });
             }
         });
@@ -6096,12 +6184,13 @@ async function loadDashboard() {
         // Banner alerts (suspicious quantities + consumption predictions)
         loadBannerAlerts();
 
-        // Anti-waste section + Nutrition section + Monthly stats: load in parallel
-        const [, invForNutr, monthlyData, macroData] = await Promise.all([
+        // Anti-waste section + Nutrition section + Monthly stats + Spend stats: load in parallel
+        const [, invForNutr, monthlyData, macroData, spendData] = await Promise.all([
             _awLoadFacts(),
             api('inventory_list').then(d => d.inventory || []).catch(() => []),
             api('monthly_stats').catch(() => null),
             api('macro_stats').catch(() => null),
+            api('spend_stats').catch(() => null),
         ]);
         _renderAntiWasteSection(
             statsData.used_30d      || 0, statsData.wasted_30d      || 0,
@@ -6116,6 +6205,9 @@ async function loadDashboard() {
 
         // Monthly stats panel
         _renderMonthlyStatsSection(monthlyData);
+
+        // Spend stats panel
+        _renderSpendSection(spendData);
 
         // Macronutrient panel (#118)
         _renderMacrosSection(macroData);
@@ -22017,6 +22109,18 @@ function _handleOfflineApi(action, params, body) {
         }
         return { success: true, purchase: [], listUUID: '', recently: [], _offline: true };
     }
+    if (action === 'spend_stats') {
+        const month = new Date().toISOString().slice(0, 7);
+        return {
+            success: true,
+            currency_symbol: '€',
+            month,
+            current_amount: 0,
+            prev_amount: 0,
+            totals: [],
+            _offline: true,
+        };
+    }
     if (action === 'smart_shopping') {
         const cached = _offlineSmartCacheGet();
         if (cached?.items?.length) {
@@ -22042,7 +22146,7 @@ function _handleOfflineApi(action, params, body) {
     // ─── Writes: queue and apply optimistic update to cache ──────────────────
     const QUEUEABLE = ['inventory_update', 'inventory_use', 'inventory_delete',
                        'inventory_add', 'inventory_confirm_finished', 'inventory_restore_ghost',
-                       'shopping_remove', 'shopping_add'];
+                       'shopping_remove', 'shopping_add', 'spend_add'];
     if (QUEUEABLE.includes(action)) {
         _offlineQueuePush(action, body);
         _applyOptimisticUpdate(action, body);
@@ -22922,6 +23026,7 @@ let _spesaMode = false;
 let _shoppingBoughtFlow = false;
 let _longPressTimer = null;
 let _spesaSession = []; // { name, qty, unit } per ogni prodotto aggiunto
+let _spesaSpendPromptShown = false;
 
 function toggleSpesaModeFromCamera() {
     if (_spesaMode) return endSpesaMode();
@@ -22945,6 +23050,68 @@ function _syncSpesaQuickBtn() {
     if (!btn) return;
     btn.classList.toggle('spesa-on', !!_spesaMode);
     btn.setAttribute('aria-pressed', _spesaMode ? 'true' : 'false');
+}
+
+function _spesaCurrencySymbol() {
+    const c = getSettings()?.price_currency || 'EUR';
+    return c === 'USD' ? '$' : c === 'GBP' ? '£' : '€';
+}
+
+function _spesaPromptOptionalSpend() {
+    if (_spesaSpendPromptShown) return;
+    _spesaSpendPromptShown = true;
+
+    pauseScanner();
+
+    const sym = _spesaCurrencySymbol();
+    const modalHtml = `
+        <div class="modal-header">
+            <h3 class="edit-modal-heading">🧾 Quanto hai speso?</h3>
+            <button class="modal-close" onclick="_spesaSpendSkip()">✕</button>
+        </div>
+        <div style="padding:16px">
+            <p style="margin:0 0 10px; color: var(--text-light)">
+                Opzionale: puoi inserire la spesa totale di questa sessione per tracciare i grafici mese-per-mese.
+            </p>
+            <label style="display:block; font-weight:800; margin-bottom:6px">Importo (${escapeHtml(sym)})</label>
+            <input type="number" id="spend-amount-input" min="0" step="0.01" inputmode="decimal"
+                   class="form-input" placeholder="Es. 45.50" />
+            <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end">
+                <button class="btn btn-secondary" onclick="_spesaSpendSkip()">Non ora</button>
+                <button class="btn btn-accent" onclick="_spesaSpendSave()">Salva</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-content').innerHTML = modalHtml;
+    document.getElementById('modal-overlay').style.display = 'flex';
+
+    const inp = document.getElementById('spend-amount-input');
+    if (inp) setTimeout(() => inp.focus(), 50);
+}
+
+async function _spesaSpendSave() {
+    const inp = document.getElementById('spend-amount-input');
+    const raw = inp ? inp.value : '';
+    const amount = parseFloat(String(raw).replace(',', '.'));
+    closeModal();
+    resumeScanner();
+
+    if (!_spesaMode) return;
+    if (!amount || amount <= 0) return;
+
+    try {
+        const sym = _spesaCurrencySymbol();
+        await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
+        showToast(`Tracciata spesa: ${sym}${amount.toFixed(2)}`, 'info');
+    } catch (_) {
+        showToast('Impossibile tracciare la spesa (errore)', 'error');
+    }
+}
+
+function _spesaSpendSkip() {
+    closeModal();
+    resumeScanner();
 }
 
 function initSpesaMode() {
@@ -22981,6 +23148,7 @@ function initSpesaMode() {
 function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
+    _spesaSpendPromptShown = false;
     preloadBarcodeEngines();
     _syncSpesaQuickBtn();
 
@@ -22991,6 +23159,7 @@ function startSpesaMode() {
     showToast(t('scan.mode_shopping_activated'), 'success');
     showPage('scan');
     updateSpesaBanner();
+    _spesaPromptOptionalSpend();
 }
 
 function endSpesaMode() {
