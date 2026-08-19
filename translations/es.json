@@ -810,7 +810,10 @@
         "finish": "✅ Finalizar",
         "step_fallback": "Paso {n}",
         "zerowaste_label": "♻️ Desperdicio",
-        "zerowaste_tip_title": "Consejo sin desperdicios"
+        "zerowaste_tip_title": "Consejo sin desperdicios",
+        "restart_title": "Reiniciar desde el principio",
+        "replay_title": "Releer este paso",
+        "wheel_aria": "Navegación de pasos de la receta"
     },
     "settings": {
         "title": "⚙️ Ajustes",
@@ -982,7 +985,11 @@
             "heard_no": "No, no escuché nada",
             "test_ok_kiosk": "TTS funcionando.",
             "test_fail_steps": "Comprueba: 1) el volumen del multimedia no es 0; 2) Google Text-to-Speech está instalado y actualizado; 3) el paquete de voz español está descargado en la configuración TTS de Android.",
-            "test_sound_btn": "🔔 Prueba de sonido"
+            "test_sound_btn": "🔔 Prueba de sonido",
+            "no_voice_package": "No hay voz disponible — instala un paquete de voz en los ajustes del sistema.",
+            "no_voice_response": "Sin respuesta de voz — si escuchaste el pitido, el TTS puede estar bloqueado. Recarga o cambia de voz.",
+            "android_error": "Error TTS Android ({msg}) — instala o actualiza Google Text-to-Speech en Play Store.",
+            "browser_error": "Error TTS: {error} — reinicia el navegador o cambia de voz."
         },
         "language": {
             "title": "🌐 Idioma",
@@ -1102,7 +1109,11 @@
             "gdrive_oauth_not_authorized": "Aún no autorizado",
             "gdrive_oauth_window_opened": "Ventana abierta — autoriza y regresa aquí",
             "gdrive_oauth_how_to": "Cómo configurar OAuth 2.0 (paso a paso)",
-            "gdrive_oauth_steps": "<li>Ve a <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> y selecciona tu proyecto</li><li>Habilita la <strong>API de Google Drive</strong>: <em>API y servicios → Habilitar API → Google Drive API</em></li><li>Ve a <em>API y servicios → Credenciales → Crear credenciales → ID de cliente OAuth</em></li><li>Tipo de aplicación: <strong>Aplicación web</strong>; agrega la URL mostrada abajo como <em>URI de redirección autorizado</em></li><li>Copia el <strong>Client ID</strong> y el <strong>Client Secret</strong> en los campos de arriba y guarda</li><li>Haz clic en <strong>Autorizar con Google</strong>: inicia sesión en tu cuenta de Google y concede acceso</li><li>La ventana se cierra automáticamente al finalizar y las copias de seguridad están listas</li>"
+            "gdrive_oauth_steps": "<li>Ve a <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> y selecciona tu proyecto</li><li>Habilita la <strong>API de Google Drive</strong>: <em>API y servicios → Habilitar API → Google Drive API</em></li><li>Ve a <em>API y servicios → Credenciales → Crear credenciales → ID de cliente OAuth</em></li><li>Tipo de aplicación: <strong>Aplicación web</strong>; agrega la URL mostrada abajo como <em>URI de redirección autorizado</em></li><li>Copia el <strong>Client ID</strong> y el <strong>Client Secret</strong> en los campos de arriba y guarda</li><li>Haz clic en <strong>Autorizar con Google</strong>: inicia sesión en tu cuenta de Google y concede acceso</li><li>La ventana se cierra automáticamente al finalizar y las copias de seguridad están listas</li>",
+            "restore_warning": "ATENCIÓN: todos los datos actuales serán REEMPLAZADOS. Esta acción no se puede deshacer.",
+            "restore_done": "¡Restauración completada!",
+            "reload_hint": "La página se recargará.",
+            "restoring": "Restaurando…"
         },
         "shopping": {
             "tab": "Lista de la compra",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "Recetas",
-        "scan_btn": "Escanear producto"
+        "scan_btn": "Escanear producto",
+        "scan_long_hint": "Escanear producto (mantener pulsado para modo compras)"
     },
     "days": {
         "mon": "Lunes",
@@ -2013,5 +2025,9 @@
         "draft_empty": "Sin productos en esta plantilla",
         "name_required": "Introduce un nombre",
         "items_required": "Añade al menos un producto"
+    },
+    "setup": {
+        "complete_desc": "Configuración completada. Puedes cambiar estos ajustes en cualquier momento desde Ajustes.",
+        "ready_title": "¡Todo listo!"
     }
 }

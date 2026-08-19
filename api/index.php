@@ -4810,7 +4810,7 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         ]);
         echo json_encode([
             'success' => false,
-            'error'   => 'Operazione già registrata di recente — verifica prima la quantità rimasta.',
+            'error'   => 'duplicate_recent',
             'duplicate' => true,
         ]);
         return;
@@ -6078,10 +6078,13 @@ function confirmFinishedCore(PDO $db, int $productId): array {
         $location = $location ?: 'dispensa';
         $reconciled = round($expected, 3);
         $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
-           ->execute([$productId, $reconciled, $location, '[Riconciliazione] Confermato esaurito']);
+           ->execute([$productId, $reconciled, $location, '[Reconciliation] Confirmed finished']);
     }
 
     $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")->execute([$productId]);
+    $purged = purgeDepletedInventoryCrumbs($db, $productId, (string)$row['unit']);
+    $reconciled += $purged;
+
     $shopping = shoppingAddDepletedProduct($db, $productId);
     invalidateSmartShoppingCache();
 
@@ -6092,6 +6095,30 @@ function confirmFinishedCore(PDO $db, int $productId): array {
         'reconciled'   => $reconciled,
         'product_name' => $row['name'] ?? '',
     ];
+}
+
+/**
+ * Remove trace leftover rows (e.g. 19 g butter) that the UI treats as finished.
+ * @return float Total quantity logged as out
+ */
+function purgeDepletedInventoryCrumbs(PDO $db, int $productId, string $unit): float {
+    $stmt = $db->prepare("SELECT id, quantity, location FROM inventory WHERE product_id = ? AND quantity > 0");
+    $stmt->execute([$productId]);
+    $purged = 0.0;
+    $outStmt = $db->prepare(
+        "INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)"
+    );
+    $delStmt = $db->prepare("DELETE FROM inventory WHERE id = ?");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (!isInventoryDepleted(['quantity' => $row['quantity'], 'unit' => $unit])) {
+            continue;
+        }
+        $qty = (float)$row['quantity'];
+        $outStmt->execute([$productId, $qty, $row['location'], '[Finished] Trace amount cleared']);
+        $delStmt->execute([$row['id']]);
+        $purged += $qty;
+    }
+    return round($purged, 3);
 }
 
 /**
@@ -6675,6 +6702,8 @@ function getStats(PDO $db): void {
         if ($item['days_to_expiry'] !== null && $item['days_to_expiry'] > 365) continue;
         // Hide legacy fractional items (no opened_at) with far-off expiry — not useful for home widget
         if (!$item['has_opened_at'] && ($item['days_to_expiry'] === null || $item['days_to_expiry'] > 14)) continue;
+        // Trace leftovers (≤20 g/ml etc.) are finished — don't show in Opened widget
+        if (isInventoryDepleted($item)) continue;
         $opened[] = $item;
     }
     // Sort by days_to_expiry ascending (soonest first; nulls last)

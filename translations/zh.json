@@ -357,8 +357,8 @@
         "available": "📦 可用数量：",
         "opened_badge": "已开封",
         "not_in_inventory": "⚠️ 商品不在库存中。",
-            "already_exhausted_hint": "此商品已不在库存中（已经用完，或已被标记为用完）。确认用完后，可将其加入购物清单。",
-            "already_exhausted_modal": "此商品已不在库存中，但仍保留在商品目录里。可以确认已用完（将加入购物清单），或重新扫描补货。",
+        "already_exhausted_hint": "此商品已不在库存中（已经用完，或已被标记为用完）。确认用完后，可将其加入购物清单。",
+        "already_exhausted_modal": "此商品已不在库存中，但仍保留在商品目录里。可以确认已用完（将加入购物清单），或重新扫描补货。",
         "mark_exhausted_btn": "✅ 确认用完并加入购物清单",
         "readd_btn": "📷 重新扫描并添加",
         "exhausted_badge": "已用完",
@@ -375,7 +375,7 @@
         "when_days": "还有 <strong>{n} 天</strong>到期",
         "toast_used": "📤 已取用 {name} 的 {qty}",
         "toast_bring": "已添加到购物清单",
-            "toast_opened_finished": "🔓 已用完 {name} 的已开封包装！",
+        "toast_opened_finished": "🔓 已用完 {name} 的已开封包装！",
         "disambiguation_hint": "“全部用完”具体指什么？",
         "disambiguation_one_conf": "用完 <strong>1 包</strong>（{qty}）",
         "disambiguation_all": "🗑️ 用完全部库存（{qty}）",
@@ -526,7 +526,7 @@
         "scale_wait_stable": "请保持重量稳定 10 秒，系统将自动填写…",
         "ingredient_scaled_toast": "📦 已从库存中扣减食材！",
         "use_all_stock_confirm_title": "要用完全部库存吗？",
-            "use_all_stock_confirm_msg": "即将取用 {qty}（{unit}），这会用完 {location} 中的全部库存。确定吗？",
+        "use_all_stock_confirm_msg": "即将取用 {qty}（{unit}），这会用完 {location} 中的全部库存。确定吗？",
         "use_all_stock_confirm_btn": "是，全部取用",
         "use_all_safety_banner": "⚠ 警告",
         "use_all_safety_headline": "将取用此食材的全部库存",
@@ -810,7 +810,10 @@
         "finish": "✅ 完成",
         "step_fallback": "第 {n} 步",
         "zerowaste_label": "♻️ 边角料",
-        "zerowaste_tip_title": "零浪费小贴士"
+        "zerowaste_tip_title": "零浪费小贴士",
+        "restart_title": "从头开始",
+        "replay_title": "重读此步骤",
+        "wheel_aria": "菜谱步骤导航"
     },
     "settings": {
         "title": "⚙️ 设置",
@@ -1085,7 +1088,11 @@
             "heard_yes": "是，听到了",
             "heard_no": "否，没有听到",
             "test_ok_kiosk": "TTS 工作正常。",
-            "test_fail_steps": "请检查：1）媒体音量不为 0；2）已安装并更新 Google 文字转语音；3）已在 Android TTS 设置中下载所需的语音包。"
+            "test_fail_steps": "请检查：1）媒体音量不为 0；2）已安装并更新 Google 文字转语音；3）已在 Android TTS 设置中下载所需的语音包。",
+            "no_voice_package": "无可用语音 — 请在系统设置中安装语音包。",
+            "no_voice_response": "无语音响应 — 若听到提示音但无朗读，TTS 可能被阻止。请刷新或更换语音。",
+            "android_error": "Android TTS 错误 ({msg}) — 请从 Play 商店安装或更新 Google 文字转语音。",
+            "browser_error": "TTS 错误：{error} — 请重启浏览器或更换语音。"
         },
         "language": {
             "title": "🌐 语言",
@@ -1205,7 +1212,11 @@
             "gdrive_oauth_not_authorized": "尚未授权",
             "gdrive_oauth_window_opened": "浏览器窗口已打开——请完成授权后返回",
             "gdrive_oauth_how_to": "OAuth 2.0 设置步骤",
-            "gdrive_oauth_steps": "<li>前往 <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> 并选择你的项目</li><li>启用 <strong>Google Drive API</strong>：<em>APIs &amp; Services → Enable APIs → Google Drive API</em></li><li>前往 <em>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</em></li><li>应用类型选择 <strong>Web application</strong>，并将 <strong>http://localhost</strong> 添加为<em>已获授权的重定向 URI</em></li><li>将<strong>客户端 ID</strong> 和<strong>客户端密钥</strong>复制到上方字段并保存</li><li>点击<strong>使用 Google 授权</strong>，登录并授予访问权限</li><li>浏览器会打开 <code>http://localhost</code>（出现连接错误属于正常现象），请复制地址栏中的 URL 并粘贴到下方出现的字段中</li>"
+            "gdrive_oauth_steps": "<li>前往 <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> 并选择你的项目</li><li>启用 <strong>Google Drive API</strong>：<em>APIs &amp; Services → Enable APIs → Google Drive API</em></li><li>前往 <em>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</em></li><li>应用类型选择 <strong>Web application</strong>，并将 <strong>http://localhost</strong> 添加为<em>已获授权的重定向 URI</em></li><li>将<strong>客户端 ID</strong> 和<strong>客户端密钥</strong>复制到上方字段并保存</li><li>点击<strong>使用 Google 授权</strong>，登录并授予访问权限</li><li>浏览器会打开 <code>http://localhost</code>（出现连接错误属于正常现象），请复制地址栏中的 URL 并粘贴到下方出现的字段中</li>",
+            "restore_warning": "警告：所有当前数据将被替换，此操作无法撤销。",
+            "restore_done": "恢复完成！",
+            "reload_hint": "页面将重新加载。",
+            "restoring": "正在恢复…"
         },
         "info": {
             "tab": "信息",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "食谱",
-        "scan_btn": "扫描商品"
+        "scan_btn": "扫描商品",
+        "scan_long_hint": "扫描商品（长按进入购物模式）"
     },
     "days": {
         "mon": "星期一",
@@ -2013,5 +2025,9 @@
         "draft_empty": "此模板中还没有商品",
         "name_required": "请输入模板名称",
         "items_required": "请至少添加一件商品"
+    },
+    "setup": {
+        "complete_desc": "设置已完成。可随时在设置中修改。",
+        "ready_title": "一切就绪！"
     }
 }

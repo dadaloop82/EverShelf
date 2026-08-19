@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.90</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.92</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.90</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.92</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -126,10 +126,10 @@
             </button>
             <button class="header-btn header-spesa-btn" id="btn-header-spesa"
                     onclick="toggleSpesaMode()"
-                    title="Modalità spesa" data-i18n-title="scan.spesa_quick_hint"
-                    aria-label="Modalità spesa" aria-pressed="false">🛒</button>
+                    data-i18n-title="scan.spesa_quick_hint" data-i18n-aria="scan.spesa_quick_hint"
+                    title="Shopping mode" aria-label="Shopping mode" aria-pressed="false">🛒</button>
             <button class="header-btn header-scan-btn" id="btn-header-scan"
-                    title="Scansiona prodotto" data-i18n-title="scan.hint_short">
+                    data-i18n-title="scan.hint_short" title="Scan product">
                 📷
             </button>
         </div>
@@ -312,8 +312,8 @@
                         <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
                         <button class="scan-ctrl-btn scan-spesa-quick-btn" id="scan-spesa-quick-btn"
                                 onclick="toggleSpesaModeFromCamera()"
-                                data-i18n-title="scan.spesa_quick_hint" title="🛒 Modalità spesa"
-                                aria-label="Modalità spesa">🛒</button>
+                                data-i18n-title="scan.spesa_quick_hint" data-i18n-aria="scan.spesa_quick_hint"
+                                title="Shopping mode" aria-label="Shopping mode">🛒</button>
                     </div>
                     <span class="scan-zoom-badge">2×</span>
                     <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
@@ -2236,10 +2236,10 @@
         <div class="screensaver-fact" id="screensaver-fact"></div>
     </div>
     <div class="screensaver-shortcuts">
-        <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" title="Ricette">
+        <button class="screensaver-shortcut-btn" id="screensaver-recipe-btn" data-i18n-title="screensaver.recipe_btn" title="Recipes">
             🍳
         </button>
-        <button class="screensaver-shortcut-btn" id="screensaver-scan-btn" title="Scansiona prodotto (tieni premuto per modalità spesa)">
+        <button class="screensaver-shortcut-btn" id="screensaver-scan-btn" data-i18n-title="screensaver.scan_long_hint" title="Scan product">
             📷
         </button>
     </div>
@@ -2260,24 +2260,24 @@
 <div id="cooking-overlay" class="cooking-overlay" style="display:none" aria-live="polite">
     <div id="cooking-flash-overlay" class="cooking-flash-overlay"></div>
     <div class="cooking-header">
-        <button class="cooking-close-btn" onclick="closeCookingMode()" title="Chiudi">✕</button>
+        <button class="cooking-close-btn" onclick="closeCookingMode()" data-i18n-title="cooking.close" title="Close">✕</button>
         <span class="cooking-title" id="cooking-title"></span>
-        <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" title="Leggi ad alta voce">🔊</button>
+        <button class="cooking-tts-btn" id="cooking-tts-btn" onclick="toggleCookingTTS()" data-i18n-title="cooking.tts_btn" title="Read aloud">🔊</button>
     </div>
     <div id="cooking-timers-bar" class="cooking-timers-bar" style="display:none"></div>
     <div id="cooking-tools-bar" class="cooking-tools-bar" style="display:none"></div>
     <div class="cooking-body">
         <div class="cooking-step-header">
             <div class="cooking-step-num" id="cooking-step-num">1 / 1</div>
-            <button class="cooking-restart-btn" onclick="restartCookingMode()" title="Ricomincia dall'inizio">↺ Ricomincia</button>
+            <button class="cooking-restart-btn" onclick="restartCookingMode()" data-i18n-title="cooking.restart_title" data-i18n="cooking.restart">↺ Restart</button>
         </div>
         <div class="cooking-progress-dots" id="cooking-progress-dots"></div>
-        <div class="cooking-wheel" id="cooking-wheel" tabindex="0" aria-label="Navigazione passi ricetta">
+        <div class="cooking-wheel" id="cooking-wheel" tabindex="0" data-i18n-aria="cooking.wheel_aria" aria-label="Recipe step navigation">
             <div class="cooking-step-ghost cooking-step-prev" id="cooking-step-prev"></div>
             <div class="cooking-step-text" id="cooking-step-text"></div>
             <div class="cooking-step-ghost cooking-step-next" id="cooking-step-next"></div>
         </div>
-        <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" title="Rileggi questo passo">🔊 Rileggi</button>
+        <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" data-i18n-title="cooking.replay_title" data-i18n="cooking.replay">🔊 Replay</button>
         <div class="cooking-timer-suggest" id="cooking-timer-suggest" style="display:none">
             <button class="cooking-timer-add-btn" onclick="addSuggestedCookingTimer()">
                 <span id="cooking-timer-suggest-text">⏱️ 00:00 · Timer</span>
@@ -2288,7 +2288,7 @@
             <span class="cooking-zerowaste-label" data-i18n="cooking.zerowaste_label">♻️ Scarto</span>
             <span id="cooking-zerowaste-scrap" class="cooking-zerowaste-scrap"></span>
             <p id="cooking-zerowaste-text" class="cooking-zerowaste-text"></p>
-            <button class="cooking-zerowaste-close" onclick="_dismissZeroWasteTip()" aria-label="Chiudi">✕</button>
+            <button class="cooking-zerowaste-close" onclick="_dismissZeroWasteTip()" data-i18n-aria="cooking.close" aria-label="Close">✕</button>
         </div>
     </div>
     <div class="cooking-nav">

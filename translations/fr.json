@@ -810,7 +810,10 @@
         "finish": "✅ Terminer",
         "step_fallback": "Étape {n}",
         "zerowaste_label": "♻️ Déchet",
-        "zerowaste_tip_title": "Conseil zéro déchet"
+        "zerowaste_tip_title": "Conseil zéro déchet",
+        "restart_title": "Recommencer depuis le début",
+        "replay_title": "Relire cette étape",
+        "wheel_aria": "Navigation des étapes de la recette"
     },
     "settings": {
         "title": "⚙️ Paramètres",
@@ -982,7 +985,11 @@
             "heard_no": "Non, je n'ai rien entendu",
             "test_ok_kiosk": "TTS fonctionne.",
             "test_fail_steps": "Vérifiez : 1) le volume média n'est pas 0 ; 2) Google Text-to-Speech est installé et mis à jour ; 3) le pack vocal français est téléchargé dans les paramètres TTS Android.",
-            "test_sound_btn": "🔔 Test sonore"
+            "test_sound_btn": "🔔 Test sonore",
+            "no_voice_package": "Aucune voix disponible — installez un pack vocal dans les paramètres système.",
+            "no_voice_response": "Pas de réponse vocale — si le bip était audible, le TTS est peut-être bloqué. Rechargez ou changez de voix.",
+            "android_error": "Erreur TTS Android ({msg}) — installez ou mettez à jour Google Text-to-Speech sur le Play Store.",
+            "browser_error": "Erreur TTS : {error} — redémarrez le navigateur ou changez de voix."
         },
         "language": {
             "title": "🌐 Langue",
@@ -1102,7 +1109,11 @@
             "gdrive_oauth_not_authorized": "Pas encore autorisé",
             "gdrive_oauth_window_opened": "Fenêtre ouverte — autorisez et revenez ici",
             "gdrive_oauth_how_to": "Configurer OAuth 2.0 (étape par étape)",
-            "gdrive_oauth_steps": "<li>Allez sur <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> et sélectionnez votre projet</li><li>Activez l’<strong>API Google Drive</strong> : <em>API et services → Activer les API → Google Drive API</em></li><li>Allez dans <em>API et services → Identifiants → Créer des identifiants → ID client OAuth</em></li><li>Type d’application : <strong>Application Web</strong> ; ajoutez l’URL affichée ci-dessous comme <em>URI de redirection autorisé</em></li><li>Copiez le <strong>Client ID</strong> et le <strong>Client Secret</strong> dans les champs ci-dessus et enregistrez</li><li>Cliquez sur <strong>Autoriser avec Google</strong> : connectez-vous et accordez l’accès</li><li>La fenêtre se ferme automatiquement une fois terminé et les sauvegardes sont prêtes</li>"
+            "gdrive_oauth_steps": "<li>Allez sur <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> et sélectionnez votre projet</li><li>Activez l’<strong>API Google Drive</strong> : <em>API et services → Activer les API → Google Drive API</em></li><li>Allez dans <em>API et services → Identifiants → Créer des identifiants → ID client OAuth</em></li><li>Type d’application : <strong>Application Web</strong> ; ajoutez l’URL affichée ci-dessous comme <em>URI de redirection autorisé</em></li><li>Copiez le <strong>Client ID</strong> et le <strong>Client Secret</strong> dans les champs ci-dessus et enregistrez</li><li>Cliquez sur <strong>Autoriser avec Google</strong> : connectez-vous et accordez l’accès</li><li>La fenêtre se ferme automatiquement une fois terminé et les sauvegardes sont prêtes</li>",
+            "restore_warning": "ATTENTION : toutes les données actuelles seront REMPLACÉES. Cette action est irréversible.",
+            "restore_done": "Restauration terminée !",
+            "reload_hint": "La page va se recharger.",
+            "restoring": "Restauration en cours…"
         },
         "shopping": {
             "tab": "Liste de courses",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "Recettes",
-        "scan_btn": "Scanner un produit"
+        "scan_btn": "Scanner un produit",
+        "scan_long_hint": "Scanner un produit (appui long pour le mode courses)"
     },
     "days": {
         "mon": "Lundi",
@@ -2013,5 +2025,9 @@
         "draft_empty": "Aucun produit dans ce modèle",
         "name_required": "Saisissez un nom",
         "items_required": "Ajoutez au moins un produit"
+    },
+    "setup": {
+        "complete_desc": "Configuration terminée. Vous pouvez modifier ces paramètres à tout moment dans Réglages.",
+        "ready_title": "Tout est prêt !"
     }
 }

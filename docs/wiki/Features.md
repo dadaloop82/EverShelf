@@ -95,7 +95,7 @@ Smart shopping predictions include a short AI-generated practical tip per item (
 
 ### Anomaly Explanation
 
-When the dashboard shows a suspicious quantity banner, tap **🤖 Spiega** to get a plain-language explanation of why the discrepancy likely occurred and what to do about it.
+When the dashboard shows a suspicious quantity banner, tap **🤖 Explain** to get a plain-language explanation of why the discrepancy likely occurred and what to do about it.
 
 ### Model Fallback
 

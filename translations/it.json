@@ -810,7 +810,10 @@
         "finish": "✅ Fine",
         "step_fallback": "Passo {n}",
         "zerowaste_label": "♻️ Scarto",
-        "zerowaste_tip_title": "Consiglio anti-spreco"
+        "zerowaste_tip_title": "Consiglio anti-spreco",
+        "restart_title": "Ricomincia dall'inizio",
+        "replay_title": "Rileggi questo passo",
+        "wheel_aria": "Navigazione passi ricetta"
     },
     "settings": {
         "title": "⚙️ Configurazione",
@@ -1085,7 +1088,11 @@
             "heard_yes": "Sì, ho sentito",
             "heard_no": "No, non ho sentito",
             "test_ok_kiosk": "TTS funzionante.",
-            "test_fail_steps": "Controlla: 1) volume media del dispositivo non sia 0; 2) Google Text-to-Speech installato e aggiornato; 3) pacchetto vocale italiano scaricato nelle impostazioni TTS Android."
+            "test_fail_steps": "Controlla: 1) volume media del dispositivo non sia 0; 2) Google Text-to-Speech installato e aggiornato; 3) pacchetto vocale italiano scaricato nelle impostazioni TTS Android.",
+            "no_voice_package": "Nessuna voce disponibile — installa un pacchetto vocale nelle impostazioni di sistema.",
+            "no_voice_response": "Nessuna risposta dalla voce — se il beep era udibile, il TTS è bloccato. Prova a ricaricare la pagina o a cambiare voce.",
+            "android_error": "Errore TTS Android ({msg}) — installa o aggiorna Google Text-to-Speech dal Play Store.",
+            "browser_error": "Errore TTS: {error} — prova a riavviare il browser o a cambiare voce."
         },
         "language": {
             "title": "🌐 Lingua / Language",
@@ -1205,7 +1212,11 @@
             "gdrive_code_title": "Incolla l'URL o il codice di autorizzazione",
             "gdrive_code_hint": "Dopo aver autorizzato, il browser aprirà http://localhost e potrebbe mostrare un errore. Copia l'URL dalla barra degli indirizzi (es. <code>http://localhost/?code=4%2F0A...</code>) e incollalo qui.",
             "gdrive_code_submit": "Conferma",
-            "gdrive_code_empty": "Incolla prima l'URL o il codice di autorizzazione"
+            "gdrive_code_empty": "Incolla prima l'URL o il codice di autorizzazione",
+            "restore_warning": "ATTENZIONE: tutti i dati attuali verranno SOSTITUITI. Questa azione è irreversibile.",
+            "restore_done": "Ripristino completato!",
+            "reload_hint": "La pagina verrà ricaricata.",
+            "restoring": "Ripristino in corso…"
         },
         "info": {
             "tab": "Info",
@@ -1556,7 +1567,8 @@
     },
     "screensaver": {
         "recipe_btn": "Ricette",
-        "scan_btn": "Scansiona prodotto"
+        "scan_btn": "Scansiona prodotto",
+        "scan_long_hint": "Scansiona prodotto (tieni premuto per modalità spesa)"
     },
     "days": {
         "mon": "Lunedì",
@@ -2013,5 +2025,9 @@
         "draft_empty": "Nessun prodotto in questo template",
         "name_required": "Inserisci un nome",
         "items_required": "Aggiungi almeno un prodotto"
+    },
+    "setup": {
+        "complete_desc": "La configurazione è completata. Puoi sempre modificare queste impostazioni dalla pagina Configurazione.",
+        "ready_title": "Tutto pronto!"
     }
 }
