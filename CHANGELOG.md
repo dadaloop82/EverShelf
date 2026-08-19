@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.90] - 2026-08-19
+
+### Fixed
+- **`spend_stats` PHP crash** — `getSpendStats()` had an unused `PDO $db` parameter but the router called it with no args, causing `ArgumentCountError` on every dashboard load (auto-reports #231–#233).
+
 ## [1.7.89] - 2026-08-19
 
 ### Added
