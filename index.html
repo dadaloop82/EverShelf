@@ -306,7 +306,13 @@
                 </div>
                 <!-- Viewport inline controls (torch / zoom badge / flip) -->
                 <div class="scan-viewport-controls">
-                    <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
+                    <div class="scan-viewport-left">
+                        <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
+                        <button class="scan-ctrl-btn scan-spesa-quick-btn" id="scan-spesa-quick-btn"
+                                onclick="toggleSpesaModeFromCamera()"
+                                data-i18n-title="scan.spesa_quick_hint" title="🛒 Modalità spesa"
+                                aria-label="Modalità spesa">🛒</button>
+                    </div>
                     <span class="scan-zoom-badge">2×</span>
                     <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
                 </div>

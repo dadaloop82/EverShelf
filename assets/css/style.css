@@ -2682,6 +2682,11 @@ body.server-offline .bottom-nav {
     padding: 6px 10px;
     background: linear-gradient(transparent, rgba(0,0,0,0.55));
 }
+.scan-viewport-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 .scan-ctrl-btn {
     background: rgba(255,255,255,0.15);
     border: 1.5px solid rgba(255,255,255,0.45);
@@ -2700,6 +2705,7 @@ body.server-offline .bottom-nav {
 }
 .scan-ctrl-btn:active { background: rgba(255,255,255,0.35); }
 .scan-ctrl-btn.torch-on { background: rgba(255,220,0,0.35); border-color: #ffd600; }
+.scan-ctrl-btn.spesa-on { background: rgba(34,197,94,0.22); border-color: rgba(34,197,94,0.9); }
 .scan-zoom-badge {
     background: rgba(0,0,0,0.55);
     color: #fff;
