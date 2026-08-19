@@ -6966,7 +6966,7 @@ function spendAdd(): void {
  * Aggregate spend events month-by-month for the dashboard.
  * Returns last 6 months totals + current/previous comparison.
  */
-function getSpendStats(PDO $db): void {
+function getSpendStats(): void {
     $hist = _spendLoadHistory();
     if (empty($hist)) {
         echo json_encode([
