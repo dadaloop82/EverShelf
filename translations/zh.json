@@ -8,6 +8,7 @@
         "home": "首页",
         "inventory": "库存",
         "recipes": "食谱",
+        "gemini": "Gemini",
         "shopping": "购物清单",
         "log": "记录",
         "settings": "设置"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ 手动输入",
         "ai_identify": "🤖 使用 AI 识别",
         "hint": "扫描条形码、输入商品名称或使用 AI 识别",
+        "hint_short": "扫描商品",
         "debug_toggle": "🐛 调试日志",
         "barcode_acquired": "🔖 已扫描条形码：{code}",
         "scan_barcode": "🔖 扫描条形码",
@@ -286,6 +288,8 @@
         "ai_match_or_similar": "或选择相似商品：",
         "ai_detected_label": "AI 检测结果",
         "mode_shopping_activated": "📷 已开启连续扫描——确认每件商品后继续扫描！",
+        "spesa_ai_fallback_modal_title": "条形码识别失败 — 继续进行 AI 商品识别",
+        "spesa_ai_fallback_countdown": "AI 商品识别将在 {n} 秒后开始… 你可以随时取消。",
         "status_lookup": "正在识别…",
         "continuous_added": "已添加 {name} → {location}",
         "status_adding": "正在添加…"
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "（冷冻且真空密封）",
         "history_badge_tip": "最近 {n} 次入库的平均值——每次购买后都会更新",
         "vacuum_question": "是否真空密封？",
-        "vacuum_saved": "🔒 已设为真空密封！"
+        "vacuum_saved": "🔒 已设为真空密封！",
+        "leave_title": "商品尚未添加",
+        "leave_message": "“{name}”尚未加入库存。离开前要添加，还是放弃更改？",
+        "leave_add_btn": "✅ 立即添加",
+        "leave_discard_btn": "🗑️ 放弃并离开",
+        "leave_unsaved": "你有尚未保存的待添加商品。"
     },
     "use": {
         "title": "取用 / 消耗",
@@ -698,6 +707,14 @@
         "remaining_after_buy": "还需 {qty} {name}",
         "spesa_partial_recommend": "你买了 {bought} 的 {name}，但我建议再拿 {remaining}",
         "spesa_removed_all": "已从购物清单中移除 {name}",
+        "spend_modal_title": "🧾 本次花了多少钱？",
+        "spend_modal_hint": "可选：输入本次购物总花费，以便按月追踪图表。",
+        "spend_amount_label": "金额 ({sym})",
+        "spend_amount_placeholder": "例如 45.50",
+        "spend_skip_btn": "暂不填写",
+        "spend_save_btn": "保存",
+        "spend_tracked_toast": "已记录花费：{sym}{amount}",
+        "spend_track_error": "无法记录花费",
         "anti_waste_shelf": "防浪费：约 {days} 天内可吃完",
         "plan_days_label": "按 {days} 天计算数量",
         "plan_days_auto": "默认：计算到月底，最少 7 天（{days} 天）",
@@ -1955,6 +1972,13 @@
         "top_used": "最常取用",
         "top_cats": "热门分类",
         "source": "操作记录 · 本月"
+    },
+    "stats_spend": {
+        "title": "已记录花费",
+        "month_label": "本月花费",
+        "trend_up": "↑ 较上月 {pct}%",
+        "trend_down": "↓ 较上月 {pct}%",
+        "trend_same": "→ 与上月大致相同"
     },
     "time": {
         "just_now": "刚刚",

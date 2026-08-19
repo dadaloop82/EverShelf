@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.88</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.89</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.88</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.89</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -124,11 +124,12 @@
                     <span class="scale-status-dot"></span>
                 </span>
             </button>
-            <button class="header-btn header-gemini-btn" onclick="showPage('chat')" title="Chat con Gemini" data-i18n-title="chat.title">
-                <svg class="gemini-icon" viewBox="0 0 24 24" width="24" height="24" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
-            </button>
+            <button class="header-btn header-spesa-btn" id="btn-header-spesa"
+                    onclick="toggleSpesaMode()"
+                    title="Modalità spesa" data-i18n-title="scan.spesa_quick_hint"
+                    aria-label="Modalità spesa" aria-pressed="false">🛒</button>
             <button class="header-btn header-scan-btn" id="btn-header-scan"
-                    title="Scansiona prodotto (tieni premuto per modalità spesa)" data-i18n-title="scan.hint">
+                    title="Scansiona prodotto" data-i18n-title="scan.hint_short">
                 📷
             </button>
         </div>
@@ -2111,6 +2112,13 @@
         <span class="nav-icon">🍳</span>
         <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
     </button>
+    <button class="nav-btn nav-gemini-btn" id="nav-gemini-btn" onclick="_openGeminiChat()" data-page="chat"
+            title="Gemini Chef" data-i18n-title="chat.title">
+        <span class="nav-gemini-icon-wrap" aria-hidden="true">
+            <svg class="nav-gemini-icon" viewBox="0 0 24 24" width="26" height="26" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373 12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+        </span>
+        <span class="nav-label" data-i18n="nav.gemini">Gemini</span>
+    </button>
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping">
         <span class="nav-icon">🛒</span>
         <span class="nav-label" data-i18n="nav.shopping">Spesa</span>
@@ -2289,6 +2297,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260810a"></script>
+<script src="assets/js/app.js?v=20260819f"></script>
 </body>
 </html>

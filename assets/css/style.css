@@ -562,6 +562,22 @@ body {
 .header-gemini-btn:active {
     background: rgba(99,102,241,0.55);
 }
+
+/* Spesa (shopping) mode — green tint when active */
+.header-spesa-btn {
+    background: rgba(34,197,94,0.22);
+    border-color: rgba(187,247,208,0.55);
+    font-size: 1.2rem;
+}
+.header-spesa-btn:active {
+    background: rgba(34,197,94,0.42);
+}
+.header-spesa-btn.spesa-on {
+    background: rgba(34,197,94,0.55);
+    border-color: rgba(187,247,208,0.95);
+    box-shadow: 0 0 0 2px rgba(34,197,94,0.35);
+}
+
 .header-gemini-btn.header-btn-no-ai {
     opacity: 0.45;
     filter: grayscale(0.7);
@@ -4681,6 +4697,38 @@ body.server-offline .bottom-nav {
 
 .nav-label {
     font-size: 0.65rem;
+}
+
+/* Gemini — center tab, elevated like mobile FAB */
+.nav-gemini-btn {
+    margin-top: -10px;
+    min-width: 62px;
+}
+.nav-gemini-icon-wrap {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+    border: 3px solid var(--bg-card);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.nav-gemini-btn:active .nav-gemini-icon-wrap {
+    transform: scale(0.94);
+}
+.nav-gemini-btn.active .nav-gemini-icon-wrap {
+    box-shadow: 0 4px 18px rgba(99, 102, 241, 0.65);
+}
+.nav-gemini-btn.active {
+    color: #6366f1;
+}
+.nav-gemini-btn.nav-btn-no-ai .nav-gemini-icon-wrap {
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    box-shadow: none;
+    opacity: 0.65;
 }
 
 /* ===== TOAST ===== */
@@ -10128,7 +10176,7 @@ body.cooking-mode-active .app-header {
 body.offline-mode #waste-chart-section,
 body.offline-mode #nutrition-section,
 body.offline-mode #quick-recipe-bar,
-body.offline-mode .header-gemini-btn,
+body.offline-mode .nav-gemini-btn,
 body.offline-mode #btn-suggest,
 body.offline-mode #btn-fetch-prices,
 body.offline-mode .recipe-generate-btn {

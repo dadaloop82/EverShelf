@@ -8,6 +8,7 @@
         "home": "Inicio",
         "inventory": "Lista",
         "recipes": "Recetas",
+        "gemini": "Gemini",
         "shopping": "Compras",
         "log": "Registro",
         "settings": "Ajustes"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ Entrada manual",
         "ai_identify": "🤖 Identificar con IA",
         "hint": "Escanea el código de barras, escribe el nombre del producto o usa la IA para identificarlo",
+        "hint_short": "Escanear producto",
         "debug_toggle": "🐛 Registro de depuración",
         "barcode_acquired": "🔖 Código de barras escaneado: {code}",
         "scan_barcode": "🔖 Escanear código de barras",
@@ -286,6 +288,8 @@
         "ai_detected_label": "IA detecto",
         "stock_in_pantry": "Ya en despensa:",
         "mode_shopping_activated": "📷 Escaneo continuo activo — confirma cada artículo y sigue escaneando!",
+        "spesa_ai_fallback_modal_title": "Falló el escaneo del código de barras — procedo a la identificación por IA",
+        "spesa_ai_fallback_countdown": "Iniciando identificación por IA en {n} segundos… Puedes cancelar en cualquier momento.",
         "status_lookup": "Identificando…",
         "continuous_added": "Añadido {name} → {location}",
         "status_adding": "Añadiendo…"
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "(congelador + al vacío)",
         "history_badge_tip": "Media de los últimos {n} registros — se actualiza con cada compra",
         "vacuum_question": "¿Al vacío?",
-        "vacuum_saved": "🔒 ¡Al vacío!"
+        "vacuum_saved": "🔒 ¡Al vacío!",
+        "leave_title": "Producto aún no añadido",
+        "leave_message": "«{name}» aún no está en la despensa. ¿Añadirlo antes de salir o descartar los cambios?",
+        "leave_add_btn": "✅ Añadir ahora",
+        "leave_discard_btn": "🗑️ Descartar y salir",
+        "leave_unsaved": "Tienes un producto sin guardar por añadir."
     },
     "use": {
         "title": "Usar / Consumir",
@@ -716,6 +725,14 @@
         "remaining_after_buy": "Aún faltan {qty} de {name}",
         "spesa_partial_recommend": "Compraste {bought} de {name}, pero te recomiendo llevar {remaining} más",
         "spesa_removed_all": "He quitado {name} de la lista de la compra",
+        "spend_modal_title": "🧾 ¿Cuánto has gastado?",
+        "spend_modal_hint": "Opcional: introduce el gasto total de esta sesión para seguir los gráficos mes a mes.",
+        "spend_amount_label": "Importe ({sym})",
+        "spend_amount_placeholder": "ej. 45,50",
+        "spend_skip_btn": "Ahora no",
+        "spend_save_btn": "Guardar",
+        "spend_tracked_toast": "Gasto registrado: {sym}{amount}",
+        "spend_track_error": "No se pudo registrar el gasto",
         "anti_waste_shelf": "Anti-desperdicio: consumible en ~{days} d",
         "plan_days_label": "Quantities for {days} days",
         "plan_days_auto": "Por defecto: hasta fin de mes, mín. 7 días ({days})",
@@ -1955,6 +1972,13 @@
         "top_used": "más usado",
         "top_cats": "Categorías principales",
         "source": "Historial de transacciones · mes actual"
+    },
+    "stats_spend": {
+        "title": "Gasto registrado",
+        "month_label": "Gasto del mes",
+        "trend_up": "↑ {pct}% vs mes anterior",
+        "trend_down": "↓ {pct}% vs mes anterior",
+        "trend_same": "→ ~igual que el mes anterior"
     },
     "time": {
         "just_now": "ahora",

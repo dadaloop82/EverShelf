@@ -191,16 +191,19 @@ function _requireGemini() {
 
 // Update Gemini button visual state to signal no key configured
 function _updateGeminiButtonState() {
-    const btn = document.querySelector('.header-gemini-btn');
+    const btn = document.getElementById('nav-gemini-btn');
     if (!btn) return;
     if (_geminiAvailable) {
-        btn.classList.remove('header-btn-no-ai');
-        btn.removeAttribute('title');
+        btn.classList.remove('nav-btn-no-ai');
         btn.setAttribute('title', t('gemini.chat_title'));
     } else {
-        btn.classList.add('header-btn-no-ai');
+        btn.classList.add('nav-btn-no-ai');
         btn.setAttribute('title', t('gemini.not_configured'));
     }
+}
+
+function _openGeminiChat() {
+    if (_requireGemini()) showPage('chat');
 }
 
 function _applyDemoModeUI() {
@@ -1150,7 +1153,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260809a'; // bump when translations change
+const _I18N_VERSION = '20260819f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3072,6 +3075,12 @@ async function _selectAiProductCandidate(kind, idx) {
     }
 }
 async function _triggerManualAiScan() {
+    _clearSpesaAiFallbackTimers();
+    if (_spesaMode) _spesaAiFallbackUsedThisCycle = true;
+    if (_spesaAiFallbackModalOpen) {
+        closeModal();
+        _spesaAiFallbackModalOpen = false;
+    }
     if (!_scannerAiAllowed()) {
         showToast(t('error.no_api_key'), 'error');
         return;
@@ -5127,6 +5136,14 @@ let _currentPageParam = null;
 let _pageHistory = [{ pageId: 'dashboard', param: null }];
 
 function goBack(fallbackPage = 'dashboard') {
+    if (_isAddFormLeaveGuardActive()) {
+        _promptAddFormLeave(() => _goBackNow(fallbackPage));
+        return;
+    }
+    _goBackNow(fallbackPage);
+}
+
+function _goBackNow(fallbackPage = 'dashboard') {
     if (_pageHistory.length > 1) {
         // Drop current page and navigate to the previous entry without re-adding history.
         _pageHistory.pop();
@@ -5154,6 +5171,10 @@ function refreshCurrentPage() {
 }
 
 function showPage(pageId, param = null, options = {}) {
+    if (!options.skipAddGuard && pageId !== 'add' && _isAddFormLeaveGuardActive()) {
+        _promptAddFormLeave(() => showPage(pageId, param, { ...options, skipAddGuard: true }));
+        return;
+    }
     if (pageId !== 'add') clearAddFormIdleCountdown();
     if (pageId !== 'use') clearUseFormIdleCountdown();
     const skipHistory = !!options.skipHistory;
@@ -5239,9 +5260,14 @@ function showPage(pageId, param = null, options = {}) {
     if (pageId !== 'scan' && pageId !== 'ai') {
         stopScanner();
     }
-    
+
     // Scroll to top
     window.scrollTo(0, 0);
+
+    if (pageId === 'add' && currentProduct) {
+        _setAddFormGuardActive(true);
+        _bindAddFormBeforeUnloadGuard();
+    }
 }
 
 // ===== ANTI-WASTE SECTION =====
@@ -5887,9 +5913,9 @@ function _renderSpendSection(data) {
     let trendHTML = '';
     if (prev > 0.0001) {
         const diffPct = Math.round((curr - prev) / prev * 100);
-        if (diffPct > 3) trendHTML = `↑ ${diffPct}% vs mese scorso`;
-        else if (diffPct < -3) trendHTML = `↓ ${Math.abs(diffPct)}% vs mese scorso`;
-        else trendHTML = `→ ~uguale al mese scorso`;
+        if (diffPct > 3) trendHTML = t('stats_spend.trend_up', { pct: diffPct });
+        else if (diffPct < -3) trendHTML = t('stats_spend.trend_down', { pct: Math.abs(diffPct) });
+        else trendHTML = t('stats_spend.trend_same');
     }
 
     const bars = data.totals.map(t => {
@@ -5913,7 +5939,7 @@ function _renderSpendSection(data) {
             <div class="aw-header">
                 <div class="aw-title-row">
                     <span class="aw-live-dot aw-live-on"></span>
-                    <h3 class="aw-title">Spesa tracciata</h3>
+                    <h3 class="aw-title">${escapeHtml(t('stats_spend.title'))}</h3>
                 </div>
                 <span class="aw-grade" style="background:#6366f1;font-size:.75rem;padding:4px 10px">
                     ${escapeHtml(data.current_month_label || data.month || '')}
@@ -5923,7 +5949,7 @@ function _renderSpendSection(data) {
             <div class="ms-main-row" style="margin-top:0">
                 <div class="ms-main-num" style="color:#6366f1">${sym}${curr.toFixed(2)}</div>
                 <div class="ms-main-info">
-                    <div class="ms-main-label">Spesa del mese</div>
+                    <div class="ms-main-label">${escapeHtml(t('stats_spend.month_label'))}</div>
                     <div class="ms-trend">${trendHTML || '—'}</div>
                 </div>
             </div>
@@ -6366,7 +6392,9 @@ function isSuspiciousQty(qty, unit) {
 function isSuspiciousDefaultQty(defaultQty, unit, packageUnit) {
     const n = parseFloat(defaultQty);
     if (!n || n <= 0) return false;
-    const checkUnit = ((unit === 'conf' || unit === 'pz') && packageUnit) ? packageUnit : unit;
+    // pz without package_unit: default_quantity is legacy label weight (e.g. 400g bread), not a package size
+    if (unit === 'pz' && !packageUnit) return false;
+    const checkUnit = (unit === 'conf' && packageUnit) ? packageUnit : unit;
     const th = QTY_THRESHOLDS[checkUnit] || QTY_THRESHOLDS['pz'];
     return n > th.max;
 }
@@ -8795,6 +8823,10 @@ function resumeScanner() {
         initScanner();
         return;
     }
+    if (_spesaScanUiBlocked()) {
+        _scannerPaused = true;
+        return;
+    }
     _scannerPaused = false;
     const video = document.getElementById('scanner-video');
     if (video && video.paused) video.play().catch(() => {});
@@ -8803,6 +8835,7 @@ function resumeScanner() {
     }
     _setScanStatus(t('scan.status_scanning'), '', '');
     _updateScanAiButton();
+    _maybeStartSpesaAiFallbackTimer();
 }
 
 async function initScanner() {
@@ -8842,10 +8875,16 @@ async function initScanner() {
         _setScanStatus(t('scan.status_ready'), '', '');
 
         await _ensureBarcodeEngines();
-        _scannerPaused = false;
-        _startBestScanner(video);
+        const scanBlocked = _spesaScanUiBlocked();
+        _scannerPaused = scanBlocked;
+        if (!scanBlocked) {
+            _startBestScanner(video);
+        }
         if (!_tesseractWorker) setTimeout(() => _ensureTesseractWorker().catch(() => {}), 400);
         _updateScanAiButton();
+        if (!scanBlocked) {
+            _maybeStartSpesaAiFallbackTimer();
+        }
         
     } catch (err) {
         scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
@@ -9759,6 +9798,13 @@ async function _handleBarcodeResolve(result, barcode) {
 async function onBarcodeDetected(barcode) {
     _dismissFamilySiblingPrompt();
     _resetAiFallbackForNewScan();
+    _clearSpesaAiFallbackTimers();
+    _spesaAiFallbackUsedThisCycle = true;
+    _spesaAiFallbackCanceled = false;
+    if (_spesaAiFallbackModalOpen) {
+        closeModal();
+        _spesaAiFallbackModalOpen = false;
+    }
     const fastPath = _spesaMode || _shoppingBoughtFlow;
 
     if (!fastPath) showLoading(true);
@@ -11737,7 +11783,7 @@ async function submitAdd(e) {
             pkgUnit || currentProduct.package_unit || recent.packageUnit
         );
         if (!ok) {
-            if (_spesaMode) showPage('scan');
+            if (_spesaMode) showPage('scan', null, { skipAddGuard: true });
             return;
         }
     }
@@ -11759,6 +11805,7 @@ async function submitAdd(e) {
         
         showLoading(false);
         if (result.success) {
+            _clearAddFormGuard();
             _pendingBarcodeSave = null;
             if (result.canonical_product_id && result.canonical_product_id !== currentProduct.id) {
                 currentProduct.id = result.canonical_product_id;
@@ -12785,6 +12832,74 @@ let _addFormIdleRAF = null;
 let _addFormIdlePageEl = null;
 let _addFormIdleOnInteraction = null;
 const ADD_FORM_IDLE_MS = 30000;
+
+let _addFormGuardActive = false;
+
+function _isAddFormLeaveGuardActive() {
+    return _addFormGuardActive && _currentPageId === 'add' && !!currentProduct;
+}
+
+function _setAddFormGuardActive(active) {
+    _addFormGuardActive = !!active;
+}
+
+function _clearAddFormGuard() {
+    _addFormGuardActive = false;
+}
+
+function _promptAddFormLeave(onProceed) {
+    clearAddFormIdleCountdown();
+    const name = currentProduct?.name || '';
+    const contentEl = document.getElementById('modal-content');
+    const overlayEl = document.getElementById('modal-overlay');
+    if (!contentEl || !overlayEl) {
+        onProceed();
+        return;
+    }
+
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3>${escapeHtml(t('add.leave_title'))}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(t('add.leave_message', { name }))}</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <button type="button" class="btn btn-large btn-success full-width" id="add-leave-add-btn">
+                ${escapeHtml(t('add.leave_add_btn'))}
+            </button>
+            <button type="button" class="btn btn-large btn-danger full-width" id="add-leave-discard-btn">
+                ${escapeHtml(t('add.leave_discard_btn'))}
+            </button>
+            <button type="button" class="btn btn-secondary full-width" id="add-leave-cancel-btn">
+                ${escapeHtml(t('confirm.cancel'))}
+            </button>
+        </div>
+    `;
+    overlayEl.style.display = 'flex';
+
+    contentEl.querySelector('#add-leave-add-btn')?.addEventListener('click', () => {
+        closeModal();
+        document.getElementById('page-add')?.querySelector('form')?.requestSubmit();
+    });
+    contentEl.querySelector('#add-leave-discard-btn')?.addEventListener('click', () => {
+        closeModal();
+        _clearAddFormGuard();
+        onProceed();
+    });
+    contentEl.querySelector('#add-leave-cancel-btn')?.addEventListener('click', () => closeModal());
+}
+
+function _bindAddFormBeforeUnloadGuard() {
+    if (window._addFormBeforeUnloadBound) return;
+    window._addFormBeforeUnloadBound = true;
+    window.addEventListener('beforeunload', (e) => {
+        if (!_isAddFormLeaveGuardActive()) return;
+        const msg = t('add.leave_unsaved');
+        e.preventDefault();
+        e.returnValue = msg;
+        return msg;
+    });
+}
 
 let _useFormIdleTimer = null;
 let _useFormIdleRAF = null;
@@ -23027,10 +23142,133 @@ let _shoppingBoughtFlow = false;
 let _longPressTimer = null;
 let _spesaSession = []; // { name, qty, unit } per ogni prodotto aggiunto
 let _spesaSpendPromptShown = false;
+let _spesaSpendModalOpen = false;
 
-function toggleSpesaModeFromCamera() {
+// Spesa mode: if barcode can't be resolved in time, offer a cancellable
+// "AI identification" countdown before we trigger Gemini visual barcode.
+let _spesaAiFallbackFailTimer = null;          // waits for barcode result
+let _spesaAiFallbackCountdownInterval = null; // counts down during modal
+let _spesaAiFallbackModalOpen = false;
+let _spesaAiFallbackCanceled = false;
+let _spesaAiFallbackUsedThisCycle = false;     // at most one AI fallback offer per product scan
+
+const _SPESA_AI_FALLBACK_FAIL_MS = 5000;
+const _SPESA_AI_FALLBACK_COUNTDOWN_SEC = 5;
+
+function _spesaScanUiBlocked() {
+    if (_spesaSpendModalOpen) return true;
+    if (_spesaAiFallbackModalOpen) return true;
+    if (_currentPageId === 'add') return true;
+    return false;
+}
+
+function _clearSpesaAiFallbackTimers() {
+    if (_spesaAiFallbackFailTimer) {
+        clearTimeout(_spesaAiFallbackFailTimer);
+        _spesaAiFallbackFailTimer = null;
+    }
+    if (_spesaAiFallbackCountdownInterval) {
+        clearInterval(_spesaAiFallbackCountdownInterval);
+        _spesaAiFallbackCountdownInterval = null;
+    }
+}
+
+function _maybeStartSpesaAiFallbackTimer() {
+    if (!_spesaMode) return;
+    if (!_scannerAiAllowed()) return;
+    if (_aiBarcodeVisualRunning || _numOcrRunning) return;
+    if (_spesaScanUiBlocked()) return;
+    if (_currentPageId !== 'scan') return;
+    if (_spesaAiFallbackUsedThisCycle) return;
+
+    _clearSpesaAiFallbackTimers();
+
+    _spesaAiFallbackFailTimer = setTimeout(() => {
+        if (!_spesaMode) return;
+        if (_spesaAiFallbackUsedThisCycle) return;
+        if (_spesaScanUiBlocked()) return;
+        if (_currentPageId !== 'scan') return;
+        if (!_scannerAiAllowed()) return;
+        if (_aiBarcodeVisualRunning || _numOcrRunning) return;
+
+        _spesaAiFallbackModalOpen = true;
+        pauseScanner();
+        _showSpesaAiFallbackModal();
+    }, _SPESA_AI_FALLBACK_FAIL_MS);
+}
+
+function _showSpesaAiFallbackModal() {
+    const title = t('scan.spesa_ai_fallback_modal_title');
+    const countdownKey = 'scan.spesa_ai_fallback_countdown';
+    const cancelLabel = t('confirm.cancel');
+
+    const contentEl = document.getElementById('modal-content');
+    const overlayEl = document.getElementById('modal-overlay');
+    if (!contentEl || !overlayEl) {
+        // If modal system is unavailable, just trigger AI (best effort).
+        closeModal();
+        _spesaAiFallbackModalOpen = false;
+        _spesaAiFallbackCanceled = false;
+        _triggerManualAiScan();
+        return;
+    }
+
+    let remaining = _SPESA_AI_FALLBACK_COUNTDOWN_SEC;
+    contentEl.innerHTML = `
+        <div class="modal-header">
+            <h3 class="edit-modal-heading">${escapeHtml(title)}</h3>
+            <button class="modal-close" onclick="_spesaAiFallbackCancel()">✕</button>
+        </div>
+        <div style="padding:16px">
+            <p style="margin:0 0 14px; color: var(--text-muted); font-size:0.95rem" id="spesa-ai-fallback-countdown">
+                ${escapeHtml(t(countdownKey, { n: remaining }))}
+            </p>
+            <button type="button" class="btn btn-secondary full-width" onclick="_spesaAiFallbackCancel()">
+                ${escapeHtml(cancelLabel)}
+            </button>
+        </div>
+    `;
+    overlayEl.style.display = 'flex';
+
+    const tick = () => {
+        remaining -= 1;
+        if (remaining <= 0) {
+            if (_spesaAiFallbackCountdownInterval) clearInterval(_spesaAiFallbackCountdownInterval);
+            _spesaAiFallbackCountdownInterval = null;
+            closeModal();
+            _spesaAiFallbackModalOpen = false;
+            if (_spesaAiFallbackCanceled || _spesaAiFallbackUsedThisCycle) return;
+            _spesaAiFallbackUsedThisCycle = true;
+            _triggerManualAiScan();
+            return;
+        }
+        const el = document.getElementById('spesa-ai-fallback-countdown');
+        if (el) el.textContent = t(countdownKey, { n: remaining });
+    };
+
+    _spesaAiFallbackCountdownInterval = setInterval(tick, 1000);
+}
+
+function _spesaAiFallbackCancel() {
+    _spesaAiFallbackCanceled = true;
+    _spesaAiFallbackUsedThisCycle = true;
+    _clearSpesaAiFallbackTimers();
+
+    closeModal();
+    _spesaAiFallbackModalOpen = false;
+
+    if (_spesaMode && !_spesaScanUiBlocked()) {
+        resumeScanner();
+    }
+}
+
+function toggleSpesaMode() {
     if (_spesaMode) return endSpesaMode();
     return startSpesaMode();
+}
+
+function toggleSpesaModeFromCamera() {
+    return toggleSpesaMode();
 }
 
 /** True se il prodotto sembra presente nella lista spesa in-memory. */
@@ -23046,10 +23284,13 @@ function _spesaModeHasShoppingItem(product) {
 }
 
 function _syncSpesaQuickBtn() {
-    const btn = document.getElementById('scan-spesa-quick-btn');
-    if (!btn) return;
-    btn.classList.toggle('spesa-on', !!_spesaMode);
-    btn.setAttribute('aria-pressed', _spesaMode ? 'true' : 'false');
+    const on = !!_spesaMode;
+    ['scan-spesa-quick-btn', 'btn-header-spesa'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.classList.toggle('spesa-on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
 }
 
 function _spesaCurrencySymbol() {
@@ -23060,25 +23301,27 @@ function _spesaCurrencySymbol() {
 function _spesaPromptOptionalSpend() {
     if (_spesaSpendPromptShown) return;
     _spesaSpendPromptShown = true;
+    _spesaSpendModalOpen = true;
+    _clearSpesaAiFallbackTimers();
 
     pauseScanner();
 
     const sym = _spesaCurrencySymbol();
     const modalHtml = `
         <div class="modal-header">
-            <h3 class="edit-modal-heading">🧾 Quanto hai speso?</h3>
+            <h3 class="edit-modal-heading">${escapeHtml(t('shopping.spend_modal_title'))}</h3>
             <button class="modal-close" onclick="_spesaSpendSkip()">✕</button>
         </div>
         <div style="padding:16px">
             <p style="margin:0 0 10px; color: var(--text-light)">
-                Opzionale: puoi inserire la spesa totale di questa sessione per tracciare i grafici mese-per-mese.
+                ${escapeHtml(t('shopping.spend_modal_hint'))}
             </p>
-            <label style="display:block; font-weight:800; margin-bottom:6px">Importo (${escapeHtml(sym)})</label>
+            <label style="display:block; font-weight:800; margin-bottom:6px">${escapeHtml(t('shopping.spend_amount_label', { sym }))}</label>
             <input type="number" id="spend-amount-input" min="0" step="0.01" inputmode="decimal"
-                   class="form-input" placeholder="Es. 45.50" />
+                   class="form-input" placeholder="${escapeHtml(t('shopping.spend_amount_placeholder'))}" />
             <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end">
-                <button class="btn btn-secondary" onclick="_spesaSpendSkip()">Non ora</button>
-                <button class="btn btn-accent" onclick="_spesaSpendSave()">Salva</button>
+                <button class="btn btn-secondary" onclick="_spesaSpendSkip()">${escapeHtml(t('shopping.spend_skip_btn'))}</button>
+                <button class="btn btn-accent" onclick="_spesaSpendSave()">${escapeHtml(t('shopping.spend_save_btn'))}</button>
             </div>
         </div>
     `;
@@ -23095,6 +23338,7 @@ async function _spesaSpendSave() {
     const raw = inp ? inp.value : '';
     const amount = parseFloat(String(raw).replace(',', '.'));
     closeModal();
+    _spesaSpendModalOpen = false;
     resumeScanner();
 
     if (!_spesaMode) return;
@@ -23103,14 +23347,15 @@ async function _spesaSpendSave() {
     try {
         const sym = _spesaCurrencySymbol();
         await api('spend_add', {}, 'POST', { amount: amount, currency: sym });
-        showToast(`Tracciata spesa: ${sym}${amount.toFixed(2)}`, 'info');
+        showToast(t('shopping.spend_tracked_toast', { sym, amount: amount.toFixed(2) }), 'info');
     } catch (_) {
-        showToast('Impossibile tracciare la spesa (errore)', 'error');
+        showToast(t('shopping.spend_track_error'), 'error');
     }
 }
 
 function _spesaSpendSkip() {
     closeModal();
+    _spesaSpendModalOpen = false;
     resumeScanner();
 }
 
@@ -23149,6 +23394,11 @@ function startSpesaMode() {
     _spesaMode = true;
     _spesaSession = [];
     _spesaSpendPromptShown = false;
+    _spesaSpendModalOpen = false;
+    _spesaAiFallbackCanceled = false;
+    _spesaAiFallbackUsedThisCycle = false;
+    _spesaAiFallbackModalOpen = false;
+    _clearSpesaAiFallbackTimers();
     preloadBarcodeEngines();
     _syncSpesaQuickBtn();
 
@@ -23164,9 +23414,14 @@ function startSpesaMode() {
 
 function endSpesaMode() {
     _spesaMode = false;
+    _spesaSpendModalOpen = false;
     _syncSpesaQuickBtn();
     updateSpesaBanner();
     stopScanner();
+    _clearSpesaAiFallbackTimers();
+    _spesaAiFallbackModalOpen = false;
+    _spesaAiFallbackCanceled = false;
+    _spesaAiFallbackUsedThisCycle = false;
     showPage('dashboard');
 }
 
@@ -23266,6 +23521,10 @@ async function shoppingBoughtAfterAdd(addResult) {
 // Called after successful add — returns true if spesa mode handled navigation
 async function spesaModeAfterAdd(addResult, opts = {}) {
     if (!_spesaMode) return false;
+    _clearSpesaAiFallbackTimers();
+    _spesaAiFallbackUsedThisCycle = false;
+    _spesaAiFallbackCanceled = false;
+    _spesaAiFallbackModalOpen = false;
     if (currentProduct) {
         _spesaSession.push({
             name: currentProduct.name,

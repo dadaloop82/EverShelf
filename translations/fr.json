@@ -8,6 +8,7 @@
         "home": "Accueil",
         "inventory": "Liste",
         "recipes": "Recettes",
+        "gemini": "Gemini",
         "shopping": "Courses",
         "log": "Journal",
         "settings": "Paramètres"
@@ -241,6 +242,7 @@
         "manual_entry": "✏️ Saisie manuelle",
         "ai_identify": "🤖 Identifier avec l'IA",
         "hint": "Scannez le code-barres, tapez le nom du produit ou utilisez l'IA pour l'identifier",
+        "hint_short": "Scanner un produit",
         "debug_toggle": "🐛 Journal de débogage",
         "barcode_acquired": "🔖 Code-barres scanné : {code}",
         "scan_barcode": "🔖 Scanner le code-barres",
@@ -286,6 +288,8 @@
         "ai_detected_label": "IA a detecte",
         "stock_in_pantry": "Déjà à la maison :",
         "mode_shopping_activated": "📷 Scan continu activé — confirmez chaque article, puis continuez !",
+        "spesa_ai_fallback_modal_title": "Échec de la lecture du code-barres — procédure d’identification par IA",
+        "spesa_ai_fallback_countdown": "Démarrage de l’identification par IA dans {n} secondes… Vous pouvez annuler.",
         "status_lookup": "Identification…",
         "continuous_added": "Ajouté {name} → {location}",
         "status_adding": "Ajout…"
@@ -331,7 +335,12 @@
         "suffix_freezer_vacuum": "(congélateur + sous vide)",
         "history_badge_tip": "Moyenne des {n} derniers ajouts — mise à jour à chaque achat",
         "vacuum_question": "Sous vide ?",
-        "vacuum_saved": "🔒 Sous vide !"
+        "vacuum_saved": "🔒 Sous vide !",
+        "leave_title": "Produit pas encore ajouté",
+        "leave_message": "« {name} » n'est pas encore dans le garde-manger. L'ajouter avant de quitter ou annuler les modifications ?",
+        "leave_add_btn": "✅ Ajouter maintenant",
+        "leave_discard_btn": "🗑️ Annuler et quitter",
+        "leave_unsaved": "Vous avez un produit à ajouter non enregistré."
     },
     "use": {
         "title": "Utiliser / Consommer",
@@ -716,6 +725,14 @@
         "remaining_after_buy": "Il reste {qty} de {name}",
         "spesa_partial_recommend": "Vous avez acheté {bought} de {name}, mais je vous conseille d'en prendre encore {remaining}",
         "spesa_removed_all": "J'ai retiré {name} de la liste de courses",
+        "spend_modal_title": "🧾 Combien avez-vous dépensé ?",
+        "spend_modal_hint": "Optionnel : saisissez le total de cette session pour suivre les graphiques mois par mois.",
+        "spend_amount_label": "Montant ({sym})",
+        "spend_amount_placeholder": "ex. 45,50",
+        "spend_skip_btn": "Pas maintenant",
+        "spend_save_btn": "Enregistrer",
+        "spend_tracked_toast": "Dépense enregistrée : {sym}{amount}",
+        "spend_track_error": "Impossible d'enregistrer la dépense",
         "anti_waste_shelf": "Anti-gaspi : consommable en ~{days} j",
         "plan_days_label": "Quantities for {days} days",
         "plan_days_auto": "Par défaut : jusqu’à fin de mois, min. 7 jours ({days})",
@@ -1955,6 +1972,13 @@
         "top_used": "le plus utilisé",
         "top_cats": "Catégories principales",
         "source": "Historique des transactions · mois en cours"
+    },
+    "stats_spend": {
+        "title": "Dépenses suivies",
+        "month_label": "Dépenses du mois",
+        "trend_up": "↑ {pct}% vs mois dernier",
+        "trend_down": "↓ {pct}% vs mois dernier",
+        "trend_same": "→ ~identique au mois dernier"
     },
     "time": {
         "just_now": "à l'instant",
