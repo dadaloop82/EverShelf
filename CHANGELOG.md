@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.93] - 2026-08-20
+
+### Added
+- **Inventory swipe: Use / Discard chooser** — swipe left on a product opens a picker: **Use** (quantity page) or **Discard** (quantity + waste reason, same flow as before). Tap still opens Use directly; swipe right remains Edit.
+
 ## [1.7.92] - 2026-08-19
 
 ### Fixed

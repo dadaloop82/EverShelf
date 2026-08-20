@@ -1153,8 +1153,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260819g'; // bump when translations change
-let _i18nStrings = null;   // current language translations (flat)
+const _I18N_VERSION = '20260820a'; // bump when translations changelet _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
 let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
@@ -7647,7 +7646,7 @@ function renderInventoryItem(item) {
     
     return `
     <div class="inventory-item${isFav ? ' inv-item-fav' : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" onclick="invRowTap(event)">
-        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_use'))}</div>
+        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
@@ -7786,7 +7785,7 @@ function _initInventoryRowSwipe(container) {
 
         if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
-            quickUse(productId, location);
+            showInvActionChooser(productId, location, invId);
             return;
         }
         if (dx >= 60 && !isNaN(invId)) {
@@ -7796,6 +7795,7 @@ function _initInventoryRowSwipe(container) {
         }
         if (ctx.maxDx < 18 && ctx.maxDy < 35 && dy < 35 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
+            // Tap = fast path to Use; swipe-left opens Use/Discard chooser
             quickUse(productId, location);
         }
     };
@@ -8272,6 +8272,80 @@ async function _openUsePage(productId, location) {
 async function quickUse(productId, location) {
     closeModal();
     await _openUsePage(productId, location);
+}
+
+/**
+ * After swipe-left on an inventory row: choose Use vs Discard.
+ * Tap on the row still goes straight to Use (fast path).
+ */
+function showInvActionChooser(productId, location, invId) {
+    const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
+    const name = item?.name || '';
+    const brand = item?.brand || '';
+    const img = item?.image_url || '';
+    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
+    const locInfo = LOCATIONS[location] || { icon: '📦', label: location };
+    const qtyLabel = item
+        ? formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)
+        : '';
+
+    document.getElementById('modal-content').innerHTML = `
+        <div class="modal-header">
+            <h3>${t('inventory.swipe_chooser_title')}</h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="product-preview-small" style="margin-bottom:16px">
+            ${img
+                ? `<img src="${escapeHtml(img)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">`
+                : `<span style="font-size:2rem">${catIcon}</span>`}
+            <div class="product-preview-info">
+                <h3>${escapeHtml(name || t('inventory.swipe_chooser_title'))}</h3>
+                <p>${brand ? escapeHtml(brand) + ' · ' : ''}${locInfo.icon} ${escapeHtml(locInfo.label)}${qtyLabel ? ' · <strong>' + escapeHtml(qtyLabel) + '</strong>' : ''}</p>
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <button type="button" class="btn btn-large btn-warning full-width" id="inv-chooser-use">
+                ${t('inventory.swipe_chooser_use')}
+            </button>
+            <button type="button" class="btn btn-large btn-danger full-width" id="inv-chooser-throw">
+                ${t('inventory.swipe_chooser_throw')}
+            </button>
+            <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('btn.cancel')}</button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+    document.getElementById('inv-chooser-use')?.addEventListener('click', () => {
+        closeModal();
+        quickUse(productId, location);
+    });
+    document.getElementById('inv-chooser-throw')?.addEventListener('click', () => {
+        closeModal();
+        quickThrowFromInv(productId, location, invId);
+    });
+}
+
+async function quickThrowFromInv(productId, location, invId) {
+    const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
+    currentProduct = {
+        id: productId,
+        name: item?.name || '',
+        brand: item?.brand || '',
+        image_url: item?.image_url || null,
+        category: item?.category || '',
+        unit: item?.unit || 'pz',
+        default_quantity: item?.default_quantity || 0,
+        package_unit: item?.package_unit || '',
+    };
+    // Enrich with full product if inventory row had sparse data
+    if (!currentProduct.name || !currentProduct.image_url) {
+        try {
+            const data = await api('product_get', { id: productId });
+            if (data?.product) {
+                currentProduct = { ...currentProduct, ...data.product };
+            }
+        } catch (_) { /* showThrowForm still works with id */ }
+    }
+    showThrowForm();
 }
 
 const WASTE_REASON_KEYS = ['expired', 'spoiled', 'wrong_location', 'kept_too_long', 'bought_too_much', 'forgotten', 'bad_quality', 'other'];
