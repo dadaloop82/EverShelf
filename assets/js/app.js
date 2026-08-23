@@ -1153,8 +1153,9 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260823b'; // bump when translations change
-let _i18nStrings = null;   // current language translations (flat)let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
+const _I18N_VERSION = '20260823d'; // bump when translations change
+let _i18nStrings = null;   // current language translations (flat)
+let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
 let _currentLang = localStorage.getItem('evershelf_lang') || navigator.language?.slice(0, 2) || 'en';
 const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
@@ -8270,6 +8271,10 @@ async function itemDetailUseAll(productId, location) {
 }
 
 function closeModal() {
+    // Spesa spend prompt: overlay onclick="closeModal()" must also resume the scanner
+    const resumeSpesaScan = _spesaSpendModalOpen && _spesaMode;
+    if (_spesaSpendModalOpen) _spesaSpendModalOpen = false;
+
     document.getElementById('modal-overlay').style.display = 'none';
     clearMoveModalTimer();
     _cancelScaleAutoConfirm(false);
@@ -8277,6 +8282,8 @@ function closeModal() {
     _scaleUserDismissed = false;
     _scaleWeightCallback = null;
     _bannerEditPending = false;
+
+    if (resumeSpesaScan) resumeScanner();
 }
 
 async function _openUsePage(productId, location) {
@@ -23348,7 +23355,14 @@ function _spesaCurrencySymbol() {
 }
 
 function _spesaPromptOptionalSpend() {
-    if (_spesaSpendPromptShown) return;
+    if (_spesaSpendPromptShown) {
+        // Gate stuck (e.g. modal dismissed without skip handler) — unblock scan
+        if (_spesaSpendModalOpen && _spesaMode) {
+            _spesaSpendModalOpen = false;
+            resumeScanner();
+        }
+        return;
+    }
     _spesaSpendPromptShown = true;
     _spesaSpendModalOpen = true;
     _clearSpesaAiFallbackTimers();
@@ -23386,7 +23400,6 @@ async function _spesaSpendSave() {
     const raw = inp ? inp.value : '';
     const amount = parseFloat(String(raw).replace(',', '.'));
     closeModal();
-    _spesaSpendModalOpen = false;
 
     if (!_spesaMode) return;
 
@@ -23399,15 +23412,10 @@ async function _spesaSpendSave() {
             showToast(t('shopping.spend_track_error'), 'error');
         }
     }
-
-    // Start decoding only after the spend prompt is dismissed
-    resumeScanner();
 }
 
 function _spesaSpendSkip() {
     closeModal();
-    _spesaSpendModalOpen = false;
-    if (_spesaMode) resumeScanner();
 }
 
 function initSpesaMode() {
@@ -23469,6 +23477,7 @@ async function startSpesaMode() {
 function endSpesaMode() {
     _spesaMode = false;
     _spesaSpendModalOpen = false;
+    _spesaSpendPromptShown = false;
     _spesaSession = [];
     _syncSpesaQuickBtn();
     updateSpesaBanner();

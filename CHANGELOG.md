@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.94] - 2026-08-23
+
+### Fixed
+- **App startup blocked on kiosk** — Merge corruption in `app.js` swallowed the `_i18nFallback` declaration; `loadTranslations()` / `t()` threw on boot and the preloader never progressed.
+- **Spesa scan after spend prompt** — Closing the spend modal via overlay or ✕ now clears the scan gate and resumes the scanner (centralized in `closeModal()`).
+
 ## [1.7.93] - 2026-08-23
 
 ### Added
