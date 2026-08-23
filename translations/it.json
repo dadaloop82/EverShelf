@@ -211,7 +211,8 @@
         "item_detail_edit": "Modifica prodotto",
         "favorite": "Aggiungi ai preferiti",
         "unfavorite": "Rimuovi dai preferiti",
-        "favorites_section": "Preferiti"
+        "favorites_section": "Preferiti",
+        "opened_section": "Aperti"
     },
     "scan": {
         "title": "Scansiona",
@@ -292,7 +293,14 @@
         "spesa_ai_fallback_modal_title": "Scansione Barcode fallita, procedo al identificazione AI",
         "spesa_ai_fallback_countdown": "Avvio identificazione AI tra {n} secondi… Puoi annullare in qualsiasi momento.",
         "continuous_added": "Aggiunto {name} → {location}",
-        "status_adding": "Aggiunta…"
+        "status_adding": "Aggiunta…",
+        "spesa_session_title": "In questa spesa",
+        "spesa_session_empty": "Nessun prodotto ancora — scansiona o usa Identifica con AI",
+        "spesa_session_name": "Nome",
+        "spesa_session_brand": "Marca",
+        "spesa_session_qty": "Quantità",
+        "spesa_session_saved": "Prodotto aggiornato",
+        "spesa_session_save_error": "Impossibile aggiornare il prodotto"
     },
     "action": {
         "title": "Cosa vuoi fare?",
@@ -340,7 +348,8 @@
         "leave_message": "«{name}» non è ancora in dispensa. Vuoi aggiungerlo prima di uscire o scartare le modifiche?",
         "leave_add_btn": "✅ Aggiungi ora",
         "leave_discard_btn": "🗑️ Scarta e esci",
-        "leave_unsaved": "Hai un prodotto da aggiungere non salvato."
+        "leave_unsaved": "Hai un prodotto da aggiungere non salvato.",
+        "duplicate_recent_cancelled": "Ok — puoi ancora aggiungere questo prodotto"
     },
     "use": {
         "title": "Usa / Consuma",
@@ -705,8 +714,8 @@
         "swipe_scan": "Comprato · scansiona",
         "bought_later_toast": "«{name}» tolto dalla lista — in inventario lo aggiungerai a casa",
         "remaining_after_buy": "Ne servono ancora {qty} di {name}",
-        "spesa_partial_recommend": "Hai comprato {bought} di {name} ma ti consiglio di prenderne altri {remaining}",
-        "spesa_removed_all": "Ho rimosso {name} dalla lista della spesa",
+        "spesa_partial_recommend": "Ti consiglio di prendere altri {remaining} di {name}",
+        "spesa_removed_all": "Ho tolto {name} dalla lista della spesa",
         "spend_modal_title": "🧾 Quanto hai speso?",
         "spend_modal_hint": "Opzionale: puoi inserire la spesa totale di questa sessione per tracciare i grafici mese per mese.",
         "spend_amount_label": "Importo ({sym})",

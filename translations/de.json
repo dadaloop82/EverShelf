@@ -211,7 +211,8 @@
         "item_detail_edit": "Produkt bearbeiten",
         "favorite": "Zu Favoriten hinzufügen",
         "unfavorite": "Aus Favoriten entfernen",
-        "favorites_section": "Favoriten"
+        "favorites_section": "Favoriten",
+        "opened_section": "Geöffnet"
     },
     "scan": {
         "title": "Scannen",
@@ -292,7 +293,14 @@
         "spesa_ai_fallback_countdown": "KI-Identifikation startet in {n} Sekunden… Du kannst jederzeit abbrechen.",
         "status_lookup": "Wird erkannt…",
         "continuous_added": "{name} hinzugefügt → {location}",
-        "status_adding": "Wird hinzugefügt…"
+        "status_adding": "Wird hinzugefügt…",
+        "spesa_session_title": "Dieser Einkauf",
+        "spesa_session_empty": "Noch keine Produkte — scannen oder Mit KI erkennen",
+        "spesa_session_name": "Name",
+        "spesa_session_brand": "Marke",
+        "spesa_session_qty": "Menge",
+        "spesa_session_saved": "Produkt aktualisiert",
+        "spesa_session_save_error": "Produkt konnte nicht aktualisiert werden"
     },
     "action": {
         "title": "Was möchtest du tun?",
@@ -340,7 +348,8 @@
         "leave_message": "«{name}» ist noch nicht im Vorrat. Vor dem Verlassen hinzufügen oder Änderungen verwerfen?",
         "leave_add_btn": "✅ Jetzt hinzufügen",
         "leave_discard_btn": "🗑️ Verwerfen und verlassen",
-        "leave_unsaved": "Du hast ein ungespeichertes Produkt zum Hinzufügen."
+        "leave_unsaved": "Du hast ein ungespeichertes Produkt zum Hinzufügen.",
+        "duplicate_recent_cancelled": "OK — du kannst dieses Produkt weiterhin hinzufügen"
     },
     "use": {
         "title": "Verwenden / Verbrauchen",
@@ -705,7 +714,7 @@
         "swipe_scan": "Gekauft · scannen",
         "bought_later_toast": "«{name}» von der Liste entfernt — Inventar fügst du zuhause hinzu",
         "remaining_after_buy": "Noch {qty} {name} nötig",
-        "spesa_partial_recommend": "Du hast {bought} von {name} gekauft, aber ich empfehle, noch {remaining} mitzunehmen",
+        "spesa_partial_recommend": "Ich empfehle, noch {remaining} {name} mitzunehmen",
         "spesa_removed_all": "Ich habe {name} von der Einkaufsliste entfernt",
         "spend_modal_title": "🧾 Wie viel hast du ausgegeben?",
         "spend_modal_hint": "Optional: Gesamtausgaben dieser Session eingeben, um Monatsdiagramme zu verfolgen.",
