@@ -11,10 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
-## [1.7.93] - 2026-08-20
+## [1.7.93] - 2026-08-23
 
 ### Added
-- **Inventory swipe: Use / Discard chooser** — swipe left on a product opens a picker: **Use** (quantity page) or **Discard** (quantity + waste reason, same flow as before). Tap still opens Use directly; swipe right remains Edit.
+- **Spesa session list** — Under “Identify with AI”, editable list of products added this trip (name, brand, qty); manual barcode/name/AI tabs hidden in shopping mode.
+- **Inventory swipe: Use / Discard chooser** — swipe left opens a picker: **Use** or **Discard** (quantity + waste reason). Tap still opens Use; swipe right remains Edit.
+
+### Changed
+- **Spesa spend prompt** — Barcode scan starts only after you save or skip the optional spend amount.
+- **Spesa AI** — Manual “Identify with AI” button only; removed automatic AI timers/countdowns.
+- **Spesa auto-add** — Idle countdown on the add form shortened from 30s to 27s.
+- **Inventory opened section** — Opened products listed first (after favourites) with green / orange / red row backgrounds by expiry.
+
+### Fixed
+- **Shopping-list feedback in spesa mode** — “Removed from list” / “Take more…” toasts use server flags and updated IT copy.
+- **Spesa scan flow** — No family-sibling interrupt mid-scan; duplicate-add cancel keeps you on the form; barcode cache cleared on mismatch retry.
 
 ## [1.7.92] - 2026-08-19
 

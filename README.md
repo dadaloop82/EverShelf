@@ -35,8 +35,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <details>
 <summary><b>📰 What's new</b></summary>
 
-**v1.7.93** — inventory swipe Use / Discard chooser  
-**v1.7.92** — i18n cleanup: all UI via translation keys (1853 × 6 langs)  
+**v1.7.93** — Spesa mode UX (spend gate, manual AI, session list) + inventory swipe Use/Discard + opened section  **v1.7.92** — i18n cleanup: all UI via translation keys (1853 × 6 langs)  
 **v1.7.91** — fix depleted crumbs (e.g. 19 g butter) stuck in Opened alerts  
 **v1.7.90** — `spend_stats` dashboard crash fix  
 

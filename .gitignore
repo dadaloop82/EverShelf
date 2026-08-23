@@ -63,3 +63,5 @@ data/weather_cache_*.json
 assets/img/logo/*_backup.*
 logs/*.log
 assets/vendor/transformers/Xenova/
+
+TODO.md

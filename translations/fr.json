@@ -215,7 +215,8 @@
         "item_detail_edit": "Modifier le produit",
         "favorite": "Ajouter aux favoris",
         "unfavorite": "Retirer des favoris",
-        "favorites_section": "Favoris"
+        "favorites_section": "Favoris",
+        "opened_section": "Ouverts"
     },
     "scan": {
         "title": "Scanner",
@@ -296,7 +297,14 @@
         "spesa_ai_fallback_countdown": "Démarrage de l’identification par IA dans {n} secondes… Vous pouvez annuler.",
         "status_lookup": "Identification…",
         "continuous_added": "Ajouté {name} → {location}",
-        "status_adding": "Ajout…"
+        "status_adding": "Ajout…",
+        "spesa_session_title": "Ces courses",
+        "spesa_session_empty": "Aucun produit — scanne ou utilise Identifier avec AI",
+        "spesa_session_name": "Nom",
+        "spesa_session_brand": "Marque",
+        "spesa_session_qty": "Quantité",
+        "spesa_session_saved": "Produit mis à jour",
+        "spesa_session_save_error": "Impossible de mettre à jour le produit"
     },
     "action": {
         "title": "Que voulez-vous faire ?",
@@ -344,7 +352,8 @@
         "leave_message": "« {name} » n'est pas encore dans le garde-manger. L'ajouter avant de quitter ou annuler les modifications ?",
         "leave_add_btn": "✅ Ajouter maintenant",
         "leave_discard_btn": "🗑️ Annuler et quitter",
-        "leave_unsaved": "Vous avez un produit à ajouter non enregistré."
+        "leave_unsaved": "Vous avez un produit à ajouter non enregistré.",
+        "duplicate_recent_cancelled": "OK — tu peux encore ajouter ce produit"
     },
     "use": {
         "title": "Utiliser / Consommer",
@@ -727,8 +736,8 @@
         "swipe_scan": "Bought · scan",
         "bought_later_toast": "«{name}» removed from the list — you'll add it to inventory at home",
         "remaining_after_buy": "Il reste {qty} de {name}",
-        "spesa_partial_recommend": "Vous avez acheté {bought} de {name}, mais je vous conseille d'en prendre encore {remaining}",
-        "spesa_removed_all": "J'ai retiré {name} de la liste de courses",
+        "spesa_partial_recommend": "Je te conseille d’en prendre encore {remaining} de {name}",
+        "spesa_removed_all": "J’ai retiré {name} de la liste de courses",
         "spend_modal_title": "🧾 Combien avez-vous dépensé ?",
         "spend_modal_hint": "Optionnel : saisissez le total de cette session pour suivre les graphiques mois par mois.",
         "spend_amount_label": "Montant ({sym})",

@@ -215,7 +215,8 @@
         "item_detail_edit": "编辑商品",
         "favorite": "添加到收藏",
         "unfavorite": "取消收藏",
-        "favorites_section": "收藏"
+        "favorites_section": "收藏",
+        "opened_section": "已开封"
     },
     "scan": {
         "title": "扫描",
@@ -296,7 +297,14 @@
         "spesa_ai_fallback_countdown": "AI 商品识别将在 {n} 秒后开始… 你可以随时取消。",
         "status_lookup": "正在识别…",
         "continuous_added": "已添加 {name} → {location}",
-        "status_adding": "正在添加…"
+        "status_adding": "正在添加…",
+        "spesa_session_title": "本次购物",
+        "spesa_session_empty": "暂无商品 — 请扫描或使用 AI 识别",
+        "spesa_session_name": "名称",
+        "spesa_session_brand": "品牌",
+        "spesa_session_qty": "数量",
+        "spesa_session_saved": "已更新商品",
+        "spesa_session_save_error": "无法更新商品"
     },
     "action": {
         "title": "请选择操作",
@@ -344,7 +352,8 @@
         "leave_message": "“{name}”尚未加入库存。离开前要添加，还是放弃更改？",
         "leave_add_btn": "✅ 立即添加",
         "leave_discard_btn": "🗑️ 放弃并离开",
-        "leave_unsaved": "你有尚未保存的待添加商品。"
+        "leave_unsaved": "你有尚未保存的待添加商品。",
+        "duplicate_recent_cancelled": "好的 — 仍可添加此商品"
     },
     "use": {
         "title": "取用 / 消耗",
@@ -709,7 +718,7 @@
         "swipe_scan": "已购买 · 扫描",
         "bought_later_toast": "已从清单中移除“{name}”——回家后再添加到库存",
         "remaining_after_buy": "还需 {qty} {name}",
-        "spesa_partial_recommend": "你买了 {bought} 的 {name}，但我建议再拿 {remaining}",
+        "spesa_partial_recommend": "建议再买 {remaining} {name}",
         "spesa_removed_all": "已从购物清单中移除 {name}",
         "spend_modal_title": "🧾 本次花了多少钱？",
         "spend_modal_hint": "可选：输入本次购物总花费，以便按月追踪图表。",

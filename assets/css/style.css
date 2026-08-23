@@ -1484,6 +1484,20 @@ body.server-offline .bottom-nav {
     transition: transform 0.15s;
 }
 
+.inventory-item.inv-opened-ok .inv-row-content {
+    background: #e8f5e9;
+}
+.inventory-item.inv-opened-expiring .inv-row-content {
+    background: #fff3e0;
+}
+.inventory-item.inv-opened-expired .inv-row-content {
+    background: #ffebee;
+}
+
+.inv-opened-section {
+    color: #2e7d32;
+}
+
 .inv-row-content {
     display: flex;
     align-items: center;
@@ -2455,6 +2469,13 @@ body.server-offline .bottom-nav {
 #page-scan.spesa-scan-layout .barcode-input-row {
     display: none !important;
 }
+/* Spesa mode: hide the whole manual input box (barcode/name/AI tabs) */
+#page-scan.spesa-scan-layout .scan-input-panel {
+    display: none !important;
+}
+#page-scan.spesa-scan-layout .scan-recents {
+    display: none !important;
+}
 .spesa-scan-barcode-hint {
     margin: 0;
     padding: 6px 4px 2px;
@@ -2462,6 +2483,53 @@ body.server-offline .bottom-nav {
     color: var(--text-muted);
     text-align: center;
     line-height: 1.35;
+}
+
+.spesa-session-list {
+    margin: 10px 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.spesa-session-list-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 0 2px;
+}
+.spesa-session-item {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+}
+.spesa-session-item input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid transparent;
+    background: var(--bg-light, #f3f4f6);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.86rem;
+}
+.spesa-session-item input:focus {
+    border-color: var(--accent, #2d5016);
+    outline: none;
+    background: #fff;
+}
+.spesa-session-item .spesa-session-qty {
+    width: 4.5rem;
+    text-align: right;
+}
+.spesa-session-empty {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 6px;
 }
 
 .scanner-viewport video {

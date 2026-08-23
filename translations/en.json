@@ -215,7 +215,8 @@
         "item_detail_edit": "Edit product",
         "favorite": "Add to favourites",
         "unfavorite": "Remove from favourites",
-        "favorites_section": "Favourites"
+        "favorites_section": "Favourites",
+        "opened_section": "Opened"
     },
     "scan": {
         "title": "Scan",
@@ -296,7 +297,14 @@
         "spesa_ai_fallback_countdown": "Starting AI identification in {n} seconds… You can cancel at any time.",
         "status_lookup": "Identifying…",
         "continuous_added": "Added {name} → {location}",
-        "status_adding": "Adding…"
+        "status_adding": "Adding…",
+        "spesa_session_title": "This shopping trip",
+        "spesa_session_empty": "No products yet — scan or use Identify with AI",
+        "spesa_session_name": "Name",
+        "spesa_session_brand": "Brand",
+        "spesa_session_qty": "Quantity",
+        "spesa_session_saved": "Product updated",
+        "spesa_session_save_error": "Could not update the product"
     },
     "action": {
         "title": "What do you want to do?",
@@ -344,7 +352,8 @@
         "leave_message": "\"{name}\" is not in the pantry yet. Add it before leaving or discard your changes?",
         "leave_add_btn": "✅ Add now",
         "leave_discard_btn": "🗑️ Discard and leave",
-        "leave_unsaved": "You have an unsaved product to add."
+        "leave_unsaved": "You have an unsaved product to add.",
+        "duplicate_recent_cancelled": "OK — you can still add this product"
     },
     "use": {
         "title": "Use / Consume",
@@ -709,7 +718,7 @@
         "swipe_scan": "Bought · scan",
         "bought_later_toast": "«{name}» removed from the list — you'll add it to inventory at home",
         "remaining_after_buy": "Still need {qty} of {name}",
-        "spesa_partial_recommend": "You bought {bought} of {name}, but I suggest taking {remaining} more",
+        "spesa_partial_recommend": "I suggest getting another {remaining} of {name}",
         "spesa_removed_all": "Removed {name} from the shopping list",
         "spend_modal_title": "🧾 How much did you spend?",
         "spend_modal_hint": "Optional: enter the total spend for this session to track month-by-month charts.",
