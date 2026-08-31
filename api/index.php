@@ -758,6 +758,8 @@ if ($rateLimitAction) {
 $_writeActions = [
     'inventory_add','inventory_use','inventory_update','inventory_remove',
     'inventory_confirm_finished','inventory_restore_ghost',
+    'reconciliation_start','reconciliation_count','reconciliation_review',
+    'reconciliation_apply','reconciliation_cancel',
     'product_save','product_delete','product_merge',
     'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
     'shopping_add','shopping_remove',
@@ -883,6 +885,32 @@ try {
             break;
         case 'inventory_summary':
             inventorySummary($db);
+            break;
+
+        // ===== INVENTORY RECONCILIATION =====
+        case 'reconciliation_list':
+            reconciliationListAction($db);
+            break;
+        case 'reconciliation_get':
+            reconciliationGetAction($db);
+            break;
+        case 'reconciliation_zero_items':
+            reconciliationZeroItemsAction($db);
+            break;
+        case 'reconciliation_start':
+            reconciliationStartAction($db);
+            break;
+        case 'reconciliation_count':
+            reconciliationCountAction($db);
+            break;
+        case 'reconciliation_review':
+            reconciliationReviewAction($db);
+            break;
+        case 'reconciliation_apply':
+            reconciliationApplyAction($db);
+            break;
+        case 'reconciliation_cancel':
+            reconciliationCancelAction($db);
             break;
 
         // ===== TRANSACTIONS =====
@@ -3827,11 +3855,15 @@ function resolveBarcode(PDO $db): void {
 
     $local = barcodeFindLocalProduct($db, $barcode);
     if ($local) {
-        $consolidated = safeConsolidateDuplicateProducts($db, (int)$local['id']);
-        if ($consolidated['merged']) {
-            $refreshed = loadProductRow($db, $consolidated['id']);
-            if ($refreshed) {
-                $local = $refreshed;
+        // Physical counting is read-only until explicit apply; do not run the
+        // normal opportunistic duplicate merge from that scanner consumer.
+        if (empty($_GET['read_only'])) {
+            $consolidated = safeConsolidateDuplicateProducts($db, (int)$local['id']);
+            if ($consolidated['merged']) {
+                $refreshed = loadProductRow($db, $consolidated['id']);
+                if ($refreshed) {
+                    $local = $refreshed;
+                }
             }
         }
         echo json_encode(['found' => true, 'source' => 'local', 'product' => $local], JSON_UNESCAPED_UNICODE);
@@ -4243,6 +4275,7 @@ function aiProductSuggest(PDO $db): void {
             p.default_quantity, p.package_unit, p.notes,
             COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
             COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out,
+            COALESCE((SELECT SUM(a.delta) FROM inventory_adjustments a WHERE a.product_id = p.id), 0) AS adjustment_total,
             COALESCE((SELECT SUM(i2.quantity) FROM inventory i2 WHERE i2.product_id = p.id), 0) AS stock_qty,
             (SELECT i4.location FROM inventory i4 WHERE i4.product_id = p.id ORDER BY i4.updated_at DESC LIMIT 1) AS location,
             (SELECT i4.updated_at FROM inventory i4 WHERE i4.product_id = p.id ORDER BY i4.updated_at DESC LIMIT 1) AS updated_at
@@ -4250,8 +4283,8 @@ function aiProductSuggest(PDO $db): void {
         LEFT JOIN transactions t ON t.product_id = p.id
         WHERE (p.name LIKE ? OR p.brand LIKE ?)
         GROUP BY p.id
-        HAVING stock_qty <= 0.001 AND total_in > 0
-        ORDER BY {$orderCase}, (total_in - total_out) DESC, p.name ASC
+        HAVING stock_qty <= 0.001 AND (total_in + adjustment_total) > 0
+        ORDER BY {$orderCase}, (total_in - total_out + adjustment_total) DESC, p.name ASC
         LIMIT {$limit}
     ");
     $finishedStmt->execute([$like, $like, $exact, $prefix]);
@@ -4262,7 +4295,7 @@ function aiProductSuggest(PDO $db): void {
         if (in_array($pid, $inStockIds, true)) {
             continue;
         }
-        $expected = round((float)$r['total_in'] - (float)$r['total_out'], 3);
+        $expected = round((float)$r['total_in'] - (float)$r['total_out'] + (float)$r['adjustment_total'], 3);
         $finished[] = [
             'id' => $pid,
             'name' => $r['name'],
@@ -5746,11 +5779,16 @@ function getProductLedgerBalance(PDO $db, int $productId): array {
     ");
     $stmt->execute([$productId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_in' => 0, 'total_out' => 0];
+    $adjustmentStmt = $db->prepare('SELECT COALESCE(SUM(delta), 0) FROM inventory_adjustments WHERE product_id = ?');
+    $adjustmentStmt->execute([$productId]);
+    $adjustment = (float)$adjustmentStmt->fetchColumn();
     $stockStmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ?");
     $stockStmt->execute([$productId]);
     return [
-        'total_in'  => (float)$row['total_in'],
-        'total_out' => (float)$row['total_out'],
+        // Fold signed physical-count adjustments into the balance without
+        // inserting ordinary purchase/consumption transactions.
+        'total_in'  => (float)$row['total_in'] + max(0.0, $adjustment),
+        'total_out' => (float)$row['total_out'] + max(0.0, -$adjustment),
         'stock'     => (float)$stockStmt->fetchColumn(),
     ];
 }
@@ -5769,6 +5807,7 @@ function mergeProducts(PDO $db, int $keepId, int $dropId): void {
     try {
         $db->prepare("UPDATE inventory SET product_id = ? WHERE product_id = ?")->execute([$keepId, $dropId]);
         $db->prepare("UPDATE transactions SET product_id = ? WHERE product_id = ?")->execute([$keepId, $dropId]);
+        $db->prepare("UPDATE inventory_adjustments SET product_id = ? WHERE product_id = ?")->execute([$keepId, $dropId]);
         $db->prepare("DELETE FROM products WHERE id = ?")->execute([$dropId]);
         $db->commit();
     } catch (Throwable $e) {
@@ -6006,6 +6045,7 @@ function getFinishedItems(PDO $db): void {
         SELECT p.id AS product_id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.image_url, p.barcode,
                COALESCE(SUM(CASE WHEN t.type = 'in'  AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_in,
                COALESCE(SUM(CASE WHEN t.type IN ('out','waste') AND t.undone = 0 THEN t.quantity ELSE 0 END), 0) AS total_out,
+               COALESCE((SELECT SUM(a.delta) FROM inventory_adjustments a WHERE a.product_id = p.id), 0) AS adjustment_total,
                COALESCE((SELECT SUM(i2.quantity) FROM inventory i2 WHERE i2.product_id = p.id), 0) AS stock_qty,
                (SELECT COUNT(*) FROM inventory i3 WHERE i3.product_id = p.id) AS inv_rows,
                (SELECT i4.location FROM inventory i4 WHERE i4.product_id = p.id ORDER BY i4.updated_at DESC LIMIT 1) AS inv_location,
@@ -6014,13 +6054,13 @@ function getFinishedItems(PDO $db): void {
         FROM products p
         LEFT JOIN transactions t ON t.product_id = p.id
         GROUP BY p.id
-        HAVING stock_qty <= 0.001 AND total_in > 0
-        ORDER BY (total_in - total_out) DESC
+        HAVING stock_qty <= 0.001 AND (total_in + adjustment_total) > 0
+        ORDER BY (total_in - total_out + adjustment_total) DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     $suspicious = [];
     foreach ($rows as $r) {
-        $expected = (float)$r['total_in'] - (float)$r['total_out'];
+        $expected = (float)$r['total_in'] - (float)$r['total_out'] + (float)$r['adjustment_total'];
         $threshold = productQtyThreshold($r['unit']);
 
         if ($expected > $threshold) {
@@ -6342,7 +6382,8 @@ function getInventoryAnomalies(PDO $db): void {
                MIN(i.id) AS inventory_id,
                SUM(i.quantity) AS inv_qty,
                COALESCE(tx_in.tot, 0)  AS total_in,
-               COALESCE(tx_out.tot, 0) AS total_out
+               COALESCE(tx_out.tot, 0) AS total_out,
+               COALESCE(adj.tot, 0) AS adjustment_total
         FROM inventory i
         JOIN products p ON p.id = i.product_id
         LEFT JOIN (
@@ -6353,9 +6394,13 @@ function getInventoryAnomalies(PDO $db): void {
             SELECT product_id, SUM(quantity) AS tot
             FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
         ) tx_out ON tx_out.product_id = p.id
+        LEFT JOIN (
+            SELECT product_id, SUM(delta) AS tot
+            FROM inventory_adjustments GROUP BY product_id
+        ) adj ON adj.product_id = p.id
         WHERE i.quantity > 0
         GROUP BY p.id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
-                 tx_in.tot, tx_out.tot
+                 tx_in.tot, tx_out.tot, adj.tot
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     // Anomaly dismissed keys stored in a simple JSON file
@@ -6368,7 +6413,7 @@ function getInventoryAnomalies(PDO $db): void {
     $anomalies = [];
     foreach ($rows as $r) {
         $invQty   = floatval($r['inv_qty']);
-        $expected = floatval($r['total_in']) - floatval($r['total_out']);
+        $expected = floatval($r['total_in']) - floatval($r['total_out']) + floatval($r['adjustment_total']);
         $diff     = $invQty - $expected;
 
         // Threshold: difference must be >20% of inventory AND >50 units (avoid noise)
@@ -18609,4 +18654,3 @@ function _formatPrice(float $amount, string $currency): string {
     };
     return $sym . number_format($amount, 2, '.', '');
 }
-

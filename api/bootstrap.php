@@ -16,6 +16,7 @@ require_once __DIR__ . '/lib/mealie_setup.php';
 require_once __DIR__ . '/lib/cron_log.php';
 require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/lib/reconciliation.php';
 require_once __DIR__ . '/lib/shopping_guards.php';
 require_once __DIR__ . '/lib/health.php';
 require_once __DIR__ . '/lib/weather.php';

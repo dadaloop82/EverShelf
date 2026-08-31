@@ -1153,7 +1153,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260823d'; // bump when translations change
+const _I18N_VERSION = '20260830a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5156,6 +5156,7 @@ function refreshCurrentPage() {
     switch(_currentPageId) {
         case 'dashboard': loadDashboard(); break;
         case 'inventory': loadInventory(); break;
+        case 'reconciliation': if (typeof initReconciliationPage === 'function') initReconciliationPage(_currentPageParam); break;
         case 'shopping':
             loadShoppingList._bgCall = true;
             loadShoppingList();
@@ -5174,6 +5175,9 @@ function showPage(pageId, param = null, options = {}) {
     }
     if (pageId !== 'add') clearAddFormIdleCountdown();
     if (pageId !== 'use') clearUseFormIdleCountdown();
+    if (_currentPageId === 'scan' && pageId !== 'scan' && typeof window._evershelfBarcodeConsumer === 'function') {
+        window._evershelfBarcodeConsumer = null;
+    }
     const skipHistory = !!options.skipHistory;
     if (!skipHistory) {
         const last = _pageHistory[_pageHistory.length - 1];
@@ -5215,6 +5219,9 @@ function showPage(pageId, param = null, options = {}) {
                 filterLocation(param);
             }
             loadInventory();
+            break;
+        case 'reconciliation':
+            if (typeof initReconciliationPage === 'function') initReconciliationPage(param);
             break;
         case 'scan': preloadBarcodeEngines(); _dismissFamilySiblingPrompt(); _resetAiFallbackForNewScan(); initScanner(); clearQuickNameResults(); updateSpesaBanner(); updateScanRecents(); _applySpesaScanUI();
             // Pre-warm the embedding model the first time user visits scan page
@@ -9928,6 +9935,13 @@ async function _handleBarcodeResolve(result, barcode) {
 }
 
 async function onBarcodeDetected(barcode) {
+    // Narrow extension point for workflows that reuse the existing camera and
+    // decoder stack (for example physical inventory reconciliation).
+    if (typeof window._evershelfBarcodeConsumer === 'function') {
+        pauseScanner();
+        const consumed = await window._evershelfBarcodeConsumer(barcode);
+        if (consumed !== false) return;
+    }
     if (_spesaScanUiBlocked()) return;
     _dismissFamilySiblingPrompt();
     _resetAiFallbackForNewScan();
@@ -24911,4 +24925,3 @@ async function _backgroundBringSync() {
 
     } catch (e) { /* silent — best effort */ }
 }
-

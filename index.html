@@ -13,6 +13,7 @@
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
     <link rel="stylesheet" href="assets/css/style.css?v=20260823b">
     <link rel="stylesheet" href="assets/css/corporate.css?v=20260709a">
+    <link rel="stylesheet" href="assets/css/reconciliation.css?v=20260830a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20260603a"></script>
     <script src="assets/js/core/auth.js?v=20260603b"></script>
@@ -230,6 +231,7 @@
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 id="inventory-title" data-i18n="inventory.title">Dispensa</h2>
             <div class="page-header-actions">
+                <button class="page-header-action-btn" onclick="showPage('reconciliation')" title="Physical count" data-i18n-title="reconciliation.open_title">⚖️</button>
                 <button class="page-header-action-btn" onclick="_showImportModal()" title="Import" data-i18n-title="import.btn_title">📥</button>
                 <button class="page-header-action-btn" onclick="_showExportModal()" title="Export" data-i18n-title="export.btn_title">📤</button>
             </div>
@@ -257,6 +259,20 @@
             </div>
         </div>
         <div class="inventory-list" id="inventory-list"></div>
+    </section>
+
+    <!-- ===== PHYSICAL INVENTORY RECONCILIATION ===== -->
+    <section class="page" id="page-reconciliation">
+        <div class="page-header">
+            <button class="back-btn" onclick="goBack('inventory')" data-i18n="btn.back">← Indietro</button>
+            <h2 data-i18n="reconciliation.title">Conteggio fisico</h2>
+            <button class="page-header-action-btn" onclick="reconciliationRefresh()" title="Refresh" data-i18n-title="reconciliation.refresh">↻</button>
+        </div>
+        <div class="reconciliation-offline" id="reconciliation-offline" hidden>
+            <strong data-i18n="reconciliation.online_only_title">Connessione richiesta</strong>
+            <span data-i18n="reconciliation.online_only_body">I conteggi fisici non vengono messi in coda offline.</span>
+        </div>
+        <div id="reconciliation-content" class="reconciliation-content"></div>
     </section>
 
     <!-- ===== SCAN PAGE ===== -->
@@ -2300,6 +2316,7 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260823d"></script>
+<script src="assets/js/app.js?v=20260830a"></script>
+<script src="assets/js/reconciliation.js?v=20260830a"></script>
 </body>
 </html>
