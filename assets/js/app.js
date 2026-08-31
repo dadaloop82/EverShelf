@@ -17201,7 +17201,7 @@ async function generateSuggestions() {
     suggestionsEl.style.display = 'none';
     
     try {
-        const data = await api('shopping_suggest', {}, 'POST', {});
+        const data = await api('shopping_suggest', {}, 'POST', { lang: _currentLang });
         
         btn.disabled = false;
         btn.innerHTML = `🤖 ${t('shopping.suggest_btn').replace('🤖 ', '')}`;
@@ -24911,4 +24911,3 @@ async function _backgroundBringSync() {
 
     } catch (e) { /* silent — best effort */ }
 }
-
