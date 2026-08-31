@@ -49,6 +49,19 @@ When you partially use a product and mark it as "opened":
 
 Mark any product as vacuum-sealed to extend its estimated expiry date (typically 2–3× the normal shelf-life).
 
+### Physical Inventory Reconciliation
+
+Open **Inventory** and tap the scale icon to count one storage location at a time.
+
+- Starting a count snapshots every positive inventory row at that location, including small weight or volume remnants hidden by the normal inventory list.
+- Product cards show the catalog image, expected aggregate quantity, unit, and physical-count input. Multiple expiry/opened rows are counted as one product while their row metadata remains in the snapshot.
+- Use the existing barcode scanner or catalog search while walking the shelf. An optional checkbox reveals catalog products whose expected quantity at the selected location is zero.
+- Counts are online-only and resumable. Saving a count never changes live inventory.
+- Review leaves uncounted products unchanged. Apply rechecks for concurrent inventory changes and commits all counted differences atomically.
+- Applied differences are stored as signed inventory adjustments, not purchase/consumption transactions. Applied and cancelled sessions remain available as read-only history.
+
+If a count was wrong, run another reconciliation; applied sessions are immutable audit records.
+
 ---
 
 ## 🤖 AI Features (Google Gemini)

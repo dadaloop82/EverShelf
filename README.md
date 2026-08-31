@@ -20,7 +20,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 | | |
 |---|---|
-| **Inventory** | Scan, locations, expiry, opened packs, favourites, CSV import/export |
+| **Inventory** | Scan, locations, expiry, opened packs, favourites, physical stocktakes, CSV import/export |
 | **AI** | Gemini · OpenAI · Llama — identify, OCR expiry, recipes, chat |
 | **Shopping** | Smart list, anti-waste qty, optional [Bring!](https://www.getbring.com/) |
 | **Cooking** | Steps, TTS, timers, zero-waste tips |
@@ -34,6 +34,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**Unreleased** — Location-based physical inventory reconciliation with resumable counts, barcode reuse, atomic apply, and adjustment history
 
 **v1.7.94** — Hotfix: kiosk startup (i18n) + spesa scan resume after spend modal  **v1.7.93** — Spesa mode UX + inventory swipe Use/Discard + opened section  **v1.7.92** — i18n cleanup: all UI via translation keys (1853 × 6 langs)  
 **v1.7.91** — fix depleted crumbs (e.g. 19 g butter) stuck in Opened alerts  
