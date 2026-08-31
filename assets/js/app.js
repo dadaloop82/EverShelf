@@ -16297,7 +16297,33 @@ function _localizeSmartReason(reason) {
     if (m) {
         return t('shopping.anti_waste_shelf').replace('{days}', m[1]);
     }
-    return r;
+    return r
+        .replace(/Aperto, finisce presto/g, () => t('shopping.smart_reason_opened'))
+        .replace(/Uso frequente — scorta insufficiente per (\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_plan_insufficient', { days }))
+        .replace(/Finisce tra ~(\d+)gg \(ciclo medio (\d+)gg\)/g, (_m, days, cycle) =>
+            t('shopping.smart_reason_cycle', { days, cycle }))
+        .replace(/Scade in (\d+)gg — ricompra/g, (_m, days) =>
+            t('shopping.smart_reason_expires_rebuy', { days }))
+        .replace(/Uso frequente \(~(\d+)\/mese\)/g, (_m, n) =>
+            t('shopping.smart_reason_frequent', { n }))
+        .replace(/Quasi finito \((\d+)%\)/g, (_m, pct) =>
+            t('shopping.smart_reason_almost_finished', { pct }))
+        .replace(/Finisce tra ~(\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_runs_out', { days }))
+        .replace(/Scorta bassa \((\d+)%\)/g, (_m, pct) =>
+            t('shopping.smart_reason_low_stock', { pct }))
+        .replace(/Scade in (\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_expires', { days }))
+        .replace(/Solo ([12]) (confezion[ei]|pezz[oi]) rimast[aeio]/g, (_m, n, rawUnit) =>
+            t('shopping.smart_reason_units_left', {
+                n,
+                unit: getUnitDisplayLabel(rawUnit.startsWith('confezion') ? 'conf' : 'pz'),
+            }))
+        .replace(/Scorta minima \((\d+)(g|ml)\)/g, (_m, qty, unit) =>
+            t('shopping.smart_reason_minimum_stock', { qty, unit }))
+        .replace(/Scaduto!/g, () => t('shopping.smart_reason_expired'))
+        .replace(/Esaurito/g, () => t('shopping.smart_reason_out_of_stock'));
 }
 
 function _formatSuggestQtyParts(qty, unit) {
@@ -17278,7 +17304,7 @@ function renderSuggestions() {
             <span class="shopping-item-icon">${catIcon}</span>
             <div class="suggestion-info">
                 <div class="suggestion-name">${escapeHtml(item.name)}${item.specification ? ` <small>(${escapeHtml(item.specification)})</small>` : ''} ${priorityBadge}${aiBadge}</div>
-                <div class="suggestion-reason">${escapeHtml(item.reason)}</div>
+                <div class="suggestion-reason">${escapeHtml(_localizeSmartReason(item.reason))}</div>
             </div>
         </div>`;
     }).join('');
