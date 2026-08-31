@@ -39,11 +39,18 @@ function reconciliationLocationMeta(location) {
     return { icon: '📦', label: location };
 }
 
+function reconciliationUnitLabel(unit) {
+    const raw = String(unit || '');
+    if (typeof getUnitDisplayLabel === 'function') return getUnitDisplayLabel(raw);
+    const translated = typeof t === 'function' ? t(`units.${raw}`) : '';
+    return translated && translated !== `units.${raw}` ? translated : raw;
+}
+
 function reconciliationQuantity(value, item) {
     if (typeof formatQuantity === 'function') {
         return formatQuantity(value, item.product_unit, item.product_default_quantity, item.product_package_unit);
     }
-    return `${Number(value)} ${escapeHtml(item.product_unit || '')}`;
+    return `${Number(value)} ${escapeHtml(reconciliationUnitLabel(item.product_unit))}`;
 }
 
 function reconciliationProductImageHtml(item) {
@@ -344,13 +351,13 @@ function reconciliationItemHtml(item, editable) {
         ? reconciliationText('uncounted', 'Uncounted')
         : (Math.abs(variance) < 0.000001
             ? reconciliationText('matches', 'Matches')
-            : `${variance > 0 ? '+' : ''}${variance} ${item.product_unit}`);
+            : `${variance > 0 ? '+' : ''}${variance} ${reconciliationUnitLabel(item.product_unit)}`);
     const search = `${item.product_name} ${item.product_brand || ''}`.toLowerCase();
     const step = ['g', 'ml'].includes(item.product_unit) ? '1' : '0.01';
     const controls = editable ? `
         <div class="reconciliation-count-control">
             <input type="number" min="0" max="1000000000" step="${step}" id="reconciliation-count-${Number(item.product_id)}" value="${counted ? Number(item.counted_quantity) : ''}" placeholder="—" onkeydown="if(event.key==='Enter'){event.preventDefault();reconciliationSaveInline(${Number(item.product_id)})}">
-            <span>${escapeHtml(item.product_unit)}</span>
+            <span>${escapeHtml(reconciliationUnitLabel(item.product_unit))}</span>
             <button type="button" onclick="reconciliationSetZero(${Number(item.product_id)})">0</button>
             <button type="button" class="primary" onclick="reconciliationSaveInline(${Number(item.product_id)})">${escapeHtml(reconciliationText('save', 'Save'))}</button>
         </div>
@@ -484,7 +491,7 @@ function reconciliationOpenCount(product) {
             ${item.product_brand ? `<p>${escapeHtml(item.product_brand)}</p>` : ''}
             <div class="reconciliation-modal-expected">${escapeHtml(reconciliationText('expected', 'Expected'))}: <strong>${reconciliationQuantity(item.expected_quantity, item)}</strong></div>
             <label for="reconciliation-modal-count">${escapeHtml(reconciliationText('physical_count', 'Physical count'))}</label>
-            <div class="reconciliation-modal-input"><input id="reconciliation-modal-count" type="number" min="0" step="any" value="${item.counted_quantity ?? ''}" autofocus><span>${escapeHtml(item.product_unit)}</span></div>
+            <div class="reconciliation-modal-input"><input id="reconciliation-modal-count" type="number" min="0" step="any" value="${item.counted_quantity ?? ''}" autofocus><span>${escapeHtml(reconciliationUnitLabel(item.product_unit))}</span></div>
             <div class="reconciliation-modal-actions"><button type="button" class="btn" onclick="document.getElementById('reconciliation-modal-count').value='0'">0</button><button type="button" class="btn btn-primary" onclick="reconciliationSaveModal(${Number(item.product_id)})">${escapeHtml(reconciliationText('save', 'Save'))}</button></div>
         </div>`;
     overlay.style.display = 'flex';
