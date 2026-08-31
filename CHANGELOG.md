@@ -5,7 +5,12 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Ideas & Roadmap
+## [Unreleased]
+
+### Fixed
+- **Shopping language consistency** — AI shopping suggestions now follow the active UI language, cache results per language, localize quantity labels and purchase prompts, and translate smart-shopping reasons in **it, en, de, fr, es, zh**.
+
+### Ideas & Roadmap
 
 > Ideas collected during development. No priority or date implied.
 
