@@ -12332,7 +12332,7 @@ async function loadUseInventoryInfo() {
                 const confQty = parseFloat(i.quantity);
                 const subQty = Math.round(confQty * pkgSize);
                 const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
-                return `${loc.icon} ${loc.label}: ${confDisplay} conf (${subQty}${subLabel})`;
+                return `${loc.icon} ${loc.label}: ${confDisplay} ${getUnitDisplayLabel('conf')} (${subQty}${subLabel})`;
             }).join(' · ');
 
             // Show unit switch
@@ -12840,8 +12840,7 @@ function showLowStockBringPrompt(result, afterCallback) {
         const subTotal = Math.round(totalRemaining * defaultQty);
         remainLabel = `${subTotal}${result.product_package_unit}`;
     } else {
-        const unitLabels = { pz: 'pz', g: 'g', ml: 'ml', conf: 'conf' };
-        remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
+        remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${getUnitDisplayLabel(unit)}`;
     }
 
     // --- Deduplication check ---
@@ -15202,9 +15201,9 @@ function _formatInvQtyDisplay(qty, unit, defaultQty = 0, packageUnit = '') {
         return `${Math.round(q * def)} ${pkg}`;
     }
     if (u === 'conf' && def > 0) {
-        return `${Math.round(q * 10) / 10} conf (${Math.round(q * def)} ${pkg || 'g'})`;
+        return `${Math.round(q * 10) / 10} ${getUnitDisplayLabel('conf')} (${Math.round(q * def)} ${pkg || 'g'})`;
     }
-    return `${Math.round(q * 10) / 10} ${u}`;
+    return `${Math.round(q * 10) / 10} ${getUnitDisplayLabel(u)}`;
 }
 
 function _shoppingFamilyInventoryRows(item, smartData, invItems) {
@@ -15672,7 +15671,7 @@ function parseQtyFromSpec(spec) {
     const pzMatch = s.match(/~?(\d+)\s*(pz|pezzi|x|$)/i);
     if (pzMatch) {
         const count = parseInt(pzMatch[1]);
-        if (count > 0 && count <= 50) return { count, label: count + ' pz', type: 'units' };
+        if (count > 0 && count <= 50) return { count, label: `${count} ${getUnitDisplayLabel('pz')}`, type: 'units' };
     }
     return null;
 }
@@ -16287,7 +16286,7 @@ function _syncTagsFromBringSpec() {
  */
 /**
  * Format a suggested purchase quantity into a human-readable string.
- * - conf/pz: returned as-is ("2 conf", "3 pz")
+ * - conf/pz: use the active language's display labels
  * - g ≥ 1000 → kg ("1.5 kg")
  * - ml ≥ 1000 → l ("2 l")
  * Returns null if qty is null/zero (badge should be hidden).
@@ -16301,19 +16300,22 @@ function _localizeSmartReason(reason) {
     return r;
 }
 
-function _formatSuggestQty(qty, unit) {
+function _formatSuggestQtyParts(qty, unit) {
     if (!qty || qty <= 0) return null;
-    if (unit === 'conf') return `${qty} conf`;
-    if (unit === 'pz') return `${qty} pz`;
     if (unit === 'g' && qty >= 1000) {
         const kg = qty / 1000;
-        return `${Number.isInteger(kg) ? kg : parseFloat(kg.toFixed(1))} kg`;
+        return { qty: Number.isInteger(kg) ? kg : parseFloat(kg.toFixed(1)), unit: 'kg' };
     }
     if (unit === 'ml' && qty >= 1000) {
         const l = qty / 1000;
-        return `${Number.isInteger(l) ? l : parseFloat(l.toFixed(1))} l`;
+        return { qty: Number.isInteger(l) ? l : parseFloat(l.toFixed(1)), unit: 'l' };
     }
-    return `${qty} ${unit}`;
+    return { qty, unit: getUnitDisplayLabel(unit) };
+}
+
+function _formatSuggestQty(qty, unit) {
+    const parts = _formatSuggestQtyParts(qty, unit);
+    return parts ? `${parts.qty} ${parts.unit}` : null;
 }
 
 /**
@@ -16326,10 +16328,12 @@ function _buildSmartSpec(smartMatch) {
     if (urg) parts.push(urg);
     const eff = _effectiveSmartQty(smartMatch);
     if (eff?.suggested_qty > 0) {
-        const qtyCore = _formatSuggestQty(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
-        if (qtyCore) {
-            const prefix = (eff.suggested_approx || smartMatch.qty_shelf_capped) ? 'Almeno: ' : 'Compra: ';
-            parts.push('🛒 ' + prefix + qtyCore);
+        const qtyParts = _formatSuggestQtyParts(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
+        if (qtyParts) {
+            const key = (eff.suggested_approx || smartMatch.qty_shelf_capped)
+                ? 'shopping.suggest_buy_approx'
+                : 'shopping.suggest_buy';
+            parts.push(t(key, qtyParts));
         }
     }
     return parts.join(' · ');
@@ -18620,8 +18624,9 @@ function _recipeFormatPieceQtyLabel(n) {
     const frac = Math.round((n - whole) * 4) / 4;
     const fracMap = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
     const fracStr = fracMap[frac] || '';
-    if (whole === 0) return (fracStr || '0') + ' pz';
-    return whole + fracStr + ' pz';
+    const unitLabel = getUnitDisplayLabel('pz');
+    if (whole === 0) return `${fracStr || '0'} ${unitLabel}`;
+    return `${whole}${fracStr} ${unitLabel}`;
 }
 
 /** Piece inventory only — never derive count from default_quantity / grams. */
