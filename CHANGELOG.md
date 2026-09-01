@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **UI language consistency** — Shopping suggestions, product hints, anomaly explanations, quantity labels, purchase prompts, smart-shopping reasons, and the add-product workflow now follow the active language in **it, en, de, fr, es, zh**.
+- **UI language consistency** — Shopping and product AI, quantity labels, purchase prompts, smart-shopping reasons, the add-product workflow, startup diagnostics, and TTS/settings feedback now follow the active language in **it, en, de, fr, es, zh**.
 
 ### Ideas & Roadmap
 

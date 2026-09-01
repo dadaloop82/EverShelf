@@ -2241,7 +2241,7 @@ function ttsProxy() {
     if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
         EverLog::warn('ttsProxy: invalid URL (400)');
         http_response_code(400);
-        echo json_encode(['error' => 'URL non valido']);
+        echo json_encode(['error' => 'invalid_url']);
         return;
     }
 
@@ -10792,7 +10792,6 @@ PROMPT;
                 'source' => 'Open-Meteo',
             ];
         }
-        $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
         $send('recipe', ['recipe' => $recipe]);
         return;
     }
@@ -10888,11 +10887,10 @@ PROMPT;
         if ($httpCode === 0) {
             // cURL-level failure: timeout, DNS, network down
             $curlLabel = $curlErrMsg ?: "cURL errno {$curlErrno}";
-            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => 0, 'detail' => "Nessuna risposta da Gemini ({$curlLabel}) — verifica la connessione del server o riprova tra qualche istante."]);
+            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => 0, 'detail' => $curlLabel]);
         } else {
             $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-            $statusLabels = [429 => 'Quota API esaurita (429)', 503 => 'Servizio Gemini non disponibile (503)', 401 => 'API key non valida (401)', 403 => 'API key non autorizzata (403)', 500 => 'Errore interno Gemini (500)'];
-            $statusLabel  = $statusLabels[$httpCode] ?? "HTTP {$httpCode}";
+            $statusLabel  = "HTTP {$httpCode}";
             $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => "{$statusLabel}" . ($errDetail ? ": {$errDetail}" : '')]);
         }
         return;
@@ -10920,13 +10918,12 @@ PROMPT;
         ];
     }
 
-    $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
     $send('recipe', ['recipe' => $recipe]);
 
     } catch (\Throwable $e) {
         EverLog::error('generateRecipeStream fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         $send('error', [
-            'error'  => 'Errore interno del server',
+            'error'  => recipeText($lang, 'error_cannot_generate'),
             'detail' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
         ]);
     }

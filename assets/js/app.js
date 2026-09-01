@@ -4884,7 +4884,7 @@ async function saveSettings() {
         } else {
             statusEl.className = 'settings-status error';
             const errMsg = result.error === 'unauthorized'
-                ? '🔒 Token non valido o mancante'
+                ? `🔒 ${t('settings.token_invalid')}`
                 : `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
             statusEl.textContent = errMsg;
         }
@@ -20756,14 +20756,14 @@ async function testTTS() {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {
-                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${t('settings.tts.not_initialized')}`; }
                 return;
             }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
             saveSettingsToStorage(s);
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio al motore TTS Android...'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('settings.tts.test_sending'); }
             // Register callbacks: Android will call these after speak completes/fails
             let _ttsTestTimer = null;
             window._kioskTtsDone = (uid) => {
@@ -20774,7 +20774,10 @@ async function testTTS() {
             window._kioskTtsError = (uid, code) => {
                 clearTimeout(_ttsTestTimer);
                 window._kioskTtsDone = null; window._kioskTtsError = null;
-                const msg = code == -1 ? 'sintesi non riuscita' : code == -2 ? 'lingua non supportata' : code == -3 ? 'servizio non disponibile' : ('codice ' + code);
+                const msg = code == -1 ? t('settings.tts.error_synthesis')
+                    : code == -2 ? t('settings.tts.error_language')
+                    : code == -3 ? t('settings.tts.error_service')
+                    : t('settings.tts.error_code', { code });
                 if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.android_error', { msg }); }
             };
             // Timeout: if Android doesn't callback within 10s, ask user if they heard the voice
@@ -20799,11 +20802,11 @@ async function testTTS() {
                     if (statusEl) { statusEl.className = 'settings-status error'; statusEl.innerHTML = '❌ ' + t('settings.tts.test_fail_steps'); }
                 };
             }, 10000);
-            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+            _speakBrowser(t('settings.tts.test_phrase'));
             return;
         }
         if (!window.speechSynthesis) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${t('settings.tts.web_speech_unsupported')}`; }
             return;
         }
         // ── Audio beep test (AudioContext — works even if TTS is broken) ─────
@@ -24370,6 +24373,34 @@ function _heartbeatRetry() {
 }
 
 // ── Startup / Splash health check ────────────────────────────────────────────
+function _localizeStartupDiagnostic(key, check) {
+    const c = { ...check };
+    let m;
+    if (key === 'data_backups') {
+        if ((m = String(c.value || '').match(/^(\d+) backup, ultimo (recente|vecchio)$/))) {
+            c.value = t(m[2] === 'recente' ? 'startup.backups_recent' : 'startup.backups_old', { n: m[1] });
+        }
+        const hints = {
+            'Nessun backup trovato — cron configurato?': 'startup.backups_none',
+            'Ultimo backup datato — cron in esecuzione?': 'startup.backups_stale',
+            'Cartella backup mancante': 'startup.backups_dir_missing',
+        };
+        if (hints[c.hint]) c.hint = t(hints[c.hint]);
+    } else if (key === 'disk_space' && (m = String(c.value || '').match(/^(\d+) MB liberi$/))) {
+        c.value = t('startup.disk_free_mb', { n: m[1] });
+    } else if (key === 'db_row_count' && (m = String(c.value || '').match(/^(\d+) prodotti in inventario$/))) {
+        c.value = t('startup.inventory_rows', { n: m[1] });
+    } else if (key === 'db_integrity' && String(c.hint || '').startsWith('Database corrotto: ')) {
+        c.hint = t('startup.db_corrupt', { error: c.hint.slice('Database corrotto: '.length).split(' — ')[0] });
+    } else if (key === 'env_file' && c.hint === 'File .env mancante — copia .env.example in .env e configura i valori') {
+        c.hint = t('startup.env_missing');
+    } else if (key === 'curl_ssl') {
+        if (c.hint === 'cURL senza supporto SSL — le chiamate HTTPS potrebbero fallire') c.hint = t('startup.curl_ssl_missing');
+        if (c.hint === 'cURL non disponibile') c.hint = t('startup.curl_missing');
+    }
+    return c;
+}
+
 /**
  * Run a comprehensive server-side diagnostic during the splash screen.
  * Shows a real-time progress bar + current check label.
@@ -24519,8 +24550,9 @@ async function _runStartupCheck() {
 
     // Phase 2: step through each check with animated label
     for (const def of CHECKS) {
-        const c = checks[def.key];
+        const c = checks[def.key] === undefined ? undefined : _localizeStartupDiagnostic(def.key, checks[def.key]);
         if (c === undefined) continue; // not returned by server (feature not enabled)
+        checks[def.key] = c;
 
         done++;
         const pct    = 15 + Math.round((done / total) * 83); // 15→98%
@@ -24533,7 +24565,7 @@ async function _runStartupCheck() {
         if (c.value)            lbl += ` (${c.value})`;
         if (isFresh)            lbl += ` — ${tl('fresh_install', 'fresh install')}`;
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
-        if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
+        if (!isOk && c.missing?.length) lbl += ` — ${tl('missing', 'missing')}: ${c.missing.join(', ')}`;
 
         setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
