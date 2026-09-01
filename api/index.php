@@ -2241,7 +2241,7 @@ function ttsProxy() {
     if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
         EverLog::warn('ttsProxy: invalid URL (400)');
         http_response_code(400);
-        echo json_encode(['error' => 'URL non valido']);
+        echo json_encode(['error' => 'invalid_url']);
         return;
     }
 
@@ -10792,7 +10792,6 @@ PROMPT;
                 'source' => 'Open-Meteo',
             ];
         }
-        $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
         $send('recipe', ['recipe' => $recipe]);
         return;
     }
@@ -10888,11 +10887,10 @@ PROMPT;
         if ($httpCode === 0) {
             // cURL-level failure: timeout, DNS, network down
             $curlLabel = $curlErrMsg ?: "cURL errno {$curlErrno}";
-            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => 0, 'detail' => "Nessuna risposta da Gemini ({$curlLabel}) — verifica la connessione del server o riprova tra qualche istante."]);
+            $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => 0, 'detail' => $curlLabel]);
         } else {
             $errDetail = $result['data']['error']['message'] ?? substr($result['body'], 0, 300);
-            $statusLabels = [429 => 'Quota API esaurita (429)', 503 => 'Servizio Gemini non disponibile (503)', 401 => 'API key non valida (401)', 403 => 'API key non autorizzata (403)', 500 => 'Errore interno Gemini (500)'];
-            $statusLabel  = $statusLabels[$httpCode] ?? "HTTP {$httpCode}";
+            $statusLabel  = "HTTP {$httpCode}";
             $send('error', ['error' => recipeText($lang, 'error_gemini_api'), 'http_code' => $httpCode, 'detail' => "{$statusLabel}" . ($errDetail ? ": {$errDetail}" : '')]);
         }
         return;
@@ -10920,13 +10918,12 @@ PROMPT;
         ];
     }
 
-    $send('status', ['step' => 4, 'message' => '✅ Ricetta pronta!']);
     $send('recipe', ['recipe' => $recipe]);
 
     } catch (\Throwable $e) {
         EverLog::error('generateRecipeStream fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         $send('error', [
-            'error'  => 'Errore interno del server',
+            'error'  => recipeText($lang, 'error_cannot_generate'),
             'detail' => $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')',
         ]);
     }
@@ -16010,6 +16007,16 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 function bringSuggestItems(PDO $db): void {
     EverLog::info('bringSuggestItems');
     $apiKey = aiCredential();
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $lang = recipeNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
+    $fallbackReasons = [
+        'it' => ['low_stock' => 'Scorte basse', 'seasonal' => 'Stagionale'],
+        'en' => ['low_stock' => 'Low stock', 'seasonal' => 'Seasonal'],
+        'de' => ['low_stock' => 'Niedriger Bestand', 'seasonal' => 'Saisonal'],
+        'fr' => ['low_stock' => 'Stock faible', 'seasonal' => 'Saisonnier'],
+        'es' => ['low_stock' => 'Existencias bajas', 'seasonal' => 'De temporada'],
+        'zh' => ['low_stock' => '库存不足', 'seasonal' => '时令'],
+    ][$lang];
 
     // 1. Load smart shopping data from cache or compute fresh
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
@@ -16047,7 +16054,7 @@ function bringSuggestItems(PDO $db): void {
 
         $priority = ($urgency === 'critical' || $urgency === 'high') ? 'alta' : 'media';
         $reasons  = $item['reasons'] ?? [];
-        $reason   = !empty($reasons) ? implode(', ', $reasons) : 'Scorte basse';
+        $reason   = !empty($reasons) ? implode(', ', $reasons) : $fallbackReasons['low_stock'];
 
         $suggestions[]  = [
             'name'          => $item['name'],
@@ -16063,7 +16070,6 @@ function bringSuggestItems(PDO $db): void {
     }
 
     // 4. Seasonal tip (fallback static, overridden by Gemini below)
-    $lang = env('APP_LANG', 'en');
     $monthTipsAll = [
         'it' => [
             1  => 'Gennaio: arance, mandarini, kiwi, carciofi e verze sono di stagione.',
@@ -16150,16 +16156,17 @@ function bringSuggestItems(PDO $db): void {
             12 => '十二月：橙子、柑橘、柿子、卷心菜和花椰菜。',
         ],
     ];
-    $tipLang = in_array($lang, ['it', 'en', 'de', 'fr', 'es', 'zh'], true) ? $lang : 'en';
+    $tipLang = $lang;
     $monthTips = $monthTipsAll[$tipLang];
     $seasonalTip = $monthTips[(int)date('n')] ?? '';
 
     // 5. Try to enrich with Gemini: generate ADDITIONAL seasonal / complementary suggestions
     if (!empty($apiKey)) {
-        // Cache key: month + list of known names (so it refreshes each month)
+        // Cache key: language + month + list of known names.
+        // The v2 prefix prevents reuse of older language-agnostic Italian results.
         $gemCacheFile = __DIR__ . '/../data/food_facts_cache.json';
         $gemCache     = file_exists($gemCacheFile) ? (json_decode(file_get_contents($gemCacheFile), true) ?: []) : [];
-        $gemCacheKey  = 'suggest_ai_' . date('Y-m') . '_' . md5(implode('|', $knownNames));
+        $gemCacheKey  = 'suggest_ai_v2_' . $tipLang . '_' . date('Y-m') . '_' . md5(implode('|', $knownNames));
 
         // Cache valid for 6 hours
         $cached = $gemCache[$gemCacheKey] ?? null;
@@ -16197,12 +16204,12 @@ function bringSuggestItems(PDO $db): void {
                 . "  b) Complementary staples that pair well with what the user has\n"
                 . "  c) Anything commonly forgotten but regularly needed\n"
                 . "Do NOT suggest products already in stock or already in the shopping list.\n"
-                . "Also write one short seasonal tip (max 15 words) in Italian.\n"
+                . "Also write one short seasonal tip (max 15 words) in {$langAdj}.\n"
                 . "\nReply ONLY with valid JSON in this exact format (no markdown):\n"
                 . "{\"seasonal_tip\":\"...\",\"suggestions\":[{\"name\":\"...\",\"reason\":\"...\",\"category\":\"...\",\"priority\":\"bassa\"}]}\n"
                 . "Category must be one of: frutta,verdura,latticini,carne,pesce,pane,cereali,condimenti,bevande,surgelati,altro\n"
                 . "Priority must be: bassa\n"
-                . "Name and reason must be in Italian. Reason max 8 words.";
+                . "Name and reason must be in {$langAdj}. Reason max 8 words.";
 
             $payload   = ['contents' => [['parts' => [['text' => $prompt]]]]];
             $gemResult = callGeminiWithFallback($apiKey, $payload, 20, 'bring_suggest');
@@ -16243,7 +16250,7 @@ function bringSuggestItems(PDO $db): void {
                 $suggestions[] = [
                     'name'          => ucfirst(trim($ai['name'])),
                     'specification' => '',
-                    'reason'        => trim($ai['reason'] ?? 'Stagionale'),
+                    'reason'        => trim($ai['reason'] ?? $fallbackReasons['seasonal']),
                     'category'      => $ai['category'] ?? 'altro',
                     'priority'      => 'bassa',
                     'source'        => 'ai',
@@ -17493,7 +17500,7 @@ function geminiProductHint(): void {
     $input    = json_decode(file_get_contents('php://input'), true) ?? [];
     $name     = trim($input['name']    ?? '');
     $category = trim($input['category'] ?? '');
-    $lang     = trim($input['lang']    ?? 'en');
+    $lang     = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
@@ -17512,7 +17519,7 @@ function geminiProductHint(): void {
         return;
     }
 
-    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $langLabel = recipeLangName($lang);
     $prompt = "You are a food safety expert. For the food product named \"{$name}\" (category: {$category}), "
         . "answer in {$langLabel} with a strict JSON object and NOTHING else:\n"
         . "{\n"
@@ -17584,7 +17591,7 @@ function geminiShoppingEnrich(PDO $db): void {
 
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $items = $input['items'] ?? [];
-    $lang  = trim($input['lang'] ?? 'en');
+    $lang  = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($items)) {
         echo json_encode(['success' => true, 'items' => []]);
@@ -17605,7 +17612,7 @@ function geminiShoppingEnrich(PDO $db): void {
         return;
     }
 
-    $langLabel  = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $langLabel  = recipeLangName($lang);
     $itemsJson  = json_encode(array_map(fn($i) => [
         'name'     => $i['name'],
         'reason'   => $i['reason'] ?? '',
@@ -17817,14 +17824,14 @@ function geminiAnomalyExplain(): void {
     $diff      = $input['diff']              ?? 0;
     $direction = $input['direction']         ?? 'missing';
     $unit      = $input['unit']              ?? 'pz';
-    $lang      = trim($input['lang']         ?? 'en');
+    $lang      = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
         return;
     }
 
-    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $langLabel = recipeLangName($lang);
 
     $directionDesc = match($direction) {
         'phantom'   => "The inventory shows {$invQty} {$unit} but transaction history predicts only {$expQty} {$unit} (excess of " . abs($diff) . " {$unit}).",
@@ -18609,4 +18616,3 @@ function _formatPrice(float $amount, string $currency): string {
     };
     return $sym . number_format($amount, 2, '.', '');
 }
-

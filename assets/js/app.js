@@ -4884,7 +4884,7 @@ async function saveSettings() {
         } else {
             statusEl.className = 'settings-status error';
             const errMsg = result.error === 'unauthorized'
-                ? '🔒 Token non valido o mancante'
+                ? `🔒 ${t('settings.token_invalid')}`
                 : `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
             statusEl.textContent = errMsg;
         }
@@ -11417,7 +11417,7 @@ function showAddForm() {
         <div id="multi-batch-section" style="display:${unit === 'conf' ? 'block' : 'none'}">
             <div id="multi-batch-container"></div>
             <button type="button" class="btn btn-outline btn-small full-width" style="margin-top:8px" onclick="addExpiryBatch()">
-                📦 + Lotto con scadenza diversa
+                ${t('product.add_batch')}
             </button>
         </div>
     `;
@@ -11810,11 +11810,11 @@ function _rebuildMultiBatchUI() {
                 <input type="number" class="qty-input" value="${b.qty}" min="1" step="1" style="width:60px"
                     onchange="window._addExtraBatches[${i}].qty = parseInt(this.value)||1">
                 <button type="button" class="qty-btn" onclick="adjustBatchQty(${i}, 1)">+</button>
-                <span class="multi-batch-unit">conf</span>
+                <span class="multi-batch-unit">${getUnitDisplayLabel('conf')}</span>
             </div>
             <input type="date" class="form-input multi-batch-date" value="${b.expiry}"
                 onchange="window._addExtraBatches[${i}].expiry = this.value">
-            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="Rimuovi">✕</button>
+            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="${t('shopping.remove_title')}">✕</button>
         </div>
     `).join('');
 }
@@ -11963,9 +11963,14 @@ async function submitAdd(e) {
                 const uLabel = unitLabels[u] || u;
                 if (u === 'conf' && result.package_unit && result.default_quantity > 0) {
                     const pkgLabel = unitLabels[result.package_unit] || result.package_unit;
-                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel} da ${result.default_quantity}${pkgLabel})`;
+                    qtyInfo = t('add.total_qty_package', {
+                        total: result.total_qty,
+                        unit: uLabel,
+                        size: result.default_quantity,
+                        size_unit: pkgLabel,
+                    });
                 } else {
-                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel})`;
+                    qtyInfo = t('add.total_qty', { total: result.total_qty, unit: uLabel });
                 }
             }
             const mergedNote = result.catalog_merged ? ` — ${t('scan.ai_match_merged_existing')}` : '';
@@ -12332,7 +12337,7 @@ async function loadUseInventoryInfo() {
                 const confQty = parseFloat(i.quantity);
                 const subQty = Math.round(confQty * pkgSize);
                 const confDisplay = confQty === Math.floor(confQty) ? Math.floor(confQty) : confQty.toFixed(1);
-                return `${loc.icon} ${loc.label}: ${confDisplay} conf (${subQty}${subLabel})`;
+                return `${loc.icon} ${loc.label}: ${confDisplay} ${getUnitDisplayLabel('conf')} (${subQty}${subLabel})`;
             }).join(' · ');
 
             // Show unit switch
@@ -12840,8 +12845,7 @@ function showLowStockBringPrompt(result, afterCallback) {
         const subTotal = Math.round(totalRemaining * defaultQty);
         remainLabel = `${subTotal}${result.product_package_unit}`;
     } else {
-        const unitLabels = { pz: 'pz', g: 'g', ml: 'ml', conf: 'conf' };
-        remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${unitLabels[unit] || unit}`;
+        remainLabel = `${Number.isInteger(totalRemaining) ? totalRemaining : totalRemaining.toFixed(1)} ${getUnitDisplayLabel(unit)}`;
     }
 
     // --- Deduplication check ---
@@ -15202,9 +15206,9 @@ function _formatInvQtyDisplay(qty, unit, defaultQty = 0, packageUnit = '') {
         return `${Math.round(q * def)} ${pkg}`;
     }
     if (u === 'conf' && def > 0) {
-        return `${Math.round(q * 10) / 10} conf (${Math.round(q * def)} ${pkg || 'g'})`;
+        return `${Math.round(q * 10) / 10} ${getUnitDisplayLabel('conf')} (${Math.round(q * def)} ${pkg || 'g'})`;
     }
-    return `${Math.round(q * 10) / 10} ${u}`;
+    return `${Math.round(q * 10) / 10} ${getUnitDisplayLabel(u)}`;
 }
 
 function _shoppingFamilyInventoryRows(item, smartData, invItems) {
@@ -15672,7 +15676,7 @@ function parseQtyFromSpec(spec) {
     const pzMatch = s.match(/~?(\d+)\s*(pz|pezzi|x|$)/i);
     if (pzMatch) {
         const count = parseInt(pzMatch[1]);
-        if (count > 0 && count <= 50) return { count, label: count + ' pz', type: 'units' };
+        if (count > 0 && count <= 50) return { count, label: `${count} ${getUnitDisplayLabel('pz')}`, type: 'units' };
     }
     return null;
 }
@@ -16287,7 +16291,7 @@ function _syncTagsFromBringSpec() {
  */
 /**
  * Format a suggested purchase quantity into a human-readable string.
- * - conf/pz: returned as-is ("2 conf", "3 pz")
+ * - conf/pz: use the active language's display labels
  * - g ≥ 1000 → kg ("1.5 kg")
  * - ml ≥ 1000 → l ("2 l")
  * Returns null if qty is null/zero (badge should be hidden).
@@ -16298,22 +16302,51 @@ function _localizeSmartReason(reason) {
     if (m) {
         return t('shopping.anti_waste_shelf').replace('{days}', m[1]);
     }
-    return r;
+    return r
+        .replace(/Aperto, finisce presto/g, () => t('shopping.smart_reason_opened'))
+        .replace(/Uso frequente — scorta insufficiente per (\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_plan_insufficient', { days }))
+        .replace(/Finisce tra ~(\d+)gg \(ciclo medio (\d+)gg\)/g, (_m, days, cycle) =>
+            t('shopping.smart_reason_cycle', { days, cycle }))
+        .replace(/Scade in (\d+)gg — ricompra/g, (_m, days) =>
+            t('shopping.smart_reason_expires_rebuy', { days }))
+        .replace(/Uso frequente \(~(\d+)\/mese\)/g, (_m, n) =>
+            t('shopping.smart_reason_frequent', { n }))
+        .replace(/Quasi finito \((\d+)%\)/g, (_m, pct) =>
+            t('shopping.smart_reason_almost_finished', { pct }))
+        .replace(/Finisce tra ~(\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_runs_out', { days }))
+        .replace(/Scorta bassa \((\d+)%\)/g, (_m, pct) =>
+            t('shopping.smart_reason_low_stock', { pct }))
+        .replace(/Scade in (\d+)gg/g, (_m, days) =>
+            t('shopping.smart_reason_expires', { days }))
+        .replace(/Solo ([12]) (confezion[ei]|pezz[oi]) rimast[aeio]/g, (_m, n, rawUnit) =>
+            t('shopping.smart_reason_units_left', {
+                n,
+                unit: getUnitDisplayLabel(rawUnit.startsWith('confezion') ? 'conf' : 'pz'),
+            }))
+        .replace(/Scorta minima \((\d+)(g|ml)\)/g, (_m, qty, unit) =>
+            t('shopping.smart_reason_minimum_stock', { qty, unit }))
+        .replace(/Scaduto!/g, () => t('shopping.smart_reason_expired'))
+        .replace(/Esaurito/g, () => t('shopping.smart_reason_out_of_stock'));
 }
 
-function _formatSuggestQty(qty, unit) {
+function _formatSuggestQtyParts(qty, unit) {
     if (!qty || qty <= 0) return null;
-    if (unit === 'conf') return `${qty} conf`;
-    if (unit === 'pz') return `${qty} pz`;
     if (unit === 'g' && qty >= 1000) {
         const kg = qty / 1000;
-        return `${Number.isInteger(kg) ? kg : parseFloat(kg.toFixed(1))} kg`;
+        return { qty: Number.isInteger(kg) ? kg : parseFloat(kg.toFixed(1)), unit: 'kg' };
     }
     if (unit === 'ml' && qty >= 1000) {
         const l = qty / 1000;
-        return `${Number.isInteger(l) ? l : parseFloat(l.toFixed(1))} l`;
+        return { qty: Number.isInteger(l) ? l : parseFloat(l.toFixed(1)), unit: 'l' };
     }
-    return `${qty} ${unit}`;
+    return { qty, unit: getUnitDisplayLabel(unit) };
+}
+
+function _formatSuggestQty(qty, unit) {
+    const parts = _formatSuggestQtyParts(qty, unit);
+    return parts ? `${parts.qty} ${parts.unit}` : null;
 }
 
 /**
@@ -16326,10 +16359,12 @@ function _buildSmartSpec(smartMatch) {
     if (urg) parts.push(urg);
     const eff = _effectiveSmartQty(smartMatch);
     if (eff?.suggested_qty > 0) {
-        const qtyCore = _formatSuggestQty(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
-        if (qtyCore) {
-            const prefix = (eff.suggested_approx || smartMatch.qty_shelf_capped) ? 'Almeno: ' : 'Compra: ';
-            parts.push('🛒 ' + prefix + qtyCore);
+        const qtyParts = _formatSuggestQtyParts(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
+        if (qtyParts) {
+            const key = (eff.suggested_approx || smartMatch.qty_shelf_capped)
+                ? 'shopping.suggest_buy_approx'
+                : 'shopping.suggest_buy';
+            parts.push(t(key, qtyParts));
         }
     }
     return parts.join(' · ');
@@ -16510,6 +16545,7 @@ function _specDisplayText(spec) {
     // Legacy: qty pushed to Bring before v1.7.51
     s = s.replace(/🛒\s*(Compra|Almeno|Buy|At least):\s*[^·]+/gi, '')
          .replace(/^\s*[·\-]\s*|\s*[·\-]\s*$/g, '').trim();
+    s = s.replace(/🛒\s*(Esaurito|Finished)/gi, `🛒 ${t('shopping.out_of_stock')}`);
     return s;
 }
 
@@ -17201,7 +17237,7 @@ async function generateSuggestions() {
     suggestionsEl.style.display = 'none';
     
     try {
-        const data = await api('shopping_suggest', {}, 'POST', {});
+        const data = await api('shopping_suggest', {}, 'POST', { lang: _currentLang });
         
         btn.disabled = false;
         btn.innerHTML = `🤖 ${t('shopping.suggest_btn').replace('🤖 ', '')}`;
@@ -17274,7 +17310,7 @@ function renderSuggestions() {
             <span class="shopping-item-icon">${catIcon}</span>
             <div class="suggestion-info">
                 <div class="suggestion-name">${escapeHtml(item.name)}${item.specification ? ` <small>(${escapeHtml(item.specification)})</small>` : ''} ${priorityBadge}${aiBadge}</div>
-                <div class="suggestion-reason">${escapeHtml(item.reason)}</div>
+                <div class="suggestion-reason">${escapeHtml(_localizeSmartReason(item.reason))}</div>
             </div>
         </div>`;
     }).join('');
@@ -18620,8 +18656,9 @@ function _recipeFormatPieceQtyLabel(n) {
     const frac = Math.round((n - whole) * 4) / 4;
     const fracMap = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
     const fracStr = fracMap[frac] || '';
-    if (whole === 0) return (fracStr || '0') + ' pz';
-    return whole + fracStr + ' pz';
+    const unitLabel = getUnitDisplayLabel('pz');
+    if (whole === 0) return `${fracStr || '0'} ${unitLabel}`;
+    return `${whole}${fracStr} ${unitLabel}`;
 }
 
 /** Piece inventory only — never derive count from default_quantity / grams. */
@@ -20719,14 +20756,14 @@ async function testTTS() {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {
-                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${t('settings.tts.not_initialized')}`; }
                 return;
             }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
             saveSettingsToStorage(s);
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio al motore TTS Android...'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('settings.tts.test_sending'); }
             // Register callbacks: Android will call these after speak completes/fails
             let _ttsTestTimer = null;
             window._kioskTtsDone = (uid) => {
@@ -20737,7 +20774,10 @@ async function testTTS() {
             window._kioskTtsError = (uid, code) => {
                 clearTimeout(_ttsTestTimer);
                 window._kioskTtsDone = null; window._kioskTtsError = null;
-                const msg = code == -1 ? 'sintesi non riuscita' : code == -2 ? 'lingua non supportata' : code == -3 ? 'servizio non disponibile' : ('codice ' + code);
+                const msg = code == -1 ? t('settings.tts.error_synthesis')
+                    : code == -2 ? t('settings.tts.error_language')
+                    : code == -3 ? t('settings.tts.error_service')
+                    : t('settings.tts.error_code', { code });
                 if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.android_error', { msg }); }
             };
             // Timeout: if Android doesn't callback within 10s, ask user if they heard the voice
@@ -20762,11 +20802,11 @@ async function testTTS() {
                     if (statusEl) { statusEl.className = 'settings-status error'; statusEl.innerHTML = '❌ ' + t('settings.tts.test_fail_steps'); }
                 };
             }, 10000);
-            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+            _speakBrowser(t('settings.tts.test_phrase'));
             return;
         }
         if (!window.speechSynthesis) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = `❌ ${t('settings.tts.web_speech_unsupported')}`; }
             return;
         }
         // ── Audio beep test (AudioContext — works even if TTS is broken) ─────
@@ -24333,6 +24373,34 @@ function _heartbeatRetry() {
 }
 
 // ── Startup / Splash health check ────────────────────────────────────────────
+function _localizeStartupDiagnostic(key, check) {
+    const c = { ...check };
+    let m;
+    if (key === 'data_backups') {
+        if ((m = String(c.value || '').match(/^(\d+) backup, ultimo (recente|vecchio)$/))) {
+            c.value = t(m[2] === 'recente' ? 'startup.backups_recent' : 'startup.backups_old', { n: m[1] });
+        }
+        const hints = {
+            'Nessun backup trovato — cron configurato?': 'startup.backups_none',
+            'Ultimo backup datato — cron in esecuzione?': 'startup.backups_stale',
+            'Cartella backup mancante': 'startup.backups_dir_missing',
+        };
+        if (hints[c.hint]) c.hint = t(hints[c.hint]);
+    } else if (key === 'disk_space' && (m = String(c.value || '').match(/^(\d+) MB liberi$/))) {
+        c.value = t('startup.disk_free_mb', { n: m[1] });
+    } else if (key === 'db_row_count' && (m = String(c.value || '').match(/^(\d+) prodotti in inventario$/))) {
+        c.value = t('startup.inventory_rows', { n: m[1] });
+    } else if (key === 'db_integrity' && String(c.hint || '').startsWith('Database corrotto: ')) {
+        c.hint = t('startup.db_corrupt', { error: c.hint.slice('Database corrotto: '.length).split(' — ')[0] });
+    } else if (key === 'env_file' && c.hint === 'File .env mancante — copia .env.example in .env e configura i valori') {
+        c.hint = t('startup.env_missing');
+    } else if (key === 'curl_ssl') {
+        if (c.hint === 'cURL senza supporto SSL — le chiamate HTTPS potrebbero fallire') c.hint = t('startup.curl_ssl_missing');
+        if (c.hint === 'cURL non disponibile') c.hint = t('startup.curl_missing');
+    }
+    return c;
+}
+
 /**
  * Run a comprehensive server-side diagnostic during the splash screen.
  * Shows a real-time progress bar + current check label.
@@ -24482,8 +24550,9 @@ async function _runStartupCheck() {
 
     // Phase 2: step through each check with animated label
     for (const def of CHECKS) {
-        const c = checks[def.key];
+        const c = checks[def.key] === undefined ? undefined : _localizeStartupDiagnostic(def.key, checks[def.key]);
         if (c === undefined) continue; // not returned by server (feature not enabled)
+        checks[def.key] = c;
 
         done++;
         const pct    = 15 + Math.round((done / total) * 83); // 15→98%
@@ -24496,7 +24565,7 @@ async function _runStartupCheck() {
         if (c.value)            lbl += ` (${c.value})`;
         if (isFresh)            lbl += ` — ${tl('fresh_install', 'fresh install')}`;
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
-        if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
+        if (!isOk && c.missing?.length) lbl += ` — ${tl('missing', 'missing')}: ${c.missing.join(', ')}`;
 
         setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
@@ -24911,4 +24980,3 @@ async function _backgroundBringSync() {
 
     } catch (e) { /* silent — best effort */ }
 }
-
