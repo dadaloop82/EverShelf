@@ -377,6 +377,9 @@ function reconciliationApplyDecrease(PDO $db, array $session, array $item, float
         reconciliationInsertAdjustment(
             $db, $session, $item, (int)$row['id'], $sequence++, -$taken, $before, $after
         );
+        if ($after <= 0.000001) {
+            $db->prepare('DELETE FROM inventory WHERE id = ?')->execute([(int)$row['id']]);
+        }
         $remaining = reconciliationRound($remaining - $taken);
     }
     if ($remaining > 0.000001) {

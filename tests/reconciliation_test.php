@@ -99,6 +99,14 @@ testAssert($zeroCount['items'][0]['counted_quantity'] === 0.0, 'explicit zero re
 reconciliationReviewCore($db, $zeroId);
 reconciliationApplyCore($db, $zeroId);
 testSame(0, testQuantity($db, $milkId, 'zero_bin'), 'explicit zero depletes the recorded stock');
+testAssert(
+    (int)$db->query("SELECT COUNT(*) FROM inventory WHERE product_id = $milkId AND location = 'zero_bin'")->fetchColumn() === 0,
+    'explicit zero removes the depleted inventory row'
+);
+testAssert(
+    (int)$db->query("SELECT COUNT(*) FROM products WHERE id = $milkId")->fetchColumn() === 1,
+    'explicit zero preserves the catalog product'
+);
 
 // Positive remnants remain countable even when the normal inventory UI hides them.
 $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, 'remnant_shelf', 10)")
