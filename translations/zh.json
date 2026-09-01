@@ -327,6 +327,8 @@
         "quantity_label": "📦 数量",
         "conf_size_label": "📦 每包包含：",
         "conf_size_placeholder": "例如 300",
+        "total_qty": "（总计：{total} {unit}）",
+        "total_qty_package": "（总计：{total} {unit}，每包 {size}{size_unit}）",
         "vacuum_label": "🫙 真空密封",
         "vacuum_hint": "系统会自动延长预计保质期",
         "submit": "✅ 添加",

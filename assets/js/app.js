@@ -11417,7 +11417,7 @@ function showAddForm() {
         <div id="multi-batch-section" style="display:${unit === 'conf' ? 'block' : 'none'}">
             <div id="multi-batch-container"></div>
             <button type="button" class="btn btn-outline btn-small full-width" style="margin-top:8px" onclick="addExpiryBatch()">
-                📦 + Lotto con scadenza diversa
+                ${t('product.add_batch')}
             </button>
         </div>
     `;
@@ -11810,11 +11810,11 @@ function _rebuildMultiBatchUI() {
                 <input type="number" class="qty-input" value="${b.qty}" min="1" step="1" style="width:60px"
                     onchange="window._addExtraBatches[${i}].qty = parseInt(this.value)||1">
                 <button type="button" class="qty-btn" onclick="adjustBatchQty(${i}, 1)">+</button>
-                <span class="multi-batch-unit">conf</span>
+                <span class="multi-batch-unit">${getUnitDisplayLabel('conf')}</span>
             </div>
             <input type="date" class="form-input multi-batch-date" value="${b.expiry}"
                 onchange="window._addExtraBatches[${i}].expiry = this.value">
-            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="Rimuovi">✕</button>
+            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="${t('shopping.remove_title')}">✕</button>
         </div>
     `).join('');
 }
@@ -11963,9 +11963,14 @@ async function submitAdd(e) {
                 const uLabel = unitLabels[u] || u;
                 if (u === 'conf' && result.package_unit && result.default_quantity > 0) {
                     const pkgLabel = unitLabels[result.package_unit] || result.package_unit;
-                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel} da ${result.default_quantity}${pkgLabel})`;
+                    qtyInfo = t('add.total_qty_package', {
+                        total: result.total_qty,
+                        unit: uLabel,
+                        size: result.default_quantity,
+                        size_unit: pkgLabel,
+                    });
                 } else {
-                    qtyInfo = ` (totale: ${result.total_qty} ${uLabel})`;
+                    qtyInfo = t('add.total_qty', { total: result.total_qty, unit: uLabel });
                 }
             }
             const mergedNote = result.catalog_merged ? ` — ${t('scan.ai_match_merged_existing')}` : '';
@@ -16540,6 +16545,7 @@ function _specDisplayText(spec) {
     // Legacy: qty pushed to Bring before v1.7.51
     s = s.replace(/🛒\s*(Compra|Almeno|Buy|At least):\s*[^·]+/gi, '')
          .replace(/^\s*[·\-]\s*|\s*[·\-]\s*$/g, '').trim();
+    s = s.replace(/🛒\s*(Esaurito|Finished)/gi, `🛒 ${t('shopping.out_of_stock')}`);
     return s;
 }
 

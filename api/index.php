@@ -17503,7 +17503,7 @@ function geminiProductHint(): void {
     $input    = json_decode(file_get_contents('php://input'), true) ?? [];
     $name     = trim($input['name']    ?? '');
     $category = trim($input['category'] ?? '');
-    $lang     = trim($input['lang']    ?? 'en');
+    $lang     = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
@@ -17522,7 +17522,7 @@ function geminiProductHint(): void {
         return;
     }
 
-    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $langLabel = recipeLangName($lang);
     $prompt = "You are a food safety expert. For the food product named \"{$name}\" (category: {$category}), "
         . "answer in {$langLabel} with a strict JSON object and NOTHING else:\n"
         . "{\n"
@@ -17827,14 +17827,14 @@ function geminiAnomalyExplain(): void {
     $diff      = $input['diff']              ?? 0;
     $direction = $input['direction']         ?? 'missing';
     $unit      = $input['unit']              ?? 'pz';
-    $lang      = trim($input['lang']         ?? 'en');
+    $lang      = recipeNormalizeLang($input['lang'] ?? 'en');
 
     if (empty($name)) {
         echo json_encode(['success' => false, 'error' => 'missing name']);
         return;
     }
 
-    $langLabel = match($lang) { 'en' => 'English', 'de' => 'German', default => 'Italian' };
+    $langLabel = recipeLangName($lang);
 
     $directionDesc = match($direction) {
         'phantom'   => "The inventory shows {$invQty} {$unit} but transaction history predicts only {$expQty} {$unit} (excess of " . abs($diff) . " {$unit}).",

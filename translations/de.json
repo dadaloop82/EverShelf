@@ -327,6 +327,8 @@
         "quantity_label": "📦 Menge",
         "conf_size_label": "📦 Jede Packung enthält:",
         "conf_size_placeholder": "z.B. 300",
+        "total_qty": " (gesamt: {total} {unit})",
+        "total_qty_package": " (gesamt: {total} {unit} mit je {size}{size_unit})",
         "vacuum_label": "🫙 Vakuumiert",
         "vacuum_hint": "Ablaufdatum wird automatisch verlängert",
         "submit": "✅ Hinzufügen",
