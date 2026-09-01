@@ -198,6 +198,86 @@ function initializeDB(PDO $db): void {
     ");
 }
 
+/** Additive schema for physical inventory reconciliation sessions. */
+function reconciliationEnsureSchema(PDO $db): void {
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS inventory_reconciliations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'in_progress'
+                CHECK(status IN ('in_progress', 'review', 'applied', 'cancelled')),
+            notes TEXT NOT NULL DEFAULT '',
+            started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at DATETIME DEFAULT NULL,
+            applied_at DATETIME DEFAULT NULL,
+            cancelled_at DATETIME DEFAULT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS inventory_reconciliation_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reconciliation_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            product_brand TEXT NOT NULL DEFAULT '',
+            product_image_url TEXT NOT NULL DEFAULT '',
+            product_unit TEXT NOT NULL DEFAULT 'pz',
+            product_default_quantity REAL NOT NULL DEFAULT 1,
+            product_package_unit TEXT NOT NULL DEFAULT '',
+            expected_quantity REAL NOT NULL DEFAULT 0,
+            counted_quantity REAL DEFAULT NULL
+                CHECK(counted_quantity IS NULL OR counted_quantity >= 0),
+            counted_at DATETIME DEFAULT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (reconciliation_id) REFERENCES inventory_reconciliations(id) ON DELETE CASCADE,
+            UNIQUE(reconciliation_id, product_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS inventory_reconciliation_item_rows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            inventory_id INTEGER NOT NULL,
+            expected_quantity REAL NOT NULL,
+            expiry_date DATE DEFAULT NULL,
+            opened_at DATETIME DEFAULT NULL,
+            row_updated_at DATETIME DEFAULT NULL,
+            FOREIGN KEY (item_id) REFERENCES inventory_reconciliation_items(id) ON DELETE CASCADE,
+            UNIQUE(item_id, inventory_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS inventory_adjustments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            reconciliation_id INTEGER NOT NULL,
+            reconciliation_item_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            product_name TEXT NOT NULL,
+            inventory_id INTEGER DEFAULT NULL,
+            sequence INTEGER NOT NULL,
+            delta REAL NOT NULL,
+            before_quantity REAL NOT NULL,
+            after_quantity REAL NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (reconciliation_id) REFERENCES inventory_reconciliations(id),
+            FOREIGN KEY (reconciliation_item_id) REFERENCES inventory_reconciliation_items(id),
+            UNIQUE(reconciliation_item_id, sequence)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_reconciliation_active_location
+            ON inventory_reconciliations(location)
+            WHERE status IN ('in_progress', 'review');
+        CREATE INDEX IF NOT EXISTS idx_reconciliation_status_started
+            ON inventory_reconciliations(status, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_reconciliation_items_session
+            ON inventory_reconciliation_items(reconciliation_id, product_name);
+        CREATE INDEX IF NOT EXISTS idx_reconciliation_rows_item
+            ON inventory_reconciliation_item_rows(item_id, inventory_id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_product
+            ON inventory_adjustments(product_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_session
+            ON inventory_adjustments(reconciliation_id, reconciliation_item_id);
+    ");
+
+}
+
 function migrateDB(PDO $db): void {
     // Guard: if core tables don't exist yet (e.g. DB file present but empty / partial init),
     // run initializeDB first so all tables are created, then return — no ALTER TABLE needed.
@@ -206,6 +286,7 @@ function migrateDB(PDO $db): void {
     )->fetchColumn();
     if (!$productsExists) {
         initializeDB($db);
+        reconciliationEnsureSchema($db);
         return;
     }
 
@@ -411,6 +492,8 @@ function migrateDB(PDO $db): void {
     // Fuel Mode / Health Bridge snapshots (#fuel)
     require_once __DIR__ . '/lib/health.php';
     healthEnsureTables($db);
+
+    reconciliationEnsureSchema($db);
 }
 
 /**

@@ -151,6 +151,70 @@ Returns item counts per location.
 
 ---
 
+## Physical Inventory Reconciliation
+
+Physical counts are online-only. Starting and saving a count changes only the reconciliation session; live inventory changes only after `reconciliation_review` followed by `reconciliation_apply`.
+
+### `reconciliation_list` — GET
+List active sessions first, followed by applied/cancelled history. Optional `limit` defaults to 25 (maximum 100).
+
+### `reconciliation_get` — GET
+Get one session, aggregate count items, progress/variance totals, and row-level adjustment history for an applied session.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Reconciliation session ID |
+
+### `reconciliation_zero_items` — GET
+Return optional catalog products with no positive inventory at the session location. Reading this list does not add items to the session or alter progress.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `id` | integer | Reconciliation session ID |
+
+### `reconciliation_start` — POST
+Start a location snapshot or resume the existing active session for that location.
+
+```json
+{ "location": "dispensa" }
+```
+
+### `reconciliation_count` — POST
+Save one aggregate physical quantity. Numeric `0` means counted and physically empty; `null` restores the item to uncounted. A catalog product absent from the original snapshot is added with expected quantity zero when a numeric count is saved.
+
+```json
+{
+  "session_id": 17,
+  "product_id": 42,
+  "counted_quantity": 3
+}
+```
+
+### `reconciliation_review` — POST
+Move a nonempty count to the explicit review state.
+
+```json
+{ "session_id": 17 }
+```
+
+### `reconciliation_apply` — POST
+Recheck every counted row snapshot and apply all counted differences in one SQLite transaction. Returns HTTP 409 with `inventory_changed` when stock, expiry/opened metadata, or product units changed during counting. Repeated apply requests are idempotent.
+
+```json
+{ "session_id": 17 }
+```
+
+### `reconciliation_cancel` — POST
+Cancel a non-applied session without changing live inventory.
+
+```json
+{ "session_id": 17 }
+```
+
+Applied differences are stored in `inventory_adjustments`; they do not appear as purchase, consumption, or waste transactions and cannot be undone through `transaction_undo`.
+
+---
+
 ## Transactions (Log)
 
 ### `transactions_list` — GET

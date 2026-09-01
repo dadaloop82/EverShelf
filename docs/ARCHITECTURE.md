@@ -13,11 +13,15 @@ dispensa/
 │   │   ├── constants.php   # Paths & pricing constants
 │   │   ├── security.php    # API auth, CORS, demo mode, scale allowlist
 │   │   ├── github.php      # Encrypted GitHub Issues token
+│   │   ├── reconciliation.php # Physical-count session lifecycle + atomic apply
 │   │   └── cron_log.php    # data/cron.log rotation
 │   └── scale_*.php         # Scale gateway helpers (auth + SSRF guards)
 ├── assets/
+│   ├── css/
+│   │   └── reconciliation.css # Isolated mobile stocktake UI
 │   ├── js/
 │   │   ├── core/           # auth.js, dom.js (loaded before app.js)
+│   │   ├── reconciliation.js # Stocktake page + shared-scanner consumer
 │   │   └── app.js          # SPA logic (domain modules: future split)
 │   └── vendor/             # Offline CDN fallbacks (quagga, transformers)
 ├── data/                   # Runtime data (.htaccess: deny all)
@@ -30,6 +34,17 @@ dispensa/
 - **`API_TOKEN`** (or legacy **`SETTINGS_TOKEN`**): when set, every API action requires `X-API-Token` header or `?api_token=` (Home Assistant).
 - Secrets (`HA_TOKEN`, `TTS_TOKEN`, `GEMINI_API_KEY`) stay in `.env`; `get_settings` exposes only `*_set` flags.
 - **`GH_ISSUE_TOKEN_ENC`** + **`GH_ISSUE_TOKEN_KEY`**: AES-256-GCM encrypted GitHub Issues token.
+
+## Physical inventory reconciliation
+
+Reconciliation is an isolated session workflow layered over the existing product and inventory tables:
+
+- `inventory_reconciliations` stores one location and lifecycle state (`in_progress`, `review`, `applied`, or `cancelled`). A partial unique index allows only one active session per location.
+- `inventory_reconciliation_items` stores immutable product display/unit metadata, expected aggregate quantity, and nullable physical count.
+- `inventory_reconciliation_item_rows` fingerprints the contributing inventory rows, quantities, expiry/opened state, and update timestamps for optimistic concurrency checks.
+- `inventory_adjustments` stores signed row-level deltas. These adjustments participate in ledger/anomaly balance calculations but remain separate from purchase, consumption, waste, and undo history.
+
+Counting and review never mutate live stock. Apply uses one SQLite `BEGIN IMMEDIATE` transaction, validates all counted snapshots, updates only counted products, writes the adjustment audit, and commits the session atomically. The frontend reuses the existing barcode camera/decoder through a temporary result consumer rather than owning another scanner.
 
 ## Planned refactors
 

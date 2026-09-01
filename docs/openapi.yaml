@@ -11,7 +11,7 @@ info:
     - General: 120 requests/minute
     - AI endpoints: 15 requests/minute
     - Login endpoints: 5 requests/minute
-  version: "1.2.0"
+  version: "1.3.0"
   contact:
     name: Stimpfl Daniel
     email: evershelfproject@gmail.com
@@ -254,6 +254,154 @@ paths:
       responses:
         "200":
           description: Summary object with counts
+
+  /index.php?action=reconciliation_list:
+    get:
+      summary: List physical-count sessions and history
+      tags: [Physical Counts]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Active and terminal reconciliation summaries
+
+  /index.php?action=reconciliation_get:
+    get:
+      summary: Get a physical-count session, items, and applied adjustments
+      tags: [Physical Counts]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session detail and count progress
+        "404":
+          description: Reconciliation not found
+
+  /index.php?action=reconciliation_zero_items:
+    get:
+      summary: List optional expected-zero catalog products for a session location
+      tags: [Physical Counts]
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Catalog products with no positive stock at the session location
+
+  /index.php?action=reconciliation_start:
+    post:
+      summary: Start or resume a location physical count
+      tags: [Physical Counts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [location]
+              properties:
+                location:
+                  type: string
+      responses:
+        "200":
+          description: New or resumed session with its immutable stock snapshot
+        "422":
+          description: Invalid location
+
+  /index.php?action=reconciliation_count:
+    post:
+      summary: Save or clear one physical product count
+      tags: [Physical Counts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id, product_id, counted_quantity]
+              properties:
+                session_id:
+                  type: integer
+                product_id:
+                  type: integer
+                counted_quantity:
+                  type: [number, "null"]
+                  minimum: 0
+                  description: Numeric zero is counted empty; null restores uncounted state.
+      responses:
+        "200":
+          description: Updated session and progress
+        "409":
+          description: Session is no longer editable
+
+  /index.php?action=reconciliation_review:
+    post:
+      summary: Move a physical count to review
+      tags: [Physical Counts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id]
+              properties:
+                session_id:
+                  type: integer
+      responses:
+        "200":
+          description: Session ready for final review
+
+  /index.php?action=reconciliation_apply:
+    post:
+      summary: Atomically apply all counted physical differences
+      tags: [Physical Counts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id]
+              properties:
+                session_id:
+                  type: integer
+      responses:
+        "200":
+          description: Applied session and signed-adjustment summary
+        "409":
+          description: Session is not reviewed or its inventory snapshot changed
+
+  /index.php?action=reconciliation_cancel:
+    post:
+      summary: Cancel a non-applied physical count
+      tags: [Physical Counts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session_id]
+              properties:
+                session_id:
+                  type: integer
+      responses:
+        "200":
+          description: Cancelled session; live inventory remains unchanged
 
   /index.php?action=transactions_list:
     get:
@@ -643,6 +791,8 @@ tags:
     description: Product catalog management
   - name: Inventory
     description: Inventory tracking (stock in/out)
+  - name: Physical Counts
+    description: Location stocktake sessions, review, atomic apply, and adjustment history
   - name: Log
     description: Operations log and statistics
   - name: AI / Gemini

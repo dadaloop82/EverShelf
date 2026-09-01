@@ -5,7 +5,15 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Ideas & Roadmap
+## [Unreleased]
+
+### Added
+
+- **Physical inventory reconciliation** — Run an online, resumable stocktake for one location without changing live inventory until explicit review and apply. Count cards include catalog images, expected quantities, barcode/search lookup, optional expected-zero catalog items, and positive remnants hidden by the normal inventory list.
+- **Atomic adjustment audit** — Applying a count rechecks the row snapshot, updates all counted variances in one SQLite transaction, and stores signed adjustments separately from purchase/consumption history. Uncounted products remain unchanged.
+- **Reconciliation tests and documentation** — Added in-memory coverage for lifecycle, explicit zero, surplus/shortage allocation, concurrency rejection, idempotency, cancellation, and expected-zero finds, plus API and architecture documentation.
+
+### Ideas & Roadmap
 
 > Ideas collected during development. No priority or date implied.
 
