@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Shopping language consistency** — AI shopping suggestions now follow the active UI language, cache results per language, localize quantity labels and purchase prompts, and translate smart-shopping reasons in **it, en, de, fr, es, zh**.
+- **UI language consistency** — Shopping suggestions, product hints, anomaly explanations, quantity labels, purchase prompts, smart-shopping reasons, and the add-product workflow now follow the active language in **it, en, de, fr, es, zh**.
 
 ### Ideas & Roadmap
 
