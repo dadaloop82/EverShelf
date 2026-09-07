@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.7.94-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.7.95-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -35,7 +35,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <details>
 <summary><b>📰 What's new</b></summary>
 
-**v1.7.94** — Hotfix: kiosk startup (i18n) + spesa scan resume after spend modal  **v1.7.93** — Spesa mode UX + inventory swipe Use/Discard + opened section  **v1.7.92** — i18n cleanup: all UI via translation keys (1853 × 6 langs)  
+**v1.7.95** — no ghost anomaly on depleted crumbs  **v1.7.94** — Hotfix: kiosk startup (i18n) + spesa scan resume after spend modal  **v1.7.93** — Spesa mode UX + inventory swipe Use/Discard + opened section  **v1.7.92** — i18n cleanup: all UI via translation keys (1853 × 6 langs)  
 **v1.7.91** — fix depleted crumbs (e.g. 19 g butter) stuck in Opened alerts  
 **v1.7.90** — `spend_stats` dashboard crash fix  
 

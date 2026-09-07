@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.95] - 2026-09-07
+
+### Fixed
+- **Ghost anomaly on finished crumbs** — banners like “less stock than expected” no longer appear for trace leftovers (e.g. 2.5 g honey) that are already hidden from the inventory list as depleted.
+
 ## [1.7.94] - 2026-08-23
 
 ### Fixed
