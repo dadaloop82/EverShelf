@@ -6077,8 +6077,10 @@ function getFinishedItems(PDO $db): void {
 
         $expected = (float)$r['total_in'] - (float)$r['total_out'];
         $threshold = productQtyThreshold($unit);
+        // Only ask when the ledger gap exceeds stock — not when crumb == expected (e.g. 0.1 conf).
+        $gap = round($expected - $stock, 3);
 
-        if ($expected > $threshold) {
+        if ($gap > $threshold) {
             $location = $r['inv_location'] ?: $r['tx_location'] ?: 'dispensa';
             $suspicious[] = [
                 'product_id'       => $productId,
@@ -6098,9 +6100,11 @@ function getFinishedItems(PDO $db): void {
                 'inventory_id'     => null,
             ];
         } else {
+            // Ledger already matches (or is short): clear depleted crumbs silently.
             $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")
                ->execute([$productId]);
             purgeDepletedInventoryCrumbs($db, $productId, $unit);
+            markFinishedDismissed($db, $productId);
         }
     }
 

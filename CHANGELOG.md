@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.0] - 2026-09-10
+
+### Fixed
+- **Finished banners that kept returning** — products already finished (honey crumbs, ghost milk, aligned basil traces) are reconciled/dismissed server-side; ✕ on “è finito?” now confirms finished instead of only hiding until refresh.
+- **Banner jumps to first alert** — refreshing the dashboard / chart no longer resets the alert carousel; it stays on the banner you were viewing.
+
+### Changed
+- Finished detection uses the **ledger gap vs stock**, so matching crumbs (e.g. 0.1 conf = 0.1 conf) are cleared silently without asking again.
+
 ## [1.7.99] - 2026-09-10
 
 ### Fixed

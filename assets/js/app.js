@@ -6457,14 +6457,39 @@ let _bannerRefreshTimer = null;  // periodic refresh while on dashboard
 let _shoppingPollTimer  = null;  // periodic refresh while on shopping page (multi-client sync)
 
 /**
+ * Stable identity for a banner queue entry (preserve position across refresh).
+ */
+function _bannerEntryKey(entry) {
+    if (!entry || !entry.type) return '';
+    const d = entry.data || {};
+    switch (entry.type) {
+        case 'expired':
+        case 'expiring':
+        case 'review':
+        case 'no_expiry':
+            return entry.type + ':' + (d.id ?? '');
+        case 'prediction':
+            return 'prediction:' + (d.inventory_id ?? d.id ?? '');
+        case 'anomaly':
+            return 'anomaly:' + (d.dismiss_key || d.product_id || '');
+        case 'finished':
+            return 'finished:' + (d.product_id ?? '');
+        case 'dup_loss_check':
+            return 'dup:' + (d.dismiss_key || d.product_id || '');
+        default:
+            return entry.type + ':' + (d.product_id ?? d.id ?? '');
+    }
+}
+
+/**
  * Load suspicious quantities + consumption predictions + expired + expiring soon,
  * merge into a single banner queue and show the first item.
  */
 async function loadBannerAlerts() {
     if (_bannerLoading) return;
     _bannerLoading = true;
+    const prevKey = _bannerEntryKey(_bannerQueue[_bannerIndex]);
     _bannerQueue = [];
-    _bannerIndex = 0;
     const banner = document.getElementById('alert-banner');
     if (!banner) { _bannerLoading = false; console.warn('[Banner] #alert-banner not found'); return; }
 
@@ -6684,7 +6709,12 @@ async function loadBannerAlerts() {
     }
 
     if (_bannerQueue.length > 0) {
-        _bannerIndex = 0;
+        let idx = 0;
+        if (prevKey) {
+            const found = _bannerQueue.findIndex(e => _bannerEntryKey(e) === prevKey);
+            if (found >= 0) idx = found;
+        }
+        _bannerIndex = idx;
         renderBannerItem();
         initBannerSwipe();
     } else {
@@ -6991,6 +7021,12 @@ function renderBannerItem() {
 }
 
 function dismissBannerItem() {
+    const entry = _bannerQueue[_bannerIndex];
+    // ✕ on "è finito?" = accept finished (was only hiding until the next refresh)
+    if (entry && entry.type === 'finished') {
+        confirmBannerFinished();
+        return;
+    }
     _bannerQueue.splice(_bannerIndex, 1);
     if (_bannerQueue.length === 0) {
         document.getElementById('alert-banner').style.display = 'none';
@@ -7421,8 +7457,21 @@ async function confirmBannerFinished() {
     } catch(e) {}
     setReviewConfirmed('fin_' + productId);
     showToast(t('toast.product_finished_confirmed'), 'success');
-    dismissBannerItem();
-    if (typeof loadDashboard === 'function') loadDashboard();
+    dismissBannerItemAfterAction();
+    // Refresh queue only — keep other banners visible (don't jump to first via full dashboard)
+    if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+}
+
+/** Remove current banner without re-entrancy into confirmFinished. */
+function dismissBannerItemAfterAction() {
+    _bannerQueue.splice(_bannerIndex, 1);
+    if (_bannerQueue.length === 0) {
+        const el = document.getElementById('alert-banner');
+        if (el) el.style.display = 'none';
+        return;
+    }
+    if (_bannerIndex >= _bannerQueue.length) _bannerIndex = 0;
+    renderBannerItem();
 }
 
 /** Current stock is already correct — align ledger, do not restore and do not add to shopping. */
@@ -7438,8 +7487,8 @@ async function keepBannerFinishedStock() {
         });
         setReviewConfirmed('fin_' + productId);
         showToast(t('dashboard.banner_finished_keep_toast'), 'success');
-        dismissBannerItem();
-        if (typeof loadDashboard === 'function') loadDashboard();
+        dismissBannerItemAfterAction();
+        if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
     } catch (e) {
         showToast(t('error.connection'), 'error');
     } finally {

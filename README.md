@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.7.99-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.8.0-brightgreen.svg)](CHANGELOG.md) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -35,7 +35,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 <details>
 <summary><b>📰 What's new</b></summary>
 
-**v1.7.99** — Short banner buttons + finished dismiss sticks  **v1.7.98** — Undo ledger ghost  **v1.7.97** — Gone products / crumb anomalies  **v1.7.96** — Estendi +7d  **v1.7.95** — Anti-waste shopping qty  **v1.7.94** — Hotfix kiosk/spesa  **v1.7.93** — Spesa mode UX + opened section  
+**v1.8.0** — Finished banners stick + carousel preserves position  **v1.7.99** — Short banner buttons + finished dismiss sticks  **v1.7.98** — Undo ledger ghost  **v1.7.97** — Gone products / crumb anomalies  **v1.7.96** — Estendi +7d  **v1.7.95** — Anti-waste shopping qty  **v1.7.94** — Hotfix kiosk/spesa  **v1.7.93** — Spesa mode UX + opened section  
 **v1.7.91** — fix depleted crumbs (e.g. 19 g butter) stuck in Opened alerts  
 **v1.7.90** — `spend_stats` dashboard crash fix  
 
