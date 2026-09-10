@@ -9483,9 +9483,28 @@ body.cooking-mode-active .app-header {
     background: #ede9fe;
     color: #6d28d9;
 }
+.btn-banner-extend {
+    background: #ecfdf5;
+    color: #047857;
+}
 .btn-banner-edit2 {
     background: #e0f2fe;
     color: #0369a1;
+}
+
+.btn-alert-extend {
+    border: 0;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.btn-alert-extend:active {
+    transform: scale(0.97);
 }
 
 /* ===== PAGE HEADER ACTION BUTTON (export etc.) ===== */
@@ -10051,7 +10070,9 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .btn-banner-throw-primary { background: #dc2626; color: #fff; }
 [data-theme="dark"] .btn-banner-use-danger   { background: #1e293b; color: #64748b; }
 [data-theme="dark"] .btn-banner-vacuum       { background: #2e1a4a; color: #c4b5fd; }
+[data-theme="dark"] .btn-banner-extend       { background: #064e3b; color: #6ee7b7; }
 [data-theme="dark"] .btn-banner-edit2        { background: #0c2a4e; color: #7dd3fc; }
+[data-theme="dark"] .btn-alert-extend        { background: #064e3b; color: #6ee7b7; }
 
 /* ── Review items ── */
 [data-theme="dark"] .review-item          { background: rgba(255,255,255,0.04); }

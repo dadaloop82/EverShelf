@@ -1153,7 +1153,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260823d'; // bump when translations change
+const _I18N_VERSION = '20260910c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2134,16 +2134,17 @@ function isSoldByPiece(name, category) {
     return false;
 }
 
-/** Unit/qty for new products — piece produce stays pz even when OFF reports grams. */
+/** Unit/qty for new products — prefer label weight / category defaults.
+ *  Do not force pz by produce name (salad, melon, etc. are often weighed). */
 function detectProductUnitAndQuantity(name, category, quantityInfo) {
-    if (isSoldByPiece(name, category)) {
-        return { unit: 'pz', quantity: 1, weightInfo: quantityInfo || '', packageUnit: '' };
+    if (quantityInfo) {
+        return detectUnitAndQuantity(quantityInfo);
     }
-    return detectUnitAndQuantity(quantityInfo);
+    const suggested = suggestCategoryUnitQty(category, name);
+    return { unit: suggested.unit, quantity: suggested.qty, weightInfo: '', packageUnit: '' };
 }
 
 function suggestCategoryUnitQty(category, name) {
-    if (isSoldByPiece(name, category)) return { unit: 'pz', qty: 1 };
     const catDefaults = {
         'latticini': { unit: 'pz', qty: 1 },
         'carne': { unit: 'g', qty: 500 },
@@ -2161,6 +2162,11 @@ function suggestCategoryUnitQty(category, name) {
         'igiene': { unit: 'pz', qty: 1 },
         'pulizia': { unit: 'pz', qty: 1 },
     };
+    // Classic piece items (not typically weighed by this household)
+    const n = (name || '').toLowerCase();
+    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|limone|limoni|lime\b|kiwi|mango\b|cipoll|aglio\b|peperone\b|peperoni\b|uova?\b/.test(n)) {
+        return { unit: 'pz', qty: 1 };
+    }
     return catDefaults[category] || { unit: 'pz', qty: 1 };
 }
 
@@ -2208,13 +2214,15 @@ function estimateExpiryDays(product, location) {
     else if (/arancia|arance|mandarini|agrumi/.test(name)) days = 7;
     else if (/banana|banane/.test(name)) days = 5;
     else if (/pera|pere\b|fragola|fragole|uva|kiwi/.test(name)) days = 5;
-    else if (/carota|carote|zucchina|zucchine|peperoni|melanzane/.test(name)) days = 7;
+    // Fresh tomatoes MUST be before passata/pelati (those also contain "pomodor")
+    else if (/\bpomodor[oi]\b/.test(name) && !/passata|pelati|polpa|concentrat|scatol|lattina|salsa|sugo/.test(name)) days = 7;
+    else if (/carota|carote|zucchina|zucchine|peperon|melanzan/.test(name)) days = 7;
     else if (/broccoli|cavolfiore|cavolo|spinaci|bietola/.test(name)) days = 5;
     else if (/cipolla|cipolle/.test(name)) days = 10;
     else if (/patata|patate/.test(name)) days = 30; // whole tubers in a bag, pantry: 3-5 weeks
     else if (/biscott|cracker|grissini|fette\s+biscott/.test(name)) days = 180;
     else if (/nutella|marmellata|miele/.test(name)) days = 365;
-    else if (/passata|pelati|pomodor/.test(name)) days = 730;
+    else if (/passata|pelati|pomodor[oi]?\s*(in\s*)?(scatola|lattina)?|polpa\s+di\s+pomodor|concentrato\s+di\s+pomodor/.test(name)) days = 730;
     else if (/olio|aceto/.test(name)) days = 548;
     else {
         // Fallback to category
@@ -6161,6 +6169,7 @@ async function loadDashboard() {
                     <div class="alert-item-badges">
                         <span class="alert-item-qty">📦 ${qtyDisplay}</span>
                         <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
+                        ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -6197,6 +6206,7 @@ async function loadDashboard() {
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
                         <span class="safety-badge safety-${safety.level}" title="${safety.tip}">${safety.icon} ${safety.label}</span>
+                        ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -6413,7 +6423,8 @@ let _bringBlocklistCache   = {};
 let _noExpiryDismissedCache = {};
 let _familySiblingConfirmedCache = {};
 let _scanHistoryCache      = [];
-let _shoppingPlanDaysCache = null; // null = auto (days until month end)
+let _shoppingPlanDaysCache = null; // null = auto (30 days or server-inferred cycle)
+let _smartPlanDaysDefault = 30; // updated from smart_shopping plan_days_default
 function _saveToServer(key, value) {
     api('app_settings_save', {}, 'POST', { settings: { [key]: value } }).catch(() => {});
 }
@@ -6488,10 +6499,14 @@ async function loadBannerAlerts() {
                 if (rawDays < 0) daysExpired = Math.abs(rawDays);
             }
 
-            // Check effective expiry based on opened_at (trust server when still edible)
+            // Check effective expiry based on opened_at (trust server when still edible).
+            // If the user explicitly extended the date into the future, do NOT re-flag via opened_at.
             if (item.opened_at) {
+                const userExtendedOk = !!item.expiry_user_set
+                    && item.expiry_date
+                    && daysUntilExpiry(item.expiry_date) >= 0;
                 const serverOi = openedStatsById[item.id];
-                if (!(serverOi && serverOi.is_edible)) {
+                if (!userExtendedOk && !(serverOi && serverOi.is_edible)) {
                     const openDays = estimateOpenedExpiryDays(item, item.location);
                     const openedTs = new Date(item.opened_at).getTime();
                     const effectiveExpiry = new Date(openedTs + openDays * 86400000);
@@ -6517,9 +6532,17 @@ async function loadBannerAlerts() {
         // conserve are 'ok' for 30 days past), but the server uses product-specific AI shelf
         // life. Trust the server: any opened item with is_edible=false that isn't already
         // queued goes into the banner as expired — unless safety is still 'ok'.
-        const openedNotEdible = (statsData.opened || []).filter(oi =>
-            !isInventoryDepleted(oi) && !oi.is_edible && !_queuedItemIds.has(oi.id) && !confirmed['exp_' + oi.id] && invById[oi.id]
-        );
+        const openedNotEdible = (statsData.opened || []).filter(oi => {
+            if (isInventoryDepleted(oi) || oi.is_edible || _queuedItemIds.has(oi.id) || confirmed['exp_' + oi.id] || !invById[oi.id]) {
+                return false;
+            }
+            const live = invById[oi.id];
+            // User-extended future date → do not re-queue as expired
+            if (live?.expiry_user_set && live.expiry_date && daysUntilExpiry(live.expiry_date) >= 0) {
+                return false;
+            }
+            return true;
+        });
         openedNotEdible.forEach(oi => {
             const live = invById[oi.id];
             const daysOI = Math.abs(oi.days_to_expiry ?? 0);
@@ -6604,9 +6627,10 @@ async function loadBannerAlerts() {
             _bannerQueue.push({ type: 'dup_loss_check', data: ch });
         });
 
-        // 7. Unresolved ghosts: always show while server reports ledger/stock mismatch
+        // 7. Unresolved ghosts: ledger says stock should remain, inventory is empty
         const finished = finishedData.finished || [];
         finished.forEach(fin => {
+            if (confirmed['fin_' + fin.product_id]) return;
             _bannerQueue.push({ type: 'finished', data: fin });
         });
 
@@ -6785,6 +6809,9 @@ function renderBannerItem() {
         btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
         // "Modifica" — opens full edit modal (includes date correction)
         btns += `<button class="btn-banner btn-banner-edit2" onclick="editReviewItem(${item.id}, ${item.product_id})">${t('dashboard.banner_expired_action_modify')}</button>`;
+        if (_shouldOfferExtendExpiry(item)) {
+            btns += `<button class="btn-banner btn-banner-extend" onclick="bannerExtendExpiry()">${t('dashboard.banner_expired_action_extend')}</button>`;
+        }
         if (isOpenedExpiry && !item.vacuum_sealed) {
             // Offer to re-seal with vacuum — extends shelf life
             btns += `<button class="btn-banner btn-banner-vacuum" onclick="bannerMarkVacuum()">${t('dashboard.banner_expired_action_vacuum')}</button>`;
@@ -6874,10 +6901,18 @@ function renderBannerItem() {
             : '';
         titleEl.innerHTML = `${escapeHtml(fin.name)}${fin.brand ? ' (' + escapeHtml(fin.brand) + ')' : ''}${barcodeSuffix} — ${escapeHtml(t('dashboard.banner_finished_title'))}`;
         const expectedText = fin.expected_qty ? ' ' + t('dashboard.banner_finished_expected', { qty: fin.expected_qty, unit: fin.unit }) : '';
-        const baseText = fin.vanished ? t('dashboard.banner_finished_vanished') : t('dashboard.banner_finished_zero');
+        let baseText = t('dashboard.banner_finished_zero');
+        if (fin.vanished) {
+            baseText = t('dashboard.banner_finished_vanished');
+        } else if (fin.stock_qty > 0) {
+            baseText = t('dashboard.banner_finished_crumb', { qty: fin.stock_qty, unit: fin.unit });
+        }
         detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check');
         let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
-        btns += `<button class="btn-banner btn-banner-edit" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_restore', { qty: fin.expected_qty, unit: fin.unit })}</button>`;
+        if (fin.expected_qty) {
+            btns += `<button class="btn-banner btn-banner-confirm" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_confirm', { qty: fin.expected_qty, unit: fin.unit })}</button>`;
+        }
+        btns += `<button class="btn-banner btn-banner-edit" onclick="keepBannerFinishedStock()">${t('dashboard.banner_finished_action_keep')}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
@@ -6892,8 +6927,10 @@ function renderBannerItem() {
             titleEl.textContent = `${an.name} — ${t('dashboard.banner_anomaly_ghost_title')}`;
             detailEl.innerHTML = t('dashboard.banner_anomaly_ghost_detail', { expected_qty: an.expected_qty, unit: an.unit, name: an.name, inv_qty: an.inv_qty });
         }
-        let btns = `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
-        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')} (${an.inv_qty} ${an.unit})</button>`;
+        let btns = `<button class="btn-banner btn-banner-finish" onclick="finishBannerAnomaly()">${t('dashboard.banner_expired_action_finished')}</button>`;
+        btns += `<button class="btn-banner btn-banner-throw" onclick="throwBannerAnomaly()">${t('dashboard.banner_expired_action_throw')}</button>`;
+        btns += `<button class="btn-banner btn-banner-edit" onclick="editBannerAnomaly()">${t('dashboard.banner_anomaly_action_edit')}</button>`;
+        btns += `<button class="btn-banner btn-banner-ok" onclick="dismissBannerAnomaly()">${t('dashboard.banner_anomaly_action_dismiss')}</button>`;
         if (_geminiAvailable) {
             btns += `<button class="btn-banner btn-banner-ai" onclick="explainBannerAnomaly()" title="${t('dashboard.banner_explain_title')}">\ud83e\udd16 ${t('dashboard.banner_explain_btn')}</button>`;
         }
@@ -7050,14 +7087,66 @@ function editBannerAnomaly() {
     editReviewItem(entry.data.inventory_id, entry.data.product_id);
 }
 
-function dismissBannerAnomaly() {
+/** Product is gone — clear stock, reconcile ledger, optionally add to shopping. */
+async function finishBannerAnomaly() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'anomaly') return;
-    const key = entry.data.dismiss_key;
+    const an = entry.data;
+    try {
+        const res = await api('inventory_confirm_finished', {}, 'POST', { product_id: an.product_id });
+        if (res.bring?.added || res.bring?.updated) {
+            showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
+            if (typeof loadShoppingList === 'function') loadShoppingList();
+        }
+        setReviewConfirmed('an_' + (an.dismiss_key || an.product_id));
+        showToast(t('toast.product_finished_confirmed'), 'success');
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/** Product was thrown away — same as finished but logged as waste. */
+async function throwBannerAnomaly() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    const an = entry.data;
+    try {
+        const res = await api('inventory_confirm_finished', {}, 'POST', {
+            product_id: an.product_id,
+            as_waste: true,
+        });
+        if (res.bring?.added || res.bring?.updated) {
+            showToast((t('toast.finished_to_shopping') || t('toast.finished_to_bring')), 'info');
+            if (typeof loadShoppingList === 'function') loadShoppingList();
+        }
+        setReviewConfirmed('an_' + (an.dismiss_key || an.product_id));
+        showToast(t('toast.thrown_away').replace('{name}', an.name), 'success');
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/** Current inventory qty is correct — align ledger permanently (not just hide). */
+async function dismissBannerAnomaly() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'anomaly') return;
+    const an = entry.data;
+    const key = an.dismiss_key;
+    try {
+        await api('inventory_confirm_finished', {}, 'POST', {
+            product_id: an.product_id,
+            add_to_shopping: false,
+        });
+    } catch (e) {}
     setReviewConfirmed('an_' + key);
     api('dismiss_anomaly', {}, 'POST', { dismiss_key: key }).catch(() => {});
     showToast(t('dashboard.banner_anomaly_dismissed'), 'info');
     dismissBannerItem();
+    if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 function dismissDuplicateLossCheck() {
@@ -7171,17 +7260,117 @@ async function bannerMarkVacuum() {
     }
 }
 
+/**
+ * Offer "Estendi" on expired/opened check banners.
+ * Hidden only for long-expired high-risk meat/fish.
+ */
+function _shouldOfferExtendExpiry(item) {
+    if (!item || !item.id) return false;
+    const cat = mapToLocalCategory(item.category || '', item.name || '');
+    const daysExpired = item.days_expired != null
+        ? Number(item.days_expired)
+        : Math.max(0, -daysUntilExpiry(item.expiry_date));
+    const safety = getExpiredSafety(item, Math.abs(daysExpired || 0));
+    if (safety.level === 'danger' && ['carne', 'pesce'].includes(cat) && daysExpired > 2) {
+        return false;
+    }
+    return true;
+}
+
+/** Always extend by 1 week from today (or from current future expiry). */
+function intelligentExtendDays(_item) {
+    return 7;
+}
+
+function _computeExtendedExpiryDate(item, days) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let base = today;
+    if (item?.expiry_date) {
+        const current = new Date(item.expiry_date + 'T12:00:00');
+        current.setHours(0, 0, 0, 0);
+        if (!Number.isNaN(current.getTime()) && current > today) {
+            base = current;
+        }
+    }
+    const next = new Date(base);
+    next.setDate(next.getDate() + days);
+    return next.toISOString().slice(0, 10);
+}
+
+async function extendInventoryExpiry(inventoryId, itemHint = null) {
+    let item = itemHint;
+    if (!item || !item.id) {
+        try {
+            const data = await api('inventory_list', { include_depleted: 1 });
+            item = (data.inventory || []).find((row) => Number(row.id) === Number(inventoryId));
+        } catch (e) {
+            showToast(t('error.connection'), 'error');
+            return false;
+        }
+    }
+    if (!item) {
+        showToast(t('error.generic'), 'error');
+        return false;
+    }
+
+    const days = intelligentExtendDays(item);
+    const newExpiry = _computeExtendedExpiryDate(item, days);
+
+    try {
+        const res = await api('inventory_update', {}, 'POST', {
+            id: item.id,
+            expiry_date: newExpiry,
+            expiry_user_set: 1,
+        });
+        if (res.success || res.ok) {
+            // Keep local banner/dashboard state consistent immediately
+            item.expiry_date = newExpiry;
+            item.expiry_user_set = 1;
+            item.days_to_expiry = days;
+            item.days_expired = 0;
+            item.is_edible = true;
+            const msg = (t('toast.expiry_extended') || 'Expiry extended by {n} days → {date}')
+                .replace('{n}', String(days))
+                .replace('{date}', newExpiry)
+                .replace('{name}', item.name || '');
+            showToast(msg, 'success');
+            return true;
+        }
+        showToast(res.error || t('error.generic'), 'error');
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+    return false;
+}
+
+async function bannerExtendExpiry() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || (entry.type !== 'expired' && entry.type !== 'expiring')) return;
+    const item = entry.data;
+    const ok = await extendInventoryExpiry(item.id, item);
+    if (ok) {
+        // Persist dismiss so reloadBannerAlerts won't re-queue until expiry approaches again
+        setReviewConfirmed('exp_' + item.id);
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+        else if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+    }
+}
+
 function bannerFinishAll() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry) return;
     const item = entry.data;
+    const productId = item.product_id;
     dismissBannerItem();
     api('inventory_use', {}, 'POST', {
-        product_id: item.product_id,
+        product_id: productId,
         use_all: true,
         location: '__all__',
     }).then(res => {
         if (res.success) {
+            if (productId) setReviewConfirmed('fin_' + productId);
             const msg = res.already_empty
                 ? t('toast.already_exhausted_confirmed').replace('{name}', item.name)
                 : t('toast.finished_all').replace('{name}', item.name);
@@ -7225,9 +7414,32 @@ async function confirmBannerFinished() {
             loadShoppingList();
         }
     } catch(e) {}
+    setReviewConfirmed('fin_' + productId);
     showToast(t('toast.product_finished_confirmed'), 'success');
     dismissBannerItem();
     if (typeof loadDashboard === 'function') loadDashboard();
+}
+
+/** Current stock is already correct — align ledger, do not restore and do not add to shopping. */
+async function keepBannerFinishedStock() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || entry.type !== 'finished') return;
+    const productId = entry.data.product_id;
+    showLoading(true);
+    try {
+        await api('inventory_confirm_finished', {}, 'POST', {
+            product_id: productId,
+            add_to_shopping: false,
+        });
+        setReviewConfirmed('fin_' + productId);
+        showToast(t('dashboard.banner_finished_keep_toast'), 'success');
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function notFinishedBannerAction() {
@@ -7252,6 +7464,7 @@ async function notFinishedBannerAction() {
             quantity: parsed,
             location: fin.location || 'dispensa',
         });
+        setReviewConfirmed('fin_' + fin.product_id);
         showToast(t('toast.ghost_restored', { name: fin.name, qty: parsed, unit: fin.unit }), 'success');
         dismissBannerItem();
         if (typeof loadDashboard === 'function') loadDashboard();
@@ -9684,35 +9897,11 @@ function _barcodePersistSet(key, result) {
     } catch (_) { /* quota */ }
 }
 
-/** Fix unit/qty from stored notes; fire-and-forget DB update when needed. */
+/** Fix unit/qty from stored notes; fire-and-forget DB update when needed.
+ *  Never overwrite the product unit from produce-name heuristics. */
 function _applyLocalBarcodeProductFixes(product) {
     if (!product) return;
     const cat = product.category || mapToLocalCategory(product.category || '', product.name || '', product.brand || '');
-    if (isSoldByPiece(product.name, cat)) {
-        const needsSave = product.unit !== 'pz' || parseFloat(product.default_quantity || 0) !== 1;
-        product.unit = 'pz';
-        product.default_quantity = 1;
-        product.package_unit = '';
-        if (needsSave && product.id) {
-            api('product_save', {}, 'POST', {
-                id: product.id,
-                barcode: product.barcode,
-                name: product.name,
-                brand: product.brand || '',
-                category: cat,
-                image_url: product.image_url || '',
-                unit: 'pz',
-                default_quantity: 1,
-                package_unit: '',
-                notes: product.notes || '',
-            }).catch(() => {});
-        }
-        if (!product.weight_info && product.notes) {
-            const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
-            if (pesoMatch) product.weight_info = pesoMatch[1].trim();
-        }
-        return;
-    }
     if (product.unit === 'pz' && product.default_quantity === 0 && product.notes) {
         const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
         if (pesoMatch) {
@@ -14484,6 +14673,25 @@ function _periodNeedForPlanDays(monthly, daily, planDays, usesPerMonth, unit) {
     return 0;
 }
 
+/** Mirror PHP isSoldByPieceProduct — fruit/veg sold as pieces, not grams. */
+function _isSoldByPieceProductName(name, category = '') {
+    const n = String(name || '').toLowerCase().trim();
+    if (!n) return false;
+    if (/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/i.test(n)) {
+        return false;
+    }
+    if (/\b(miele|formaggio|yogurt|succo|nettare|confettur|marmellat|crema|salsa|pesto|olio|aceto|pasta|riso)\b/i.test(n)) {
+        return false;
+    }
+    if (/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i.test(n)) {
+        return true;
+    }
+    if (/cipoll|aglio\b|patata\b|patate\b|zucchina\b|zucchine\b|melanzan|peperone\b|peperoni\b|carota\b|carote\b|finocch|sedano\b|porro\b|insalata|cavolfiore|cavolo\b|carciof|asparag|cetriolo|zucca\b|barbabietol/i.test(n)) {
+        return true;
+    }
+    return false;
+}
+
 function _maxSuggestedPieces(planDays) {
     return Math.max(2, Math.min(30, Math.ceil(planDays * 2.5)));
 }
@@ -14497,10 +14705,14 @@ function _floorPieceSuggestion(suggestedQty, avgBuy, usesPerMonth, planDays, emp
     let floor = 0;
     let approx = false;
     if (avgBuy >= 2) {
-        floor = Math.round(avgBuy * Math.min(1.25, Math.max(1, planDays / 7)));
+        // Ignore gram-sized averages when unit is pieces (legacy weight logs after unit→pz).
+        let trip = avgBuy;
+        if (trip > 25) trip = 1;
+        floor = Math.round(trip * Math.min(1.25, Math.max(1, planDays / 7)));
         floor = Math.max(2, Math.min(maxPieces, floor));
-        if (shelfCapped && useBased > 0) {
-            floor = Math.min(floor, Math.max(useBased, 1));
+        if (shelfCapped) {
+            const edibleCap = Math.max(1, useBased > 0 ? useBased : Math.ceil(planDays / 3));
+            floor = Math.min(floor, edibleCap);
         }
     } else if (usesPerMonth >= 2) {
         if (shelfCapped) {
@@ -14521,7 +14733,7 @@ function _floorPieceSuggestion(suggestedQty, avgBuy, usesPerMonth, planDays, emp
 
 /** Edible purchase horizon: perishables capped to shelf life (mirrors PHP smartPurchaseHorizonDays). */
 function _purchaseHorizonDays(smartData, planDays) {
-    const plan = Math.max(1, Math.min(31, planDays || getShoppingPlanDays()));
+    const plan = Math.max(1, Math.min(30, planDays || getShoppingPlanDays()));
     if (smartData?.qty_shelf_capped && smartData.edible_days > 0) {
         return {
             days: Math.max(1, parseInt(smartData.edible_days, 10) || plan),
@@ -14531,15 +14743,13 @@ function _purchaseHorizonDays(smartData, planDays) {
     }
     const name = smartData?.name || smartData?.shopping_name || '';
     const cat = smartData?.category || '';
-    const blob = `${name} ${cat}`.toLowerCase();
-    const loc = /frutta|verdura|insalata|rucola|zucchina|zucchine|peperon|melanzan|broccoli|spinaci|carota|pomodor|mela|banana|arancia|fragol|uva|kiwi|pera/.test(blob)
-        ? 'frigo'
-        : (typeof guessLocation === 'function' ? (guessLocation({ name, category: cat }) || 'dispensa') : 'dispensa');
+    // Purchase planning: pantry estimate (no fridge optimism) — same as PHP
     const shelf = typeof estimateExpiryDays === 'function'
-        ? Math.max(1, estimateExpiryDays({ name, category: cat }, loc))
+        ? Math.max(1, estimateExpiryDays({ name, category: cat }, 'dispensa'))
         : 180;
-    if (shelf < plan && shelf <= 21) {
-        return { days: Math.max(1, shelf), shelfDays: shelf, capped: true };
+    if (shelf <= 21) {
+        const days = Math.min(plan, shelf);
+        return { days: Math.max(1, days), shelfDays: shelf, capped: true };
     }
     return { days: plan, shelfDays: shelf, capped: false };
 }
@@ -14644,17 +14854,24 @@ function _computeSuggestedQtyForPlanDays(smartData) {
         const conf = _suggestedConfQty(needBase, defQty, pkgUnit);
         suggestedQty = conf.suggested_qty;
         suggestedUnit = conf.suggested_unit;
-    } else if (pkgUnit && defQty > 0) {
+    } else if (pkgUnit && defQty >= 20) {
         suggestedQty = Math.max(1, Math.min(6, _ceilDiscreteQty(needBase / defQty)));
         suggestedUnit = 'conf';
         suggestedApprox = true;
-    } else if ((unit === 'g' || unit === 'ml') && defQty > 0) {
+    } else if ((unit === 'g' || unit === 'ml') && defQty >= 50) {
+        // Always suggest in the product's own unit — never force pz by produce name.
         const pkgs = Math.max(1, Math.min(6, Math.ceil(needBase / defQty)));
         suggestedQty = pkgs * defQty;
         suggestedUnit = unit;
         suggestedApprox = true;
     } else if (unit === 'g' || unit === 'ml') {
-        if (needBase >= 30) {
+        const avgBuyG = parseFloat(smartData.avg_buy_qty) || 0;
+        if (avgBuyG >= 50 && needBase >= 30) {
+            const pkgs = Math.max(1, Math.min(6, Math.ceil(needBase / avgBuyG)));
+            suggestedQty = pkgs * Math.round(avgBuyG);
+            suggestedUnit = unit;
+            suggestedApprox = true;
+        } else if (needBase >= 30) {
             let rounded;
             if (needBase < 500) rounded = Math.max(100, Math.round(needBase / 100) * 100);
             else if (needBase < 2000) rounded = Math.max(250, Math.round(needBase / 250) * 250);
@@ -14948,7 +15165,10 @@ async function autoAddCriticalItems() {
         if (i.on_bring) return false;
         const gName = i.shopping_name || i.name;
         if (_isBringPurchased(gName, i.urgency)) return false;
-        return ['critical', 'high'].includes(i.urgency);
+        if (['critical', 'high'].includes(i.urgency)) return true;
+        // Depleted food must land on the list unless the user blocked it
+        const qty = parseFloat(i.current_qty ?? i.quantity ?? 0);
+        return qty <= 0.001 && ['medium', 'low'].includes(i.urgency);
     });
     if (toAdd.length === 0) return;
     const itemsToAdd = toAdd.map(i => ({
@@ -15763,17 +15983,18 @@ function startBgShoppingRefresh() {
 }
 
 function getShoppingPlanDaysDefault() {
-    const now = new Date();
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    // Never fewer than 7 days — month-end would otherwise suggest "1 apple"
-    return Math.max(7, lastDay - now.getDate() + 1);
+    // Prefer server-inferred cycle when available; otherwise 30 days.
+    if (typeof _smartPlanDaysDefault === 'number' && _smartPlanDaysDefault >= 7) {
+        return Math.min(30, _smartPlanDaysDefault);
+    }
+    return 30;
 }
 
 function getShoppingPlanDays() {
     const def = getShoppingPlanDaysDefault();
     if (_shoppingPlanDaysCache == null || _shoppingPlanDaysCache === '') return def;
     const d = parseInt(_shoppingPlanDaysCache, 10);
-    return (isNaN(d) || d < 1) ? def : Math.min(31, d);
+    return (isNaN(d) || d < 1) ? def : Math.min(30, d);
 }
 
 function isShoppingPlanDaysCustom() {
@@ -15782,7 +16003,7 @@ function isShoppingPlanDaysCustom() {
 }
 
 function setShoppingPlanDays(days, persist = true) {
-    const d = Math.max(1, Math.min(31, parseInt(days, 10) || getShoppingPlanDaysDefault()));
+    const d = Math.max(1, Math.min(30, parseInt(days, 10) || getShoppingPlanDaysDefault()));
     _shoppingPlanDaysCache = d;
     if (persist) _saveToServer('shopping_plan_days', d);
     _renderShoppingPlanDaysBar();
@@ -15957,7 +16178,10 @@ async function loadSmartShopping(forceRefresh = false) {
             _updateSmartUrgencyBadge();
             document.getElementById('smart-shopping-empty').style.display = 'none';
             document.getElementById('smart-shopping-content').style.display = 'block';
-            if (data.plan_days_default) _renderShoppingPlanDaysBar();
+            if (data.plan_days_default) {
+                _smartPlanDaysDefault = parseInt(data.plan_days_default, 10) || 30;
+                _renderShoppingPlanDaysBar();
+            }
         } else {
             smartShoppingItems = [];
             _smartShoppingLastFetch = Date.now();
@@ -22921,7 +23145,9 @@ async function _screensaverAutoAddItems() {
         if (i.on_bring) return false;
         const gName = i.shopping_name || i.name;
         if (_isBringPurchased(gName, i.urgency)) return false;
-        return i.urgency === 'critical' || i.urgency === 'high';
+        if (i.urgency === 'critical' || i.urgency === 'high') return true;
+        const qty = parseFloat(i.current_qty ?? i.quantity ?? 0);
+        return qty <= 0.001 && (i.urgency === 'medium' || i.urgency === 'low');
     });
     if (toAdd.length === 0) return;
 

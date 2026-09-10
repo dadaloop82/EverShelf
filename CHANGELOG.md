@@ -11,6 +11,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.7.99] - 2026-09-10
+
+### Fixed
+- **“è finito?” after Finito** — confirming finished is stored server-side so the banner does not come back (e.g. eggs) until you restock.
+
+### Changed
+- **All banner buttons shortened** in every language (Finito / Buttato / Correggi / Giusta / Lascia / Spiega / …).
+
+## [1.7.98] - 2026-09-10
+
+### Fixed
+- **Finished banner after “Finito”** — undoing a use was double-counted in the ledger (ghost fractions like **0.233 conf** milk), so “è finito?” came back even after you finished the pack. Repair migration + undo no longer inserts a second ledger row; **Finito** also clears residual ledger gaps.
+
+## [1.7.97] - 2026-09-10
+
+### Fixed
+- **“Product gone” crumbs** — leftover traces (e.g. 2.5 g honey) no longer show as inventory anomalies without a way to clear them; they go to the finished banner with **Finito / Buttato**.
+- **Anomaly dismiss** — “Giusta” now persists (`a_*_missing|phantom` keys) and aligns the ledger to the shown quantity instead of only hiding the banner.
+- **Finished reconciliation** — clearing stock no longer double-counts crumbs in the ledger.
+
+### Changed
+- Anomaly banner actions shortened and include **Finito / Buttato** (all languages).
+
+## [1.7.96] - 2026-09-10
+
+### Fixed
+- **Extend expiry on opened items** — “Estendi” now always adds **7 days** and is trusted over opened-shelf-life estimates (`expiry_user_set`), so the banner does not keep coming back (e.g. breadcrumbs / oregano).
+- **Missing Estendi** — shown on all checkable expired/opened banners (not only produce).
+
+### Changed
+- Shorter banner actions in all languages: **Finito / Buttato / Modifica / Estendi / Sottovuoto** (and equivalents).
+
+## [1.7.95] - 2026-09-10
+
+### Fixed
+- **Anti-waste shopping qty** — perishables (zucchini, tomatoes, carrots, …) are capped to finishable shelf life, not a month of produce. Fresh tomatoes no longer inherit the 730-day “passata” shelf life.
+- **Shopping horizon** — default is **30 days** (or your inferred shopping-trip cycle when known), not “days until month end”.
+- **Piece-bag floors** — historical bag size (e.g. 9 carrots) no longer overrides the edible-window use rate.
+- **Depleted food on the list** — medium/low depleted items now auto-sync to the shopping list (unless you removed/blocked them); existing rows refresh qty specs on each cron.
+
+### Changed
+- Shopping plan UI: Auto = 30d / inferred cycle (was “month end”); max 30 days.
+
 ## [1.7.94] - 2026-08-23
 
 ### Fixed

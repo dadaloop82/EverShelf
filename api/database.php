@@ -411,6 +411,31 @@ function migrateDB(PDO $db): void {
     // Fuel Mode / Health Bridge snapshots (#fuel)
     require_once __DIR__ . '/lib/health.php';
     healthEnsureTables($db);
+
+    // Repair: undo used to mark original undone=1 AND insert a compensating [Undone]
+    // tx, which double-counted in ledger balance (ghost fractions like 0.233 conf).
+    $undoRepair = $db->query("SELECT value FROM app_settings WHERE key = 'migration_undone_double_count_v1'")->fetchColumn();
+    if (!$undoRepair) {
+        $db->exec("
+            UPDATE transactions
+            SET undone = 1
+            WHERE undone = 0
+              AND notes = '[Undone]'
+              AND EXISTS (
+                SELECT 1 FROM transactions o
+                WHERE o.product_id = transactions.product_id
+                  AND o.undone = 1
+                  AND o.id < transactions.id
+                  AND abs(o.quantity - transactions.quantity) < 0.0001
+                  AND (
+                    (o.type IN ('out','waste') AND transactions.type = 'in')
+                    OR (o.type = 'in' AND transactions.type IN ('out','waste'))
+                  )
+                  AND (julianday(transactions.created_at) - julianday(o.created_at)) * 86400.0 BETWEEN -60 AND 3600
+              )
+        ");
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('migration_undone_double_count_v1', '1')");
+    }
 }
 
 /**
@@ -657,13 +682,15 @@ function estimateSealedExpiryDaysPHP(string $name, string $category, string $loc
     elseif (preg_match('/arancia|arance|mandarini|agrumi/', $n)) $days = 7;
     elseif (preg_match('/banana|banane/', $n)) $days = 5;
     elseif (preg_match('/pera|pere\b|fragola|fragole|uva|kiwi/', $n)) $days = 5;
-    elseif (preg_match('/carota|carote|zucchina|zucchine|peperoni|melanzane/', $n)) $days = 7;
+    // Fresh tomatoes MUST be before passata/pelati (those also contain "pomodor")
+    elseif (preg_match('/\bpomodor[oi]\b/', $n) && !preg_match('/passata|pelati|polpa|concentrat|scatol|lattina|salsa|sugo/', $n)) $days = 7;
+    elseif (preg_match('/carota|carote|zucchina|zucchine|peperon|melanzan/', $n)) $days = 7;
     elseif (preg_match('/broccoli|cavolfiore|cavolo|spinaci|bietola/', $n)) $days = 5;
     elseif (preg_match('/cipolla|cipolle/', $n)) $days = 10;
     elseif (preg_match('/patata|patate/', $n)) $days = 30; // whole tubers in a bag, pantry: 3-5 weeks
     elseif (preg_match('/biscott|cracker|grissini|fette\s+biscott/', $n)) $days = 180;
     elseif (preg_match('/nutella|marmellata|miele/', $n)) $days = 365;
-    elseif (preg_match('/passata|pelati|pomodor/', $n)) $days = 730;
+    elseif (preg_match('/passata|pelati|pomodor[oi]?\s*(in\s*)?(scatola|lattina)?|polpa\s+di\s+pomodor|concentrato\s+di\s+pomodor/', $n)) $days = 730;
     elseif (preg_match('/olio|aceto/', $n)) $days = 548;
 
     if ($days === null) {
@@ -754,6 +781,10 @@ function isSoldByPieceProduct(string $name, string $category = ''): bool {
     if (preg_match('/\d+\s*(g|kg)\b|al\s+kg|a\s+cubetti|tagliat|grappolo|in\s+foglia|sfus|triturat|grattugiat|pelat/i', $n)) {
         return false;
     }
+    // Avoid false positives: "miele di arancia", "formaggio … cipolla", juices, etc.
+    if (preg_match('/\b(miele|formaggio|yogurt|succo|nettare|confettur|marmellat|crema|salsa|pesto|olio|aceto|pasta|riso)\b/i', $n)) {
+        return false;
+    }
     if (preg_match('/avocado|banan|mela\b|mele\b|pera\b|pere\b|arancia|arance|mandarino|clementina|pompelmo|limone|limoni|lime\b|kiwi|mango\b|ananas|melone|anguria|nettarina|albicocca|pesca\b|prugna|susina|fico\b|melograno|papaya|cocco\b|dattero/i', $n)) {
         return true;
     }
@@ -763,17 +794,32 @@ function isSoldByPieceProduct(string $name, string $category = ''): bool {
     return false;
 }
 
-/** Force pz/1 for piece produce; optionally flag inventory conversion from g/ml. */
+/** Force pz/1 for piece produce; optionally flag inventory conversion from g/ml.
+ *  Never overrides an explicit g/ml/conf unit — users often weigh salad, melon, etc.
+ */
 function normalizePieceProductFields(array $fields, ?array $existing = null): array {
     if (!isSoldByPieceProduct((string)($fields['name'] ?? ''), (string)($fields['category'] ?? ''))) {
         return $fields;
     }
-    $prevUnit = strtolower((string)($existing['unit'] ?? $fields['unit'] ?? 'pz'));
-    $prevDef = (float)($existing['default_quantity'] ?? $fields['default_quantity'] ?? 0);
-    if (in_array($prevUnit, ['g', 'ml'], true)) {
-        $gpp = ($prevDef >= 50 && $prevDef <= 2000) ? $prevDef : 200;
-        $fields['_inventory_convert'] = ['grams_per_piece' => $gpp];
+    $incoming = strtolower(trim((string)($fields['unit'] ?? '')));
+    $prev = strtolower(trim((string)($existing['unit'] ?? '')));
+    // Keep the unit the user (or an earlier save) already chose.
+    if (in_array($incoming, ['g', 'ml', 'conf'], true) || in_array($prev, ['g', 'ml', 'conf'], true)) {
+        unset($fields['_inventory_convert']);
+        if (in_array($incoming, ['g', 'ml', 'conf'], true)) {
+            return $fields;
+        }
+        // Incoming still says pz but product was g/ml/conf → restore previous unit
+        $fields['unit'] = $prev;
+        if (isset($existing['default_quantity'])) {
+            $fields['default_quantity'] = $existing['default_quantity'];
+        }
+        if (array_key_exists('package_unit', $existing)) {
+            $fields['package_unit'] = $existing['package_unit'];
+        }
+        return $fields;
     }
+    // Brand-new / still unset: default piece produce to pz
     $fields['unit'] = 'pz';
     $fields['default_quantity'] = 1;
     $fields['package_unit'] = '';

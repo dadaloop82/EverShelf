@@ -4492,6 +4492,8 @@ function addToInventory(PDO $db): void {
     // Log transaction
     $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location) VALUES (?, 'in', ?, ?)");
     $stmt->execute([$productId, $quantity, $location]);
+
+    clearFinishedDismissed($db, $productId);
     
     $restock = shoppingHandleRestockAfterAdd($db, $productId);
 
@@ -4873,6 +4875,9 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             if ((float)($leftStmt->fetchColumn() ?: 0) <= 0) {
                 $shopResult = shoppingAddDepletedProduct($db, (int)$productId);
                 $addedToShopping = !empty($shopResult['added']) || !empty($shopResult['updated']);
+                // Clear any residual ledger gap (e.g. undo double-count ghosts)
+                confirmFinishedCore($db, (int)$productId, false);
+                markFinishedDismissed($db, (int)$productId);
             }
         }
         invalidateSmartShoppingCache();
@@ -5076,6 +5081,10 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         if ($totalLeft <= 0) {
             $shopResult = shoppingAddDepletedProduct($db, $productId);
             $addedToShopping = !empty($shopResult['added']) || !empty($shopResult['updated']);
+            // Explicit finish (use_all): also wipe residual ledger ghosts
+            if ($useAll && !_isWasteNotes($notes)) {
+                confirmFinishedCore($db, (int)$productId, false);
+            }
         }
     }
 
@@ -5992,6 +6001,39 @@ function mergeProduct(PDO $db): void {
 }
 
 /**
+ * Server-side "user confirmed finished" — survives refresh until stock returns.
+ * @return array<string,int>
+ */
+function getFinishedDismissedMap(PDO $db): array {
+    $raw = $db->query("SELECT value FROM app_settings WHERE key = 'finished_dismissed'")->fetchColumn();
+    $map = $raw ? (json_decode((string)$raw, true) ?: []) : [];
+    return is_array($map) ? $map : [];
+}
+
+function markFinishedDismissed(PDO $db, int $productId): void {
+    if ($productId <= 0) {
+        return;
+    }
+    $map = getFinishedDismissedMap($db);
+    $map[(string)$productId] = time();
+    // Keep ~180 days
+    $cut = time() - 180 * 86400;
+    $map = array_filter($map, static fn($ts) => (int)$ts > $cut);
+    $db->prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('finished_dismissed', ?)")
+       ->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+function clearFinishedDismissed(PDO $db, int $productId): void {
+    if ($productId <= 0) {
+        return;
+    }
+    $map = getFinishedDismissedMap($db);
+    unset($map[(string)$productId]);
+    $db->prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('finished_dismissed', ?)")
+       ->execute([json_encode($map, JSON_UNESCAPED_UNICODE)]);
+}
+
+/**
  * Returns products whose ledger balance exceeds stock (including vanished rows).
  * transaction balance (total_in - total_out) is still significantly positive —
  * meaning the system suspects the product ran out prematurely (scale drift,
@@ -6014,19 +6056,32 @@ function getFinishedItems(PDO $db): void {
         FROM products p
         LEFT JOIN transactions t ON t.product_id = p.id
         GROUP BY p.id
-        HAVING stock_qty <= 0.001 AND total_in > 0
+        HAVING total_in > 0
         ORDER BY (total_in - total_out) DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
 
+    $dismissed = getFinishedDismissedMap($db);
     $suspicious = [];
     foreach ($rows as $r) {
+        $productId = (int)$r['product_id'];
+        if (!empty($dismissed[(string)$productId])) {
+            continue;
+        }
+
+        $stock = (float)$r['stock_qty'];
+        $unit = (string)($r['unit'] ?? 'pz');
+        // Include depleted crumbs (e.g. 2.5 g honey) — UI treats them as finished.
+        if (!isInventoryDepleted(['quantity' => $stock, 'unit' => $unit])) {
+            continue;
+        }
+
         $expected = (float)$r['total_in'] - (float)$r['total_out'];
-        $threshold = productQtyThreshold($r['unit']);
+        $threshold = productQtyThreshold($unit);
 
         if ($expected > $threshold) {
             $location = $r['inv_location'] ?: $r['tx_location'] ?: 'dispensa';
             $suspicious[] = [
-                'product_id'       => (int)$r['product_id'],
+                'product_id'       => $productId,
                 'name'             => $r['name'],
                 'brand'            => $r['brand'],
                 'unit'             => $r['unit'],
@@ -6037,12 +6092,15 @@ function getFinishedItems(PDO $db): void {
                 'location'         => $location,
                 'updated_at'       => $r['inv_updated'],
                 'expected_qty'     => round($expected, 3),
+                'stock_qty'        => round($stock, 3),
                 'ghost'            => true,
-                'vanished'         => ((int)$r['inv_rows']) === 0,
+                'vanished'         => ((int)$r['inv_rows']) === 0 || $stock <= 0.001,
+                'inventory_id'     => null,
             ];
         } else {
             $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")
-               ->execute([$r['product_id']]);
+               ->execute([$productId]);
+            purgeDepletedInventoryCrumbs($db, $productId, $unit);
         }
     }
 
@@ -6053,7 +6111,11 @@ function getFinishedItems(PDO $db): void {
  * Reconcile a depleted product: optional ledger catch-up, purge zero-qty rows, Bring! add.
  * @return array{success:bool,bring?:array,error?:string,reconciled?:float}
  */
-function confirmFinishedCore(PDO $db, int $productId): array {
+/**
+ * @param bool $addToShopping When false, keep current stock and only align ledger to it.
+ * @param string $txType 'out' (finished/used) or 'waste' (thrown away).
+ */
+function confirmFinishedCore(PDO $db, int $productId, bool $addToShopping = true, string $txType = 'out'): array {
     $prod = $db->prepare("SELECT unit, name FROM products WHERE id = ?");
     $prod->execute([$productId]);
     $row = $prod->fetch(PDO::FETCH_ASSOC);
@@ -6061,32 +6123,69 @@ function confirmFinishedCore(PDO $db, int $productId): array {
         return ['success' => false, 'error' => 'Product not found'];
     }
 
+    $txType = $txType === 'waste' ? 'waste' : 'out';
+    $unit = (string)$row['unit'];
+    $threshold = productQtyThreshold($unit);
+
+    $stockStmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ?");
+    $stockStmt->execute([$productId]);
+    $stock = (float)$stockStmt->fetchColumn();
+
     $bal = getProductLedgerBalance($db, $productId);
     $expected = $bal['total_in'] - $bal['total_out'];
-    $threshold = productQtyThreshold((string)$row['unit']);
     $reconciled = 0.0;
 
-    if ($expected > $threshold) {
-        $locStmt = $db->prepare("SELECT location FROM inventory WHERE product_id = ? ORDER BY updated_at DESC LIMIT 1");
+    $locStmt = $db->prepare("SELECT location FROM inventory WHERE product_id = ? ORDER BY updated_at DESC LIMIT 1");
+    $locStmt->execute([$productId]);
+    $location = $locStmt->fetchColumn();
+    if (!$location) {
+        $locStmt = $db->prepare("SELECT location FROM transactions WHERE product_id = ? AND undone = 0 ORDER BY created_at DESC LIMIT 1");
         $locStmt->execute([$productId]);
         $location = $locStmt->fetchColumn();
-        if (!$location) {
-            $locStmt = $db->prepare("SELECT location FROM transactions WHERE product_id = ? AND undone = 0 ORDER BY created_at DESC LIMIT 1");
-            $locStmt->execute([$productId]);
-            $location = $locStmt->fetchColumn();
+    }
+    $location = $location ?: 'dispensa';
+
+    if ($addToShopping) {
+        // Product gone: clear all rows, then one ledger catch-up (no double-count crumbs).
+        $db->prepare("DELETE FROM inventory WHERE product_id = ?")->execute([$productId]);
+        if ($expected > $threshold) {
+            $reconciled = round($expected, 3);
+            $note = $txType === 'waste'
+                ? '[Reconciliation] Confirmed discarded'
+                : '[Reconciliation] Confirmed finished';
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)")
+               ->execute([$productId, $txType, $reconciled, $location, $note]);
+        } elseif ($stock > 0.0001) {
+            $reconciled = round($stock, 3);
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)")
+               ->execute([$productId, $txType, $reconciled, $location, '[Finished] Trace amount cleared']);
         }
-        $location = $location ?: 'dispensa';
-        $reconciled = round($expected, 3);
-        $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
-           ->execute([$productId, $reconciled, $location, '[Reconciliation] Confirmed finished']);
+    } else {
+        // Keep stock: close only the ledger gap so expected ≈ inventory.
+        $gap = round($expected - $stock, 3);
+        if ($gap > $threshold) {
+            $reconciled = $gap;
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, ?)")
+               ->execute([$productId, $reconciled, $location, '[Reconciliation] Stock accepted as-is (ledger aligned)']);
+        } elseif ($gap < -$threshold) {
+            $reconciled = abs($gap);
+            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'in', ?, ?, ?)")
+               ->execute([$productId, $reconciled, $location, '[Reconciliation] Stock accepted as-is (ledger aligned)']);
+        }
+        $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")->execute([$productId]);
     }
 
-    $db->prepare("DELETE FROM inventory WHERE product_id = ? AND quantity <= 0")->execute([$productId]);
-    $purged = purgeDepletedInventoryCrumbs($db, $productId, (string)$row['unit']);
-    $reconciled += $purged;
-
-    $shopping = shoppingAddDepletedProduct($db, $productId);
+    $shopping = $addToShopping
+        ? shoppingAddDepletedProduct($db, $productId)
+        : ['added' => false, 'updated' => false, 'skipped' => 'stock_kept'];
     invalidateSmartShoppingCache();
+
+    // After explicit finish / ledger align to empty: never re-ask until stock returns.
+    $leftStmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) FROM inventory WHERE product_id = ?");
+    $leftStmt->execute([$productId]);
+    if ((float)$leftStmt->fetchColumn() <= 0.0001) {
+        markFinishedDismissed($db, $productId);
+    }
 
     return [
         'success'      => true,
@@ -6135,7 +6234,10 @@ function confirmFinished(PDO $db): void {
         return;
     }
 
-    $result = confirmFinishedCore($db, $productId);
+    // Default true (legacy). Explicit false = keep current stock, only align ledger.
+    $addToShopping = !array_key_exists('add_to_shopping', $input) || $input['add_to_shopping'] !== false;
+    $asWaste = !empty($input['as_waste']);
+    $result = confirmFinishedCore($db, $productId, $addToShopping, $asWaste ? 'waste' : 'out');
     if (!$result['success']) {
         http_response_code(404);
         echo json_encode(['error' => $result['error'] ?? 'Product not found']);
@@ -6187,6 +6289,7 @@ function restoreGhostInventory(PDO $db): void {
            ->execute([$productId, $location, $quantity]);
         $invId = (int)$db->lastInsertId();
     }
+    clearFinishedDismissed($db, $productId);
 
     echo json_encode([
         'success'      => true,
@@ -6239,7 +6342,9 @@ function listTransactions(PDO $db): void {
  * Only available within 24 hours of the original transaction.
  * - type='in'  (add)    → removes that quantity from inventory at the same location
  * - type='out'/'waste'  → adds that quantity back to inventory at the same location
- * Marks the original as undone=1 and logs a counter-transaction with notes='[Annullato]'.
+ * Marks the original as undone=1. Does NOT insert a compensating ledger row:
+ * balance queries already exclude undone=1; a second [Undone] in/out would
+ * double-count and create ghost stock (e.g. 0.233 conf milk).
  */
 function undoTransaction(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -6292,9 +6397,6 @@ function undoTransaction(PDO $db): void {
                     $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$newQty, $row['id']]);
                 }
             }
-            // Log counter-transaction
-            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'out', ?, ?, '[Undone]')")->execute([$productId, $quantity, $location]);
-
         } elseif ($type === 'out' || $type === 'waste') {
             // Reverse a USE: add quantity back to inventory
             $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? ORDER BY quantity DESC LIMIT 1");
@@ -6306,11 +6408,9 @@ function undoTransaction(PDO $db): void {
                 // No row at this location — create one without expiry
                 $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")->execute([$productId, $location, $quantity]);
             }
-            // Log counter-transaction
-            $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, 'in', ?, ?, '[Undone]')")->execute([$productId, $quantity, $location]);
         }
 
-        // Mark original as undone
+        // Mark original as undone (ledger balance excludes undone=1)
         $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$txId]);
         $db->commit();
         echo json_encode(['success' => true, 'name' => $tx['name']]);
@@ -6368,6 +6468,11 @@ function getInventoryAnomalies(PDO $db): void {
     $anomalies = [];
     foreach ($rows as $r) {
         $invQty   = floatval($r['inv_qty']);
+        $unit     = (string)($r['unit'] ?? 'pz');
+        // Trace leftovers (e.g. 2.5 g) belong to the "finished?" banner, not anomalies.
+        if (isInventoryDepleted(['quantity' => $invQty, 'unit' => $unit])) {
+            continue;
+        }
         $expected = floatval($r['total_in']) - floatval($r['total_out']);
         $diff     = $invQty - $expected;
 
@@ -6533,7 +6638,8 @@ function getDuplicateLossChecks(PDO $db): void {
 function dismissInventoryAnomaly(): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $key   = $input['dismiss_key'] ?? '';
-    if (empty($key) || !preg_match('/^a_\d+_-?\d+$/', $key)) {
+    // New keys: a_{productId}_missing|phantom — legacy: a_{productId}_{signedExpected}
+    if (empty($key) || !preg_match('/^a_\d+_(-?\d+|missing|phantom)$/', $key)) {
         EverLog::info('dismissInventoryAnomaly');
         echo json_encode(['success' => false, 'error' => 'Invalid key']);
         return;
@@ -6650,10 +6756,14 @@ function getStats(PDO $db): void {
             // The vacuum-sealed multiplier is already handled inside getOpenedShelfLifeDays.
             $openedDays    = getOpenedShelfLifeDays($item['name'], $item['category'], $item['location'], (bool)$vacuum, false);
             $computedExpiry = strtotime($item['opened_at']) + $openedDays * 86400;
-            // Always respect the manufacturer date: if the package expires before our estimate,
-            // use the manufacturer date (e.g., milk opened 2 days before its sealed expiry).
-            $finalExpiry = ($originalExpiry !== null && $originalExpiry < $computedExpiry)
-                ? $originalExpiry : $computedExpiry;
+            // User explicitly extended/set the date ("Estendi") — trust it over opened estimate
+            if ((int)($item['expiry_user_set'] ?? 0) === 1 && $originalExpiry !== null) {
+                $finalExpiry = $originalExpiry;
+            } else {
+                // Respect the manufacturer date when it expires before our opened estimate
+                $finalExpiry = ($originalExpiry !== null && $originalExpiry < $computedExpiry)
+                    ? $originalExpiry : $computedExpiry;
+            }
             $item['opened_expiry'] = date('Y-m-d', $finalExpiry);
             $item['days_to_expiry'] = (int)round(($finalExpiry - $today) / 86400);
         } else {
@@ -12467,9 +12577,19 @@ function buildSmartBringSpec(array $si): string {
 }
 
 /** True when a smart-shopping row should be auto-synced to Bring!/internal list.
- *  Only Urgente + Presto — not "A breve" / previsioni (those stay in suggestions). */
+ *  Urgente + Presto always; also every depleted item (unless the user blocked it)
+ *  so food never silently disappears from the list. */
 function smartItemShouldSyncToBring(array $si): bool {
-    return in_array($si['urgency'] ?? 'none', ['critical', 'high'], true);
+    $u = $si['urgency'] ?? 'none';
+    if (in_array($u, ['critical', 'high'], true)) {
+        return true;
+    }
+    $qty = (float)($si['current_qty'] ?? $si['quantity'] ?? 0);
+    // Depleted → always sync medium/low predictions onto the shopping list
+    if ($qty <= 0.001 && in_array($u, ['medium', 'low'], true)) {
+        return true;
+    }
+    return false;
 }
 
 // ===== BRING PURCHASED BLOCKLIST (server-side, synced with app_settings.bring_blocklist) =====
@@ -12949,7 +13069,7 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
     $familyQty = (float)$stockStmt->fetchColumn();
     $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
 
-    $planDays = smartDefaultPlanDays();
+    $planDays = smartDefaultPlanDays($db);
     $horizon = smartPurchaseHorizonDays(
         (string)($prod['name'] ?? ''),
         (string)($prod['category'] ?? ''),
@@ -14164,6 +14284,7 @@ function internalShoppingAutoAddCritical(PDO $db): array {
     }
 
     $added = 0;
+    $updated = 0;
     foreach ($smartItems as $si) {
         if (!smartItemShouldSyncToBring($si)) {
             continue;
@@ -14181,10 +14302,16 @@ function internalShoppingAutoAddCritical(PDO $db): array {
         }
         $rawName = trim((string)($si['name'] ?? '')) ?: $name;
         $genKey = internalShoppingListGenericKey($db, $name, $rawName);
+        $spec = buildSmartBringSpec($si);
         if (isset($onListKeys[$genKey])) {
+            // Refresh qty/urgency on existing rows so anti-waste caps stay accurate
+            $upd = $db->prepare("UPDATE shopping_list SET specification = ? WHERE lower(name) = lower(?)");
+            $upd->execute([$spec, $name]);
+            if ($upd->rowCount() > 0) {
+                $updated++;
+            }
             continue;
         }
-        $spec = buildSmartBringSpec($si);
         $stmt = $db->prepare("INSERT OR IGNORE INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)");
         $stmt->execute([$name, $rawName, $spec]);
         if ($stmt->rowCount() > 0) {
@@ -14195,7 +14322,7 @@ function internalShoppingAutoAddCritical(PDO $db): array {
 
     $dedupe = internalShoppingDedupeGenerics($db);
 
-    return ['added' => $added, 'deduped' => $dedupe['removed'] ?? 0];
+    return ['added' => $added, 'updated' => $updated, 'deduped' => $dedupe['removed'] ?? 0];
 }
 
 /**
@@ -14866,7 +14993,7 @@ function smartShoppingCached(PDO $db): void {
     header('Pragma: no-cache');
     header('Expires: 0');
 
-    $planDays = smartResolvePlanDays($_GET['plan_days'] ?? null);
+    $planDays = smartResolvePlanDays($_GET['plan_days'] ?? null, $db);
     $force    = !empty($_GET['force']);
     $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
     $maxAge    = 3 * 60;
@@ -14880,7 +15007,7 @@ function smartShoppingCached(PDO $db): void {
                 if ($data && isset($data['success']) && (int)($data['plan_days'] ?? -1) === $planDays) {
                     $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
                     $data['items'] = smartShoppingFilterPurchased($db, $data['items'] ?? []);
-                    $data['plan_days_default'] = smartDefaultPlanDays();
+                    $data['plan_days_default'] = smartDefaultPlanDays($db);
                     echo json_encode($data, JSON_UNESCAPED_UNICODE);
                     return;
                 }
@@ -14948,23 +15075,90 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
 }
 
 /**
- * Default shopping horizon: days left in the current month, but never fewer
- * than 7 — otherwise near month-end every piece-good suggestion collapses to "1 pz".
+ * Infer typical days between shopping trips from spend log and/or buy clusters.
+ * Returns null when there is not enough history.
  */
-function smartDefaultPlanDays(): int {
-    $today = new DateTime('today');
-    $last  = new DateTime('last day of this month');
-    $untilMonthEnd = max(1, (int)$today->diff($last)->days + 1);
-    return max(7, $untilMonthEnd);
+function smartInferShoppingCycleDays(?PDO $db = null): ?int {
+    $gaps = [];
+
+    // 1) Optional spend tracking
+    if (function_exists('_spendLoadHistory')) {
+        $entries = _spendLoadHistory();
+        if (count($entries) >= 3) {
+            $ts = [];
+            foreach ($entries as $e) {
+                $t = (int)($e['ts'] ?? 0);
+                if ($t > 1_000_000_000_000) {
+                    $t = (int)floor($t / 1000); // ms → s
+                }
+                if ($t > 1_000_000_000) {
+                    $ts[] = $t;
+                }
+            }
+            $ts = array_values(array_unique($ts));
+            sort($ts);
+            for ($i = 1; $i < count($ts); $i++) {
+                $g = (int)round(($ts[$i] - $ts[$i - 1]) / 86400);
+                if ($g >= 2 && $g <= 45) {
+                    $gaps[] = $g;
+                }
+            }
+        }
+    }
+
+    // 2) Buy-day clusters from inventory "in" transactions (last 120 days)
+    if ($db instanceof PDO) {
+        try {
+            $txReal = function_exists('shoppingTxNotMoveNotesSql')
+                ? shoppingTxNotMoveNotesSql('notes')
+                : '1=1';
+            $rows = $db->query("
+                SELECT DISTINCT date(created_at) AS d
+                FROM transactions
+                WHERE type = 'in' AND undone = 0 AND {$txReal}
+                  AND created_at >= datetime('now', '-120 days')
+                ORDER BY d ASC
+            ")->fetchAll(PDO::FETCH_COLUMN);
+            $days = array_values(array_filter(array_map('strval', $rows ?: [])));
+            for ($i = 1; $i < count($days); $i++) {
+                $g = (int)round((strtotime($days[$i]) - strtotime($days[$i - 1])) / 86400);
+                if ($g >= 3 && $g <= 45) {
+                    $gaps[] = $g;
+                }
+            }
+        } catch (Throwable $e) {
+            // ignore — fall back to default
+        }
+    }
+
+    if (count($gaps) < 2) {
+        return null;
+    }
+    sort($gaps);
+    $mid = (int)$gaps[(int)floor((count($gaps) - 1) / 2)];
+    return max(7, min(30, $mid));
 }
 
-/** Resolve planning horizon (1–31 days). Null/empty → days until month end. */
-function smartResolvePlanDays($requested): int {
+/**
+ * Default shopping horizon: inferred trip cycle when known, otherwise 30 days.
+ * (Previously: days left in the month — that overshot perishables near month start
+ * and collapsed piece suggestions near month end.)
+ */
+function smartDefaultPlanDays(?PDO $db = null): int {
+    $inferred = smartInferShoppingCycleDays($db);
+    if ($inferred !== null) {
+        return $inferred;
+    }
+    return 30;
+}
+
+/** Resolve planning horizon (1–30 days). Null/empty → default (30 or inferred). */
+function smartResolvePlanDays($requested, ?PDO $db = null): int {
     if ($requested === null || $requested === '') {
-        return smartDefaultPlanDays();
+        return smartDefaultPlanDays($db);
     }
     $d = (int)$requested;
-    return max(1, min(31, $d));
+    return max(1, min(30, $d));
 }
 
 /**
@@ -15077,12 +15271,18 @@ function smartFloorPieceSuggestion(
     $floor = 0;
     $approx = false;
     if ($avgBuy >= 2) {
-        // Typical trip size, slightly scaled if planning more than a week
-        $floor = (int) round($avgBuy * min(1.25, max(1.0, $planDays / 7.0)));
+        // Typical trip size, slightly scaled if planning more than a week.
+        // Ignore gram-sized averages when unit is pieces (legacy weight logs after unit→pz).
+        $trip = $avgBuy;
+        if ($trip > 25) {
+            $trip = 1.0;
+        }
+        $floor = (int) round($trip * min(1.25, max(1.0, $planDays / 7.0)));
         $floor = max(2, min($maxPieces, $floor));
-        if ($shelfCapped && $useBased > 0) {
-            // Don't force a bag bigger than edible-window consumption
-            $floor = min($floor, max($useBased, 1));
+        if ($shelfCapped) {
+            // Anti-waste: never force a bag bigger than edible-window consumption
+            $edibleCap = max(1, $useBased > 0 ? $useBased : (int)ceil($planDays / 3));
+            $floor = min($floor, $edibleCap);
         }
     } elseif ($usesPerMonth >= 2) {
         if ($shelfCapped) {
@@ -15121,6 +15321,8 @@ function smartPurchaseStorageLocation(string $name, string $category, array $was
 
 /**
  * Shopping qty horizon: for perishables, only count days you can finish before spoil.
+ * Uses a conservative (non-fridge-boosted) shelf life so we never suggest a month of
+ * zucchini just because they "could" last 14 days in the fridge.
  *
  * @return array{days:int,shelf_days:int,capped:bool,location:string}
  */
@@ -15130,16 +15332,21 @@ function smartPurchaseHorizonDays(
     int $planDays,
     array $wasteHint = []
 ): array {
-    $planDays = max(1, min(31, $planDays));
+    $planDays = max(1, min(30, $planDays));
     $loc = smartPurchaseStorageLocation($name, $category, $wasteHint);
+    // Purchase planning: estimate as if stored in pantry/dispensa (no fridge optimism).
+    // Fridge extensions are for opened-stock alerts, not for "how much to buy".
     $shelf = 180;
     if (function_exists('estimateSealedExpiryDaysPHP')) {
-        $shelf = max(1, estimateSealedExpiryDaysPHP($name, $category, $loc));
+        $shelf = max(1, estimateSealedExpiryDaysPHP($name, $category, 'dispensa'));
     }
-    // Cap only when shelf life is short enough that a month-long plan would overshoot
-    if ($shelf < $planDays && $shelf <= 21) {
+    // Cap any perishable (≤21d sealed) to what is finishable before spoil.
+    // Always mark capped=true for perishables so piece floors use edible use-rate
+    // (not the historical bag size) even when plan_days already equals shelf life.
+    if ($shelf <= 21) {
+        $days = min($planDays, $shelf);
         return [
-            'days' => max(1, $shelf),
+            'days' => max(1, $days),
             'shelf_days' => $shelf,
             'capped' => true,
             'location' => $loc,
@@ -15188,8 +15395,8 @@ function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, 
 function smartShopping(PDO $db, ?int $planDays = null): void {
     EverLog::info('smartShopping');
     set_time_limit(120);
-    $planDays = smartResolvePlanDays($planDays);
-    $planDefault = smartDefaultPlanDays();
+    $planDays = smartResolvePlanDays($planDays, $db);
+    $planDefault = smartDefaultPlanDays($db);
     $now = time();
     $today = date('Y-m-d');
 
@@ -15793,22 +16000,32 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
             if ($needBase > 0) {
                 if ($unit === 'conf') {
+                    // Purchase frequency over the edible horizon (NOT buys/month × days → that made 21 conf).
                     if ($buyCount > 0 && $totalUsed > $buyCount * 5 && $daysSinceFirst < 999 && $periodSource === 'plan_days_rate') {
-                        $needBase = max($needBase, ($buyCount / max(1, $daysSinceFirst / 30)) * $qtyHorizon);
+                        $buysPerMonth = $buyCount / max(1.0, $daysSinceFirst / 30.0);
+                        $needBase = max($needBase, $buysPerMonth * ($qtyHorizon / 30.0));
                     }
                     [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit);
                     $suggestedApprox = $periodSource !== 'prev_month' && $monthlySource !== 'prev_month';
-                } elseif ($pkgUnit !== '' && $defQty > 0) {
+                } elseif ($pkgUnit !== '' && $defQty >= 20) {
                     $pkgs = smartCeilDiscreteQty($needBase / $defQty);
                     $suggestedQty   = (float) max(1, min(6, $pkgs));
                     $suggestedUnit  = 'conf';
-                } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0) {
+                } elseif (($unit === 'g' || $unit === 'ml') && $defQty >= 50) {
+                    // Real pack size only (ignore absurd default_quantity like 1 g).
+                    // Always suggest in the product's own unit — never force pz by produce name.
                     $pkgs = (int) max(1, min(6, (int) ceil($needBase / $defQty)));
                     $suggestedQty   = $pkgs * (int) $defQty;
                     $suggestedUnit  = $unit;
                     $suggestedApprox = true;
                 } elseif ($unit === 'g' || $unit === 'ml') {
-                    if ($needBase >= 30) {
+                    $avgBuyG = smartAvgPurchaseQty($totalBought, $buyCount);
+                    if ($avgBuyG >= 50 && $needBase >= 30) {
+                        $pkgs = (int) max(1, min(6, (int) ceil($needBase / $avgBuyG)));
+                        $suggestedQty   = (float) ($pkgs * (int) round($avgBuyG));
+                        $suggestedUnit  = $unit;
+                        $suggestedApprox = true;
+                    } elseif ($needBase >= 30) {
                         if ($needBase < 500) {
                             $rounded = (int) max(100, round($needBase / 100) * 100);
                         } elseif ($needBase < 2000) {
@@ -15984,10 +16201,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             }
             // on_bring is true if ANY variant in the group is already on Bring!
             if ($item['on_bring']) $grouped[$sn]['on_bring'] = true;
-            // Keep the highest suggested purchase qty across variants
+            // Keep the highest suggested purchase qty across variants — only when units match
+            // (otherwise 1000g beats 3 conf and corrupts the suggestion).
+            $curUnit = strtolower((string)($grouped[$sn]['suggested_unit'] ?? ''));
+            $newUnit = strtolower((string)($item['suggested_unit'] ?? ''));
             $curSq = (float)($grouped[$sn]['suggested_qty'] ?? 0);
             $newSq = (float)($item['suggested_qty'] ?? 0);
-            if ($newSq > $curSq) {
+            if ($newSq > 0 && $curUnit !== '' && $newUnit === $curUnit && $newSq > $curSq) {
                 $grouped[$sn]['suggested_qty'] = $item['suggested_qty'];
                 $grouped[$sn]['suggested_unit'] = $item['suggested_unit'];
                 $grouped[$sn]['suggested_approx'] = $item['suggested_approx'];

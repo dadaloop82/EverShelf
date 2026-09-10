@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.7.94</span>
+        <span class="app-preloader-version" id="preloader-version">v1.7.99</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.94</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.7.99</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -793,7 +793,7 @@
                         </div>
                         <div class="shopping-plan-days-controls">
                             <label class="shopping-plan-days-input-wrap">
-                                <input type="number" id="shopping-plan-days-input" class="shopping-plan-days-input" min="1" max="31" inputmode="numeric"
+                                <input type="number" id="shopping-plan-days-input" class="shopping-plan-days-input" min="1" max="30" inputmode="numeric"
                                     oninput="_debouncedShoppingPlanDaysPreview()" onchange="applyShoppingPlanDays()" aria-label="Giorni pianificazione">
                                 <span data-i18n="shopping.plan_days_unit">gg</span>
                             </label>

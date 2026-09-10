@@ -97,6 +97,7 @@ try {
                 echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add skipped: ' . $internalAdd['skipped'] . "\n";
             } else {
                 echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add — added: ' . ($internalAdd['added'] ?? 0)
+                    . ', updated: ' . ($internalAdd['updated'] ?? 0)
                     . ', deduped: ' . ($internalAdd['deduped'] ?? 0) . "\n";
             }
         }
