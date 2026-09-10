@@ -13,17 +13,32 @@ require_once __DIR__ . '/bootstrap.php';
 
 const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
-/** Default days to suppress auto-re-add after shopping_remove / comprato (override: SHOPPING_REMOVED_BLOCK_DAYS). */
-const SHOPPING_REMOVED_BLOCK_DAYS_DEFAULT = 15;
 
-/** Blocklist TTL in ms — after shopping_remove or spesa purchase the item stays suppressed. */
-function shoppingListBlocklistMs(): int {
-    static $ms = null;
-    if ($ms === null) {
-        $days = max(1, (int)env('SHOPPING_REMOVED_BLOCK_DAYS', (string)SHOPPING_REMOVED_BLOCK_DAYS_DEFAULT));
-        $ms = $days * 86400 * 1000;
+/**
+ * Comprato / rimuovi dalla spesa: suppress auto-re-add only within the calendar
+ * month of the operation. Next month the item can be suggested again.
+ * Override: SHOPPING_REMOVED_BLOCK_MODE=days + SHOPPING_REMOVED_BLOCK_DAYS=N
+ */
+function shoppingListBlocklistExpired(int $tsMs): bool {
+    if ($tsMs <= 0) {
+        return true;
     }
-    return $ms;
+    $mode = strtolower(trim((string)env('SHOPPING_REMOVED_BLOCK_MODE', 'month')));
+    if ($mode === 'days') {
+        $days = max(1, (int)env('SHOPPING_REMOVED_BLOCK_DAYS', '15'));
+        return ((int)(microtime(true) * 1000) - $tsMs) > ($days * 86400 * 1000);
+    }
+    // Calendar month (server local timezone): blocked only while year-month matches.
+    $blockedYm = (int)date('Ym', (int)floor($tsMs / 1000));
+    $currentYm = (int)date('Ym');
+    return $currentYm > $blockedYm;
+}
+
+/** @deprecated Use shoppingListBlocklistExpired() — kept for any callers expecting ms. */
+function shoppingListBlocklistMs(): int {
+    // Approximate remaining ms until next month start (for display/debug only).
+    $next = new DateTimeImmutable('first day of next month 00:00:00');
+    return max(0, ($next->getTimestamp() - time()) * 1000);
 }
 
 // ── Global PHP error/exception reporters ─────────────────────────────────────
@@ -12895,11 +12910,10 @@ function bringGetActiveBlocklist(PDO $db): array {
         return $GLOBALS['_bringActiveBlocklist'];
     }
     $map = bringPruneBlocklist($db);
-    $now = (int)(microtime(true) * 1000);
     $exact = [];
     $byToken = [];
     foreach ($map as $key => $ts) {
-        if ($now - (int)$ts > shoppingListBlocklistMs()) {
+        if (shoppingListBlocklistExpired((int)$ts)) {
             continue;
         }
         $kl = mb_strtolower((string)$key);
@@ -12915,10 +12929,9 @@ function bringGetActiveBlocklist(PDO $db): array {
 
 function bringPruneBlocklist(PDO $db): array {
     $map = bringGetBlocklist($db);
-    $now = (int)(microtime(true) * 1000);
     $changed = false;
     foreach ($map as $key => $ts) {
-        if ($now - (int)$ts > shoppingListBlocklistMs()) {
+        if (shoppingListBlocklistExpired((int)$ts)) {
             unset($map[$key]);
             $changed = true;
         }
@@ -14563,7 +14576,7 @@ function shoppingAddDepletedProduct(PDO $db, int $productId): array {
  * @deprecated Prefer shoppingAddDepletedProduct() — Bring! is an optional mirror only.
  * Add a depleted product to the active shopping list under its generic shopping_name.
  *
- * - Clears the 15-day purchase/remove blocklist for this family (finished again → need to buy).
+ * - Clears the purchase/remove blocklist for this family (finished again → need to buy).
  * - Skips when another product in the same generic family still has stock.
  * - Uses shopping_name (or computeShoppingName) as the list row name.
  * - Default target is the EverShelf internal list; Bring! only when mode=bring + credentials.
@@ -14840,7 +14853,7 @@ function bringRemoveItem(): void {
     $asPurchased = shoppingInputAsPurchased($input);
     $db = getDB();
     $ok = bringRemoveByNames($db, $name, $rawName);
-    // Block re-add for 15 days only when marked as purchased (Comprato).
+    // Block re-add for the rest of the calendar month only when marked as purchased (Comprato).
     if ($asPurchased) {
         bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name));
     }
@@ -16630,7 +16643,7 @@ function shoppingGetList(PDO $db): void {
         'specification' => $r['specification'],
     ], $items);
     // Internal list: rows already in shopping_list are intentional (user add or deplete).
-    // Do NOT hide them via the 15-day purchase/remove blocklist — that only gates auto-re-add.
+    // Do NOT hide them via the purchase/remove blocklist — that only gates auto-re-add.
     $purchase = enrichShoppingListPurchase($purchase);
     echo json_encode([
         'success'   => true,
@@ -16898,7 +16911,7 @@ function shoppingInputAsPurchased(array $input): bool {
     return !in_array($s, ['0', 'false', 'no', 'off', ''], true);
 }
 
-/** Remove row(s) from internal shopping_list; optionally block auto re-add (15 days default). */
+/** Remove row(s) from internal shopping_list; optionally block auto re-add (rest of calendar month). */
 function shoppingRemoveInternal(PDO $db, array $input): void {
     $asPurchased = shoppingInputAsPurchased($input);
     $batch = [];

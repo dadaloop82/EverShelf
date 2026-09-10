@@ -15164,16 +15164,23 @@ function _unmarkAutoAddedBring(names) {
 }
 
 // ===== BRING! PURCHASED BLOCKLIST (server-synced) =====
-// When an item disappears from the list (bought / removed), block auto-re-add for 15 days (server TTL).
-const _BRING_PURCHASED_TTL = 15 * 24 * 60 * 60 * 1000;
+// When an item disappears from the list (bought / removed), block auto-re-add
+// only for the rest of the calendar month (server uses the same rule).
+function _bringPurchasedExpired(ts) {
+    const t = Number(ts) || 0;
+    if (t <= 0) return true;
+    const d = new Date(t);
+    const now = new Date();
+    return (now.getFullYear() > d.getFullYear())
+        || (now.getFullYear() === d.getFullYear() && now.getMonth() > d.getMonth());
+}
 
 function _getBringPurchasedBlocklist() {
     const map = Object.assign({}, _bringBlocklistCache || {});
-    const now = Date.now();
-    // Prune expired entries
+    // Prune entries from previous calendar months
     let changed = false;
     for (const key of Object.keys(map)) {
-        if (now - map[key] > _BRING_PURCHASED_TTL) { delete map[key]; changed = true; }
+        if (_bringPurchasedExpired(map[key])) { delete map[key]; changed = true; }
     }
     if (changed) {
         _bringBlocklistCache = map;
@@ -15191,13 +15198,11 @@ function _markBringPurchased(names) {
 }
 
 function _isBringPurchased(name, urgency) {
-    const ttl = _BRING_PURCHASED_TTL;
     const map = _getBringPurchasedBlocklist();
-    const now = Date.now();
     return Object.keys(map).some(k => {
         const matches = _nameTokens(name)[0] === _nameTokens(k)[0] || k === name.toLowerCase();
         if (!matches) return false;
-        return (now - map[k]) < ttl;
+        return !_bringPurchasedExpired(map[k]);
     });
 }
 
