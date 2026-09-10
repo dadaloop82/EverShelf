@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.2] - 2026-09-10
+
+### Changed
+- **Comprato** — suppresses auto-re-add until that product is **finished again** (not just until next month). Cleared automatically when you mark it finished / it goes to the shopping list as depleted.
+- **Rimuovi** — still only suppresses for the rest of the calendar month.
+
 ## [1.8.1] - 2026-09-10
 
 ### Changed

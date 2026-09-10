@@ -15,28 +15,49 @@ const RECIPE_PANTRY_MIN_MATCH_SCORE = 80;
 const RECENTLY_EXHAUSTED_DAYS = 30;
 
 /**
- * Comprato / rimuovi dalla spesa: suppress auto-re-add only within the calendar
- * month of the operation. Next month the item can be suggested again.
- * Override: SHOPPING_REMOVED_BLOCK_MODE=days + SHOPPING_REMOVED_BLOCK_DAYS=N
+ * Comprato → block until the family is finished again (cleared on deplete).
+ * Rimuovi (purchased=false) → block only for the rest of the calendar month.
+ * Override: SHOPPING_REMOVED_BLOCK_MODE=days + SHOPPING_REMOVED_BLOCK_DAYS=N (month-mode only).
+ *
+ * Blocklist value shapes:
+ *   1789…                 legacy ms timestamp → treated as until_finished
+ *   {ts, until_finished}  new shape
  */
-function shoppingListBlocklistExpired(int $tsMs): bool {
-    if ($tsMs <= 0) {
+function bringBlocklistNormalizeEntry(mixed $raw): ?array {
+    if (is_array($raw) && isset($raw['ts'])) {
+        return [
+            'ts' => (int)$raw['ts'],
+            'until_finished' => !empty($raw['until_finished']),
+        ];
+    }
+    if (is_numeric($raw)) {
+        // Legacy stamps (mostly Comprato) — keep until finished again.
+        return ['ts' => (int)$raw, 'until_finished' => true];
+    }
+    return null;
+}
+
+function shoppingListBlocklistExpired(mixed $raw): bool {
+    $entry = bringBlocklistNormalizeEntry($raw);
+    if ($entry === null || $entry['ts'] <= 0) {
         return true;
+    }
+    // Comprato: never expire by time — cleared when product is finished again.
+    if ($entry['until_finished']) {
+        return false;
     }
     $mode = strtolower(trim((string)env('SHOPPING_REMOVED_BLOCK_MODE', 'month')));
     if ($mode === 'days') {
         $days = max(1, (int)env('SHOPPING_REMOVED_BLOCK_DAYS', '15'));
-        return ((int)(microtime(true) * 1000) - $tsMs) > ($days * 86400 * 1000);
+        return ((int)(microtime(true) * 1000) - $entry['ts']) > ($days * 86400 * 1000);
     }
-    // Calendar month (server local timezone): blocked only while year-month matches.
-    $blockedYm = (int)date('Ym', (int)floor($tsMs / 1000));
+    $blockedYm = (int)date('Ym', (int)floor($entry['ts'] / 1000));
     $currentYm = (int)date('Ym');
     return $currentYm > $blockedYm;
 }
 
-/** @deprecated Use shoppingListBlocklistExpired() — kept for any callers expecting ms. */
+/** @deprecated Use shoppingListBlocklistExpired() */
 function shoppingListBlocklistMs(): int {
-    // Approximate remaining ms until next month start (for display/debug only).
     $next = new DateTimeImmutable('first day of next month 00:00:00');
     return max(0, ($next->getTimestamp() - time()) * 1000);
 }
@@ -12913,7 +12934,7 @@ function bringGetActiveBlocklist(PDO $db): array {
     $exact = [];
     $byToken = [];
     foreach ($map as $key => $ts) {
-        if (shoppingListBlocklistExpired((int)$ts)) {
+        if (shoppingListBlocklistExpired($ts)) {
             continue;
         }
         $kl = mb_strtolower((string)$key);
@@ -12930,14 +12951,26 @@ function bringGetActiveBlocklist(PDO $db): array {
 function bringPruneBlocklist(PDO $db): array {
     $map = bringGetBlocklist($db);
     $changed = false;
+    $normalized = [];
     foreach ($map as $key => $ts) {
-        if (shoppingListBlocklistExpired((int)$ts)) {
-            unset($map[$key]);
+        if (shoppingListBlocklistExpired($ts)) {
+            $changed = true;
+            continue;
+        }
+        $entry = bringBlocklistNormalizeEntry($ts);
+        if ($entry === null) {
+            $changed = true;
+            continue;
+        }
+        // Rewrite legacy int stamps to the structured shape.
+        if (!is_array($ts)) {
             $changed = true;
         }
+        $normalized[(string)$key] = $entry;
     }
-    if ($changed) {
-        bringSaveBlocklist($db, $map);
+    if ($changed || count($normalized) !== count($map)) {
+        bringSaveBlocklist($db, $normalized);
+        return $normalized;
     }
     return $map;
 }
@@ -13495,15 +13528,16 @@ function bringMarkPurchasedForProduct(PDO $db, int $productId): void {
     ])));
 }
 
-function bringMarkPurchased(PDO $db, array $names): void {
+function bringMarkPurchased(PDO $db, array $names, bool $untilFinished = true): void {
     $names = bringExpandPurchasedNames($names);
     if (empty($names)) {
         return;
     }
     $map = bringPruneBlocklist($db);
     $now = (int)(microtime(true) * 1000);
+    $entry = ['ts' => $now, 'until_finished' => $untilFinished];
     foreach ($names as $name) {
-        $map[mb_strtolower($name)] = $now;
+        $map[mb_strtolower($name)] = $entry;
     }
     bringSaveBlocklist($db, $map);
 }
@@ -14853,9 +14887,11 @@ function bringRemoveItem(): void {
     $asPurchased = shoppingInputAsPurchased($input);
     $db = getDB();
     $ok = bringRemoveByNames($db, $name, $rawName);
-    // Block re-add for the rest of the calendar month only when marked as purchased (Comprato).
+    // Block re-add: Comprato → until finished again; plain remove → rest of month only.
     if ($asPurchased) {
-        bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name));
+        bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name), true);
+    } else {
+        bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName !== '' ? $rawName : $name), false);
     }
     echo json_encode(['success' => true, 'removed' => $ok, 'purchased' => $asPurchased]);
 }
@@ -16953,7 +16989,9 @@ function shoppingRemoveInternal(PDO $db, array $input): void {
             $removed += $stmt->rowCount();
         }
         if ($asPurchased) {
-            bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName));
+            bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), true);
+        } else {
+            bringMarkPurchased($db, shoppingExpandRemovedNames($db, $name, $rawName), false);
         }
     }
 

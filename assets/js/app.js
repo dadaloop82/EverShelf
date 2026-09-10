@@ -15046,12 +15046,13 @@ async function markShoppingItemBoughtAtHome(idx) {
             name: item.name,
             rawName: item.rawName || '',
             listUUID: shoppingListUUID,
+            purchased: true,
         });
         if (!(data.success || data._offline)) {
             showToast(t('shopping.remove_error'), 'error');
             return;
         }
-        _markBringPurchased([item.name]);
+        _markBringPurchased([item.name], true); // Comprato → until finished again
         shoppingItems.splice(idx, 1);
         _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
         renderShoppingItems();
@@ -15078,9 +15079,9 @@ async function confirmShoppingItemFound() {
     _spesaScanTarget = null;
     document.getElementById('shopping-scan-target-banner').style.display = 'none';
     try {
-        const r = await api('shopping_remove', {}, 'POST', { name, rawName, listUUID: shoppingListUUID });
+        const r = await api('shopping_remove', {}, 'POST', { name, rawName, listUUID: shoppingListUUID, purchased: true });
         if (r.success) {
-            _markBringPurchased([name]); // prevent background sync from re-adding before barcode scan
+            _markBringPurchased([name], true); // prevent background sync from re-adding before barcode scan
             const idx = shoppingItems.findIndex(i => i.name.toLowerCase() === name.toLowerCase());
             if (idx >= 0) shoppingItems.splice(idx, 1);
             showToast(t('shopping.item_removed').replace('{name}', name), 'success');
@@ -15164,12 +15165,23 @@ function _unmarkAutoAddedBring(names) {
 }
 
 // ===== BRING! PURCHASED BLOCKLIST (server-synced) =====
-// When an item disappears from the list (bought / removed), block auto-re-add
-// only for the rest of the calendar month (server uses the same rule).
-function _bringPurchasedExpired(ts) {
-    const t = Number(ts) || 0;
-    if (t <= 0) return true;
-    const d = new Date(t);
+// Comprato → block until finished again. Rimuovi → only rest of calendar month.
+function _bringBlocklistNormalizeEntry(raw) {
+    if (raw && typeof raw === 'object' && raw.ts != null) {
+        return { ts: Number(raw.ts) || 0, until_finished: !!raw.until_finished };
+    }
+    if (typeof raw === 'number' || (typeof raw === 'string' && raw !== '' && !isNaN(Number(raw)))) {
+        // Legacy timestamp → Comprato-style (until finished)
+        return { ts: Number(raw) || 0, until_finished: true };
+    }
+    return null;
+}
+
+function _bringPurchasedExpired(raw) {
+    const e = _bringBlocklistNormalizeEntry(raw);
+    if (!e || e.ts <= 0) return true;
+    if (e.until_finished) return false; // cleared server-side when finished again
+    const d = new Date(e.ts);
     const now = new Date();
     return (now.getFullYear() > d.getFullYear())
         || (now.getFullYear() === d.getFullYear() && now.getMonth() > d.getMonth());
@@ -15177,7 +15189,6 @@ function _bringPurchasedExpired(ts) {
 
 function _getBringPurchasedBlocklist() {
     const map = Object.assign({}, _bringBlocklistCache || {});
-    // Prune entries from previous calendar months
     let changed = false;
     for (const key of Object.keys(map)) {
         if (_bringPurchasedExpired(map[key])) { delete map[key]; changed = true; }
@@ -15189,10 +15200,11 @@ function _getBringPurchasedBlocklist() {
     return map;
 }
 
-function _markBringPurchased(names) {
+/** @param {boolean} untilFinished true = Comprato (until depleted); false = Rimuovi (month only) */
+function _markBringPurchased(names, untilFinished = true) {
     const map = _getBringPurchasedBlocklist();
-    const now = Date.now();
-    for (const n of names) map[n.toLowerCase()] = now;
+    const entry = { ts: Date.now(), until_finished: !!untilFinished };
+    for (const n of names) map[String(n).toLowerCase()] = entry;
     _bringBlocklistCache = map;
     _saveToServer('bring_blocklist', map);
 }
@@ -17277,9 +17289,10 @@ async function removeBringItem(idx) {
             name: item.name,
             rawName: item.rawName || '',
             listUUID: shoppingListUUID,
+            purchased: false, // Rimuovi → month-only suppress, not until finished
         });
         if (data.success || data._offline) {
-            _markBringPurchased([item.name]);
+            _markBringPurchased([item.name], false);
             shoppingItems.splice(idx, 1);
             _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
             renderShoppingItems();
@@ -22712,7 +22725,7 @@ function _applyShoppingOptimisticUpdate(action, body) {
         if (!name) return;
         shoppingItems = (shoppingItems || []).filter(i => i.name.toLowerCase() !== name);
         _offlineShoppingCacheSet({ items: shoppingItems, listUUID: shoppingListUUID });
-        _markBringPurchased([body.name]);
+        _markBringPurchased([body.name], body.purchased !== false);
         renderShoppingItems();
         loadShoppingCount();
     } else if (action === 'shopping_add' && body.items?.length) {
@@ -24018,6 +24031,7 @@ async function _spesaRemovePurchasedFromList(product, addResult) {
                 name: match?.name || generic,
                 rawName: match?.rawName || '',
                 listUUID: shoppingListUUID || undefined,
+                purchased: true,
             });
             if (r?.success) {
                 _applyShoppingListRemovals([match?.name || generic, match?.rawName].filter(Boolean));
@@ -24026,7 +24040,7 @@ async function _spesaRemovePurchasedFromList(product, addResult) {
         } catch (_) { /* best effort */ }
     }
 
-    _markBringPurchased(namesToMark);
+    _markBringPurchased(namesToMark, true);
     loadShoppingList._bgCall = true;
     loadShoppingList();
 }
