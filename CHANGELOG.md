@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shopping horizon** — default is **30 days** (or your inferred shopping-trip cycle when known), not “days until month end”.
 - **Piece-bag floors** — historical bag size (e.g. 9 carrots) no longer overrides the edible-window use rate.
 - **Depleted food on the list** — medium/low depleted items now auto-sync to the shopping list (unless you removed/blocked them); existing rows refresh qty specs on each cron.
+- **Ghost anomaly on finished crumbs** — “less stock than expected” no longer appears for trace leftovers already treated as depleted.
 
 ### Changed
 - Shopping plan UI: Auto = 30d / inferred cycle (was “month end”); max 30 days.

@@ -7329,6 +7329,11 @@ function getConsumptionPredictions(PDO $db): void {
         $pid = $item['product_id'];
         $loc = $item['location'];
 
+        // Skip crumbs already treated as finished / hidden from the list
+        if (isInventoryDepleted($item)) {
+            continue;
+        }
+
         // Get last 90 days of 'out' transactions for this product+location
         $txns = $db->prepare("
             SELECT quantity, created_at
@@ -7428,6 +7433,10 @@ function getConsumptionPredictions(PDO $db): void {
         // Use the aggregate total as the visible actual qty so the banner shows
         // the real combined stock, not just the single opened row.
         $actualQty = $totalQtyAllRows;
+        // Combined stock is only a trace leftover — product is effectively gone.
+        if (isInventoryDepleted(['quantity' => $actualQty, 'unit' => (string)($item['unit'] ?? 'pz')])) {
+            continue;
+        }
 
         // Need at least some post-restock usage observations before warning.
         if ($txSinceRestock < 2) continue;

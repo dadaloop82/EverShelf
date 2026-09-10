@@ -6610,6 +6610,8 @@ async function loadBannerAlerts() {
         const predictions = predData.predictions || [];
         predictions.forEach(pred => {
             if (confirmed['pred_' + pred.inventory_id]) return;
+            // Skip crumbs already treated as finished / hidden from the list
+            if (isInventoryDepleted({ quantity: pred.actual_qty, unit: pred.unit })) return;
             _bannerQueue.push({ type: 'prediction', data: pred });
         });
 
@@ -6617,6 +6619,9 @@ async function loadBannerAlerts() {
         const anomalies = anomalyData.anomalies || [];
         anomalies.forEach(an => {
             if (confirmed['an_' + an.dismiss_key]) return;
+            // Trace leftovers (e.g. 2.5 g honey) look "missing" vs ledger but the
+            // product is already gone from the inventory UI — don't nag about them.
+            if (isInventoryDepleted({ quantity: an.inv_qty, unit: an.unit })) return;
             _bannerQueue.push({ type: 'anomaly', data: an });
         });
 
