@@ -438,8 +438,8 @@
                     </div>
                     <span class="qty-unit-badge qty-unit-muted" id="add-quantity-unit" aria-live="polite">pz</span>
                     <select id="add-unit" class="form-input unit-select" onchange="onAddUnitChange()">
-                        <option value="pz">pz</option>
-                        <option value="conf">conf</option>
+                        <option value="pz" data-i18n="units.pz">pz</option>
+                        <option value="conf" data-i18n="units.conf">conf</option>
                         <option value="g">g</option>
                         <option value="ml">ml</option>
                     </select>
@@ -448,7 +448,7 @@
                 <div id="add-conf-size-row" class="conf-size-row" style="display:none">
                     <label class="conf-size-label" data-i18n="add.conf_size_label">📦 Ogni confezione contiene:</label>
                     <div class="conf-size-inputs">
-                        <input type="number" id="add-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                        <input type="number" id="add-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300" data-i18n-placeholder="add.conf_size_placeholder">
                         <select id="add-conf-unit" class="form-input conf-size-unit">
                             <option value="g">g</option>
                             <option value="ml">ml</option>
@@ -697,7 +697,7 @@
             <div id="pf-conf-size-row" class="conf-size-row" style="display:none">
                 <label class="conf-size-label" data-i18n="product.conf_size_label">📦 Ogni confezione contiene:</label>
                 <div class="conf-size-inputs">
-                    <input type="number" id="pf-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                    <input type="number" id="pf-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300" data-i18n-placeholder="product.conf_size_placeholder">
                     <select id="pf-conf-unit" class="form-input conf-size-unit">
                         <option value="g">g</option>
                         <option value="ml">ml</option>
@@ -712,7 +712,7 @@
                 <label data-i18n="product.barcode_label">🔖 Barcode</label>
                 <div class="expiry-input-row">
                     <input type="text" id="pf-barcode" class="form-input" placeholder="Codice a barre (se disponibile)" inputmode="numeric" data-i18n-placeholder="product.barcode_placeholder">
-                    <button type="button" class="btn btn-accent btn-scan-expiry" id="pf-barcode-scan-btn" onclick="scanBarcodeForForm()" title="Scansiona barcode">📷</button>
+                    <button type="button" class="btn btn-accent btn-scan-expiry" id="pf-barcode-scan-btn" onclick="scanBarcodeForForm()" title="Scansiona barcode" data-i18n-title="scanner.scan_barcode">📷</button>
                 </div>
                 <p class="form-hint" id="pf-barcode-hint" style="display:none" data-i18n="product.barcode_hint">⚠️ Aggiungi il barcode così al prossimo acquisto basta scansionarlo!</p>
             </div>
