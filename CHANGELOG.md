@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.4] - 2026-09-16
+
+### Fixed
+- **Chat → Recipes wrong ingredients** — pantry matching no longer swaps foods on weak cues (e.g. *Riso Carnaroli* → any *Riso…*, *Noci* → bread with walnuts, *Asiago* → unrelated rows). Distinctive tokens win; short substring hits on long names are rejected. `chat_to_recipe` now receives the pantry name list and must copy ingredient names from the chat text.
+
+## [1.8.3] - 2026-09-12
+
+### Fixed
+- **List scroll vs open** — inventory / product / alert rows no longer open on a light tap while scrolling. On touch, hold ~0.9s to open; short tap + drag scrolls. Also stopped capturing the pointer until a horizontal swipe is confirmed (that was blocking scroll).
+
 ## [1.8.2] - 2026-09-10
 
 ### Changed

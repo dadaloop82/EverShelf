@@ -9592,22 +9592,151 @@ function recipeIsFreeStaple(string $name): bool {
 }
 
 /** Strict name match — no generic alias expansion (formaggio ≠ grana). */
+function recipeMatchStopTokens(): array {
+    return [
+        'di', 'del', 'della', 'dello', 'dei', 'degli', 'delle', 'e', 'ed', 'con', 'al', 'alla', 'allo',
+        'ai', 'agli', 'alle', 'un', 'uno', 'una', 'the', 'and', 'of', 'or', 'da', 'in', 'per',
+        'dop', 'igp', 'igt', 'bio', 'pz', 'g', 'ml', 'kg', 'conf', 'gr',
+    ];
+}
+
+/** Generic category words that alone must not lock onto a random pantry row. */
+function recipeIsWeakFoodToken(string $t): bool {
+    static $weak = [
+        'riso', 'pasta', 'pane', 'latte', 'olio', 'vino', 'aceto', 'sale', 'pepe', 'acqua',
+        'uova', 'uovo', 'carne', 'pesce', 'pollo', 'formaggio', 'yogurt', 'miele', 'farina',
+        'zucchero', 'biscotti', 'succo', 'salsa', 'sugo', 'crema', 'panna', 'burro',
+        'prosciutto', 'salame', 'tonno', 'mais', 'piselli', 'fagioli', 'lenticchie',
+        'patate', 'patata', 'mela', 'mele', 'banana', 'insalata', 'pomodoro', 'pomodori',
+        'cipolla', 'aglio', 'zucchine', 'zucchina', 'carote', 'carota', 'integrale', 'classico',
+        'fresco', 'fresca', 'dolce', 'bianco', 'rossa', 'rosso', 'gran', 'grande',
+    ];
+    return in_array($t, $weak, true);
+}
+
+/** Significant tokens for pantry matching (strips punctuation; keeps words ≥3 chars). */
+function recipeMatchTokens(string $name): array {
+    $n = recipeNormalizeName($name);
+    $n = preg_replace('/\([^)]*\)/u', ' ', $n) ?? $n;
+    $n = recipeNormalizeName($n);
+    $stop = recipeMatchStopTokens();
+    $out = [];
+    foreach (preg_split('/[\s,.\-\/+]+/u', $n, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $w) {
+        if (mb_strlen($w) < 3 || in_array($w, $stop, true)) {
+            continue;
+        }
+        $out[] = $w;
+    }
+    return array_values(array_unique($out));
+}
+
+/**
+ * Score how well a recipe ingredient name matches a pantry product.
+ * Prefers distinctive tokens (e.g. carnaroli, asiago) and penalizes weak
+ * first-word-only hits (riso→any rice) and short substrings in long names (noci→bauletto).
+ */
 function recipeScorePantryMatch(string $ingName, string $productName): int {
-    $a = recipeNormalizeName($ingName);
-    $b = recipeNormalizeName($productName);
-    if ($a === '' || $b === '') return 0;
-    if ($a === $b) return 100;
-    if (mb_strpos($a, $b) !== false) {
-        return mb_strlen($b) >= 4 ? 92 : 0;
+    $aRaw = recipeNormalizeName($ingName);
+    $bRaw = recipeNormalizeName($productName);
+    if ($aRaw === '' || $bRaw === '') {
+        return 0;
     }
-    if (mb_strpos($b, $a) !== false) {
-        return mb_strlen($a) >= 4 ? 88 : 0;
+    if ($aRaw === $bRaw) {
+        return 100;
     }
-    $aw = preg_split('/[\s,.\-\/]+/u', $a, -1, PREG_SPLIT_NO_EMPTY);
-    $bw = preg_split('/[\s,.\-\/]+/u', $b, -1, PREG_SPLIT_NO_EMPTY);
-    if (!empty($aw[0]) && !empty($bw[0]) && mb_strlen($aw[0]) >= 4 && $aw[0] === $bw[0]) {
-        return 80;
+
+    // Brand / qualifier hints inside parentheses on the ingredient side
+    $hintTokens = [];
+    if (preg_match_all('/\(([^)]+)\)/u', $aRaw, $hm)) {
+        foreach ($hm[1] as $hint) {
+            foreach (recipeMatchTokens($hint) as $t) {
+                $hintTokens[$t] = true;
+            }
+        }
     }
+
+    $a = recipeNormalizeName(preg_replace('/\([^)]*\)/u', ' ', $aRaw) ?? $aRaw);
+    $b = recipeNormalizeName(preg_replace('/\([^)]*\)/u', ' ', $bRaw) ?? $bRaw);
+    if ($a === $b) {
+        return 99;
+    }
+
+    $aw = recipeMatchTokens($a);
+    $bw = recipeMatchTokens($b);
+    if (empty($aw) || empty($bw)) {
+        return 0;
+    }
+
+    $awSet = array_values(array_unique($aw));
+    $bwSet = array_values(array_unique($bw));
+    $inter = array_values(array_intersect($awSet, $bwSet));
+
+    // Parenthetical brand boost (e.g. "(Curtiriso)" ↔ Curtiriso Riso Carnaroli)
+    $hintHits = array_values(array_intersect(array_keys($hintTokens), $bwSet));
+    if (empty($inter) && empty($hintHits)) {
+        return 0;
+    }
+
+    $strongQuery = array_values(array_filter(
+        $awSet,
+        static fn(string $t): bool => !recipeIsWeakFoodToken($t)
+    ));
+    $strongInter = array_values(array_intersect($strongQuery, $bwSet));
+
+    // All strong query tokens must appear in the product when present
+    if (!empty($strongQuery) && count($strongInter) < count($strongQuery)) {
+        // Allow brand hint to satisfy one missing strong token only if others match
+        if (empty($hintHits) || count($strongInter) + 1 < count($strongQuery)) {
+            return 0;
+        }
+    }
+
+    // Query is only weak generics (e.g. plain "riso") — require near-identity
+    if (empty($strongQuery)) {
+        $queryCover = count($inter) / max(1, count($awSet));
+        $productCover = count($inter) / max(1, count($bwSet));
+        if ($queryCover >= 1.0 && $productCover >= 0.66 && mb_strlen($a) >= 4) {
+            return 82;
+        }
+        // Full-string containment with high length ratio
+        if (mb_strpos($b, $a) !== false) {
+            $ratio = mb_strlen($a) / max(1, mb_strlen($b));
+            return $ratio >= 0.6 ? 84 : 0;
+        }
+        return 0;
+    }
+
+    $queryCover = count(array_unique(array_merge($inter, $hintHits))) >= count($awSet)
+        ? 1.0
+        : (count($inter) / max(1, count($awSet)));
+    // Prefer products explained by the query (avoid "noci" → "bauletto … e noci")
+    $productCover = count($inter) / max(1, count($bwSet));
+    if (!empty($hintHits)) {
+        $productCover = max($productCover, (count($inter) + count($hintHits)) / max(1, count($bwSet)));
+    }
+
+    if ($queryCover < 1.0 && count($strongInter) < count($strongQuery)) {
+        return 0;
+    }
+
+    if ($queryCover >= 1.0 || count($strongInter) === count($strongQuery)) {
+        if ($productCover >= 0.5) {
+            return !empty($hintHits) ? 97 : 95;
+        }
+        if ($productCover >= 0.34) {
+            return 88;
+        }
+        // "Asiago" → "Asiago Vacche Brune DOP", "Speck" → "Speck Alto Adige IGP"
+        if (!empty($bwSet) && in_array($bwSet[0], $strongInter, true)) {
+            return 93;
+        }
+        if (count($strongQuery) === 1 && count($strongInter) === 1) {
+            return 91;
+        }
+        // Query tokens found but product is mostly other foods (e.g. noci → bauletto)
+        return 72;
+    }
+
     return 0;
 }
 
@@ -9742,11 +9871,15 @@ function recipeEnrichIngredientsFromPantry(PDO $db, array &$ingredients, array $
 
         $bestPid = null;
         $bestScore = 0;
+        $bestNameLen = PHP_INT_MAX;
         foreach ($catalog as $pid => $meta) {
             $score = recipeScorePantryMatch($ingName, $meta['name']);
-            if ($score > $bestScore) {
+            $nameLen = mb_strlen((string)$meta['name']);
+            // Higher score wins; on ties prefer the shorter / more specific product name
+            if ($score > $bestScore || ($score === $bestScore && $score > 0 && $nameLen < $bestNameLen)) {
                 $bestScore = $score;
                 $bestPid = $pid;
+                $bestNameLen = $nameLen;
             }
         }
 
@@ -10384,20 +10517,42 @@ function chatToRecipe(PDO $db): void {
     // Fetch cookable inventory — same as generateRecipe (no finished crumbs)
     $items = recipeFetchPantryItems($db);
 
+    // Compact pantry roster so the converter can keep chat names aligned with real stock
+    $pantryNames = [];
+    foreach ($items as $it) {
+        $nm = trim((string)($it['name'] ?? ''));
+        if ($nm !== '') {
+            $pantryNames[$nm] = true;
+        }
+    }
+    $pantryList = implode("\n", array_map(static fn($n) => '- ' . $n, array_keys($pantryNames)));
+    if ($pantryList === '') {
+        $pantryList = '(empty)';
+    }
+
     // Ask Gemini to convert the chat recipe text into the full structured recipe JSON.
-    // Prompt is tiny — no inventory sent to Gemini (PHP does all the matching below).
     $prompt = <<<PROMPT
 Convert the recipe text below to a JSON object. Return ONLY the JSON, no markdown.
+
+CRITICAL RULES:
+1. Copy ingredient names FAITHFULLY from the recipe text. Do NOT invent, substitute, or "improve" products.
+2. When the text clearly refers to a pantry item below, use that EXACT pantry name in "name".
+3. persons = the servings stated in the text (e.g. "per 1 persona" / "per una persona" → 1; "per 2 persone" → 2). Default 2 only if unspecified.
+4. Do NOT put acqua / sale / pepe / olio (or oil/salt/pepper/water) in ingredients — only in steps if needed.
+5. Keep quantities from the text in "qty"; set qty_number to the numeric amount when possible.
+6. steps: plain strings without leading numbers.
+
+PANTRY PRODUCTS (exact names — prefer these when the text matches them):
+{$pantryList}
 
 Fields:
 - title: string
 - meal: null  (do NOT categorize — leave as null always)
-- persons: integer (number of servings/people, default 2 if not mentioned)
+- persons: integer
 - prep_time: string or null
 - cook_time: string or null
 - ingredients: array of {"name":"...","qty":"...","qty_number":0.0,"unit":"g|ml|pz|conf|kg|l","from_pantry":true}
-  — set from_pantry=true for ALL ingredients (pantry matching is done server-side)
-- steps: array of strings (one string per step, plain text without step numbers)
+- steps: array of strings
 - nutrition_note: string or null
 
 RECIPE TEXT:

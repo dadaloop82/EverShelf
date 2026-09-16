@@ -6161,7 +6161,7 @@ async function loadDashboard() {
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? t('expiry.days_compact').replace('{n}', days) : t('expiry.months_approx').replace('{n}', m); badgeClass = 'expiring-later'; }
                 const qtyDisplay = alertQtyDisplay(item);
                 return `
-                <div class="alert-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
+                <div class="alert-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -6173,6 +6173,7 @@ async function loadDashboard() {
                     </div>
                 </div>`;
             }).join('');
+            _bindAlertItemsHoldOpen(expiringList);
         } else {
             expiringSection.style.display = 'none';
         }
@@ -6197,7 +6198,7 @@ async function loadDashboard() {
                 const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
                 const qtyDisplayExp = alertQtyDisplay(item);
                 return `
-                <div class="alert-item expired-item alert-item-clickable" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
+                <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${locIcon ? locIcon + ' ' : ''}${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -6210,6 +6211,7 @@ async function loadDashboard() {
                     </div>
                 </div>`;
             }).join('');
+            _bindAlertItemsHoldOpen(expiredList);
         } else {
             expiredSection.style.display = 'none';
         }
@@ -6337,7 +6339,7 @@ async function loadDashboard() {
                 }
 
                 return `
-                <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" onclick="showAlertItemDetail(${item.id}, ${item.product_id})">
+                <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         <span class="alert-item-name">${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
@@ -6349,6 +6351,7 @@ async function loadDashboard() {
                     </div>
                 </div>`;
             }).join('') + (extra > 0 ? `<div class="alert-more-note">${t('dashboard.more_opened').replace('{n}', extra)}</div>` : '');
+            _bindAlertItemsHoldOpen(openedList);
         } else {
             openedSection.style.display = 'none';
         }
@@ -7624,7 +7627,7 @@ function renderDashItem(item) {
     }
     
     return `
-    <div class="inventory-item compact-item" onclick="dashItemTap(${item.id}, ${item.product_id})">
+    <div class="inventory-item compact-item" data-dash-inv-id="${item.id}" data-dash-product-id="${item.product_id}">
         <div class="inv-image">
             ${_invImageHtml(item.image_url, catIcon)}
         </div>
@@ -7648,11 +7651,33 @@ function dashItemTap(inventoryId, productId) {
     });
 }
 
+function _bindDashItemHoldOpen(container) {
+    if (!container) return;
+    container.querySelectorAll('.compact-item[data-dash-inv-id]').forEach(el => {
+        const invId = parseInt(el.dataset.dashInvId, 10);
+        const productId = parseInt(el.dataset.dashProductId, 10);
+        if (isNaN(invId)) return;
+        _bindRowHoldOpen(el, () => dashItemTap(invId, productId));
+    });
+}
+
 function showAlertItemDetail(inventoryId, productId) {
     // Include depleted crumbs so opened/expired alerts can still open Use / Finish actions
     api('inventory_list', { include_depleted: 1 }).then(data => {
         currentInventory = data.inventory || [];
         showItemDetail(inventoryId, productId);
+    });
+}
+
+function _bindAlertItemsHoldOpen(container) {
+    if (!container) return;
+    container.querySelectorAll('.alert-item-clickable[data-alert-inv-id]').forEach(el => {
+        const invId = parseInt(el.dataset.alertInvId, 10);
+        const productId = parseInt(el.dataset.alertProductId, 10);
+        if (isNaN(invId)) return;
+        _bindRowHoldOpen(el, () => showAlertItemDetail(invId, productId), {
+            ignoreSelector: '.btn-alert-extend, button',
+        });
     });
 }
 
@@ -7915,7 +7940,7 @@ function renderInventoryItem(item) {
     const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
     
     return `
-    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}" onclick="invRowTap(event)">
+    <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
@@ -7942,15 +7967,101 @@ function renderInventoryItem(item) {
     </div>`;
 }
 
-/** Tap riga inventario → Usa. Swipe gestito a parte. */
-function invRowTap(ev) {
-    if (ev?.target?.closest?.('.btn-inv-fav')) return;
-    const row = ev?.currentTarget || ev?.target?.closest?.('.inventory-item');
+/** Hold duration before opening a product row (touch). Short enough to feel responsive, long enough to scroll. */
+const ROW_OPEN_HOLD_MS = 900;
+const ROW_OPEN_MOVE_PX = 12;
+
+/**
+ * Bind press-and-hold (touch/pen) or click (mouse) to open a list row.
+ * Cancels if the finger moves → scroll works without opening.
+ */
+function _bindRowHoldOpen(el, openFn, opts = {}) {
+    if (!el || typeof openFn !== 'function') return;
+    if (el._holdOpenTeardown) el._holdOpenTeardown();
+
+    const holdMs = opts.holdMs ?? ROW_OPEN_HOLD_MS;
+    const movePx = opts.movePx ?? ROW_OPEN_MOVE_PX;
+    const ignoreSel = opts.ignoreSelector || '';
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    let pointerId = null;
+    let opened = false;
+    let lastPtr = 'mouse';
+
+    const clear = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        el.classList.remove('row-holding');
+        pointerId = null;
+    };
+
+    const onDown = (e) => {
+        if (e.button != null && e.button !== 0) return;
+        if (ignoreSel && e.target.closest(ignoreSel)) return;
+        lastPtr = e.pointerType || 'mouse';
+        const isTouch = lastPtr === 'touch' || lastPtr === 'pen';
+        opened = false;
+        startX = e.clientX;
+        startY = e.clientY;
+        pointerId = e.pointerId ?? null;
+        el.classList.remove('row-holding');
+        if (!isTouch) return; // mouse → click handler
+        timer = setTimeout(() => {
+            timer = null;
+            opened = true;
+            el.classList.add('row-holding');
+            try { navigator.vibrate?.(10); } catch (_) {}
+            openFn(e);
+            setTimeout(() => el.classList.remove('row-holding'), 180);
+        }, holdMs);
+    };
+
+    const onMove = (e) => {
+        if (pointerId != null && e.pointerId !== undefined && e.pointerId !== pointerId) return;
+        if (!timer) return;
+        if (Math.abs(e.clientX - startX) > movePx || Math.abs(e.clientY - startY) > movePx) {
+            clear();
+        }
+    };
+
+    const onUp = () => { clear(); };
+
+    const onClick = (e) => {
+        if (ignoreSel && e.target.closest(ignoreSel)) return;
+        if (opened) {
+            e.preventDefault();
+            e.stopPropagation();
+            opened = false;
+            return;
+        }
+        // Touch/pen: open only via hold (ignore synthetic click so scroll works)
+        if (lastPtr === 'touch' || lastPtr === 'pen') return;
+        openFn(e);
+    };
+
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+    el.addEventListener('click', onClick);
+    el._holdOpenTeardown = () => {
+        clear();
+        el.removeEventListener('pointerdown', onDown);
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', onUp);
+        el.removeEventListener('pointercancel', onUp);
+        el.removeEventListener('click', onClick);
+        el._holdOpenTeardown = null;
+    };
+}
+
+function _openInventoryRow(row) {
     if (!row || row.dataset.invSwipeDone === '1') return;
-    const invId = parseInt(row.dataset.invId, 10);
     const productId = parseInt(row.dataset.productId, 10);
     const location = row.dataset.location || 'dispensa';
     if (isNaN(productId)) return;
+    row.dataset.invSwipeDone = '1';
+    setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
     quickUse(productId, location);
 }
 
@@ -7967,6 +8078,12 @@ function _initInventoryRowSwipe(container) {
     }
 
     let swipeCtx = null;
+    let holdTimer = null;
+
+    const clearHold = () => {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        if (swipeCtx?.row) swipeCtx.row.classList.remove('row-holding');
+    };
 
     const pointFromEvent = (e, useChanged) => {
         if (useChanged && e.changedTouches && e.changedTouches.length) {
@@ -7984,7 +8101,7 @@ function _initInventoryRowSwipe(container) {
         if (!row || !content) return;
         content.style.transition = 'transform 0.2s ease';
         content.style.transform = '';
-        row.classList.remove('swipe-right', 'swipe-left');
+        row.classList.remove('swipe-right', 'swipe-left', 'row-holding');
     };
 
     const onStart = (e) => {
@@ -7995,6 +8112,8 @@ function _initInventoryRowSwipe(container) {
         const content = row.querySelector('.inv-row-content');
         if (!content) return;
         const pt = pointFromEvent(e, false);
+        const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
+        clearHold();
         swipeCtx = {
             row,
             content,
@@ -8003,23 +8122,62 @@ function _initInventoryRowSwipe(container) {
             maxDx: 0,
             maxDy: 0,
             pointerId: e.pointerId ?? null,
+            isTouch,
+            holdFired: false,
+            swipeLocked: false,
+            captured: false,
+            abandoned: false,
         };
         row.dataset.invSwipeDone = '';
         content.style.transition = 'none';
-        if (e.pointerId !== undefined && row.setPointerCapture) {
-            try { row.setPointerCapture(e.pointerId); } catch (_) {}
+        // Do NOT setPointerCapture here — it blocks vertical scroll.
+        if (isTouch) {
+            holdTimer = setTimeout(() => {
+                holdTimer = null;
+                if (!swipeCtx || swipeCtx.abandoned || swipeCtx.swipeLocked) return;
+                if (swipeCtx.maxDx > ROW_OPEN_MOVE_PX || swipeCtx.maxDy > ROW_OPEN_MOVE_PX) return;
+                swipeCtx.holdFired = true;
+                swipeCtx.row.classList.add('row-holding');
+                try { navigator.vibrate?.(10); } catch (_) {}
+                _openInventoryRow(swipeCtx.row);
+            }, ROW_OPEN_HOLD_MS);
         }
     };
 
     const onMove = (e) => {
-        if (!swipeCtx) return;
+        if (!swipeCtx || swipeCtx.abandoned) return;
         if (swipeCtx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== swipeCtx.pointerId) return;
         const pt = pointFromEvent(e, false);
         const dx = pt.x - swipeCtx.startX;
         const dy = Math.abs(pt.y - swipeCtx.startY);
         swipeCtx.maxDx = Math.max(swipeCtx.maxDx, Math.abs(dx));
         swipeCtx.maxDy = Math.max(swipeCtx.maxDy, dy);
-        if (swipeCtx.maxDx > 12 && swipeCtx.maxDx > swipeCtx.maxDy + 6) {
+
+        if (swipeCtx.maxDx > ROW_OPEN_MOVE_PX || swipeCtx.maxDy > ROW_OPEN_MOVE_PX) {
+            clearHold();
+        }
+
+        // Vertical intent → drop handlers so the list can scroll freely
+        if (!swipeCtx.swipeLocked && swipeCtx.maxDy > 10 && swipeCtx.maxDy >= swipeCtx.maxDx) {
+            clearHold();
+            resetRowVisual(swipeCtx.row, swipeCtx.content);
+            swipeCtx.abandoned = true;
+            swipeCtx = null;
+            return;
+        }
+
+        if (!swipeCtx.swipeLocked && swipeCtx.maxDx > 12 && swipeCtx.maxDx > swipeCtx.maxDy + 6) {
+            swipeCtx.swipeLocked = true;
+            clearHold();
+            if (e.pointerId !== undefined && swipeCtx.row.setPointerCapture) {
+                try {
+                    swipeCtx.row.setPointerCapture(e.pointerId);
+                    swipeCtx.captured = true;
+                } catch (_) {}
+            }
+        }
+
+        if (swipeCtx.swipeLocked) {
             e.preventDefault();
             const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
             swipeCtx.content.style.transform = `translateX(${clamped}px)`;
@@ -8029,19 +8187,21 @@ function _initInventoryRowSwipe(container) {
     };
 
     const onEnd = (e) => {
+        clearHold();
         const ctx = swipeCtx;
         swipeCtx = null;
-        if (!ctx) return;
+        if (!ctx || ctx.abandoned) return;
         if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
 
         const { row, content } = ctx;
         const pt = pointFromEvent(e, true);
         const dx = pt.x - ctx.startX;
-        const dy = Math.abs(pt.y - ctx.startY);
         resetRowVisual(row, content);
-        if (ctx.pointerId !== undefined && row.releasePointerCapture) {
+        if (ctx.captured && ctx.pointerId !== undefined && row.releasePointerCapture) {
             try { row.releasePointerCapture(ctx.pointerId); } catch (_) {}
         }
+
+        if (ctx.holdFired) return;
 
         const invId = parseInt(row.dataset.invId, 10);
         const productId = parseInt(row.dataset.productId, 10);
@@ -8062,9 +8222,9 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        if (ctx.maxDx < 18 && ctx.maxDy < 35 && dy < 35 && !isNaN(invId) && !isNaN(productId)) {
+        // Touch: open only via long-press (above). Mouse: short click opens Use.
+        if (!ctx.isTouch && ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
             markSwipeDone();
-            // Tap = fast path to Use; swipe-left opens Use/Discard chooser
             quickUse(productId, location);
         }
     };
@@ -8076,7 +8236,10 @@ function _initInventoryRowSwipe(container) {
         ['pointercancel', onEnd, { passive: true }],
     ];
     bindings.forEach(([ev, fn, opts]) => container.addEventListener(ev, fn, opts));
-    container._invSwipeTeardown = () => bindings.forEach(([ev, fn, opts]) => container.removeEventListener(ev, fn, opts));
+    container._invSwipeTeardown = () => {
+        clearHold();
+        bindings.forEach(([ev, fn, opts]) => container.removeEventListener(ev, fn, opts));
+    };
 }
 
 function _playInventorySwipeDemo(container) {
@@ -14568,7 +14731,7 @@ function renderProductsList(products) {
     container.innerHTML = products.map(p => {
         const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category, p.name)] || '📦';
         return `
-        <div class="product-item" onclick="selectProductForAction(${p.id})">
+        <div class="product-item" data-product-id="${p.id}">
             <div class="inv-image">
                 ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" onerror="this.parentElement.innerHTML='${catIcon}'">` : catIcon}
             </div>
@@ -14582,6 +14745,10 @@ function renderProductsList(products) {
             </div>
         </div>`;
     }).join('');
+    container.querySelectorAll('.product-item[data-product-id]').forEach(el => {
+        const pid = parseInt(el.dataset.productId, 10);
+        if (!isNaN(pid)) _bindRowHoldOpen(el, () => selectProductForAction(pid));
+    });
 }
 
 async function selectProductForAction(productId) {
@@ -17049,9 +17216,9 @@ function _initShopRowSwipe(container) {
     container.addEventListener('touchend', onEnd, { passive: true });
     container.addEventListener('touchcancel', onEnd, { passive: true });
 
-    // Suggest rows: tap = add (no swipe on main list needed for suggest)
+    // Suggest rows: hold to add (short tap would fight with scroll)
     container.querySelectorAll('.shop-row-suggest').forEach(row => {
-        row.addEventListener('click', (e) => {
+        _bindRowHoldOpen(row, () => {
             if (row._swipeMoved) { row._swipeMoved = false; return; }
             const sidx = parseInt(row.dataset.suggestIdx, 10);
             if (!isNaN(sidx)) addSmartItemQuick(sidx);

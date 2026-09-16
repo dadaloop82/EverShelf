@@ -1746,6 +1746,22 @@ body.server-offline .bottom-nav {
     transform: none;
 }
 
+.inventory-item.row-holding .inv-row-content,
+.product-item.row-holding,
+.alert-item.row-holding,
+.shop-row.row-holding .shop-row-content {
+    transform: scale(0.985);
+    opacity: 0.88;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.product-item,
+.alert-item-clickable {
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 .inv-image {
     width: 50px;
     height: 50px;
