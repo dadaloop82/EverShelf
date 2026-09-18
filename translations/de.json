@@ -831,7 +831,8 @@
         "zerowaste_tip_title": "Zero-Waste-Tipp",
         "restart_title": "Von Anfang an neu starten",
         "replay_title": "Diesen Schritt wiederholen",
-        "wheel_aria": "Rezeptschritt-Navigation"
+        "wheel_aria": "Rezeptschritt-Navigation",
+        "ingredient_open_use": "Verwenden-Panel öffnen"
     },
     "settings": {
         "title": "⚙️ Einstellungen",

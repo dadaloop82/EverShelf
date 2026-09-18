@@ -5379,22 +5379,27 @@ function deleteInventory(PDO $db): void {
     echo json_encode(['success' => true]);
 }
 
+/**
+ * Trace-crumb threshold for UI hide + “finished?” banners.
+ * Must stay low: ≤20 g used to hide usable leftovers and let a mistaken
+ * “Finito” write off an entire jar from the ledger.
+ */
 function productQtyThreshold(string $unit): float {
-    static $thresholds = ['g' => 20, 'ml' => 20, 'kg' => 0.02, 'l' => 0.02, 'conf' => 0.1, 'pz' => 0.25];
+    static $thresholds = ['g' => 2, 'ml' => 2, 'kg' => 0.002, 'l' => 0.002, 'conf' => 0.05, 'pz' => 0.25];
     return $thresholds[$unit] ?? 0.5;
 }
 
 /**
  * Cookable-stock threshold for recipes.
- * Pieces/packs match the UI (¼ lettuce head = finished). Weight/volume is more
- * lenient than the UI restock crumb (20 g) so e.g. 19 g butter can still cook.
+ * Pieces/packs match the UI (¼ lettuce head = finished). Weight/volume allows
+ * a bit more than a pure trace so e.g. 3–4 g butter can still cook.
  */
 function productQtyThresholdForRecipe(string $unit): float {
     static $thresholds = [
-        'g' => 5,
-        'ml' => 5,
-        'kg' => 0.005,
-        'l' => 0.005,
+        'g' => 2,
+        'ml' => 2,
+        'kg' => 0.002,
+        'l' => 0.002,
         'conf' => 0.05,
         'pz' => 0.25,
     ];

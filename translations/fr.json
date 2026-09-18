@@ -831,7 +831,8 @@
         "zerowaste_tip_title": "Conseil zéro déchet",
         "restart_title": "Recommencer depuis le début",
         "replay_title": "Relire cette étape",
-        "wheel_aria": "Navigation des étapes de la recette"
+        "wheel_aria": "Navigation des étapes de la recette",
+        "ingredient_open_use": "Ouvrir le panneau Utiliser"
     },
     "settings": {
         "title": "⚙️ Paramètres",

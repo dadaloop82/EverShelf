@@ -6946,11 +6946,20 @@ function renderBannerItem() {
             baseText = t('dashboard.banner_finished_crumb', { qty: fin.stock_qty, unit: fin.unit });
         }
         detailEl.innerHTML = baseText + expectedText + ' ' + t('dashboard.banner_finished_check');
-        let btns = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
-        if (fin.expected_qty) {
-            btns += `<button class="btn-banner btn-banner-confirm" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_confirm', { qty: fin.expected_qty, unit: fin.unit })}</button>`;
+        // Vanished with a large ledger gap: put restore first so a hasty “Finished”
+        // does not wipe a full pack that only disappeared from the inventory row.
+        const restoreFirst = !!(fin.vanished && fin.expected_qty);
+        let btns = '';
+        const yesBtn = `<button class="btn-banner btn-banner-ok" onclick="confirmBannerFinished()">${t('dashboard.banner_finished_action_yes')}</button>`;
+        const restoreBtn = fin.expected_qty
+            ? `<button class="btn-banner btn-banner-confirm" onclick="notFinishedBannerAction()">${t('dashboard.banner_finished_action_confirm', { qty: fin.expected_qty, unit: fin.unit })}</button>`
+            : '';
+        const keepBtn = `<button class="btn-banner btn-banner-edit" onclick="keepBannerFinishedStock()">${t('dashboard.banner_finished_action_keep')}</button>`;
+        if (restoreFirst) {
+            btns = restoreBtn + yesBtn + keepBtn;
+        } else {
+            btns = yesBtn + restoreBtn + keepBtn;
         }
-        btns += `<button class="btn-banner btn-banner-edit" onclick="keepBannerFinishedStock()">${t('dashboard.banner_finished_action_keep')}</button>`;
         actionsEl.innerHTML = btns;
 
     } else if (entry.type === 'anomaly') {
@@ -7702,12 +7711,15 @@ function _pzFractionLabel(n) {
     return fracStr ? `${whole}${fracStr}` : String(whole);
 }
 
-/** Stock at/below depletion threshold — treat as finished, not expired. */
+/** Stock at/below depletion threshold — treat as finished, not expired.
+ *  Keep these as true trace crumbs only (≤2 g/ml). A higher bar (e.g. 20 g)
+ *  hid usable leftovers and triggered false “finished?” banners that wiped
+ *  full jars from the ledger (e.g. orange honey). */
 function isInventoryDepleted(item) {
     const q = parseFloat(item?.quantity);
     if (isNaN(q) || q <= 0) return true;
     const unit = (item?.unit || 'pz').toLowerCase();
-    const thresholds = { g: 20, ml: 20, kg: 0.02, l: 0.02, conf: 0.1, pz: 0.25 };
+    const thresholds = { g: 2, ml: 2, kg: 0.002, l: 0.002, conf: 0.05, pz: 0.25 };
     return q <= (thresholds[unit] ?? 0.5);
 }
 
@@ -8078,12 +8090,6 @@ function _initInventoryRowSwipe(container) {
     }
 
     let swipeCtx = null;
-    let holdTimer = null;
-
-    const clearHold = () => {
-        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-        if (swipeCtx?.row) swipeCtx.row.classList.remove('row-holding');
-    };
 
     const pointFromEvent = (e, useChanged) => {
         if (useChanged && e.changedTouches && e.changedTouches.length) {
@@ -8113,7 +8119,6 @@ function _initInventoryRowSwipe(container) {
         if (!content) return;
         const pt = pointFromEvent(e, false);
         const isTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
-        clearHold();
         swipeCtx = {
             row,
             content,
@@ -8123,7 +8128,6 @@ function _initInventoryRowSwipe(container) {
             maxDy: 0,
             pointerId: e.pointerId ?? null,
             isTouch,
-            holdFired: false,
             swipeLocked: false,
             captured: false,
             abandoned: false,
@@ -8131,17 +8135,6 @@ function _initInventoryRowSwipe(container) {
         row.dataset.invSwipeDone = '';
         content.style.transition = 'none';
         // Do NOT setPointerCapture here — it blocks vertical scroll.
-        if (isTouch) {
-            holdTimer = setTimeout(() => {
-                holdTimer = null;
-                if (!swipeCtx || swipeCtx.abandoned || swipeCtx.swipeLocked) return;
-                if (swipeCtx.maxDx > ROW_OPEN_MOVE_PX || swipeCtx.maxDy > ROW_OPEN_MOVE_PX) return;
-                swipeCtx.holdFired = true;
-                swipeCtx.row.classList.add('row-holding');
-                try { navigator.vibrate?.(10); } catch (_) {}
-                _openInventoryRow(swipeCtx.row);
-            }, ROW_OPEN_HOLD_MS);
-        }
     };
 
     const onMove = (e) => {
@@ -8153,13 +8146,8 @@ function _initInventoryRowSwipe(container) {
         swipeCtx.maxDx = Math.max(swipeCtx.maxDx, Math.abs(dx));
         swipeCtx.maxDy = Math.max(swipeCtx.maxDy, dy);
 
-        if (swipeCtx.maxDx > ROW_OPEN_MOVE_PX || swipeCtx.maxDy > ROW_OPEN_MOVE_PX) {
-            clearHold();
-        }
-
         // Vertical intent → drop handlers so the list can scroll freely
         if (!swipeCtx.swipeLocked && swipeCtx.maxDy > 10 && swipeCtx.maxDy >= swipeCtx.maxDx) {
-            clearHold();
             resetRowVisual(swipeCtx.row, swipeCtx.content);
             swipeCtx.abandoned = true;
             swipeCtx = null;
@@ -8168,7 +8156,6 @@ function _initInventoryRowSwipe(container) {
 
         if (!swipeCtx.swipeLocked && swipeCtx.maxDx > 12 && swipeCtx.maxDx > swipeCtx.maxDy + 6) {
             swipeCtx.swipeLocked = true;
-            clearHold();
             if (e.pointerId !== undefined && swipeCtx.row.setPointerCapture) {
                 try {
                     swipeCtx.row.setPointerCapture(e.pointerId);
@@ -8187,7 +8174,6 @@ function _initInventoryRowSwipe(container) {
     };
 
     const onEnd = (e) => {
-        clearHold();
         const ctx = swipeCtx;
         swipeCtx = null;
         if (!ctx || ctx.abandoned) return;
@@ -8201,8 +8187,6 @@ function _initInventoryRowSwipe(container) {
             try { row.releasePointerCapture(ctx.pointerId); } catch (_) {}
         }
 
-        if (ctx.holdFired) return;
-
         const invId = parseInt(row.dataset.invId, 10);
         const productId = parseInt(row.dataset.productId, 10);
         const location = row.dataset.location || 'dispensa';
@@ -8212,6 +8196,7 @@ function _initInventoryRowSwipe(container) {
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
         };
 
+        // Swipe left → Use / Discard chooser; swipe right → Edit
         if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
             showInvActionChooser(productId, location, invId);
@@ -8222,7 +8207,7 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        // Touch: open only via long-press (above). Mouse: short click opens Use.
+        // Mouse short click → Use. Touch: swipe only (no long-press — swipe already covers Use).
         if (!ctx.isTouch && ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
             markSwipeDone();
             quickUse(productId, location);
@@ -8237,7 +8222,6 @@ function _initInventoryRowSwipe(container) {
     ];
     bindings.forEach(([ev, fn, opts]) => container.addEventListener(ev, fn, opts));
     container._invSwipeTeardown = () => {
-        clearHold();
         bindings.forEach(([ev, fn, opts]) => container.removeEventListener(ev, fn, opts));
     };
 }
@@ -8759,7 +8743,7 @@ async function quickUse(productId, location) {
 
 /**
  * After swipe-left on an inventory row: choose Use vs Discard.
- * Tap on the row still goes straight to Use (fast path).
+ * Mouse click on the row goes straight to Use; touch uses swipe only.
  */
 function showInvActionChooser(productId, location, invId) {
     const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
@@ -20149,7 +20133,7 @@ async function renderRecipe(r) {
             const alreadyUsed = ing.used === true;
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
             html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
-            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientDetail(${ing.product_id}, '${loc}')" title="${escapeHtml(t('btn.edit'))}">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
+            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientUse(${ing.product_id}, '${loc}')" title="${escapeHtml(t('cooking.ingredient_open_use'))}" role="button" tabindex="0">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -22412,6 +22396,18 @@ async function openIngredientDetail(productId, location) {
         currentInventory = items;
         editInventoryItem(item.id);
     } catch(e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/** Open the Use panel for a pantry-linked recipe ingredient (chat / generated recipes). */
+async function openIngredientUse(productId, location) {
+    const loc = location || 'dispensa';
+    const overlay = document.getElementById('recipe-overlay');
+    if (overlay) overlay.style.display = 'none';
+    try {
+        await quickUse(productId, loc);
+    } catch (e) {
         showToast(t('error.connection'), 'error');
     }
 }

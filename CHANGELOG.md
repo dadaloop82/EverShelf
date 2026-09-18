@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.5] - 2026-09-18
+
+### Fixed
+- **Products vanishing from inventory** — depletion threshold for “trace / finished” was 20 g/ml, so usable leftovers (and false “è finito?” banners) could hide or wipe stock. Now only true crumbs (≤2 g/ml) are treated as depleted. Vanished-product banners put **restore** before **finished** so a hasty tap does not write off a full pack (as happened with orange honey).
+- **Inventory long-press removed** — swipe left already opens Use/Discard, swipe right opens Edit; the extra hold-to-open on inventory rows is gone (scroll stays free).
+
+### Changed
+- **Recipe ingredients → Use** — tapping a pantry-linked ingredient name in a chat/generated recipe opens the Use panel directly.
+
 ## [1.8.4] - 2026-09-16
 
 ### Fixed

@@ -831,7 +831,8 @@
         "zerowaste_tip_title": "零浪费小贴士",
         "restart_title": "从头开始",
         "replay_title": "重读此步骤",
-        "wheel_aria": "菜谱步骤导航"
+        "wheel_aria": "菜谱步骤导航",
+        "ingredient_open_use": "打开取用面板"
     },
     "settings": {
         "title": "⚙️ 设置",

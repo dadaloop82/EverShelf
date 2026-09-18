@@ -831,7 +831,8 @@
         "zerowaste_tip_title": "Consiglio anti-spreco",
         "restart_title": "Ricomincia dall'inizio",
         "replay_title": "Rileggi questo passo",
-        "wheel_aria": "Navigazione passi ricetta"
+        "wheel_aria": "Navigazione passi ricetta",
+        "ingredient_open_use": "Apri pannello Usa"
     },
     "settings": {
         "title": "⚙️ Configurazione",

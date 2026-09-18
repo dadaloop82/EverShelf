@@ -831,7 +831,8 @@
         "zerowaste_tip_title": "Zero-waste tip",
         "restart_title": "Restart from the beginning",
         "replay_title": "Replay this step",
-        "wheel_aria": "Recipe step navigation"
+        "wheel_aria": "Recipe step navigation",
+        "ingredient_open_use": "Open Use panel"
     },
     "settings": {
         "title": "⚙️ Settings",
