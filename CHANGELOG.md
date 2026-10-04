@@ -92,9 +92,10 @@ how the backup copies the database, and the API surface around write actions.
   cannot set, and one that a cross-origin `fetch` can only add after a CORS
   preflight the server never grants. The content-type fallback survives only for
   the five actions in `evershelfCsrfExemptPostActions()`, which belong to clients
-  with no browser session to forge: the kiosk APK (`report_error`, `client_log`,
-  `save_settings`), the Health Bridge (`health_ingest`) and the Home Assistant
-  integration (`ha_generate_recipe`). Rejection is a `403 csrf_rejected`, logged.
+  with no browser session to forge: the kiosk APK (`report_error`,
+  `save_settings`), the public log sink (`client_log`), the Health Bridge
+  (`health_ingest`) and the Home Assistant integration (`ha_generate_recipe`).
+  Rejection is a `403 csrf_rejected`, logged.
 
 ### Changed
 - **Every first-party client sends the CSRF header, and one of them did not.**

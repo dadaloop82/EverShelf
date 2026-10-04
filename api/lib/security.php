@@ -84,11 +84,11 @@ function evershelfDestructiveActions(): array {
  * without the X-EverShelf-Request header. None of them has a browser session to
  * forge, so they keep the historical proof (that header *or* a JSON content
  * type):
- *   report_error       kiosk APK ErrorReporter + the PWA offline flush
- *   client_log         kiosk log upload + the PWA offline flush
- *   save_settings      kiosk APK SettingsActivity/SetupActivity (JSON only)
+ *   report_error       kiosk APK ErrorReporter — builds already installed send no header
+ *   client_log         public log sink (see evershelfPublicActions())
+ *   save_settings      kiosk APK SettingsActivity/SetupActivity (JSON body only)
  *   health_ingest      Health Bridge / HA automation (X-Health-Token auth)
- *   ha_generate_recipe Home Assistant rest_command / evershelf component
+ *   ha_generate_recipe Home Assistant rest_command (JSON body only)
  * Everything else must send the header, which assets/js/app.js sets on every
  * non-GET call; mcp-server and the kiosk set it explicitly.
  */
