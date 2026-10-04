@@ -85,7 +85,8 @@ Out-of-scope issues:
   the context at 4 KB (strings ≤ 1 KB, 50 keys per level, 5 levels deep) — the
   documented auth accepts `?api_token=` in the URL, which is exactly the
   `location.href` the PWA attaches to every error. `data/error_reports.log` gets
-  the same redacted text.
+  the same redacted text, and so does the public `client_log` sink
+  (`data/client_debug.log`, 1 KB per line, 100 lines per request).
 - Publishing to GitHub is a **separate, explicit opt-in**: `REPORT_ENABLED=true` on
   top of `GH_ISSUE_TOKEN`, because the issues are public. With publishing off the
   local log is still written, so diagnostics are never lost.
