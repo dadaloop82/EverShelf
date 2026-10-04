@@ -117,4 +117,6 @@ npm run build
 
 - `docs/CODEBASE-MAP.md` — deep architecture, DB schema, data files, action catalog.
 - `docs/REVIEW-2026-10.md` — **bugs, risks, optimizations, cleanup and feature ideas**.
+- `docs/REVIEW-2026-10-2.md` — **second deep audit** + what was remediated (security,
+  i18n, hygiene, deps) and what is still open.
 - `docs/ARCHITECTURE.md`, `docs/CORPORATE-UI.md`, `SECURITY.md`, `CONTRIBUTING.md`.
