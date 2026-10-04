@@ -1648,7 +1648,8 @@
   "screensaver": {
     "recipe_btn": "Ricette",
     "scan_btn": "Scansiona prodotto",
-    "scan_long_hint": "Scansiona prodotto (tieni premuto per modalità spesa)"
+    "scan_long_hint": "Scansiona prodotto (tieni premuto per modalità spesa)",
+    "shopping_count": "articoli"
   },
   "days": {
     "mon": "Lunedì",
@@ -2136,7 +2137,9 @@
   },
   "setup": {
     "complete_desc": "La configurazione è completata. Puoi sempre modificare queste impostazioni dalla pagina Configurazione.",
-    "ready_title": "Tutto pronto!"
+    "ready_title": "Tutto pronto!",
+    "next_btn": "Avanti →",
+    "start_btn": "🚀 Inizia!"
   },
   "qty": {
     "enter_in": "Inserisci in",

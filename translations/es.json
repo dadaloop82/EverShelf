@@ -1648,7 +1648,8 @@
   "screensaver": {
     "recipe_btn": "Recetas",
     "scan_btn": "Escanear producto",
-    "scan_long_hint": "Escanear producto (mantener pulsado para modo compras)"
+    "scan_long_hint": "Escanear producto (mantener pulsado para modo compras)",
+    "shopping_count": "artículos"
   },
   "days": {
     "mon": "Lunes",
@@ -2136,7 +2137,9 @@
   },
   "setup": {
     "complete_desc": "Configuración completada. Puedes cambiar estos ajustes en cualquier momento desde Ajustes.",
-    "ready_title": "¡Todo listo!"
+    "ready_title": "¡Todo listo!",
+    "next_btn": "Siguiente →",
+    "start_btn": "🚀 ¡Empezar!"
   },
   "qty": {
     "enter_in": "Introduce en",

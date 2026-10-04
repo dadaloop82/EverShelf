@@ -1648,7 +1648,8 @@
   "screensaver": {
     "recipe_btn": "食谱",
     "scan_btn": "扫描商品",
-    "scan_long_hint": "扫描商品（长按进入购物模式）"
+    "scan_long_hint": "扫描商品（长按进入购物模式）",
+    "shopping_count": "件商品"
   },
   "days": {
     "mon": "星期一",
@@ -2136,7 +2137,9 @@
   },
   "setup": {
     "complete_desc": "设置已完成。可随时在设置中修改。",
-    "ready_title": "一切就绪！"
+    "ready_title": "一切就绪！",
+    "next_btn": "下一步 →",
+    "start_btn": "🚀 开始！"
   },
   "qty": {
     "enter_in": "输入单位",

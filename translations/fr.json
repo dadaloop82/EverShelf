@@ -1648,7 +1648,8 @@
   "screensaver": {
     "recipe_btn": "Recettes",
     "scan_btn": "Scanner un produit",
-    "scan_long_hint": "Scanner un produit (appui long pour le mode courses)"
+    "scan_long_hint": "Scanner un produit (appui long pour le mode courses)",
+    "shopping_count": "articles"
   },
   "days": {
     "mon": "Lundi",
@@ -2136,7 +2137,9 @@
   },
   "setup": {
     "complete_desc": "Configuration terminée. Vous pouvez modifier ces paramètres à tout moment dans Réglages.",
-    "ready_title": "Tout est prêt !"
+    "ready_title": "Tout est prêt !",
+    "next_btn": "Suivant →",
+    "start_btn": "🚀 Allons-y !"
   },
   "qty": {
     "enter_in": "Saisir en",

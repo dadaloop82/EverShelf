@@ -1648,7 +1648,8 @@
   "screensaver": {
     "recipe_btn": "Recipes",
     "scan_btn": "Scan product",
-    "scan_long_hint": "Scan product (long-press for shopping mode)"
+    "scan_long_hint": "Scan product (long-press for shopping mode)",
+    "shopping_count": "items"
   },
   "days": {
     "mon": "Monday",
@@ -2136,7 +2137,9 @@
   },
   "setup": {
     "complete_desc": "Setup is complete. You can change these settings anytime from Settings.",
-    "ready_title": "All set!"
+    "ready_title": "All set!",
+    "next_btn": "Next →",
+    "start_btn": "🚀 Start!"
   },
   "qty": {
     "enter_in": "Enter in",

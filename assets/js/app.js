@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261004a'; // bump when translations change
+const _I18N_VERSION = '20261004b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -23454,7 +23454,7 @@ function updateScreensaverShopping() {
 
     const countCol = `<div class="ss-shop-col">
         <div class="ss-shop-value">${itemCount}</div>
-        <div class="ss-shop-label">🛒 articoli</div>
+        <div class="ss-shop-label">🛒 ${escapeHtml(t('screensaver.shopping_count'))}</div>
     </div>`;
 
     let priceCol = '';
@@ -24898,9 +24898,9 @@ function _renderSetupStep() {
     prevBtn.textContent = t('btn.back');
 
     if (_setupStep === totalPending - 1) {
-        nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : _currentLang === 'fr' ? '🚀 Allons-y !' : _currentLang === 'es' ? '🚀 ¡Empezar!' : '🚀 Start!';
+        nextBtn.textContent = t('setup.start_btn');
     } else {
-        nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : _currentLang === 'fr' ? 'Suivant →' : _currentLang === 'es' ? 'Siguiente →' : 'Next →';
+        nextBtn.textContent = t('setup.next_btn');
     }
 }
 
@@ -25322,8 +25322,9 @@ async function _runStartupCheck() {
  */
 function _startupHintText(c) {
     if (!c) return null;
-    if (c.hint_key) return t(c.hint_key, c.hint_args || {});
-    return c.hint || c.error || null;
+    const raw = c.hint_key ? t(c.hint_key, c.hint_args || {}) : (c.hint || c.error || null);
+    // Inserted via innerHTML — escape it (server values could contain markup).
+    return raw == null ? null : escapeHtml(raw);
 }
 
 /** Builds and shows the warning popup with countdown (auto-closes after 5s). */
