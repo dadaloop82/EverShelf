@@ -14978,8 +14978,12 @@ function internalShoppingCleanupObsolete(PDO $db): array {
         }
     }
 
-    // Only clean hard urgency markers auto-stamped by EverShelf
-    $urgentMarkers = ['⚡', '🟠'];
+    // Clean every urgency marker auto-stamped by EverShelf — MUST stay in sync with
+    // bringCleanupObsolete() ($appMarkers). Regression: only ⚡/🟠 were cleaned, so a
+    // 🟡 "A breve" / 🔵 "Previsione" row added while the item was depleted (qty<=0)
+    // survived forever after a restock — the user saw products they had in abundance
+    // stuck on the shopping list.
+    $urgentMarkers = ['⚡', '🟠', '🟡', '🔵', '🛒'];
     $removed = 0;
     $candidates = 0;
     $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
@@ -15027,6 +15031,20 @@ function internalShoppingCleanupObsolete(PDO $db): array {
                 break;
             }
         }
+
+        // Family-stock guard — mirrors internalShoppingAutoAddCritical(): once any variant
+        // of the same generic family is back in stock, the auto-added row must be dropped
+        // even if the smart cache still lists a sibling product.
+        if ($stillUrgent) {
+            foreach (array_unique(array_filter([$computed, $name, $raw])) as $candidate) {
+                $generic = computeShoppingName((string)$candidate, '', '', false);
+                if ($generic !== '' && bringShoppingFamilyStockQty($db, $generic) > 0.001) {
+                    $stillUrgent = false;
+                    break;
+                }
+            }
+        }
+
         if ($stillUrgent) {
             continue;
         }
