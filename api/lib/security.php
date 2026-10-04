@@ -79,6 +79,45 @@ function evershelfDestructiveActions(): array {
     ];
 }
 
+/**
+ * POST actions that native clients and server-to-server integrations call
+ * without the X-EverShelf-Request header. None of them has a browser session to
+ * forge, so they keep the historical proof (that header *or* a JSON content
+ * type):
+ *   report_error       kiosk APK ErrorReporter + the PWA offline flush
+ *   client_log         kiosk log upload + the PWA offline flush
+ *   save_settings      kiosk APK SettingsActivity/SetupActivity (JSON only)
+ *   health_ingest      Health Bridge / HA automation (X-Health-Token auth)
+ *   ha_generate_recipe Home Assistant rest_command / evershelf component
+ * Everything else must send the header, which assets/js/app.js sets on every
+ * call that carries a body.
+ */
+function evershelfCsrfExemptPostActions(): array {
+    return [
+        'report_error',
+        'client_log',
+        'save_settings',
+        'health_ingest',
+        'ha_generate_recipe',
+    ];
+}
+
+/**
+ * CSRF decision for a POST request. The header is mandatory; only the actions in
+ * evershelfCsrfExemptPostActions() may fall back to a JSON content type. Neither
+ * can be set by a cross-site <form> (the classic `enctype="text/plain"` trick
+ * changes the body, not the headers it is allowed to send).
+ */
+function evershelfCsrfGuardAllows(string $action, string $header, string $contentType): bool {
+    if ($header === '1') {
+        return true;
+    }
+    if ($action === '' || !in_array($action, evershelfCsrfExemptPostActions(), true)) {
+        return false;
+    }
+    return stripos($contentType, 'application/json') !== false;
+}
+
 function evershelfActionNeedsAuth(string $action, string $method): bool {
     if (!evershelfApiTokenRequired()) {
         return false;

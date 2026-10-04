@@ -42,7 +42,7 @@ function flushRemoteLog() {
     if (isOfflineNow) { _bufferOfflineLogs(msgs); return; }
     fetch(`api/index.php?action=client_log`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
         body: JSON.stringify({ messages: msgs })
     }).catch(() => { _bufferOfflineLogs(msgs); }); // store if request itself fails
 }
@@ -92,7 +92,7 @@ function reportError(payload) {
 
     fetch('api/index.php?action=report_error', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
         body:    JSON.stringify(body),
     }).catch(() => { _bufferOfflineError(body); }); // store if request itself fails
     // Note: the server will also skip issue creation if this version is not the latest.
@@ -5105,6 +5105,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     if (body) {
         opts.headers = { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1', ...authHdrs, ...extraHeaders };
         opts.body = JSON.stringify(body);
+    } else if (method !== 'GET') {
+        // The API's CSRF guard requires this header on every POST, including the
+        // few calls that carry no body (e.g. chat_clear).
+        opts.headers = { 'X-EverShelf-Request': '1', ...authHdrs, ...extraHeaders };
     } else {
         opts.headers = { ...authHdrs, ...extraHeaders };
     }
@@ -25071,7 +25075,7 @@ async function _flushOfflineReports() {
         if (logs.length > 0) {
             localStorage.removeItem(_OFFLINE_LOGS_KEY);
             await fetch('api/index.php?action=client_log', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
                 body: JSON.stringify({ messages: logs })
             });
         }
@@ -25082,7 +25086,7 @@ async function _flushOfflineReports() {
             localStorage.removeItem(_OFFLINE_ERRORS_KEY);
             for (const errBody of errors) {
                 await fetch('api/index.php?action=report_error', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
                     body: JSON.stringify(errBody)
                 }).catch(() => {});
             }

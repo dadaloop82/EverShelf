@@ -57,6 +57,18 @@ Out-of-scope issues:
   run `docker` or rewrite `.env` (`mealie_install`, `mealie_configure`, …) and the
   scale gateway endpoints require the API token; the previous `Sec-Fetch-Site` /
   `Origin` bypass was removed.
+- **Every POST is checked, and the check no longer accepts a header a form can
+  set.** The CSRF guard ran against a hand-written list of 25 actions out of 134
+  and treated `Content-Type: application/json` as proof of good faith, so a
+  cross-site `<form enctype="text/plain">` — which sends that content type with
+  an attacker-chosen body — could reach any action that was not on the list
+  (`chat_save`, `tts_proxy`, `generate_recipe_stream`, the `health_*` writes, …).
+  Now `X-EverShelf-Request: 1` is required on every POST and the content type
+  fallback is limited to the five actions listed in
+  `evershelfCsrfExemptPostActions()`, which belong to native clients with no
+  browser session to forge (kiosk APK, Health Bridge, Home Assistant). The
+  webapp, the MCP server and the kiosk send the header; anyone calling the API
+  from a script has to add it.
 - Baseline security headers are sent for every response
   (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy:
   same-origin`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and HSTS over TLS).

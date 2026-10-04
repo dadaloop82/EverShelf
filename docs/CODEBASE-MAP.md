@@ -162,8 +162,13 @@ Groups:
   action is open. If set, almost everything needs `X-API-Token`/`?api_token=`
   (or `Authorization: Bearer`). Public allow-list:
   `api/lib/security.php::evershelfPublicActions()`.
-- CSRF: POST write-actions require `X-EverShelf-Request: 1` or
-  `Content-Type: application/json`.
+- CSRF: **every** POST requires `X-EverShelf-Request: 1`, whatever the action.
+  Only the actions in
+  `api/lib/security.php::evershelfCsrfExemptPostActions()` — native clients with
+  no browser session to forge (`report_error`, `client_log`, `save_settings`,
+  `health_ingest`, `ha_generate_recipe`) — may fall back to
+  `Content-Type: application/json`. A `<form>` can send neither a custom header
+  nor JSON, so both proofs are out of reach cross-site.
 - Demo-mode block list + read-only allow-list also in `api/lib/security.php`.
 - CORS is off by default; only emitted if `CORS_ORIGIN` is set.
 

@@ -158,6 +158,8 @@ class SettingsActivity : AppCompatActivity() {
                     val conn   = (java.net.URL(apiUrl).openConnection() as java.net.HttpURLConnection).apply {
                         requestMethod = "POST"
                         setRequestProperty("Content-Type", "application/json")
+                        // The API's CSRF guard requires this header on every POST.
+                        setRequestProperty("X-EverShelf-Request", "1")
                         connectTimeout = 5000
                         readTimeout    = 5000
                         doOutput = true
