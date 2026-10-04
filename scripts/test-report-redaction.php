@@ -157,6 +157,10 @@ $log = source_of($indexFile, '_appendErrorLog');
 assert_true(str_contains($log, 'evershelfRedactSecrets($message)'), 'local log: message is redacted');
 assert_true(str_contains($log, 'evershelfReportContextJson($context'), 'local log: context is redacted and capped');
 
+$client = source_of($indexFile, 'clientLog');
+assert_true(str_contains($client, 'evershelfRedactSecrets'), 'the public client-log sink redacts its lines too');
+assert_true(str_contains($client, 'evershelfTruncateUtf8'), 'and bounds each line instead of trusting the client');
+
 assert_true(str_contains($index, "'skipped' => 'reporting_disabled'"), 'report_error stops before publishing when disabled');
 assert_true(str_contains($index, '!$token || !_ghReportsEnabled()'), 'report_bug is gated the same way');
 assert_true(str_contains($index, '_ghReportsEnabled() && _isLatestVersion('), 'the PHP crash reporter is gated too');

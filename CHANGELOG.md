@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [Unreleased] — after the 1.8.10 tag
+
+Landed on `develop` (and therefore `main`) after v1.8.10 was published; ships in
+the next release.
+
+### Security
+- **The public client-log sink wrote whatever a client sent, verbatim and
+  unbounded.** `client_log` is a public action, and its `messages` array went
+  straight into `data/client_debug.log` — the file the in-app log viewer
+  (`get_client_log`) serves and that backups copy around. A client that logs its
+  own request URLs (the documented auth accepts `?api_token=…`) or its headers
+  wrote that token into the
+  file, and one request could append up to `post_max_size` (32 MB in the shipped
+  image) to a log the rotation only checks *before* writing. Lines are now redacted
+  with `evershelfRedactSecrets()` and capped at 1 KB, at most 100 per request; a
+  non-array `messages` is ignored instead of reaching `foreach`.
+
 ## [1.8.10] - 2026-10-04
 
 Second half of the 2026-10-04 audit: what a `docker build` bakes into the image,

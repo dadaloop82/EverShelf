@@ -3510,10 +3510,16 @@ function clientLog(): void {
     elseif (preg_match('/mobile|android|iphone/i', $ua)) $device = 'phone';
     else $device = 'desktop';
     $ts = date('Y-m-d H:i:s');
-    $msgs = $input['messages'] ?? [];
+    // A public sink: the lines are whatever the client sent, so they can carry the
+    // client's own credentials (`?api_token=…`, an Authorization header) and can be
+    // arbitrarily large. Same treatment as report_error: redact, then bound the
+    // request to the size the rotation above already keeps.
+    $msgs = (is_array($input) && is_array($input['messages'] ?? null)) ? $input['messages'] : [];
+    $msgs = array_slice($msgs, -100);
     $lines = [];
     foreach ($msgs as $m) {
-        $lines[] = "[$ts] [$device] $m";
+        if (!is_string($m) && !is_numeric($m)) continue;
+        $lines[] = "[$ts] [$device] " . evershelfTruncateUtf8(evershelfRedactSecrets((string)$m), 1000);
     }
     if ($lines) {
         // Keep log under 100KB — truncate oldest if needed
