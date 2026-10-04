@@ -63,6 +63,10 @@ pairing. You pair once per browser/device; afterwards the token is stored in
 - **The code expired?** Reload the page — a fresh one is printed automatically.
 - **Lost the code / prefer not to pair?** Copy `API_TOKEN` from `.env` and paste it into
   **Settings → Security → Token**.
+- **`grep` returns nothing even though the app asks for a code?** The web server must
+  be able to write the log file. A log created by a root `cron` run is owned by root and
+  silently rejects Apache's writes, so the code never lands in the file you grep. Fix it
+  with `bash scripts/fix-permissions.sh` (or `chown -R www-data:www-data logs/`).
 - **Trusted LAN only:** set `API_BOOTSTRAP_OPEN=true` in `.env` to go back to the old
   behaviour (the token is handed to any same-origin-looking request). Never do this on an
   internet-exposed host — see `SECURITY.md`.

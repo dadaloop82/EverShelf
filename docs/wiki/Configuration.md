@@ -132,6 +132,11 @@ docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
 
 > The code above is a placeholder — your log line carries the real value.
 
+If the `grep` returns nothing at all, the web server cannot write the log file: a log
+created by a root `cron` run is owned by root and silently rejects Apache's writes, so
+the code never reaches the file you grep. Fix it with
+`bash scripts/fix-permissions.sh` (or `chown -R www-data:www-data logs/`).
+
 The code is 8 hex characters, valid for 30 minutes, and is **consumed** by the first
 successful pairing (50 wrong attempts from one IP burn it immediately). You pair once
 per browser/device — afterwards the token lives in `localStorage` and you are not asked
