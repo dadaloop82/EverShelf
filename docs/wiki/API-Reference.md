@@ -22,7 +22,9 @@ GET requests pass parameters as query params; POST requests send JSON in the bod
 |------|-------|-----------|
 | Standard | 120 req/min | All general endpoints |
 | AI | 15 req/min | `gemini_*`, `generate_recipe*` |
-| Strict | 5 req/min | `report_error` |
+| Strict | 5 req/min | `generate_recipe_stream` |
+| Error reports | 20 req/min | `report_error`, `check_update` |
+| Bug reports | 2 req/hour | `report_bug` (creates a public issue) |
 
 Exceeded limits return HTTP 429 with `{"error": "rate_limit_exceeded"}`.
 
@@ -307,6 +309,14 @@ Submit an automatic error report (creates a GitHub Issue).
 Only creates an issue if:
 - The client is running the latest released version
 - The fingerprint hasn't been seen in the last 24 hours
+- `REPORT_ENABLED=true` (publishing to GitHub is opt-in; off by default)
+
+The message, stack trace, URL, user agent and every nested context value are
+**redacted** (`api_token=…`, `Authorization: …`, `"password": "…"`, `ghp_…`,
+`AIza…`, `sk-…`, `user:pass@` → `[REDACTED]`) and the context is capped at 4 KB
+before anything is written to `data/error_reports.log` or sent to GitHub. When
+publishing is disabled the response is `{"ok":true,"skipped":"reporting_disabled"}`
+and only the local log is written.
 
 ---
 

@@ -519,3 +519,166 @@ function evershelfRequireScaleAccess(): void {
     echo json_encode(['error' => 'unauthorized', 'api_token_required' => true]);
     exit;
 }
+
+// =============================================================================
+// ===== OUTBOUND REPORT REDACTION ============================================
+// =============================================================================
+// Bug reports leave the instance: data/error_reports.log is copied around by
+// backups, and _createOrCommentGithubIssue() publishes to a public repository.
+// Whatever a client (or PHP itself) puts in a report can carry a credential, and
+// the documented auth even accepts `?api_token=…` in the URL — which is the
+// `location.href` the PWA sends with every error. Redact at the boundary, cap the
+// size, and only then let the text out.
+//
+// The patterns are deliberately blunt: losing a secret from a debug snippet is
+// cheap, publishing it on GitHub is not.
+
+/** Key names whose assigned value must never leave the instance. */
+function evershelfSecretKeyPattern(): string {
+    return 'api[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|auth[_-]?token'
+         . '|health[_-]?token|gh[_-]?issue[_-]?token|token|password|passwd|pwd'
+         . '|client[_-]?secret|secret|api[_-]?key|apikey|authorization|key';
+}
+
+/**
+ * Remove credentials from a free-text string: `key=value` (query string, form
+ * body, log line), `"key": "value"` (JSON), `Key: value` (headers), credentials
+ * inside a URL, and tokens with a recognisable shape (GitHub, Google, OpenAI,
+ * Slack). Idempotent — running it twice changes nothing.
+ */
+function evershelfRedactSecrets(string $text): string {
+    if ($text === '') {
+        return '';
+    }
+    $keys = evershelfSecretKeyPattern();
+
+    // Header style: "Authorization: Bearer ghp_…", "X-Health-Token: …".
+    $text = (string)preg_replace(
+        '/((?:authorization|x-health-token|x-api-token|x-evershelf-token)\s*:\s*)(?:bearer\s+)?[^\s"\'<>]+/i',
+        '$1[REDACTED]',
+        $text
+    );
+
+    // JSON style: {"api_token": "…"} (the value may be any quoted string).
+    $text = (string)preg_replace_callback(
+        '/(["\'])([A-Za-z0-9_-]+)\1(\s*:\s*)(["\'])(?:[^"\'\\\\]|\\\\.)*\4/',
+        static function (array $m) use ($keys): string {
+            if (!preg_match('/^(?:' . $keys . ')$/i', $m[2])) {
+                return $m[0];
+            }
+            return $m[1] . $m[2] . $m[1] . $m[3] . $m[4] . '[REDACTED]' . $m[4];
+        },
+        $text
+    );
+
+    // Query / form / "Key: value" style: api_token=abc, health_token: abc, key='abc'.
+    // A boundary char is required so `monkey=1` is left alone; the value stops at
+    // the usual delimiters and quotes (the opening quote is kept, the closing one
+    // is left in place by the value class). The lookahead keeps the function
+    // idempotent: `api_token=[REDACTED]` must not become `[REDACTED]]`.
+    $text = (string)preg_replace_callback(
+        '/(^|[\s?&,;(])((?:' . $keys . ')(?:\s*=\s*|\s*:\s*)(?:["\']?))(?!\[REDACTED\])([^\s,;&)\]}"\']+)/i',
+        static function (array $m): string {
+            return $m[1] . $m[2] . '[REDACTED]';
+        },
+        $text
+    );
+
+    // Credentials embedded in a URL: https://user:pass@host.
+    $text = (string)preg_replace('#(https?://[^\s:@/]+):[^\s@/]+@#i', '$1:[REDACTED]@', $text);
+
+    // Tokens with a recognisable shape, wherever they appear.
+    return (string)preg_replace(
+        [
+            '/\bgh[pousr]_[A-Za-z0-9]{16,}\b/',
+            '/\bgithub_pat_[A-Za-z0-9_]{20,}\b/',
+            '/\bAIza[0-9A-Za-z_\-]{30,}\b/',
+            '/\bGOCSPX-[A-Za-z0-9_\-]{10,}\b/',
+            '/\bsk-[A-Za-z0-9]{20,}\b/',
+            '/\bxox[baprs]-[A-Za-z0-9\-]{10,}\b/',
+        ],
+        ['gh_[REDACTED]', 'github_pat_[REDACTED]', 'AIza[REDACTED]', 'GOCSPX-[REDACTED]', 'sk-[REDACTED]', 'xox[REDACTED]'],
+        $text
+    );
+}
+
+/**
+ * Cut a string to $max bytes without leaving a dangling multi-byte sequence — a
+ * report payload is JSON-encoded further down, and json_encode() fails on
+ * invalid UTF-8.
+ */
+function evershelfTruncateUtf8(string $text, int $max): string {
+    if ($max <= 0 || strlen($text) <= $max) {
+        return $text;
+    }
+    $cut = substr($text, 0, $max);
+    $cut = (string)preg_replace('/[\x80-\xBF]+$/', '', $cut); // trailing continuations
+    return (string)preg_replace('/[\xC0-\xFF]$/', '', $cut);  // dangling lead byte
+}
+
+/**
+ * Redact a report context recursively and bound it: strings ≤ 1 KB, ≤ 50 keys per
+ * level, ≤ 5 levels deep. Whatever the client sent, the result stays JSON-safe.
+ *
+ * @param array<mixed> $context
+ * @return array<mixed>
+ */
+function evershelfRedactContext(array $context, int $depth = 0): array {
+    $out   = [];
+    $count = 0;
+    foreach ($context as $key => $value) {
+        if ($count >= 50) {
+            $out['_truncated'] = (count($context) - $count) . ' more keys omitted';
+            break;
+        }
+        $count++;
+        $safeKey = is_string($key) ? evershelfTruncateUtf8(evershelfRedactSecrets($key), 80) : $key;
+        if (is_string($value)) {
+            $out[$safeKey] = evershelfTruncateUtf8(evershelfRedactSecrets($value), 1024);
+        } elseif (is_array($value)) {
+            $out[$safeKey] = ($depth < 4) ? evershelfRedactContext($value, $depth + 1) : '[nested too deep]';
+        } elseif (is_int($value) || is_float($value) || is_bool($value) || $value === null) {
+            $out[$safeKey] = $value;
+        } else {
+            $out[$safeKey] = '[unprintable]';
+        }
+    }
+    return $out;
+}
+
+/**
+ * JSON for a report: redacted and capped at $maxBytes. Top-level keys are dropped
+ * when the payload is too large, so the result is always valid JSON — a client
+ * must not be able to push post_max_size (32 MB) into a log line or an issue.
+ *
+ * @param array<mixed> $context
+ */
+function evershelfReportContextJson(array $context, int $maxBytes = 4096): string {
+    if ($context === []) {
+        return '';
+    }
+    $safe  = evershelfRedactContext($context);
+    $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+           | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR;
+
+    $json = json_encode($safe, $flags);
+    if (!is_string($json) || strlen($json) <= $maxBytes) {
+        return is_string($json) ? $json : '';
+    }
+
+    $kept = [];
+    foreach ($safe as $key => $value) {
+        $kept[$key] = $value;
+        $probe = json_encode($kept, $flags);
+        if (is_string($probe) && strlen($probe) > $maxBytes - 64) {
+            unset($kept[$key]);
+            $kept['_truncated'] = 'context capped at ' . $maxBytes . ' bytes';
+            break;
+        }
+    }
+    $json = json_encode($kept, $flags);
+    if (!is_string($json) || strlen($json) > $maxBytes) {
+        return '{"_error":"context exceeds ' . $maxBytes . ' bytes"}';
+    }
+    return $json;
+}

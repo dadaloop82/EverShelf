@@ -43,6 +43,8 @@ dispensa/
   when it cannot authenticate — never removes it: the app dead-ends on "API token required".
 - Secrets (`HA_TOKEN`, `TTS_TOKEN`, `GEMINI_API_KEY`) stay in `.env`; `get_settings` exposes only `*_set` flags.
 - **`GH_ISSUE_TOKEN_ENC`** + **`GH_ISSUE_TOKEN_KEY`**: AES-256-GCM encrypted GitHub Issues token.
+  Opening issues is a second opt-in (`REPORT_ENABLED=true`) and every outbound
+  payload is redacted and capped in `api/lib/security.php` before it is sent.
 
 ## Planned refactors
 

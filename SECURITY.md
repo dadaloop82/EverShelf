@@ -78,6 +78,17 @@ Out-of-scope issues:
   so behind a reverse proxy each client keeps its own bucket and cannot spoof one.
   Public actions that create GitHub issues (`report_bug`) have a dedicated,
   much tighter bucket.
+- Error and bug reports are **redacted and capped before they leave the instance**.
+  `api/lib/security.php` strips credentials (`api_token=…`, `Authorization: …`,
+  `"password": "…"`, `ghp_…`, `AIza…`, `sk-…`, `user:pass@` in URLs) from the
+  message, stack trace, URL, user-agent and every nested context value, and caps
+  the context at 4 KB (strings ≤ 1 KB, 50 keys per level, 5 levels deep) — the
+  documented auth accepts `?api_token=` in the URL, which is exactly the
+  `location.href` the PWA attaches to every error. `data/error_reports.log` gets
+  the same redacted text.
+- Publishing to GitHub is a **separate, explicit opt-in**: `REPORT_ENABLED=true` on
+  top of `GH_ISSUE_TOKEN`, because the issues are public. With publishing off the
+  local log is still written, so diagnostics are never lost.
 - Parameterized SQL queries (PDO prepared statements) throughout
 - Input validation and length limits on all user-supplied fields
 - `.env` and `data/` directories denied via web server config (see README)
