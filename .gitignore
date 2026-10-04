@@ -38,6 +38,10 @@ Thumbs.db
 node_modules/
 mcp-server/node_modules/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Editor / IDE
 *.swp
 *.swo
