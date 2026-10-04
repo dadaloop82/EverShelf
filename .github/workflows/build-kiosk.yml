@@ -42,25 +42,6 @@ jobs:
           echo "code=$VCODE" >> "$GITHUB_OUTPUT"
           echo "Kiosk version: $VERSION (versionCode $VCODE)"
 
-      - name: Prepare signing keystore
-        env:
-          KIOSK_KEYSTORE_BASE64: ${{ secrets.KIOSK_KEYSTORE_BASE64 }}
-          KIOSK_STORE_PASSWORD:  ${{ secrets.KIOSK_STORE_PASSWORD }}
-          KIOSK_KEY_ALIAS:       ${{ secrets.KIOSK_KEY_ALIAS }}
-          KIOSK_KEY_PASSWORD:    ${{ secrets.KIOSK_KEY_PASSWORD }}
-        run: |
-          if [ -z "$KIOSK_KEYSTORE_BASE64" ]; then
-            echo "::warning::KIOSK_KEYSTORE_BASE64 secret not set — building with the debug keystore (OTA updates from this build will not be installable over previous releases)."
-            exit 0
-          fi
-          echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > evershelf-kiosk/evershelf.jks
-          cat > evershelf-kiosk/keystore.properties <<EOF
-          storeFile=evershelf.jks
-          storePassword=${KIOSK_STORE_PASSWORD}
-          keyAlias=${KIOSK_KEY_ALIAS:-evershelf}
-          keyPassword=${KIOSK_KEY_PASSWORD}
-          EOF
-
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
         working-directory: evershelf-kiosk

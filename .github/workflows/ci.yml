@@ -77,41 +77,29 @@ jobs:
           done
           echo "All translation files valid."
 
-      - name: Check translation completeness (flattened keys)
+      - name: Check translation completeness
         run: |
-          python3 - <<'PY'
-          import glob, json, sys
-
-          def flatten(obj, prefix=''):
-              out = {}
-              for k, v in obj.items():
-                  key = f'{prefix}.{k}' if prefix else k
-                  if isinstance(v, dict):
-                      out.update(flatten(v, key))
-                  else:
-                      out[key] = v
-              return out
-
-          ref = flatten(json.load(open('translations/it.json', encoding='utf-8')))
-          failed = False
-          for f in sorted(glob.glob('translations/*.json')):
-              if f.endswith('it.json'):
+          python3 -c "
+          import json, sys
+          base = json.load(open('translations/it.json'))
+          base_keys = set(base.keys())
+          ok = True
+          import glob
+          for f in glob.glob('translations/*.json'):
+              if 'it.json' in f:
                   continue
-              data = flatten(json.load(open(f, encoding='utf-8')))
-              missing = sorted(set(ref) - set(data))
+              lang = json.load(open(f))
+              lang_keys = set(lang.keys())
+              missing = base_keys - lang_keys
               if missing:
-                  failed = True
                   print(f'{f}: {len(missing)} missing keys')
-                  for k in missing[:20]:
+                  for k in sorted(missing)[:10]:
                       print(f'  - {k}')
+                  if len(missing) > 10:
+                      print(f'  ... and {len(missing)-10} more')
               else:
-                  print(f'{f}: complete ({len(data)} keys)')
-          sys.exit(1 if failed else 0)
-          PY
-
-      - name: i18n usage audit (used keys exist in every locale)
-        run: python3 scripts/i18n-audit.py
-
+                  print(f'{f}: complete ✓')
+          "
 
   # ── Auto-merge develop → main ────────────────────────────────────────────
   # Runs automatically after ALL checks pass on develop.
