@@ -26,7 +26,7 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 ```
 
 - **All** HTTP actions are dispatched by one `switch ($action)` in
-  `api/index.php` (line **847**). See `docs/INDEX-actions.md` for action → handler.
+  `api/index.php` (line **902**). See `docs/INDEX-actions.md` for action → handler.
 - Frontend is one file `assets/js/app.js` (~25.7k lines, 914 top-level functions).
   See `docs/INDEX-app-js.md` for function → line.
 - Backend is one file `api/index.php` (~19.4k lines, 406 functions).
@@ -41,7 +41,12 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   `display_errors`. Return `{"success":false,"error":"..."}`; wrap handlers in the
   existing global try/catch and `EverLog`.
 - **Logging**: use `EverLog::info/warn/error/debug/exception/request` (`api/logger.php`).
-  Do **not** use `error_log`/`var_dump`.
+  Do **not** use `error_log`/`var_dump`. Put the human-readable words in the message
+  and the stable machine key in the context:
+  `EverLog::warn('API pairing code', ['event' => 'api_pairing_code', …])`. The pairing
+  code must stay greppable with the command the docs advertise
+  (`grep -i "pairing code" logs/evershelf_*.log`) — a snake_case-only message made
+  that command silently return nothing.
 - **Security**: every POST action goes through the CSRF guard and the API-token
   check. New action → add it to the relevant allow-lists in
   `api/lib/security.php` (`evershelfPublicActions`, `evershelfMutatingGetActions`,
@@ -49,6 +54,13 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   **Never authorise on client-supplied headers** (`Origin`, `Referer`,
   `Sec-Fetch-Site` are forgeable). `app_bootstrap` only hands out `API_TOKEN` after
   the one-time pairing code (`api/lib/pairing.php`) is presented; see `SECURITY.md`.
+- **Auth overlays are drawn during startup, above everything.** Pairing is requested
+  while `_initApp()` is still running, and `_initApp()` returns early when it cannot
+  authenticate — so `#app-preloader` (z-index 200000) is never removed. The auth
+  overlays use `EVERSHELF_AUTH_OVERLAY_Z` (`assets/js/core/auth.js`, 400000), which
+  must stay above `#app-preloader` **and** `#network-error-overlay` (300000). At the
+  `.modal-overlay` default of 200 the dialog is invisible behind the splash and the
+  app dead-ends on "API token required".
 - **Versioning**: bump version in **4 places** together with `scripts/bump-version.sh`
   (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token),
   and add a `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the
@@ -108,7 +120,7 @@ npm run build
 
 | Want to… | Go to |
 |---|---|
-| Add/change an HTTP endpoint | `api/index.php` switch (line 847) + a handler `function` below |
+| Add/change an HTTP endpoint | `api/index.php` switch (line 902) + a handler `function` below |
 | Auth / CORS / demo mode | `api/lib/security.php` |
 | Config / `.env` read+write | `api/lib/env.php`, `saveSettings()` (~8082) |
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |

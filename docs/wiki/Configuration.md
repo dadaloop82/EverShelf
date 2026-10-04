@@ -43,10 +43,19 @@ TTS_ENABLED=false
 # Security
 # ─────────────────────────────────────────────
 
-# Protect the save_settings endpoint with a token
-# If set, the Settings UI will prompt for this value before saving
-# Validated with hash_equals() to prevent timing attacks
+# When set, EVERY API action requires this token: header `X-API-Token`, or
+# `?api_token=` for Home Assistant. The web UI gets it once per browser through
+# the one-time pairing code printed in the server log (see below).
+# Compared with hash_equals() to prevent timing attacks.
+API_TOKEN=
+
+# Legacy alias, still honoured when API_TOKEN is empty. Use API_TOKEN for new installs.
 SETTINGS_TOKEN=
+
+# true = hand API_TOKEN to any same-origin-looking request (pre-1.8.8 behaviour).
+# Default false. A "same-origin" request is trivially forgeable, so only enable it
+# on a fully trusted LAN. See SECURITY.md.
+API_BOOTSTRAP_OPEN=false
 
 # ─────────────────────────────────────────────
 # Demo / Public Mode
@@ -91,9 +100,9 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 
 ---
 
-## Protecting Settings with a Token
+## Protecting the API with a token
 
-If your EverShelf instance is accessible from untrusted networks, set `SETTINGS_TOKEN` to a strong random string:
+If your EverShelf instance is reachable from an untrusted network, set `API_TOKEN` to a strong random string:
 
 ```bash
 # Generate a strong token
@@ -101,10 +110,55 @@ openssl rand -hex 32
 ```
 
 ```ini
-SETTINGS_TOKEN=a3f9b2c1d4e5...
+API_TOKEN=a3f9b2c1d4e5...
 ```
 
-Users will be prompted for this token before any Settings save. If the token doesn't match, the request is rejected with HTTP 403.
+From then on every API action requires it — the web UI sends `X-API-Token`, Home Assistant can use `?api_token=`. A missing or wrong token is rejected with HTTP 403.
+
+### First run: the pairing code
+
+The token is **never** handed to an anonymous request, so the browser cannot simply
+ask for it: the first time the UI loads it shows a **pairing dialog** and you type a
+one-time code printed in the server log.
+
+```bash
+grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
+docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
+```
+
+```
+[2026-10-04 09:56:51] [WARN ] [rid=2cf680af] [-] API pairing code {"event":"api_pairing_code","code":"173be93e","ttl_seconds":1800}
+```
+
+The code is 8 hex characters, valid for 30 minutes, and is **consumed** by the first
+successful pairing (50 wrong attempts from one IP burn it immediately). You pair once
+per browser/device — afterwards the token lives in `localStorage` and you are not asked
+again. Unpair by clearing site data, or pair another device by waiting for the next
+code.
+
+If the dialog does not show up, hard-refresh (`Ctrl+Shift+R`): an older service worker
+may still be serving a stale `app.js`.
+
+### `API_BOOTSTRAP_OPEN` — opting out
+
+```ini
+API_BOOTSTRAP_OPEN=true
+```
+
+Restores the pre-1.8.8 behaviour: any request that *looks* same-origin receives the
+token, so the UI never asks for a code. The headers it relies on (`Origin`,
+`Sec-Fetch-Site`) are set by the client and can be forged — use it only on a fully
+trusted LAN, never on a host exposed to the internet.
+
+### Pasting the token manually
+
+Instead of pairing you can copy `API_TOKEN` from `.env` and paste it into
+**Settings → Security → Token**, or set it once from the browser console:
+
+```js
+localStorage.setItem('evershelf_api_token', '<API_TOKEN>');
+location.reload();
+```
 
 ---
 

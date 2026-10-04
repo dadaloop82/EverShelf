@@ -11,6 +11,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.8] - 2026-10-04
+
+Security and reliability pass over the whole stack: the API token is no longer
+disclosed on request, the shopping-list logic lives in one place, and the gaps
+found by the 2026-10-04 audit are closed.
+
+> **Upgrading with `API_TOKEN` set?** Your browser will ask for a one-time
+> **pairing code** (printed in the server log) the first time it loads the UI.
+> That is the new, intended behaviour — see below.
+
+### Security
+- **`app_bootstrap` no longer hands out `API_TOKEN` "because you asked nicely".**
+  It used to return the token to any client sending `Sec-Fetch-Site: same-origin`
+  — a header every HTTP client can forge. The token is now disclosed only after
+  presenting a one-time **pairing code** (8 hex chars, 30 min TTL, burned after 50
+  failed attempts):
+
+  ```bash
+  grep -i "pairing code" logs/evershelf_*.log | tail -1   # bare metal
+  docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
+  ```
+
+  `API_BOOTSTRAP_OPEN=true` restores the old behaviour for fully trusted LANs.
+- **No authorisation decision is made from client-controlled headers anymore**
+  (`Origin`, `Referer`, `Sec-Fetch-Site` are forgeable). The same-origin bypass was
+  removed from every action, including the ones that run `docker` or rewrite `.env`.
+- `X-Forwarded-For` is honoured only when the peer is listed in `TRUSTED_PROXIES`,
+  so rate limiting and the pairing attempt counter cannot be evaded by spoofing it.
+- `mealieWriteEnvKeys()` delegates to the validating `.env` writer (key validation,
+  CR/LF/NUL stripping, comment preservation) instead of writing raw values.
+- `LOCK_EX` on every `file_put_contents()` call-site under `api/`: concurrent
+  requests can no longer interleave writes to the same JSON state file.
+- `sw.js` is **network-first** and pre-caches the ZBar/Quagga bundles — the old
+  cache-first worker could pin a stale `app.js` indefinitely, defeating the
+  `Cache-Control: no-cache` headers.
+- Secrets and build artifacts untracked and added to `.gitignore`.
+
+### Fixed
+- **Startup dead-end on "API token required".** The pairing dialog is a
+  `.modal-overlay` (z-index 200) and was rendered *behind* the splash preloader
+  (200000) and the network-error overlay (300000). Since `_initApp()` aborts when it
+  cannot authenticate, the preloader was never removed: the app hung on the splash
+  with the code field invisible underneath. The auth overlays now sit at z-index
+  400000 and the splash shows an explicit *"pair this device"* message instead of a
+  generic token prompt.
+- **The pairing code looked like it was never printed.** `EverLog` wrote the message
+  as the snake_case token `api_pairing_code`, so the documented
+  `grep "pairing code"` (with a space) matched nothing. The message is now the
+  literal words `API pairing code`, the stable key is preserved as `ctx.event`, and
+  README/SECURITY document the exact command.
+- **Shopping list: items still in abundance stayed on the list.**
+  `bringCleanupObsolete()` and `internalShoppingCleanupObsolete()` each carried their
+  own copy of the spec/marker/cleanup logic and had drifted apart. They now share
+  `evershelfSmartItemsIndex()`, `evershelfShoppingRowStillNeeded()`,
+  `evershelfBuildShoppingSpec()` and a single `EVERSHELF_SYNC_MARKERS` constant, and
+  the family-stock guard is applied consistently on all four paths. A round-trip lock
+  in the regression test asserts that every spec the auto-add can build is recognised
+  by the cleanup — the exact property whose violation caused the bug.
+- `loadEnv()` now `putenv()`s every key in addition to filling `$_ENV`, so code using
+  `getenv()` sees the same values as `env()`.
+- Uncaught errors return JSON instead of a truncated HTML page (`Throwable` is caught
+  in the router) and the `.env` cache is reloaded after a write.
+- `document.write` removed from `index.html` (ZBar loads via `appendChild`).
+- Inventory depletion: only true crumbs (≤2 g/ml) count as depleted, so usable
+  leftovers are no longer hidden or wiped (1.8.5 regression guard).
+
+### Changed
+- Smart-shopping reasons are i18n codes resolved by `_localizeSmartReason()`; the last
+  hardcoded Italian strings (screensaver counter, setup-wizard buttons, startup hints)
+  are gone.
+- Inventory gains an `inventory(expiry_date)` index; the per-family stock query is
+  memoised once per request.
+
+### Added
+- `scripts/i18n-audit.py` (used-but-missing keys, run in CI) and
+  `scripts/i18n-value-audit.py` (values still identical to English).
+- `TRUSTED_PROXIES` support in `evershelfClientIp()` and `EVERSHELF_CANONICAL_HOST`
+  for the forced-HTTPS redirect.
+- Regression tests: `scripts/test-shopping-guards.php` (12 assertions) and
+  `scripts/test-internal-shopping-cleanup.php` (16 assertions).
+
+### Maintenance
+- CI runs the PHP test suite, `node --check` on every JS/ESM file (including `sw.js`
+  and `mcp-server/src/**`) and `shellcheck -S warning`. Pushing the workflow edit
+  still needs a `workflow`-scoped token.
+- `npm audit` findings resolved; Dependabot coverage widened.
+- `docs/INDEX-*.md` regenerated and `docs/CODEBASE-MAP.md` line references refreshed.
+
 ## [1.8.7] - 2026-09-20
 
 ### Added
