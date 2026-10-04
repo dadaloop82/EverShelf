@@ -75,6 +75,12 @@ if (!defined('CRON_MODE')) {
             $e->getTraceAsString(),
             get_class($e)
         );
+        // Always answer with JSON so the PWA's res.json() never chokes on HTML/empty output.
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'internal_error']);
+        }
     });
     register_shutdown_function(function (): void {
         $err = error_get_last();
@@ -828,10 +834,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeA
 
 try {
     $db = getDB();
-} catch (Exception $e) {
+} catch (Throwable $e) {
     EverLog::exception($e, 'db_connect');
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
     exit;
 }
@@ -1403,10 +1409,11 @@ try {
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    // Throwable (not Exception) so TypeErrors and other Error classes are caught too.
     EverLog::exception($e, $action ?? '-');
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
 }
 endif; // end !CRON_MODE

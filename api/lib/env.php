@@ -3,9 +3,9 @@
  * EverShelf — environment variable loader (.env + DB overrides).
  */
 
-function loadEnv(): array {
+function loadEnv(bool $reload = false): array {
     static $cache = null;
-    if ($cache !== null) {
+    if (!$reload && $cache !== null) {
         return $cache;
     }
     $envFile = dirname(__DIR__, 2) . '/.env';
@@ -122,7 +122,11 @@ function evershelfWriteEnvFile(string $envFile, array $updates, string $template
         }
     }
 
-    return file_put_contents($envFile, implode("\n", $out) . "\n", LOCK_EX) !== false;
+    $ok = file_put_contents($envFile, implode("\n", $out) . "\n", LOCK_EX) !== false;
+    if ($ok) {
+        loadEnv(true); // drop the cached copy so env() reflects the new file this request
+    }
+    return $ok;
 }
 
 /** Persist env overrides when .env is not writable (merged on read via env()). */
