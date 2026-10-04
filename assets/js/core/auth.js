@@ -4,13 +4,14 @@
 const EVERSHELF_TOKEN_KEY = 'evershelf_api_token';
 
 /**
- * z-index for the auth overlays. Must stay above the splash preloader
- * (`#app-preloader`, z-index 200000): pairing is asked *during* startup, and
- * `_initApp()` stops when it cannot authenticate, so the preloader never goes
- * away on its own. Without this the dialog was rendered behind it and the app
- * appeared to dead-end on "API token required".
+ * z-index for the auth overlays. Must stay above every other overlay, in
+ * particular the splash preloader (`#app-preloader`, 200000) and the network
+ * error overlay (`#network-error-overlay`, 300000): pairing is asked *during*
+ * startup, and `_initApp()` stops when it cannot authenticate, so the preloader
+ * never goes away on its own. At 200 (`.modal-overlay`) the dialog was rendered
+ * behind the splash and the app appeared to dead-end on "API token required".
  */
-const EVERSHELF_AUTH_OVERLAY_Z = '200001';
+const EVERSHELF_AUTH_OVERLAY_Z = '400000';
 
 function getApiToken() {
     return localStorage.getItem(EVERSHELF_TOKEN_KEY) || '';
