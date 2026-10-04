@@ -252,6 +252,7 @@
     "flip_hint": "切换摄像头",
     "flip_front": "前置摄像头",
     "flip_back": "后置摄像头",
+    "barcode_scan_hint": "扫描条形码",
     "num_ocr_btn": "🔢 使用 AI 读取数字",
     "num_ocr_searching": "正在使用 AI 查找条形码…",
     "num_ocr_found": "找到条形码：{code}",
@@ -779,11 +780,13 @@
     "plan_days_custom": "自定义周期（{days} 天）",
     "plan_days_unit": "天",
     "plan_days_reset": "自动（30天）",
+    "plan_days_aria": "计划天数",
     "found_count": "已找到 {found}/{total} 件商品",
     "savings_offers": "· 🏷️ 优惠可节省 €{amount}",
     "searching_progress": "正在查询 {current}/{total}…",
     "remove_error": "移除失败",
     "btn_fetch_prices": "查询价格",
+    "price_refresh_title": "刷新价格",
     "price_total_label": "💰 预计总价：",
     "price_total_short": "预计总价",
     "price_loading": "正在查询价格…",
@@ -902,7 +905,9 @@
       "title": "🛒 Bring! 购物清单",
       "hint": "用于连接 Bring! 购物清单的登录凭据。",
       "email_label": "📧 Bring! 邮箱",
-      "password_label": "🔒 Bring! 密码"
+      "email_placeholder": "email@example.com",
+      "password_label": "🔒 Bring! 密码",
+      "password_placeholder": "密码"
     },
     "price": {
       "title": "💰 AI 价格估算",
@@ -977,6 +982,7 @@
       "sex_f": "女",
       "sex_other": "其他",
       "birth_year": "出生年份",
+      "birth_year_placeholder": "例如 1985",
       "height": "身高（cm）",
       "weight": "体重（kg）",
       "goal": "目标",
@@ -1216,6 +1222,7 @@
       "discover_not_found": "❌ 在 {subnet} 中未找到网关。请确认 Android 应用正在运行，并连接到同一 Wi-Fi。",
       "discover_failed": "❌ 自动发现失败：{error}",
       "discover_auto": "🔍 自动",
+      "discover_title": "扫描局域网",
       "unknown_device": "未知设备"
     },
     "kiosk": {
@@ -1285,6 +1292,7 @@
       "gdrive_redirect_uri_hint": "请在 Google Cloud Console 中将 <strong>http://localhost</strong> 添加为已获授权的重定向 URI。即使服务器没有公共域名也可使用。",
       "gdrive_code_title": "粘贴授权 URL 或授权码",
       "gdrive_code_hint": "授权后，浏览器会打开 http://localhost，并可能显示连接错误，这是正常现象。请复制地址栏中的 URL（例如 <code>http://localhost/?code=4%2F0A...</code>）并粘贴到此处。",
+      "gdrive_code_placeholder": "http://localhost/?code=4%2F0A… 或仅代码",
       "gdrive_code_submit": "提交",
       "gdrive_code_empty": "请先粘贴 URL 或授权码",
       "gdrive_redirect_uri_label": "重定向 URI（请添加到 Google Cloud Console）：",

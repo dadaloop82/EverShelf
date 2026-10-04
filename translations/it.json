@@ -252,6 +252,7 @@
     "flip_hint": "Cambia fotocamera",
     "flip_front": "Fotocamera anteriore",
     "flip_back": "Fotocamera posteriore",
+    "barcode_scan_hint": "Scansiona barcode",
     "num_ocr_btn": "🔢 Leggi numeri con AI",
     "num_ocr_searching": "Cerco il codice con AI...",
     "num_ocr_found": "Codice trovato: {code}",
@@ -779,11 +780,13 @@
     "plan_days_custom": "Periodo personalizzato ({days} giorni)",
     "plan_days_unit": "gg",
     "plan_days_reset": "Auto (30gg)",
+    "plan_days_aria": "Giorni di pianificazione",
     "found_count": "{found}/{total} prodotti trovati",
     "savings_offers": "· 🏷️ Risparmi €{amount} con le offerte",
     "searching_progress": "Cerco {current}/{total}...",
     "remove_error": "Errore nella rimozione",
     "btn_fetch_prices": "Cerca i prezzi",
+    "price_refresh_title": "Aggiorna prezzi",
     "price_total_label": "💰 Spesa stimata:",
     "price_total_short": "spesa stimata",
     "price_loading": "Ricerca prezzi…",
@@ -902,7 +905,9 @@
       "title": "🛒 Bring! Shopping List",
       "hint": "Credenziali per l'integrazione con la lista della spesa Bring!",
       "email_label": "📧 Email Bring!",
-      "password_label": "🔒 Password Bring!"
+      "email_placeholder": "email@esempio.com",
+      "password_label": "🔒 Password Bring!",
+      "password_placeholder": "Password"
     },
     "price": {
       "title": "💰 Stima Prezzi (AI)",
@@ -978,6 +983,7 @@
       "sex_f": "F",
       "sex_other": "Altro",
       "birth_year": "Anno di nascita",
+      "birth_year_placeholder": "es. 1985",
       "height": "Altezza (cm)",
       "weight": "Peso (kg)",
       "goal": "Obiettivo",
@@ -1216,6 +1222,7 @@
       "discover_not_found": "❌ Nessun gateway su {subnet}. Avvia l'app Android sulla stessa Wi-Fi.",
       "discover_failed": "❌ Ricerca fallita: {error}",
       "discover_auto": "🔍 Auto",
+      "discover_title": "Scansiona la rete locale",
       "unknown_device": "Dispositivo sconosciuto"
     },
     "kiosk": {
@@ -1292,6 +1299,7 @@
       "gdrive_oauth_steps": "<li>Vai su <a href='https://console.cloud.google.com/' target='_blank' rel='noopener'>console.cloud.google.com</a> e seleziona il progetto</li><li>Abilita la <strong>Google Drive API</strong>: <em>API e servizi → Abilita API → Google Drive API</em></li><li>Vai su <em>API e servizi → Credenziali → Crea credenziali → ID client OAuth 2.0</em></li><li>Tipo applicazione: <strong>Applicazione web</strong>; aggiungi <strong>http://localhost</strong> come <em>URI di reindirizzamento autorizzato</em></li><li>Copia <strong>Client ID</strong> e <strong>Client Secret</strong> nei campi qui sopra e salva</li><li>Clicca <strong>Autorizza con Google</strong>, accedi e concedi l'accesso</li><li>Il browser aprirà <code>http://localhost</code> (possibile errore di connessione è normale): copia l'URL dalla barra degli indirizzi e incollalo nel campo che appare qui sotto</li>",
       "gdrive_code_title": "Incolla l'URL o il codice di autorizzazione",
       "gdrive_code_hint": "Dopo aver autorizzato, il browser aprirà http://localhost e potrebbe mostrare un errore. Copia l'URL dalla barra degli indirizzi (es. <code>http://localhost/?code=4%2F0A...</code>) e incollalo qui.",
+      "gdrive_code_placeholder": "http://localhost/?code=4%2F0A… oppure solo il codice",
       "gdrive_code_submit": "Conferma",
       "gdrive_code_empty": "Incolla prima l'URL o il codice di autorizzazione",
       "restore_warning": "ATTENZIONE: tutti i dati attuali verranno SOSTITUITI. Questa azione è irreversibile.",

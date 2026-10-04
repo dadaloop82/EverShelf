@@ -252,6 +252,7 @@
     "flip_hint": "Flip camera",
     "flip_front": "Front camera",
     "flip_back": "Rear camera",
+    "barcode_scan_hint": "Scan barcode",
     "num_ocr_btn": "🔢 Read numbers with AI",
     "num_ocr_searching": "Looking for barcode with AI...",
     "num_ocr_found": "Code found: {code}",
@@ -779,11 +780,13 @@
     "plan_days_custom": "Custom period ({days} days)",
     "plan_days_unit": "d",
     "plan_days_reset": "Auto (30d)",
+    "plan_days_aria": "Planning days",
     "found_count": "{found}/{total} products found",
     "savings_offers": "· 🏷️ You save €{amount} with offers",
     "searching_progress": "Searching {current}/{total}...",
     "remove_error": "Removal error",
     "btn_fetch_prices": "Find prices",
+    "price_refresh_title": "Refresh prices",
     "price_total_label": "💰 Estimated total:",
     "price_total_short": "estimated total",
     "price_loading": "Looking up prices…",
@@ -902,7 +905,9 @@
       "title": "🛒 Bring! Shopping List",
       "hint": "Credentials for the Bring! shopping list integration.",
       "email_label": "📧 Bring! Email",
-      "password_label": "🔒 Bring! Password"
+      "email_placeholder": "email@example.com",
+      "password_label": "🔒 Bring! Password",
+      "password_placeholder": "Password"
     },
     "price": {
       "title": "💰 Price Estimation (AI)",
@@ -977,6 +982,7 @@
       "sex_f": "F",
       "sex_other": "Other",
       "birth_year": "Birth year",
+      "birth_year_placeholder": "e.g. 1985",
       "height": "Height (cm)",
       "weight": "Weight (kg)",
       "goal": "Goal",
@@ -1216,6 +1222,7 @@
       "discover_not_found": "❌ No gateway found on {subnet}. Make sure the Android app is running and on the same Wi-Fi.",
       "discover_failed": "❌ Discovery failed: {error}",
       "discover_auto": "🔍 Auto",
+      "discover_title": "Scan local network",
       "unknown_device": "Unknown device"
     },
     "kiosk": {
@@ -1285,6 +1292,7 @@
       "gdrive_redirect_uri_hint": "Add <strong>http://localhost</strong> as an authorized redirect URI in Google Cloud Console. This works on any server, even without a public domain.",
       "gdrive_code_title": "Paste the authorization URL or code",
       "gdrive_code_hint": "After authorizing, the browser will open http://localhost and may show a connection error — that is expected. Copy the URL from the address bar (e.g. <code>http://localhost/?code=4%2F0A...</code>) and paste it here.",
+      "gdrive_code_placeholder": "http://localhost/?code=4%2F0A… or just the code",
       "gdrive_code_submit": "Submit",
       "gdrive_code_empty": "Paste the URL or authorization code first",
       "gdrive_redirect_uri_label": "Redirect URI (add this in Google Cloud Console):",

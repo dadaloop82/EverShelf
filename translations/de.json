@@ -252,6 +252,7 @@
     "flip_hint": "Kamera wechseln",
     "flip_front": "Frontkamera",
     "flip_back": "Rückkamera",
+    "barcode_scan_hint": "Barcode scannen",
     "num_ocr_btn": "🔢 Zahlen mit KI lesen",
     "num_ocr_searching": "Suche Barcode mit KI...",
     "num_ocr_found": "Code gefunden: {code}",
@@ -779,11 +780,13 @@
     "plan_days_custom": "Eigener Zeitraum ({days} Tage)",
     "plan_days_unit": "T",
     "plan_days_reset": "Auto (30T)",
+    "plan_days_aria": "Planungstage",
     "found_count": "{found}/{total} Produkte gefunden",
     "savings_offers": "· 🏷️ Du sparst €{amount} mit Angeboten",
     "searching_progress": "Suche {current}/{total}...",
     "remove_error": "Fehler beim Entfernen",
     "btn_fetch_prices": "Preise suchen",
+    "price_refresh_title": "Preise aktualisieren",
     "price_total_label": "💰 Geschätzter Gesamtpreis:",
     "price_total_short": "geschätzte Ausgaben",
     "price_loading": "Preise werden gesucht…",
@@ -901,7 +904,9 @@
       "title": "🛒 Bring! Einkaufsliste",
       "hint": "Zugangsdaten für die Bring! Einkaufslisten-Integration.",
       "email_label": "📧 Bring! E-Mail",
-      "password_label": "🔒 Bring! Passwort"
+      "email_placeholder": "email@beispiel.de",
+      "password_label": "🔒 Bring! Passwort",
+      "password_placeholder": "Passwort"
     },
     "price": {
       "title": "💰 Preisschätzung (KI)",
@@ -1174,6 +1179,7 @@
       "discover_not_found": "❌ Kein Gateway in {subnet}. Android-App auf demselben WLAN starten.",
       "discover_failed": "❌ Suche fehlgeschlagen: {error}",
       "discover_auto": "🔍 Auto",
+      "discover_title": "Lokales Netzwerk scannen",
       "unknown_device": "Unbekanntes Gerät"
     },
     "kiosk": {
@@ -1243,6 +1249,7 @@
       "gdrive_redirect_uri_hint": "Füge <strong>http://localhost</strong> als autorisierten Weiterleitungs-URI in der Google Cloud Console hinzu. Funktioniert auf jedem Server, auch ohne öffentliche Domain.",
       "gdrive_code_title": "Autorisierungs-URL oder Code einfügen",
       "gdrive_code_hint": "Nach der Autorisierung öffnet der Browser http://localhost und zeigt möglicherweise einen Verbindungsfehler — das ist normal. Kopiere die URL aus der Adressleiste (z.B. <code>http://localhost/?code=4%2F0A...</code>) und füge sie hier ein.",
+      "gdrive_code_placeholder": "http://localhost/?code=4%2F0A… oder nur den Code",
       "gdrive_code_submit": "Bestätigen",
       "gdrive_code_empty": "Bitte zuerst die URL oder den Autorisierungscode einfügen",
       "gdrive_redirect_uri_label": "Redirect-URI (in Google Cloud Console eintragen):",
@@ -1391,6 +1398,7 @@
       "sex_f": "W",
       "sex_other": "Andere",
       "birth_year": "Geburtsjahr",
+      "birth_year_placeholder": "z.B. 1985",
       "height": "Größe (cm)",
       "weight": "Gewicht (kg)",
       "goal": "Ziel",

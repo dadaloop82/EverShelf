@@ -252,6 +252,7 @@
     "flip_hint": "Retourner la caméra",
     "flip_front": "Caméra frontale",
     "flip_back": "Caméra arrière",
+    "barcode_scan_hint": "Scanner le code-barres",
     "num_ocr_btn": "🔢 Lire les chiffres avec l'IA",
     "num_ocr_searching": "Recherche du code-barres avec l'IA...",
     "num_ocr_found": "Code trouvé : {code}",
@@ -722,6 +723,7 @@
     "searching_progress": "Recherche {current}/{total}...",
     "remove_error": "Erreur de suppression",
     "btn_fetch_prices": "Trouver les prix",
+    "price_refresh_title": "Actualiser les prix",
     "price_total_label": "💰 Total estimé :",
     "price_total_short": "total estimé",
     "price_loading": "Recherche des prix…",
@@ -797,6 +799,7 @@
     "plan_days_custom": "Custom period ({days} days)",
     "plan_days_unit": "d",
     "plan_days_reset": "Auto (30j)",
+    "plan_days_aria": "Jours de planification",
     "buy_at_least": "Au moins : ",
     "buy_qty": "Acheter : "
   },
@@ -901,7 +904,9 @@
       "title": "🛒 Liste de courses Bring !",
       "hint": "Identifiants pour l'intégration de la liste de courses Bring !",
       "email_label": "📧 E-mail Bring !",
-      "password_label": "🔒 Mot de passe Bring !"
+      "email_placeholder": "email@exemple.fr",
+      "password_label": "🔒 Mot de passe Bring !",
+      "password_placeholder": "Mot de passe"
     },
     "price": {
       "title": "💰 Estimation des prix (IA)",
@@ -1113,6 +1118,7 @@
       "discover_not_found": "❌ Aucun gateway sur {subnet}. Lancez l'app Android sur le même Wi-Fi.",
       "discover_failed": "❌ Échec de la recherche : {error}",
       "discover_auto": "🔍 Auto",
+      "discover_title": "Scanner le réseau local",
       "unknown_device": "Appareil inconnu"
     },
     "kiosk": {
@@ -1182,6 +1188,7 @@
       "gdrive_redirect_uri_hint": "Ajoute <strong>http://localhost</strong> comme URI de redirection autorisé dans la Google Cloud Console. Fonctionne sur n'importe quel serveur, même sans domaine public.",
       "gdrive_code_title": "Coller l'URL ou le code d'autorisation",
       "gdrive_code_hint": "Après autorisation, le navigateur ouvre http://localhost et peut afficher une erreur de connexion — c'est normal. Copie l'URL dans la barre d'adresse (ex. <code>http://localhost/?code=4%2F0A...</code>) et colle-la ici.",
+      "gdrive_code_placeholder": "http://localhost/?code=4%2F0A… ou le code seul",
       "gdrive_code_submit": "Confirmer",
       "gdrive_code_empty": "Coller d'abord l'URL ou le code d'autorisation",
       "gdrive_redirect_uri_label": "URI de redirection (ajouter dans Google Cloud Console) :",
@@ -1330,6 +1337,7 @@
       "sex_f": "F",
       "sex_other": "Autre",
       "birth_year": "Année de naissance",
+      "birth_year_placeholder": "ex. 1985",
       "height": "Taille (cm)",
       "weight": "Poids (kg)",
       "goal": "Objectif",
