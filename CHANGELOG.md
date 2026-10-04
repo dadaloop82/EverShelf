@@ -23,10 +23,21 @@ how the backup copies the database, and the API surface around write actions.
   `data/mealie/docker-compose.yml`, which holds the Mealie admin password in
   clear text. Everything mutable under `data/` is excluded now, while the three
   tracked files the app ships (`data/.htaccess`, `data/.gitkeep`,
-  `data/seasonal_produce_it.json`) are re-included explicitly. The build context
-  drops from ~114 MB to ~41 MB — `mcp-server/node_modules/`, `evershelf-kiosk/`,
-  `screenshots/`, `todo/` and stray `*.apk` were being copied in as well.
-  `releases/` stays: `getKioskUpdate()` answers from `releases/kiosk-version.json`.
+  `data/seasonal_produce_it.json`) are re-included explicitly. Two of the old
+  rules also did nothing for nested files — a pattern without a slash in
+  `.dockerignore` only matches at the context root — so `*.apk` and
+  `__pycache__/` left a 6.7 MB local kiosk APK and a `.pyc` in the image.
+- **An image built on a developer machine carried eleven more files git does not
+  track.** Auditing the built image file by file found the health-bridge
+  **signing keystore** (`evershelf-health-bridge/evershelf.jks`), a local
+  certificate (`ca.crt`), 1.5 MB of `data/cron.log.*`, the application logs
+  under `logs/`, two hand-made logo copies, and `Dockerfile`, `docker/` and
+  `.github/` sitting in the web root where a scanner can fetch them. None are in
+  git, none are needed to run, and all are excluded now: the only files left in
+  the image that are not in the repository are the `.env` the Dockerfile creates
+  from `.env.example` and the MiniLM weights it downloads itself. The context
+  drops from ~114 MB to ~30 MB; `releases/` stays, because `getKioskUpdate()`
+  answers from `releases/kiosk-version.json`.
 
 ### Fixed
 - **A published image and a locally built one are no longer two different
