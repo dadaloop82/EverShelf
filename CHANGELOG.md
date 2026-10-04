@@ -97,6 +97,37 @@ how the backup copies the database, and the API surface around write actions.
   (`health_ingest`) and the Home Assistant integration (`ha_generate_recipe`).
   Rejection is a `403 csrf_rejected`, logged.
 
+- **One error report could publish the API token on a public tracker.**
+  `report_error` is a public action, and `_createOrCommentGithubIssue()` copied the
+  client's `location.href`, `user_agent`, message, stack trace and `context` object
+  verbatim into an issue. The documented auth accepts `?api_token=…`, and the PWA
+  attaches `location.href` to every error, so an error raised while the app was
+  opened on (or redirected to) such a URL put the token in the issue body and in
+  `data/error_reports.log` — the file that gets copied around by backups. The
+  `context` field was also the largest body `post_max_size` allows: the shipped
+  `php-evershelf.ini` sets 32 MB, so a single report could write ~32 MB into one
+  log line and one issue.
+  Reports are now redacted and capped at every sink. `evershelfRedactSecrets()`
+  strips `key=value` / `"key": "value"` / `Key: value` pairs whose name looks like a
+  credential (`api_token`, `access_token`, `token`, `password`, `secret`,
+  `api_key`, `authorization`, `key`, …), `user:pass@` userinfo in URLs, and tokens
+  recognised by shape (`ghp_…`, `github_pat_…`, `AIza…`, `GOCSPX-…`, `sk-…`,
+  `xox…`); `evershelfReportContextJson()` recurses through the context under a 4 KB
+  budget (1 KB per string, 50 keys per level, 5 levels deep) and always emits valid
+  JSON — invalid UTF-8 and a non-array `context`, which used to be a `TypeError` on
+  the way in, are handled too.
+- **Publishing to GitHub is a second, explicit opt-in: `REPORT_ENABLED`.**
+  A token in `.env` used to be enough to open issues on a public repository, so a
+  shared `.env` could publish whatever the redaction had not anticipated.
+  `REPORT_ENABLED=false` is the default and stops both `report_error` and
+  `report_bug` before any search or API call (`report_error` answers
+  `{"ok":true,"skipped":"reporting_disabled"}`); `data/error_reports.log` is still
+  written, redacted, so diagnostics are never lost.
+  **Upgrade note:** set `REPORT_ENABLED=true` alongside `GH_ISSUE_TOKEN` to keep
+  receiving automatic issues.
+  `scripts/test-report-redaction.php` pins this down (the leak, the secret shapes,
+  the caps, the false positives, the gates).
+
 ### Changed
 - **Every first-party client sends the CSRF header, and one of them did not.**
   `assets/js/app.js` already set it whenever a call carried a body; `chat_clear`

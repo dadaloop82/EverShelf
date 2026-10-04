@@ -17853,7 +17853,9 @@ function reportError(): void {
     $pageUrl   = substr(trim($input['url']       ?? ''), 0, 300);
     $ua        = substr(trim($input['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 300);
     $version   = substr(trim($input['version']   ?? ''), 0, 50);
-    $context   = $input['context'] ?? [];
+    // A client can send anything here (public action): keep it an array so the
+    // redaction/cap helpers below always receive what they expect.
+    $context   = is_array($input['context'] ?? null) ? $input['context'] : [];
 
     if (empty($message)) {
         echo json_encode(['ok' => false, 'error' => 'message required']);
@@ -17862,6 +17864,17 @@ function reportError(): void {
 
     // ── Write to local log regardless of GitHub availability ──────────────
     _appendErrorLog($source, $type, $message, $stack, $pageUrl, $ua, $context);
+
+    // ── Publishing to GitHub is an explicit opt-in (REPORT_ENABLED) ───────
+    // The local log above always ran, so nothing is lost by stopping here.
+    if (!_ghReportsEnabled()) {
+        EverLog::info('reportError: GitHub reporting disabled', [
+            'event'  => 'gh_report_disabled',
+            'source' => $source,
+        ]);
+        echo json_encode(['ok' => true, 'skipped' => 'reporting_disabled']);
+        return;
+    }
 
     // ── Version guard: skip GitHub issue if client is not on latest release ─
     // Avoids noise from bugs already fixed in a newer version.
@@ -17917,9 +17930,19 @@ function reportBugManual(): void {
         return;
     }
 
+    // The form is free text: a user can paste a .env dump or a URL carrying
+    // ?api_token=… into it, and this body goes to a public repository.
+    $title = evershelfRedactSecrets($title);
+    $desc  = evershelfRedactSecrets($desc);
+    $steps = evershelfRedactSecrets($steps);
+    $url   = evershelfRedactSecrets($url);
+    $ua    = evershelfRedactSecrets($ua);
+
     $token = _ghToken();
-    if (!$token) {
-        // No GitHub token configured — log locally and return ok so the UX is not broken
+    if (!$token || !_ghReportsEnabled()) {
+        // No token, or publishing disabled — log locally and return ok so the UX
+        // is not broken. The issue number stays null: the PWA shows the report as
+        // received either way.
         _appendErrorLog('pwa', 'manual_report', $title, $desc, $url, $ua, ['type' => $type, 'version' => $ver, 'lang' => $lang]);
         echo json_encode(['ok' => true, 'issue' => null]);
         return;
@@ -17967,6 +17990,11 @@ function reportBugManual(): void {
  * Append to data/error_reports.log (local safety net, max 500 KB)
  */
 function _appendErrorLog(string $source, string $type, string $message, string $stack, string $url, string $ua, array $context): void {
+    // The log is rotated, backed up and copied around: never persist a raw
+    // credential, and never let one request write an unbounded line.
+    $message = evershelfRedactSecrets($message);
+    $stack   = evershelfRedactSecrets($stack);
+    $url     = evershelfRedactSecrets($url);
     $logFile = __DIR__ . '/../data/error_reports.log';
     // Rotate if > 500 KB
     if (file_exists($logFile) && filesize($logFile) > 500000) {
@@ -17975,7 +18003,8 @@ function _appendErrorLog(string $source, string $type, string $message, string $
         file_put_contents($logFile, implode('', $lines), LOCK_EX);
     }
     $ts   = date('Y-m-d H:i:s');
-    $ctx  = $context ? ' ctx=' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
+    $json = evershelfReportContextJson($context, 4096);
+    $ctx  = $json !== '' ? ' ctx=' . $json : '';
     $line = "[$ts] [$source] [$type] $message" . ($url ? " | url=$url" : '') . $ctx . "\n";
     if ($stack) $line .= "  STACK: " . str_replace("\n", "\n  ", $stack) . "\n";
     file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
@@ -18116,6 +18145,16 @@ function _createOrCommentGithubIssue(
     string $stack, string $pageUrl, string $ua,
     string $version, array $context
 ): void {
+    // ── 0. Nothing leaves the instance unredacted or unbounded ────────────
+    // This is the last gate before an external API, so it runs for every caller
+    // (report_error, report_bug, the PHP exception handler). Redaction is
+    // idempotent; the caps keep one oversized payload from becoming one
+    // oversized issue.
+    $message = evershelfTruncateUtf8(evershelfRedactSecrets($message), 1000);
+    $stack   = evershelfTruncateUtf8(evershelfRedactSecrets($stack), 6000);
+    $pageUrl = evershelfTruncateUtf8(evershelfRedactSecrets($pageUrl), 300);
+    $ua      = evershelfTruncateUtf8(evershelfRedactSecrets($ua), 300);
+
     $fp = _errorFingerprint($source, $type, $message);
     EverLog::debug('_createOrCommentGithubIssue', ['fp' => $fp, 'type' => $type]);
 
@@ -18144,10 +18183,8 @@ function _createOrCommentGithubIssue(
 
     // ── Build the common details block ─────────────────────────────────────
     $ts      = date('Y-m-d H:i:s T');
-    $ctxMd   = '';
-    if ($context) {
-        $ctxMd = "\n**Context:**\n```json\n" . json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n```\n";
-    }
+    $ctxJson = evershelfReportContextJson($context, 4096);
+    $ctxMd   = $ctxJson !== '' ? "\n**Context:**\n```json\n$ctxJson\n```\n" : '';
     $stackMd = $stack ? "\n**Stack trace:**\n```\n$stack\n```\n" : '';
     $urlMd   = $pageUrl ? "\n**URL:** `$pageUrl`" : '';
     $uaMd    = $ua ? "\n**User-Agent:** `$ua`" : '';
@@ -18269,7 +18306,7 @@ function _phpErrorReport(string $message, string $file, int $line, string $trace
     _appendErrorLog($source, $errType, "[$type] $message", $trace, '', '', $context);
 
     // Only create GitHub issue if running the latest released version
-    if (_isLatestVersion($appVer)) {
+    if (_ghReportsEnabled() && _isLatestVersion($appVer)) {
         _createOrCommentGithubIssue(
             _ghToken(), GH_REPO, $source, $errType,
             "[$type] $message", $trace,

@@ -75,3 +75,20 @@ function _ghToken(): string {
     $token = '';
     return $token;
 }
+
+/**
+ * Master switch for publishing reports to GitHub (REPORT_ENABLED).
+ *
+ * Off unless explicitly enabled: the reporter opens issues on a public
+ * repository, so publishing is an opt-in on top of configuring the token — a
+ * stray token in a shared .env must not be enough to publish error text that the
+ * redaction in api/lib/security.php has not anticipated. `data/error_reports.log`
+ * is written either way, so diagnostics are never lost, only not published.
+ *
+ * Accepts the flag as an argument so the behaviour is testable without touching
+ * .env (see scripts/test-report-redaction.php).
+ */
+function _ghReportsEnabled(?string $flag = null): bool {
+    $v = strtolower(trim($flag ?? (string)env('REPORT_ENABLED', 'false')));
+    return in_array($v, ['1', 'true', 'on', 'yes'], true);
+}

@@ -76,6 +76,22 @@ SCALE_ENABLED=false
 # WebSocket URL of the Scale Gateway app running on the same device
 # Default for Android kiosk: ws://127.0.0.1:8765
 SCALE_GATEWAY_URL=ws://127.0.0.1:8765
+
+# ─────────────────────────────────────────────
+# GitHub Error Reporting
+# ─────────────────────────────────────────────
+
+# GitHub Issues token, AES-256-GCM encrypted (see SECURITY.md). Plain:
+# GH_ISSUE_TOKEN=ghp_…, or encrypted via scripts/encrypt-gh-token.php.
+GH_ISSUE_TOKEN=
+GH_ISSUE_TOKEN_ENC=
+GH_ISSUE_TOKEN_KEY=
+
+# Publish error/bug reports as GitHub issues. Off by default: issues are opened
+# on a PUBLIC repository, so this is an opt-in on top of the token above.
+# data/error_reports.log is written either way, with credentials redacted and
+# the context capped at 4 KB.
+REPORT_ENABLED=false
 ```
 
 ---
@@ -193,7 +209,9 @@ EverShelf applies file-based rate limiting to protect AI endpoints:
 |------|-------|-----------|
 | Standard | 120 req/min | All general endpoints |
 | AI | 15 req/min | `gemini_*`, `generate_recipe` |
-| Strict | 5 req/min | `report_error` |
+| Strict | 5 req/min | `generate_recipe_stream` |
+| Error reports | 20 req/min | `report_error`, `check_update` |
+| Bug reports | 2 req/hour | `report_bug` (creates a public issue) |
 
 Rate limit state is stored in `data/rate_limits/`. To reset, delete the files in that directory.
 
