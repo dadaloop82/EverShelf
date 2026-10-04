@@ -1074,6 +1074,12 @@ try {
         case 'smart_shopping':
             smartShoppingCached($db);
             break;
+        case 'seasonal_shopping_review':
+            seasonalShoppingReviewAction($db);
+            break;
+        case 'stale_inventory_items':
+            staleInventoryItemsAction($db);
+            break;
 
         case 'save_settings':
             saveSettings();
@@ -3367,9 +3373,10 @@ function getExpiryHistory($db): void {
         return;
     }
 
-    // Average shelf life from the last 3 insertions (expiry_date − added_at).
-    // Requires at least 3 valid samples before returning a prediction.
-    $minSamples = 3;
+    $learned = getLearnedShelfLifeHint($db, $productId);
+
+    // Live inventory average (packs still on the shelf)
+    $minSamples = 2;
     $stmt = $db->prepare("
         SELECT ROUND(AVG(shelf_days)) AS avg_days, COUNT(*) AS count
         FROM (
@@ -3380,26 +3387,45 @@ function getExpiryHistory($db): void {
               AND expiry_date > date(added_at)
               AND added_at >= date('now', '-730 days')
             ORDER BY added_at DESC
-            LIMIT {$minSamples}
+            LIMIT 6
         ) recent
     ");
     $stmt->execute([$productId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $count = (int)($row['count'] ?? 0);
+    $liveCount = (int)($row['count'] ?? 0);
+    $liveAvg = ($liveCount >= $minSamples && $row['avg_days'] !== null) ? (int)$row['avg_days'] : null;
 
-    if ($count < $minSamples || $row['avg_days'] === null) {
+    // Prefer learned median (includes backups + past packs); fall back to live inventory.
+    $rawAvg = $learned['avg_days'] ?? $liveAvg;
+    $count = max($learned['count'], $liveCount);
+    $sooner = (int)($learned['alert_days_sooner'] ?? 0);
+    $suggested = null;
+    if ($rawAvg !== null && $rawAvg > 0) {
+        $suggested = max(1, $rawAvg - $sooner);
+    }
+
+    // Need at least 1 learned sample OR enough live samples
+    if ($suggested === null || ($learned['count'] < 1 && $liveCount < $minSamples)) {
         echo json_encode([
             'avg_days' => null,
             'count' => $count,
             'min_samples' => $minSamples,
+            'alert_days_sooner' => $sooner,
+            'raw_avg_days' => $rawAvg,
+            'preferred_location' => $learned['preferred_location'],
+            'source' => 'none',
         ]);
         return;
     }
 
     echo json_encode([
-        'avg_days' => (int)$row['avg_days'],
+        'avg_days' => $suggested,
         'count' => $count,
-        'min_samples' => $minSamples,
+        'min_samples' => 1,
+        'alert_days_sooner' => $sooner,
+        'raw_avg_days' => $rawAvg,
+        'preferred_location' => $learned['preferred_location'],
+        'source' => $learned['source'] === 'learned' ? 'learned' : 'inventory',
     ]);
 }
 
@@ -4584,11 +4610,18 @@ function _wasteReasonKey(string $notes): ?string {
 
 function _loadWasteLearning(PDO $db): array {
     static $cache = null;
+    if (!empty($GLOBALS['__evershelf_waste_learning_bust'])) {
+        $cache = null;
+        unset($GLOBALS['__evershelf_waste_learning_bust']);
+    }
     if ($cache !== null) {
         return $cache;
     }
     $row = $db->query("SELECT value FROM app_settings WHERE key = 'waste_learning'")->fetchColumn();
     $cache = ($row !== false && $row !== '') ? (json_decode((string)$row, true) ?: []) : [];
+    if (!is_array($cache)) {
+        $cache = [];
+    }
     return $cache;
 }
 
@@ -4597,6 +4630,7 @@ function _saveWasteLearning(PDO $db, array $data): void {
                       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at");
     $stmt->execute([json_encode($data, JSON_UNESCAPED_UNICODE)]);
     invalidateSmartShoppingCache();
+    $GLOBALS['__evershelf_waste_learning_bust'] = true;
 }
 
 function _guessPreferredStorageLocation(string $name, string $category): string {
@@ -4608,6 +4642,95 @@ function _guessPreferredStorageLocation(string $name, string $category): string 
         return 'frigo';
     }
     return 'dispensa';
+}
+
+/** Days between added_at and expiry_date (inclusive calendar span). */
+function _shelfLifeDaysFromDates(?string $addedAt, ?string $expiryDate): ?int {
+    if ($addedAt === null || $addedAt === '' || $expiryDate === null || $expiryDate === '') {
+        return null;
+    }
+    $a = strtotime(substr($addedAt, 0, 10) . ' 12:00:00');
+    $e = strtotime(substr($expiryDate, 0, 10) . ' 12:00:00');
+    if ($a === false || $e === false) {
+        return null;
+    }
+    $days = (int)round(($e - $a) / 86400);
+    if ($days < 1 || $days > 2000) {
+        return null;
+    }
+    return $days;
+}
+
+function _shelfLifeMedian(array $days): ?int {
+    $days = array_values(array_filter(array_map('intval', $days), static fn($d) => $d >= 1 && $d <= 2000));
+    if (!$days) {
+        return null;
+    }
+    sort($days);
+    $n = count($days);
+    $mid = intdiv($n, 2);
+    if ($n % 2 === 1) {
+        return $days[$mid];
+    }
+    return (int)round(($days[$mid - 1] + $days[$mid]) / 2);
+}
+
+/**
+ * Record an observed sealed shelf-life sample for a product (days from add → expiry).
+ */
+function recordShelfLifeSample(PDO $db, int $productId, int $days, string $location = '', string $source = 'observe'): void {
+    if ($productId <= 0 || $days < 1 || $days > 2000) {
+        return;
+    }
+    $data = _loadWasteLearning($db);
+    $pid = (string)$productId;
+    if (!isset($data[$pid]) || !is_array($data[$pid])) {
+        $data[$pid] = [];
+    }
+    $samples = isset($data[$pid]['shelf_samples']) && is_array($data[$pid]['shelf_samples'])
+        ? $data[$pid]['shelf_samples']
+        : [];
+
+    $now = time();
+    foreach ($samples as $s) {
+        if ((int)($s['days'] ?? 0) === $days
+            && (string)($s['source'] ?? '') === $source
+            && abs($now - (int)($s['ts'] ?? 0)) < 3 * 86400) {
+            return;
+        }
+    }
+
+    $samples[] = [
+        'days' => $days,
+        'loc' => $location !== '' ? $location : null,
+        'source' => $source,
+        'ts' => $now,
+    ];
+    if (count($samples) > 12) {
+        $samples = array_slice($samples, -12);
+    }
+    $data[$pid]['shelf_samples'] = $samples;
+    $median = _shelfLifeMedian(array_column($samples, 'days'));
+    if ($median !== null) {
+        $data[$pid]['shelf_avg_days'] = $median;
+    }
+    if ($location !== '') {
+        $data[$pid]['last_shelf_loc'] = $location;
+    }
+    _saveWasteLearning($db, $data);
+}
+
+/** Capture shelf-life from an inventory row about to leave the DB (finish / delete / waste). */
+function recordShelfLifeFromInventoryRow(PDO $db, array $row, string $source = 'observe'): void {
+    $pid = (int)($row['product_id'] ?? 0);
+    $days = _shelfLifeDaysFromDates($row['added_at'] ?? null, $row['expiry_date'] ?? null);
+    if ($pid <= 0 || $days === null) {
+        return;
+    }
+    if (!empty($row['expiry_user_set']) && $source === 'observe') {
+        $source = 'user_set';
+    }
+    recordShelfLifeSample($db, $pid, $days, (string)($row['location'] ?? ''), $source);
 }
 
 function _applyWasteLearning(PDO $db, int $productId, string $reason, string $location, array $product): void {
@@ -4626,7 +4749,7 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
     switch ($reason) {
         case 'expired':
         case 'spoiled':
-            $data[$pid]['alert_days_sooner'] = min(5, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
+            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
             break;
         case 'wrong_location':
             $preferred = _guessPreferredStorageLocation($product['name'] ?? '', $product['category'] ?? '');
@@ -4638,6 +4761,7 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
         case 'forgotten':
             $data[$pid]['buy_smaller'] = true;
             $data[$pid]['max_suggested_pz'] = 2;
+            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
             break;
         case 'bought_too_much':
             $data[$pid]['buy_less'] = true;
@@ -4662,7 +4786,225 @@ function _maybeApplyWasteLearning(PDO $db, int $productId, string $notes, string
     if (!$product) {
         return;
     }
+    // Snapshot labelled shelf life before rows are zeroed / deleted
+    try {
+        $inv = $db->prepare("SELECT product_id, location, added_at, expiry_date, expiry_user_set FROM inventory WHERE product_id = ? AND quantity > 0");
+        $inv->execute([$productId]);
+        foreach ($inv->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            recordShelfLifeFromInventoryRow($db, $r, 'waste');
+        }
+    } catch (Throwable $e) {
+        // non-fatal
+    }
     _applyWasteLearning($db, $productId, $reason, $location, $product);
+}
+
+/**
+ * One-shot: rebuild waste hints from Buttato|* txs and shelf samples from
+ * live inventory + local DB backups (so past labelled packs survive).
+ */
+function ensureShelfLifeLearningBackfilled(PDO $db): void {
+    $flag = $db->query("SELECT value FROM app_settings WHERE key = 'shelf_life_backfill_v1'")->fetchColumn();
+    if ($flag === '1') {
+        return;
+    }
+
+    $wasteRows = $db->query("
+        SELECT product_id, notes, location, created_at
+        FROM transactions
+        WHERE type = 'waste' AND undone = 0 AND notes LIKE 'Buttato%'
+        ORDER BY id ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $data = _loadWasteLearning($db);
+
+    // Rebuild waste aggregates from ledger (avoid double-counting prior partial state)
+    $wasteAgg = [];
+    foreach ($wasteRows as $wr) {
+        $pid = (string)(int)$wr['product_id'];
+        $reason = _wasteReasonKey((string)$wr['notes']) ?? 'unknown';
+        if ($reason === '' || $reason === 'other' || $reason === 'unknown') {
+            continue;
+        }
+        if (!isset($wasteAgg[$pid])) {
+            $wasteAgg[$pid] = [
+                'last_reason' => $reason,
+                'last_at' => strtotime((string)$wr['created_at']) ?: time(),
+                'alert_days_sooner' => 0,
+            ];
+        }
+        $wasteAgg[$pid]['last_reason'] = $reason;
+        $wasteAgg[$pid]['last_at'] = strtotime((string)$wr['created_at']) ?: time();
+        $wasteAgg[$pid]['count_' . $reason] = (int)($wasteAgg[$pid]['count_' . $reason] ?? 0) + 1;
+        if ($reason === 'expired' || $reason === 'spoiled' || $reason === 'kept_too_long' || $reason === 'forgotten') {
+            $wasteAgg[$pid]['alert_days_sooner'] = min(7, (int)$wasteAgg[$pid]['alert_days_sooner'] + 1);
+        }
+        if ($reason === 'wrong_location') {
+            $prod = $db->prepare("SELECT name, category FROM products WHERE id = ?");
+            $prod->execute([(int)$pid]);
+            $p = $prod->fetch(PDO::FETCH_ASSOC) ?: ['name' => '', 'category' => ''];
+            $pref = _guessPreferredStorageLocation($p['name'] ?? '', $p['category'] ?? '');
+            if ($pref !== (string)$wr['location']) {
+                $wasteAgg[$pid]['preferred_location'] = $pref;
+            }
+        }
+        if ($reason === 'bought_too_much' || $reason === 'bad_quality') {
+            $wasteAgg[$pid]['buy_less'] = true;
+            $wasteAgg[$pid]['max_suggested_conf'] = 1;
+            $wasteAgg[$pid]['max_suggested_pz'] = 2;
+        }
+        if ($reason === 'kept_too_long' || $reason === 'forgotten') {
+            $wasteAgg[$pid]['buy_smaller'] = true;
+            $wasteAgg[$pid]['max_suggested_pz'] = 2;
+        }
+    }
+    foreach ($wasteAgg as $pid => $agg) {
+        if (!isset($data[$pid])) {
+            $data[$pid] = [];
+        }
+        // Replace count_* / alert from ledger rebuild
+        foreach (array_keys($data[$pid]) as $k) {
+            if (str_starts_with((string)$k, 'count_')) {
+                unset($data[$pid][$k]);
+            }
+        }
+        foreach ($agg as $k => $v) {
+            $data[$pid][$k] = $v;
+        }
+    }
+
+    $invRows = $db->query("
+        SELECT product_id, location, expiry_date, added_at, expiry_user_set
+        FROM inventory
+        WHERE expiry_date IS NOT NULL AND added_at IS NOT NULL AND expiry_date > date(added_at)
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $sampleBag = [];
+    $ingest = static function (int $pid, int $days, string $loc, string $source) use (&$sampleBag): void {
+        if ($pid <= 0 || $days < 1 || $days > 2000) {
+            return;
+        }
+        if (!isset($sampleBag[$pid])) {
+            $sampleBag[$pid] = [];
+        }
+        $key = $days . '|' . $source;
+        $sampleBag[$pid][$key] = [
+            'days' => $days,
+            'loc' => $loc !== '' ? $loc : null,
+            'source' => $source,
+            'ts' => time(),
+        ];
+    };
+
+    foreach ($invRows as $ir) {
+        $days = _shelfLifeDaysFromDates($ir['added_at'] ?? null, $ir['expiry_date'] ?? null);
+        if ($days === null) {
+            continue;
+        }
+        $src = !empty($ir['expiry_user_set']) ? 'user_set' : 'inventory';
+        $ingest((int)$ir['product_id'], $days, (string)($ir['location'] ?? ''), $src);
+    }
+
+    $backupDir = dirname(__DIR__) . '/data/backups';
+    if (is_dir($backupDir)) {
+        $files = glob($backupDir . '/*.db') ?: [];
+        usort($files, static fn($a, $b) => filemtime($b) <=> filemtime($a));
+        foreach (array_slice($files, 0, 12) as $bakPath) {
+            try {
+                $bak = new PDO('sqlite:' . $bakPath, null, null, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+                $bak->exec('PRAGMA query_only = ON');
+                $brows = $bak->query("
+                    SELECT product_id, location, expiry_date, added_at, expiry_user_set
+                    FROM inventory
+                    WHERE expiry_date IS NOT NULL AND added_at IS NOT NULL AND expiry_date > date(added_at)
+                ")->fetchAll();
+                foreach ($brows as $br) {
+                    $days = _shelfLifeDaysFromDates($br['added_at'] ?? null, $br['expiry_date'] ?? null);
+                    if ($days === null) {
+                        continue;
+                    }
+                    $src = !empty($br['expiry_user_set']) ? 'user_set' : 'backup';
+                    $ingest((int)$br['product_id'], $days, (string)($br['location'] ?? ''), $src);
+                }
+                $bak = null;
+            } catch (Throwable $e) {
+                // skip unreadable backup
+            }
+        }
+    }
+
+    foreach ($sampleBag as $pidInt => $byKey) {
+        $pid = (string)$pidInt;
+        if (!isset($data[$pid])) {
+            $data[$pid] = [];
+        }
+        $existing = isset($data[$pid]['shelf_samples']) && is_array($data[$pid]['shelf_samples'])
+            ? $data[$pid]['shelf_samples']
+            : [];
+        $merged = [];
+        foreach ($existing as $s) {
+            if (!is_array($s)) {
+                continue;
+            }
+            $k = ((int)($s['days'] ?? 0)) . '|' . (string)($s['source'] ?? 'observe');
+            $merged[$k] = $s;
+        }
+        foreach ($byKey as $k => $s) {
+            $merged[$k] = $s;
+        }
+        $list = array_values($merged);
+        if (count($list) > 12) {
+            $list = array_slice($list, -12);
+        }
+        $data[$pid]['shelf_samples'] = $list;
+        $median = _shelfLifeMedian(array_column($list, 'days'));
+        if ($median !== null) {
+            $data[$pid]['shelf_avg_days'] = $median;
+        }
+    }
+
+    _saveWasteLearning($db, $data);
+    $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('shelf_life_backfill_v1', '1', datetime('now'))
+                  ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+       ->execute();
+}
+
+/**
+ * @return array{avg_days:?int,count:int,alert_days_sooner:int,suggested_days:?int,preferred_location:?string,source:string}
+ */
+function getLearnedShelfLifeHint(PDO $db, int $productId): array {
+    ensureShelfLifeLearningBackfilled($db);
+    $hint = _loadWasteLearning($db)[(string)$productId] ?? [];
+    if (!is_array($hint)) {
+        $hint = [];
+    }
+
+    $samples = isset($hint['shelf_samples']) && is_array($hint['shelf_samples']) ? $hint['shelf_samples'] : [];
+    $daysList = [];
+    foreach ($samples as $s) {
+        $d = (int)($s['days'] ?? 0);
+        if ($d >= 1 && $d <= 2000) {
+            $daysList[] = $d;
+        }
+    }
+    $avg = isset($hint['shelf_avg_days']) ? (int)$hint['shelf_avg_days'] : null;
+    if ($avg === null || $avg < 1) {
+        $avg = _shelfLifeMedian($daysList);
+    }
+    $sooner = max(0, min(7, (int)($hint['alert_days_sooner'] ?? 0)));
+    $suggested = $avg !== null ? max(1, $avg - $sooner) : null;
+
+    return [
+        'avg_days' => $avg,
+        'count' => count($daysList),
+        'alert_days_sooner' => $sooner,
+        'suggested_days' => $suggested,
+        'preferred_location' => !empty($hint['preferred_location']) ? (string)$hint['preferred_location'] : null,
+        'source' => $avg !== null ? 'learned' : 'none',
+    ];
 }
 
 function _applyWasteHintsToSuggestion(int $productId, $suggestedQty, string $suggestedUnit, array $wasteLearning): array {
@@ -5216,8 +5558,8 @@ function updateInventory(PDO $db): void {
         return;
     }
 
-    // Read current state before update (needed for transaction reconciliation)
-    $prev = $db->prepare("SELECT quantity, location, product_id FROM inventory WHERE id = ?");
+    // Read current state before update (needed for transaction reconciliation + shelf learning)
+    $prev = $db->prepare("SELECT quantity, location, product_id, added_at, expiry_date, expiry_user_set FROM inventory WHERE id = ?");
     $prev->execute([$id]);
     $prevRow = $prev->fetch(PDO::FETCH_ASSOC);
     if (!$prevRow) {
@@ -5331,7 +5673,7 @@ function updateInventory(PDO $db): void {
         ]);
     }
 
-    $fresh = $db->prepare('SELECT id, quantity, location, expiry_date, vacuum_sealed, product_id FROM inventory WHERE id = ?');
+    $fresh = $db->prepare('SELECT id, quantity, location, expiry_date, vacuum_sealed, product_id, added_at, expiry_user_set FROM inventory WHERE id = ?');
     $fresh->execute([(int)$id]);
     $row = $fresh->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -5339,6 +5681,19 @@ function updateInventory(PDO $db): void {
         echo json_encode(['success' => false, 'error' => 'Inventory row not found']);
         return;
     }
+
+    // Estendi / manual expiry → learn sealed shelf life for next purchase
+    if ((isset($input['expiry_date']) || !empty($input['expiry_user_set'])) && !empty($row['expiry_user_set'])) {
+        try {
+            $days = _shelfLifeDaysFromDates($row['added_at'] ?? null, $row['expiry_date'] ?? null);
+            if ($days !== null) {
+                recordShelfLifeSample($db, (int)$row['product_id'], $days, (string)($row['location'] ?? ''), 'extend');
+            }
+        } catch (Throwable $e) {
+            // non-fatal
+        }
+    }
+
     echo json_encode([
         'success'        => true,
         'id'             => (int)$row['id'],
@@ -5360,13 +5715,19 @@ function deleteInventory(PDO $db): void {
         return;
     }
 
-    $stmt = $db->prepare("SELECT id, product_id, quantity, location FROM inventory WHERE id = ?");
+    $stmt = $db->prepare("SELECT id, product_id, quantity, location, added_at, expiry_date, expiry_user_set FROM inventory WHERE id = ?");
     $stmt->execute([$id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         http_response_code(404);
         echo json_encode(['error' => 'Inventory row not found']);
         return;
+    }
+
+    try {
+        recordShelfLifeFromInventoryRow($db, $row, 'delete');
+    } catch (Throwable $e) {
+        // non-fatal
     }
 
     $qty = (float)$row['quantity'];
@@ -6191,6 +6552,16 @@ function confirmFinishedCore(PDO $db, int $productId, bool $addToShopping = true
     $location = $location ?: 'dispensa';
 
     if ($addToShopping) {
+        // Learn shelf life from rows about to vanish
+        try {
+            $snap = $db->prepare("SELECT product_id, location, added_at, expiry_date, expiry_user_set FROM inventory WHERE product_id = ? AND quantity > 0");
+            $snap->execute([$productId]);
+            foreach ($snap->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                recordShelfLifeFromInventoryRow($db, $r, 'finished');
+            }
+        } catch (Throwable $e) {
+            // non-fatal
+        }
         // Product gone: clear all rows, then one ledger catch-up (no double-count crumbs).
         $db->prepare("DELETE FROM inventory WHERE product_id = ?")->execute([$productId]);
         if ($expected > $threshold) {
@@ -6720,7 +7091,7 @@ function getStats(PDO $db): void {
     $recentIn      = (int)$summary['recent_in'];
     $recentOut     = (int)$summary['recent_out'];
     
-    // Expiring soonest (next 4 items to expire)
+    // Expiring soonest (top items needing attention)
     $expiring = $db->query("
         SELECT i.*, p.name, p.brand, p.category, p.unit, p.default_quantity, p.package_unit,
                COALESCE(i.vacuum_sealed, 0) as vacuum_sealed
@@ -6728,7 +7099,7 @@ function getStats(PDO $db): void {
         WHERE i.expiry_date IS NOT NULL AND i.expiry_date >= date('now') AND i.quantity > 0
               AND (i.opened_at IS NULL OR i.opened_at = '')
         ORDER BY i.expiry_date ASC
-        LIMIT 4
+        LIMIT 5
     ")->fetchAll();
     
     // Expired — vacuum-sealed items get extra days beyond printed expiry before being flagged
@@ -6741,6 +7112,7 @@ function getStats(PDO $db): void {
           AND julianday('now') - julianday(i.expiry_date) > CASE WHEN COALESCE(i.vacuum_sealed,0)=1 THEN ? ELSE 0 END
           AND i.quantity > 0
         ORDER BY i.expiry_date ASC
+        LIMIT 40
     ");
     $expiredStmt->execute([$vacExtDays]);
     $expired = array_values(array_filter(
@@ -17086,6 +17458,39 @@ function shoppingRemove(PDO $db): void {
     }
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     shoppingRemoveInternal($db, $input);
+}
+
+/** Seasonal produce review for the current shopping list (IT calendar, free data). */
+function seasonalShoppingReviewAction(PDO $db): void {
+    $lang = env('APP_LANG', 'it');
+    $input = json_decode(file_get_contents('php://input'), true);
+    if (is_array($input) && !empty($input['lang'])) {
+        $lang = (string)$input['lang'];
+    } elseif (!empty($_GET['lang'])) {
+        $lang = (string)$_GET['lang'];
+    }
+    $items = [];
+    // Prefer items from client (covers Bring! mode); else internal DB list
+    if (is_array($input) && !empty($input['items']) && is_array($input['items'])) {
+        $items = $input['items'];
+    } else {
+        try {
+            $rows = $db->query("SELECT name, raw_name FROM shopping_list ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+            $items = $rows ?: [];
+        } catch (Throwable $e) {
+            $items = [];
+        }
+    }
+    $review = seasonalReviewShopping($db, $items, $lang);
+    echo json_encode(['success' => true] + $review, JSON_UNESCAPED_UNICODE);
+}
+
+/** Top inventory products unused for a long time (dashboard). */
+function staleInventoryItemsAction(PDO $db): void {
+    $limit = (int)($_GET['limit'] ?? 3);
+    $minDays = (int)($_GET['min_days'] ?? 21);
+    $items = staleInventoryItems($db, $limit, $minDays);
+    echo json_encode(['success' => true, 'items' => $items, 'min_days' => max(7, min(365, $minDays))], JSON_UNESCAPED_UNICODE);
 }
 
 /**

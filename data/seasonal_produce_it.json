@@ -1,0 +1,3389 @@
+{
+  "source": "SeasonalItaly (MIT) https://github.com/archetipico/SeasonalItaly — adapted for EverShelf matching",
+  "region": "italy",
+  "items": [
+    {
+      "name": "albicocca",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "albicocche"
+      ]
+    },
+    {
+      "name": "amarena",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "ananas",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "anguria",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "cocomero",
+        "watermelon"
+      ]
+    },
+    {
+      "name": "arancia amara",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2
+      ],
+      "shoulder": [
+        12,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "arance",
+        "arancia",
+        "arancia bionda",
+        "arancia rossa"
+      ]
+    },
+    {
+      "name": "arancia bionda",
+      "kind": "frutta",
+      "peak": [
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        11,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "arance",
+        "arancia",
+        "arancia rossa"
+      ]
+    },
+    {
+      "name": "arancia rossa di sicilia",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        12,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "arance",
+        "arancia",
+        "arancia bionda",
+        "arancia rossa"
+      ]
+    },
+    {
+      "name": "arancia tardiva",
+      "kind": "frutta",
+      "peak": [
+        4,
+        5
+      ],
+      "shoulder": [
+        3,
+        6
+      ],
+      "imported": false,
+      "aliases": [
+        "arance",
+        "arancia",
+        "arancia bionda",
+        "arancia rossa"
+      ]
+    },
+    {
+      "name": "avocado",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3,
+        10
+      ],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "banana",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "bergamotto",
+      "kind": "frutta",
+      "peak": [
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        11,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "biricoccolo",
+      "kind": "frutta",
+      "peak": [
+        7
+      ],
+      "shoulder": [
+        6,
+        8
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cachi",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "cachi mela",
+        "kaki"
+      ]
+    },
+    {
+      "name": "cachi mela",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "cachi",
+        "kaki",
+        "mela",
+        "mele"
+      ]
+    },
+    {
+      "name": "carruba",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "castagna",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "castagne"
+      ]
+    },
+    {
+      "name": "cedro",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "chinotto",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "ciliegia",
+      "kind": "frutta",
+      "peak": [
+        5,
+        6
+      ],
+      "shoulder": [
+        4,
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "ciliegie"
+      ]
+    },
+    {
+      "name": "clementina",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cocco",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "corbezzolo",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cotogna",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "dattero",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        9,
+        2
+      ],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "fico",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "fico d'india",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fico"
+      ]
+    },
+    {
+      "name": "fragola",
+      "kind": "frutta",
+      "peak": [
+        5,
+        6
+      ],
+      "shoulder": [
+        4,
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "fragole"
+      ]
+    },
+    {
+      "name": "fragolina di bosco",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "fragolina"
+      ]
+    },
+    {
+      "name": "frutto della passione",
+      "kind": "frutta",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": true,
+      "aliases": [
+        "frutto"
+      ]
+    },
+    {
+      "name": "gelso nero",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5
+      ],
+      "imported": false,
+      "aliases": [
+        "gelso"
+      ]
+    },
+    {
+      "name": "giuggiola",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "kiwi",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "lampone",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "limone",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3,
+        4
+      ],
+      "shoulder": [
+        10,
+        5
+      ],
+      "imported": false,
+      "aliases": [
+        "limoni"
+      ]
+    },
+    {
+      "name": "limone interdonato",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "limone",
+        "limoni"
+      ]
+    },
+    {
+      "name": "limone primofiore",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "limone",
+        "limoni"
+      ]
+    },
+    {
+      "name": "litchi",
+      "kind": "frutta",
+      "peak": [
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        11,
+        3
+      ],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "mandarancio",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "mandarino",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "clementina",
+        "clementine",
+        "mandarini"
+      ]
+    },
+    {
+      "name": "mandorla",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "mango",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7,
+        11
+      ],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "mela annurca",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "mela",
+        "mele"
+      ]
+    },
+    {
+      "name": "mela golden",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        12,
+        1,
+        2,
+        3,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "mela",
+        "mele"
+      ]
+    },
+    {
+      "name": "mela limoncella",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "mela",
+        "mele"
+      ]
+    },
+    {
+      "name": "mela rosa dei sibillini",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "mela",
+        "mele"
+      ]
+    },
+    {
+      "name": "melone retato",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "melone",
+        "meloni"
+      ]
+    },
+    {
+      "name": "melone giallo",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        7,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "melone"
+      ]
+    },
+    {
+      "name": "mirtillo",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "mora di rovo",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "mora"
+      ]
+    },
+    {
+      "name": "nespola comune",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "nespola"
+      ]
+    },
+    {
+      "name": "nespola giapponese",
+      "kind": "frutta",
+      "peak": [
+        4,
+        5
+      ],
+      "shoulder": [
+        6
+      ],
+      "imported": false,
+      "aliases": [
+        "nespola"
+      ]
+    },
+    {
+      "name": "nocciola",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "noce",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "oliva da tavola",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "oliva"
+      ]
+    },
+    {
+      "name": "papaya",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        9,
+        2
+      ],
+      "imported": true,
+      "aliases": []
+    },
+    {
+      "name": "pera abate",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        12,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera coscia",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera decana",
+      "kind": "frutta",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera kaiser",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera martin sec",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        1,
+        2,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera spadona",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        7,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera volpina",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pera williams",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "pear",
+        "pera",
+        "pere"
+      ]
+    },
+    {
+      "name": "pesca",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "nettarina",
+        "pesche",
+        "pesche nettarine"
+      ]
+    },
+    {
+      "name": "pesca nettarina",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "nettarina",
+        "pesca",
+        "pesche",
+        "pesche nettarine"
+      ]
+    },
+    {
+      "name": "pesca percoca",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6
+      ],
+      "imported": false,
+      "aliases": [
+        "nettarina",
+        "pesca",
+        "pesche",
+        "pesche nettarine"
+      ]
+    },
+    {
+      "name": "pesca tabacchiera",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "nettarina",
+        "pesca",
+        "pesche",
+        "pesche nettarine"
+      ]
+    },
+    {
+      "name": "pinolo",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        8,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "pompelmo",
+      "kind": "frutta",
+      "peak": [
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        11,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "pompelmo rosa",
+      "kind": "frutta",
+      "peak": [
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        11,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "pompelmo"
+      ]
+    },
+    {
+      "name": "prugna",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "prugne",
+        "susine"
+      ]
+    },
+    {
+      "name": "ribes bianco",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "ribes"
+      ]
+    },
+    {
+      "name": "ribes nero",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "ribes"
+      ]
+    },
+    {
+      "name": "ribes rosso",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "ribes"
+      ]
+    },
+    {
+      "name": "rosa canina",
+      "kind": "frutta",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "rosa"
+      ]
+    },
+    {
+      "name": "sambuco",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        7
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "sorbo",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "susina ramassin",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "susina"
+      ]
+    },
+    {
+      "name": "uva da tavola",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "uva"
+      ]
+    },
+    {
+      "name": "uva fragola",
+      "kind": "frutta",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "fragola",
+        "fragole"
+      ]
+    },
+    {
+      "name": "uva regina",
+      "kind": "frutta",
+      "peak": [
+        8,
+        9
+      ],
+      "shoulder": [
+        7,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "uva spina",
+      "kind": "frutta",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "visciola",
+      "kind": "frutta",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        5,
+        8
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "aglio",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7
+      ],
+      "shoulder": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "agretto",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5
+      ],
+      "shoulder": [
+        2,
+        6
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "alloro",
+      "kind": "verdura",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "asparago bianco di bassano",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5
+      ],
+      "shoulder": [
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "asparago"
+      ]
+    },
+    {
+      "name": "asparago selvatico",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4
+      ],
+      "shoulder": [
+        2,
+        5
+      ],
+      "imported": false,
+      "aliases": [
+        "asparago"
+      ]
+    },
+    {
+      "name": "asparago verde",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5
+      ],
+      "shoulder": [
+        3,
+        6
+      ],
+      "imported": false,
+      "aliases": [
+        "asparagi",
+        "asparago"
+      ]
+    },
+    {
+      "name": "barbabietola rossa",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        6,
+        7,
+        8,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "barbabietola"
+      ]
+    },
+    {
+      "name": "basilico",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "basilico fresco"
+      ]
+    },
+    {
+      "name": "bieta da costa",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        4,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "bieta"
+      ]
+    },
+    {
+      "name": "bietola da taglio",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        9,
+        10
+      ],
+      "shoulder": [
+        3,
+        7,
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "bietola"
+      ]
+    },
+    {
+      "name": "borragine",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5
+      ],
+      "shoulder": [
+        2,
+        6
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "broccolo",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "broccoli"
+      ]
+    },
+    {
+      "name": "broccolo romanesco",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        2,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "broccoli",
+        "broccolo"
+      ]
+    },
+    {
+      "name": "bruscandolo",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4
+      ],
+      "shoulder": [
+        5
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "carciofo romano",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5
+      ],
+      "shoulder": [
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "carciofi",
+        "carciofo"
+      ]
+    },
+    {
+      "name": "carciofo spinoso sardo",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        10,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "carciofo"
+      ]
+    },
+    {
+      "name": "carciofo violetto",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "carciofo"
+      ]
+    },
+    {
+      "name": "cardo gobbo di nizza monferrato",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "cardo"
+      ]
+    },
+    {
+      "name": "carota",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        11,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "carote"
+      ]
+    },
+    {
+      "name": "carota viola",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "carota",
+        "carote"
+      ]
+    },
+    {
+      "name": "catalogna",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cavoletti di bruxelles",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "cavoletti"
+      ]
+    },
+    {
+      "name": "cavolfiore",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolfiori"
+      ]
+    },
+    {
+      "name": "cavolo cappuccio",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        9,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolo"
+      ]
+    },
+    {
+      "name": "cavolo nero",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        9,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolo"
+      ]
+    },
+    {
+      "name": "cavolo rapa",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolo"
+      ]
+    },
+    {
+      "name": "cavolo rosso",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolo"
+      ]
+    },
+    {
+      "name": "cavolo verza",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        9,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "cavolo"
+      ]
+    },
+    {
+      "name": "cetriolo",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cicerchia",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "cicoria selvatica",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        4,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "cicoria"
+      ]
+    },
+    {
+      "name": "cima di rapa",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "cima"
+      ]
+    },
+    {
+      "name": "cipolla dorata",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7
+      ],
+      "shoulder": [
+        4,
+        8
+      ],
+      "imported": false,
+      "aliases": [
+        "cipolla",
+        "cipolle"
+      ]
+    },
+    {
+      "name": "cipolla rossa di tropea",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3,
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "cipolla",
+        "cipolla dorata",
+        "cipolle"
+      ]
+    },
+    {
+      "name": "cipollotto",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3,
+        7
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "crescione",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        7,
+        9,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "dragoncello",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "erba cipollina",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "shoulder": [
+        3,
+        8,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "erba"
+      ]
+    },
+    {
+      "name": "fagiolino",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "fagiolo borlotto",
+      "kind": "verdura",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fagiolo"
+      ]
+    },
+    {
+      "name": "fagiolo cannellino",
+      "kind": "verdura",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fagiolo"
+      ]
+    },
+    {
+      "name": "fagiolo dall'occhio",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fagiolo"
+      ]
+    },
+    {
+      "name": "fagiolo zolfino",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fagiolo"
+      ]
+    },
+    {
+      "name": "fava",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "finocchietto selvatico",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        2,
+        7,
+        8,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "finocchietto"
+      ]
+    },
+    {
+      "name": "finocchio",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3,
+        4
+      ],
+      "shoulder": [
+        10,
+        5
+      ],
+      "imported": false,
+      "aliases": [
+        "finocchi"
+      ]
+    },
+    {
+      "name": "fiore di zucca",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "fiore"
+      ]
+    },
+    {
+      "name": "fungo chiodino",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "fungo"
+      ]
+    },
+    {
+      "name": "fungo finferlo",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        5,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "fungo"
+      ]
+    },
+    {
+      "name": "fungo ovolo buono",
+      "kind": "verdura",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "fungo"
+      ]
+    },
+    {
+      "name": "fungo pioppino",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        8,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "fungo"
+      ]
+    },
+    {
+      "name": "fungo porcino",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        5,
+        6,
+        7,
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "funghi",
+        "funghi porcini",
+        "fungo",
+        "porcini"
+      ]
+    },
+    {
+      "name": "fungo prataiolo",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        3,
+        7,
+        8,
+        12
+      ],
+      "imported": false,
+      "aliases": [
+        "fungo"
+      ]
+    },
+    {
+      "name": "indivia belga",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        10,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "indivia"
+      ]
+    },
+    {
+      "name": "indivia riccia",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "indivia"
+      ]
+    },
+    {
+      "name": "lampascione",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "lattuga",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        3,
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "insalata"
+      ]
+    },
+    {
+      "name": "lenticchia di castelluccio",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "lenticchia"
+      ]
+    },
+    {
+      "name": "maggiorana",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        5,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "mais dolce",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "mais"
+      ]
+    },
+    {
+      "name": "melanzana",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "apple",
+        "aubergine",
+        "mela",
+        "melanzane",
+        "mele"
+      ]
+    },
+    {
+      "name": "menta",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "nepitella",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "ortica",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5
+      ],
+      "shoulder": [
+        2,
+        6
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "origano",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "patata",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        5,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "patate"
+      ]
+    },
+    {
+      "name": "patata dolce",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1,
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "patata",
+        "patate"
+      ]
+    },
+    {
+      "name": "patata novella",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3,
+        7
+      ],
+      "imported": false,
+      "aliases": [
+        "patata",
+        "patate"
+      ]
+    },
+    {
+      "name": "patata viola",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10
+      ],
+      "shoulder": [
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "patata",
+        "patate"
+      ]
+    },
+    {
+      "name": "peperone corno",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "peperone",
+        "peperoni"
+      ]
+    },
+    {
+      "name": "peperone friggitello",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        5,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "peperone",
+        "peperone corno",
+        "peperoni"
+      ]
+    },
+    {
+      "name": "peperoncino",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        6,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "pisello",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3,
+        7
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "pomodoro cuore di bue",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        5,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "ciliegini",
+        "datterini",
+        "pomodori",
+        "pomodorini",
+        "pomodoro"
+      ]
+    },
+    {
+      "name": "pomodoro datterino",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        5,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "ciliegini",
+        "datterini",
+        "pomodori",
+        "pomodorini",
+        "pomodoro"
+      ]
+    },
+    {
+      "name": "pomodoro pachino",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "ciliegini",
+        "datterini",
+        "pomodori",
+        "pomodorini",
+        "pomodoro"
+      ]
+    },
+    {
+      "name": "pomodoro san marzano",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        6,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "ciliegini",
+        "datterini",
+        "pomodori",
+        "pomodorini",
+        "pomodoro"
+      ]
+    },
+    {
+      "name": "porro",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        3,
+        8
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "portulaca",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "prezzemolo",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        3,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "puntarella",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "rabarbaro",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7
+      ],
+      "shoulder": [
+        4,
+        8
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "radicchio di chioggia",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1,
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "radicchio"
+      ]
+    },
+    {
+      "name": "radicchio rosso di treviso",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        10,
+        3
+      ],
+      "imported": false,
+      "aliases": [
+        "radicchio"
+      ]
+    },
+    {
+      "name": "radicchio variegato di castelfranco",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "radicchio"
+      ]
+    },
+    {
+      "name": "rafano",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "rapa",
+      "kind": "verdura",
+      "peak": [
+        11,
+        12,
+        1
+      ],
+      "shoulder": [
+        10,
+        2
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "ravanello",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "shoulder": [
+        3,
+        8,
+        9,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "rosmarino",
+      "kind": "verdura",
+      "peak": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "shoulder": [],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "rucola",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        3,
+        11
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "rucola selvatica",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6,
+        9,
+        10
+      ],
+      "shoulder": [
+        3,
+        7,
+        8,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "rucola"
+      ]
+    },
+    {
+      "name": "salvia",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "scalogno",
+      "kind": "verdura",
+      "peak": [
+        7,
+        8
+      ],
+      "shoulder": [
+        6,
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "scarola",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "scorzonera",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "sedano",
+      "kind": "verdura",
+      "peak": [
+        9,
+        10,
+        11
+      ],
+      "shoulder": [
+        8,
+        12
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "sedano rapa",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "sedano"
+      ]
+    },
+    {
+      "name": "soncino",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        9,
+        4
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "spinacio",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        4,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "spinaci"
+      ]
+    },
+    {
+      "name": "taccola",
+      "kind": "verdura",
+      "peak": [
+        4,
+        5,
+        6
+      ],
+      "shoulder": [
+        3,
+        7
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "tarassaco",
+      "kind": "verdura",
+      "peak": [
+        3,
+        4,
+        5
+      ],
+      "shoulder": [
+        2,
+        6
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "tartufo bianco d'alba",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "tartufo"
+      ]
+    },
+    {
+      "name": "tartufo estivo",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "tartufo"
+      ]
+    },
+    {
+      "name": "tartufo nero pregiato",
+      "kind": "verdura",
+      "peak": [
+        12,
+        1,
+        2,
+        3
+      ],
+      "shoulder": [
+        11,
+        4
+      ],
+      "imported": false,
+      "aliases": [
+        "tartufo"
+      ]
+    },
+    {
+      "name": "timo",
+      "kind": "verdura",
+      "peak": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "shoulder": [
+        4,
+        10
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "topinambur",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12,
+        1,
+        2
+      ],
+      "shoulder": [
+        9,
+        3
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "zafferano",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11
+      ],
+      "shoulder": [
+        9
+      ],
+      "imported": false,
+      "aliases": []
+    },
+    {
+      "name": "zucca delica",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "zucca",
+        "zucche"
+      ]
+    },
+    {
+      "name": "zucca mantovana",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1
+      ],
+      "imported": false,
+      "aliases": [
+        "zucca"
+      ]
+    },
+    {
+      "name": "zucca trombetta",
+      "kind": "verdura",
+      "peak": [
+        8,
+        9,
+        10
+      ],
+      "shoulder": [
+        7,
+        11
+      ],
+      "imported": false,
+      "aliases": [
+        "zucca"
+      ]
+    },
+    {
+      "name": "zucca violina",
+      "kind": "verdura",
+      "peak": [
+        10,
+        11,
+        12
+      ],
+      "shoulder": [
+        9,
+        1,
+        2
+      ],
+      "imported": false,
+      "aliases": [
+        "zucca"
+      ]
+    },
+    {
+      "name": "zucchina",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9,
+        10
+      ],
+      "imported": false,
+      "aliases": [
+        "zucchine",
+        "zucchini"
+      ]
+    },
+    {
+      "name": "zucchina romanesca",
+      "kind": "verdura",
+      "peak": [
+        6,
+        7,
+        8
+      ],
+      "shoulder": [
+        5,
+        9
+      ],
+      "imported": false,
+      "aliases": [
+        "zucchina",
+        "zucchine",
+        "zucchini"
+      ]
+    }
+  ]
+}

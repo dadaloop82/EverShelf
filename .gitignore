@@ -64,4 +64,14 @@ assets/img/logo/*_backup.*
 logs/*.log
 assets/vendor/transformers/Xenova/
 
+# Local backup / scratch copies (never commit)
+*.bak
+*.bak.*
+*.orig
+*.rej
+data/audit_finished_missing.json
+data/reported_issue_fps.json
+data/shopping_spend.json
+data/error_reports.log
+
 TODO.md

@@ -153,8 +153,9 @@ function _validProductImageUrl(url) {
 }
 
 function _invImageHtml(imageUrl, catIcon) {
-    if (!_validProductImageUrl(imageUrl)) return catIcon;
-    return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${catIcon}'">`;
+    if (!_validProductImageUrl(imageUrl)) return catIcon || '';
+    const fallback = String(catIcon || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${fallback}'">`;
 }
 
 function _shouldRegisterServiceWorker() {
@@ -1239,11 +1240,8 @@ function _applyI18nToLabels() {
         }
     }
     for (const key of Object.keys(CATEGORY_LABELS)) {
-        const tKey = `categories.${key}`;
-        const translated = _i18nStrings[tKey];
-        if (translated) {
-            const icon = CATEGORY_ICONS[key] || '📦';
-            CATEGORY_LABELS[key] = `${icon} ${translated}`;
+        if (_i18nStrings[`categories.${key}`] || t('categories.' + key)) {
+            CATEGORY_LABELS[key] = categoryLabel(key);
         }
     }
     const pfCat = document.getElementById('pf-category');
@@ -1263,7 +1261,14 @@ function _applyI18nToLabels() {
 function translatePage() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        if (key) el.textContent = t(key);
+        if (!key) return;
+        // Category options: always one icon via categoryLabel (translations are text-only)
+        if (el.tagName === 'OPTION' && key.startsWith('categories.') && key !== 'categories.select') {
+            const catKey = key.slice('categories.'.length);
+            el.textContent = categoryLabel(catKey);
+            return;
+        }
+        el.textContent = t(key);
     });
     document.querySelectorAll('[data-i18n-html]').forEach(el => {
         const key = el.getAttribute('data-i18n-html');
@@ -1751,6 +1756,37 @@ const CATEGORY_ICONS = {
     'cereali': '🌾', 'igiene': '🧴', 'pulizia': '🧹', 'altro': '📦'
 };
 
+/** Strip a leading emoji (and ZWJ/VS16) so labels aren't 🥛 🥛 doubled. */
+function _stripLeadingEmoji(str) {
+    return String(str || '').replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '').trim();
+}
+
+/** One icon + text for a category key (never doubles). */
+function categoryLabel(key) {
+    const k = key || 'altro';
+    const icon = CATEGORY_ICONS[k] || '📦';
+    const text = _stripLeadingEmoji(t('categories.' + k) || k) || k;
+    return `${icon} ${text}`;
+}
+
+/** Category name without icon (for badges next to an image/icon already shown). */
+function categoryText(key) {
+    const k = key || 'altro';
+    return _stripLeadingEmoji(t('categories.' + k) || k) || k;
+}
+
+/** Prefixed label without doubling: ICON + plain text (strips emoji already in text). */
+function iconLabel(icon, textOrKey) {
+    const raw = (typeof textOrKey === 'string' && textOrKey.includes('.') && !/\s/.test(textOrKey))
+        ? t(textOrKey)
+        : String(textOrKey || '');
+    const plain = _stripLeadingEmoji(raw) || raw;
+    const ic = icon || '';
+    if (!ic) return plain;
+    if (!plain) return ic;
+    return `${ic} ${plain}`;
+}
+
 // Auto-detect location based on category and product name
 const CATEGORY_LOCATION = {
     'latticini': 'frigo', 'carne': 'frigo', 'pesce': 'frigo',
@@ -2085,14 +2121,14 @@ function shouldShowExpiredBanner(item) {
     return true;
 }
 
-// Localized labels for local categories
+// Localized labels for local categories (icon once — translations may already include emoji)
 const CATEGORY_LABELS = {
-    'latticini': `🥛 ${t('categories.latticini')}`, 'carne': `🥩 ${t('categories.carne')}`, 'pesce': `🐟 ${t('categories.pesce')}`,
-    'frutta': `🍎 ${t('categories.frutta')}`, 'verdura': `🥬 ${t('categories.verdura')}`, 'pasta': `🍝 ${t('categories.pasta')}`,
-    'pane': `🍞 ${t('categories.pane')}`, 'surgelati': `🧊 ${t('categories.surgelati')}`, 'bevande': `🥤 ${t('categories.bevande')}`,
-    'condimenti': `🧂 ${t('categories.condimenti')}`, 'snack': `🍪 ${t('categories.snack')}`, 'conserve': `🥫 ${t('categories.conserve')}`,
-    'cereali': `🌾 ${t('categories.cereali')}`, 'igiene': `🧴 ${t('categories.igiene')}`, 'pulizia': `🧹 ${t('categories.pulizia')}`,
-    'altro': `📦 ${t('categories.altro')}`
+    'latticini': categoryLabel('latticini'), 'carne': categoryLabel('carne'), 'pesce': categoryLabel('pesce'),
+    'frutta': categoryLabel('frutta'), 'verdura': categoryLabel('verdura'), 'pasta': categoryLabel('pasta'),
+    'pane': categoryLabel('pane'), 'surgelati': categoryLabel('surgelati'), 'bevande': categoryLabel('bevande'),
+    'condimenti': categoryLabel('condimenti'), 'snack': categoryLabel('snack'), 'conserve': categoryLabel('conserve'),
+    'cereali': categoryLabel('cereali'), 'igiene': categoryLabel('igiene'), 'pulizia': categoryLabel('pulizia'),
+    'altro': categoryLabel('altro')
 };
 
 // Detect best unit/quantity from Open Food Facts quantity_info string
@@ -2264,6 +2300,12 @@ function estimateExpiryDays(product, location) {
         else if (days <= 30) days = 120;
         // Already long-lasting: at least 6 months
         else days = Math.max(days, 180);
+    }
+
+    // Waste learning: shorten rule-based estimates when this product was thrown as expired/spoiled
+    const pid = product?.id ?? product?.product_id;
+    if (pid && window._learnedAlertSoonerForId == pid && (window._learnedAlertSooner || 0) > 0) {
+        days = Math.max(1, days - (window._learnedAlertSooner | 0));
     }
     
     return days;
@@ -5760,8 +5802,7 @@ function _renderNutritionSection(inventory) {
                 ${top5.map(s => `
                 <div class="nutr-leg-row">
                     <span class="nutr-leg-dot" style="background:${s.color}"></span>
-                    <span class="nutr-leg-icon">${s.icon}</span>
-                    <span class="nutr-leg-name">${t('categories.' + s.cat) || s.cat}</span>
+                    <span class="nutr-leg-name">${s.icon} ${escapeHtml(categoryText(s.cat))}</span>
                     <span class="nutr-leg-pct">${s.pct}%</span>
                 </div>`).join('')}
             </div>
@@ -6101,6 +6142,14 @@ function _applyInsightPhase() {
 }
 
 // ===== DASHBOARD =====
+/** Cap dashboard alert lists to the N most urgent items. */
+const DASHBOARD_ALERT_MAX = 5;
+function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
+    const all = Array.isArray(items) ? items : [];
+    const shown = all.slice(0, max);
+    return { shown, extra: Math.max(0, all.length - shown.length) };
+}
+
 async function loadDashboard() {
     // Show shimmer on stat cards while loading
     ['stat-dispensa', 'stat-frigo', 'stat-freezer'].forEach(id => {
@@ -6145,13 +6194,14 @@ async function loadDashboard() {
             recipeBar.style.display = 'none';
         }
         
-        // Expiring items
+        // Expiring items (top 5 most urgent)
         const expiringSection = document.getElementById('alert-expiring');
         const expiringList = document.getElementById('expiring-list');
         const visibleExpiring = (statsData.expiring_soon || []).filter(item => !isInventoryDepleted(item));
         if (visibleExpiring.length > 0) {
+            const { shown: expiringShown, extra: expiringExtra } = _dashboardAlertCap(visibleExpiring);
             expiringSection.style.display = 'block';
-            expiringList.innerHTML = visibleExpiring.map(item => {
+            expiringList.innerHTML = expiringShown.map(item => {
                 const days = daysUntilExpiry(item.expiry_date);
                 let badgeText, badgeClass;
                 if (days === 0) { badgeText = t('expiry.today'); badgeClass = 'today'; }
@@ -6167,12 +6217,12 @@ async function loadDashboard() {
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
                     </div>
                     <div class="alert-item-badges">
-                        <span class="alert-item-qty">📦 ${qtyDisplay}</span>
+                        <span class="alert-item-qty">${qtyDisplay}</span>
                         <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
                         ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
                 </div>`;
-            }).join('');
+            }).join('') + (expiringExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiringExtra)}</div>` : '');
             _bindAlertItemsHoldOpen(expiringList);
         } else {
             expiringSection.style.display = 'none';
@@ -6187,8 +6237,9 @@ async function loadDashboard() {
             return getExpiredSafety(item, days).level !== 'ok';
         });
         if (visibleExpired.length > 0) {
+            const { shown: expiredShown, extra: expiredExtra } = _dashboardAlertCap(visibleExpired);
             expiredSection.style.display = 'block';
-            expiredList.innerHTML = visibleExpired.map(item => {
+            expiredList.innerHTML = expiredShown.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 let daysText;
                 if (days === 0) daysText = t('expiry.expired_today');
@@ -6202,7 +6253,7 @@ async function loadDashboard() {
                     <div class="alert-item-info">
                         <span class="alert-item-name">${locIcon ? locIcon + ' ' : ''}${escapeHtml(item.name)}</span>
                         ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
-                        <span class="alert-item-qty">📦 ${qtyDisplayExp}</span>
+                        <span class="alert-item-qty">${qtyDisplayExp}</span>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
@@ -6210,7 +6261,7 @@ async function loadDashboard() {
                         ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
                 </div>`;
-            }).join('');
+            }).join('') + (expiredExtra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', expiredExtra)}</div>` : '');
             _bindAlertItemsHoldOpen(expiredList);
         } else {
             expiredSection.style.display = 'none';
@@ -6253,12 +6304,10 @@ async function loadDashboard() {
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
-            // Sorted server-side by days_to_expiry ASC
+            // Sorted server-side by days_to_expiry ASC — show top 5 most urgent
             openedSection.style.display = 'block';
-            const MAX_SHOWN = 20;
             const openedVisible = statsData.opened.filter(item => !isInventoryDepleted(item));
-            const visible = openedVisible.slice(0, MAX_SHOWN);
-            const extra = openedVisible.length - visible.length;
+            const { shown: visible, extra } = _dashboardAlertCap(openedVisible);
             openedList.innerHTML = visible.map(item => {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
@@ -6350,11 +6399,13 @@ async function loadDashboard() {
                         ${expiryBadge}
                     </div>
                 </div>`;
-            }).join('') + (extra > 0 ? `<div class="alert-more-note">${t('dashboard.more_opened').replace('{n}', extra)}</div>` : '');
+            }).join('') + (extra > 0 ? `<div class="alert-more-note">${t('dashboard.more_items').replace('{n}', extra)}</div>` : '');
             _bindAlertItemsHoldOpen(openedList);
         } else {
             openedSection.style.display = 'none';
         }
+
+        loadStaleDashboardItems();
         
     } catch (err) {
         console.error('Dashboard load error:', err);
@@ -6383,6 +6434,177 @@ function quickRecipeSuggestion() {
         document.getElementById('chat-input').value = t('chat.quick_recipe_prompt');
         sendChatMessage();
     }, 500);
+}
+
+/** Dashboard: top 3 stock items unused for a long time. */
+async function loadStaleDashboardItems() {
+    const section = document.getElementById('alert-stale');
+    const list = document.getElementById('stale-list');
+    if (!section || !list) return;
+    try {
+        const data = await api('stale_inventory_items', { limit: 3, min_days: 21 });
+        const items = data.items || [];
+        if (!items.length) {
+            section.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+        section.style.display = 'block';
+        list.innerHTML = items.map(item => {
+            const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
+            const days = item.days_unused != null ? item.days_unused : '—';
+            const unusedLabel = item.never_used
+                ? t('dashboard.stale_never_used')
+                : t('dashboard.stale_days').replace('{n}', String(days));
+            const openedBadge = item.is_opened
+                ? `<span class="alert-item-badge opened">${escapeHtml(t('dashboard.stale_opened'))}</span>`
+                : '';
+            const qty = stripHtml(formatQuantity(item.quantity, item.unit));
+            const pid = item.product_id;
+            const iid = item.inventory_id;
+            const loc = (item.location || 'dispensa').replace(/'/g, "\\'");
+            const nameEsc = escapeHtml(item.name);
+            return `<div class="alert-item stale-item">
+                <div class="alert-item-info">
+                    <span class="alert-item-name">${nameEsc}</span>
+                    ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                    <span class="alert-item-brand">${locInfo.icon} ${escapeHtml(locInfo.label)} · ${escapeHtml(qty)} · ${escapeHtml(unusedLabel)}</span>
+                </div>
+                <div class="alert-item-badges stale-actions">
+                    ${openedBadge}
+                    <button type="button" class="btn-banner btn-banner-ok" onclick='startRecipeFromProduct(${JSON.stringify(item.name)})'>${t('dashboard.stale_recipe')}</button>
+                    <button type="button" class="btn-banner btn-banner-use" onclick="quickUse(${pid}, '${loc}')">${t('dashboard.stale_use')}</button>
+                    <button type="button" class="btn-banner btn-banner-edit2" onclick="editInventoryItem(${iid})">${t('dashboard.stale_edit')}</button>
+                    <button type="button" class="btn-banner btn-banner-throw" onclick="quickThrowFromInv(${pid}, '${loc}', ${iid})">${t('dashboard.stale_throw')}</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        console.warn('[stale]', e);
+        section.style.display = 'none';
+    }
+}
+
+/** Shopping: in-season suggestions + out-of-season removals (free IT calendar). */
+async function loadSeasonalReview() {
+    const box = document.getElementById('seasonal-review');
+    if (!box) return;
+    try {
+        const payload = {
+            lang: _currentLang || 'it',
+            items: (shoppingItems || []).map(i => ({ name: i.name, raw_name: i.rawName || i.raw_name || i.name })),
+        };
+        const data = await api('seasonal_shopping_review', {}, 'POST', payload);
+        if (!data?.success) {
+            box.style.display = 'none';
+            return;
+        }
+        const out = data.out_of_season || [];
+        const add = data.suggest_add || [];
+        if (!out.length && !add.length && !data.tip) {
+            box.style.display = 'none';
+            return;
+        }
+        let html = `<div class="seasonal-review-head"><strong>🌿 ${escapeHtml(t('shopping.seasonal_title'))}</strong>`;
+        if (data.tip) html += `<span class="seasonal-review-tip">${escapeHtml(data.tip)}</span>`;
+        html += `</div>`;
+        if (out.length) {
+            html += `<div class="seasonal-block"><div class="seasonal-block-title">${escapeHtml(t('shopping.seasonal_out_title'))}</div>`;
+            html += out.map(o => {
+                const n = escapeHtml(o.name);
+                const raw = JSON.stringify(o.raw_name || o.name);
+                const nameJs = JSON.stringify(o.name);
+                return `<div class="seasonal-row">
+                    <span>${n}</span>
+                    <button type="button" class="btn-banner btn-banner-edit" onclick='removeSeasonalOutOfSeason(${nameJs}, ${raw})'>${t('shopping.seasonal_remove')}</button>
+                </div>`;
+            }).join('');
+            if (out.length > 1) {
+                html += `<button type="button" class="btn-banner btn-banner-throw seasonal-remove-all" onclick="removeAllSeasonalOutOfSeason()">${t('shopping.seasonal_remove_all')}</button>`;
+            }
+            html += `</div>`;
+            window._seasonalOutOfSeason = out;
+        } else {
+            window._seasonalOutOfSeason = [];
+        }
+        if (add.length) {
+            html += `<div class="seasonal-block"><div class="seasonal-block-title">${escapeHtml(t('shopping.seasonal_add_title'))}</div>`;
+            html += add.map(s => {
+                const n = escapeHtml(s.name);
+                const nameJs = JSON.stringify(s.name);
+                const badge = s.bought_before ? ` <em class="seasonal-bought">${escapeHtml(t('shopping.seasonal_bought_before'))}</em>` : '';
+                return `<div class="seasonal-row">
+                    <span>${n}${badge}</span>
+                    <button type="button" class="btn-banner btn-banner-ok" onclick='addSeasonalSuggestion(${nameJs})'>${t('shopping.seasonal_add')}</button>
+                </div>`;
+            }).join('');
+            html += `</div>`;
+        }
+        box.innerHTML = html;
+        box.style.display = 'block';
+    } catch (e) {
+        console.warn('[seasonal]', e);
+        box.style.display = 'none';
+    }
+}
+
+async function addSeasonalSuggestion(name) {
+    const n = String(name || '').trim();
+    if (!n) return;
+    try {
+        showLoading(true);
+        await api('shopping_add', {}, 'POST', {
+            items: [{ name: n, specification: '🌿 ' + t('shopping.seasonal_spec') }],
+            listUUID: shoppingListUUID,
+        });
+        showToast(t('toast.added_to_shopping') || t('shopping.seasonal_added_toast'), 'success');
+        await loadShoppingList();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function removeSeasonalOutOfSeason(name, rawName) {
+    try {
+        showLoading(true);
+        await api('shopping_remove', {}, 'POST', {
+            name,
+            rawName: rawName || name,
+            listUUID: shoppingListUUID,
+            purchased: false,
+        });
+        showToast(t('shopping.seasonal_removed_toast'), 'info');
+        await loadShoppingList();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function removeAllSeasonalOutOfSeason() {
+    const list = window._seasonalOutOfSeason || [];
+    if (!list.length) return;
+    if (!confirm(t('shopping.seasonal_remove_all_confirm'))) return;
+    try {
+        showLoading(true);
+        for (const o of list) {
+            await api('shopping_remove', {}, 'POST', {
+                name: o.name,
+                rawName: o.raw_name || o.name,
+                listUUID: shoppingListUUID,
+                purchased: false,
+            });
+        }
+        showToast(t('shopping.seasonal_removed_toast'), 'info');
+        await loadShoppingList();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // === SUSPICIOUS QUANTITY THRESHOLDS ===
@@ -7612,15 +7834,21 @@ function renderGroupedByCategory(items, compact = false) {
     let html = '';
     for (const cat of sortedCats) {
         const catItems = _sortOpenedFirst(catGroups[cat]);
-        const label = CATEGORY_LABELS[cat] || '📦 Altro';
-        html += `<div class="cat-group-header">${label} <span class="cat-group-count">${catItems.length}</span></div>`;
-        html += catItems.map(item => compact ? renderDashItem(item) : renderInventoryItem(item)).join('');
+        const label = categoryText(cat) || cat;
+        html += `<div class="cat-group-header"><span class="cat-group-icon">${CATEGORY_ICONS[cat] || '📦'}</span> ${escapeHtml(label)} <span class="cat-group-count">${catItems.length}</span></div>`;
+        // Rows under a category header: show photo or blank tile (no repeat food emoji)
+        html += catItems.map(item => compact ? renderDashItem(item, { hideCatIcon: true }) : renderInventoryItem(item, { hideCatIcon: true })).join('');
     }
     return html;
 }
 
-function renderDashItem(item) {
+function renderDashItem(item, opts = {}) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
+    const thumb = opts.hideCatIcon
+        ? (_validProductImageUrl(item.image_url)
+            ? _invImageHtml(item.image_url, '')
+            : '')
+        : _invImageHtml(item.image_url, catIcon);
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
@@ -7638,7 +7866,7 @@ function renderDashItem(item) {
     return `
     <div class="inventory-item compact-item" data-dash-inv-id="${item.id}" data-dash-product-id="${item.product_id}">
         <div class="inv-image">
-            ${_invImageHtml(item.image_url, catIcon)}
+            ${thumb}
         </div>
         <div class="inv-info">
             <div class="inv-name">${escapeHtml(item.name)}</div>
@@ -7923,11 +8151,11 @@ async function loadInventory() {
     }
 }
 
-function renderInventoryItem(item) {
+function renderInventoryItem(item, opts = {}) {
     const catKey = mapToLocalCategory(item.category, item.name);
     const catIcon = CATEGORY_ICONS[catKey] || '📦';
-    const catLabel = t('categories.' + catKey) || catKey;
-    const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${catIcon} ${catLabel}</span>`;
+    // Text only — image/icon on the left (or category header) already shows the food emoji once
+    const catBadge = `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
     const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
@@ -7950,13 +8178,16 @@ function renderInventoryItem(item) {
     const openedBadge = item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '';
     const isFav = !!Number(item.is_favorite);
     const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
+    const thumb = opts.hideCatIcon
+        ? (_validProductImageUrl(item.image_url) ? _invImageHtml(item.image_url, '') : '')
+        : _invImageHtml(item.image_url, catIcon);
     
     return `
     <div class="inventory-item${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
         <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content">
             <div class="inv-image">
-                ${_invImageHtml(item.image_url, catIcon)}
+                ${thumb}
             </div>
             <div class="inv-info">
                 <div class="inv-name">${escapeHtml(item.name)}</div>
@@ -8276,7 +8507,7 @@ function renderInventory(items, options = {}) {
             html += favs.map(item => renderInventoryItem(item)).join('');
         }
         if (openedRest.length) {
-            html += `<div class="inv-section-header inv-opened-section">📦 ${escapeHtml(t('inventory.opened_section'))}</div>`;
+            html += `<div class="inv-section-header inv-opened-section">${escapeHtml(t('inventory.opened_section'))}</div>`;
             html += openedRest.map(item => renderInventoryItem(item)).join('');
         }
         html += sealedRest.length ? renderGroupedByCategory(sealedRest, false) : '';
@@ -8402,7 +8633,7 @@ async function _refineCategoryBadgesAsync() {
             const cat = res.category;
             if (cat && cat !== 'altro') {
                 badge.dataset.cat = cat;
-                badge.textContent = (CATEGORY_ICONS[cat] || '📦') + ' ' + (t('categories.' + cat) || cat);
+                badge.textContent = categoryLabel(cat);
             }
         } catch (_) { /* network error — leave as 'altro' */ }
     }
@@ -9023,7 +9254,7 @@ function editInventoryItem(id, _retried) {
         </div>
         <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
             <div class="form-group">
-                <label>📦 ${t('inventory.label_quantity').replace('📦 ', '')}</label>
+                <label>${iconLabel('📦', 'inventory.label_quantity')}</label>
                 <div class="qty-control-with-unit">
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
@@ -11155,7 +11386,7 @@ function showProductAction() {
         } else {
             banner.innerHTML = `
             <div class="shopping-scan-target-info">
-                <span class="stb-label">🛒 ${t('shopping.scan_target_label')}</span>
+                <span class="stb-label">${iconLabel('🛒', 'shopping.scan_target_label')}</span>
                 <span class="stb-name">${escapeHtml(targetName)}</span>
             </div>
             <div class="shopping-scan-target-actions">
@@ -11868,11 +12099,13 @@ function recalculateAddExpiry() {
     if (dateEl) dateEl.textContent = formatDate(newDate);
 }
 
-const _EXPIRY_HISTORY_MIN_SAMPLES = 3;
+const _EXPIRY_HISTORY_MIN_SAMPLES = 1;
 
 async function _fetchExpiryHistoryAndUpdate(productId) {
     window._historyExpiryDays = null;
     window._historyExpiryCount = 0;
+    window._learnedAlertSooner = 0;
+    window._learnedAlertSoonerForId = productId;
     try {
         const res = await fetch(`api/index.php?action=expiry_history&product_id=${encodeURIComponent(productId)}`, {
             headers: { ...(typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {}) },
@@ -11880,6 +12113,7 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
         const data = await res.json();
         const minSamples = data.min_samples || _EXPIRY_HISTORY_MIN_SAMPLES;
         window._historyExpiryCount = data.count || 0;
+        window._learnedAlertSooner = parseInt(data.alert_days_sooner, 10) || 0;
         if (data.avg_days && data.avg_days > 0 && (data.count || 0) >= minSamples) {
             window._historyExpiryDays = data.avg_days;
             if (_aiProductHintController) {
@@ -11888,21 +12122,47 @@ async function _fetchExpiryHistoryAndUpdate(productId) {
             }
             document.getElementById('ai-hint-loading')?.remove();
             if (!_isExpiryManuallySet('add-expiry')) {
-                const loc = document.getElementById('add-location')?.value || '';
+                const locEl = document.getElementById('add-location');
+                if (data.preferred_location && locEl && !locEl.dataset.userPicked) {
+                    locEl.value = data.preferred_location;
+                    document.querySelectorAll('#page-add .loc-btn, #add-form .loc-btn').forEach(b => {
+                        b.classList.toggle('active', (b.dataset.loc || b.dataset.location) === data.preferred_location
+                            || b.textContent.toLowerCase().includes(data.preferred_location));
+                    });
+                }
                 const isVacuum = document.getElementById('add-vacuum-sealed')?.checked;
                 let days = isVacuum ? getVacuumExpiryDays(data.avg_days) : data.avg_days;
                 const newDate = addDays(days);
                 const newLabel = formatEstimatedExpiry(days);
-                const suffix = ` <span class="history-badge" title="${t('add.history_badge_tip').replace('{n}', String(data.count))}">${t('product.history_badge')}</span>`;
+                const learnedTip = t('add.history_badge_tip').replace('{n}', String(data.count));
+                const suffix = ` <span class="history-badge" title="${escapeHtml(learnedTip)}">${t('product.history_badge')}</span>`;
+                const soonerNote = (data.alert_days_sooner > 0)
+                    ? ` <span class="history-badge" title="${escapeHtml(t('add.learned_sooner_tip') || '')}">−${data.alert_days_sooner}d</span>`
+                    : '';
                 const expiryInput = document.getElementById('add-expiry');
                 const estimateEl = document.querySelector('.expiry-estimate-label');
                 const dateEl = document.querySelector('.expiry-estimate-date');
                 if (expiryInput) expiryInput.value = newDate;
-                if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}${suffix}</strong>`;
+                if (estimateEl) estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${newLabel}${suffix}${soonerNote}</strong>`;
                 if (dateEl) dateEl.textContent = formatDate(newDate);
             }
             window._addBaseExpiryDays = data.avg_days;
             return true;
+        }
+        // No shelf samples yet, but waste penalty → shorten rule-based estimate
+        if (window._learnedAlertSooner > 0 && currentProduct && !_isExpiryManuallySet('add-expiry')) {
+            const loc = document.getElementById('add-location')?.value || '';
+            const days = estimateExpiryDays(currentProduct, loc);
+            const expiryInput = document.getElementById('add-expiry');
+            const estimateEl = document.querySelector('.expiry-estimate-label');
+            const dateEl = document.querySelector('.expiry-estimate-date');
+            if (expiryInput) expiryInput.value = addDays(days);
+            if (estimateEl) {
+                const soonerNote = ` <span class="history-badge" title="${escapeHtml(t('add.learned_sooner_tip') || '')}">−${window._learnedAlertSooner}d</span>`;
+                estimateEl.innerHTML = `${t('add.estimated_expiry')} <strong>${formatEstimatedExpiry(days)}${soonerNote}</strong>`;
+            }
+            if (dateEl) dateEl.textContent = formatDate(addDays(days));
+            window._addBaseExpiryDays = days;
         }
     } catch (e) {
         // silently fall back to rule-based estimate
@@ -12535,7 +12795,7 @@ function _updateUseHeroMeta(items) {
         const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
         const locCount = new Set(items.map(i => i.location)).size;
         const locSuffix = locCount > 1 ? ` · ${locCount} ${t('use.locations_short')}` : '';
-        pills.push(`<span class="use-meta-pill use-pill-qty">📦 ${escapeHtml(qtyStr)}${locSuffix}</span>`);
+        pills.push(`<span class="use-meta-pill use-pill-qty">${escapeHtml(qtyStr)}${locSuffix}</span>`);
     }
 
     metaEl.innerHTML = pills.join('');
@@ -14713,7 +14973,9 @@ function renderProductsList(products) {
         return;
     }
     container.innerHTML = products.map(p => {
-        const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category, p.name)] || '📦';
+        const catKey = mapToLocalCategory(p.category, p.name);
+        const catIcon = CATEGORY_ICONS[catKey] || '📦';
+        const catName = categoryText(catKey);
         return `
         <div class="product-item" data-product-id="${p.id}">
             <div class="inv-image">
@@ -14724,7 +14986,7 @@ function renderProductsList(products) {
                 ${p.brand ? `<div class="inv-brand">${escapeHtml(p.brand)}</div>` : ''}
                 <div class="inv-meta">
                     ${p.barcode ? `<span class="inv-badge" style="background:#f3f4f6;color:#374151">📊 ${p.barcode}</span>` : ''}
-                    <span class="inv-badge" style="background:#f3f4f6;color:#374151">${catIcon} ${p.category || t('common.uncategorized')}</span>
+                    <span class="inv-badge" style="background:#f3f4f6;color:#374151">${escapeHtml(catName)}</span>
                 </div>
             </div>
         </div>`;
@@ -16327,20 +16589,19 @@ function _shopRowVisualHtml(item, smartData) {
     const imageUrl = rows.find(r => r.image_url)?.image_url || smartData?.image_url || '';
     const cat = smartData?.category || rows[0]?.category || '';
     const catKey = mapToLocalCategory(cat, smartData?.shopping_name || item?.name || '');
-    const icon = CATEGORY_ICONS[catKey] || '🛒';
     const bg = imageUrl
         ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
         : `<div class="shop-row-visual-bg shop-row-visual-bg--cat cat-${catKey}"></div>`;
     const img = imageUrl
         ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
         : '';
-    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}<span class="shop-row-visual-icon">${icon}</span></div>`;
+    // Section header already shows the aisle icon — row visual is photo or tinted tile only
+    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
 }
 
 function _shopRowVisualHtmlFromSmart(item) {
     const name = item.shopping_name || item.name;
     const catKey = mapToLocalCategory(item.category || '', name);
-    const icon = CATEGORY_ICONS[catKey] || '🛒';
     const imageUrl = item.image_url || '';
     const bg = imageUrl
         ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
@@ -16348,7 +16609,7 @@ function _shopRowVisualHtmlFromSmart(item) {
     const img = imageUrl
         ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
         : '';
-    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}<span class="shop-row-visual-icon">${icon}</span></div>`;
+    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
 }
 
 function _renderShoppingPlanDaysBar() {
@@ -16501,7 +16762,6 @@ function renderSmartItem(item) {
         low:      { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  icon: '🟢', label: t('shopping.urgency_low') },
     };
     const u = urgencyConfig[item.urgency] || urgencyConfig.low;
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     const globalIdx = smartShoppingItems.indexOf(item);
 
     // Generic vs specific name logic
@@ -16565,7 +16825,7 @@ function renderSmartItem(item) {
         <div class="smart-item" style="border-left: 3px solid ${u.color}; background: ${u.bg}">
             <div class="smart-item-top">
                 ${!item.on_bring ? `<input type="checkbox" class="smart-check" data-idx="${globalIdx}">` : ''}
-                <span class="smart-item-icon">${catIcon}</span>
+                <span class="smart-item-icon" aria-hidden="true">${u.icon}</span>
                 <div class="smart-item-info">
                     ${nameLine}
                     ${specificLine}
@@ -16908,6 +17168,7 @@ async function loadShoppingList() {
         _syncTagsFromBringSpec();
         renderShoppingItems();
         currentEl.style.display = 'block';
+        loadSeasonalReview();
         
         // Load smart shopping predictions, then re-render once with qty/urgency
         loadSmartShopping().then(() => {
@@ -19483,7 +19744,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             <div style="padding:0 16px 16px">
                 <p style="margin-bottom:4px;font-weight:600">${escapeHtml(items[0].name)}</p>
                 ${recipeQty ? `<p style="margin-bottom:8px;background:var(--bg-elevated,rgba(124,58,237,0.12));border-left:3px solid var(--color-accent,#7c3aed);border-radius:6px;padding:6px 10px;font-size:0.9rem">📋 ${t('recipes.recipe_qty_label')}: <strong>${escapeHtml(recipeQty)}</strong></p>` : ''}
-                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">📦 ${availInfo}</p>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">${availInfo}</p>
                 ${scaleLiveSection}
                 <div class="form-group">
                     <label>📍 ${t('recipes.from_where_label')}</label>
@@ -20129,11 +20390,13 @@ async function renderRecipe(r) {
     html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
         if (ing.from_pantry && ing.product_id) {
-            const loc = (ing.location || 'dispensa').replace(/'/g, "\\'");
+            const loc = ing.location || 'dispensa';
+            const locJs = String(loc).replace(/'/g, "\\'");
             const alreadyUsed = ing.used === true;
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
-            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
-            html += `<span class="recipe-ing-text"><strong class="recipe-ing-name" onclick="openIngredientUse(${ing.product_id}, '${loc}')" title="${escapeHtml(t('cooking.ingredient_open_use'))}" role="button" tabindex="0">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeHtml(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            html += `<span class="recipe-ing-text recipe-ing-open-use" title="${escapeHtml(t('cooking.ingredient_open_use'))}" role="button" tabindex="0">`;
+            html += `<strong class="recipe-ing-name">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -20157,7 +20420,7 @@ async function renderRecipe(r) {
             if (alreadyUsed) {
                 html += `<button class="btn-use-ingredient btn-used" disabled>${t('cooking.ingredient_used')}</button>`;
             } else {
-                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${loc}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="${t('cooking.ingredient_deduct_title')}">${t('cooking.ingredient_use_btn')}</button>`;
+                html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${locJs}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="${t('cooking.ingredient_deduct_title')}">${t('cooking.ingredient_use_btn')}</button>`;
             }
             html += `</li>`;
         }
@@ -20235,7 +20498,7 @@ async function renderRecipe(r) {
             ? t('recipes.storage_days').replace('{n}', s.days)
             : t('recipes.storage_immediately');
         html += `<div class="recipe-storage-card">
-            <h4 class="recipe-section-heading">📦 ${t('recipes.storage_title')}</h4>
+            <h4 class="recipe-section-heading">${iconLabel('📦', 'recipes.storage_title')}</h4>
             <div class="recipe-storage-row">
                 ${s.where ? `<span class="recipe-storage-badge">${escapeHtml(s.where)}</span>` : ''}
                 ${s.days > 0 ? `<span class="recipe-storage-badge recipe-storage-days">${escapeHtml(daysLabel)}</span>` : `<span class="recipe-storage-badge recipe-storage-now">${escapeHtml(daysLabel)}</span>`}
@@ -20250,10 +20513,32 @@ async function renderRecipe(r) {
     }
 
     document.getElementById('recipe-content').innerHTML = html;
+    _bindRecipeIngredientOpens();
 
     if (shopMode === 'auto' && shopSug.length > 0) {
         addRecipeShoppingSuggestions();
     }
+}
+
+/** Bind pantry ingredient rows → Use panel (chat + generated recipes). */
+function _bindRecipeIngredientOpens() {
+    document.querySelectorAll('#recipe-content .recipe-ingredient[data-product-id]').forEach(li => {
+        const hit = li.querySelector('.recipe-ing-open-use');
+        if (!hit || hit._useBound) return;
+        hit._useBound = true;
+        const open = (e) => {
+            if (e.target.closest('.btn-use-ingredient')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const pid = parseInt(li.dataset.productId, 10);
+            const loc = li.dataset.location || 'dispensa';
+            if (!isNaN(pid)) openIngredientUse(pid, loc);
+        };
+        hit.addEventListener('click', open);
+        hit.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') open(e);
+        });
+    });
 }
 
 // ===== COOKING MODE =====
@@ -22406,8 +22691,9 @@ async function openIngredientUse(productId, location) {
     const overlay = document.getElementById('recipe-overlay');
     if (overlay) overlay.style.display = 'none';
     try {
-        await quickUse(productId, loc);
+        await quickUse(parseInt(productId, 10), loc);
     } catch (e) {
+        console.error('[openIngredientUse]', e);
         showToast(t('error.connection'), 'error');
     }
 }
@@ -23309,7 +23595,7 @@ function _renderScreensaverNutrition() {
                 <div class="ss-pie3d" id="ss-pie-main" style="--pie-bg:${gradient}"></div>
                 <div class="ss-nutr-chart-label">${t('nutrition.products_n').replace('{n}', total)}</div>
                 <div class="ss-nutr-legend">
-                    ${top4.map(s => `<div class="ss-leg-row"><span style="background:${s.color}" class="ss-leg-dot"></span><span>${s.icon} ${t('categories.' + s.cat) || s.cat}</span><span class="ss-leg-pct">${s.pct}%</span></div>`).join('')}
+                    ${top4.map(s => `<div class="ss-leg-row"><span style="background:${s.color}" class="ss-leg-dot"></span><span>${s.icon} ${escapeHtml(categoryText(s.cat))}</span><span class="ss-leg-pct">${s.pct}%</span></div>`).join('')}
                 </div>
             </div>
             <!-- Score donuts -->
@@ -23551,8 +23837,7 @@ function generateScreensaverFact() {
             const sorted = catEntries.sort((a, b) => b[1].length - a[1].length);
             const top = sorted[0];
             const catLabel = top[0];
-            const icon = CATEGORY_ICONS[catLabel] || '📦';
-            return t('facts.top_category').replace('{icon}', icon).replace('{cat}', t('categories.' + catLabel) || catLabel).replace('{n}', top[1].length);
+            return t('facts.top_category').replace('{icon}', '').replace('{cat}', categoryLabel(catLabel)).replace('{n}', top[1].length).replace(/\s+/g, ' ').trim();
         });
         if (byCategory['carne'] && byCategory['carne'].length > 0) {
             facts.push(() => t('facts.cat_meat').replace('{n}', byCategory['carne'].length));
