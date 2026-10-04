@@ -188,6 +188,8 @@ function initializeDB(PDO $db): void {
         CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
         CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id);
         CREATE INDEX IF NOT EXISTS idx_inventory_location ON inventory(location);
+        -- Dashboard/expiry views: WHERE expiry_date <= ... / ORDER BY expiry_date
+        CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON inventory(expiry_date);
         CREATE INDEX IF NOT EXISTS idx_transactions_product ON transactions(product_id);
         CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at);
         -- Composite indexes for hot queries
@@ -363,6 +365,7 @@ function migrateDB(PDO $db): void {
     // Ensure composite indexes exist (added in v1.7.5 for performance)
     $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, created_at)");
     $db->exec("CREATE INDEX IF NOT EXISTS idx_transactions_pid_type_undone ON transactions(product_id, type, undone)");
+    $db->exec("CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON inventory(expiry_date)");
 
     // Internal shopping list table (v1.8.0) — used when SHOPPING_MODE=internal
     $shopTables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='shopping_list'")->fetchAll();

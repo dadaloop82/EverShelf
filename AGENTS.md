@@ -46,10 +46,17 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   check. New action → add it to the relevant allow-lists in
   `api/lib/security.php` (`evershelfPublicActions`, `evershelfMutatingGetActions`,
   `evershelfDemoReadOnlyActions`, …) only when intended.
-- **Versioning**: bump version in **4 places** together: `index.html`
-  (`.header-version` + preloader), `manifest.json`, `sw.js` cache name, and add a
-  `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the version
-  from `index.html`.
+- **Versioning**: bump version in **4 places** together with `scripts/bump-version.sh`
+  (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token),
+  and add a `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the
+  version from `index.html`.
+- **i18n**: never hardcode user-facing strings. Use `t('key')` (JS) /
+  `data-i18n*` (HTML) and add the key to **all** locales (it/en/de/fr/es/zh).
+  `scripts/i18n-audit.py` (run in CI) fails on used-but-missing keys; give `tl()`
+  fallbacks in English. Optional UI strings from PHP should return a `hint_key`
+  (+ `hint_args`), not a literal.
+- **Secrets**: never commit keystores, `.env`, or signing passwords. Android
+  builds read `keystore.properties`/env; CI reads GitHub Secrets (see `SECURITY.md`).
 - **Commits**: Conventional-ish prefixes seen in history: `feat:`, `fix:`,
   `release:`, `merge:`. Work on **`develop`**; CI auto-merges `develop → main`.
 - **Assets cache-busting**: when you edit `app.js`/`style.css`, bump the `?v=`
@@ -66,6 +73,12 @@ node -c assets/js/app.js
 
 # Translation files must be valid JSON and key-complete vs it.json
 python3 -c "import json; json.load(open('translations/it.json'))"
+
+# i18n audit: keys used in code must exist in every locale (exits 1 on gaps)
+python3 scripts/i18n-audit.py
+
+# Bump the version in the 4 touchpoints at once (+ cache-busting stamp)
+scripts/bump-version.sh 1.9.0
 
 # Regenerate the cheap code indexes (do this after big edits)
 bash scripts/gen-code-index.sh
