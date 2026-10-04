@@ -7,6 +7,14 @@
  *   GH_ISSUE_TOKEN_ENC=... + GH_ISSUE_TOKEN_KEY=...  (AES-256-GCM, preferred)
  *
  * Generate encrypted value: php scripts/encrypt-gh-token.php 'ghp_xxx' 'your-secret-key'
+ *
+ * SECURITY NOTE — key derivation: the 256-bit AES key is `sha256(GH_ISSUE_TOKEN_KEY)`
+ * with **no salt and no key stretching**, and the key is stored in the same `.env`
+ * as the ciphertext. Encryption therefore only "hides" the token from accidental
+ * disclosure (screen sharing, log dumps, backups of one file); it does NOT protect
+ * against anyone who can read `.env`. That is acceptable for a self-hosted LAN tool,
+ * but it is not equivalent to a real secret manager: keep `.env` at mode 600 and
+ * outside your repository, and rotate the token if `.env` ever leaks.
  */
 
 require_once __DIR__ . '/env.php';

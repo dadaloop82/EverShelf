@@ -16998,11 +16998,39 @@ function _syncTagsFromBringSpec() {
  * - ml ≥ 1000 → l ("2 l")
  * Returns null if qty is null/zero (badge should be hidden).
  */
+/**
+ * Translate a smart-shopping reason.
+ *
+ * The API sends stable codes ("near_empty:15", "ends_in:3", "minimal_stock:500g")
+ * so nothing user-visible has to be translated server-side. Unknown/legacy
+ * strings (e.g. older cached payloads) are returned verbatim.
+ */
 function _localizeSmartReason(reason) {
     const r = String(reason || '');
-    const m = r.match(/^anti_waste_shelf:(\d+)$/);
-    if (m) {
-        return t('shopping.anti_waste_shelf').replace('{days}', m[1]);
+    const sep = r.indexOf(':');
+    const code = sep === -1 ? r : r.slice(0, sep);
+    const args = sep === -1 ? '' : r.slice(sep + 1).split(':');
+    const tr = (key, fallback) => (typeof t === 'function' ? t(key) : fallback);
+    switch (code) {
+        case 'anti_waste_shelf':   return tr('shopping.anti_waste_shelf', 'Anti-waste: finishable in ~{days}d').replace('{days}', args[0] || '');
+        case 'out_of_stock':       return tr('shopping.reason_out_of_stock', 'Out of stock');
+        case 'frequent_use':       return tr('shopping.reason_frequent_use', 'Used often (~{n}/month)').replace('{n}', args[0] || '');
+        case 'near_empty':         return tr('shopping.reason_near_empty', 'Almost finished ({pct}%)').replace('{pct}', args[0] || '');
+        case 'ends_in':            return tr('shopping.reason_ends_in', 'Runs out in ~{days}d').replace('{days}', args[0] || '');
+        case 'ends_in_cycle':      return tr('shopping.reason_ends_in_cycle', 'Runs out in ~{days}d (avg cycle {cycle}d)')
+                                          .replace('{days}', args[0] || '').replace('{cycle}', args[1] || '');
+        case 'low_stock':          return tr('shopping.reason_low_stock', 'Low stock ({pct}%)').replace('{pct}', args[0] || '');
+        case 'expired':            return tr('shopping.reason_expired', 'Expired!');
+        case 'expires_in':         return tr('shopping.reason_expires_in', 'Expires in {days}d').replace('{days}', args[0] || '');
+        case 'expires_rebuy':      return tr('shopping.reason_expires_rebuy', 'Expires in {days}d — rebuy').replace('{days}', args[0] || '');
+        case 'stock_insufficient': return tr('shopping.reason_stock_insufficient', 'Used often — not enough for {days}d').replace('{days}', args[0] || '');
+        case 'opened_soon':        return tr('shopping.reason_opened_soon', 'Opened, runs out soon');
+        case 'only_one_pack':      return tr('shopping.reason_only_one_pack', 'Only 1 pack left');
+        case 'only_two_packs':     return tr('shopping.reason_only_two_packs', 'Only 2 packs left');
+        case 'only_one_piece':     return tr('shopping.reason_only_one_piece', 'Only 1 piece left');
+        case 'only_two_pieces':    return tr('shopping.reason_only_two_pieces', 'Only 2 pieces left');
+        case 'minimal_stock':      return tr('shopping.reason_minimal_stock', 'Minimal stock ({qty})').replace('{qty}', args[0] || '');
+        case 'past_waste':         return tr('shopping.reason_past_waste', 'Past waste: store in {loc}').replace('{loc}', args.join(':'));
     }
     return r;
 }

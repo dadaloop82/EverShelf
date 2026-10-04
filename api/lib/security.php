@@ -102,17 +102,6 @@ function evershelfActionNeedsAuth(string $action, string $method): bool {
     return true;
 }
 
-/** Mealie setup from the EverShelf UI — allow same-origin browser without manual token copy. */
-function evershelfSameOriginSetupActions(): array {
-    return [
-        'mealie_discover',
-        'mealie_install',
-        'mealie_configure',
-        'mealie_setup_status',
-        'mealie_sync',
-    ];
-}
-
 /** Health Bridge phone gateway may auth health_ingest with X-Health-Token. */
 function evershelfHealthIngestActions(): array {
     return ['health_ingest'];
@@ -135,9 +124,9 @@ function evershelfRequireApiAuth(string $action, string $method): void {
     if (evershelfApiTokenValid()) {
         return;
     }
-    if (in_array($action, evershelfSameOriginSetupActions(), true) && evershelfIsSameOriginBrowser()) {
-        return;
-    }
+    // NOTE: no same-origin bypass for setup actions — `mealie_install` /
+    // `mealie_configure` run docker and rewrite .env, and the headers used to
+    // detect "same-origin" are attacker-controlled.
     // Optional Health Bridge token (phone gateway) for ingest only
     if (in_array($action, evershelfHealthIngestActions(), true)) {
         $ht = evershelfProvidedHealthToken();
@@ -166,6 +155,30 @@ function evershelfRequireAuthForSensitive(string $action): void {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'error' => 'unauthorized', 'api_token_required' => true]);
     exit;
+}
+
+/**
+ * Baseline security headers for responses produced by PHP.
+ *
+ * The Apache config (.htaccess) sets the same headers for static files; these cover
+ * deployments that answer PHP directly (php -S, another SAPI, or a proxy that strips
+ * the web-server headers). A full CSP is not possible yet (inline handlers).
+ */
+function evershelfSendSecurityHeaders(): void {
+    if (headers_sent()) {
+        return;
+    }
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: same-origin');
+    header('Permissions-Policy: camera=(self), microphone=(self), geolocation=()');
+    header('Cross-Origin-Opener-Policy: same-origin');
+    // Only advertise HSTS when the request really arrived over TLS.
+    $https = ($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string)$_SERVER['HTTPS']) !== 'off';
+    $proto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+    if ($https || $proto === 'https') {
+        header('Strict-Transport-Security: max-age=31536000');
+    }
 }
 
 function evershelfSendCorsHeaders(): void {
@@ -359,8 +372,11 @@ function evershelfLocalLanIp(): string {
 }
 
 /**
- * True when the request comes from the EverShelf web UI on the same host.
- * Used to auto-provision API_TOKEN to the browser without manual .env copy.
+ * True when the request looks like it comes from the EverShelf web UI on the same host.
+ *
+ * SECURITY: the underlying headers (`Origin`, `Referer`, `Sec-Fetch-Site`) are
+ * client-controlled and can be forged by any HTTP client, so this must never gate
+ * authentication or authorisation decisions. It is kept only for informational use.
  */
 function evershelfIsSameOriginBrowser(): bool {
     $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
@@ -388,15 +404,75 @@ function evershelfIsSameOriginBrowser(): bool {
     return false;
 }
 
-/** Auth for scale endpoints — EventSource cannot send headers; allow query token or same-origin UI. */
+/** Trusted reverse proxies (IP or CIDR), from the comma-separated TRUSTED_PROXIES. */
+function evershelfTrustedProxies(): array {
+    static $list = null;
+    if ($list !== null) {
+        return $list;
+    }
+    $list = array_values(array_filter(array_map('trim', explode(',', env('TRUSTED_PROXIES', '')))));
+    return $list;
+}
+
+function evershelfIpMatches(string $ip, string $entry): bool {
+    if ($entry === $ip) {
+        return true;
+    }
+    if (!str_contains($entry, '/')) {
+        return false;
+    }
+    [$net, $bits] = array_pad(explode('/', $entry, 2), 2, '32');
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+        || !filter_var($net, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+    $bits = max(0, min(32, (int)$bits));
+    $mask = $bits === 0 ? 0 : (-1 << (32 - $bits));
+    return ((int)ip2long($ip) & $mask) === ((int)ip2long($net) & $mask);
+}
+
+/** True when an IP belongs to the configured trusted-proxy list. */
+function evershelfIpIsTrusted(string $ip): bool {
+    foreach (evershelfTrustedProxies() as $entry) {
+        if (evershelfIpMatches($ip, $entry)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Effective client IP for rate limiting.
+ *
+ * `X-Forwarded-For` is honoured only when the direct peer is a trusted proxy
+ * (TRUSTED_PROXIES), walking the chain from right to left. Without a configured
+ * proxy list the peer address wins, so a client can never pick its own bucket.
+ */
+function evershelfClientIp(): string {
+    $peer = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+    if (!evershelfIpIsTrusted($peer)) {
+        return $peer;
+    }
+    $parts = array_map('trim', explode(',', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')));
+    for ($i = count($parts) - 1; $i >= 0; $i--) {
+        $candidate = $parts[$i];
+        if (filter_var($candidate, FILTER_VALIDATE_IP) && !evershelfIpIsTrusted($candidate)) {
+            return $candidate;
+        }
+    }
+    return $peer;
+}
+
+/**
+ * Auth for scale endpoints. EventSource cannot send headers, so the UI passes the
+ * token in the query string (`_scaleAuthQuery()`); there is intentionally no
+ * same-origin bypass because those headers are client-controlled.
+ */
 function evershelfRequireScaleAccess(): void {
     if (!evershelfApiTokenRequired()) {
         return;
     }
     if (evershelfApiTokenValid()) {
-        return;
-    }
-    if (evershelfIsSameOriginBrowser()) {
         return;
     }
     http_response_code(401);

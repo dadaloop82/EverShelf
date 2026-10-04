@@ -3,18 +3,20 @@
 > Deep, factual map of the repository to work without re-reading the monoliths.
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
+>
+> Counts below were measured at commit `8a56006` (2026-10-04) and are rounded.
 
 ## 1. Top-level layout
 
 | Path | What it is | Size / notes |
 |---|---|---|
 | `index.html` | SPA shell, all pages as `<section>` + modals | ~2.3k lines |
-| `assets/js/app.js` | **Entire frontend logic** (single file) | ~25.6k lines, 913 fns |
+| `assets/js/app.js` | **Entire frontend logic** (single file) | ~25.7k lines, 914 fns |
 | `assets/js/core/auth.js` | API token helpers (`getApiToken`, `apiAuthHeaders`) | loaded before app.js |
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
 | `assets/css/style.css` | All styles | ~10.4k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
-| `api/index.php` | **Entire backend**: router + all handlers | ~19.5k lines, 410 fns |
+| `api/index.php` | **Entire backend**: router + all handlers | ~19.4k lines, 406 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |
 | `api/logger.php` | `EverLog` rotating file logger + `LoggingPDO` | |
@@ -27,7 +29,7 @@
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |
 | `evershelf-kiosk/`, `evershelf-health-bridge/` | Android apps (Kotlin/Gradle) | |
 | `docs/`, `docs/wiki/` | Documentation | |
-| `.github/workflows/` | CI: lint, docker build, i18n check, auto-merge, release | |
+| `.github/workflows/` | CI: lint (PHP/JS/shell), PHP regression tests, docker build, i18n audit, auto-merge, release | |
 
 ## 2. Request lifecycle (backend)
 
@@ -58,15 +60,17 @@
 
 | File | Responsibility | Key entry points |
 |---|---|---|
-| `env.php` | `.env` loader + DB-stored overrides | `env()`, `loadEnv()`, `saveEnvOverrides()`, `clearEnvOverrides()` |
+| `env.php` | `.env` loader + DB-stored overrides; bridges `.env` into `getenv()`/`$_ENV` | `env()`, `loadEnv()`, `evershelfWriteEnvFile()`, `saveEnvOverrides()` |
 | `constants.php` | Paths + **Gemini pricing** constants | `EVERSHELF_ROOT`, `*_CACHE_PATH`, `GEMINI_COST_*` |
-| `security.php` | Auth, CORS, demo mode, SSRF allowlists | `evershelfRequireApiAuth()`, `evershelfSendCorsHeaders()`, `evershelfScaleHostAllowed()` |
+| `security.php` | Auth, CORS, security headers, demo mode, SSRF allowlists, client IP | `evershelfRequireApiAuth()`, `evershelfSendSecurityHeaders()`, `evershelfClientIp()`, `evershelfScaleHostAllowed()` |
+| `pairing.php` | One-time pairing code for `app_bootstrap` token disclosure | `evershelfPairingEnsure()`, `evershelfPairingConsume()` |
 | `github.php` | Encrypted GH Issues token helpers | used by `report_error`/`report_bug` |
 | `ai_provider.php` | Provider abstraction (gemini/openai/llama) | `aiProviderConfigured()`, chat/vision calls |
 | `mealie.php`, `mealie_setup.php` | Mealie recipe-manager integration | discover/install/configure/sync |
 | `health.php` | Health/Fuel mode + Health Bridge | ingest, profile, daily rollups |
 | `weather.php` | Weather fetch + geocode | `weather_get`, `weather_geocode` |
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
+| `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
 | `seasonal.php` | **IT produce calendar** + stale-stock | `seasonalReviewShopping()`, `staleInventoryItems()` |
 | `cron_log.php` | Rotates `data/cron.log` | |
 
@@ -171,15 +175,22 @@ Groups:
 
 ## 10. CI/CD (`.github/workflows`)
 
-- `ci.yml`: PHP lint, `node -c`, Docker build smoke test, translations check,
-  then **auto-merge develop → main** and **create GH Release** using the version
-  in `index.html`.
+- `ci.yml`: PHP lint (all files), JS/ESM syntax check (all files), `shellcheck`
+  on the shell scripts, the **PHP regression suite** (`scripts/test-*.php`),
+  Docker build smoke test, `scripts/i18n-audit.py` (flattened key parity), then
+  **auto-merge develop → main** and **create GH Release** using the version in
+  `index.html`.
 - `build-kiosk.yml`, `build-health-bridge.yml`, `build-scale-gateway.yml`,
   `publish-docker.yml`, `security.yml`, dependabot.
 
 ## 11. Structural debt
 
 - `api/index.php` and `assets/js/app.js` are monoliths; `docs/ARCHITECTURE.md`
-  lists a planned split (`api/handlers/*`, `assets/js/features/*`).
-- Android keystores + signed APKs committed in-tree (see review §Security).
+  lists a planned split (`api/handlers/*`, `assets/js/features/*`). The router
+  body still sits inside `if (!defined('CRON_MODE'))`, which confuses naive
+  tooling (it reports `checkRateLimit()` as a 1300-line function).
+- No static analysis configured yet (`phpstan.neon` / ESLint): both need a
+  baseline pass before they can be enforced in CI.
+- `ca.crt` at the repo root is a local, untracked public CA certificate offered
+  for download in settings (never commit the private key).
 

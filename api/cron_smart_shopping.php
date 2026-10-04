@@ -37,7 +37,7 @@ try {
     $decoded['cached_at'] = date('c');
     $decoded['cached_ts'] = time();
 
-    if (file_put_contents(CACHE_FILE, json_encode($decoded, JSON_UNESCAPED_UNICODE)) === false) {
+    if (file_put_contents(CACHE_FILE, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
         throw new RuntimeException('Cannot write cache file: ' . CACHE_FILE);
     }
 
@@ -275,7 +275,7 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
             }
 
             // Mark as done for today
-            file_put_contents($haFlagFile, json_encode(['ts' => time(), 'expiring' => count($expiringItems ?? []), 'expired' => count($expiredItems ?? [])]));
+            file_put_contents($haFlagFile, json_encode(['ts' => time(), 'expiring' => count($expiringItems ?? []), 'expired' => count($expiredItems ?? [])]), LOCK_EX);
             // Clean up old flag files (keep last 7 days)
             foreach (glob(__DIR__ . '/../data/ha_expiry_notified_*.json') as $oldFlag) {
                 $flagDate = str_replace([__DIR__ . '/../data/ha_expiry_notified_', '.json'], '', $oldFlag);
@@ -298,7 +298,7 @@ if (function_exists('shell_exec')) {
             $template = __DIR__ . '/../docker/avahi-evershelf.xml';
             if (file_exists($template)) {
                 $xml = file_get_contents($template);
-                @file_put_contents($avahiService, $xml);
+                @file_put_contents($avahiService, $xml, LOCK_EX);
                 echo '[' . date('Y-m-d H:i:s') . '] Avahi mDNS service registered at ' . $avahiService . "\n";
             }
         }

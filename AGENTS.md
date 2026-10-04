@@ -27,9 +27,9 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 
 - **All** HTTP actions are dispatched by one `switch ($action)` in
   `api/index.php` (line **847**). See `docs/INDEX-actions.md` for action → handler.
-- Frontend is one file `assets/js/app.js` (~25.6k lines, 913 top-level functions).
+- Frontend is one file `assets/js/app.js` (~25.7k lines, 914 top-level functions).
   See `docs/INDEX-app-js.md` for function → line.
-- Backend is one file `api/index.php` (~19.5k lines, 410 functions).
+- Backend is one file `api/index.php` (~19.4k lines, 406 functions).
   See `docs/INDEX-api-index.md`.
 
 ## Golden rules (conventions already in the codebase)
@@ -46,6 +46,9 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   check. New action → add it to the relevant allow-lists in
   `api/lib/security.php` (`evershelfPublicActions`, `evershelfMutatingGetActions`,
   `evershelfDemoReadOnlyActions`, …) only when intended.
+  **Never authorise on client-supplied headers** (`Origin`, `Referer`,
+  `Sec-Fetch-Site` are forgeable). `app_bootstrap` only hands out `API_TOKEN` after
+  the one-time pairing code (`api/lib/pairing.php`) is presented; see `SECURITY.md`.
 - **Versioning**: bump version in **4 places** together with `scripts/bump-version.sh`
   (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token),
   and add a `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the
@@ -68,14 +71,25 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 # PHP syntax check (same as CI)
 find api -name '*.php' -exec php -l {} \;
 
-# JS syntax check (same as CI)
-node -c assets/js/app.js
+# JS syntax check (same as CI; mcp-server is ESM → --check, not -c)
+node -c assets/js/app.js && node -c sw.js
+for f in mcp-server/src/*.js; do node --check "$f"; done
 
-# Translation files must be valid JSON and key-complete vs it.json
+# PHP regression tests (same as CI)
+php scripts/test-shopping-guards.php
+php scripts/test-internal-shopping-cleanup.php
+
+# Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
 
 # i18n audit: keys used in code must exist in every locale (exits 1 on gaps)
 python3 scripts/i18n-audit.py
+
+# i18n value audit: keys whose value is still English (report; --strict to fail)
+python3 scripts/i18n-value-audit.py
+
+# Shell scripts (same as CI)
+shellcheck -S warning backup.sh scripts/*.sh
 
 # Bump the version in the 4 touchpoints at once (+ cache-busting stamp)
 scripts/bump-version.sh 1.9.0
@@ -99,7 +113,8 @@ npm run build
 | Config / `.env` read+write | `api/lib/env.php`, `saveSettings()` (~8082) |
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
-| Shopping logic | `smartShopping()` (~15989), `shopping_guards.php`, `bring_*` fns |
+| Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
+| `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
 | Health / Fuel mode | `api/lib/health.php` |
 | Frontend API wrapper | `api()` in `assets/js/app.js` line **5073** |

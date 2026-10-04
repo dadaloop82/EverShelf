@@ -11,12 +11,7 @@
 require_once __DIR__ . '/lib/env.php';
 require_once __DIR__ . '/lib/security.php';
 
-if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(401);
-    echo json_encode(['error' => 'unauthorized', 'api_token_required' => true]);
-    exit;
-}
+evershelfRequireScaleAccess();
 
 // ── Input validation ──────────────────────────────────────────────────────────
 $rawUrl = $_GET['url'] ?? '';

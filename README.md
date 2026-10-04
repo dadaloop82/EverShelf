@@ -60,6 +60,15 @@ GEMINI_API_KEY=your_key
 
 **Optional:** `API_TOKEN`, `SHOPPING_MODE=bring`, cron every 5 min on `api/cron_smart_shopping.php`
 
+**Behind a reverse proxy:** set `TRUSTED_PROXIES` to the proxy IP(s)/CIDR so rate
+limiting sees real client IPs, and `EVERSHELF_CANONICAL_HOST` in the Apache vhost
+(`docker/apache-evershelf.conf`) to enable the forced-HTTPS redirect.
+
+**First run with `API_TOKEN` set:** the web UI asks for a one-time **pairing code**
+printed in the server log (`docker logs evershelf`, or `logs/evershelf_*.log`).
+The token is never handed to an anonymous request. On a fully trusted LAN you can
+opt out with `API_BOOTSTRAP_OPEN=true` (re-exposes the token — see SECURITY.md).
+
 → [Wiki: Installation](https://github.com/dadaloop82/EverShelf/wiki/Installation) · [Configuration](https://github.com/dadaloop82/EverShelf/wiki/Configuration)
 
 </details>

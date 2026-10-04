@@ -184,7 +184,7 @@ function weatherFetchCurrent(float $lat, float $lon, string $city = '', int $cac
     ];
 
     $out = ['ok' => true, 'weather' => $weather];
-    @file_put_contents($cacheFile, json_encode($out, JSON_UNESCAPED_UNICODE));
+    @file_put_contents($cacheFile, json_encode($out, JSON_UNESCAPED_UNICODE), LOCK_EX);
     return $out;
 }
 

@@ -9,11 +9,7 @@ require_once __DIR__ . '/lib/security.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-cache');
 
-if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
-    http_response_code(401);
-    echo json_encode(['ok' => false, 'error' => 'unauthorized', 'api_token_required' => true]);
-    exit;
-}
+evershelfRequireScaleAccess();
 
 $rawUrl = $_GET['url'] ?? '';
 

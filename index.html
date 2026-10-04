@@ -15,20 +15,30 @@
     <link rel="stylesheet" href="assets/css/corporate.css?v=20260709a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20261004a"></script>
-    <script src="assets/js/core/auth.js?v=20260603b"></script>
-    <!-- ZBar WASM — lazy on kiosk WebView (OOM); eager elsewhere -->
+    <script src="assets/js/core/auth.js?v=20261004b"></script>
+    <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
+         Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
     (function () {
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
-        document.write('<script src="assets/vendor/zbar/index.js?v=20260606a"><\/script>');
-        document.write('<script>if(window.zbarWasm&&zbarWasm.setModuleArgs){zbarWasm.setModuleArgs({locateFile:function(f){return"assets/vendor/zbar/"+f}});}<\/script>');
-        document.write('<script src="assets/vendor/zbar/polyfill.js?v=20260606a"><\/script>');
+        var s1 = document.createElement('script');
+        s1.src = 'assets/vendor/zbar/index.js?v=20260606a';
+        s1.async = false;
+        s1.onload = function () {
+            if (window.zbarWasm && zbarWasm.setModuleArgs) {
+                zbarWasm.setModuleArgs({ locateFile: function (f) { return 'assets/vendor/zbar/' + f; } });
+            }
+        };
+        document.head.appendChild(s1);
+        var s2 = document.createElement('script');
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20260606a';
+        s2.async = false;
+        document.head.appendChild(s2);
     })();
     </script>
-    <!-- QuaggaJS — legacy last-resort only -->
+    <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
     <script src="assets/vendor/quagga/quagga.min.js?v=20260603a"></script>
-    <script>if(typeof Quagga==='undefined'){document.write('<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"><\\/script>');}</script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.

@@ -10,11 +10,7 @@ header('Content-Type: application/json');
 header('Cache-Control: no-cache');
 evershelfSendCorsHeaders();
 
-if (evershelfApiTokenRequired() && !evershelfApiTokenValid() && !evershelfIsSameOriginBrowser()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'unauthorized', 'api_token_required' => true]);
-    exit;
-}
+evershelfRequireScaleAccess();
 
 // Simple rate limit: max 6 scans per minute per IP
 $rlDir = dirname(__DIR__) . '/data/rate_limits';

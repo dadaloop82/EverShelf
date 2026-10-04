@@ -191,23 +191,16 @@ function mealieWriteEnvKeys(array $updates): array {
     if (empty($updates)) {
         return ['success' => false, 'error' => 'nothing_to_write'];
     }
-    $envFile = EVERSHELF_ROOT . '/.env';
-    $vars = loadEnv();
-    foreach ($updates as $key => $val) {
-        $vars[(string)$key] = (string)$val;
-    }
-    $lines = [];
-    foreach ($vars as $key => $val) {
-        $lines[] = "{$key}={$val}";
-    }
-    $payload = implode("\n", $lines) . "\n";
-    $keys = array_keys($updates);
+    $envFile      = EVERSHELF_ROOT . '/.env';
+    $templateFile = EVERSHELF_ROOT . '/.env.example';
+    $keys         = array_map('strval', array_keys($updates));
 
-    if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
-        if (file_put_contents($envFile, $payload, LOCK_EX) !== false) {
-            clearEnvOverrides($keys);
-            return ['success' => true, 'stored' => 'env'];
-        }
+    // Single .env writer (api/lib/env.php): validates key names, strips CR/LF/NUL so a
+    // request value can never inject extra keys, and preserves comments/order.
+    $writable = is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)));
+    if ($writable && evershelfWriteEnvFile($envFile, $updates, $templateFile)) {
+        clearEnvOverrides($keys);
+        return ['success' => true, 'stored' => 'env'];
     }
 
     if (saveEnvOverrides($updates)) {
