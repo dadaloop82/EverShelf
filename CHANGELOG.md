@@ -11,6 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.9] - 2026-10-04
+
+Localisation hotfix: the strings a user reads but that never changed language —
+tooltips, input placeholders, `aria-label`s, a few status messages and the web
+app manifest.
+
+### Fixed
+- **HTML attributes hardcoded in Italian.** 24 `title`/`placeholder`/`aria-label`
+  values had no `data-i18n*` override (settings tabs, search/scan/price buttons,
+  Bring! and health fields, Google Drive code field, empty-list hints…), so they
+  stayed Italian in every locale.
+- **Placeholders that were already translated but never connected.** The Home
+  Assistant URL / token / media-player / notify-service inputs and the TTS
+  extra-fields box now use their existing keys, so a German user sees
+  `notify.mobile_app_mein_handy` instead of the Italian example.
+- **Nine strings injected by `app.js` had no key at all** and stayed in the
+  language they were written in: the backup load/error messages, the Bring!
+  rename status and its error tail, the TTS voice/beep statuses and the setup
+  wizard's AI Studio link.
+- The setup wizard no longer picks between `'configura dopo'` and
+  `'configure later'` with a hardcoded `_currentLang === 'it'` ternary.
+
+### Changed
+- Web app manifest: the declared icon was `image/svg+xml` for a PNG file with
+  `sizes: "any"`; both icons now declare their real pixel size, and the file
+  gains `lang` and a language-neutral description.
+- 16 new keys added to all six locales; asset/i18n stamp → `20261004g`.
+
+### Added
+- `scripts/i18n-audit.py` check `[3]`: it fails when a `title`, `placeholder` or
+  `aria-label` has no `data-i18n*` override and is not an explicitly
+  language-neutral technical example — the regression gate for the bug above.
+
 ## [1.8.8] - 2026-10-04
 
 Security and reliability pass over the whole stack: the API token is no longer
