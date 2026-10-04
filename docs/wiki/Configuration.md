@@ -208,10 +208,16 @@ Schema migrations run automatically whenever `database.php` is loaded — no man
 To back up the database:
 
 ```bash
-cp data/evershelf.db data/backups/evershelf-$(date +%Y%m%d).db
+sqlite3 data/evershelf.db ".backup 'data/backups/evershelf-$(date +%Y%m%d).db'"
 ```
 
-Or use the included `backup.sh`:
+Do not use a plain `cp` for this: the database runs in WAL mode, so the newest
+transactions may still be in `data/evershelf.db-wal` and would be missing from
+the copy. SQLite's `.backup` reads the database *through* the WAL and stays
+consistent even while EverShelf is writing.
+
+Or use the included `backup.sh`, which does exactly that (falling back to a PHP
+WAL checkpoint when the `sqlite3` CLI is not installed):
 
 ```bash
 ./backup.sh

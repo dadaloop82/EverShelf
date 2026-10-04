@@ -3,13 +3,18 @@
 # tokens and their caches. `COPY .` used to bake all of it into the image —
 # including data/mealie/docker-compose.yml, which holds the Mealie admin
 # password in clear text. Everything mutable is listed here.
+#
+# Pattern semantics worth remembering: a pattern without a slash matches only at
+# the context root, so `*.apk` and `__pycache__/` did nothing for nested files
+# and a 6.7 MB local APK and a .pyc still landed in the image. Anything that has
+# to match at any depth is written `**/…` below.
 data/*.db
 data/*.db-wal
 data/*.db-shm
 data/*.db.bak*
 data/backups/
 data/rate_limits/
-data/*.log
+data/*.log*
 data/*.crt
 data/*.pem
 data/mealie/
@@ -27,9 +32,28 @@ data/backup_last_ts.json
 data/audit_finished_missing.json
 data/reported_issue_fps.json
 
+# ─── Local artefacts and secrets (all gitignored, none needed at runtime) ────
+# These reached the image through the pattern trap described above.
+**/*.apk
+# signing keystores (evershelf-health-bridge/evershelf.jks)
+**/*.jks
+**/*.keystore
+**/keystore.properties
+# local certificates and keys (ca.crt at the repo root)
+**/*.crt
+**/*.pem
+**/*.key
+# python bytecode
+**/*.pyc
+**/__pycache__/
+# hand-made copies of logos and other assets (assets/img/logo/*_backup.png)
+**/*_backup.*
+# application logs: runtime data, not code (logs/evershelf_YYYY-MM-DD_HH.log)
+logs/*.log*
+
 # Shipped on purpose: the deny rules, the directory placeholder and the source
-# data of the seasonal feature. Re-included so a future, broader pattern cannot
-# silently drop them.
+# data of the seasonal feature. Re-included after every pattern above so a
+# broader rule cannot silently drop them.
 !data/.htaccess
 !data/.gitkeep
 !data/seasonal_produce_it.json
@@ -39,8 +63,6 @@ mcp-server/node_modules/
 evershelf-kiosk/
 screenshots/
 todo/
-__pycache__/
-*.apk
 
 # The MiniLM weights are gitignored: the Dockerfile fetches them itself, so the
 # published image and a locally built one finally contain the same files.
@@ -57,19 +79,22 @@ assets/vendor/transformers/Xenova/
 .git
 .gitignore
 
-# ─── Docs (not needed in container) ──────────────────────────────────────────
-README.md
-CHANGELOG.md
-CONTRIBUTING.md
-CODE_OF_CONDUCT.md
-SECURITY.md
-LICENSE
-TODO.md
+# ─── Docs and build files (not needed in the container) ──────────────────────
+# None of these are read at runtime, and serving them from the web root is free
+# information for a scanner: /Dockerfile, /CHANGELOG.md.
+# docker/ must stay in the context: the Dockerfile COPYs php-evershelf.ini and
+# apache-evershelf.conf from it.
+**/*.md
 docs/
-*.md
+LICENSE
+Dockerfile
+.dockerignore
+.github/
+.cursorignore
 
 # ─── IDE ─────────────────────────────────────────────────────────────────────
-.idea/
-.vscode/
-*.swp
-*.swo
+**/.idea/
+**/.vscode/
+**/*.swp
+**/*.swo
+

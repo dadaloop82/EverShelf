@@ -14,6 +14,12 @@ RewriteEngine On
     Require all denied
 </FilesMatch>
 
+# Build-time configuration. The app reads docker/avahi-evershelf.xml and the Mealie
+# compose template from disk, so the directory has to stay in the tree, but nothing
+# in it is meant for the web: /docker/php-evershelf.ini and
+# /docker/apache-evershelf.conf describe the server setup for free otherwise.
+RewriteRule ^docker/ - [F,L]
+
 # ── Security headers ────────────────────────────────────────────────────────
 # A full CSP is not possible yet (inline handlers, shipped third-party bundles),
 # but these are free and close framing / MIME-sniffing / referrer leaks.

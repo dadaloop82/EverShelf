@@ -23,10 +23,35 @@ how the backup copies the database, and the API surface around write actions.
   `data/mealie/docker-compose.yml`, which holds the Mealie admin password in
   clear text. Everything mutable under `data/` is excluded now, while the three
   tracked files the app ships (`data/.htaccess`, `data/.gitkeep`,
-  `data/seasonal_produce_it.json`) are re-included explicitly. The build context
-  drops from ~114 MB to ~41 MB — `mcp-server/node_modules/`, `evershelf-kiosk/`,
-  `screenshots/`, `todo/` and stray `*.apk` were being copied in as well.
-  `releases/` stays: `getKioskUpdate()` answers from `releases/kiosk-version.json`.
+  `data/seasonal_produce_it.json`) are re-included explicitly. Two of the old
+  rules also did nothing for nested files — a pattern without a slash in
+  `.dockerignore` only matches at the context root — so `*.apk` and
+  `__pycache__/` left a 6.7 MB local kiosk APK and a `.pyc` in the image.
+- **An image built on a developer machine carried twelve files git does not
+  track.** Diffing the built image against `git ls-files` one path at a time
+  found the Health Bridge **signing keystore**
+  (`evershelf-health-bridge/evershelf.jks`), a local certificate (`ca.crt`),
+  1.5 MB of rotated `data/cron.log.*`, three `logs/evershelf_*.log` application
+  logs, two hand-made logo copies (`assets/img/logo/logo*_backup.png`), a stray
+  `scripts/__pycache__/*.pyc` and whatever APK the developer last built
+  (`releases/evershelf-kiosk.apk`, 6.7 MB). None of them is in the repository and
+  none is needed to run, and all are excluded now: the only untracked files left
+  in the image are the `.env` the Dockerfile creates from `.env.example` and the
+  four MiniLM weights it downloads itself. The context drops from ~114 MB to
+  ~30 MB; `releases/` stays, because `getKioskUpdate()` answers from
+  `releases/kiosk-version.json` (`*.apk` is ignored on purpose — bind-mount your
+  own builds).
+- **`Dockerfile`, `.dockerignore`, `docs/`, `.github/` and every `*.md` left the
+  build context.** Nothing reads them at runtime, and `COPY .` was publishing
+  them from the web root, where `/Dockerfile` and `/CHANGELOG.md` are free
+  reconnaissance for a scanner. `docker/` stays: the Dockerfile copies
+  `php-evershelf.ini` and `apache-evershelf.conf` out of it, and the Mealie and
+  Avahi code reads `docker/docker-compose.mealie.yml` and
+  `docker/avahi-evershelf.xml` from disk — but the directory is denied in
+  `.htaccess` now, so those two files are no longer served from the web root on
+  a bare install either. Ignoring `docker/` outright (the first version of this)
+  makes **every** build fail at step 5/16 — `COPY docker/php-evershelf.ini` →
+  `COPY failed: file not found in build context or excluded by .dockerignore`.
 
 ### Fixed
 - **A published image and a locally built one are no longer two different
@@ -36,6 +61,25 @@ how the backup copies the database, and the API surface around write actions.
   carried them. The Dockerfile now fetches the model in a layer of its own, and
   `scripts/install-transformers-model.sh` retries transient CDN failures that
   would otherwise take an image build down with them.
+- **`backup.sh` could lose the newest transactions.** The database runs in WAL
+  mode and the script snapshotted it with `cp`, so everything still sitting in
+  `evershelf.db-wal` stayed out of the backup (and a write in flight could make
+  the copy inconsistent). It now uses SQLite's online backup — `sqlite3 .backup`,
+  or a PHP `PRAGMA wal_checkpoint(FULL)` when the CLI is missing — writes to a
+  `.part` file and renames it, so an interrupted run cannot leave a half-written
+  backup behind for the retention step to keep. The Docker image ships the
+  `sqlite3` CLI, so the fast path is always available there.
+- **The documented cron had silently done nothing since June.** `INSTALL_DIR`
+  was resolved as `dirname "$0"/..`, the *parent* of the script's directory, so
+  the documented `0 3 * * * /var/www/html/dispensa/backup.sh` looked for
+  `/var/www/html/data/evershelf.db`, found no database and exited 0. That `/..`
+  arrived with `d33b0ca` (2026-06-03): before it, the same line used
+  `dirname "$0"` and worked. The three `dispensa_*.db` snapshots from
+  2026-04-13 are the last ones a cron ever wrote — everything in
+  `data/backups/` since then came from the backup button in the UI. The path is
+  the script's own directory now, which is right both for a git checkout
+  (`<install>/dispensa/backup.sh`) and for the container
+  (`/var/www/html/backup.sh`).
 
 ### Changed
 - Web app manifest: the icon set is rebuilt at the sizes a browser actually asks
@@ -44,6 +88,9 @@ how the backup copies the database, and the API surface around write actions.
   odd-sized entries (557×507, 74×64) are gone. `screenshots` stays absent: the
   available captures are landscape-only, so Chromium's rich install UI remains
   off instead of shipping a wrong `form_factor`.
+- `docs/wiki/Configuration.md` no longer tells people to back the database up with
+  a raw `cp` (and why that is wrong); `docs/wiki/Installation.md` documents the
+  WAL-safe behaviour and `BACKUP_RETENTION_DAYS`.
 
 ### Added
 - `scripts/i18n-audit.py` check `[4]`: it fails when a manifest icon is missing,
