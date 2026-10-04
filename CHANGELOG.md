@@ -27,17 +27,31 @@ how the backup copies the database, and the API surface around write actions.
   rules also did nothing for nested files — a pattern without a slash in
   `.dockerignore` only matches at the context root — so `*.apk` and
   `__pycache__/` left a 6.7 MB local kiosk APK and a `.pyc` in the image.
-- **An image built on a developer machine carried eleven more files git does not
-  track.** Auditing the built image file by file found the health-bridge
-  **signing keystore** (`evershelf-health-bridge/evershelf.jks`), a local
-  certificate (`ca.crt`), 1.5 MB of `data/cron.log.*`, the application logs
-  under `logs/`, two hand-made logo copies, and `Dockerfile`, `docker/` and
-  `.github/` sitting in the web root where a scanner can fetch them. None are in
-  git, none are needed to run, and all are excluded now: the only files left in
-  the image that are not in the repository are the `.env` the Dockerfile creates
-  from `.env.example` and the MiniLM weights it downloads itself. The context
-  drops from ~114 MB to ~30 MB; `releases/` stays, because `getKioskUpdate()`
-  answers from `releases/kiosk-version.json`.
+- **An image built on a developer machine carried twelve files git does not
+  track.** Diffing the built image against `git ls-files` one path at a time
+  found the Health Bridge **signing keystore**
+  (`evershelf-health-bridge/evershelf.jks`), a local certificate (`ca.crt`),
+  1.5 MB of rotated `data/cron.log.*`, three `logs/evershelf_*.log` application
+  logs, two hand-made logo copies (`assets/img/logo/logo*_backup.png`), a stray
+  `scripts/__pycache__/*.pyc` and whatever APK the developer last built
+  (`releases/evershelf-kiosk.apk`, 6.7 MB). None of them is in the repository and
+  none is needed to run, and all are excluded now: the only untracked files left
+  in the image are the `.env` the Dockerfile creates from `.env.example` and the
+  four MiniLM weights it downloads itself. The context drops from ~114 MB to
+  ~30 MB; `releases/` stays, because `getKioskUpdate()` answers from
+  `releases/kiosk-version.json` (`*.apk` is ignored on purpose — bind-mount your
+  own builds).
+- **`Dockerfile`, `.dockerignore`, `docs/`, `.github/` and every `*.md` left the
+  build context.** Nothing reads them at runtime, and `COPY .` was publishing
+  them from the web root, where `/Dockerfile` and `/CHANGELOG.md` are free
+  reconnaissance for a scanner. `docker/` stays: the Dockerfile copies
+  `php-evershelf.ini` and `apache-evershelf.conf` out of it, and the Mealie and
+  Avahi code reads `docker/docker-compose.mealie.yml` and
+  `docker/avahi-evershelf.xml` from disk — but the directory is denied in
+  `.htaccess` now, so those two files are no longer served from the web root on
+  a bare install either. Ignoring `docker/` outright (the first version of this)
+  makes **every** build fail at step 5/16 — `COPY docker/php-evershelf.ini` →
+  `COPY failed: file not found in build context or excluded by .dockerignore`.
 
 ### Fixed
 - **A published image and a locally built one are no longer two different

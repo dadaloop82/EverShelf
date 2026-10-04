@@ -81,13 +81,14 @@ assets/vendor/transformers/Xenova/
 
 # ─── Docs and build files (not needed in the container) ──────────────────────
 # None of these are read at runtime, and serving them from the web root is free
-# information for a scanner: /Dockerfile, /docker/php-evershelf.ini, /CHANGELOG.md.
+# information for a scanner: /Dockerfile, /CHANGELOG.md.
+# docker/ must stay in the context: the Dockerfile COPYs php-evershelf.ini and
+# apache-evershelf.conf from it.
 **/*.md
 docs/
 LICENSE
 Dockerfile
 .dockerignore
-docker/
 .github/
 .cursorignore
 
