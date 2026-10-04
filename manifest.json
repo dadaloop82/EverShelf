@@ -1,7 +1,8 @@
 {
     "name": "EverShelf",
     "short_name": "EverShelf",
-    "description": "Gestione completa della dispensa di casa con scansione barcode",
+    "lang": "en",
+    "description": "Home pantry management with barcode scanning",
     "version": "1.8.8",
     "start_url": ".",
     "display": "standalone",
@@ -11,8 +12,14 @@
     "icons": [
         {
             "src": "assets/img/logo/logo_icon.png",
-            "sizes": "any",
-            "type": "image/svg+xml"
+            "sizes": "557x507",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "assets/img/logo/logo_icon_64.png",
+            "sizes": "74x64",
+            "type": "image/png"
         }
     ]
 }

@@ -465,7 +465,7 @@
                 <div id="add-conf-size-row" class="conf-size-row" style="display:none">
                     <label class="conf-size-label" data-i18n="add.conf_size_label">📦 Ogni confezione contiene:</label>
                     <div class="conf-size-inputs">
-                        <input type="number" id="add-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                        <input type="number" id="add-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300" data-i18n-placeholder="add.conf_size_placeholder">
                         <select id="add-conf-unit" class="form-input conf-size-unit">
                             <option value="g">g</option>
                             <option value="ml">ml</option>
@@ -714,7 +714,7 @@
             <div id="pf-conf-size-row" class="conf-size-row" style="display:none">
                 <label class="conf-size-label" data-i18n="product.conf_size_label">📦 Ogni confezione contiene:</label>
                 <div class="conf-size-inputs">
-                    <input type="number" id="pf-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300">
+                    <input type="number" id="pf-conf-size" class="form-input conf-size-input" min="1" step="any" placeholder="es. 300" data-i18n-placeholder="product.conf_size_placeholder">
                     <select id="pf-conf-unit" class="form-input conf-size-unit">
                         <option value="g">g</option>
                         <option value="ml">ml</option>
@@ -729,7 +729,7 @@
                 <label data-i18n="product.barcode_label">🔖 Barcode</label>
                 <div class="expiry-input-row">
                     <input type="text" id="pf-barcode" class="form-input" placeholder="Codice a barre (se disponibile)" inputmode="numeric" data-i18n-placeholder="product.barcode_placeholder">
-                    <button type="button" class="btn btn-accent btn-scan-expiry" id="pf-barcode-scan-btn" onclick="scanBarcodeForForm()" title="Scansiona barcode">📷</button>
+                    <button type="button" class="btn btn-accent btn-scan-expiry" id="pf-barcode-scan-btn" onclick="scanBarcodeForForm()" title="Scansiona barcode" data-i18n-title="scan.barcode_scan_hint">📷</button>
                 </div>
                 <p class="form-hint" id="pf-barcode-hint" style="display:none" data-i18n="product.barcode_hint">⚠️ Aggiungi il barcode così al prossimo acquisto basta scansionarlo!</p>
             </div>
@@ -748,7 +748,7 @@
             <h2 data-i18n="products.title">📦 Tutti i Prodotti</h2>
         </div>
         <div class="search-bar">
-            <input type="text" id="products-search" placeholder="🔍 Cerca prodotto..." oninput="searchAllProducts()" autocomplete="off">
+            <input type="text" id="products-search" placeholder="🔍 Cerca prodotto..." oninput="searchAllProducts()" autocomplete="off" data-i18n-placeholder="products.search_placeholder">
             <button type="button" class="search-clear-btn" id="products-search-clear" onclick="clearProductsSearch()" hidden aria-label="Cancella ricerca" data-i18n-aria="inventory.clear_search" data-i18n-title="inventory.clear_search" title="Cancella ricerca">×</button>
         </div>
         <div class="products-list" id="products-list"></div>
@@ -796,7 +796,7 @@
                     <div class="shopping-price-total-row">
                         <span class="price-total-label" data-i18n="shopping.price_total_label">💰 Spesa stimata:</span>
                         <span class="price-total-value" id="price-total-value">–</span>
-                        <button class="btn-price-refresh" id="btn-price-refresh" onclick="fetchAllPrices(false)" title="Aggiorna prezzi">🔄</button>
+                        <button class="btn-price-refresh" id="btn-price-refresh" onclick="fetchAllPrices(false)" title="Aggiorna prezzi" data-i18n-title="shopping.price_refresh_title">🔄</button>
                     </div>
                     <div id="price-loading-bar" style="display:none" class="price-loading-bar">
                         <div class="price-loading-inner"></div>
@@ -811,7 +811,7 @@
                         <div class="shopping-plan-days-controls">
                             <label class="shopping-plan-days-input-wrap">
                                 <input type="number" id="shopping-plan-days-input" class="shopping-plan-days-input" min="1" max="30" inputmode="numeric"
-                                    oninput="_debouncedShoppingPlanDaysPreview()" onchange="applyShoppingPlanDays()" aria-label="Giorni pianificazione">
+                                    oninput="_debouncedShoppingPlanDaysPreview()" onchange="applyShoppingPlanDays()" aria-label="Giorni pianificazione" data-i18n-aria="shopping.plan_days_aria">
                                 <span data-i18n="shopping.plan_days_unit">gg</span>
                             </label>
                             <button type="button" class="shop-plan-reset" id="shopping-plan-days-reset" onclick="resetShoppingPlanDays()" data-i18n="shopping.plan_days_reset">Fine mese</button>
@@ -942,20 +942,20 @@
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
         <div class="settings-tabs" role="tablist">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" title="Generali"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Lista spesa"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-tab="tab-health" title="Salute"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" title="Info"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys" data-i18n-title="settings.tab_api"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
         </div>
         <div class="settings-panels">
             <!-- Generali Tab -->
@@ -1192,11 +1192,11 @@
                     <h4 data-i18n="settings.shopping.bring_section_title">Configurazione Bring!</h4>
                     <div class="form-group">
                         <label data-i18n="settings.bring.email_label">📧 Email Bring!</label>
-                        <input type="email" id="setting-bring-email" class="form-input" placeholder="email@esempio.com">
+                        <input type="email" id="setting-bring-email" class="form-input" placeholder="email@esempio.com" data-i18n-placeholder="settings.bring.email_placeholder">
                     </div>
                     <div class="form-group">
                         <label data-i18n="settings.bring.password_label">🔒 Password Bring!</label>
-                        <input type="password" id="setting-bring-password" class="form-input" placeholder="Password">
+                        <input type="password" id="setting-bring-password" class="form-input" placeholder="Password" data-i18n-placeholder="settings.bring.password_placeholder">
                         <button class="btn btn-small btn-secondary mt-2" onclick="togglePasswordVisibility('setting-bring-password')" data-i18n="btn.toggle_password">👁️ Mostra/Nascondi</button>
                     </div>
                 </div>
@@ -1438,7 +1438,7 @@
                                     <option value="other" data-i18n="settings.health.sex_other">Altro</option>
                                 </select>
                             </label>
-                            <label class="recipe-fuel-field"><span data-i18n="settings.health.birth_year">Anno di nascita</span><input type="number" id="health-profile-birth-year" class="form-input" min="1920" max="2015" placeholder="es. 1985"></label>
+                            <label class="recipe-fuel-field"><span data-i18n="settings.health.birth_year">Anno di nascita</span><input type="number" id="health-profile-birth-year" class="form-input" min="1920" max="2015" placeholder="es. 1985" data-i18n-placeholder="settings.health.birth_year_placeholder"></label>
                             <label class="recipe-fuel-field"><span data-i18n="settings.health.height">Altezza (cm)</span><input type="number" id="health-profile-height" class="form-input" min="100" max="250" step="1"></label>
                             <label class="recipe-fuel-field"><span data-i18n="settings.health.weight">Peso (kg)</span><input type="number" id="health-profile-weight" class="form-input" min="30" max="300" step="0.1"></label>
                             <label class="recipe-fuel-field"><span data-i18n="settings.health.goal">Obiettivo</span>
@@ -1685,7 +1685,7 @@
                     </div>
                     <div class="form-group">
                         <label data-i18n="settings.tts.extra_fields_label">➕ Campi extra (JSON)</label>
-                        <textarea id="setting-tts-extra-fields" class="form-input" rows="3" placeholder='{"entity_id": "media_player.living_room"}'></textarea>
+                        <textarea id="setting-tts-extra-fields" class="form-input" rows="3" placeholder='{"entity_id": "media_player.living_room"}' data-i18n-placeholder="settings.tts.extra_fields_placeholder"></textarea>
                         <p class="settings-hint" data-i18n="settings.tts.extra_fields_hint">Campi aggiuntivi da includere nel payload, in formato JSON. Lascia vuoto se non necessario.</p>
                     </div>
                     </div><!-- /tts-server-section -->
@@ -1719,13 +1719,13 @@
                     <div id="ha-config-section">
                         <div class="form-group">
                             <label data-i18n="settings.ha.url_label">🌐 Home Assistant URL</label>
-                            <input type="url" id="setting-ha-url" class="form-input" placeholder="http://192.168.1.50:8123">
+                            <input type="url" id="setting-ha-url" class="form-input" placeholder="http://192.168.1.50:8123" data-i18n-placeholder="settings.ha.url_placeholder">
                             <p class="settings-hint" data-i18n="settings.ha.url_hint">URL base della tua istanza HA (senza slash finale). Es: <code>http://homeassistant.local:8123</code></p>
                         </div>
                         <div class="form-group">
                             <label data-i18n="settings.ha.token_label">🔑 Long-Lived Access Token</label>
                             <div style="display:flex;gap:8px;align-items:center">
-                                <input type="password" id="setting-ha-token" class="form-input" style="flex:1" placeholder="eyJhbGci...">
+                                <input type="password" id="setting-ha-token" class="form-input" style="flex:1" placeholder="eyJhbGci..." data-i18n-placeholder="settings.ha.token_placeholder">
                                 <button class="btn btn-secondary" style="flex-shrink:0" onclick="togglePasswordVisibility('setting-ha-token')" data-i18n="btn.toggle_password">👁️</button>
                             </div>
                             <p class="settings-hint" data-i18n="settings.ha.token_hint">Genera un token in HA → Profilo → Token di accesso a lungo termine.</p>
@@ -1742,7 +1742,7 @@
 
                     <div class="form-group">
                         <label data-i18n="settings.ha.tts_entity_label">🔈 Entity ID del media player</label>
-                        <input type="text" id="setting-ha-tts-entity" class="form-input" placeholder="media_player.living_room">
+                        <input type="text" id="setting-ha-tts-entity" class="form-input" placeholder="media_player.living_room" data-i18n-placeholder="settings.ha.tts_entity_placeholder">
                         <p class="settings-hint" data-i18n="settings.ha.tts_entity_hint">Copia l'entity ID del media player da HA → Strumenti sviluppatore → Stati.</p>
                     </div>
                     <div class="form-group">
@@ -1794,7 +1794,7 @@
 
                     <div class="form-group">
                         <label data-i18n="settings.ha.notify_service_label">📣 Servizio notify</label>
-                        <input type="text" id="setting-ha-notify-service" class="form-input" placeholder="notify.mobile_app_mio_telefono">
+                        <input type="text" id="setting-ha-notify-service" class="form-input" placeholder="notify.mobile_app_mio_telefono" data-i18n-placeholder="settings.ha.notify_service_placeholder">
                         <p class="settings-hint" data-i18n="settings.ha.notify_service_hint">Formato: <code>notify.NOME_SERVIZIO</code>. Lascia vuoto per disabilitare. Richiede token HA configurato.</p>
                     </div>
                 </div>
@@ -1854,7 +1854,7 @@
                         <label data-i18n="settings.scale.url_label">🌐 URL Gateway WebSocket</label>
                         <div style="display:flex;gap:8px;align-items:center">
                             <input type="url" id="setting-scale-url" class="form-input" style="flex:1" placeholder="ws://192.168.1.x:8765" data-i18n-placeholder="settings.scale.url_placeholder">
-                            <button class="btn btn-secondary" style="white-space:nowrap;flex-shrink:0" onclick="discoverScaleGateway()" id="btn-scale-discover" title="Scan local network">🔍 Auto</button>
+                            <button class="btn btn-secondary" style="white-space:nowrap;flex-shrink:0" onclick="discoverScaleGateway()" id="btn-scale-discover" title="Scan local network" data-i18n-title="settings.scale.discover_title">🔍 Auto</button>
                         </div>
                         <div id="scale-discover-status" style="display:none;margin-top:6px;font-size:0.82rem;color:var(--text-secondary)"></div>
                         <p class="settings-hint" data-i18n="settings.scale.url_hint">Copia l'URL mostrato dall'app Android (stessa rete Wi-Fi). Es: <code>ws://192.168.1.100:8765</code></p>
@@ -1964,7 +1964,7 @@
                                 <p style="font-size:0.82rem;margin-bottom:8px;font-weight:600" data-i18n="settings.backup.gdrive_code_title">Incolla l'URL o il codice di autorizzazione</p>
                                 <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.backup.gdrive_code_hint">Dopo aver autorizzato su Google, il browser proverà ad aprire <code>http://localhost</code> e mostrerà un errore. Copia l'intero URL dalla barra degli indirizzi e incollalo qui sotto.</p>
                                 <div style="display:flex;gap:8px;flex-wrap:wrap">
-                                    <input type="text" id="gdrive-code-input" class="form-input" style="flex:1;min-width:0" placeholder="http://localhost/?code=4%2F0A… oppure solo il codice">
+                                    <input type="text" id="gdrive-code-input" class="form-input" style="flex:1;min-width:0" placeholder="http://localhost/?code=4%2F0A… oppure solo il codice" data-i18n-placeholder="settings.backup.gdrive_code_placeholder">
                                     <button class="btn btn-primary" onclick="_gdriveSubmitCode()" id="btn-gdrive-submit-code" data-i18n="settings.backup.gdrive_code_submit">Conferma</button>
                                 </div>
                             </div>
