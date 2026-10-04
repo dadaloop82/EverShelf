@@ -48,7 +48,9 @@ Out-of-scope issues:
   an anonymous request: the UI shows a dialog and the user types the one-time code
   printed in the server log (`grep -i "pairing code" logs/evershelf_*.log` or
   `docker logs evershelf 2>&1 | grep -i "pairing code"`, 30 min TTL, brute-force
-  limited). `API_BOOTSTRAP_OPEN=true` restores the old
+  limited). If the `grep` returns nothing, the web user cannot write the log file — a
+  log created by a root `cron` run is root-owned and silently rejects Apache's writes;
+  run `scripts/fix-permissions.sh`. `API_BOOTSTRAP_OPEN=true` restores the old
   "trust any same-origin-looking request" behaviour and should only be used on a
   fully trusted LAN — the headers it relies on are client-controlled.
 - **No authorisation decision is made from client-controlled headers.** Actions that
