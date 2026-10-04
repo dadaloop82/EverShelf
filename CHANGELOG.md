@@ -35,14 +35,23 @@ app manifest.
 
 ### Changed
 - Web app manifest: the declared icon was `image/svg+xml` for a PNG file with
-  `sizes: "any"`; both icons now declare their real pixel size, and the file
-  gains `lang` and a language-neutral description.
+  `sizes: "any"`; the file gains `lang` and a language-neutral description, and
+  the icon set is rebuilt at the sizes a browser actually asks for — 192×192 and
+  512×512 `any` plus a dedicated 192/512 **maskable** pair, so Android no longer
+  crops the transparent logo. The two odd-sized entries (557×507, 74×64) are gone.
+  `screenshots` stays absent: the available captures are landscape-only, so
+  Chromium's rich install UI remains off instead of shipping a wrong
+  `form_factor`.
 - 16 new keys added to all six locales; asset/i18n stamp → `20261004g`.
 
 ### Added
 - `scripts/i18n-audit.py` check `[3]`: it fails when a `title`, `placeholder` or
   `aria-label` has no `data-i18n*` override and is not an explicitly
   language-neutral technical example — the regression gate for the bug above.
+- `scripts/i18n-audit.py` check `[4]`: it fails when a manifest icon is missing,
+  declares a MIME type that does not match its file, declares `sizes` that differ
+  from the real PNG pixels (read from the IHDR chunk, no Pillow needed), or
+  leaves 192/512 uncovered for both the `any` and the `maskable` purpose.
 
 ## [1.8.8] - 2026-10-04
 

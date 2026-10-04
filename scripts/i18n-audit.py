@@ -7,6 +7,10 @@ Reports, for every locale:
   * suspicious hard-coded Italian strings in JS/HTML (heuristic)
   * HTML attributes (title/placeholder/aria-label) that users can read but that
     are not wired to a data-i18n* attribute — see A1 in todo/AUDIT-2026-10-04-B.md
+  * manifest.json icons a browser cannot use: missing file, wrong MIME type,
+    declared `sizes` that do not match the real PNG pixels, no `lang`, or no
+    192/512 pair for both the `any` and the `maskable` purpose
+    — see A2 in todo/AUDIT-2026-10-04-B.md
 
 Usage: python3 scripts/i18n-audit.py [--json]
 """
@@ -14,12 +18,14 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TRANS = ROOT / 'translations'
+MANIFEST = ROOT / 'manifest.json'
 SRC_JS = [ROOT / 'assets/js/app.js', *sorted((ROOT / 'assets/js/core').glob('*.js'))]
 SRC_HTML = [ROOT / 'index.html']
 LOCALES = ['it', 'en', 'de', 'fr', 'es', 'zh']
@@ -88,6 +94,71 @@ def untranslated_attributes(html: Path = SRC_HTML[0]) -> list[tuple[int, str, st
     return found
 
 
+def png_size(path: Path) -> tuple[int, int] | None:
+    """(width, height) read from the PNG IHDR chunk — no Pillow dependency."""
+    try:
+        with path.open('rb') as fh:
+            head = fh.read(24)
+    except OSError:
+        return None
+    if len(head) < 24 or head[:8] != b'\x89PNG\r\n\x1a\n' or head[12:16] != b'IHDR':
+        return None
+    return struct.unpack('>II', head[16:24])
+
+
+def manifest_issues(path: Path = MANIFEST) -> list[str]:
+    """Icons a browser cannot use, so the install prompt is degraded or absent.
+
+    A `purpose: maskable` icon must be a dedicated file: Android crops it to the
+    launcher shape, so reusing the transparent `any` artwork clips the logo.
+    Returns human-readable problems, empty when every icon is usable.
+    """
+    try:
+        manifest = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f'{path.name}: unreadable ({exc})']
+
+    issues: list[str] = []
+    if not manifest.get('lang'):
+        issues.append(f'{path.name}: no "lang" — the install prompt cannot pick a locale')
+
+    icons = manifest.get('icons') or []
+    if not icons:
+        issues.append(f'{path.name}: no "icons" — the app is not installable')
+
+    covered: set[tuple[int, int, str]] = set()
+    for icon in icons:
+        src = icon.get('src') or '(missing src)'
+        declared = icon.get('sizes')
+        purpose = (icon.get('purpose') or 'any').lower()
+        kinds = {k for k in ('any', 'maskable') if k in purpose} or {'any'}
+        file = ROOT / src
+        if not file.is_file():
+            issues.append(f'{src}: file not found')
+            continue
+        ext = file.suffix.lower().lstrip('.')
+        subtype = (icon.get('type') or '').split('/')[-1].lower()
+        if subtype and not (subtype == ext or (ext == 'jpg' and subtype == 'jpeg')):
+            issues.append(f'{src}: type "{icon.get("type")}" does not match a .{ext} file')
+        real = png_size(file) if ext == 'png' else None
+        if real is None:
+            issues.append(f'{src}: not a readable PNG, "sizes" cannot be verified')
+            continue
+        w, h = real
+        if declared != f'{w}x{h}':
+            issues.append(f'{src}: declares sizes "{declared}" but the file is {w}x{h}px')
+        covered.update((w, h, kind) for kind in kinds)
+
+    for size in (192, 512):
+        for kind in ('any', 'maskable'):
+            if (size, size, kind) not in covered:
+                issues.append(
+                    f'no {size}x{size} "{kind}" icon — Chromium/Android install prompts '
+                    'want both the plain and the maskable artwork at 192 and 512'
+                )
+    return issues
+
+
 def flatten(obj, prefix=''):
     out = {}
     for k, v in obj.items():
@@ -151,6 +222,15 @@ def main() -> int:
         print('    -> wire it with data-i18n-<attr> (see TRANSLATABLE_ATTRS), or add its')
         print('       value to NEUTRAL_VALUES when it is a technical example, not prose.')
 
+    icon_problems = manifest_issues()
+    print(f'\n[4] manifest.json icons a browser cannot use ({len(icon_problems)}):')
+    if not icon_problems:
+        print('    none — every icon exists, declares its real size and covers any+maskable')
+    else:
+        exit_code = 1
+        for problem in icon_problems:
+            print('    -', problem)
+
     if '--json' in sys.argv:
         print(json.dumps({
             'missing': {loc: sorted(used - set(data[loc])) for loc in LOCALES},
@@ -159,6 +239,7 @@ def main() -> int:
                  'attribute': attr, 'value': value}
                 for line, tag, attr, value in untranslated
             ],
+            'manifest_icons': icon_problems,
         }, indent=2))
     return exit_code
 
