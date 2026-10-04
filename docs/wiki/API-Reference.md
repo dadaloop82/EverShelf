@@ -256,6 +256,29 @@ Remove an item from the Bring! list.
 ### `smart_shopping` — GET
 Get smart shopping predictions based on consumption history.
 
+### `recipe_shopping_add` — POST
+Turn a recipe into the list of what the pantry does **not** cover: the gap is
+recomputed on every call (`need − have`), matching stock by `product_id`, then the
+shopping-family key, then name tokens. Stock held in another unit counts as
+covered, and free staples (water, salt, pepper, oil) are never reported as missing.
+
+```json
+{
+  "recipe": { "title": "Pasta al forno", "ingredients": [ { "name": "Pasta", "qty": "500 g" } ] },
+  "dry_run": true,
+  "selected": ["Pasta", "Parmigiano"],
+  "only_missing": true,
+  "lang": "it"
+}
+```
+
+`recipe` may be replaced by `recipe_id` (loaded from the archive). `dry_run: true`
+computes the plan without writing anything (used when the recipe page renders);
+without it, the selected gaps are inserted through the same core as `shopping_add`,
+so Bring! sync, the blocklist and the HA webhook behave identically. Response:
+`{ "success": true, "items": [ { "name", "state", "need", "have", "missing", … } ], "summary": { … } }`,
+where `state` is `missing`, `partial`, `covered` or `listed`.
+
 ---
 
 ## Settings

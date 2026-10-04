@@ -22,7 +22,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 |---|---|
 | **Inventory** | Scan, locations, expiry, opened packs, favourites, CSV import/export |
 | **AI** | Gemini · OpenAI · Llama — identify, OCR expiry, recipes, chat |
-| **Shopping** | Smart list, anti-waste qty, optional [Bring!](https://www.getbring.com/) |
+| **Shopping** | Smart list, anti-waste qty, recipe → list with pantry deduction, optional [Bring!](https://www.getbring.com/) |
 | **Cooking** | Steps, TTS, timers, zero-waste tips |
 | **Calendar** | Subscribe to expiries — ICS/WebCal feed for Google/Apple Calendar |
 | **PWA** | Offline queue, installable, multi-device |

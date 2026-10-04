@@ -19021,7 +19021,9 @@ function viewArchivedRecipe(idx) {
 }
 
 let _cachedRecipe = null;
-let _recipeShoppingSuggestions = [];
+let _recipeShoppingRecipe = null; // recipe currently rendered in the modal
+let _recipeShoppingPlan = null;   // last plan returned by recipe_shopping_add
+let _recipeShoppingToBuy = [];    // plan items the user can tick
 let _generatedTodayTitles = []; // client-side list, robust vs race conditions
 let _recipeVariationCount = {}; // { 'pranzo': 0, 'cena': 1, ... }
 let _rejectedRecipeIngredients = []; // ingredient names from previously rejected recipes
@@ -20287,6 +20289,14 @@ function scaleRecipePersons(delta) {
         }
     });
     _updateRecipeStockHintsAfterScale(ratio);
+
+    // The pantry gap follows the persons count: re-deduct with the scaled amounts.
+    // Never in auto mode — the gaps were already written, re-planning would add more.
+    if (document.getElementById('recipe-shopping-plan')
+        && getSettings().recipe_shopping_mode !== 'auto'
+        && _recipeShoppingRecipe) {
+        loadRecipeShoppingPlan(false);
+    }
 }
 
 /** Scale an ingredient qty string for the current persons count. */
@@ -20460,27 +20470,145 @@ async function shareRecipe() {
     _showRecipeShareSheet(text);
 }
 
-async function addRecipeShoppingSuggestions() {
-    const items = (_recipeShoppingSuggestions || []).filter(s => s && s.name);
-    if (!items.length) return;
+/**
+ * The recipe as the pantry plan must see it: quantities scaled to the persons
+ * count currently displayed (the +/- control changes what the list shows, and the
+ * gap must ask for those amounts, not the ones the recipe was generated with).
+ *
+ * @param {object} recipe
+ * @return {object} the recipe itself when the count was never changed, a shallow scaled copy otherwise
+ */
+function _recipeShoppingRecipeScaled(recipe) {
+    const ratio = (_recipeBasePersons > 0 && _recipeCurrentPersons > 0)
+        ? _recipeCurrentPersons / _recipeBasePersons
+        : 1;
+    if (ratio === 1 || !recipe) return recipe;
+    const scaleIng = (ing) => {
+        const baseQty = parseFloat(ing && ing.qty_number || 0);
+        if (!(baseQty > 0)) return ing;
+        const m = String(ing.qty || '').trim().match(/^(\d+(?:[.,]\d+)?)\s*(.*)/);
+        const unitSuffix = m ? m[2].trim() : '';
+        const scaled = baseQty * ratio;
+        const rounded = scaled < 10 ? (Math.round(scaled * 10) / 10) : Math.round(scaled);
+        return Object.assign({}, ing, {
+            qty_number: rounded,
+            qty: unitSuffix ? `${rounded} ${unitSuffix}` : String(rounded),
+        });
+    };
+    return Object.assign({}, recipe, { ingredients: (recipe.ingredients || []).map(scaleIng) });
+}
+
+/**
+ * Ask the API what this recipe is missing once the pantry is deducted.
+ *
+ * The backend recomputes the gap on every call (products may have been bought or
+ * eaten since the recipe was generated, and the AI's own shopping_suggestions are
+ * frozen at generation time and carry no quantity), so the panel always reflects
+ * the pantry as it is right now. `dry_run` computes without writing anything.
+ *
+ * @param {boolean} [autoAdd] true in "auto" recipe_shopping_mode: add the gaps silently
+ */
+async function loadRecipeShoppingPlan(autoAdd) {
+    const box = document.getElementById('recipe-shopping-plan');
+    const recipe = _recipeShoppingRecipeScaled(_recipeShoppingRecipe);
+    if (!box || !recipe) return;
+    // Demo mode keeps a fixed in-memory list and blocks every write: no pantry to plan against.
+    if (_demoMode) { box.remove(); return; }
     try {
-        const payload = {
-            items: items.map(s => ({
-                name: s.name,
-                specification: s.qty ? t('recipes.from_recipe_qty', { qty: s.qty }) : t('recipes.from_recipe'),
-            })),
-            listUUID: typeof shoppingListUUID !== 'undefined' ? shoppingListUUID : undefined,
-        };
-        const data = await api('shopping_add', {}, 'POST', payload);
-        if (data.success) {
-            showToast(t('recipes.shopping_suggestions_added'), 'success');
-            if (typeof loadShoppingCount === 'function') loadShoppingCount();
-        } else {
-            showToast(data.error || t('error.bring_add'), 'error');
+        const data = await api('recipe_shopping_add', {}, 'POST', {
+            recipe,
+            dry_run: true,
+            lang: _currentLang,
+        });
+        if (!data || !data.success) throw new Error((data && data.error) || 'plan_failed');
+        _recipeShoppingPlan = data;
+        if (autoAdd) {
+            await addRecipeShoppingPlan(true);
+            return;
         }
+        renderRecipeShoppingPlan();
     } catch (e) {
-        console.error('addRecipeShoppingSuggestions:', e);
-        showToast(t('error.bring_add'), 'error');
+        console.error('loadRecipeShoppingPlan:', e);
+        box.innerHTML = `<p>⚠️ ${escapeHtml(t('recipes.plan_error'))}</p>`;
+    }
+}
+
+/** Draw the tickable list of gaps (plus what is already covered / on the list). */
+function renderRecipeShoppingPlan() {
+    const box = document.getElementById('recipe-shopping-plan');
+    const plan = _recipeShoppingPlan;
+    if (!box || !plan) return;
+
+    const items = plan.items || [];
+    const toBuy = items.filter(it => it.state === 'missing' || it.state === 'partial');
+    const listed = items.filter(it => it.state === 'listed');
+    const covered = items.filter(it => it.state === 'covered');
+    _recipeShoppingToBuy = toBuy;
+
+    let html = '';
+    if (toBuy.length) {
+        html += `<p>🛒 ${escapeHtml(t('recipes.plan_intro'))}</p><ul class="recipe-plan-list">`;
+        toBuy.forEach((it, idx) => {
+            const bits = [];
+            if (it.have) bits.push(t('recipes.plan_have', { have: it.have }));
+            if (it.need) bits.push(t('recipes.plan_need', { need: it.need }));
+            html += `<li class="recipe-plan-row">
+                <label><input type="checkbox" class="recipe-plan-cb" data-idx="${idx}" checked>
+                <strong>${escapeHtml(it.name)}</strong>${it.missing ? ' · ' + escapeHtml(it.missing) : ''}</label>
+                ${bits.length ? `<small>${escapeHtml(bits.join(' · '))}</small>` : ''}
+            </li>`;
+        });
+        html += '</ul>';
+        html += `<button type="button" class="btn btn-sm btn-success" onclick="addRecipeShoppingPlan()">${escapeHtml(t('recipes.plan_btn_add'))}</button>`;
+    } else {
+        html += `<p>${escapeHtml(listed.length ? t('recipes.plan_done') : t('recipes.plan_all_in_stock'))}</p>`;
+    }
+    if (listed.length) {
+        html += `<small class="recipe-plan-note">${escapeHtml(listed.map(it => `${it.name} (${t('recipes.plan_listed')})`).join(' · '))}</small>`;
+    }
+    if (covered.length) {
+        html += `<small class="recipe-plan-note">${escapeHtml(t('recipes.plan_in_pantry'))}: ${escapeHtml(
+            covered.map(it => (it.have ? `${it.name} (${it.have})` : it.name)).join(' · ')
+        )}</small>`;
+    }
+    box.innerHTML = html;
+}
+
+/**
+ * Add the ticked gaps to the shopping list. Only the missing quantity is sent, so a
+ * 500 g recipe with 200 g left in the pantry buys 300 g — through the same core the
+ * manual "add" uses, which keeps the Bring! sync, the blocklist and the HA webhook.
+ *
+ * @param {boolean} [all] skip the checkboxes and take every gap (auto mode)
+ */
+async function addRecipeShoppingPlan(all) {
+    const recipe = _recipeShoppingRecipeScaled(_recipeShoppingRecipe);
+    if (!recipe) return;
+    const selected = all === true
+        ? _recipeShoppingToBuy.map(it => it.name)
+        : Array.from(document.querySelectorAll('#recipe-shopping-plan .recipe-plan-cb:checked'))
+            .map(cb => (_recipeShoppingToBuy[parseInt(cb.dataset.idx, 10)] || {}).name)
+            .filter(Boolean);
+    if (!selected.length) {
+        showToast(t('recipes.plan_none_selected'), 'info');
+        return;
+    }
+    try {
+        const data = await api('recipe_shopping_add', {}, 'POST', {
+            recipe,
+            selected,
+            lang: _currentLang,
+        });
+        if (!data || !data.success) throw new Error((data && data.error) || 'add_failed');
+        const added = (data.summary && data.summary.added) || 0;
+        showToast('✅ ' + t('recipes.plan_added', { n: added }), 'success');
+        if (typeof loadShoppingCount === 'function') loadShoppingCount();
+        // The rows just written now count as "already on the list".
+        _recipeShoppingPlan = data;
+        renderRecipeShoppingPlan();
+    } catch (e) {
+        console.error('addRecipeShoppingPlan:', e);
+        showToast(t('recipes.plan_error'), 'error');
     }
 }
 
@@ -20552,21 +20680,6 @@ async function renderRecipe(r) {
         html += `<div class="recipe-tools-banner">🔧 <strong>${escapeHtml(t('recipes.tools_title'))}:</strong> ${tools.map(tool => `<span class="recipe-tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>`;
     }
 
-    // Optional shopping suggestions (ingredients removed because not in pantry)
-    const shopMode = getSettings().recipe_shopping_mode || 'suggest';
-    const shopSug = shopMode === 'off' ? [] : (r.shopping_suggestions || []);
-    if (shopSug.length > 0 && shopMode === 'suggest') {
-        const items = shopSug.map(s => `<li><strong>${escapeHtml(s.name)}</strong>${s.qty ? ': ' + escapeHtml(s.qty) : ''}</li>`).join('');
-        html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-suggestions">
-            <p>🛒 ${escapeHtml(t('recipes.shopping_suggestions_intro'))}</p>
-            <ul>${items}</ul>
-            <button type="button" class="btn btn-sm btn-success" onclick="addRecipeShoppingSuggestions()">${escapeHtml(t('recipes.shopping_suggestions_add'))}</button>
-        </div>`;
-        _recipeShoppingSuggestions = shopSug;
-    } else {
-        _recipeShoppingSuggestions = shopSug;
-    }
-
     // Ingredients
     html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
@@ -20608,6 +20721,20 @@ async function renderRecipe(r) {
         // Non-pantry ingredients are stripped server-side; nothing to render here.
     });
     html += '</ul>';
+
+    // Shopping panel (Q2): what the pantry does NOT cover, deducted at render time.
+    //   suggest → tickable list of the gaps;
+    //   auto    → same plan, added without asking;
+    //   off     → nothing.
+    const shopMode = getSettings().recipe_shopping_mode || 'suggest';
+    _recipeShoppingRecipe = r;
+    _recipeShoppingPlan = null;
+    _recipeShoppingToBuy = [];
+    if (shopMode !== 'off') {
+        html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-plan">
+            <p>🛒 ${escapeHtml(t('recipes.plan_intro'))}</p>
+        </div>`;
+    }
 
     // Cooking mode between ingredients and steps
     html += `<div class="recipe-primary-actions mt-2">
@@ -20696,9 +20823,8 @@ async function renderRecipe(r) {
     document.getElementById('recipe-content').innerHTML = html;
     _bindRecipeIngredientOpens();
 
-    if (shopMode === 'auto' && shopSug.length > 0) {
-        addRecipeShoppingSuggestions();
-    }
+    // Pantry deduction runs after the paint so the modal opens instantly.
+    if (shopMode !== 'off') loadRecipeShoppingPlan(shopMode === 'auto');
 }
 
 /** Bind pantry ingredient rows → Use panel (chat + generated recipes). */

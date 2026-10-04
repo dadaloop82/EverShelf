@@ -29,6 +29,28 @@ the next release.
   non-array `messages` is ignored instead of reaching `foreach`.
 
 ### Added
+- **Recipe → shopping list, minus what the pantry already holds** — a recipe used
+  to hand you a frozen list the AI wrote when it was generated (no quantities, and
+  wrong the next day). The 🛒 panel under the ingredients now recomputes the gap
+  every time the recipe is opened, against the pantry as it is *right now*:
+  `need − have = to buy`, so a 500 g recipe with 200 g left asks for 300 g. The
+  rows are tickable and default to the gaps; **Add the missing ones** writes them
+  through `shoppingAddItemsCore()`, the same core the manual add uses, so Bring!
+  sync, the blocklist, generic-name normalisation and the HA webhook are unchanged.
+  - Matching is by `product_id` first, then the shopping-family key, then name
+    tokens (`evershelfNameTokens()`, now shared with `shopping_sync.php`); stock
+    held in another unit (3 ricotta tubs vs "250 g asked") counts as *covered*, and
+    free staples (water, salt, pepper, oil) are never nagged about in strict pantry
+    mode. An ingredient already on the list is reported as *listed*, never added twice.
+  - New action `recipe_shopping_add` (POST, authenticated + CSRF, blocked in demo),
+    accepting a full recipe or a `recipe_id`, with `dry_run` for the page render,
+    `selected[]` for the ticked rows and `only_missing` for "ignore what I have";
+    new `api/lib/recipe_shopping.php` (`evershelfRecipeShoppingPlan()`,
+    `recipeShoppingAdd()`) and `scripts/test-recipe-shopping.php` (57 assertions on
+    the isolated fixture: unit families, container expansion, g/ml/pz maths,
+    staples, covered/partial/listed states, dry-run purity, "only the gap" inserts).
+  - The panel follows the existing *recipe shopping mode* setting: *ask* (default),
+    *add automatically*, *off*. 11 new i18n keys in all six locales.
 - **Calendar feed of expiries (ICS / WebCal)** — the pantry deadlines now show up
   where the household already looks. *Settings → 🗓️ Calendar* turns the feed on,
   picks the horizon (`ICS_DAYS`, default 30) and keeps recently missed dates
