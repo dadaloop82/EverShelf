@@ -136,3 +136,8 @@ npm run build
 > Audit / review notes are **internal working documents**. They are kept in the
 > git-ignored `todo/` folder at the repo root and are intentionally never pushed:
 > this repository is public and everything committed must be in English.
+>
+> This includes the CI improvements that need a `workflow`-scoped PAT to push:
+> they live on the local branch `ci-tests-lint` and as
+> `todo/0001-ci-run-the-test-suite-lint-every-JS-file-shellcheck-.patch`.
+> Apply with `git am todo/0001-ci-*.patch` once a PAT with `workflow` scope is set.
