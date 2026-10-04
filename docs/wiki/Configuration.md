@@ -126,9 +126,11 @@ grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
 docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
 ```
 
+```text
+[2026-10-04 09:56:51] [WARN ] [rid=2cf680af] [-] API pairing code {"event":"api_pairing_code","code":"a1b2c3d4","ttl_seconds":1800}
 ```
-[2026-10-04 09:56:51] [WARN ] [rid=2cf680af] [-] API pairing code {"event":"api_pairing_code","code":"173be93e","ttl_seconds":1800}
-```
+
+> The code above is a placeholder — your log line carries the real value.
 
 The code is 8 hex characters, valid for 30 minutes, and is **consumed** by the first
 successful pairing (50 wrong attempts from one IP burn it immediately). You pair once
