@@ -8,6 +8,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libgd-dev \
     libzip-dev \
     libicu-dev \
+    ca-certificates \
+    curl \
     tesseract-ocr \
     tesseract-ocr-ita \
     tesseract-ocr-eng \
@@ -23,6 +25,15 @@ COPY docker/php-evershelf.ini /usr/local/etc/php/conf.d/zz-evershelf.ini
 
 # Set working directory
 WORKDIR /var/www/html
+
+# Offline category classification. The ~23 MB MiniLM weights are gitignored, so a
+# published image used to ship without them and quietly fell back to the jsdelivr
+# CDN, while a developer's local image carried them: same tag, two different
+# artefacts. They are fetched here instead, from a layer of their own (only the
+# script is copied first), so both images end up identical and an application
+# change never re-downloads the weights.
+COPY scripts/install-transformers-model.sh /var/www/html/scripts/
+RUN bash /var/www/html/scripts/install-transformers-model.sh
 
 # Copy application files
 COPY . /var/www/html/

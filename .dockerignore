@@ -1,32 +1,74 @@
-# Docker runtime files
-data/evershelf.db
+# ─── Docker runtime files ────────────────────────────────────────────────────
+# Nothing under data/ is application code: it is the developer's pantry, their
+# tokens and their caches. `COPY .` used to bake all of it into the image —
+# including data/mealie/docker-compose.yml, which holds the Mealie admin
+# password in clear text. Everything mutable is listed here.
+data/*.db
 data/*.db-wal
 data/*.db-shm
+data/*.db.bak*
 data/backups/
-data/cron.log
-data/smart_shopping_cache.json
-data/bring_token.json
-data/bring_catalog.json
-data/client_debug.log
+data/rate_limits/
+data/*.log
 data/*.crt
 data/*.pem
+data/mealie/
+data/*_cache.json
+data/weather_cache_*.json
+data/api_pairing.json
+data/bring_token.json
+data/bring_catalog.json
+data/bring_migrate_ts.json
+data/anomaly_dismissed.json
+data/ai_usage.json
+data/classify_daily.json
+data/shopping_spend.json
+data/backup_last_ts.json
+data/audit_finished_missing.json
+data/reported_issue_fps.json
 
-# Config (mounted as volume)
+# Shipped on purpose: the deny rules, the directory placeholder and the source
+# data of the seasonal feature. Re-included so a future, broader pattern cannot
+# silently drop them.
+!data/.htaccess
+!data/.gitkeep
+!data/seasonal_produce_it.json
+
+# ─── Development-only trees that `COPY .` used to drag in ────────────────────
+mcp-server/node_modules/
+evershelf-kiosk/
+screenshots/
+todo/
+__pycache__/
+*.apk
+
+# The MiniLM weights are gitignored: the Dockerfile fetches them itself, so the
+# published image and a locally built one finally contain the same files.
+assets/vendor/transformers/Xenova/
+
+# releases/ stays in the context: api/index.php `getKioskUpdate()` answers with
+# releases/kiosk-version.json. Put your own APK there via a bind mount — *.apk is
+# ignored on purpose, so an image never carries one of your local builds.
+
+# ─── Config (mounted as volume) ──────────────────────────────────────────────
 .env
 
-# Git
+# ─── Git ─────────────────────────────────────────────────────────────────────
 .git
 .gitignore
 
-# Docs (not needed in container)
+# ─── Docs (not needed in container) ──────────────────────────────────────────
 README.md
 CHANGELOG.md
 CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
 LICENSE
+TODO.md
 docs/
 *.md
 
-# IDE
+# ─── IDE ─────────────────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp

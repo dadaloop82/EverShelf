@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.10] - Unreleased
+
+Second half of the 2026-10-04 audit: what a `docker build` bakes into the image,
+how the backup copies the database, and the API surface around write actions.
+
+### Security
+- **`docker build` no longer bakes the machine it runs on into the image.**
+  `.dockerignore` listed five `data/` files, so `COPY .` dragged in the whole
+  runtime directory: the pantry database, the API/pairing tokens, every cache and
+  `data/mealie/docker-compose.yml`, which holds the Mealie admin password in
+  clear text. Everything mutable under `data/` is excluded now, while the three
+  tracked files the app ships (`data/.htaccess`, `data/.gitkeep`,
+  `data/seasonal_produce_it.json`) are re-included explicitly. The build context
+  drops from ~114 MB to ~41 MB — `mcp-server/node_modules/`, `evershelf-kiosk/`,
+  `screenshots/`, `todo/` and stray `*.apk` were being copied in as well.
+  `releases/` stays: `getKioskUpdate()` answers from `releases/kiosk-version.json`.
+
+### Fixed
+- **A published image and a locally built one are no longer two different
+  artefacts under the same tag.** The MiniLM weights behind offline category
+  classification are gitignored, so GHCR images shipped without them and quietly
+  fell back to the jsdelivr CDN, while an image built on a developer machine
+  carried them. The Dockerfile now fetches the model in a layer of its own, and
+  `scripts/install-transformers-model.sh` retries transient CDN failures that
+  would otherwise take an image build down with them.
+
+### Changed
+- Web app manifest: the icon set is rebuilt at the sizes a browser actually asks
+  for — 192×192 and 512×512 `any` plus a dedicated 192/512 **maskable** pair, so
+  Android no longer crops the transparent logo to the launcher shape. The two
+  odd-sized entries (557×507, 74×64) are gone. `screenshots` stays absent: the
+  available captures are landscape-only, so Chromium's rich install UI remains
+  off instead of shipping a wrong `form_factor`.
+
+### Added
+- `scripts/i18n-audit.py` check `[4]`: it fails when a manifest icon is missing,
+  declares a MIME type that does not match its file, declares `sizes` that differ
+  from the real PNG pixels (read from the IHDR chunk, no Pillow needed), or
+  leaves 192/512 uncovered for both the `any` and the `maskable` purpose.
+
 ## [1.8.9] - 2026-10-04
 
 Localisation hotfix: the strings a user reads but that never changed language —
@@ -35,23 +75,14 @@ app manifest.
 
 ### Changed
 - Web app manifest: the declared icon was `image/svg+xml` for a PNG file with
-  `sizes: "any"`; the file gains `lang` and a language-neutral description, and
-  the icon set is rebuilt at the sizes a browser actually asks for — 192×192 and
-  512×512 `any` plus a dedicated 192/512 **maskable** pair, so Android no longer
-  crops the transparent logo. The two odd-sized entries (557×507, 74×64) are gone.
-  `screenshots` stays absent: the available captures are landscape-only, so
-  Chromium's rich install UI remains off instead of shipping a wrong
-  `form_factor`.
+  `sizes: "any"`; both icons now declare their real pixel size, and the file
+  gains `lang` and a language-neutral description.
 - 16 new keys added to all six locales; asset/i18n stamp → `20261004g`.
 
 ### Added
 - `scripts/i18n-audit.py` check `[3]`: it fails when a `title`, `placeholder` or
   `aria-label` has no `data-i18n*` override and is not an explicitly
   language-neutral technical example — the regression gate for the bug above.
-- `scripts/i18n-audit.py` check `[4]`: it fails when a manifest icon is missing,
-  declares a MIME type that does not match its file, declares `sizes` that differ
-  from the real PNG pixels (read from the IHDR chunk, no Pillow needed), or
-  leaves 192/512 uncovered for both the `any` and the `maskable` purpose.
 
 ## [1.8.8] - 2026-10-04
 
