@@ -75,6 +75,7 @@
 | `seasonal.php` | **IT produce calendar** + stale-stock | `seasonalReviewShopping()`, `staleInventoryItems()` |
 | `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed |
 | `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
+| `recipe_shopping.php` | **Recipe → shopping list** with pantry deduction (recompute the gap on open) | `evershelfRecipeShoppingPlan()`, `recipeShoppingAdd()`, `evershelfBaseQty()` |
 | `cron_log.php` | Rotates `data/cron.log` | |
 
 
@@ -150,7 +151,8 @@ Groups:
   `gemini_number_ocr`, `gemini_barcode_visual`, `tts_proxy`, `ai_test`.
 - **Shopping**: `shopping_list/add/remove/suggest`, `smart_shopping`,
   `seasonal_shopping_review`, `stale_inventory_items`, templates, and the
-  `bring_*` family (Bring! mirror).
+  `bring_*` family (Bring! mirror). **`recipe_shopping_add`** turns a recipe into
+  the list of what the pantry does not cover (POST, `dry_run` for the render).
 - **Settings / ops**: `save_settings`, `get_settings`, `app_settings_get/save`,
   `db_cleanup`, `backup_now/list/delete/restore`, `gdrive_*`, `check_update`,
   `client_log`, `get_client_log`, `get_logs`, `gemini_usage`, `report_error`,

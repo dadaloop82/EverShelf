@@ -80,6 +80,17 @@ Tap **🍳 Recipes** → **Generate Recipe** to get a recipe using:
 
 Recipes stream live via Server-Sent Events so results appear as they are generated.
 
+Every recipe also answers "what do I still have to buy?". The 🛒 panel under the
+ingredients compares the recipe against the pantry *at the moment you open it* and
+lists only the gaps — 500 g of pasta with 200 g left asks for 300 g, and stock held
+in another unit (3 ricotta tubs against "250 g asked") counts as covered. Tick or
+untick the rows and press **Add the missing ones**: they land on the shopping list
+through the same path as a manual add, so Bring!, the blocklist and the Home
+Assistant webhook all keep working. Salt, pepper, oil and water are treated as free
+staples and never nagged about; something already on the list is marked as such
+instead of being added twice. Settings → recipe shopping mode chooses between
+*ask*, *add automatically* and *off*.
+
 ### AI Chat Assistant
 
 Open **💬 Chat** to ask questions like:

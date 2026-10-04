@@ -1175,6 +1175,11 @@ try {
         case 'recipes_toggle_favorite':
             recipeToggleFavorite($db);
             break;
+        case 'recipe_shopping_add':
+            // Recipe ingredients → shopping list, deducting what the pantry already holds.
+            // Implements recipeShoppingAdd() in api/lib/recipe_shopping.php.
+            recipeShoppingAdd($db);
+            break;
         case 'macro_stats':
             getMacroStats($db);
             break;
@@ -4018,26 +4023,19 @@ function stockForName(PDO $db): void {
         return;
     }
 
-    $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
-             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo'];
-
-    $tokenize = function(string $s) use ($stop): array {
-        $clean = mb_strtolower(preg_replace('/[^\p{L}0-9\s]/u', ' ', $s));
-        return array_values(array_filter(
-            preg_split('/\s+/', trim($clean)),
-            fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
-        ));
-    };
-
-    $searchTokens = $tokenize($name);
+    // Shared tokenizer (shopping_sync.php): recipe_shopping.php matches pantry stock
+    // with the very same rule, so "carote" links to "Carote Bio" everywhere identically.
+    $searchTokens = evershelfNameTokens($name);
     if (empty($searchTokens)) {
         echo json_encode(['items' => []]);
         return;
     }
     $firstToken = $searchTokens[0];
 
+    // Quantity lives on the inventory row, the unit on the product (inventory has no
+    // `unit` column): selecting i.unit raised "no such column" on a real database.
     $rows = $db->query(
-        "SELECT i.quantity, i.unit, i.location,
+        "SELECT i.quantity, p.unit, i.location,
                 p.name AS product_name, p.brand,
                 p.default_quantity, p.package_unit
          FROM inventory i
@@ -4048,7 +4046,7 @@ function stockForName(PDO $db): void {
 
     $matches = [];
     foreach ($rows as $row) {
-        $rowTokens = $tokenize($row['product_name']);
+        $rowTokens = evershelfNameTokens($row['product_name']);
         if (empty($rowTokens)) continue;
         if ($rowTokens[0] === $firstToken) {
             $matches[] = [

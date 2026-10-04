@@ -5997,6 +5997,56 @@ body.server-offline .bottom-nav {
     white-space: nowrap;
 }
 
+/* Recipe → shopping list panel: what the pantry does not cover */
+.recipe-shopping-suggestions {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: #92400e;
+    line-height: 1.5;
+}
+.recipe-shopping-suggestions p {
+    margin: 0 0 8px;
+}
+.recipe-plan-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 10px;
+}
+.recipe-plan-row {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+    border-bottom: 1px solid #fef3c7;
+}
+.recipe-plan-row:last-child {
+    border-bottom: none;
+}
+.recipe-plan-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #78350f;
+    cursor: pointer;
+}
+.recipe-plan-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+}
+.recipe-plan-row small {
+    margin-left: 24px;
+    color: #a16207;
+}
+.recipe-plan-note {
+    display: block;
+    margin-top: 4px;
+    color: #a16207;
+}
+
 /* Regen choice panel */
 .recipe-regen-choice {
     background: #f8fafc;
@@ -10275,6 +10325,11 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .recipe-storage-now  { background: #2a0a0a; border-color: #b91c1c; color: #fca5a5; }
 [data-theme="dark"] .recipe-storage-tips { color: #fde68a; }
 [data-theme="dark"] .recipe-tools-banner { background: #1a1040; border-color: #3730a3; color: #c4b5fd; }
+[data-theme="dark"] .recipe-shopping-suggestions { background: #241a02; border-color: #78350f; color: #fde68a; }
+[data-theme="dark"] .recipe-plan-row { border-color: #78350f; }
+[data-theme="dark"] .recipe-plan-row label { color: #fde68a; }
+[data-theme="dark"] .recipe-plan-row small,
+[data-theme="dark"] .recipe-plan-note { color: #fbbf24; }
 [data-theme="dark"] .recipe-tool-chip    { background: #2e1a4a; color: #c4b5fd; }
 [data-theme="dark"] .recipe-step-appliance { background: #052e16; border-color: #166534; color: #4ade80; }
 [data-theme="dark"] .recipe-regen-choice { background: #1e293b; border-color: #334155; }
