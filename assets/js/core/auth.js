@@ -3,6 +3,15 @@
  */
 const EVERSHELF_TOKEN_KEY = 'evershelf_api_token';
 
+/**
+ * z-index for the auth overlays. Must stay above the splash preloader
+ * (`#app-preloader`, z-index 200000): pairing is asked *during* startup, and
+ * `_initApp()` stops when it cannot authenticate, so the preloader never goes
+ * away on its own. Without this the dialog was rendered behind it and the app
+ * appeared to dead-end on "API token required".
+ */
+const EVERSHELF_AUTH_OVERLAY_Z = '200001';
+
 function getApiToken() {
     return localStorage.getItem(EVERSHELF_TOKEN_KEY) || '';
 }
@@ -32,8 +41,10 @@ async function ensureApiToken() {
         if (!res.ok) return false;
         const data = await res.json();
         window._apiTokenRequired = !!data.api_token_required;
+        window._pairingRequired = !!data.pairing_required;
         if (data.api_token) {
             setApiToken(data.api_token);
+            window._pairingRequired = false;
             return true;
         }
         if (data.pairing_required) {
@@ -63,6 +74,7 @@ function _promptPairingCode() {
     overlay.id = EVERSHELF_PAIRING_OVERLAY;
     overlay.className = 'modal-overlay';
     overlay.style.display = 'flex';
+    overlay.style.zIndex = EVERSHELF_AUTH_OVERLAY_Z;
     overlay.innerHTML = `
         <div class="modal-content" style="max-width:420px;padding:20px">
             <h3>${title}</h3>
@@ -110,6 +122,7 @@ function _promptApiTokenIfNeeded() {
     overlay.id = 'api-token-overlay';
     overlay.className = 'modal-overlay';
     overlay.style.display = 'flex';
+    overlay.style.zIndex = EVERSHELF_AUTH_OVERLAY_Z;
     overlay.innerHTML = `
         <div class="modal-content" style="max-width:420px;padding:20px">
             <h3>${title}</h3>

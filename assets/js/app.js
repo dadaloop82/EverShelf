@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261004b'; // bump when translations change
+const _I18N_VERSION = '20261004c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -25191,6 +25191,13 @@ async function _runStartupCheck() {
         result = await resp.json();
         if (result.public && result.api_token_required && typeof getApiToken === 'function' && !getApiToken()) {
             window._apiTokenRequired = true;
+            // Pairing is the normal path for a fresh browser: say so, instead of the
+            // generic "API token required" which gives the user nothing to act on.
+            if (window._pairingRequired && typeof _promptPairingCode === 'function') {
+                _promptPairingCode();
+                setProgress(100, tl('pairing_required', 'Pair this device — the code is in the server log'), 'warn');
+                return false;
+            }
             if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
             setProgress(100, tl('token_required', 'API token required'), 'warn');
             return false;

@@ -2075,6 +2075,7 @@
     "pairing_title": "🔒 Dieses Gerät koppeln",
     "pairing_hint": "Gib den Kopplungscode aus dem Server-Log ein (docker logs evershelf oder logs/evershelf_*.log).",
     "pairing_placeholder": "Kopplungscode",
+    "pairing_required": "Dieses Gerät koppeln — der Code steht im Server-Log",
     "pairing_btn": "Koppeln",
     "pairing_error": "Ungültiger oder abgelaufener Code — prüfe das Server-Log auf einen neuen.",
     "hint_backups_none": "Keine Backups gefunden — ist cron konfiguriert?",

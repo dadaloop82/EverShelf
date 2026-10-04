@@ -2075,6 +2075,7 @@
     "pairing_title": "🔒 Associa questo dispositivo",
     "pairing_hint": "Inserisci il codice di associazione mostrato nei log del server (docker logs evershelf oppure logs/evershelf_*.log).",
     "pairing_placeholder": "Codice di associazione",
+    "pairing_required": "Associa questo dispositivo — il codice è nei log del server",
     "pairing_btn": "Associa",
     "pairing_error": "Codice non valido o scaduto — controlla i log del server per uno nuovo.",
     "hint_backups_none": "Nessun backup trovato — cron configurato?",
