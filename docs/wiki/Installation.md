@@ -204,7 +204,13 @@ crontab -e
 0 3 * * * /var/www/html/dispensa/backup.sh
 ```
 
-The `backup.sh` script copies `data/evershelf.db` to `data/backups/` with a timestamp.
+The `backup.sh` script snapshots `data/evershelf.db` into `data/backups/` with a
+timestamp, and keeps the newest `BACKUP_RETENTION_DAYS` of them (`.env`, default 3).
+Because the database runs in WAL mode it uses SQLite's online backup — `sqlite3
+... ".backup"`, or a PHP `PRAGMA wal_checkpoint(FULL)` when the `sqlite3` CLI is
+missing — instead of a plain file copy, which would silently drop the newest
+transactions. The Docker image ships the `sqlite3` CLI, so the fast path is used
+there.
 
 ---
 

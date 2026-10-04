@@ -36,6 +36,25 @@ how the backup copies the database, and the API surface around write actions.
   carried them. The Dockerfile now fetches the model in a layer of its own, and
   `scripts/install-transformers-model.sh` retries transient CDN failures that
   would otherwise take an image build down with them.
+- **`backup.sh` could lose the newest transactions.** The database runs in WAL
+  mode and the script snapshotted it with `cp`, so everything still sitting in
+  `evershelf.db-wal` stayed out of the backup (and a write in flight could make
+  the copy inconsistent). It now uses SQLite's online backup — `sqlite3 .backup`,
+  or a PHP `PRAGMA wal_checkpoint(FULL)` when the CLI is missing — writes to a
+  `.part` file and renames it, so an interrupted run cannot leave a half-written
+  backup behind for the retention step to keep. The Docker image ships the
+  `sqlite3` CLI, so the fast path is always available there.
+- **The documented cron had silently done nothing since June.** `INSTALL_DIR`
+  was resolved as `dirname "$0"/..`, the *parent* of the script's directory, so
+  the documented `0 3 * * * /var/www/html/dispensa/backup.sh` looked for
+  `/var/www/html/data/evershelf.db`, found no database and exited 0. That `/..`
+  arrived with `d33b0ca` (2026-06-03): before it, the same line used
+  `dirname "$0"` and worked. The three `dispensa_*.db` snapshots from
+  2026-04-13 are the last ones a cron ever wrote — everything in
+  `data/backups/` since then came from the backup button in the UI. The path is
+  the script's own directory now, which is right both for a git checkout
+  (`<install>/dispensa/backup.sh`) and for the container
+  (`/var/www/html/backup.sh`).
 
 ### Changed
 - Web app manifest: the icon set is rebuilt at the sizes a browser actually asks
@@ -44,6 +63,9 @@ how the backup copies the database, and the API surface around write actions.
   odd-sized entries (557×507, 74×64) are gone. `screenshots` stays absent: the
   available captures are landscape-only, so Chromium's rich install UI remains
   off instead of shipping a wrong `form_factor`.
+- `docs/wiki/Configuration.md` no longer tells people to back the database up with
+  a raw `cp` (and why that is wrong); `docs/wiki/Installation.md` documents the
+  WAL-safe behaviour and `BACKUP_RETENTION_DAYS`.
 
 ### Added
 - `scripts/i18n-audit.py` check `[4]`: it fails when a manifest icon is missing,

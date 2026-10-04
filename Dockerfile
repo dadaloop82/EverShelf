@@ -3,6 +3,7 @@ FROM php:8.2-apache-bookworm
 # Install required PHP extensions + Tesseract OCR for offline expiry date reading
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libsqlite3-dev \
+    sqlite3 \
     libcurl4-openssl-dev \
     libonig-dev \
     libgd-dev \
