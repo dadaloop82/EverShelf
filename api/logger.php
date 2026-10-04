@@ -2,9 +2,9 @@
 /**
  * EverShelf Logger — rotating file logger with 4 configurable levels.
  *
- * Levels (in order of verbosity):
- *   DEBUG(0) — ogni minima operazione: query, cache, AI payload, function entry/exit
- *   INFO (1) — azioni completate, AI result summary, sync status             [default]
+ * Levels (increasing severity):
+ *   DEBUG(0) — every low-level operation: query, cache, AI payload, function entry/exit
+ *   INFO (1) — completed actions, AI result summaries, sync status           [default]
  *   WARN (2) — rate limit, cache miss, AI fallback, token renewal, slow op
  *   ERROR(3) — DB failure, AI API error, file write error, exception
  *
@@ -16,6 +16,9 @@
  * Log files: logs/evershelf_YYYY-MM-DD_HH.log
  * Each line:  [2026-05-18 14:23:11] [INFO ] [rid=a1b2c3d4] [action] Message {ctx}
  */
+
+require_once __DIR__ . '/lib/env.php';
+
 class EverLog {
 
     // ── Level constants ────────────────────────────────────────────────────
@@ -38,10 +41,10 @@ class EverLog {
         if (self::$initialized) return;
         self::$initialized = true;
 
-        // Read .env values via getenv() (populated by Apache SetEnv or putenv() in index.php)
-        $envLevel    = strtoupper((string)(getenv('LOG_LEVEL')        ?: 'INFO'));
-        $rotateHours = max(1, min(168, (int)(getenv('LOG_ROTATE_HOURS') ?: 24)));
-        $maxFiles    = max(1, min(365, (int)(getenv('LOG_MAX_FILES')    ?: 14)));
+        // Read .env values through the shared accessor (see api/lib/env.php).
+        $envLevel    = strtoupper(env('LOG_LEVEL') ?: 'INFO');
+        $rotateHours = max(1, min(168, (int)(env('LOG_ROTATE_HOURS') ?: 24)));
+        $maxFiles    = max(1, min(365, (int)(env('LOG_MAX_FILES')    ?: 14)));
 
         self::$level       = match($envLevel) {
             'DEBUG' => self::DEBUG,

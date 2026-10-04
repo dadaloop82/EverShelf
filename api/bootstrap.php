@@ -2,12 +2,14 @@
 /**
  * EverShelf API bootstrap — shared by HTTP router and cron.
  */
+require_once __DIR__ . '/lib/env.php';
+loadEnv(); // read .env first: bridges it into getenv()/$_ENV before anything reads config
+
 // Never emit HTML notices before JSON API responses (breaks fetch().json() in the PWA).
-if (!defined('CRON_MODE') && (getenv('DISPLAY_ERRORS') ?: '') !== '1') {
+if (!defined('CRON_MODE') && env('DISPLAY_ERRORS') !== '1') {
     ini_set('display_errors', '0');
     ini_set('html_errors', '0');
 }
-require_once __DIR__ . '/lib/env.php';
 require_once __DIR__ . '/lib/constants.php';
 require_once __DIR__ . '/lib/github.php';
 require_once __DIR__ . '/lib/security.php';
@@ -17,6 +19,8 @@ require_once __DIR__ . '/lib/cron_log.php';
 require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/lib/shopping_guards.php';
+require_once __DIR__ . '/lib/shopping_sync.php';
+require_once __DIR__ . '/lib/pairing.php';
 require_once __DIR__ . '/lib/health.php';
 require_once __DIR__ . '/lib/weather.php';
 require_once __DIR__ . '/lib/ai_provider.php';

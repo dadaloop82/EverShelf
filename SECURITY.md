@@ -41,8 +41,28 @@ Out-of-scope issues:
 
 - API keys stored server-side in `.env`, never sent to the browser
 - `get_settings` returns only boolean flags (`gemini_key_set`), never raw key values
-- Optional `SETTINGS_TOKEN` protects write operations (`hash_equals` to prevent timing attacks)
-- `DEMO_MODE=true` blocks all write operations at the router level
+- Optional `API_TOKEN` (legacy alias `SETTINGS_TOKEN`) protects every data read and
+  write (`hash_equals` to prevent timing attacks). `DEMO_MODE=true` blocks all write
+  operations at the router level
+- **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to
+  an anonymous request: the UI shows a dialog and the user types the one-time code
+  printed in the server log (`docker logs evershelf` / `logs/evershelf_*.log`, 30 min
+  TTL, brute-force limited). `API_BOOTSTRAP_OPEN=true` restores the old
+  "trust any same-origin-looking request" behaviour and should only be used on a
+  fully trusted LAN — the headers it relies on are client-controlled.
+- **No authorisation decision is made from client-controlled headers.** Actions that
+  run `docker` or rewrite `.env` (`mealie_install`, `mealie_configure`, …) and the
+  scale gateway endpoints require the API token; the previous `Sec-Fetch-Site` /
+  `Origin` bypass was removed.
+- Baseline security headers are sent for every response
+  (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy:
+  same-origin`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and HSTS over TLS).
+  A full Content-Security-Policy still needs the inline event handlers to be
+  converted to delegated listeners.
+- Rate limiting honours `X-Forwarded-For` only from hosts listed in `TRUSTED_PROXIES`,
+  so behind a reverse proxy each client keeps its own bucket and cannot spoof one.
+  Public actions that create GitHub issues (`report_bug`) have a dedicated,
+  much tighter bucket.
 - Parameterized SQL queries (PDO prepared statements) throughout
 - Input validation and length limits on all user-supplied fields
 - `.env` and `data/` directories denied via web server config (see README)
@@ -51,9 +71,12 @@ Out-of-scope issues:
   or a same-origin browser session — it can never be used as an open relay.
   TLS verification is on by default; `TTS_INSECURE_SSL=true` opts in to
   self-signed LAN certificates.
-- `.env` writes (`save_settings`, Google Drive OAuth callback) are surgical and
-  comment-preserving; values are sanitized so a crafted value cannot inject new
-  keys or comment out existing lines.
+- `.env` writes (`save_settings`, Google Drive OAuth callback, Mealie setup) go
+  through a single writer that validates key names, strips CR/LF/NUL so a crafted
+  value cannot inject new keys or comment out existing lines, and preserves
+  comments/order.
+- Cache files are written with `LOCK_EX` so a web request and the cron cannot
+  interleave and leave truncated JSON behind.
 
 ## Repository & release secrets
 

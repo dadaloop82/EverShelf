@@ -17,6 +17,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
 # Enable Apache mod_rewrite and mod_headers
 RUN a2enmod rewrite headers
 
+# OPcache + PHP limits (see docker/php-evershelf.ini)
+RUN docker-php-ext-enable opcache 2>/dev/null || true
+COPY docker/php-evershelf.ini /usr/local/etc/php/conf.d/zz-evershelf.ini
+
 # Set working directory
 WORKDIR /var/www/html
 
@@ -31,14 +35,9 @@ RUN mkdir -p /var/www/html/data/backups \
 # Create .env from example if it doesn't exist (will be overridden by volume mount)
 RUN [ ! -f /var/www/html/.env ] && cp /var/www/html/.env.example /var/www/html/.env || true
 
-# Apache configuration: serve from app root
-RUN echo '<Directory /var/www/html>\n\
-    AllowOverride All\n\
-    Require all granted\n\
-</Directory>\n\
-# Traefik / reverse-proxy: treat forwarded HTTPS as on so .htaccess does not redirect-loop\n\
-SetEnvIf X-Forwarded-Proto "https" HTTPS=on' > /etc/apache2/conf-available/evershelf.conf \
-    && a2enconf evershelf
+# Apache configuration (vhost conf is versioned in docker/apache-evershelf.conf)
+COPY docker/apache-evershelf.conf /etc/apache2/conf-available/evershelf.conf
+RUN a2enconf evershelf
 
 # Expose port 80
 EXPOSE 80

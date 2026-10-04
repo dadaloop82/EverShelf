@@ -14,16 +14,37 @@ RewriteEngine On
     Require all denied
 </FilesMatch>
 
-# Force HTTPS (skip when terminated TLS is forwarded — Traefik, Caddy, NPM, …)
+# ── Security headers ────────────────────────────────────────────────────────
+# A full CSP is not possible yet (inline handlers, shipped third-party bundles),
+# but these are free and close framing / MIME-sniffing / referrer leaks.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+    Header always set Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    # HSTS only when the request actually arrived over TLS (set by the vhost or proxy).
+    Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+    # The CA certificate is a public file offered for download: never let a browser
+    # sniff/render it as a document.
+    <FilesMatch "\.(crt|cer|pem)$">
+        Header set Content-Disposition "attachment"
+    </FilesMatch>
+</IfModule>
+
+# Force HTTPS (skip when terminated TLS is forwarded — Traefik, Caddy, NPM, …).
+# EVERSHELF_CANONICAL_HOST must be set in the Apache vhost (SetEnv) to avoid
+# reflecting an attacker-controlled Host header into the redirect (open redirect /
+# cache poisoning). Without it no redirect is issued.
 RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !^https$ [NC]
-RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+RewriteCond %{ENV:EVERSHELF_CANONICAL_HOST} ^[A-Za-z0-9.-]+(:[0-9]+)?$
+RewriteRule ^(.*)$ https://%{ENV:EVERSHELF_CANONICAL_HOST}%{REQUEST_URI} [L,R=301]
 
 # API routing
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^api/(.*)$ api/index.php?action=$1&%{QUERY_STRING} [L,QSA]
-AddType application/x-x509-ca-cert .crt
 
 # Prevent caching of JS/CSS so kiosk always gets fresh files
 <FilesMatch "\.(js|css)$">

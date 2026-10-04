@@ -36,15 +36,73 @@ async function ensureApiToken() {
             setApiToken(data.api_token);
             return true;
         }
+        if (data.pairing_required) {
+            _promptPairingCode();
+        }
     } catch (_) { /* offline / network */ }
     return !!getApiToken();
+}
+
+const EVERSHELF_PAIRING_OVERLAY = 'api-pairing-overlay';
+
+function _anyAuthOverlayOpen() {
+    return !!(document.getElementById('api-token-overlay') || document.getElementById(EVERSHELF_PAIRING_OVERLAY));
+}
+
+/**
+ * Ask for the one-time pairing code printed in the server log (docker logs / logs/).
+ * The server never hands API_TOKEN to an anonymous request any more.
+ */
+function _promptPairingCode() {
+    if (_anyAuthOverlayOpen()) return;
+    const title = typeof t === 'function' ? t('startup.pairing_title') : '🔒 Pair this device';
+    const hint  = typeof t === 'function' ? t('startup.pairing_hint') : 'Enter the pairing code shown in the server log (docker logs evershelf).';
+    const btn   = typeof t === 'function' ? t('startup.pairing_btn') : 'Pair';
+    const ph    = typeof t === 'function' ? t('startup.pairing_placeholder') : 'Pairing code';
+    const overlay = document.createElement('div');
+    overlay.id = EVERSHELF_PAIRING_OVERLAY;
+    overlay.className = 'modal-overlay';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+        <div class="modal-content" style="max-width:420px;padding:20px">
+            <h3>${title}</h3>
+            <p class="settings-hint">${hint}</p>
+            <input type="text" id="api-pairing-input" class="form-input" autocomplete="one-time-code" placeholder="${ph}">
+            <p class="settings-hint" id="api-pairing-error" style="color:#c0392b;display:none"></p>
+            <button class="btn btn-primary full-width mt-2" id="api-pairing-save">${btn}</button>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const submit = async () => {
+        const input = document.getElementById('api-pairing-input');
+        const errEl = document.getElementById('api-pairing-error');
+        const code  = (input?.value || '').trim();
+        if (!code) return;
+        try {
+            const res = await fetch('api/index.php?action=app_bootstrap&pairing_code=' + encodeURIComponent(code), { cache: 'no-store' });
+            const data = await res.json();
+            if (data.api_token) {
+                setApiToken(data.api_token);
+                overlay.remove();
+                location.reload();
+                return;
+            }
+        } catch (_) { /* fall through to the error below */ }
+        if (errEl) {
+            errEl.textContent = typeof t === 'function' ? t('startup.pairing_error') : 'Invalid or expired code. Check the server log for a new one.';
+            errEl.style.display = '';
+        }
+    };
+    document.getElementById('api-pairing-save').onclick = submit;
+    document.getElementById('api-pairing-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submit();
+    });
 }
 
 function _promptApiTokenIfNeeded() {
     if (!window._apiTokenRequired) return;
     if (getApiToken()) return;
-    const existing = document.getElementById('api-token-overlay');
-    if (existing) return;
+    if (_anyAuthOverlayOpen()) return;
     const title = typeof t === 'function' ? t('startup.token_prompt_title') : '🔒 API Token';
     const hint  = typeof t === 'function' ? t('startup.token_prompt_hint') : 'Enter API_TOKEN from .env';
     const btn   = typeof t === 'function' ? t('startup.token_prompt_btn') : 'Continue';
@@ -75,3 +133,4 @@ window.setApiToken = setApiToken;
 window.apiAuthHeaders = apiAuthHeaders;
 window.ensureApiToken = ensureApiToken;
 window._promptApiTokenIfNeeded = _promptApiTokenIfNeeded;
+window._promptPairingCode = _promptPairingCode;

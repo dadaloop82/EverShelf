@@ -110,12 +110,23 @@ function checkRateLimit(string $action): void {
     $loginActions = [];
     $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
     $errorActions = ['report_error', 'check_update'];
+    $bugActions   = ['report_bug'];
     $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
 
     if (in_array($action, $aiActions)) {
         $limit = 15;
         $window = 60;
         $bucket = 'ai';
+    } elseif ($action === 'api_pairing') {
+        // Brute-force guard for the one-time pairing code: 10 attempts / minute / IP.
+        $limit = 10;
+        $window = 60;
+        $bucket = 'pairing';
+    } elseif (in_array($action, $bugActions)) {
+        // Public action that creates GitHub issues — keep it tight (2 / hour / IP).
+        $limit = 2;
+        $window = 3600;
+        $bucket = 'bug_report';
     } elseif (in_array($action, $priceActions)) {
         // Price lookups: up to 30 items × a few retries per minute, shared bucket
         $limit = 60;
@@ -139,11 +150,12 @@ function checkRateLimit(string $action): void {
         $bucket = 'general';
     }
 
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $ip = evershelfClientIp();
     $file = $rateLimitDir . '/' . md5($ip . '_' . $bucket) . '.json';
 
-    // Clean up old rate limit files periodically (1% chance per request)
-    if (mt_rand(1, 100) === 1) {
+    // Clean up old rate limit files periodically (5% chance per request — the
+    // directory must not grow unbounded, but the sweep must not dominate the request)
+    if (mt_rand(1, 20) === 1) {
         foreach (glob($rateLimitDir . '/*.json') as $f) {
             if (filemtime($f) < time() - 300) @unlink($f);
         }
@@ -177,6 +189,7 @@ function checkRateLimit(string $action): void {
 if (!defined('CRON_MODE')) {
 
 header('Content-Type: application/json; charset=utf-8');
+evershelfSendSecurityHeaders();
 evershelfSendCorsHeaders();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
@@ -211,15 +224,37 @@ if (($_GET['action'] ?? '') === 'kiosk_update') {
     exit;
 }
 
-// ── App bootstrap — same-origin browsers receive API token automatically ───────
+// ── App bootstrap — the API token is disclosed only after pairing ────────────
 if (($_GET['action'] ?? '') === 'app_bootstrap') {
     checkRateLimit('app_bootstrap');
     $required = evershelfApiTokenRequired();
     $out = ['api_token_required' => $required];
-    if ($required && evershelfIsSameOriginBrowser()) {
-        $out['api_token'] = evershelfEffectiveApiToken();
+    if ($required) {
+        if (evershelfApiTokenValid()) {
+            // Caller already authenticates — nothing to disclose.
+            $out['api_token_ok'] = true;
+        } elseif (env('API_BOOTSTRAP_OPEN') === 'true') {
+            // Explicit opt-out for fully trusted LAN installs (see SECURITY.md).
+            $out['api_token'] = evershelfEffectiveApiToken();
+        } else {
+            $pairingCode = (string)($_GET['pairing_code'] ?? '');
+            if ($pairingCode !== '') {
+                checkRateLimit('api_pairing');
+                if (evershelfPairingConsume($pairingCode)) {
+                    $out['api_token'] = evershelfEffectiveApiToken();
+                } else {
+                    http_response_code(401);
+                    $out['error'] = 'invalid_pairing_code';
+                    $out['pairing_required'] = true;
+                }
+            } else {
+                $pairing = evershelfPairingEnsure();
+                $out['pairing_required']     = true;
+                $out['pairing_expires_in']   = $pairing['expires_in'];
+            }
+        }
     }
-    echo json_encode($out);
+    echo json_encode($out, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -561,7 +596,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
 
     // ── 6. Actual file-write test ─────────────────────────────────────────────
     $testFile = $dataDir . '/_hc_' . getmypid() . '.tmp';
-    $writeOk  = $dataDirOk && (@file_put_contents($testFile, 'hc') !== false);
+    $writeOk  = $dataDirOk && (@file_put_contents($testFile, 'hc', LOCK_EX) !== false);
     if ($writeOk) @unlink($testFile);
     $checks['data_write_test'] = ['ok' => $writeOk];
 
@@ -3398,7 +3433,7 @@ function getFoodFacts(): void {
     ];
 
     // Write cache
-    @file_put_contents($cacheFile, json_encode($facts));
+    @file_put_contents($cacheFile, json_encode($facts), LOCK_EX);
 
     echo json_encode($facts);
 }
@@ -3489,7 +3524,7 @@ function clientLog(): void {
         if (file_exists($logFile) && filesize($logFile) > 100000) {
             $existing = file($logFile);
             $existing = array_slice($existing, -200);
-            file_put_contents($logFile, implode('', $existing));
+            file_put_contents($logFile, implode('', $existing), LOCK_EX);
         }
         file_put_contents($logFile, implode("\n", $lines) . "\n", FILE_APPEND | LOCK_EX);
     }
@@ -8449,7 +8484,7 @@ function _recordAiUsage(string $model, int $tokIn, int $tokOut, string $action =
     // Keep only last 13 months
     krsort($data);
     $data = array_slice($data, 0, 13, true);
-    @file_put_contents(AI_USAGE_PATH, json_encode($data, JSON_PRETTY_PRINT));
+    @file_put_contents(AI_USAGE_PATH, json_encode($data, JSON_PRETTY_PRINT), LOCK_EX);
     EverLog::debug('ai_usage recorded', ['model' => $model, 'in' => $tokIn, 'out' => $tokOut, 'action' => $action]);
 }
 
@@ -8670,7 +8705,7 @@ function getOpenedShelfLifeDays(string $name, string $category, string $location
     $cache[$cacheKey] = ['days' => $days, 'source' => $source, 'name' => $name, 'location' => $location, 'ts' => time()];
     $cacheDirty = true;
     // Write immediately so single-item requests (opened_shelf_life action) are persisted
-    @file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    @file_put_contents($cacheFile, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
 
     return $vacuumSealed ? (int)round($days * 1.5) : $days;
 }
@@ -11940,7 +11975,7 @@ function bringAuth(): ?array {
     ];
     
     // Cache token
-    @file_put_contents($cacheFile, json_encode($tokenData));
+    @file_put_contents($cacheFile, json_encode($tokenData), LOCK_EX);
     
     return $tokenData;
 }
@@ -12004,7 +12039,7 @@ function bringCatalog(): array {
     }
     
     $catalog = ['de2it' => $de2it, 'it2de' => $it2de];
-    @file_put_contents($cacheFile, json_encode($catalog, JSON_UNESCAPED_UNICODE));
+    @file_put_contents($cacheFile, json_encode($catalog, JSON_UNESCAPED_UNICODE), LOCK_EX);
     
     return $catalog;
 }
@@ -12761,7 +12796,7 @@ function createLocalBackup(?PDO $db = null): array {
     ];
 
     // Update last-backup timestamp file
-    file_put_contents(BACKUP_LAST_TS_PATH, json_encode(['ts' => time(), 'filename' => $filename, 'size_kb' => $sizeKb]));
+    file_put_contents(BACKUP_LAST_TS_PATH, json_encode(['ts' => time(), 'filename' => $filename, 'size_kb' => $sizeKb]), LOCK_EX);
 
     return $result;
 }
@@ -13169,24 +13204,10 @@ function enrichShoppingListPurchase(array $purchase): array {
     return array_map(static fn(array $row): array => enrichShoppingListItem($row, $smartItems), $purchase);
 }
 
-/** Build full Bring! specification from a smart-shopping row. */
+/** Build full Bring! specification from a smart-shopping row.
+ *  Delegates to the shared builder so the markers always match the cleanup logic. */
 function buildSmartBringSpec(array $si): string {
-    $generic = $si['shopping_name'] ?: $si['name'];
-    $parts = [];
-    if (!empty($si['name']) && $si['name'] !== $generic) {
-        $parts[] = $si['name'] . (!empty($si['brand']) ? ' · ' . $si['brand'] : '');
-    }
-    $urg = match ($si['urgency'] ?? '') {
-        'critical' => '⚡ Urgente',
-        'high'     => '🟠 Presto',
-        'medium'   => '🟡 A breve',
-        'low'      => '🔵 Previsione',
-        default    => '',
-    };
-    if ($urg !== '') $parts[] = $urg;
-    $qtyLabel = formatSmartSuggestQty($si);
-    if ($qtyLabel !== null) $parts[] = '🛒 ' . $qtyLabel;
-    return implode(' · ', $parts);
+    return evershelfBuildShoppingSpec($si);
 }
 
 /** True when a smart-shopping row should be auto-synced to Bring!/internal list.
@@ -14677,7 +14698,8 @@ function bringSyncFull(PDO $db, bool $refreshSmart = false): void {
             $decoded['cached_ts'] = time();
             file_put_contents(
                 __DIR__ . '/../data/smart_shopping_cache.json',
-                json_encode($decoded, JSON_UNESCAPED_UNICODE)
+                json_encode($decoded, JSON_UNESCAPED_UNICODE),
+                LOCK_EX
             );
             $summary['smart_items'] = count($decoded['items'] ?? []);
         }
@@ -14717,7 +14739,7 @@ function bringSyncFull(PDO $db, bool $refreshSmart = false): void {
         if ($reDecoded && !empty($reDecoded['success'])) {
             $reDecoded['cached_at'] = date('c');
             $reDecoded['cached_ts'] = time();
-            file_put_contents($cacheFile, json_encode($reDecoded, JSON_UNESCAPED_UNICODE));
+            file_put_contents($cacheFile, json_encode($reDecoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
             $summary['cache_restored'] = count($reDecoded['items'] ?? []);
         }
     }
@@ -14736,11 +14758,9 @@ function bringCleanupObsolete(PDO $db): array {
     if (!isShoppingBringMode()) {
         return ['skipped' => 'internal_shopping_mode'];
     }
-    // Load the freshly-computed smart shopping cache
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
-    if (!file_exists($cacheFile)) return ['skipped' => 'no_cache'];
-    $smartData = json_decode(file_get_contents($cacheFile), true);
-    $smartItems = $smartData['items'] ?? [];
+    // Load the freshly-computed smart shopping cache (purchased rows filtered out).
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    if ($smartItems === []) return ['skipped' => 'no_cache'];
 
     $auth = bringAuth();
     if (!$auth) return ['skipped' => 'no_bring_auth'];
@@ -14750,65 +14770,24 @@ function bringCleanupObsolete(PDO $db): array {
     $bringData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$listUUID}");
     if (!$bringData || !isset($bringData['purchase'])) return ['skipped' => 'bring_fetch_failed'];
 
-    // Reuse nameTokens closure
-    $stopwords = ['di','del','della','dei','il','la','le','lo','gli','un','una','e','con','per','da',
-                  'al','alla','in','su','se','che','non','ma','o','a','i','nel','nei','tra','delle',
-                  'degli','agli','dai','dalle','sui','sulle','sugli'];
-    $ntFn = function(string $name) use ($stopwords): array {
-        $name = mb_strtolower(trim($name));
-        $toks = preg_split('/[^a-z0-9àáâãäåèéêëìíîïòóôõöùúûü]+/u', $name, -1, PREG_SPLIT_NO_EMPTY);
-        return array_values(array_unique(array_filter($toks, fn($t) => mb_strlen($t) > 2 && !in_array($t, $stopwords))));
-    };
-
-    // Build smart map by shopping_name tokens AND by exact name.
-    // Exact match is tried first to prevent loose token collisions like
-    // 'Panna' (Bring! item, in stock) matching 'Panna da cucina' (depleted, critical)
-    // because they share the 'panna' token.
-    $smartByTok = [];
-    $smartByExactName = [];
-    foreach ($smartItems as $si) {
-        $sName = !empty($si['shopping_name']) ? $si['shopping_name'] : $si['name'];
-        $sNameNorm = strtolower(trim($sName));
-        if ($sNameNorm !== '') $smartByExactName[$sNameNorm] = $si;
-        foreach ($ntFn($sName) as $tok) {
-            if (!isset($smartByTok[$tok])) $smartByTok[$tok] = $si;
-        }
-    }
-
-    // App-added marker: urgency + quantity hints written by EverShelf
-    $appMarkers = ['⚡', '🟠', '🟡', '🔵', '🛒'];
+    // Shared index + "still needed?" predicate (see api/lib/shopping_sync.php).
+    $index       = evershelfSmartItemsIndex($smartItems);
+    $familyStock = static fn(string $generic): float => evershelfFamilyStockQty($db, $generic);
 
     $toRemove = [];
     foreach ($bringData['purchase'] as $bringItem) {
-        $spec    = $bringItem['specification'] ?? '';
-        $rawName = $bringItem['name'] ?? '';
+        $spec    = (string)($bringItem['specification'] ?? '');
+        $rawName = (string)($bringItem['name'] ?? '');
         $name    = bringToItalian($rawName);
 
-        // Only clean up items the app put there (identified by urgency markers in spec)
-        $isAppAdded = false;
-        foreach ($appMarkers as $m) {
-            if (mb_strpos($spec, $m) !== false) { $isAppAdded = true; break; }
-        }
-        if (!$isAppAdded) continue;
-
-        // Keep entries that explicitly mark a recently finished variant
-        if (mb_strpos($spec, '🛒 Esaurito') !== false) continue;
-
-        // Match against smart items: exact shopping_name first, then first-token fallback.
-        // Exact match prevents e.g. 'Panna' → 'Panna da cucina' via shared token 'panna'.
-        $nameToks = $ntFn($name);
-        $exactKey = strtolower(trim($name));
-        $smartSi  = $smartByExactName[$exactKey] ?? null;
-        if ($smartSi === null) {
-            $firstTok = $nameToks[0] ?? '';
-            $smartSi  = $firstTok ? ($smartByTok[$firstTok] ?? null) : null;
-        }
-
-        if ($smartSi !== null && smartItemShouldSyncToBring($smartSi) && !bringSmartItemSkipBringSync($db, $smartSi)) {
+        // Only EverShelf-owned rows; never a row the user marked as finished.
+        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
             continue;
         }
-        // Still flagged by smart cache but user just bought → schedule for removal
-
+        // Still flagged by the smart cache AND the family is not restocked → keep.
+        if (evershelfShoppingRowStillNeeded($db, $index, $name, $rawName, $familyStock)) {
+            continue;
+        }
         $toRemove[] = ['name' => $name, 'rawName' => $rawName];
     }
 
@@ -14848,10 +14827,8 @@ function bringAutoAddCritical(PDO $db): array {
         return ['skipped' => 'internal_shopping_mode'];
     }
 
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
-    if (!file_exists($cacheFile)) return ['skipped' => 'no_cache'];
-    $smartData = json_decode(file_get_contents($cacheFile), true);
-    $smartItems = $smartData['items'] ?? [];
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    if ($smartItems === []) return ['skipped' => 'no_cache'];
 
     $auth = bringAuth();
     if (!$auth) return ['skipped' => 'no_bring_auth'];
@@ -14879,6 +14856,9 @@ function bringAutoAddCritical(PDO $db): array {
     $updated = 0;
     foreach ($smartItems as $si) {
         if (!smartItemShouldSyncToBring($si)) continue;
+        // Family already covered by a sibling variant → the cleanup would drop it at once.
+        $generic = trim((string)($si['shopping_name'] ?? '')) ?: trim((string)($si['name'] ?? ''));
+        if ($generic !== '' && evershelfFamilyStockQty($db, $generic) > 0.001) continue;
         $result = bringUpsertSmartItem($db, $si, $listUUID, $bringData, $onBring);
         if (!empty($result['added'])) $added++;
         if (!empty($result['updated'])) $updated++;
@@ -14895,12 +14875,10 @@ function internalShoppingAutoAddCritical(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
-    if (!file_exists($cacheFile)) {
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    if ($smartItems === []) {
         return ['skipped' => 'no_cache'];
     }
-    $smartData = json_decode(file_get_contents($cacheFile), true);
-    $smartItems = $smartData['items'] ?? [];
 
     $onListKeys = [];
     foreach ($db->query("SELECT name, raw_name FROM shopping_list") as $row) {
@@ -14921,12 +14899,12 @@ function internalShoppingAutoAddCritical(PDO $db): array {
             continue;
         }
         // Generic list: skip if another product in the same family still has stock.
-        if (bringShoppingFamilyStockQty($db, $name) > 0.001) {
+        if (evershelfFamilyStockQty($db, $name) > 0.001) {
             continue;
         }
         $rawName = trim((string)($si['name'] ?? '')) ?: $name;
         $genKey = internalShoppingListGenericKey($db, $name, $rawName);
-        $spec = buildSmartBringSpec($si);
+        $spec = evershelfBuildShoppingSpec($si);
         if (isset($onListKeys[$genKey])) {
             // Refresh qty/urgency on existing rows so anti-waste caps stay accurate
             $upd = $db->prepare("UPDATE shopping_list SET specification = ? WHERE lower(name) = lower(?)");
@@ -14950,106 +14928,41 @@ function internalShoppingAutoAddCritical(PDO $db): array {
 }
 
 /**
- * Remove auto-added internal shopping rows that are no longer critical/high in smart cache,
- * or whose shopping_name family already has stock (e.g. "Uova" while "uova medie" = 9).
- * Only touches ⚡/🟠 (urgent) markers — leaves 🟡/🔵 planning rows alone.
+ * Remove auto-added internal shopping rows that are no longer needed:
+ * the smart cache stopped flagging them, or their generic family is back in
+ * stock ("Uova" while "uova medie" = 9). Uses the same predicate as the Bring!
+ * path (api/lib/shopping_sync.php), so the two transports cannot diverge again.
  */
 function internalShoppingCleanupObsolete(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $cacheFile = __DIR__ . '/../data/smart_shopping_cache.json';
-    if (!file_exists($cacheFile)) {
+    $smartItems = evershelfLoadSmartItemsForSync($db);
+    if ($smartItems === []) {
         return ['skipped' => 'no_cache'];
     }
-    $smartData = json_decode(file_get_contents($cacheFile), true);
-    $smartItems = $smartData['items'] ?? [];
 
-    $urgentByName = [];
-    foreach ($smartItems as $si) {
-        if (!smartItemShouldSyncToBring($si)) {
-            continue;
-        }
-        foreach ([(string)($si['shopping_name'] ?? ''), (string)($si['name'] ?? '')] as $n) {
-            $k = mb_strtolower(trim($n));
-            if ($k !== '') {
-                $urgentByName[$k] = true;
-            }
-        }
-    }
-
-    // Clean every urgency marker auto-stamped by EverShelf — MUST stay in sync with
-    // bringCleanupObsolete() ($appMarkers). Regression: only ⚡/🟠 were cleaned, so a
-    // 🟡 "A breve" / 🔵 "Previsione" row added while the item was depleted (qty<=0)
-    // survived forever after a restock — the user saw products they had in abundance
-    // stuck on the shopping list.
-    $urgentMarkers = ['⚡', '🟠', '🟡', '🔵', '🛒'];
-    $removed = 0;
-    $candidates = 0;
+    $index       = evershelfSmartItemsIndex($smartItems);
+    $familyStock = static fn(string $generic): float => evershelfFamilyStockQty($db, $generic);
+    $removed     = 0;
+    $candidates  = 0;
     $rows = $db->query("SELECT id, name, raw_name, specification FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
-    $del = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
+    $del  = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
 
     foreach ($rows as $row) {
         $spec = (string)($row['specification'] ?? '');
-        $isUrgentMarked = false;
-        foreach ($urgentMarkers as $m) {
-            if (mb_strpos($spec, $m) !== false) {
-                $isUrgentMarked = true;
-                break;
-            }
-        }
-        if (!$isUrgentMarked) {
+        // Only EverShelf-owned rows; never a row the user marked as finished.
+        if (!evershelfSpecIsAppManaged($spec) || evershelfSpecIsDeliberate($spec)) {
             continue;
         }
-        if (mb_strpos($spec, '🛒 Esaurito') !== false || mb_strpos($spec, '🛒 Finished') !== false) {
-            continue;
-        }
-
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
-        $keys = array_unique(array_filter([
-            mb_strtolower($name),
-            mb_strtolower($raw),
-        ]));
-        // Resolve generic shopping family (Uovo medio → Uova)
-        $computed = $name !== '' ? computeShoppingName($name, '', '', false) : '';
-        if ($computed !== '') {
-            $keys[] = mb_strtolower($computed);
-        }
-        if ($raw !== '' && $raw !== $name) {
-            $c2 = computeShoppingName($raw, '', '', false);
-            if ($c2 !== '') {
-                $keys[] = mb_strtolower($c2);
-            }
-        }
-        $keys = array_unique(array_filter($keys));
 
-        $stillUrgent = false;
-        foreach ($keys as $k) {
-            if ($k !== '' && isset($urgentByName[$k])) {
-                $stillUrgent = true;
-                break;
-            }
-        }
-
-        // Family-stock guard — mirrors internalShoppingAutoAddCritical(): once any variant
-        // of the same generic family is back in stock, the auto-added row must be dropped
-        // even if the smart cache still lists a sibling product.
-        if ($stillUrgent) {
-            foreach (array_unique(array_filter([$computed, $name, $raw])) as $candidate) {
-                $generic = computeShoppingName((string)$candidate, '', '', false);
-                if ($generic !== '' && bringShoppingFamilyStockQty($db, $generic) > 0.001) {
-                    $stillUrgent = false;
-                    break;
-                }
-            }
-        }
-
-        if ($stillUrgent) {
+        if (evershelfShoppingRowStillNeeded($db, $index, $name, $raw, $familyStock)) {
             continue;
         }
 
-        // Stale ⚡/🟠 — smart shopping no longer says buy now (stocked family or dropped)
+        // Stale row — no longer urgent and the family is not stocked.
         $candidates++;
         $del->execute([(int)$row['id']]);
         if ($del->rowCount() > 0) {
@@ -15151,7 +15064,7 @@ function bringGetList(): void {
         if ((time() - $ts) < 600) $doMigrate = false;
     }
     if ($doMigrate) {
-        file_put_contents($flagFile, json_encode(['ts' => time()]));
+        file_put_contents($flagFile, json_encode(['ts' => time()]), LOCK_EX);
         // Use a global PDO instance if available, otherwise open a new connection
         global $db;
         if ($db instanceof PDO) {
@@ -15666,7 +15579,7 @@ function smartShoppingCached(PDO $db): void {
     if ($decoded && !empty($decoded['success'])) {
         $decoded['cached_ts'] = time();
         $decoded['cached_at'] = date('c');
-        @file_put_contents($cacheFile, json_encode($decoded, JSON_UNESCAPED_UNICODE));
+        @file_put_contents($cacheFile, json_encode($decoded, JSON_UNESCAPED_UNICODE), LOCK_EX);
     }
     echo $json;
 }
@@ -16342,13 +16255,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
             // For DEPLETED products: recency is misleading — the product may not have been
             // "used recently" precisely because it ran out. Base urgency on usage rate only.
-            $reasons[] = 'Esaurito';
+            $reasons[] = 'out_of_stock';
             if ($isTopStaple) {
                 $urgency = 'critical'; $score += 120;
-                $reasons[] = 'Uso frequente (~' . max(1, (int)round($usesPerMonth)) . '/mese)';
+                $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
             } elseif ($isUrgentStaple) {
                 $urgency = 'high'; $score += 90;
-                $reasons[] = 'Uso frequente (~' . max(1, (int)round($usesPerMonth)) . '/mese)';
+                $reasons[] = 'frequent_use:' . max(1, (int)round($usesPerMonth));
             } elseif ($isFrequent && $useCount >= 3 && $dailyRate > 0) {
                 $urgency = 'medium'; $score += 50;
             } elseif ($isRegular && ($useCount >= 3 || $buyCount >= 2)) {
@@ -16373,29 +16286,29 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         );
         if (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isUrgentStaple) {
             $urgency = $isTopStaple ? 'critical' : 'high';
-            $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
+            $reasons[] = 'near_empty:' . round($pctLeft);
             $score += $isTopStaple ? 100 : 80;
         } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 15 && $isRegular) {
             $urgency = 'medium';
-            $reasons[] = 'Quasi finito (' . round($pctLeft) . '%)';
+            $reasons[] = 'near_empty:' . round($pctLeft);
             $score += 50;
         } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isUrgentStaple) {
             if ($dailyRate > 0 && $daysLeft <= 5) {
                 $urgency = 'high';
-                $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
+                $reasons[] = 'ends_in:' . round($daysLeft);
                 $score += 75;
             } elseif ($dailyRate > 0 && $daysLeft <= 10 && $isRecent) {
                 $urgency = 'medium';
-                $reasons[] = 'Finisce tra ~' . round($daysLeft) . 'gg';
+                $reasons[] = 'ends_in:' . round($daysLeft);
                 $score += 50;
             } elseif ($isRecent) {
                 $urgency = 'low';
-                $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
+                $reasons[] = 'low_stock:' . round($pctLeft);
                 $score += 30;
             }
         } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 30 && $isRegular && $isRecent) {
             $urgency = 'low';
-            $reasons[] = 'Scorta bassa (' . round($pctLeft) . '%)';
+            $reasons[] = 'low_stock:' . round($pctLeft);
             $score += 25;
         }
 
@@ -16413,20 +16326,20 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 // The expired batch will show in the dashboard expiry banner — don't add to shopping list.
             } elseif ($isTopStaple) {
                 $urgency = 'critical';
-                $reasons[] = 'Scaduto!';
+                $reasons[] = 'expired';
                 $score += 90;
             } elseif ($isUrgentStaple) {
                 if (!in_array($urgency, ['critical', 'high'], true)) {
                     $urgency = 'high';
                 }
-                $reasons[] = 'Scaduto!';
+                $reasons[] = 'expired';
                 $score += 70;
             } elseif ($isRegular && $buyCount >= 2) {
                 // Occasional staple: suggest restock quietly; expiry banner still shows
                 if ($urgency === 'none') {
                     $urgency = 'medium';
                 }
-                $reasons[] = 'Scaduto!';
+                $reasons[] = 'expired';
                 $score += 40;
             }
             // else: one-off product expired unused → expiry banner handles it, no shopping noise
@@ -16442,18 +16355,18 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                     $urgency = 'medium';
                 }
                 if ($willExpireBeforeUsed && $pctLeft >= 50) {
-                    $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg — ricompra';
+                    $reasons[] = 'expires_rebuy:' . max(1, round($daysToExpiry));
                 } else {
-                    $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
+                    $reasons[] = 'expires_in:' . max(1, round($daysToExpiry));
                 }
                 $score += 40;
             } elseif ($isRegular && ($pctLeft < 50 || $willExpireBeforeUsed)) {
                 if ($urgency === 'none') $urgency = 'low';
-                $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
+                $reasons[] = 'expires_in:' . max(1, round($daysToExpiry));
                 $score += 25;
             } elseif (!$isRegular && $daysToExpiry <= 3 && $pctLeft < 50) {
                 if ($urgency === 'none') $urgency = 'low';
-                $reasons[] = 'Scade in ' . max(1, round($daysToExpiry)) . 'gg';
+                $reasons[] = 'expires_in:' . max(1, round($daysToExpiry));
                 $score += 15;
             }
         }
@@ -16462,7 +16375,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Presto only for top staples about to run out.
         if ($urgency === 'none' && $dailyRate > 0 && $daysLeft <= 14 && $isUrgentStaple && $isRecent) {
             $daysLeftDisplay = (int)round($daysLeft);
-            $reasons[] = 'Finisce tra ~' . $daysLeftDisplay . 'gg';
+            $reasons[] = 'ends_in:' . $daysLeftDisplay;
             if ($daysLeftDisplay <= 3 && $isTopStaple) {
                 $urgency = 'high';
                 $score += 70;
@@ -16480,7 +16393,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $daysLeftDisplay = (int)round($daysLeft);
             if ($urgency === 'none' || $urgency === 'low') {
                 $urgency = ($daysLeftDisplay <= 3 && $isTopStaple) ? 'high' : 'medium';
-                $reasons[] = 'Uso frequente — scorta insufficiente per ' . $planDays . 'gg';
+                $reasons[] = 'stock_insufficient:' . $planDays;
                 $score += ($urgency === 'high') ? 70 : 45;
             }
         }
@@ -16490,7 +16403,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             && $daysLeft <= 21 && $isRegular && !$justRestocked) {
             $daysLeftDisplay = (int)round($daysLeft);
             $cycleDisplay = (int)round($buyCycleDays);
-            $reasons[] = 'Finisce tra ~' . $daysLeftDisplay . 'gg (ciclo medio ' . $cycleDisplay . 'gg)';
+            $reasons[] = 'ends_in_cycle:' . $daysLeftDisplay . ':' . $cycleDisplay;
             if ($daysLeftDisplay <= 7) {
                 $urgency = 'medium';
                 $score += 45;
@@ -16502,9 +16415,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Upgrade low → medium when a top staple is days from empty
         if ($urgency === 'low' && $dailyRate > 0 && (int)round($daysLeft) <= 3 && $isTopStaple) {
             $urgency = 'medium';
-            $daysLeftLbl = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
-            if (!in_array($daysLeftLbl, $reasons)) {
-                $reasons[] = $daysLeftLbl;
+            $daysLeftCode = 'ends_in:' . (int)round($daysLeft);
+            if (!in_array($daysLeftCode, $reasons, true)) {
+                $reasons[] = $daysLeftCode;
             }
             $score += 30;
         }
@@ -16512,7 +16425,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Opened item with fast consumption — only if actually used regularly
         if ($isOpened && $urgency === 'none' && $dailyRate > 0 && $daysLeft <= 7 && $isRegular) {
             $urgency = 'low';
-            $reasons[] = 'Aperto, finisce presto';
+            $reasons[] = 'opened_soon';
             $score += 20;
         }
 
@@ -16521,26 +16434,26 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             if ($unit === 'conf') {
                 if ($qty <= 1) {
                     $urgency = 'medium';
-                    $reasons[] = 'Solo 1 confezione rimasta';
+                    $reasons[] = 'only_one_pack';
                     $score += 45;
                 } elseif ($qty <= 2) {
                     $urgency = 'low';
-                    $reasons[] = 'Solo 2 confezioni rimaste';
+                    $reasons[] = 'only_two_packs';
                     $score += 25;
                 }
             } elseif ($unit === 'pz') {
                 if ($qty <= 1) {
                     $urgency = 'medium';
-                    $reasons[] = 'Solo 1 pezzo rimasto';
+                    $reasons[] = 'only_one_piece';
                     $score += 45;
                 } elseif ($qty <= 2) {
                     $urgency = 'low';
-                    $reasons[] = 'Solo 2 pezzi rimasti';
+                    $reasons[] = 'only_two_pieces';
                     $score += 25;
                 }
             } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0 && $qty <= $defQty * 0.20) {
                 $urgency = 'low';
-                $reasons[] = 'Scorta minima (' . round($qty) . $unit . ')';
+                $reasons[] = 'minimal_stock:' . round($qty) . $unit;
                 $score += 25;
             }
         }
@@ -16554,11 +16467,11 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         if ($urgency === 'none' && $dailyRate > 0 && $isRecent && !$justRestocked) {
             if ($usesPerMonth >= 4 && $daysLeft <= 28) {
                 $urgency = 'low';
-                $reasons[] = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
+                $reasons[] = 'ends_in:' . (int)round($daysLeft);
                 $score += 20;
             } elseif ($usesPerMonth >= 2 && $daysLeft <= 21) {
                 $urgency = 'low';
-                $reasons[] = 'Finisce tra ~' . (int)round($daysLeft) . 'gg';
+                $reasons[] = 'ends_in:' . (int)round($daysLeft);
                 $score += 15;
             }
         }
@@ -16769,7 +16682,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $wHint = $wasteLearning[(string)$pid] ?? [];
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
-            $reasons[] = "Past waste: store in {$locLabel}";
+            $reasons[] = 'past_waste:' . $locLabel;
         }
         if ($shelfCapped) {
             $reasons[] = 'anti_waste_shelf:' . (int)$horizonMeta['shelf_days'];
@@ -17082,7 +16995,7 @@ function bringSuggestItems(PDO $db): void {
                     // Cache result
                     $gemCache[$gemCacheKey]       = $aiResult;
                     $gemCache[$gemCacheKey . '_ts'] = time();
-                    file_put_contents($gemCacheFile, json_encode($gemCache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+                    file_put_contents($gemCacheFile, json_encode($gemCache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
                 }
             }
         }
@@ -18063,7 +17976,7 @@ function _appendErrorLog(string $source, string $type, string $message, string $
     if (file_exists($logFile) && filesize($logFile) > 500000) {
         $lines = file($logFile);
         $lines = array_slice($lines, -300);
-        file_put_contents($logFile, implode('', $lines));
+        file_put_contents($logFile, implode('', $lines), LOCK_EX);
     }
     $ts   = date('Y-m-d H:i:s');
     $ctx  = $context ? ' ctx=' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
@@ -18097,7 +18010,7 @@ function _latestReleaseTag(): string {
     }
     $res = _githubRequest(_ghToken(), 'GET', 'https://api.github.com/repos/' . GH_REPO . '/releases/latest');
     $tag = $res['body']['tag_name'] ?? '';
-    file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $res['body'] ?? []]));
+    file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $res['body'] ?? []]), LOCK_EX);
     return $cached = $tag;
 }
 
@@ -18147,7 +18060,7 @@ function checkUpdate(): void {
         $res     = _githubRequest(_ghToken(), 'GET', 'https://api.github.com/repos/' . GH_REPO . '/releases/latest');
         $release = $res['body'] ?? [];
         $tag     = $release['tag_name'] ?? '';
-        file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $release]));
+        file_put_contents($cacheFile, json_encode(['ts' => time(), 'tag' => $tag, 'release' => $release]), LOCK_EX);
     }
 
     $assets = [];
@@ -18457,7 +18370,7 @@ function geminiProductHint(): void {
 
     // Persist to cache (permanent — no expiry)
     $cache[$cacheKey] = $data;
-    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 
     echo json_encode(array_merge(['success' => true, 'source' => 'gemini'], $data));
 }
@@ -18551,7 +18464,7 @@ function geminiShoppingEnrich(PDO $db): void {
 
     // Cache for 24 h (TTL stored alongside)
     $cache[$cacheKey] = $enriched;
-    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    file_put_contents($cacheFile, json_encode($cache, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 
     echo json_encode(['success' => true, 'items' => $enriched, 'source' => 'gemini']);
 }
@@ -18765,7 +18678,7 @@ function _loadPriceCache(): array {
 }
 
 function _savePriceCache(array $data): void {
-    file_put_contents(PRICE_CACHE_PATH, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    file_put_contents(PRICE_CACHE_PATH, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
 }
 
 /** Keep last 5 price observations per product for sparkline charts. */
@@ -18846,7 +18759,7 @@ function _saveCanonicalShoppingTotal(string $listHash, array $result): void {
     $path = __DIR__ . '/../data/shopping_total_cache.json';
     $tc = file_exists($path) ? (json_decode(file_get_contents($path), true) ?? []) : [];
     $tc['_canonical'] = ['ts' => time(), 'list_hash' => $listHash, 'result' => $result];
-    file_put_contents($path, json_encode($tc, JSON_UNESCAPED_UNICODE));
+    file_put_contents($path, json_encode($tc, JSON_UNESCAPED_UNICODE), LOCK_EX);
 }
 
 function _loadSmartShoppingItems(): array {
@@ -19230,7 +19143,7 @@ function guessCategoryFromAI(): void {
 
     // Persist to cache
     $cache[$key] = $cat;
-    @file_put_contents(CATEGORY_CACHE_PATH, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    @file_put_contents(CATEGORY_CACHE_PATH, json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
 
     echo json_encode(['category' => $cat]);
 }

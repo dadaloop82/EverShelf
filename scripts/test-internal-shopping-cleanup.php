@@ -60,6 +60,9 @@ $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 $db->exec("CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, brand TEXT DEFAULT '', shopping_name TEXT DEFAULT '')");
 $db->exec("CREATE TABLE inventory (product_id INTEGER, quantity REAL, expiry_date TEXT)");
 $db->exec("CREATE TABLE shopping_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, raw_name TEXT DEFAULT '', specification TEXT DEFAULT '')");
+// Real schema also touched by the shared predicate (blocklist / purchase history).
+$db->exec("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '', updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
+$db->exec("CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, location TEXT NOT NULL DEFAULT 'dispensa', notes TEXT DEFAULT '', undone INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)");
 
 $db->exec("INSERT INTO products (id, name, shopping_name) VALUES
     (1, 'Latte fresco', 'Latte'),
@@ -112,6 +115,36 @@ $onlyUrgent = static function (string $spec): bool {
     return false;
 };
 assert_true(!$onlyUrgent('🔵 Previsione') && !$onlyUrgent('🟡 A breve'), 'pre-fix logic would have left 🟡/🔵 rows untouched');
+
+// ── Round-trip lock: every spec the auto-add can build must be recognised by the
+// cleanup, otherwise a row can be added and never removed (the B1 class of bug).
+$sampleRow = static fn(string $urgency, float $qty): array => [
+    'name'          => 'Latte fresco',
+    'shopping_name' => 'Latte',
+    'brand'         => 'Granarolo',
+    'urgency'       => $urgency,
+    'current_qty'   => $qty,
+    'suggested_qty' => 2,
+    'unit'          => 'l',
+];
+foreach (['critical', 'high', 'medium', 'low'] as $u) {
+    $spec = evershelfBuildShoppingSpec($sampleRow($u, 0.0));
+    assert_true(evershelfSpecIsAppManaged($spec), "round-trip: {$u} spec is recognised as EverShelf-owned ({$spec})");
+}
+assert_true(
+    array_values(array_unique(EVERSHELF_SYNC_MARKERS)) === ['⚡', '🟠', '🟡', '🔵', '🛒'],
+    'single shared marker list used by both transports'
+);
+assert_true(evershelfSpecIsDeliberate('⚡ Urgente · 🛒 Esaurito'), 'deliberate "finished" rows are protected');
+assert_true(!evershelfSpecIsAppManaged('Il mio appunto'), 'user rows are never treated as app-managed');
+
+// The shared predicate must drop a stale row even when the smart cache still lists a
+// sibling variant of the same family (family-stock guard on both transports).
+$index2 = evershelfSmartItemsIndex([
+    ['name' => 'Burro', 'shopping_name' => 'Burro', 'urgency' => 'high', 'current_qty' => 0],
+]);
+$needed = evershelfShoppingRowStillNeeded($db, $index2, 'Burro', 'Burro', static fn(string $g): float => 3.0);
+assert_true(!$needed, 'shared predicate: family in stock ⇒ row no longer needed');
 
 echo $fail === 0 ? "\nAll internal-shopping cleanup tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

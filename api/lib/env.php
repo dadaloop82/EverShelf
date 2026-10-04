@@ -20,6 +20,14 @@ function loadEnv(bool $reload = false): array {
             $cache[trim($key)] = trim($val);
         }
     }
+    // Bridge .env into the process environment so getenv()/$_ENV agree with env().
+    // Several components (logger levels, Gemini cost constants, DISPLAY_ERRORS) read
+    // getenv(); without this bridge they silently ignored .env and stayed on their
+    // hard-coded defaults. .env is the documented single source of truth, so it wins.
+    foreach ($cache as $k => $v) {
+        putenv("{$k}={$v}");
+        $_ENV[$k] = $v;
+    }
     return $cache;
 }
 
