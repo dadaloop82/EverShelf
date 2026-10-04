@@ -1435,6 +1435,19 @@ try {
             importInventory($db);
             break;
 
+        // ===== CALENDAR (ICS EXPIRY FEED) =====
+        case 'calendar_ics':
+            calendarIcsFeed($db);
+            break;
+
+        case 'get_ics_settings':
+            getIcsSettings($db);
+            break;
+
+        case 'rotate_ics_token':
+            rotateIcsToken();
+            break;
+
         default:
             EverLog::warn('unknown action', ['action' => $action]);
             http_response_code(404);
@@ -8246,6 +8259,8 @@ function saveSettings(): void {
         'barcode_ai_fallback' => 'BARCODE_AI_FALLBACK',
         // Home Assistant
         'ha_enabled'    => 'HA_ENABLED',
+        // Calendar (ICS expiry feed)
+        'ics_enabled'   => 'ICS_ENABLED',
     ];
     // Integer keys
     $intMap = [
@@ -8261,6 +8276,9 @@ function saveSettings(): void {
         // Home Assistant
         'ha_expiry_days' => 'HA_EXPIRY_DAYS',
         'mealie_cache_sync_days' => 'MEALIE_CACHE_SYNC_DAYS',
+        // Calendar (ICS expiry feed)
+        'ics_days' => 'ICS_DAYS',
+        'ics_past_days' => 'ICS_PAST_DAYS',
     ];
     // Float keys
     $floatMap = [

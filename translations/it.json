@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "calendar": {
+      "tab": "Calendario",
+      "title": "🗓️ Calendario scadenze",
+      "hint": "Iscriviti alle scadenze della dispensa dal tuo calendario (Google Calendar, Apple Calendario, Thunderbird, Nextcloud): ogni prodotto diventa un evento di tutta la giornata, con promemoria il giorno prima.",
+      "enabled": "✅ Abilita il feed calendario",
+      "days_label": "📅 Giorni pubblicati in anticipo",
+      "days_hint": "Quante scadenze future finiscono nel calendario (1–365).",
+      "past_days_label": "🕓 Giorni di scaduto ancora visibili",
+      "past_days_hint": "Le scadenze appena passate restano nel calendario con il prefisso ⚠️ (0–60).",
+      "url_label": "🔗 Link da iscrivere",
+      "url_hint": "Incollalo in «Aggiungi calendario → Da URL» (Google) oppure in «Nuovo abbonamento calendario» (Apple).",
+      "copy_btn": "📋 Copia link",
+      "open_btn": "🗓️ Apri in Calendario",
+      "rotate_btn": "♻️ Rigenera link (revoca)",
+      "rotate_hint": "Il link contiene una chiave di sola lettura: chi lo possiede vede le tue scadenze. Rigeneralo per revocare tutte le vecchie iscrizioni.",
+      "not_enabled": "Il feed è disattivato: attiva l’interruttore e salva per generare il link.",
+      "status_items": "{count} scadenze nel feed",
+      "save_btn": "💾 Salva impostazioni calendario"
+    },
     "title": "⚙️ Configurazione",
     "tab_api": "API Keys",
     "tab_bring": "Bring!",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "Scaduto da troppo tempo, meglio non rischiare"
   },
   "toast": {
+    "ics_copied": "Link del calendario copiato",
+    "ics_copy_failed": "Copia non riuscita: seleziona il link a mano",
+    "ics_rotated": "Nuovo link generato: le vecchie iscrizioni non funzionano più",
     "product_saved": "Prodotto salvato!",
     "product_created": "Prodotto creato!",
     "product_updated": "✅ Prodotto aggiornato!",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS non attivo — attiva il toggle prima di testare.",
     "web_speech_unsupported": "❌ Web Speech API non supportata da questo browser.",
     "cloud_only": "❌ Solo voci cloud disponibili — la sintesi offline richiede una voce locale installata (es. Google Text-to-Speech → Scarica voci offline)."
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — Scadenze dispensa",
+      "description": "Prodotti in dispensa in scadenza, pubblicati automaticamente da EverShelf."
+    },
+    "event": {
+      "location": "Posizione",
+      "quantity": "Quantità",
+      "brand": "Marca",
+      "expiry": "Scadenza",
+      "expired": "SCADUTO"
+    }
   }
 }

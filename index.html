@@ -11,11 +11,11 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261004h">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261004h">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261004i">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261004i">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261004h"></script>
-    <script src="assets/js/core/auth.js?v=20261004h"></script>
+    <script src="assets/js/core/dom.js?v=20261004i"></script>
+    <script src="assets/js/core/auth.js?v=20261004i"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -23,7 +23,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261004h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261004i';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -32,13 +32,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004h';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004i';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261004h"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261004i"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -955,6 +955,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
         </div>
         <div class="settings-panels">
@@ -1811,6 +1812,58 @@
                 <button class="btn btn-large btn-accent full-width" onclick="saveHaSettings()" data-i18n="settings.ha.save_btn">💾 Salva impostazioni HA</button>
                 <div id="ha-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
             </div>
+            <!-- Calendar Tab (ICS expiry feed) -->
+            <div class="settings-panel" id="tab-calendar">
+                <div class="settings-card">
+                    <h4 data-i18n="settings.calendar.title">🗓️ Calendario scadenze</h4>
+                    <p class="settings-hint" data-i18n="settings.calendar.hint">Iscriviti alle scadenze della dispensa dal tuo calendario: ogni prodotto diventa un evento di tutta la giornata, con promemoria il giorno prima.</p>
+
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.calendar.enabled">✅ Abilita il feed calendario</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-ics-enabled" onchange="_renderIcsFeedBox()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.calendar.days_label">📅 Giorni pubblicati in anticipo</label>
+                        <input type="number" id="setting-ics-days" class="form-input" style="width:110px" min="1" max="365" value="30">
+                        <p class="settings-hint" data-i18n="settings.calendar.days_hint">Quante scadenze future finiscono nel calendario (1–365).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.calendar.past_days_label">🕓 Giorni di scaduto ancora visibili</label>
+                        <input type="number" id="setting-ics-past-days" class="form-input" style="width:110px" min="0" max="60" value="7">
+                        <p class="settings-hint" data-i18n="settings.calendar.past_days_hint">Le scadenze appena passate restano nel calendario con il prefisso ⚠️ (0–60).</p>
+                    </div>
+
+                    <button class="btn btn-large btn-accent full-width" onclick="saveCalendarSettings()" data-i18n="settings.calendar.save_btn">💾 Salva impostazioni calendario</button>
+                    <div id="ics-save-status" class="settings-status" style="display:none;margin-top:8px"></div>
+                </div>
+
+                <!-- Subscribe card -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.calendar.url_label">🔗 Link da iscrivere</h4>
+                    <p id="ics-not-enabled" class="settings-hint" data-i18n="settings.calendar.not_enabled">Il feed è disattivato: attiva l'interruttore e salva per generare il link.</p>
+                    <div id="ics-url-box" style="display:none">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            <input type="text" id="ics-url-input" class="form-input" style="flex:1;min-width:0" readonly onclick="this.select()">
+                            <button class="btn btn-secondary" onclick="copyCalendarLink()" data-i18n="settings.calendar.copy_btn">📋 Copia link</button>
+                            <button class="btn btn-secondary" onclick="openCalendarLink()" data-i18n="settings.calendar.open_btn">🗓️ Apri in Calendario</button>
+                        </div>
+                        <p class="settings-hint" id="ics-status-line" style="margin-top:8px"></p>
+                        <p class="settings-hint" data-i18n="settings.calendar.url_hint">Incollalo in «Aggiungi calendario → Da URL» (Google) oppure in «Nuovo abbonamento calendario» (Apple).</p>
+                    </div>
+
+                    <button class="btn btn-secondary full-width mt-2" onclick="rotateCalendarToken()" data-i18n="settings.calendar.rotate_btn">♻️ Rigenera link (revoca)</button>
+                    <p class="settings-hint" data-i18n="settings.calendar.rotate_hint">Il link contiene una chiave di sola lettura: chi lo possiede vede le tue scadenze. Rigeneralo per revocare tutte le vecchie iscrizioni.</p>
+                    <div id="ics-rotate-status" class="settings-status" style="display:none;margin-top:8px"></div>
+                </div>
+            </div>
+
             <!-- Scale Tab -->
             <div class="settings-panel" id="tab-scale">
                 <div class="settings-card">
@@ -2318,6 +2371,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261004h"></script>
+<script src="assets/js/app.js?v=20261004i"></script>
 </body>
 </html>

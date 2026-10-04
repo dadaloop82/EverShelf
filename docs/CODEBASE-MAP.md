@@ -73,6 +73,8 @@
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
 | `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
 | `seasonal.php` | **IT produce calendar** + stale-stock | `seasonalReviewShopping()`, `staleInventoryItems()` |
+| `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed |
+| `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
 | `cron_log.php` | Rotates `data/cron.log` | |
 
 
@@ -155,6 +157,9 @@ Groups:
   `report_bug`, `migrate_units`, `export_inventory`, `import_inventory`.
 - **Integrations**: `ha_*` (Home Assistant), `mealie_*`, `health_*`,
   `weather_get/geocode`, `scale_*` (separate PHP files).
+- **Calendar (ICS)**: `calendar_ics` (**public**, guarded by its own read-only
+  `ICS_TOKEN` — a calendar client can only GET a URL), `get_ics_settings`,
+  `rotate_ics_token`.
 
 ## 8. Auth & trust model
 

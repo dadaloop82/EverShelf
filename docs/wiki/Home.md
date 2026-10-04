@@ -21,6 +21,7 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [API Reference](API-Reference) | All REST endpoints, parameters, and responses |
 | [Health Bridge & Fuel Mode](Health) | Phone activity sync and bio-driven recipes |
 | [Home Assistant](Home-Assistant) | HACS integration, sensors, services |
+| [Calendar Feed](Calendar) | ICS/WebCal subscription of expiries for Google/Apple Calendar |
 | [MCP](MCP) | Model Context Protocol server for AI agents |
 | [Android Kiosk](Android-Kiosk) | Tablet kiosk app setup and usage |
 | [Scale Gateway](Scale-Gateway) | BLE smart scale integration |

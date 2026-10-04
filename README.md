@@ -24,6 +24,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 | **AI** | Gemini · OpenAI · Llama — identify, OCR expiry, recipes, chat |
 | **Shopping** | Smart list, anti-waste qty, optional [Bring!](https://www.getbring.com/) |
 | **Cooking** | Steps, TTS, timers, zero-waste tips |
+| **Calendar** | Subscribe to expiries — ICS/WebCal feed for Google/Apple Calendar |
 | **PWA** | Offline queue, installable, multi-device |
 
 **Integrations:** [Home Assistant](https://github.com/dadaloop82/ha-evershelf) · [MCP](mcp-server/README.md) · [Health Bridge](evershelf-health-bridge/README.md) · [Kiosk](evershelf-kiosk/README.md)
@@ -88,6 +89,7 @@ opt out with `API_BOOTSTRAP_OPEN=true` (re-exposes the token — see SECURITY.md
 | MCP agents | [mcp-server/README.md](mcp-server/README.md) |
 | Health / Fuel Mode | [evershelf-health-bridge/README.md](evershelf-health-bridge/README.md) |
 | Android kiosk + scale | [evershelf-kiosk/README.md](evershelf-kiosk/README.md) |
+| Calendar feed (ICS) | [Wiki → Calendar Feed](https://github.com/dadaloop82/EverShelf/wiki/Calendar) |
 | REST API | [Wiki → API](https://github.com/dadaloop82/EverShelf/wiki/API-Reference) |
 
 </details>

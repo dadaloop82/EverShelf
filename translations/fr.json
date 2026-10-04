@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · Minuteur"
   },
   "settings": {
+    "calendar": {
+      "tab": "Calendrier",
+      "title": "🗓️ Calendrier des dates limites",
+      "hint": "Abonnez-vous aux dates limites du garde-manger depuis votre agenda (Google Agenda, Calendrier Apple, Thunderbird, Nextcloud) : chaque produit devient un événement journée entière, avec un rappel la veille.",
+      "enabled": "✅ Activer le flux calendrier",
+      "days_label": "📅 Jours publiés à l’avance",
+      "days_hint": "Combien de jours de dates limites à venir apparaissent dans l’agenda (1–365).",
+      "past_days_label": "🕓 Jours de produits périmés encore visibles",
+      "past_days_hint": "Les dates tout juste dépassées restent au calendrier avec le préfixe ⚠️ (0–60).",
+      "url_label": "🔗 Lien à abonner",
+      "url_hint": "Collez-le dans « Ajouter un agenda → À partir de l’URL » (Google) ou « Nouvel abonnement » (Apple).",
+      "copy_btn": "📋 Copier le lien",
+      "open_btn": "🗓️ Ouvrir dans l’agenda",
+      "rotate_btn": "♻️ Régénérer le lien (révoquer)",
+      "rotate_hint": "Le lien contient une clé en lecture seule : quiconque l’a voit vos dates limites. Régénérez-le pour révoquer tous les abonnements existants.",
+      "not_enabled": "Le flux est désactivé : activez l’interrupteur et enregistrez pour générer le lien.",
+      "status_items": "{count} dates limites dans le flux",
+      "save_btn": "💾 Enregistrer les réglages du calendrier"
+    },
     "title": "⚙️ Paramètres",
     "tab_api": "Clés API",
     "tab_bring": "Bring !",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "Périmé depuis trop longtemps, mieux vaut ne pas risquer"
   },
   "toast": {
+    "ics_copied": "Lien de l’agenda copié",
+    "ics_copy_failed": "Copie impossible — sélectionnez le lien manuellement",
+    "ics_rotated": "Nouveau lien généré — les anciens abonnements ne fonctionnent plus",
     "product_saved": "Produit enregistré !",
     "product_created": "Produit créé !",
     "product_updated": "✅ Produit mis à jour !",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS inactif — activez-le avant de tester.",
     "web_speech_unsupported": "❌ L'API Web Speech n'est pas prise en charge par ce navigateur.",
     "cloud_only": "❌ Seules les voix cloud sont disponibles — la synthèse hors ligne nécessite une voix locale installée sur l'appareil (ex. Google Text-to-Speech → Télécharger les voix hors ligne)."
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — Dates limites du garde-manger",
+      "description": "Produits du garde-manger bientôt périmés, publiés automatiquement par EverShelf."
+    },
+    "event": {
+      "location": "Emplacement",
+      "quantity": "Quantité",
+      "brand": "Marque",
+      "expiry": "Date limite",
+      "expired": "PÉRIMÉ"
+    }
   }
 }

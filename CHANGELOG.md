@@ -28,6 +28,29 @@ the next release.
   with `evershelfRedactSecrets()` and capped at 1 KB, at most 100 per request; a
   non-array `messages` is ignored instead of reaching `foreach`.
 
+### Added
+- **Calendar feed of expiries (ICS / WebCal)** — the pantry deadlines now show up
+  where the household already looks. *Settings → 🗓️ Calendar* turns the feed on,
+  picks the horizon (`ICS_DAYS`, default 30) and keeps recently missed dates
+  visible with a ⚠️ prefix (`ICS_PAST_DAYS`, default 7); the same tab shows the
+  subscribe URL, a copy button and *Open in Calendar* (`webcal://` on phones).
+  Every in-stock row with an expiry date becomes an all-day `VEVENT` with a stable
+  UID (`evershelf-inv-<id>@<host>`), location/quantity/brand in the description
+  and a `-P1D` reminder alarm. Text is escaped and folded per RFC 5545
+  (multi-byte safe, no line over 73 octets), served as
+  `text/calendar; charset=utf-8` with `X-Robots-Tag: noindex`.
+  - `GET api/index.php?action=calendar_ics&token=…` sits in
+    `evershelfPublicActions()` because a calendar client can only GET a URL: it
+    authenticates with a dedicated read-only `ICS_TOKEN` (`hash_equals`, never
+    logged, 403/404 on mismatch) that Settings mints and *Rotate link* revokes.
+  - New `api/lib/calendar_ics.php`, `api/lib/i18n.php` (the server-side
+    `evershelfTr()` the feed's own labels use) and `scripts/test-calendar-ics.php`
+    (escaping, folding, all-day date maths, feed shape). `scripts/i18n-audit.py`
+    now counts `evershelfTr()` keys, so PHP-rendered strings are audited too.
+  - No QR code, deliberately: the only QR generator in the repo is the
+    third-party `api.qrserver.com` and the subscribe URL is a long-lived
+    credential — unlike the short-lived pairing code it must not leave the server.
+
 ## [1.8.10] - 2026-10-04
 
 Second half of the 2026-10-04 audit: what a `docker build` bakes into the image,
