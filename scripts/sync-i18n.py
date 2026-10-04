@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / 'translations'
 REF = 'it.json'
-LOCALES = ['it.json', 'en.json', 'de.json', 'fr.json', 'es.json']
+LOCALES = ['it.json', 'en.json', 'de.json', 'fr.json', 'es.json', 'zh.json']
 
 # New keys added across all locales (nested path -> value per locale)
 NEW_KEYS: dict[str, dict[str, str]] = {

@@ -75,6 +75,12 @@ if (!defined('CRON_MODE')) {
             $e->getTraceAsString(),
             get_class($e)
         );
+        // Always answer with JSON so the PWA's res.json() never chokes on HTML/empty output.
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'internal_error']);
+        }
     });
     register_shutdown_function(function (): void {
         $err = error_get_last();
@@ -82,6 +88,89 @@ if (!defined('CRON_MODE')) {
             _phpErrorReport($err['message'], $err['file'], $err['line'], '', 'PHP Fatal');
         }
     });
+}
+
+// ===== RATE LIMITING =====
+/**
+ * Simple file-based rate limiter.
+ * Limits: 120 req/min general, 15 req/min for AI endpoints, 5 req/min for recipe/login.
+ *
+ * Defined here (top level, before the early-exit action branches) so it is
+ * hoisted and callable from every action — including ping/health_check/get_logs
+ * which respond before the main dispatcher runs.
+ */
+function checkRateLimit(string $action): void {
+    $rateLimitDir = __DIR__ . '/../data/rate_limits';
+    if (!is_dir($rateLimitDir)) {
+        mkdir($rateLimitDir, 0755, true);
+    }
+
+    // Determine limit based on action
+    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual'];
+    $loginActions = [];
+    $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
+    $errorActions = ['report_error', 'check_update'];
+    $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
+
+    if (in_array($action, $aiActions)) {
+        $limit = 15;
+        $window = 60;
+        $bucket = 'ai';
+    } elseif (in_array($action, $priceActions)) {
+        // Price lookups: up to 30 items × a few retries per minute, shared bucket
+        $limit = 60;
+        $window = 60;
+        $bucket = 'price';
+    } elseif (in_array($action, $recipeActions)) {
+        $limit = 5;
+        $window = 60;
+        $bucket = 'recipe';
+    } elseif (in_array($action, $errorActions)) {
+        $limit = 20;
+        $window = 60;
+        $bucket = 'error_report';
+    } elseif (in_array($action, $loginActions)) {
+        $limit = 5;
+        $window = 60;
+        $bucket = 'login';
+    } else {
+        $limit = 120;
+        $window = 60;
+        $bucket = 'general';
+    }
+
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    $file = $rateLimitDir . '/' . md5($ip . '_' . $bucket) . '.json';
+
+    // Clean up old rate limit files periodically (1% chance per request)
+    if (mt_rand(1, 100) === 1) {
+        foreach (glob($rateLimitDir . '/*.json') as $f) {
+            if (filemtime($f) < time() - 300) @unlink($f);
+        }
+    }
+
+    $now = time();
+    $data = [];
+    if (file_exists($file)) {
+        $raw = @file_get_contents($file);
+        if ($raw) $data = json_decode($raw, true) ?: [];
+    }
+
+    // Remove entries outside the window
+    $data = array_values(array_filter($data, function($ts) use ($now, $window) {
+        return $ts > $now - $window;
+    }));
+
+    if (count($data) >= $limit) {
+        EverLog::warn('rate_limit hit', ['action' => $action, 'limit' => $limit, 'window_s' => $window]);
+        http_response_code(429);
+        header('Retry-After: ' . $window);
+        echo json_encode(['error' => 'Too many requests. Please try again later.']);
+        exit;
+    }
+
+    $data[] = $now;
+    @file_put_contents($file, json_encode($data), LOCK_EX);
 }
 
 // When included by the cron script, skip HTTP headers and routing entirely
@@ -95,8 +184,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     exit;
 }
 
-// ── Ping / heartbeat — early response, no DB or rate-limit required ───────────
+// ── Ping / heartbeat — early response, no DB required (still rate-limited) ────
 if (($_GET['action'] ?? '') === 'ping') {
+    checkRateLimit('ping');
     echo json_encode(['ok' => true, 'ts' => time()]);
     exit;
 }
@@ -123,6 +213,7 @@ if (($_GET['action'] ?? '') === 'kiosk_update') {
 
 // ── App bootstrap — same-origin browsers receive API token automatically ───────
 if (($_GET['action'] ?? '') === 'app_bootstrap') {
+    checkRateLimit('app_bootstrap');
     $required = evershelfApiTokenRequired();
     $out = ['api_token_required' => $required];
     if ($required && evershelfIsSameOriginBrowser()) {
@@ -157,6 +248,7 @@ if (($_GET['action'] ?? '') === 'gdrive_oauth_callback') {
 
 // ── Log viewer — returns last N log lines (requires SETTINGS_TOKEN if set) ────
 if (($_GET['action'] ?? '') === 'get_logs') {
+    checkRateLimit('get_logs');
     require_once __DIR__ . '/logger.php';
     $token   = evershelfEffectiveApiToken();
     $reqTok  = evershelfGetProvidedApiTokenFromHeaders() ?: (string)($_GET['token'] ?? '');
@@ -184,6 +276,7 @@ if (($_GET['action'] ?? '') === 'get_logs') {
 
 // ── Gemini token usage + cost estimate ────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'gemini_usage') {
+    checkRateLimit('gemini_usage');
     header('Content-Type: application/json; charset=utf-8');
 
     // ── Cost helper ───────────────────────────────────────────────────────────
@@ -395,6 +488,7 @@ if (($_GET['action'] ?? '') === 'gemini_usage') {
 
 // ── Health check — minimal public probe; full diagnostics require API token ──
 if (($_GET['action'] ?? '') === 'health_check') {
+    checkRateLimit('health_check');
     if (evershelfApiTokenRequired() && !evershelfApiTokenValid()) {
         header('Content-Type: application/json');
         echo json_encode([
@@ -462,7 +556,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         'ok'       => $bkDirExists && $bkCount > 0,
         'optional' => true,
         'value'    => $bkDirExists ? ($bkCount . ' backup' . ($bkRecent ? ', ultimo recente' : ', ultimo vecchio')) : null,
-        'hint'     => $bkDirExists ? ($bkCount === 0 ? 'Nessun backup trovato — cron configurato?' : (!$bkRecent ? 'Ultimo backup datato — cron in esecuzione?' : null)) : 'Cartella backup mancante',
+        'hint_key' => !$bkDirExists ? 'startup.hint_backups_dir_missing' : ($bkCount === 0 ? 'startup.hint_backups_none' : (!$bkRecent ? 'startup.hint_backups_stale' : null)),
     ];
 
     // ── 6. Actual file-write test ─────────────────────────────────────────────
@@ -478,7 +572,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         'ok'       => $freeBytes === false || $freeBytes > 50*1048576,
         'value'    => $freeMB !== null ? $freeMB.' MB liberi' : null,
         'optional' => true,
-        'hint'     => $freeBytes !== false && $freeBytes <= 50*1048576 ? 'Less than 50 MB free — free up disk space' : null,
+        'hint_key' => $freeBytes !== false && $freeBytes <= 50*1048576 ? 'startup.hint_disk_low' : null,
     ];
 
     // ── 8. SQLite database ────────────────────────────────────────────────────
@@ -506,7 +600,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     $checks['db_legacy'] = [
         'ok'       => !$hasLegacy,
         'optional' => true,
-        'hint'     => $hasLegacy ? 'Legacy dispensa.db found — the file is obsolete, you can delete it manually' : null,
+        'hint_key' => $hasLegacy ? 'startup.hint_db_legacy' : null,
     ];
 
     if ($isFresh) {
@@ -528,7 +622,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
             $checks['db_connect'] = ['ok' => true, 'value' => basename($dbPath)];
         } catch (\Throwable $e) {
             $checks['db_connect'] = ['ok' => false, 'error' => $e->getMessage(),
-                'hint' => 'Cannot open the database — check permissions on data/evershelf.db'];
+                'hint_key' => 'startup.hint_db_connect'];
         }
 
         if ($dbConnOk && $pdo) {
@@ -539,7 +633,8 @@ if (($_GET['action'] ?? '') === 'health_check') {
             $checks['db_tables'] = [
                 'ok'   => empty($missing),
                 'missing' => $missing,
-                'hint' => !empty($missing) ? 'Missing tables: ' . implode(', ', $missing) . ' — call any API endpoint to auto-initialize the DB' : null,
+                'hint_key' => !empty($missing) ? 'startup.hint_db_tables' : null,
+                'hint_args' => ['list' => implode(', ', $missing)],
             ];
 
             // Integrity
@@ -547,18 +642,19 @@ if (($_GET['action'] ?? '') === 'health_check') {
             $checks['db_integrity'] = [
                 'ok'    => $integ === 'ok',
                 'value' => $integ !== 'ok' ? $integ : null,
-                'hint'  => $integ !== 'ok' ? 'Database corrotto: ' . $integ . ' — ripristina da un backup in data/backups/' : null,
+                'hint_key'  => $integ !== 'ok' ? 'startup.hint_db_integrity' : null,
+                'hint_args' => ['result' => (string)$integ],
             ];
 
             // WAL
             $wal = $pdo->query("PRAGMA journal_mode")->fetchColumn();
             $checks['db_wal'] = ['ok' => $wal === 'wal', 'value' => $wal, 'optional' => true,
-                'hint' => $wal !== 'wal' ? 'Journal mode not optimal — will be corrected automatically on next startup' : null];
+                'hint_key' => $wal !== 'wal' ? 'startup.hint_db_wal' : null];
 
             $dbWritable = is_writable($dbPath);
             $checks['db_writable'] = [
                 'ok'   => $dbWritable,
-                'hint' => !$dbWritable ? 'Database file not writable — run: chown -R www-data:www-data data && chmod 664 data/evershelf.db' : null,
+                'hint_key' => !$dbWritable ? 'startup.hint_db_writable' : null,
             ];
 
             // Size & rows
@@ -571,7 +667,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
             }
         } else {
             foreach (['db_tables', 'db_integrity'] as $k)
-                $checks[$k] = ['ok' => false, 'hint' => 'Cannot verify — DB connection failed'];
+                $checks[$k] = ['ok' => false, 'hint_key' => 'startup.hint_db_verify'];
             foreach (['db_wal', 'db_size', 'db_row_count'] as $k)
                 $checks[$k] = ['ok' => false, 'optional' => true];
         }
@@ -582,7 +678,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
     $checks['env_file'] = [
         'ok'       => $envExists,
         'optional' => true,
-        'hint'     => !$envExists ? 'File .env mancante — copia .env.example in .env e configura i valori' : null,
+        'hint_key' => !$envExists ? 'startup.hint_env_missing' : null,
     ];
 
     // ── 10. AI provider (Gemini / OpenAI / Llama) ───────────────────────────
@@ -591,14 +687,14 @@ if (($_GET['action'] ?? '') === 'health_check') {
             'ok' => true,
             'optional' => true,
             'value' => 'disabled',
-            'hint' => 'AI is turned off in Settings (AI_ENABLED=false)',
+            'hint_key' => 'startup.hint_ai_disabled',
         ];
     } elseif (aiProvider() === 'openai') {
         $checks['ai_provider'] = [
             'ok' => aiProviderConfigured(),
             'optional' => true,
             'value' => 'openai @ ' . (aiOpenAiBaseUrl() ?: 'api.openai.com'),
-            'hint' => aiProviderConfigured() ? null : 'Set OPENAI_API_KEY in .env',
+            'hint_key' => aiProviderConfigured() ? null : 'startup.hint_openai_key',
         ];
     } elseif (aiProvider() === 'llama') {
         $base = aiOpenAiBaseUrl();
@@ -606,16 +702,16 @@ if (($_GET['action'] ?? '') === 'health_check') {
             'ok' => $base !== '',
             'optional' => true,
             'value' => $base !== '' ? ('llama @ ' . $base) : 'llama (not configured)',
-            'hint' => $base === '' ? 'Set LLAMA_BASE_URL (e.g. http://127.0.0.1:11434/v1)' : null,
+            'hint_key' => $base === '' ? 'startup.hint_llama_url' : null,
         ];
     } else {
         $geminiKey = $envGet('GEMINI_API_KEY');
         if (!empty($geminiKey)) {
             $checks['gemini_key'] = ['ok' => strlen($geminiKey) > 20, 'optional' => true,
-                'hint' => strlen($geminiKey) <= 20 ? 'Gemini AI key looks too short — check the value in .env' : null];
+                'hint_key' => strlen($geminiKey) <= 20 ? 'startup.hint_gemini_key_short' : null];
         } else {
             $checks['gemini_key'] = ['ok' => true, 'optional' => true,
-                'value' => 'not configured', 'hint' => 'Set GEMINI_API_KEY, or switch AI provider to OpenAI / Llama'];
+                'value' => 'not configured', 'hint_key' => 'startup.hint_gemini_key_missing'];
         }
     }
 
@@ -638,12 +734,12 @@ if (($_GET['action'] ?? '') === 'health_check') {
             if (!$hasToken && !$expired) {
                 // File exists but token field missing — corrupt
                 $bringTokenOk   = false;
-                $bringTokenHint = 'Bring! token file present but appears invalid — delete data/bring_token.json to regenerate';
+                $bringTokenHint = 'startup.hint_bring_token';
             }
             // Expired token is OK: it will be refreshed automatically
         }
         // Missing token file = first launch, will be created automatically → no warning
-        $checks['bring_token'] = ['ok' => $bringTokenOk, 'optional' => true, 'hint' => $bringTokenHint];
+        $checks['bring_token'] = ['ok' => $bringTokenOk, 'optional' => true, 'hint_key' => $bringTokenHint];
     }
     // If Bring! not configured or SHOPPING_MODE != bring, skip entirely — not a warning, it is a deliberate user choice
 
@@ -653,7 +749,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         $checks['tts_url'] = [
             'ok'       => !empty($ttsUrl),
             'optional' => true,
-            'hint'     => empty($ttsUrl) ? 'TTS_ENABLED=true but TTS_URL not configured' : null,
+            'hint_key' => empty($ttsUrl) ? 'startup.hint_tts_url' : null,
         ];
     }
 
@@ -663,7 +759,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         $checks['scale_gateway'] = [
             'ok'       => !empty($scaleUrl),
             'optional' => true,
-            'hint'     => empty($scaleUrl) ? 'SCALE_ENABLED=true but SCALE_GATEWAY_URL not configured' : null,
+            'hint_key' => empty($scaleUrl) ? 'startup.hint_scale_url' : null,
         ];
     }
 
@@ -671,9 +767,9 @@ if (($_GET['action'] ?? '') === 'health_check') {
     if (function_exists('curl_version')) {
         $cv = curl_version();
         $checks['curl_ssl'] = ['ok' => !empty($cv['ssl_version']), 'value' => $cv['ssl_version'] ?? null, 'optional' => true,
-            'hint' => empty($cv['ssl_version']) ? 'cURL senza supporto SSL — le chiamate HTTPS potrebbero fallire' : null];
+            'hint_key' => empty($cv['ssl_version']) ? 'startup.hint_curl_ssl' : null];
     } else {
-        $checks['curl_ssl'] = ['ok' => false, 'optional' => true, 'hint' => 'cURL non disponibile'];
+        $checks['curl_ssl'] = ['ok' => false, 'optional' => true, 'hint_key' => 'startup.hint_curl_missing'];
     }
 
     // ── 15. Internet — raggiungibilità API Gemini (solo se Gemini configurato) ─
@@ -688,7 +784,7 @@ if (($_GET['action'] ?? '') === 'health_check') {
         curl_close($ch);
         $internetOk = $httpCode > 0 || $curlErrNo === 0;
         $checks['internet'] = ['ok' => $internetOk, 'optional' => true,
-            'hint' => !$internetOk ? 'Cannot reach Gemini servers — AI features will not work without an internet connection' : null];
+            'hint_key' => !$internetOk ? 'startup.hint_internet' : null];
     }
 
     // ── Compute overall result ────────────────────────────────────────────────
@@ -701,84 +797,8 @@ if (($_GET['action'] ?? '') === 'health_check') {
     exit;
 }
 
-// ===== RATE LIMITING =====
-/**
- * Simple file-based rate limiter.
- * Limits: 120 req/min general, 15 req/min for AI endpoints, 5 req/min for login.
- */
-function checkRateLimit(string $action): void {
-    $rateLimitDir = __DIR__ . '/../data/rate_limits';
-    if (!is_dir($rateLimitDir)) {
-        mkdir($rateLimitDir, 0755, true);
-    }
-
-    // Determine limit based on action
-    $aiActions = ['gemini_readExpiry', 'gemini_chat', 'gemini_identify', 'gemini_suggest_shopping', 'chat_to_recipe', 'recipe_from_ingredient', 'gemini_number_ocr', 'gemini_barcode_visual'];
-    $loginActions = [];
-    $recipeActions = ['generate_recipe', 'generate_recipe_stream'];
-    $errorActions = ['report_error', 'check_update'];
-    $priceActions = ['get_shopping_price', 'get_all_shopping_prices'];
-
-    if (in_array($action, $aiActions)) {
-        $limit = 15;
-        $window = 60;
-        $bucket = 'ai';
-    } elseif (in_array($action, $priceActions)) {
-        // Price lookups: up to 30 items × a few retries per minute, shared bucket
-        $limit = 60;
-        $window = 60;
-        $bucket = 'price';
-    } elseif (in_array($action, $recipeActions)) {
-        $limit = 5;
-        $window = 60;
-        $bucket = 'recipe';
-    } elseif (in_array($action, $errorActions)) {
-        $limit = 20;
-        $window = 60;
-        $bucket = 'error_report';
-    } elseif (in_array($action, $loginActions)) {
-        $limit = 5;
-        $window = 60;
-        $bucket = 'login';
-    } else {
-        $limit = 120;
-        $window = 60;
-        $bucket = 'general';
-    }
-
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-    $file = $rateLimitDir . '/' . md5($ip . '_' . $bucket) . '.json';
-
-    // Clean up old rate limit files periodically (1% chance per request)
-    if (mt_rand(1, 100) === 1) {
-        foreach (glob($rateLimitDir . '/*.json') as $f) {
-            if (filemtime($f) < time() - 300) @unlink($f);
-        }
-    }
-
-    $now = time();
-    $data = [];
-    if (file_exists($file)) {
-        $raw = @file_get_contents($file);
-        if ($raw) $data = json_decode($raw, true) ?: [];
-    }
-
-    // Remove entries outside the window
-    $data = array_values(array_filter($data, function($ts) use ($now, $window) {
-        return $ts > $now - $window;
-    }));
-
-    if (count($data) >= $limit) {
-        EverLog::warn('rate_limit hit', ['action' => $action, 'limit' => $limit, 'window_s' => $window]);
-        http_response_code(429);
-        header('Retry-After: ' . $window);
-        echo json_encode(['error' => 'Too many requests. Please try again later.']);
-        exit;
-    }
-
-    $data[] = $now;
-    @file_put_contents($file, json_encode($data), LOCK_EX);
-}
+// ===== RATE LIMITING ===== (checkRateLimit() is defined near the top of the file,
+// before the early-exit action branches, so all actions can be rate-limited.)
 
 // Apply rate limiting
 $rateLimitAction = $_GET['action'] ?? '';
@@ -814,10 +834,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeA
 
 try {
     $db = getDB();
-} catch (Exception $e) {
+} catch (Throwable $e) {
     EverLog::exception($e, 'db_connect');
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
     exit;
 }
@@ -1389,10 +1409,11 @@ try {
             http_response_code(404);
             echo json_encode(['error' => 'Unknown action: ' . $action]);
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    // Throwable (not Exception) so TypeErrors and other Error classes are caught too.
     EverLog::exception($e, $action ?? '-');
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     _phpErrorReport($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
 }
 endif; // end !CRON_MODE
@@ -2246,11 +2267,19 @@ function importInventory(PDO $db): void {
 // ===== TTS PROXY =====
 function ttsProxy() {
     EverLog::info('ttsProxy');
+    // SSRF guard: only token-authenticated callers (or the same-origin web UI) may
+    // reach this proxy — it must never be an open relay, even when API_TOKEN is unset.
+    evershelfRequireScaleAccess();
     $body = json_decode(file_get_contents('php://input'), true);
     $url     = isset($body['url'])     ? trim($body['url'])     : '';
     $method  = isset($body['method'])  ? strtoupper(trim($body['method'])) : 'POST';
     $headers = isset($body['headers']) && is_array($body['headers']) ? $body['headers'] : [];
     $payload = isset($body['payload']) ? $body['payload'] : '';
+
+    // Only allow POST/GET — anything else (PUT/DELETE…) is rejected.
+    if (!in_array($method, ['GET', 'POST'], true)) {
+        $method = 'POST';
+    }
 
     // Never trust client-supplied auth headers — inject from server .env
     $headers = array_filter($headers, static function ($k) {
@@ -2280,17 +2309,24 @@ function ttsProxy() {
         }
     }
 
-    if (!$url || !preg_match('/^https?:\/\/.+/', $url)) {
-        EverLog::warn('ttsProxy: invalid URL (400)');
-        http_response_code(400);
-        echo json_encode(['error' => 'URL non valido']);
+    if (!$url || !evershelfTtsUrlAllowed($url)) {
+        EverLog::warn('ttsProxy: blocked URL (403)', ['url' => $url]);
+        http_response_code(403);
+        echo json_encode(['error' => 'tts_host_not_allowed', 'message' => 'Target host is not in the allowed list (set HA_URL, TTS_URL or TTS_ALLOWED_HOSTS).']);
         return;
     }
 
     $curlHeaders = [];
     foreach ($headers as $k => $v) {
+        // Reject header injection (CR/LF) and non-string values.
+        if (!is_string($k) || !is_string($v) || preg_match('/[\r\n]/', $k . $v)) {
+            continue;
+        }
         $curlHeaders[] = "$k: $v";
     }
+
+    // Self-signed LAN certs are opt-in only (default: verify TLS).
+    $insecureTls = env('TTS_INSECURE_SSL', 'false') === 'true';
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -2302,16 +2338,19 @@ function ttsProxy() {
         curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
     }
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // allow self-signed certs on local network
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false); // no redirect-based SSRF
+    curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, !$insecureTls);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $insecureTls ? 0 : 2);
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr  = curl_error($ch);
     curl_close($ch);
 
     if ($curlErr) {
-        EverLog::error('ttsProxy: curl error (502)');
+        EverLog::error('ttsProxy: curl error (502)', ['err' => $curlErr]);
         http_response_code(502);
-        echo json_encode(['error' => 'cURL error: ' . $curlErr]);
+        echo json_encode(['error' => 'tts_upstream_error', 'message' => 'cURL error: ' . $curlErr]);
         return;
     }
 
@@ -8237,11 +8276,8 @@ function saveSettings(): void {
         }
     }
 
-    // Write .env file
-    $lines = [];
-    foreach ($envVars as $key => $val) {
-        $lines[] = "{$key}={$val}";
-    }
+    // Write .env file (surgical merge — values sanitized, comments preserved)
+    $envExample = __DIR__ . '/../.env.example';
     $changedEnvKeys = [];
     foreach ([$keyMap, $boolMap, $intMap, $floatMap] as $map) {
         foreach ($map as $inKey => $envKey) {
@@ -8258,10 +8294,9 @@ function saveSettings(): void {
     }
     $changedEnvKeys = array_values(array_unique($changedEnvKeys));
 
-    $payload = implode("\n", $lines) . "\n";
     $result = false;
     if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
-        $result = file_put_contents($envFile, $payload, LOCK_EX);
+        $result = evershelfWriteEnvFile($envFile, $envVars, $envExample);
     }
 
     if ($result !== false) {
@@ -12809,11 +12844,8 @@ function restoreLocalBackup(string $filename, PDO $db): array {
 /** Write / overwrite a single key in the .env file (used by OAuth callback). */
 function _gdriveSetEnvVar(string $key, string $value): void {
     $envFile = __DIR__ . '/../.env';
-    $envVars = loadEnv();
-    $envVars[$key] = $value;
-    $lines = [];
-    foreach ($envVars as $k => $v) { $lines[] = "$k=$v"; }
-    file_put_contents($envFile, implode("\n", $lines) . "\n");
+    evershelfWriteEnvFile($envFile, [$key => $value], __DIR__ . '/../.env.example');
+    clearEnvOverrides([$key]); // a DB override would otherwise shadow the new file value
 }
 
 /**

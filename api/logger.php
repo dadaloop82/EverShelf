@@ -91,6 +91,11 @@ class EverLog {
         $ctxStr = empty($ctx) ? '' : ' ' . json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $line   = "[{$ts}] [{$labels[$lvl]}] [rid=" . self::$requestId . "] [{$act}] {$msg}{$ctxStr}\n";
 
+        // Safety net: never let a single hourly file grow without bound.
+        if (is_file(self::$logFile) && filesize(self::$logFile) > 8 * 1024 * 1024) {
+            @rename(self::$logFile, self::$logFile . '.' . time() . '.log');
+        }
+
         @file_put_contents(self::$logFile, $line, FILE_APPEND | LOCK_EX);
     }
 

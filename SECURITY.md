@@ -46,3 +46,42 @@ Out-of-scope issues:
 - Parameterized SQL queries (PDO prepared statements) throughout
 - Input validation and length limits on all user-supplied fields
 - `.env` and `data/` directories denied via web server config (see README)
+- `tts_proxy` is restricted to an allowlist of hosts (`HA_URL`, `TTS_URL`,
+  `TTS_ALLOWED_HOSTS` + the server's own LAN) and always requires authentication
+  or a same-origin browser session — it can never be used as an open relay.
+  TLS verification is on by default; `TTS_INSECURE_SSL=true` opts in to
+  self-signed LAN certificates.
+- `.env` writes (`save_settings`, Google Drive OAuth callback) are surgical and
+  comment-preserving; values are sanitized so a crafted value cannot inject new
+  keys or comment out existing lines.
+
+## Repository & release secrets
+
+Real signing material must **never** be committed. If a keystore or password was
+ever committed, treat it as compromised and rotate it:
+
+```bash
+# 1. Create a fresh keystore (do this locally, keep the file OFF git)
+keytool -genkeypair -v -keystore evershelf.jks -alias evershelf \
+        -keyalg RSA -keysize 2048 -validity 10000
+# 2. Point the build at it via evershelf-kiosk/keystore.properties (gitignored)
+#    storeFile=evershelf.jks
+#    storePassword=<new password>
+#    keyAlias=evershelf
+#    keyPassword=<new password>
+```
+
+CI builds the APKs from GitHub Secrets (repository → Settings → Secrets):
+
+| Secret | Used by | Notes |
+|--------|---------|-------|
+| `KIOSK_KEYSTORE_BASE64` | `build-kiosk.yml` | `base64 -w0 evershelf.jks` |
+| `KIOSK_STORE_PASSWORD` / `KIOSK_KEY_ALIAS` / `KIOSK_KEY_PASSWORD` | `build-kiosk.yml` | |
+| `HEALTH_KEYSTORE_BASE64` | `build-health-bridge.yml` | |
+| `HEALTH_STORE_PASSWORD` / `HEALTH_KEY_ALIAS` / `HEALTH_KEY_PASSWORD` | `build-health-bridge.yml` | |
+
+Without these secrets the workflows fall back to the Android debug keystore so
+builds still succeed — but those APKs will not install as updates over a release
+signed with the real key. If the exposed key was already distributed, rotating it
+breaks OTA updates for existing installs (Android rejects a signature change);
+notify users to reinstall once.

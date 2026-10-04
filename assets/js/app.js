@@ -712,7 +712,7 @@ function _scaleAutoFillRecipeUse(msg) {
     // Update live hint in modal with the raw scale reading always
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
-        hint.textContent = `⚖️ Bilancia: ${msg.value} ${msg.unit || 'kg'}${msg.stable ? ' ✓' : ' …'}`;
+        hint.textContent = t('scale.reading', { value: msg.value, unit: msg.unit || 'kg' }) + (msg.stable ? ' ✓' : ' …');
         if (unit === 'ml' && srcUnit !== 'ml') {
             hint.textContent += ' ' + t('scale.ml_hint');
         }
@@ -743,7 +743,7 @@ function _scaleAutoFillRecipeUse(msg) {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
             if (hint) {
-                hint.textContent = `⚖️ Peso bilancia: ${val} ${unit}${hintExtra}`;
+                hint.textContent = t('scale.weight_value', { value: val, unit }) + hintExtra;
                 hint.style.display = '';
             }
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20260910c'; // bump when translations change
+const _I18N_VERSION = '20261004b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2643,7 +2643,7 @@ async function updateScanRecents() {
     chips.innerHTML = list.map(r => {
         const icon = CATEGORY_ICONS[mapToLocalCategory(r.category, r.name)] || '📦';
         const label = escapeHtml(r.name) + (r.brand ? ` <span style="color:var(--text-muted);font-weight:400">${escapeHtml(r.brand)}</span>` : '');
-        return `<button class="scan-recent-chip" onclick="_selectRecentProduct(${r.id})" title="${escapeHtml(r.name)}">
+        return `<button class="scan-recent-chip" onclick="_selectRecentProduct(${Number(r.id)})" title="${escapeAttr(r.name)}">
             <span class="scan-recent-chip-icon">${icon}</span>${label}
         </button>`;
     }).join('');
@@ -3545,8 +3545,8 @@ async function _renderBackupTab() {
                     return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-color,#e2e8f0);font-size:0.83rem">
                         <span style="flex:1;color:var(--text-primary)">${b.filename}</span>
                         <span style="color:#94a3b8;white-space:nowrap">${b.size_kb} KB · ${dateStr}</span>
-                        <button class="btn btn-small btn-secondary" onclick="_backupRestore('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.restore_btn')}">${t('settings.backup.restore_btn')}</button>
-                        <button class="btn btn-small btn-danger" onclick="_backupDelete('${b.filename}')" style="flex-shrink:0" title="${t('settings.backup.delete_btn')}">🗑</button>
+                        <button class="btn btn-small btn-secondary" onclick="${escapeAttr(`_backupRestore(${JSON.stringify(b.filename)})`)}" style="flex-shrink:0" title="${escapeAttr(t('settings.backup.restore_btn'))}">${t('settings.backup.restore_btn')}</button>
+                        <button class="btn btn-small btn-danger" onclick="${escapeAttr(`_backupDelete(${JSON.stringify(b.filename)})`)}" style="flex-shrink:0" title="${escapeAttr(t('settings.backup.delete_btn'))}">🗑</button>
                     </div>`;
                 }).join('');
                 listEl.innerHTML = `<p style="font-size:0.78rem;color:#94a3b8;margin-bottom:6px">${t('settings.backup.retention_info') || ''} ${data.retention_days} ${t('settings.backup.retention_days') || 'gg'}</p>${rows}`;
@@ -3606,7 +3606,7 @@ async function _gdriveTest() {
     const btn = document.getElementById('btn-gdrive-test');
     const statusEl = document.getElementById('gdrive-test-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Test connessione…'; statusEl.style.display = 'block'; }
+    if (statusEl) { statusEl.className = 'settings-status'; statusEl.textContent = t('common.connection_test'); statusEl.style.display = 'block'; }
     try {
         // Save current settings first so the server has the latest JSON/folder
         await saveSettings();
@@ -4934,7 +4934,7 @@ async function saveSettings() {
         } else {
             statusEl.className = 'settings-status error';
             const errMsg = result.error === 'unauthorized'
-                ? '🔒 Token non valido o mancante'
+                ? t('error.invalid_token')
                 : `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
             statusEl.textContent = errMsg;
         }
@@ -11197,11 +11197,11 @@ function showProductAction() {
             <div class="edit-unknown-form">
                 <div class="form-group">
                     <label>${t('edit.label_name')}</label>
-                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="Es: Latte intero, Pasta penne..." required>
+                    <input type="text" id="edit-action-name" class="form-input" value="${escapeHtml(isUnknown ? '' : currentProduct.name)}" placeholder="${escapeAttr(t('product.name_placeholder'))}" required>
                 </div>
                 <div class="form-group">
                     <label>${t('product.brand_label')}</label>
-                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="Es: Barilla, Mulino Bianco...">
+                    <input type="text" id="edit-action-brand" class="form-input" value="${escapeHtml(currentProduct.brand || '')}" placeholder="${escapeAttr(t('product.brand_placeholder'))}">
                 </div>
                 <div class="form-group">
                     <label>${t('product.category_label')}</label>
@@ -12464,7 +12464,7 @@ function _rebuildMultiBatchUI() {
             </div>
             <input type="date" class="form-input multi-batch-date" value="${b.expiry}"
                 onchange="window._addExtraBatches[${i}].expiry = this.value">
-            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="Rimuovi">✕</button>
+            <button type="button" class="btn-icon-sm" onclick="removeExpiryBatch(${i})" title="${escapeAttr(t('common.remove'))}">✕</button>
         </div>
     `).join('');
 }
@@ -14528,7 +14528,7 @@ async function analyzeWithAI() {
             });
         } catch(e) { /* ignore search errors */ }
 
-        let html = `<h4>🤖 Prodotto identificato</h4>`;
+        let html = `<h4>${t('ai.identified_title')}</h4>`;
         html += `<div class="ai-identified-card">`;
         html += `<strong>${escapeHtml(id.name)}</strong>`;
         if (id.brand) html += ` <span style="color:var(--text-muted)">- ${escapeHtml(id.brand)}</span>`;
@@ -14556,7 +14556,7 @@ async function analyzeWithAI() {
         }
 
         if (matches.length > 0) {
-            html += `<h4 style="margin-top:16px">📦 Prodotti corrispondenti</h4>`;
+            html += `<h4 style="margin-top:16px">${t('ai.matches_title')}</h4>`;
             html += `<div class="ai-matches-list">`;
             matches.forEach((m, idx) => {
                 html += `<div class="ai-match-item" onclick="selectAIMatch(${idx})">`;
@@ -17034,7 +17034,7 @@ function _buildSmartSpec(smartMatch) {
     if (eff?.suggested_qty > 0) {
         const qtyCore = _formatSuggestQty(eff.suggested_qty, eff.suggested_unit || smartMatch.unit);
         if (qtyCore) {
-            const prefix = (eff.suggested_approx || smartMatch.qty_shelf_capped) ? 'Almeno: ' : 'Compra: ';
+            const prefix = (eff.suggested_approx || smartMatch.qty_shelf_capped) ? t('shopping.buy_at_least') : t('shopping.buy_qty');
             parts.push('🛒 ' + prefix + qtyCore);
         }
     }
@@ -18335,14 +18335,16 @@ async function loadLog(more = false) {
                     typeLabel = tx.type === 'waste' ? t('log.type_waste') : t('log.type_used');
                     colorClass = 'log-out';
                 }
-                const brand = tx.brand ? ` <em>(${tx.brand})</em>` : '';
+                const brand = tx.brand ? ` <em>(${escapeHtml(tx.brand)})</em>` : '';
                 const loc = tx.location || '';
                 const locLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
-                const locStr = tx.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + loc));
+                const locStr = tx.type === 'bring' ? '' : (locLabels[loc] || ('📍 ' + escapeHtml(loc)));
                 const isAnnotation = ((tx.notes || '').includes('[Undone]') || (tx.notes || '').includes('[Annullato]'));
-                const isRecipeNote = !isAnnotation && (tx.notes || '').startsWith('Ricetta:');
-                const notes = tx.notes && !isAnnotation && !isRecipeNote ? ` · ${tx.notes}` : '';
-                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(tx.notes)}</div>` : '';
+                // Recipe notes are stored with a stable marker (both spellings kept for old rows).
+                const recipeMatch = isAnnotation ? null : (tx.notes || '').match(/^(?:Ricetta|Recipe):\s*(.*)$/s);
+                const isRecipeNote = recipeMatch !== null;
+                const notes = tx.notes && !isAnnotation && !isRecipeNote ? ` · ${escapeHtml(tx.notes)}` : '';
+                const recipeNote = isRecipeNote ? `<div class="log-recipe-note">🍳 ${escapeHtml(recipeMatch[1])}</div>` : '';
                 const undone = tx.undone == 1 || isAnnotation;
 
                 // Can undo if within 24h, not already undone, not a bring entry, not a counter-transaction
@@ -18360,7 +18362,9 @@ async function loadLog(more = false) {
                 html += recipeNote;
                 html += `</div>`;
                 if (canUndo) {
-                    html += `<button class="btn-log-undo" onclick="undoTransactionEntry(${tx.id}, '${escapeHtml(tx.type)}', '${escapeHtml(tx.name || '')}')" title="${t('log.undo_title')}">↩</button>`;
+                    // JSON.stringify for JS-string safety; escapeAttr for attribute safety.
+                    const undoArgs = `${Number(tx.id)}, ${JSON.stringify(tx.type)}, ${JSON.stringify(tx.name || '')}`;
+                    html += `<button class="btn-log-undo" onclick="${escapeAttr(`undoTransactionEntry(${undoArgs})`)}" title="${escapeAttr(t('log.undo_title'))}">↩</button>`;
                 }
                 html += `</div>`;
             });
@@ -19883,7 +19887,7 @@ async function submitRecipeUse(useAll) {
             product_id: productId,
             quantity: qty,
             location: location,
-            notes: recipeTitle ? `Ricetta: ${recipeTitle}` : '',
+            notes: recipeTitle ? `Recipe: ${recipeTitle}` : '',
         });
         
         if (result.success) {
@@ -21432,7 +21436,7 @@ function testSound() {
     if (statusEl) {
         statusEl.style.display = 'block';
         statusEl.className = 'settings-status success';
-        statusEl.textContent = '🔔 Suono inviato — hai sentito un beep?';
+        statusEl.textContent = t('tts.sound_sent');
     }
 }
 
@@ -21441,7 +21445,7 @@ async function testTTS() {
     const enabled = document.getElementById('setting-tts-enabled')?.checked;
     const onKiosk = _hasKioskTts();
     if (!enabled && !onKiosk) {
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '⚠️ TTS non attivo — attiva il toggle prima di testare.'; }
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = t('tts.not_active'); }
         return;
     }
     const engine = onKiosk ? 'browser' : (document.getElementById('setting-tts-engine')?.value || 'browser');
@@ -21451,14 +21455,14 @@ async function testTTS() {
             // Diagnostic: check if Android TTS engine is ready
             const ready = typeof _kioskBridge.isTtsReady === 'function' ? _kioskBridge.isTtsReady() : 'unknown';
             if (ready === 'false') {
-                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Android TTS non inizializzato — riavvia l\'app kiosk o installa un motore TTS dal Play Store.'; }
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = t('tts.android_not_ready'); }
                 return;
             }
             const s = getSettings();
             s.tts_rate  = parseFloat(document.getElementById('setting-tts-rate')?.value)  || 1;
             s.tts_pitch = parseFloat(document.getElementById('setting-tts-pitch')?.value) || 1;
             saveSettingsToStorage(s);
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '⏳ Invio al motore TTS Android...'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('tts.sending_android'); }
             // Register callbacks: Android will call these after speak completes/fails
             let _ttsTestTimer = null;
             window._kioskTtsDone = (uid) => {
@@ -21469,7 +21473,7 @@ async function testTTS() {
             window._kioskTtsError = (uid, code) => {
                 clearTimeout(_ttsTestTimer);
                 window._kioskTtsDone = null; window._kioskTtsError = null;
-                const msg = code == -1 ? 'sintesi non riuscita' : code == -2 ? 'lingua non supportata' : code == -3 ? 'servizio non disponibile' : ('codice ' + code);
+                const msg = code == -1 ? t('tts.err_synthesis') : code == -2 ? t('tts.err_lang') : code == -3 ? t('tts.err_service') : t('tts.err_code', { code });
                 if (statusEl) { statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.android_error', { msg }); }
             };
             // Timeout: if Android doesn't callback within 10s, ask user if they heard the voice
@@ -21494,11 +21498,11 @@ async function testTTS() {
                     if (statusEl) { statusEl.className = 'settings-status error'; statusEl.innerHTML = '❌ ' + t('settings.tts.test_fail_steps'); }
                 };
             }, 10000);
-            _speakBrowser('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+            _speakBrowser(t('tts.test_phrase'));
             return;
         }
         if (!window.speechSynthesis) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Web Speech API non supportata da questo browser.'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = t('tts.web_speech_unsupported'); }
             return;
         }
         // ── Audio beep test (AudioContext — works even if TTS is broken) ─────
@@ -21521,7 +21525,7 @@ async function testTTS() {
         const itLocal  = voices.find(v => v.lang && v.lang.startsWith('it') && v.localService);
         const anyLocal = voices.find(v => v.localService);
         if (!itLocal && !anyLocal) {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ Solo voci cloud disponibili — la sintesi vocale offline richiede una voce locale installata sul dispositivo (es. Google Text-to-Speech → Scarica voci offline).'; }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = t('tts.cloud_only'); }
             return;
         }
         // onerror callback: update status if speak() fails
@@ -21529,7 +21533,7 @@ async function testTTS() {
             if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status error'; statusEl.textContent = '❌ ' + t('settings.tts.browser_error', { error: evt.error || t('error.unknown') }); }
         };
         // Temporarily hook onerror via a custom utterance
-        const testUtt = new SpeechSynthesisUtterance('Test vocale EverShelf. La sintesi vocale funziona correttamente.');
+        const testUtt = new SpeechSynthesisUtterance(t('tts.test_phrase'));
         testUtt.rate  = s.tts_rate;
         testUtt.pitch = s.tts_pitch;
         const chosenVoice = s.tts_voice ? voices.find(v => v.name === s.tts_voice) : null;
@@ -23450,7 +23454,7 @@ function updateScreensaverShopping() {
 
     const countCol = `<div class="ss-shop-col">
         <div class="ss-shop-value">${itemCount}</div>
-        <div class="ss-shop-label">🛒 articoli</div>
+        <div class="ss-shop-label">🛒 ${escapeHtml(t('screensaver.shopping_count'))}</div>
     </div>`;
 
     let priceCol = '';
@@ -24894,9 +24898,9 @@ function _renderSetupStep() {
     prevBtn.textContent = t('btn.back');
 
     if (_setupStep === totalPending - 1) {
-        nextBtn.textContent = _currentLang === 'it' ? '🚀 Inizia!' : _currentLang === 'de' ? '🚀 Los geht\'s!' : _currentLang === 'fr' ? '🚀 Allons-y !' : _currentLang === 'es' ? '🚀 ¡Empezar!' : '🚀 Start!';
+        nextBtn.textContent = t('setup.start_btn');
     } else {
-        nextBtn.textContent = _currentLang === 'it' ? 'Avanti →' : _currentLang === 'de' ? 'Weiter →' : _currentLang === 'fr' ? 'Suivant →' : _currentLang === 'es' ? 'Siguiente →' : 'Next →';
+        nextBtn.textContent = t('setup.next_btn');
     }
 }
 
@@ -25192,23 +25196,23 @@ async function _runStartupCheck() {
         { key: 'ext_fileinfo',      label: 'Fileinfo',                                      critical: false },
         { key: 'ext_zip',           label: 'ZIP',                                           critical: false },
         { key: 'ext_intl',          label: 'Intl',                                          critical: false },
-        { key: 'php_memory',        label: tl('check_php_memory',  'Memoria PHP'),          critical: false },
-        { key: 'php_max_exec',      label: tl('check_php_timeout', 'Timeout PHP'),          critical: false },
-        { key: 'php_upload',        label: tl('check_php_upload',  'Upload PHP'),           critical: false },
+        { key: 'php_memory',        label: tl('check_php_memory',  'PHP memory'),           critical: false },
+        { key: 'php_max_exec',      label: tl('check_php_timeout', 'PHP timeout'),          critical: false },
+        { key: 'php_upload',        label: tl('check_php_upload',  'PHP upload'),           critical: false },
         // Filesystem
-        { key: 'data_dir',          label: tl('check_data_dir',    'Cartella dati'),        critical: true  },
+        { key: 'data_dir',          label: tl('check_data_dir',    'Data directory'),       critical: true  },
         { key: 'data_rate_limits',  label: tl('check_rate_limits', 'Rate limits dir'),      critical: false },
         { key: 'data_backups',      label: tl('check_backups',     'Backup dir'),           critical: false },
-        { key: 'data_write_test',   label: tl('check_write_test',  'Test scrittura'),       critical: true  },
-        { key: 'disk_space',        label: tl('check_disk_space',  'Spazio disco'),         critical: false },
+        { key: 'data_write_test',   label: tl('check_write_test',  'Disk write test'),      critical: true  },
+        { key: 'disk_space',        label: tl('check_disk_space',  'Disk space'),           critical: false },
         // Database
-        { key: 'db_legacy',         label: tl('check_db_legacy',   'DB legacy'),            critical: false },
+        { key: 'db_legacy',         label: tl('check_db_legacy',   'Legacy DB'),            critical: false },
         { key: 'db_connect',        label: tl('check_db_connect',  'Database connection'),       critical: true  },
-        { key: 'db_tables',         label: tl('check_db_tables',   'Tabelle DB'),           critical: true  },
+        { key: 'db_tables',         label: tl('check_db_tables',   'DB tables'),            critical: true  },
         { key: 'db_integrity',      label: tl('check_db_integrity','Database integrity'),         critical: true  },
         { key: 'db_wal',            label: tl('check_db_wal',      'WAL mode'),             critical: false },
-        { key: 'db_size',           label: tl('check_db_size',     'Dimensione DB'),        critical: false },
-        { key: 'db_row_count',      label: tl('check_db_rows',     'Dati inventario'),      critical: false },
+        { key: 'db_size',           label: tl('check_db_size',     'DB size'),              critical: false },
+        { key: 'db_row_count',      label: tl('check_db_rows',     'Inventory data'),       critical: false },
         // Config & optional features
         { key: 'env_file',          label: tl('check_env',         'File .env'),            critical: false },
         { key: 'gemini_key',        label: tl('check_gemini',      'Gemini AI key'),        critical: false },
@@ -25243,7 +25247,7 @@ async function _runStartupCheck() {
         if (c.value)            lbl += ` (${c.value})`;
         if (isFresh)            lbl += ` — ${tl('fresh_install', 'fresh install')}`;
         if (!isOk && c.error)   lbl += ` — ${c.error}`;
-        if (!isOk && c.missing?.length) lbl += ` — mancanti: ${c.missing.join(', ')}`;
+        if (!isOk && c.missing?.length) lbl += ` — ${t('startup.hint_missing_tables_inline', { list: c.missing.join(', ') })}`;
 
         setProgress(pct, lbl, isOk ? 'ok' : isOpt ? 'warn' : 'error');
 
@@ -25259,7 +25263,7 @@ async function _runStartupCheck() {
         setProgress(100, tl('critical_error_short', 'Critical error'), 'error');
         await new Promise(r => setTimeout(r, 300));
         const errLines = errors.map(e => {
-            const hint = e.c.hint || (e.c.error ? e.c.error : null);
+            const hint = _startupHintText(e.c);
             return `❌ ${e.def.label}${hint ? '\n   → ' + hint : ''}`;
         }).join('\n\n');
         _showStartupErrorPopup(
@@ -25312,10 +25316,21 @@ async function _runStartupCheck() {
     return true;
 }
 
+/**
+ * Human-readable hint for a health-check entry: prefer a translated hint_key,
+ * fall back to a raw hint/value/error string.
+ */
+function _startupHintText(c) {
+    if (!c) return null;
+    const raw = c.hint_key ? t(c.hint_key, c.hint_args || {}) : (c.hint || c.error || null);
+    // Inserted via innerHTML — escape it (server values could contain markup).
+    return raw == null ? null : escapeHtml(raw);
+}
+
 /** Builds and shows the warning popup with countdown (auto-closes after 5s). */
 function _showStartupWarningPopup(warnings, container, tl) {
     const lines = warnings.map(w => {
-        const hint = w.c.hint || null;
+        const hint = _startupHintText(w.c);
         return `<div class="startup-warn-item">
             <span class="startup-warn-icon">⚠️</span>
             <div class="startup-warn-body">

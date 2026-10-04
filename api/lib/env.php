@@ -3,9 +3,9 @@
  * EverShelf — environment variable loader (.env + DB overrides).
  */
 
-function loadEnv(): array {
+function loadEnv(bool $reload = false): array {
     static $cache = null;
-    if ($cache !== null) {
+    if (!$reload && $cache !== null) {
         return $cache;
     }
     $envFile = dirname(__DIR__, 2) . '/.env';
@@ -58,6 +58,75 @@ function env(string $key, string $default = ''): string {
     }
     $vars = loadEnv();
     return $vars[$key] ?? $default;
+}
+
+/**
+ * Clean a value that is about to be written into a .env line.
+ * Removes CR/LF/NUL so a value can never inject extra keys or comment out lines.
+ */
+function evershelfSanitizeEnvValue(string $value): string {
+    $value = str_replace(["\r", "\n", "\0"], '', $value);
+    return trim($value);
+}
+
+/**
+ * Merge $updates (ENV_KEY => value) into the .env file **surgically**:
+ *   - existing keys are replaced in place (order preserved),
+ *   - comments and blank lines are kept verbatim,
+ *   - unknown keys are appended at the end,
+ *   - values are sanitized against newline injection.
+ * When the file is missing it is seeded from .env.example (if present).
+ * Returns true on success, false if the file could not be written.
+ *
+ * @param array<string,string> $updates
+ */
+function evershelfWriteEnvFile(string $envFile, array $updates, string $templateFile = ''): bool {
+    // Drop keys that are not valid env names; sanitize the rest.
+    foreach ($updates as $k => $v) {
+        if (!preg_match('/^[A-Z0-9_]+$/', (string)$k)) {
+            unset($updates[$k]);
+            continue;
+        }
+        $updates[$k] = evershelfSanitizeEnvValue((string)$v);
+    }
+    if ($updates === []) {
+        return true;
+    }
+
+    $source = $envFile;
+    if (!file_exists($source) && $templateFile !== '' && file_exists($templateFile)) {
+        $source = $templateFile; // seed comments/order from the example
+    }
+    $existing = file_exists($source) ? file($source, FILE_IGNORE_NEW_LINES) : [];
+
+    $seen = [];
+    $out  = [];
+    foreach ($existing as $line) {
+        $trim = ltrim($line);
+        if ($trim === '' || $trim[0] === '#' || strpos($trim, '=') === false) {
+            $out[] = $line; // blank line or comment — keep verbatim
+            continue;
+        }
+        [$key] = explode('=', $trim, 2);
+        $key = trim($key);
+        if (array_key_exists($key, $updates)) {
+            $out[] = $key . '=' . $updates[$key];
+            $seen[$key] = true;
+        } else {
+            $out[] = $line;
+        }
+    }
+    foreach ($updates as $k => $v) {
+        if (!isset($seen[$k])) {
+            $out[] = $k . '=' . $v;
+        }
+    }
+
+    $ok = file_put_contents($envFile, implode("\n", $out) . "\n", LOCK_EX) !== false;
+    if ($ok) {
+        loadEnv(true); // drop the cached copy so env() reflects the new file this request
+    }
+    return $ok;
 }
 
 /** Persist env overrides when .env is not writable (merged on read via env()). */

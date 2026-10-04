@@ -38,6 +38,10 @@ Thumbs.db
 node_modules/
 mcp-server/node_modules/
 
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Editor / IDE
 *.swp
 *.swo
@@ -69,6 +73,24 @@ assets/vendor/transformers/Xenova/
 *.bak.*
 *.orig
 *.rej
+
+# ── Android signing (never commit real keystores) ──────────────────────────
+*.jks
+*.keystore
+keystore.properties
+evershelf-kiosk/keystore.properties
+evershelf-health-bridge/keystore.properties
+evershelf-kiosk/evershelf.jks
+evershelf-health-bridge/evershelf.jks
+evershelf-scale-gateway/**/keystore.properties
+
+# ── Pre-built APK artifacts (published via GitHub Releases, not git) ───────
+*.apk
+*.aab
+
+# ── Runtime JSON state written by the app (regenerated, not source) ────────
+# NB: data/seasonal_produce_it.json is SHIPPED SOURCE data and must stay tracked.
+data/backup_last_ts.json
 data/audit_finished_missing.json
 data/reported_issue_fps.json
 data/shopping_spend.json

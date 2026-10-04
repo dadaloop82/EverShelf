@@ -22,9 +22,10 @@
     "zod": "^3.24.2"
   },
   "overrides": {
-    "fast-uri": ">=3.1.5",
-    "@hono/node-server": ">=2.0.5",
-    "hono": ">=4.12.34",
-    "ip-address": ">=10.4.0"
+    "fast-uri": ">=4.2.1",
+    "@hono/node-server": ">=2.0.12",
+    "hono": ">=4.13.13",
+    "ip-address": ">=10.7.3",
+    "qs": ">=6.16.0"
   }
 }
