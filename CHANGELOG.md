@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
-## [1.8.10] - Unreleased
+## [1.8.10] - 2026-10-04
 
 Second half of the 2026-10-04 audit: what a `docker build` bakes into the image,
-how the backup copies the database, and the API surface around write actions.
+how the backup copies the database, and what the API lets out — the CSRF gate on
+write actions and the error reports that used to leave carrying whatever a client
+sent.
 
 ### Security
 - **`docker build` no longer bakes the machine it runs on into the image.**
