@@ -4,7 +4,8 @@
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
 >
-> Counts below were measured at commit `8a56006` (2026-10-04) and are rounded.
+> Counts and line numbers below were measured for **v1.8.8** (2026-10-04) and are
+> rounded; regenerate the indexes with `bash scripts/gen-code-index.sh` after large edits.
 
 ## 1. Top-level layout
 
@@ -42,7 +43,7 @@
    `gemini_usage`, `health_check`.
 4. `getDB()` (SQLite, WAL, busy_timeout 20s) then global exception handlers.
 5. Rate limit (`checkRateLimit`) → CSRF guard for write actions →
-   `evershelfRequireApiAuth` → demo-mode block → `switch ($action)` (line ~847).
+   `evershelfRequireApiAuth` → demo-mode block → `switch ($action)` (line ~902).
 6. Handlers read `php://input` JSON or `$_GET`, write DB, `echo json_encode`.
 
 ## 3. Frontend lifecycle

@@ -911,11 +911,11 @@ Use with: `sed -n "<line>p" assets/js/app.js` to jump to a function.
 25094:async function _handleServerRestored
 25109:function _heartbeatRetry
 25120:async function _runStartupCheck
-25351:function _startupHintText
-25359:function _showStartupWarningPopup
-25404:function _showStartupErrorPopup
-25412:function _startupRetry
-25417:function startHeartbeat
-25421:async function _initApp
-25587:async function _backgroundBringSync
+25358:function _startupHintText
+25366:function _showStartupWarningPopup
+25411:function _showStartupErrorPopup
+25419:function _startupRetry
+25424:function startHeartbeat
+25428:async function _initApp
+25594:async function _backgroundBringSync
 ```

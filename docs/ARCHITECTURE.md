@@ -28,6 +28,19 @@ dispensa/
 ## Security model
 
 - **`API_TOKEN`** (or legacy **`SETTINGS_TOKEN`**): when set, every API action requires `X-API-Token` header or `?api_token=` (Home Assistant).
+- **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to an
+  anonymous request: the UI shows a dialog and the user types the one-time **pairing code**
+  printed in the server log (`grep -i "pairing code" logs/evershelf_*.log`, 30 min TTL,
+  50 attempts/IP, then the code is burned). `API_BOOTSTRAP_OPEN=true` re-exposes the token
+  to any request that looks same-origin — trusted LANs only. See `SECURITY.md`.
+- **No authorisation decision comes from a client-controlled header.** `Origin`,
+  `Referer` and `Sec-Fetch-Site` are forgeable, so the old same-origin bypass is gone from
+  every action, including those that run `docker` or rewrite `.env`.
+- The pairing dialog is rendered **during** startup, so the auth overlays
+  (`EVERSHELF_AUTH_OVERLAY_Z` in `assets/js/core/auth.js`) must stay above the splash
+  preloader (200000) and the network-error overlay (300000). At the `.modal-overlay`
+  default of 200 the dialog hides behind the splash and `_initApp()` — which returns early
+  when it cannot authenticate — never removes it: the app dead-ends on "API token required".
 - Secrets (`HA_TOKEN`, `TTS_TOKEN`, `GEMINI_API_KEY`) stay in `.env`; `get_settings` exposes only `*_set` flags.
 - **`GH_ISSUE_TOKEN_ENC`** + **`GH_ISSUE_TOKEN_KEY`**: AES-256-GCM encrypted GitHub Issues token.
 

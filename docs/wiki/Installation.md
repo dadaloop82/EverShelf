@@ -208,6 +208,32 @@ The `backup.sh` script copies `data/evershelf.db` to `data/backups/` with a time
 
 ---
 
+## API Token & First-Run Pairing
+
+If you set `API_TOKEN` in `.env`, EverShelf protects every API action with it. The token
+is never handed to an anonymous request, so the first time you open the UI it asks for a
+one-time **pairing code** printed in the server log:
+
+```bash
+grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
+docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
+```
+
+Enter it in the dialog and you are in. The code is valid for 30 minutes, is consumed by
+the first successful pairing, and you pair once per browser/device.
+
+- Hard-refresh (`Ctrl+Shift+R`) if the dialog does not appear — an older service worker
+  can still serve a stale `app.js`.
+- **Trusted LAN instead of pairing:** `API_BOOTSTRAP_OPEN=true` re-enables the old
+  "any same-origin-looking request gets the token" behaviour. Only for a host that cannot
+  be reached from the internet (see `SECURITY.md`).
+- **Other clients** (Home Assistant, MCP server, kiosk app) do not pair: give them the
+  `API_TOKEN` value directly, as `?api_token=` or the `X-API-Token` header.
+
+→ [Configuration → Protecting the API with a token](Configuration)
+
+---
+
 ## Updating
 
 ```bash

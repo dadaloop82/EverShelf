@@ -41,6 +41,32 @@ docker compose up -d
 
 ---
 
+### The app asks for an API token / a pairing code
+
+Not an error: it is the token bootstrap. When `API_TOKEN` is set in `.env`, EverShelf
+never returns it to an anonymous request, so the browser must prove it is allowed by
+presenting a **one-time pairing code** printed in the server log:
+
+```bash
+grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
+docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
+```
+
+The code is 8 characters, valid for 30 minutes, and is consumed by the first successful
+pairing. You pair once per browser/device; afterwards the token is stored in
+`localStorage` and you are not asked again.
+
+- **No dialog appears and the splash stays on "API token required"?** Hard-refresh with
+  `Ctrl+Shift+R`: a service worker from a version before 1.8.8 may still be serving the
+  old `app.js`. (Before 1.8.8 the dialog was drawn *behind* the splash, so the app really
+  did look stuck.)
+- **The code expired?** Reload the page — a fresh one is printed automatically.
+- **Lost the code / prefer not to pair?** Copy `API_TOKEN` from `.env` and paste it into
+  **Settings → Security → Token**.
+- **Trusted LAN only:** set `API_BOOTSTRAP_OPEN=true` in `.env` to go back to the old
+  behaviour (the token is handed to any same-origin-looking request). Never do this on an
+  internet-exposed host — see `SECURITY.md`.
+
 ## AI Features
 
 ### "AI not available" error
