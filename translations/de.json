@@ -2072,6 +2072,7 @@
     "token_prompt_title": "🔒 API-Token",
     "token_prompt_hint": "Geben Sie den API_TOKEN-Wert aus der .env-Datei des Servers ein.",
     "token_prompt_btn": "Weiter",
+    "token_prompt_placeholder": "API-Token",
     "pairing_title": "🔒 Dieses Gerät koppeln",
     "pairing_hint": "Gib den Kopplungscode aus dem Server-Log ein (docker logs evershelf oder logs/evershelf_*.log).",
     "pairing_placeholder": "Kopplungscode",

@@ -2072,6 +2072,7 @@
     "token_prompt_title": "🔒 API 令牌",
     "token_prompt_hint": "请输入服务器 .env 文件中的 API_TOKEN 值。",
     "token_prompt_btn": "继续",
+    "token_prompt_placeholder": "API 令牌",
     "pairing_title": "🔒 配对此设备",
     "pairing_hint": "请输入服务器日志中显示的配对码（docker logs evershelf 或 logs/evershelf_*.log）。",
     "pairing_placeholder": "配对码",

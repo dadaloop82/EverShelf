@@ -96,6 +96,12 @@ found by the 2026-10-04 audit are closed.
 - CI runs the PHP test suite, `node --check` on every JS/ESM file (including `sw.js`
   and `mcp-server/src/**`) and `shellcheck -S warning`. Pushing the workflow edit
   still needs a `workflow`-scoped token.
+- The last hardcoded user-facing string in the auth overlays (the API-token input
+  placeholder) is now the `startup.token_prompt_placeholder` key, present in all six
+  locales like every other string.
+- `data/api_pairing.json` untracked on `main` too: a `git merge` keeps files that only
+  one side has, so the runtime state committed by accident in 1.8.7 survived the first
+  remediation there. It is runtime state, never shipped.
 - `npm audit` findings resolved; Dependabot coverage widened.
 - `docs/INDEX-*.md` regenerated and `docs/CODEBASE-MAP.md` line references refreshed.
 

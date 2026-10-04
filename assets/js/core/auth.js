@@ -119,6 +119,7 @@ function _promptApiTokenIfNeeded() {
     const title = typeof t === 'function' ? t('startup.token_prompt_title') : '🔒 API Token';
     const hint  = typeof t === 'function' ? t('startup.token_prompt_hint') : 'Enter API_TOKEN from .env';
     const btn   = typeof t === 'function' ? t('startup.token_prompt_btn') : 'Continue';
+    const ph    = typeof t === 'function' ? t('startup.token_prompt_placeholder') : 'API token';
     const overlay = document.createElement('div');
     overlay.id = 'api-token-overlay';
     overlay.className = 'modal-overlay';
@@ -128,7 +129,7 @@ function _promptApiTokenIfNeeded() {
         <div class="modal-content" style="max-width:420px;padding:20px">
             <h3>${title}</h3>
             <p class="settings-hint">${hint}</p>
-            <input type="password" id="api-token-input" class="form-input" placeholder="API token">
+            <input type="password" id="api-token-input" class="form-input" placeholder="${ph}">
             <button class="btn btn-primary full-width mt-2" id="api-token-save">${btn}</button>
         </div>`;
     document.body.appendChild(overlay);
