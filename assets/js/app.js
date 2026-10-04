@@ -3516,7 +3516,7 @@ async function _renderBackupTab() {
     try {
         const data = await api('backup_list');
         if (!data || !data.success) {
-            if (lastInfoEl) lastInfoEl.innerHTML = '<span style="color:#ef4444">Error loading backup info</span>';
+            if (lastInfoEl) lastInfoEl.innerHTML = '<span style="color:#ef4444">' + t('settings.backup.load_error') + '</span>';
             return;
         }
         // Last backup info
@@ -3553,7 +3553,7 @@ async function _renderBackupTab() {
             }
         }
     } catch(e) {
-        if (lastInfoEl) lastInfoEl.innerHTML = '<span style="color:#ef4444">Error: ' + e.message + '</span>';
+        if (lastInfoEl) lastInfoEl.innerHTML = '<span style="color:#ef4444">' + t('error.prefix') + ': ' + e.message + '</span>';
     }
 }
 
@@ -16848,11 +16848,11 @@ function renderSmartItem(item) {
 async function migrateBringNames(btn) {
     const statusEl = document.getElementById('bring-migrate-status');
     if (btn) btn.disabled = true;
-    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = '⏳ In corso…'; }
+    if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = t('shopping.migration_running'); }
     try {
         const data = await api('bring_migrate_names', {}, 'POST', {});
         if (data.success) {
-            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? `, ${data.errors} errori` : '');
+            const msg = t('shopping.migration_done', { migrated: data.migrated, skipped: data.skipped }) + (data.errors ? t('shopping.migration_error_suffix', { n: data.errors }) : '');
             if (statusEl) statusEl.textContent = msg;
             if (data.migrated > 0) {
                 showToast(t('shopping.bring_names_migrated', { n: data.migrated }), 'success');
@@ -21326,7 +21326,7 @@ function _initBrowserTtsVoices(selectedVoice) {
     // Inside the EverShelf Kiosk Android app the native TTS bridge handles
     // speech — no Web Speech API voice list needed.
     if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.speak === 'function') {
-        sel.innerHTML = '<option value="">— Voce nativa Android (kiosk) —</option>';
+        sel.innerHTML = '<option value="">' + t('settings.tts.voice_native_kiosk') + '</option>';
         return;
     }
 
@@ -21570,7 +21570,7 @@ async function testTTS() {
         if (testVoice) { testUtt.voice = testVoice; testUtt.lang = testVoice.lang; }
         testUtt.onerror = _ttsErrHandler;
         testUtt.onstart = () => {
-            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; statusEl.textContent = '✅ Voce attiva: ' + (testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'); }
+            if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status success'; const voiceLabel = testVoice ? testVoice.name + ' (' + testVoice.lang + (testVoice.localService ? ', offline' : ', cloud') + ')' : 'default'; statusEl.textContent = t('settings.tts.voice_active', { voice: voiceLabel }); }
         };
         window.speechSynthesis.cancel();
         setTimeout(() => {
@@ -21586,7 +21586,7 @@ async function testTTS() {
                 }
             }, 2000);
         }, 50);
-        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = '🔊 Beep + TTS in corso...'; }
+        if (statusEl) { statusEl.style.display = 'block'; statusEl.className = 'settings-status'; statusEl.textContent = t('settings.tts.test_beep_running'); }
         return;
     }
     // Server engine
@@ -24830,10 +24830,10 @@ function _setupSteps() {
                     <label>${t('settings.gemini.key_label')}</label>
                     <input type="text" id="setup-gemini-key" class="form-input" placeholder="AIza..." value="${_setupData.gemini_key}">
                     <p style="color:#999;font-size:0.8rem;margin-top:8px">
-                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">→ Get a free API key from Google AI Studio</a>
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">${t('setup.gemini_key_link')}</a>
                     </p>
                 </div>
-                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${_currentLang === 'it' ? 'configura dopo' : 'configure later'}</span>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${t('setup.configure_later')}</span>
             `
         },
         {
@@ -24848,7 +24848,7 @@ function _setupSteps() {
                     <label>${t('settings.bring.password_label')}</label>
                     <input type="password" id="setup-bring-password" class="form-input" placeholder="Password" value="${_setupData.bring_password}">
                 </div>
-                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${_currentLang === 'it' ? 'configura dopo' : 'configure later'}</span>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('btn.cancel')} — ${t('setup.configure_later')}</span>
             `
         },
         {
