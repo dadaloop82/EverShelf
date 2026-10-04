@@ -11,11 +11,11 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261004e">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261004e">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261004f">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261004f">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261004e"></script>
-    <script src="assets/js/core/auth.js?v=20261004e"></script>
+    <script src="assets/js/core/dom.js?v=20261004f"></script>
+    <script src="assets/js/core/auth.js?v=20261004f"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -23,7 +23,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261004e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261004f';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -32,13 +32,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004e';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004f';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261004e"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261004f"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -2318,6 +2318,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261004e"></script>
+<script src="assets/js/app.js?v=20261004f"></script>
 </body>
 </html>

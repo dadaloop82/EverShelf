@@ -2067,6 +2067,7 @@
     "token_prompt_title": "🔒 Jeton API",
     "token_prompt_hint": "Saisissez la valeur API_TOKEN du fichier .env du serveur.",
     "token_prompt_btn": "Continuer",
+    "token_prompt_placeholder": "Jeton API",
     "pairing_title": "🔒 Associer cet appareil",
     "pairing_hint": "Saisissez le code d'association affiché dans les journaux du serveur (docker logs evershelf ou logs/evershelf_*.log).",
     "pairing_placeholder": "Code d'association",

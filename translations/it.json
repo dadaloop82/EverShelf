@@ -2072,6 +2072,7 @@
     "token_prompt_title": "🔒 Token API",
     "token_prompt_hint": "Inserisci il valore API_TOKEN dal file .env del server.",
     "token_prompt_btn": "Continua",
+    "token_prompt_placeholder": "Token API",
     "pairing_title": "🔒 Associa questo dispositivo",
     "pairing_hint": "Inserisci il codice di associazione mostrato nei log del server (docker logs evershelf oppure logs/evershelf_*.log).",
     "pairing_placeholder": "Codice di associazione",
