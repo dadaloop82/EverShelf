@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="assets/css/style.css?v=20260921a">
     <link rel="stylesheet" href="assets/css/corporate.css?v=20260709a">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20260603a"></script>
+    <script src="assets/js/core/dom.js?v=20261004a"></script>
     <script src="assets/js/core/auth.js?v=20260603b"></script>
     <!-- ZBar WASM — lazy on kiosk WebView (OOM); eager elsewhere -->
     <script>
@@ -547,7 +547,7 @@
     <section class="page" id="page-product-form">
         <div class="page-header">
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
-            <h2 id="product-form-title">Nuovo Prodotto</h2>
+            <h2 id="product-form-title" data-i18n="product.new_title">New Product</h2>
         </div>
         <form class="form" onsubmit="submitProduct(event)">
             <input type="hidden" id="pf-id">
@@ -964,18 +964,18 @@
                     <p class="settings-hint" data-i18n="settings.info.currency_hint">La valuta usata per tutti i costi e i prezzi nell'app.</p>
                     <div class="form-group" style="margin-top:8px">
                         <select id="setting-price-currency" class="form-input">
-                            <option value="EUR">€ Euro (EUR)</option>
-                            <option value="USD">$ Dollaro USA (USD)</option>
-                            <option value="GBP">£ Sterlina (GBP)</option>
-                            <option value="CHF">CHF Franco Svizzero</option>
-                            <option value="CAD">CA$ Dollaro Canadese</option>
-                            <option value="AUD">A$ Dollaro Australiano</option>
-                            <option value="BRL">R$ Real Brasiliano</option>
-                            <option value="JPY">¥ Yen Giapponese</option>
-                            <option value="SEK">kr Corona Svedese</option>
-                            <option value="NOK">kr Corona Norvegese</option>
-                            <option value="DKK">kr Corona Danese</option>
-                            <option value="PLN">zł Zloty Polacco</option>
+                            <option value="EUR" data-i18n="settings.currency.eur">€ Euro (EUR)</option>
+                            <option value="USD" data-i18n="settings.currency.usd">$ US Dollar (USD)</option>
+                            <option value="GBP" data-i18n="settings.currency.gbp">£ Pound sterling (GBP)</option>
+                            <option value="CHF" data-i18n="settings.currency.chf">CHF Swiss franc</option>
+                            <option value="CAD" data-i18n="settings.currency.cad">CA$ Canadian dollar</option>
+                            <option value="AUD" data-i18n="settings.currency.aud">A$ Australian dollar</option>
+                            <option value="BRL" data-i18n="settings.currency.brl">R$ Brazilian real</option>
+                            <option value="JPY" data-i18n="settings.currency.jpy">¥ Japanese yen</option>
+                            <option value="SEK" data-i18n="settings.currency.sek">kr Swedish krona</option>
+                            <option value="NOK" data-i18n="settings.currency.nok">kr Norwegian krone</option>
+                            <option value="DKK" data-i18n="settings.currency.dkk">kr Danish krone</option>
+                            <option value="PLN" data-i18n="settings.currency.pln">zł Polish złoty</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-top:10px">
@@ -1238,20 +1238,20 @@
                         <div class="form-group">
                             <label data-i18n="settings.price.country_label">🌍 Paese di riferimento</label>
                             <select id="setting-price-country" class="form-input" onchange="onPriceCountryChange()">
-                                <option value="Italia">🇮🇹 Italia</option>
-                                <option value="USA">🇺🇸 USA</option>
-                                <option value="Germany">🇩🇪 Germania</option>
-                                <option value="France">🇫🇷 Francia</option>
-                                <option value="Spain">🇪🇸 Spagna</option>
-                                <option value="UK">🇬🇧 Regno Unito</option>
-                                <option value="Switzerland">🇨🇭 Svizzera</option>
-                                <option value="Austria">🇦🇹 Austria</option>
-                                <option value="Netherlands">🇳🇱 Olanda</option>
-                                <option value="Belgium">🇧🇪 Belgio</option>
-                                <option value="Canada">🇨🇦 Canada</option>
-                                <option value="Australia">🇦🇺 Australia</option>
-                                <option value="Brazil">🇧🇷 Brasile</option>
-                                <option value="Japan">🇯🇵 Giappone</option>
+                                <option value="Italia" data-i18n="settings.price.country.italy">🇮🇹 Italy</option>
+                                <option value="USA" data-i18n="settings.price.country.usa">🇺🇸 USA</option>
+                                <option value="Germany" data-i18n="settings.price.country.germany">🇩🇪 Germany</option>
+                                <option value="France" data-i18n="settings.price.country.france">🇫🇷 France</option>
+                                <option value="Spain" data-i18n="settings.price.country.spain">🇪🇸 Spain</option>
+                                <option value="UK" data-i18n="settings.price.country.uk">🇬🇧 United Kingdom</option>
+                                <option value="Switzerland" data-i18n="settings.price.country.switzerland">🇨🇭 Switzerland</option>
+                                <option value="Austria" data-i18n="settings.price.country.austria">🇦🇹 Austria</option>
+                                <option value="Netherlands" data-i18n="settings.price.country.netherlands">🇳🇱 Netherlands</option>
+                                <option value="Belgium" data-i18n="settings.price.country.belgium">🇧🇪 Belgium</option>
+                                <option value="Canada" data-i18n="settings.price.country.canada">🇨🇦 Canada</option>
+                                <option value="Australia" data-i18n="settings.price.country.australia">🇦🇺 Australia</option>
+                                <option value="Brazil" data-i18n="settings.price.country.brazil">🇧🇷 Brazil</option>
+                                <option value="Japan" data-i18n="settings.price.country.japan">🇯🇵 Japan</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1671,7 +1671,7 @@
                     <div class="form-group">
                         <label data-i18n="settings.tts.payload_key_label">🗝️ Campo testo nel payload</label>
                         <input type="text" id="setting-tts-payload-key" class="form-input" placeholder="message">
-                        <p class="settings-hint">Nome del campo JSON che conterrà il testo da leggere (es: <code>message</code>, <code>text</code>).</p>
+                        <p class="settings-hint" data-i18n="settings.tts.payload_key_hint">Name of the JSON field that will contain the text to read (e.g. message, text).</p>
                     </div>
                     <div class="form-group">
                         <label data-i18n="settings.tts.extra_fields_label">➕ Campi extra (JSON)</label>
@@ -2045,7 +2045,7 @@
                 <button class="btn btn-secondary" style="white-space:nowrap;min-width:120px" id="btn-kiosk-check-update" onclick="_kioskCheckForUpdates()" data-i18n="settings.kiosk.check_updates_btn">🔍 Cerca aggiornamenti</button>
             </div>
             <div id="kiosk-update-status" style="display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4"></div>
-            <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()">⬇️ Installa aggiornamento</button>
+            <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()" data-i18n="settings.kiosk.install_update_btn">⬇️ Install update</button>
         </div>
 
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
@@ -2291,7 +2291,7 @@
         <button class="cooking-replay-btn" id="cooking-replay" onclick="replayCookingTTS()" data-i18n-title="cooking.replay_title" data-i18n="cooking.replay">🔊 Replay</button>
         <div class="cooking-timer-suggest" id="cooking-timer-suggest" style="display:none">
             <button class="cooking-timer-add-btn" onclick="addSuggestedCookingTimer()">
-                <span id="cooking-timer-suggest-text">⏱️ 00:00 · Timer</span>
+                <span id="cooking-timer-suggest-text" data-i18n="cooking.timer_chip">⏱️ 00:00 · Timer</span>
             </button>
         </div>
         <div class="cooking-step-ings" id="cooking-step-ings" style="display:none"></div>
@@ -2303,11 +2303,11 @@
         </div>
     </div>
     <div class="cooking-nav">
-        <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)">◀ Precedente</button>
-        <button class="cooking-nav-btn cooking-next-btn" id="cooking-next" onclick="navigateCookingStep(1)">Successivo ▶</button>
+        <button class="cooking-nav-btn cooking-prev-btn" id="cooking-prev" onclick="navigateCookingStep(-1)" data-i18n="cooking.prev">◀ Previous</button>
+        <button class="cooking-nav-btn cooking-next-btn" id="cooking-next" onclick="navigateCookingStep(1)" data-i18n="cooking.next">Next ▶</button>
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260921a"></script>
+<script src="assets/js/app.js?v=20261004a"></script>
 </body>
 </html>

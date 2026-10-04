@@ -274,6 +274,77 @@ function evershelfScaleHostAllowed(string $host): bool {
     return false;
 }
 
+/** Hosts allowed to be reached through the TTS proxy (SSRF guard). */
+function evershelfAllowedTtsHosts(): array {
+    $hosts = [];
+    foreach (['HA_URL', 'TTS_URL'] as $envKey) {
+        $u = env($envKey, '');
+        if ($u !== '') {
+            $h = parse_url($u, PHP_URL_HOST);
+            if (!empty($h)) {
+                $hosts[] = strtolower($h);
+            }
+        }
+    }
+    foreach (array_filter(array_map('trim', explode(',', env('TTS_ALLOWED_HOSTS', '')))) as $h) {
+        $hosts[] = strtolower($h);
+    }
+    return array_values(array_unique($hosts));
+}
+
+/**
+ * SSRF guard for tts_proxy. Only the configured HA/TTS hosts (plus optional
+ * TTS_ALLOWED_HOSTS) and private hosts on the server's own LAN are reachable.
+ * Cloud-metadata, loopback and public IPs require an explicit allowlist entry.
+ */
+function evershelfTtsUrlAllowed(string $url): bool {
+    $parts = parse_url($url);
+    if (!$parts || empty($parts['host'])) {
+        return false;
+    }
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        return false;
+    }
+    $host = strtolower(trim((string)$parts['host'], '[]'));
+    if ($host === '') {
+        return false;
+    }
+    // 1. Explicit allowlist from HA_URL / TTS_URL / TTS_ALLOWED_HOSTS.
+    if (in_array($host, evershelfAllowedTtsHosts(), true)) {
+        return true;
+    }
+    // 2. Numeric hosts: allow only private LAN addresses on the server's subnet.
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        // Public or reserved (incl. 169.254.169.254 metadata) → must be explicit.
+        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+        // Loopback must always be explicit (avoid hitting local services blindly).
+        if (in_array($host, ['127.0.0.1', '::1'], true)) {
+            return false;
+        }
+        $lan = evershelfLocalLanIp();
+        if ($lan !== '' && !str_contains($host, ':')) {
+            $subnet = implode('.', array_slice(explode('.', $lan), 0, 3));
+            return str_starts_with($host, $subnet . '.');
+        }
+        return false;
+    }
+    // 3. Named hosts resolving to the server's LAN are allowed (e.g. ha.local).
+    $resolved = @gethostbynamel($host) ?: [];
+    $lan = evershelfLocalLanIp();
+    if ($lan !== '' && $resolved !== []) {
+        $subnet = implode('.', array_slice(explode('.', $lan), 0, 3));
+        foreach ($resolved as $ip) {
+            if (str_starts_with($ip, $subnet . '.')) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 function evershelfLocalLanIp(): string {
     $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
     if ($sock) {

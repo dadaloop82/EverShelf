@@ -46,6 +46,25 @@ jobs:
           echo "code=$VCODE" >> "$GITHUB_OUTPUT"
           echo "Health Bridge version: $VERSION (versionCode $VCODE)"
 
+      - name: Prepare signing keystore
+        env:
+          HEALTH_KEYSTORE_BASE64: ${{ secrets.HEALTH_KEYSTORE_BASE64 }}
+          HEALTH_STORE_PASSWORD:  ${{ secrets.HEALTH_STORE_PASSWORD }}
+          HEALTH_KEY_ALIAS:       ${{ secrets.HEALTH_KEY_ALIAS }}
+          HEALTH_KEY_PASSWORD:    ${{ secrets.HEALTH_KEY_PASSWORD }}
+        run: |
+          if [ -z "$HEALTH_KEYSTORE_BASE64" ]; then
+            echo "::warning::HEALTH_KEYSTORE_BASE64 secret not set — building with the debug keystore."
+            exit 0
+          fi
+          echo "$HEALTH_KEYSTORE_BASE64" | base64 -d > evershelf-health-bridge/evershelf.jks
+          cat > evershelf-health-bridge/keystore.properties <<EOF
+          storeFile=evershelf.jks
+          storePassword=${HEALTH_STORE_PASSWORD}
+          keyAlias=${HEALTH_KEY_ALIAS:-evershelf}
+          keyPassword=${HEALTH_KEY_PASSWORD}
+          EOF
+
       - name: Build release APK
         working-directory: evershelf-health-bridge
         run: |

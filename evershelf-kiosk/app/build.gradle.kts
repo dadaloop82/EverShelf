@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// ── Signing credentials ─────────────────────────────────────────────────────
+// Never hardcode secrets. Provide them (gitignored) via keystore.properties at
+// the project root, or via environment variables (used by CI from GitHub Secrets):
+//   KIOSK_STORE_FILE / KIOSK_STORE_PASSWORD / KIOSK_KEY_ALIAS / KIOSK_KEY_PASSWORD
+// If nothing is configured the default Android debug keystore is used so local
+// `assembleDebug` keeps working.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(propKey: String, envKey: String): String? =
+    keystoreProps.getProperty(propKey) ?: System.getenv(envKey)
 
 android {
     namespace = "it.dadaloop.evershelf.kiosk"
@@ -16,12 +31,22 @@ android {
     }
 
     signingConfigs {
-        // Project keystore — same on every machine so OTA updates always work.
         create("project") {
-            storeFile = file("../evershelf.jks")
-            storePassword = "evershelf123"
-            keyAlias = "evershelf"
-            keyPassword = "evershelf123"
+            val storePath = signingValue("storeFile", "KIOSK_STORE_FILE")
+                ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
+            val storePass = signingValue("storePassword", "KIOSK_STORE_PASSWORD")
+            if (storePath != null && storePass != null) {
+                storeFile = file(storePath)
+                storePassword = storePass
+                keyAlias = signingValue("keyAlias", "KIOSK_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "KIOSK_KEY_PASSWORD")
+            } else {
+                // No project keystore configured — use the standard debug keystore.
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 

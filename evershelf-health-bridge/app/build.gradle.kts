@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// ── Signing credentials (see evershelf-kiosk/app/build.gradle.kts) ──────────
+// keystore.properties at the project root, or env vars:
+//   HEALTH_STORE_FILE / HEALTH_STORE_PASSWORD / HEALTH_KEY_ALIAS / HEALTH_KEY_PASSWORD
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun signingValue(propKey: String, envKey: String): String? =
+    keystoreProps.getProperty(propKey) ?: System.getenv(envKey)
 
 android {
     namespace = "it.dadaloop.evershelf.health"
@@ -17,10 +29,20 @@ android {
 
     signingConfigs {
         create("project") {
-            storeFile = file("../evershelf.jks")
-            storePassword = "evershelf123"
-            keyAlias = "evershelf"
-            keyPassword = "evershelf123"
+            val storePath = signingValue("storeFile", "HEALTH_STORE_FILE")
+                ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
+            val storePass = signingValue("storePassword", "HEALTH_STORE_PASSWORD")
+            if (storePath != null && storePass != null) {
+                storeFile = file(storePath)
+                storePassword = storePass
+                keyAlias = signingValue("keyAlias", "HEALTH_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "HEALTH_KEY_PASSWORD")
+            } else {
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 
