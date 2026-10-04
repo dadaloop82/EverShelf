@@ -2075,6 +2075,7 @@
     "pairing_title": "🔒 配对此设备",
     "pairing_hint": "请输入服务器日志中显示的配对码（docker logs evershelf 或 logs/evershelf_*.log）。",
     "pairing_placeholder": "配对码",
+    "pairing_required": "配对此设备 — 配对码在服务器日志中",
     "pairing_btn": "配对",
     "pairing_error": "验证码无效或已过期——请查看服务器日志获取新的验证码。",
     "hint_backups_none": "未找到备份 — cron 是否已配置？",

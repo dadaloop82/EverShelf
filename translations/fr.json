@@ -2070,6 +2070,7 @@
     "pairing_title": "🔒 Associer cet appareil",
     "pairing_hint": "Saisissez le code d'association affiché dans les journaux du serveur (docker logs evershelf ou logs/evershelf_*.log).",
     "pairing_placeholder": "Code d'association",
+    "pairing_required": "Associez cet appareil — le code se trouve dans le journal du serveur",
     "pairing_btn": "Associer",
     "pairing_error": "Code invalide ou expiré — consultez les journaux du serveur pour en obtenir un nouveau.",
     "check_db_legacy": "Ancienne BD (dispensa.db)",

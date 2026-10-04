@@ -2070,6 +2070,7 @@
     "pairing_title": "🔒 Vincular este dispositivo",
     "pairing_hint": "Introduce el código de vinculación que aparece en el registro del servidor (docker logs evershelf o logs/evershelf_*.log).",
     "pairing_placeholder": "Código de vinculación",
+    "pairing_required": "Vincula este dispositivo — el código está en el registro del servidor",
     "pairing_btn": "Vincular",
     "pairing_error": "Código no válido o caducado: consulta el registro del servidor para obtener uno nuevo.",
     "check_db_legacy": "BD antigua (dispensa.db)",
