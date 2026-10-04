@@ -90,7 +90,7 @@ function evershelfDestructiveActions(): array {
  *   health_ingest      Health Bridge / HA automation (X-Health-Token auth)
  *   ha_generate_recipe Home Assistant rest_command / evershelf component
  * Everything else must send the header, which assets/js/app.js sets on every
- * call that carries a body.
+ * non-GET call; mcp-server and the kiosk set it explicitly.
  */
 function evershelfCsrfExemptPostActions(): array {
     return [

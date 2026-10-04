@@ -198,8 +198,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
 }
 
 // CSRF guard for POST requests. The webapp proves it is the webapp by sending
-// X-EverShelf-Request: 1 (assets/js/app.js sets it on every call that carries a
-// body), so every POST must carry it — including the ones that never had a check.
+// X-EverShelf-Request: 1 (assets/js/app.js sets it on every non-GET call), so
+// every POST must carry it — including the ones that never had a check.
 // A cross-site request cannot add it: a custom header on a cross-origin fetch
 // needs a CORS preflight, and a <form> can only send urlencoded/multipart/plain.
 // evershelfCsrfExemptPostActions() keeps the historical rule (header or JSON
