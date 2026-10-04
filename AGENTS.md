@@ -109,14 +109,15 @@ npm run build
 ## Anti-patterns to avoid (already present — do not copy)
 
 - Building HTML with string concatenation + `innerHTML` and inline `onclick`
-  with un-escaped data (see the review file). Prefer the existing `escapeHtml`.
+  with un-escaped data. Prefer the existing `escapeHtml`.
 - Reading whole giant files to find one function — use the indexes / `grep -n`.
 - Writing to `.env` without escaping values (comment/quote/newline safe).
 
 ## See also
 
 - `docs/CODEBASE-MAP.md` — deep architecture, DB schema, data files, action catalog.
-- `docs/REVIEW-2026-10.md` — **bugs, risks, optimizations, cleanup and feature ideas**.
-- `docs/REVIEW-2026-10-2.md` — **second deep audit** + what was remediated (security,
-  i18n, hygiene, deps) and what is still open.
 - `docs/ARCHITECTURE.md`, `docs/CORPORATE-UI.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+
+> Audit / review notes are **internal working documents**. They are kept in the
+> git-ignored `todo/` folder at the repo root and are intentionally never pushed:
+> this repository is public and everything committed must be in English.

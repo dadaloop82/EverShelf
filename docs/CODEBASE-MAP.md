@@ -177,7 +177,7 @@ Groups:
 - `build-kiosk.yml`, `build-health-bridge.yml`, `build-scale-gateway.yml`,
   `publish-docker.yml`, `security.yml`, dependabot.
 
-## 11. Structural debt (details in `docs/REVIEW-2026-10.md`)
+## 11. Structural debt
 
 - `api/index.php` and `assets/js/app.js` are monoliths; `docs/ARCHITECTURE.md`
   lists a planned split (`api/handlers/*`, `assets/js/features/*`).
