@@ -71,7 +71,14 @@ function evershelfPairingEnsure(): array
     evershelfPairingWrite(['code' => $code, 'created_ts' => time(), 'attempts' => 0]);
 
     $minutes = (int)(EVERSHELF_PAIRING_TTL / 60);
-    EverLog::warn('api_pairing_code', ['code' => $code, 'ttl_seconds' => EVERSHELF_PAIRING_TTL]);
+    // The message contains the literal words "pairing code" so the obvious
+    //   grep -i "pairing code" logs/evershelf_*.log
+    // finds it; `event` keeps the stable machine-readable key for log tooling.
+    EverLog::warn('API pairing code', [
+        'event'       => 'api_pairing_code',
+        'code'        => $code,
+        'ttl_seconds' => EVERSHELF_PAIRING_TTL,
+    ]);
     // Also to stderr so container users see it with `docker logs evershelf`.
     error_log("[EverShelf] API pairing code: {$code} (valid {$minutes} min)");
 

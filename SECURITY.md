@@ -46,8 +46,9 @@ Out-of-scope issues:
   operations at the router level
 - **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to
   an anonymous request: the UI shows a dialog and the user types the one-time code
-  printed in the server log (`docker logs evershelf` / `logs/evershelf_*.log`, 30 min
-  TTL, brute-force limited). `API_BOOTSTRAP_OPEN=true` restores the old
+  printed in the server log (`grep -i "pairing code" logs/evershelf_*.log` or
+  `docker logs evershelf 2>&1 | grep -i "pairing code"`, 30 min TTL, brute-force
+  limited). `API_BOOTSTRAP_OPEN=true` restores the old
   "trust any same-origin-looking request" behaviour and should only be used on a
   fully trusted LAN — the headers it relies on are client-controlled.
 - **No authorisation decision is made from client-controlled headers.** Actions that

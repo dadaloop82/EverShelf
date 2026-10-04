@@ -65,7 +65,13 @@ limiting sees real client IPs, and `EVERSHELF_CANONICAL_HOST` in the Apache vhos
 (`docker/apache-evershelf.conf`) to enable the forced-HTTPS redirect.
 
 **First run with `API_TOKEN` set:** the web UI asks for a one-time **pairing code**
-printed in the server log (`docker logs evershelf`, or `logs/evershelf_*.log`).
+printed in the server log. Grab it with:
+
+```bash
+grep -i "pairing code" logs/evershelf_*.log | tail -1   # bare metal
+docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
+```
+
 The token is never handed to an anonymous request. On a fully trusted LAN you can
 opt out with `API_BOOTSTRAP_OPEN=true` (re-exposes the token — see SECURITY.md).
 
