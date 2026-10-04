@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.8.7] - 2026-09-20
+
+### Added
+- **Seasonal shopping (free data)** — Italian produce calendar (SeasonalItaly MIT) suggests in-season fruit/veg to add and flags out-of-season items already on the list so you can remove them in one tap.
+- **Dashboard: unused stock** — top 3 pantry items unused for a while, with actions: recipe, use, edit, or discard. **Opened / partial packs are ranked first**; sealed staples (salt, sugar…) are deprioritized.
+
+## [1.8.6] - 2026-09-20
+
+### Added
+- **Shelf-life learning from your choices** — recovers past *Buttato* reasons and labelled expiry packs (live inventory + local DB backups). On the next add, estimates use your median shelf life and shorten by 1 day per prior expired/spoiled throw (shown as −Nd). *Estendi* and future waste/finish also feed the model. Wrong-location waste can suggest the preferred storage place.
+
+### Fixed
+- Recipe ingredient rows open the Use panel more reliably (larger hit target).
+
 ## [1.8.5] - 2026-09-18
 
 ### Fixed

@@ -5203,7 +5203,10 @@ body.server-offline .bottom-nav {
     border-bottom: 1px solid var(--border);
     margin-top: 8px;
 }
-
+.cat-group-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
 .cat-group-header:first-child {
     margin-top: 0;
 }
@@ -6034,14 +6037,28 @@ body.server-offline .bottom-nav {
     min-width: 0;
     line-height: 1.4;
 }
-.recipe-ing-name {
+.recipe-ing-open-use {
     cursor: pointer;
-    border-bottom: 1px dashed rgba(74,222,128,0.5);
+    border-radius: 6px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.15s, color 0.15s;
+}
+.recipe-ing-open-use:active,
+.recipe-ing-open-use:focus-visible {
+    background: rgba(45, 80, 22, 0.1);
+    outline: 2px solid rgba(45, 80, 22, 0.35);
+    outline-offset: 1px;
+}
+.recipe-ing-name {
+    color: var(--primary, #2d5016);
+    border-bottom: 1px solid rgba(45, 80, 22, 0.45);
     transition: color 0.15s, border-color 0.15s;
 }
+.recipe-ing-open-use:hover .recipe-ing-name,
 .recipe-ing-name:hover {
-    color: #4ade80;
-    border-bottom-color: #4ade80;
+    color: #1a3a0c;
+    border-bottom-color: #1a3a0c;
 }
 
 .btn-use-ingredient {
@@ -7987,7 +8004,7 @@ body.cooking-mode-active .app-header {
     padding: 0 12px 10px;
     flex-wrap: wrap;
 }
-.alert-banner-actions .btn-banner {
+.btn-banner {
     flex: 1;
     min-width: 80px;
     padding: 8px 12px;
@@ -7997,6 +8014,11 @@ body.cooking-mode-active .app-header {
     font-weight: 600;
     cursor: pointer;
     text-align: center;
+    font-family: inherit;
+}
+.alert-banner-actions .btn-banner {
+    flex: 1;
+    min-width: 80px;
 }
 .btn-banner-ok {
     background: #d1fae5;
@@ -8105,6 +8127,110 @@ body.cooking-mode-active .app-header {
     color: #fff;
     font-size: 0.7rem;
 }
+
+/* ===== STALE / UNUSED STOCK ===== */
+.alert-stale {
+    background: #faf5ff;
+    border-color: #a78bfa;
+}
+.alert-stale h3 {
+    color: #5b21b6;
+}
+.alert-section-hint {
+    margin: -4px 0 10px;
+    font-size: 0.8rem;
+    color: var(--text-muted, #6b7280);
+    line-height: 1.35;
+}
+.stale-item {
+    align-items: center;
+}
+.stale-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 58%;
+}
+.stale-actions .btn-banner {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+
+/* ===== SEASONAL SHOPPING REVIEW ===== */
+.seasonal-review {
+    margin: 12px 0 4px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #ecfdf5;
+    border: 1px solid #6ee7b7;
+}
+.seasonal-review-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.seasonal-review-tip {
+    font-size: 0.8rem;
+    color: #047857;
+}
+.seasonal-block {
+    margin-top: 8px;
+}
+.seasonal-block-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #065f46;
+    margin-bottom: 6px;
+}
+.seasonal-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    border-top: 1px solid rgba(6, 95, 70, 0.12);
+    font-size: 0.9rem;
+}
+.seasonal-row .btn-banner {
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    line-height: 1.2;
+}
+.seasonal-remove-all {
+    margin-top: 6px;
+    width: 100%;
+    min-width: 0 !important;
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
+}
+.seasonal-bought {
+    font-size: 0.75rem;
+    color: #059669;
+    font-style: normal;
+    opacity: 0.85;
+}
+
+[data-theme="dark"] .alert-stale {
+    background: #1e1230;
+    border-color: #5b21b6;
+}
+[data-theme="dark"] .alert-stale h3 { color: #c4b5fd; }
+[data-theme="dark"] .seasonal-review {
+    background: #0c1f1a;
+    border-color: #065f46;
+}
+[data-theme="dark"] .seasonal-review-tip,
+[data-theme="dark"] .seasonal-block-title { color: #6ee7b7; }
+[data-theme="dark"] .seasonal-row { border-top-color: rgba(110, 231, 183, 0.15); }
 
 /* Opened expiry badges */
 .alert-item-badge.opened-expiry {

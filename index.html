@@ -11,7 +11,7 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20260918a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20260921a">
     <link rel="stylesheet" href="assets/css/corporate.css?v=20260709a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20260603a"></script>
@@ -95,7 +95,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.8.5</span>
+        <span class="app-preloader-version" id="preloader-version">v1.8.7</span>
     </div>
 </div>
 
@@ -108,7 +108,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.8.5</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.8.7</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -220,6 +220,13 @@
         <div class="alert-section alert-opened" id="alert-opened" style="display:none">
             <h3 data-i18n="dashboard.opened_title">📦 Prodotti Aperti</h3>
             <div id="opened-list"></div>
+        </div>
+
+        <!-- Rarely used stock — cook or clear -->
+        <div class="alert-section alert-stale" id="alert-stale" style="display:none">
+            <h3 data-i18n="dashboard.stale_title">🕰️ Da troppo che non usi</h3>
+            <p class="alert-section-hint" data-i18n="dashboard.stale_hint">Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.</p>
+            <div id="stale-list"></div>
         </div>
 
     </section>
@@ -661,22 +668,22 @@
                 <label data-i18n="product.category_label">📂 Categoria</label>
                 <select id="pf-category" class="form-input" onchange="onCategoryChange(false)">
                     <option value="" data-i18n="form.select_placeholder">-- Seleziona --</option>
-                    <option value="latticini" data-i18n="categories.latticini">🥛 Latticini</option>
-                    <option value="carne" data-i18n="categories.carne">🥩 Carne</option>
-                    <option value="pesce" data-i18n="categories.pesce">🐟 Pesce</option>
-                    <option value="frutta" data-i18n="categories.frutta">🍎 Frutta</option>
-                    <option value="verdura" data-i18n="categories.verdura">🥬 Verdura</option>
-                    <option value="pasta" data-i18n="categories.pasta">🍝 Pasta & Riso</option>
-                    <option value="pane" data-i18n="categories.pane">🍞 Pane & Forno</option>
-                    <option value="surgelati" data-i18n="categories.surgelati">🧊 Surgelati</option>
-                    <option value="bevande" data-i18n="categories.bevande">🥤 Bevande</option>
-                    <option value="condimenti" data-i18n="categories.condimenti">🧂 Condimenti</option>
-                    <option value="snack" data-i18n="categories.snack">🍪 Snack & Dolci</option>
-                    <option value="conserve" data-i18n="categories.conserve">🥫 Conserve</option>
-                    <option value="cereali" data-i18n="categories.cereali">🌾 Cereali & Legumi</option>
-                    <option value="igiene" data-i18n="categories.igiene">🧴 Igiene</option>
-                    <option value="pulizia" data-i18n="categories.pulizia">🧹 Pulizia Casa</option>
-                    <option value="altro" data-i18n="categories.altro">📦 Altro</option>
+                    <option value="latticini" data-i18n="categories.latticini">Latticini</option>
+                    <option value="carne" data-i18n="categories.carne">Carne</option>
+                    <option value="pesce" data-i18n="categories.pesce">Pesce</option>
+                    <option value="frutta" data-i18n="categories.frutta">Frutta</option>
+                    <option value="verdura" data-i18n="categories.verdura">Verdura</option>
+                    <option value="pasta" data-i18n="categories.pasta">Pasta & Riso</option>
+                    <option value="pane" data-i18n="categories.pane">Pane & Forno</option>
+                    <option value="surgelati" data-i18n="categories.surgelati">Surgelati</option>
+                    <option value="bevande" data-i18n="categories.bevande">Bevande</option>
+                    <option value="condimenti" data-i18n="categories.condimenti">Condimenti</option>
+                    <option value="snack" data-i18n="categories.snack">Snack & Dolci</option>
+                    <option value="conserve" data-i18n="categories.conserve">Conserve</option>
+                    <option value="cereali" data-i18n="categories.cereali">Cereali & Legumi</option>
+                    <option value="igiene" data-i18n="categories.igiene">Igiene</option>
+                    <option value="pulizia" data-i18n="categories.pulizia">Pulizia Casa</option>
+                    <option value="altro" data-i18n="categories.altro">Altro</option>
                 </select>
             </div>
             <div class="form-row">
@@ -808,6 +815,7 @@
                     <div class="shopping-footer" id="shopping-footer" style="display:none">
                         <span id="shopping-footer-stats"></span>
                     </div>
+                    <div id="seasonal-review" class="seasonal-review" style="display:none"></div>
                 </div>
                 <div class="shopping-suggestions" id="shopping-suggestions" style="display:none">
                     <div class="shopping-section-header">
@@ -2300,6 +2308,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20260918a"></script>
+<script src="assets/js/app.js?v=20260921a"></script>
 </body>
 </html>
