@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "calendar": {
+      "tab": "Calendar",
+      "title": "🗓️ Expiry calendar",
+      "hint": "Subscribe to pantry expiries from your own calendar (Google Calendar, Apple Calendar, Thunderbird, Nextcloud): every item becomes an all-day event with a reminder the day before.",
+      "enabled": "✅ Enable the calendar feed",
+      "days_label": "📅 Days published ahead",
+      "days_hint": "How many days of upcoming expiries go into the calendar (1–365).",
+      "past_days_label": "🕓 Days of expired items still visible",
+      "past_days_hint": "Recently missed dates stay in the calendar with a ⚠️ prefix (0–60).",
+      "url_label": "🔗 Link to subscribe",
+      "url_hint": "Paste it into “Add calendar → From URL” (Google) or “New Calendar Subscription” (Apple).",
+      "copy_btn": "📋 Copy link",
+      "open_btn": "🗓️ Open in Calendar",
+      "rotate_btn": "♻️ Regenerate link (revoke)",
+      "rotate_hint": "The link holds a read-only key: whoever has it can see your expiries. Regenerate it to revoke every existing subscription.",
+      "not_enabled": "The feed is off: turn the switch on and save to generate the link.",
+      "status_items": "{count} expiries in the feed",
+      "save_btn": "💾 Save calendar settings"
+    },
     "title": "⚙️ Settings",
     "tab_api": "API Keys",
     "tab_bring": "Bring!",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "Expired too long ago, better not to risk it"
   },
   "toast": {
+    "ics_copied": "Calendar link copied",
+    "ics_copy_failed": "Copy failed — select the link manually",
+    "ics_rotated": "New link generated — old subscriptions stop working",
     "product_saved": "Product saved!",
     "product_created": "Product created!",
     "product_updated": "✅ Product updated!",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS is not active — turn it on before testing.",
     "web_speech_unsupported": "❌ Web Speech API is not supported by this browser.",
     "cloud_only": "❌ Only cloud voices available — offline speech requires a local voice installed on the device (e.g. Google Text-to-Speech → Download offline voices)."
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — Pantry expiries",
+      "description": "Pantry items about to expire, published automatically by EverShelf."
+    },
+    "event": {
+      "location": "Location",
+      "quantity": "Quantity",
+      "brand": "Brand",
+      "expiry": "Expiry",
+      "expired": "EXPIRED"
+    }
   }
 }

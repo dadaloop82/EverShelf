@@ -28,6 +28,9 @@ TRANS = ROOT / 'translations'
 MANIFEST = ROOT / 'manifest.json'
 SRC_JS = [ROOT / 'assets/js/app.js', *sorted((ROOT / 'assets/js/core').glob('*.js'))]
 SRC_HTML = [ROOT / 'index.html']
+# PHP answers are rendered server-side (the ICS expiry feed, future notifications)
+# and use evershelfTr('key', $lang) — those keys are used, just not in JS.
+SRC_PHP = [ROOT / 'api/index.php', *sorted((ROOT / 'api/lib').glob('*.php'))]
 LOCALES = ['it', 'en', 'de', 'fr', 'es', 'zh']
 
 # Attributes a user can read, mapped to the data-i18n* attribute that
@@ -174,11 +177,15 @@ def used_keys() -> set[str]:
     keys: set[str] = set()
     t_re = re.compile(r"""\bt\(\s*(['"])((?:\\.|(?!\1).)*)\1""")
     attr_re = re.compile(r"""data-i18n(?:-[a-z]+)?\s*=\s*(['"])((?:\\.|(?!\1).)*)\1""")
+    php_re = re.compile(r"""\bevershelfTr\(\s*(['"])((?:\\.|(?!\1).)*)\1""")
     for f in [*SRC_JS, *SRC_HTML]:
         text = f.read_text(encoding='utf-8')
         for m in t_re.finditer(text):
             keys.add(m.group(2))
         for m in attr_re.finditer(text):
+            keys.add(m.group(2))
+    for f in SRC_PHP:
+        for m in php_re.finditer(f.read_text(encoding='utf-8')):
             keys.add(m.group(2))
     # Drop dynamic prefixes (t('foo.' + x)) and interpolation artefacts.
     return {k for k in keys

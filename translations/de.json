@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "calendar": {
+      "tab": "Kalender",
+      "title": "🗓️ Ablauf-Kalender",
+      "hint": "Abonniere die Ablaufdaten deines Vorrats in deinem eigenen Kalender (Google Kalender, Apple Kalender, Thunderbird, Nextcloud): jedes Produkt wird ein ganztägiges Ereignis mit Erinnerung am Vortag.",
+      "enabled": "✅ Kalender-Feed aktivieren",
+      "days_label": "📅 Tage im Voraus veröffentlichen",
+      "days_hint": "Wie viele kommende Ablaufdaten im Kalender erscheinen (1–365).",
+      "past_days_label": "🕓 Sichtbare Tage abgelaufener Produkte",
+      "past_days_hint": "Kürzlich verpasste Daten bleiben mit ⚠️ gekennzeichnet im Kalender (0–60).",
+      "url_label": "🔗 Link zum Abonnieren",
+      "url_hint": "Einfügen unter „Kalender hinzufügen → Von URL“ (Google) bzw. „Neues Kalenderabo“ (Apple).",
+      "copy_btn": "📋 Link kopieren",
+      "open_btn": "🗓️ Im Kalender öffnen",
+      "rotate_btn": "♻️ Link neu erzeugen (widerrufen)",
+      "rotate_hint": "Der Link enthält einen Nur-Lese-Schlüssel: wer ihn hat, sieht deine Ablaufdaten. Erzeuge ihn neu, um alle bestehenden Abos zu widerrufen.",
+      "not_enabled": "Der Feed ist aus: Schalter einschalten und speichern, um den Link zu erzeugen.",
+      "status_items": "{count} Ablaufdaten im Feed",
+      "save_btn": "💾 Kalender-Einstellungen speichern"
+    },
     "title": "⚙️ Einstellungen",
     "tab_api": "API Keys",
     "tab_bring": "Bring!",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "Zu lange abgelaufen, besser kein Risiko eingehen"
   },
   "toast": {
+    "ics_copied": "Kalender-Link kopiert",
+    "ics_copy_failed": "Kopieren fehlgeschlagen — Link manuell markieren",
+    "ics_rotated": "Neuer Link erstellt — alte Abos funktionieren nicht mehr",
     "product_saved": "Produkt gespeichert!",
     "product_created": "Produkt erstellt!",
     "product_updated": "✅ Produkt aktualisiert!",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS ist nicht aktiv — vor dem Test aktivieren.",
     "web_speech_unsupported": "❌ Die Web Speech API wird von diesem Browser nicht unterstützt.",
     "cloud_only": "❌ Nur Cloud-Stimmen verfügbar — Offline-Sprachausgabe erfordert eine lokale Stimme auf dem Gerät (z. B. Google Text-to-Speech → Offline-Stimmen herunterladen)."
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — Vorrats-Ablaufdaten",
+      "description": "Bald ablaufende Vorratsprodukte, automatisch von EverShelf veröffentlicht."
+    },
+    "event": {
+      "location": "Ort",
+      "quantity": "Menge",
+      "brand": "Marke",
+      "expiry": "Ablaufdatum",
+      "expired": "ABGELAUFEN"
+    }
   }
 }

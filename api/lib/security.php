@@ -62,6 +62,10 @@ function evershelfPublicActions(): array {
         'report_bug',
         'client_log',
         'gdrive_oauth_callback',
+        // calendar_ics: a calendar client only knows how to GET a URL, so the
+        // API token can never be presented. The handler authenticates with its own
+        // read-only ICS_TOKEN (?token=…, hash_equals) and returns 403/404 otherwise.
+        'calendar_ics',
     ];
 }
 

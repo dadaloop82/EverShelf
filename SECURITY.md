@@ -53,6 +53,16 @@ Out-of-scope issues:
   run `scripts/fix-permissions.sh`. `API_BOOTSTRAP_OPEN=true` restores the old
   "trust any same-origin-looking request" behaviour and should only be used on a
   fully trusted LAN — the headers it relies on are client-controlled.
+- The calendar feed's credential is **read-only and lives in the URL, by design.**
+  A calendar client can only GET a URL — it cannot send `X-API-Token`, and it will
+  keep calling that URL for years — so `calendar_ics` is a public action guarded by
+  its own `ICS_TOKEN` (`?token=…`, `hash_equals`, never logged) instead of the API
+  token. A leaked subscription can therefore read the expiry list but cannot add,
+  edit or delete anything, and *Rotate link* in Settings revokes it immediately.
+  Rotation is also what makes the trade-off acceptable: the URL is a bearer
+  credential, so it must be treated like a password (HTTPS, no screenshots, no
+  third-party QR services — the pairing code is short-lived, this one is not).
+  Rejected requests log only `ics_feed_unauthorized`, never the token itself.
 - **No authorisation decision is made from client-controlled headers.** Actions that
   run `docker` or rewrite `.env` (`mealie_install`, `mealie_configure`, …) and the
   scale gateway endpoints require the API token; the previous `Sec-Fetch-Site` /

@@ -92,6 +92,29 @@ GH_ISSUE_TOKEN_KEY=
 # data/error_reports.log is written either way, with credentials redacted and
 # the context capped at 4 KB.
 REPORT_ENABLED=false
+
+# ─────────────────────────────────────────────
+# Calendar feed (ICS / WebCal)
+# ─────────────────────────────────────────────
+
+# Subscribe to the pantry expiries from Google Calendar, Apple Calendar,
+# Thunderbird, Nextcloud… One all-day event per in-stock item with an expiry date.
+# Enable it from Settings → 🗓️ Calendar; that is also where ICS_TOKEN is minted
+# and where the *Rotate link* button revokes existing subscriptions.
+ICS_ENABLED=false
+
+# Read-only secret appended to the feed URL (?action=calendar_ics&token=…).
+# A calendar client can only GET a URL — it cannot send X-API-Token — so this is
+# the feed's own credential. Compared with hash_equals(), never logged; rotating
+# it invalidates every existing subscription.
+ICS_TOKEN=
+
+# How many days ahead to publish (1–365, default 30).
+ICS_DAYS=30
+
+# Keep items that expired up to N days ago visible (0–60, default 7): they are
+# still actionable, and a calendar that silently drops a deadline lies.
+ICS_PAST_DAYS=7
 ```
 
 ---

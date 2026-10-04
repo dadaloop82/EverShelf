@@ -178,6 +178,25 @@ One-tap recipe suggestion using the ingredients closest to expiry.
 
 ---
 
+## 🗓️ Calendar Feed (ICS / WebCal)
+
+Export the pantry deadlines to a real calendar — the same one that already holds
+the dentist appointment.
+
+- **Settings → 🗓️ Calendar**: switch it on, save, and the subscribe URL is minted
+  for you (no key to invent).
+- One **all-day event per in-stock item with an expiry date**, with location,
+  quantity and brand in the description, and a reminder the day before.
+- Expired items stay visible for a few days with a `⚠️ EXPIRED` prefix, so a
+  forgotten jar does not silently disappear.
+- Works with **Google Calendar** (*From URL*), **Apple Calendar** (*New Calendar
+  Subscription*), Thunderbird, Nextcloud, Home Assistant…
+- **♻️ Rotate link** revokes every existing subscription instantly.
+
+Full details: [Calendar Feed](Calendar).
+
+---
+
 ## 📱 Progressive Web App (PWA)
 
 EverShelf is installable as a PWA on any device:

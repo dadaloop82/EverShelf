@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · 计时器"
   },
   "settings": {
+    "calendar": {
+      "tab": "日历",
+      "title": "🗓️ 保质期日历",
+      "hint": "在您自己的日历中订阅食品保质期（Google 日历、Apple 日历、Thunderbird、Nextcloud）：每件商品会成为一个全天事件，并在前一天提醒。",
+      "enabled": "✅ 启用日历订阅",
+      "days_label": "📅 提前发布天数",
+      "days_hint": "日历中包含未来多少天的保质期（1–365）。",
+      "past_days_label": "🕓 仍显示的已过期天数",
+      "past_days_hint": "刚过期的日期仍保留在日历中，并带有 ⚠️ 前缀（0–60）。",
+      "url_label": "🔗 订阅链接",
+      "url_hint": "粘贴到“添加日历 → 通过网址”（Google）或“新建日历订阅”（Apple）。",
+      "copy_btn": "📋 复制链接",
+      "open_btn": "🗓️ 在日历中打开",
+      "rotate_btn": "♻️ 重新生成链接（撤销）",
+      "rotate_hint": "链接含有只读密钥：任何持有者都能看到您的保质期。重新生成即可撤销所有旧订阅。",
+      "not_enabled": "订阅已关闭：打开开关并保存即可生成链接。",
+      "status_items": "订阅中有 {count} 条保质期",
+      "save_btn": "💾 保存日历设置"
+    },
     "title": "⚙️ 设置",
     "tab_api": "API 密钥",
     "tab_bring": "Bring!",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "过期时间太长，不建议冒险食用"
   },
   "toast": {
+    "ics_copied": "日历链接已复制",
+    "ics_copy_failed": "复制失败 — 请手动选择链接",
+    "ics_rotated": "已生成新链接 — 旧订阅将失效",
     "product_saved": "商品已保存！",
     "product_created": "商品已创建！",
     "product_updated": "✅ 商品已更新！",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS 未启用 — 请先开启再测试。",
     "web_speech_unsupported": "❌ 此浏览器不支持 Web Speech API。",
     "cloud_only": "❌ 仅有云端语音 — 离线语音合成需要在设备上安装本地语音（例如 Google 文字转语音 → 下载离线语音）。"
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — 食品保质期",
+      "description": "即将到期的食品，由 EverShelf 自动发布。"
+    },
+    "event": {
+      "location": "位置",
+      "quantity": "数量",
+      "brand": "品牌",
+      "expiry": "保质期",
+      "expired": "已过期"
+    }
   }
 }

@@ -885,6 +885,25 @@
     "timer_chip": "⏱️ 00:00 · Temporizador"
   },
   "settings": {
+    "calendar": {
+      "tab": "Calendario",
+      "title": "🗓️ Calendario de caducidades",
+      "hint": "Suscríbete a las caducidades de la despensa desde tu calendario (Google Calendar, Apple Calendario, Thunderbird, Nextcloud): cada producto se convierte en un evento de todo el día, con recordatorio el día anterior.",
+      "enabled": "✅ Activar el feed de calendario",
+      "days_label": "📅 Días publicados por adelantado",
+      "days_hint": "Cuántos días de caducidades futuras entran en el calendario (1–365).",
+      "past_days_label": "🕓 Días de caducados aún visibles",
+      "past_days_hint": "Las fechas recién superadas siguen en el calendario con el prefijo ⚠️ (0–60).",
+      "url_label": "🔗 Enlace para suscribirse",
+      "url_hint": "Pégalo en «Añadir calendario → Desde URL» (Google) o «Nueva suscripción de calendario» (Apple).",
+      "copy_btn": "📋 Copiar enlace",
+      "open_btn": "🗓️ Abrir en el calendario",
+      "rotate_btn": "♻️ Regenerar enlace (revocar)",
+      "rotate_hint": "El enlace contiene una clave de solo lectura: quien lo tenga verá tus caducidades. Regenéralo para revocar todas las suscripciones anteriores.",
+      "not_enabled": "El feed está desactivado: activa el interruptor y guarda para generar el enlace.",
+      "status_items": "{count} caducidades en el feed",
+      "save_btn": "💾 Guardar ajustes del calendario"
+    },
     "title": "⚙️ Ajustes",
     "tab_api": "Claves API",
     "tab_bring": "Bring!",
@@ -1558,6 +1577,9 @@
     "tip_lowRisk_danger": "Caducado hace demasiado tiempo, mejor no arriesgarse"
   },
   "toast": {
+    "ics_copied": "Enlace del calendario copiado",
+    "ics_copy_failed": "No se pudo copiar: selecciona el enlace a mano",
+    "ics_rotated": "Enlace nuevo generado: las suscripciones antiguas ya no funcionan",
     "product_saved": "¡Producto guardado!",
     "product_created": "¡Producto creado!",
     "product_updated": "✅ ¡Producto actualizado!",
@@ -2200,5 +2222,19 @@
     "not_active": "⚠️ TTS no está activo — actívalo antes de probar.",
     "web_speech_unsupported": "❌ La API Web Speech no es compatible con este navegador.",
     "cloud_only": "❌ Solo hay voces en la nube — la síntesis sin conexión requiere una voz local instalada en el dispositivo (p. ej. Google Text-to-Speech → Descargar voces sin conexión)."
+  }
+,
+  "ics": {
+    "calendar": {
+      "name": "EverShelf — Caducidades de la despensa",
+      "description": "Productos de la despensa que caducan pronto, publicados automáticamente por EverShelf."
+    },
+    "event": {
+      "location": "Ubicación",
+      "quantity": "Cantidad",
+      "brand": "Marca",
+      "expiry": "Caducidad",
+      "expired": "CADUCADO"
+    }
   }
 }

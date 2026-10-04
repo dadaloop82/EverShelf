@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261004h'; // bump when translations change
+const _I18N_VERSION = '20261004i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4971,6 +4971,151 @@ async function saveSettings() {
     } catch(e) {}
     // Re-init screensaver watcher in case it was just enabled
     initInactivityWatcher();
+}
+
+// ── Calendar (ICS expiry feed) — Settings → 🗓️ Calendar ───────────────────────
+// The subscribe URL embeds a read-only token, so it is read from the API
+// (get_ics_settings) on every tab open instead of being cached in localStorage.
+
+let _icsFeed = { enabled: false, url: '', count: 0 };
+
+async function _loadCalendarTab() {
+    const statusEl = document.getElementById('ics-save-status');
+    if (statusEl) statusEl.style.display = 'none';
+    try {
+        const data = await api('get_ics_settings');
+        if (!data || !data.success) throw new Error((data && data.error) || 'load_failed');
+        _icsFeed = { enabled: !!data.ics_enabled, url: data.ics_url || '', count: data.ics_count || 0 };
+        const enabledEl = document.getElementById('setting-ics-enabled');
+        const daysEl = document.getElementById('setting-ics-days');
+        const pastEl = document.getElementById('setting-ics-past-days');
+        if (enabledEl) enabledEl.checked = _icsFeed.enabled;
+        if (daysEl) daysEl.value = data.ics_days || 30;
+        if (pastEl) pastEl.value = (typeof data.ics_past_days === 'number' ? data.ics_past_days : 7);
+        _renderIcsFeedBox();
+    } catch (e) {
+        console.error('_loadCalendarTab:', e);
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.className = 'settings-status error';
+            statusEl.textContent = '❌ ' + t('error.generic');
+        }
+    }
+}
+
+/** Show the subscribe URL only when the server says the feed is really on. */
+function _renderIcsFeedBox() {
+    const boxEl = document.getElementById('ics-url-box');
+    const offEl = document.getElementById('ics-not-enabled');
+    const input = document.getElementById('ics-url-input');
+    const line = document.getElementById('ics-status-line');
+    const toggle = document.getElementById('setting-ics-enabled');
+    const enabled = toggle ? !!toggle.checked : _icsFeed.enabled;
+    const ready = enabled && !!_icsFeed.url;
+
+    if (boxEl) boxEl.style.display = ready ? 'block' : 'none';
+    if (offEl) offEl.style.display = ready ? 'none' : 'block';
+    if (input) {
+        input.value = ready ? _icsFeed.url : '';
+        if (ready) input.dataset.webcal = _icsFeed.url.replace(/^https?:\/\//, 'webcal://');
+    }
+    if (line) line.textContent = ready ? '📦 ' + t('settings.calendar.status_items', { count: _icsFeed.count }) : '';
+}
+
+async function saveCalendarSettings() {
+    const statusEl = document.getElementById('ics-save-status');
+    const enabled = !!document.getElementById('setting-ics-enabled')?.checked;
+    const daysRaw = parseInt(document.getElementById('setting-ics-days')?.value, 10);
+    const pastRaw = parseInt(document.getElementById('setting-ics-past-days')?.value, 10);
+    const days = Number.isFinite(daysRaw) ? Math.min(365, Math.max(1, daysRaw)) : 30;
+    const pastDays = Number.isFinite(pastRaw) ? Math.min(60, Math.max(0, pastRaw)) : 7;
+
+    try {
+        const settingsToken = document.getElementById('setting-settings-token')?.value.trim() || (typeof getApiToken === 'function' ? getApiToken() : '');
+        if (settingsToken && typeof setApiToken === 'function') setApiToken(settingsToken);
+        const tokenHeader = settingsToken ? { 'X-API-Token': settingsToken } : (typeof apiAuthHeaders === 'function' ? apiAuthHeaders() : {});
+        const result = await api('save_settings', {}, 'POST', {
+            ics_enabled: enabled,
+            ics_days: days,
+            ics_past_days: pastDays,
+        }, tokenHeader);
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.className = result.success ? 'settings-status success' : 'settings-status error';
+            statusEl.textContent = result.success ? '✅ ' + t('settings.saved') : '❌ ' + (result.error || t('settings.saved_local_error'));
+            setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
+        }
+    } catch (e) {
+        console.error('saveCalendarSettings:', e);
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.className = 'settings-status success';
+            statusEl.textContent = '✅ ' + t('settings.saved_local');
+            setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
+        }
+    }
+
+    // First enable has no token yet: mint one so the link is immediately usable.
+    if (enabled && !_icsFeed.url) {
+        await rotateCalendarToken(true);
+        return;
+    }
+    await _loadCalendarTab();
+}
+
+/**
+ * Mint a new feed secret. Existing subscriptions keep working only until their next
+ * refresh, so the toast tells the user to subscribe again.
+ * @param {boolean} [silent] true when called automatically on first enable
+ */
+async function rotateCalendarToken(silent) {
+    const statusEl = document.getElementById('ics-rotate-status');
+    if (statusEl) statusEl.style.display = 'none';
+    try {
+        const result = await api('rotate_ics_token', {}, 'POST');
+        if (!result || !result.success) throw new Error((result && result.error) || 'rotate_failed');
+        if (!silent) showToast('✅ ' + t('toast.ics_rotated'), 'success');
+    } catch (e) {
+        console.error('rotateCalendarToken:', e);
+        if (statusEl) {
+            statusEl.style.display = 'block';
+            statusEl.className = 'settings-status error';
+            statusEl.textContent = '❌ ' + t('error.generic');
+        }
+        return;
+    }
+    await _loadCalendarTab();
+}
+
+async function copyCalendarLink() {
+    const input = document.getElementById('ics-url-input');
+    const url = input ? input.value : '';
+    if (!url) return;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+        } else if (input) {
+            input.removeAttribute('readonly');
+            input.select();
+            document.execCommand('copy');
+            input.setAttribute('readonly', 'readonly');
+        }
+        showToast(t('toast.ics_copied'), 'success');
+    } catch (e) {
+        console.error('copyCalendarLink:', e);
+        showToast(t('toast.ics_copy_failed'), 'error');
+    }
+}
+
+/**
+ * webcal:// hands the URL straight to the OS calendar app (iPhone, iPad, Android);
+ * on desktop the plain https URL downloads the .ics, which can be imported/subscribed.
+ */
+function openCalendarLink() {
+    const input = document.getElementById('ics-url-input');
+    if (!input || !input.value) return;
+    const isMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+    window.location.href = (isMobile && input.dataset.webcal) ? input.dataset.webcal : input.value;
 }
 
 function switchSettingsTab(btn, tabId) {
@@ -9707,7 +9852,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -9717,7 +9862,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261004h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261004i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
