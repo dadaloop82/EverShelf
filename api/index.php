@@ -197,6 +197,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     exit;
 }
 
+// CSRF guard for POST requests. The webapp proves it is the webapp by sending
+// X-EverShelf-Request: 1 (assets/js/app.js sets it on every call that carries a
+// body), so every POST must carry it — including the ones that never had a check.
+// A cross-site request cannot add it: a custom header on a cross-origin fetch
+// needs a CORS preflight, and a <form> can only send urlencoded/multipart/plain.
+// evershelfCsrfExemptPostActions() keeps the historical rule (header or JSON
+// content type) for the native clients and server-to-server integrations that
+// have no browser session to forge.
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $_csrfAction = (string)($_GET['action'] ?? '');
+    if (!evershelfCsrfGuardAllows(
+        $_csrfAction,
+        (string)($_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? ''),
+        (string)($_SERVER['CONTENT_TYPE'] ?? '')
+    )) {
+        EverLog::warn('csrf_rejected (403)', ['action' => $_csrfAction]);
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'csrf_rejected']);
+        exit;
+    }
+}
+
 // ── Ping / heartbeat — early response, no DB required (still rate-limited) ────
 if (($_GET['action'] ?? '') === 'ping') {
     checkRateLimit('ping');
@@ -839,32 +861,6 @@ if (($_GET['action'] ?? '') === 'health_check') {
 $rateLimitAction = $_GET['action'] ?? '';
 if ($rateLimitAction) {
     checkRateLimit($rateLimitAction);
-}
-
-// CSRF guard for write actions: POST requests that modify data must include
-// either X-EverShelf-Request: 1 (webapp) or Content-Type: application/json.
-// This prevents cross-site HTML form submissions from triggering mutations.
-// JSON Content-Type already requires a CORS preflight which provides a baseline;
-// the explicit header is an additional defence-in-depth check for POST writes.
-$_writeActions = [
-    'inventory_add','inventory_use','inventory_update','inventory_remove',
-    'inventory_confirm_finished','inventory_restore_ghost',
-    'product_save','product_delete','product_merge',
-    'bring_add','bring_remove','bring_sync','bring_set_spec','bring_migrate_names',
-    'shopping_add','shopping_remove',
-    'templates_save','templates_delete','templates_apply',
-    'ai_test',
-    'dismiss_anomaly','save_settings','mealie_import','mealie_install','mealie_configure',
-];
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($rateLimitAction, $_writeActions, true)) {
-    $csrfHeader  = $_SERVER['HTTP_X_EVERSHELF_REQUEST'] ?? '';
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-    if ($csrfHeader !== '1' && stripos($contentType, 'application/json') === false) {
-        EverLog::warn('csrf_rejected (403)');
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'csrf_rejected']);
-        exit;
-    }
 }
 
 try {

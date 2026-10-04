@@ -81,7 +81,33 @@ how the backup copies the database, and the API surface around write actions.
   (`<install>/dispensa/backup.sh`) and for the container
   (`/var/www/html/backup.sh`).
 
+- **The CSRF guard checked 25 actions out of 134.** The list was hand-written and
+  the proof it asked for was a header *or* a JSON content type, so two holes
+  stayed open. Anything not on the list (`chat_save`, `tts_proxy`,
+  `generate_recipe_stream`, the `health_*` writes, …) had no check at all, and
+  `Content-Type: application/json` is not proof of anything: a cross-site
+  `<form enctype="text/plain">` sends exactly that content type with a body the
+  attacker chooses, which is the standard way to reach an endpoint that trusts
+  it. Every POST now has to carry `X-EverShelf-Request: 1` — a header a form
+  cannot set, and one that a cross-origin `fetch` can only add after a CORS
+  preflight the server never grants. The content-type fallback survives only for
+  the five actions in `evershelfCsrfExemptPostActions()`, which belong to clients
+  with no browser session to forge: the kiosk APK (`report_error`, `client_log`,
+  `save_settings`), the Health Bridge (`health_ingest`) and the Home Assistant
+  integration (`ha_generate_recipe`). Rejection is a `403 csrf_rejected`, logged.
+
 ### Changed
+- **Every first-party client sends the CSRF header, and one of them did not.**
+  `assets/js/app.js` already set it whenever a call carried a body; `chat_clear`
+  is a POST with no body, so it would have started failing with the new guard —
+  the wrapper now adds the header for any non-GET method, and the four log/error
+  calls that bypass the wrapper send it explicitly. `mcp-server` and the kiosk
+  (`ErrorReporter`, `SettingsActivity`, `SetupActivity`) send it too; installed
+  kiosk APKs predate this release and keep working through the exempt list, but a
+  script or a fork that posts an AI or inventory action now needs the header.
+  `scripts/test-csrf-guard.php` pins the rule down: the rejected content types,
+  the kept exemptions, that the guard runs before the early-exit branches, and
+  that every exempt action exists.
 - Web app manifest: the icon set is rebuilt at the sizes a browser actually asks
   for — 192×192 and 512×512 `any` plus a dedicated 192/512 **maskable** pair, so
   Android no longer crops the transparent logo to the launcher shape. The two

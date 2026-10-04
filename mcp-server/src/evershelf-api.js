@@ -28,7 +28,9 @@ export class EverShelfApi {
     const url = `${this.baseUrl}/api/index.php?action=${encodeURIComponent(action)}`;
     return this._fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // The API's CSRF guard requires this on every POST: it is what proves the
+      // caller is a client of ours and not a cross-site form.
+      headers: { 'Content-Type': 'application/json', 'X-EverShelf-Request': '1' },
       body: JSON.stringify(body),
     });
   }

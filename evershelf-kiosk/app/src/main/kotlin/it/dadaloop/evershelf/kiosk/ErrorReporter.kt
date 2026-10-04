@@ -337,6 +337,8 @@ object ErrorReporter {
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")
+            // The API's CSRF guard requires this header on every POST.
+            conn.setRequestProperty("X-EverShelf-Request", "1")
             conn.doOutput = true
             conn.connectTimeout = 8000
             conn.readTimeout    = 8000
