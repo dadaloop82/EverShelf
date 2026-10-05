@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005d'; // bump when translations change
+const _I18N_VERSION = '20261005e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9880,7 +9880,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -9890,7 +9890,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -21709,6 +21709,13 @@ function _applyNotifySettingsUI(s) {
     if (ntfyToken) { ntfyToken.value = ''; ntfyToken.placeholder = cfg.ntfy_token_set ? masked : ''; }
     const webhookToken = document.getElementById('setting-notify-webhook-token');
     if (webhookToken) { webhookToken.value = ''; webhookToken.placeholder = cfg.notify_webhook_token_set ? masked : ''; }
+    // Cron watchdog URL: same treatment as a token (its UUID can silence the alarm).
+    const hcUrl = document.getElementById('setting-notify-healthcheck-url');
+    if (hcUrl) {
+        hcUrl.value = '';
+        hcUrl.placeholder = cfg.notify_healthcheck_set ? masked : t('settings.notify.healthcheck_placeholder');
+    }
+    _renderHealthcheckJobs(cfg);
 }
 
 
@@ -21791,6 +21798,10 @@ async function saveNotifySettings() {
     if (ntfyToken) payload.ntfy_token = ntfyToken;
     const webhookToken = get('setting-notify-webhook-token')?.value.trim();
     if (webhookToken) payload.notify_webhook_token = webhookToken;
+    // Watchdog ping URL: like a token, an empty field never wipes the stored one
+    // (clearHealthcheckUrl() is the explicit deletion path).
+    const hcUrl = get('setting-notify-healthcheck-url')?.value.trim();
+    if (hcUrl) payload.notify_healthcheck_url = hcUrl;
 
     // Catch the two misconfigurations the server would only report at send time.
     if (payload.notify_enabled && channels.includes('ntfy') && !payload.ntfy_topic) {
@@ -21851,6 +21862,127 @@ async function testNotify() {
         _notifyStatus(statusEl, 'error', '❌ ' + t('settings.notify.test_fail'));
     } finally {
         if (btn) btn.disabled = false;
+    }
+}
+
+// ===== Cron watchdog (Healthchecks.io / Uptime Kuma dead-man's switch) =====
+// Every CLI cron job pings this URL when it finishes, so it is the *missing* ping
+// that raises the alarm. See api/lib/healthcheck.php and notifyHealthcheckTestAction().
+
+/** Label of a job id stored in data/cron_health.json. Written as bare t() calls
+ *  (instead of a lookup table) so scripts/i18n-audit.py can see the keys. */
+function _healthcheckJobLabel(job) {
+    switch (job) {
+        case 'smart_shopping':  return t('settings.notify.job_smart_shopping');
+        case 'barcode_catalog': return t('settings.notify.job_barcode_catalog');
+        case 'mealie_cache':    return t('settings.notify.job_mealie_cache');
+        default: return job;
+    }
+}
+
+/** "3 min ago" for a unix timestamp (same time.* keys the backup panel uses). */
+function _healthcheckAgo(ts) {
+    const secs = Math.max(0, Math.floor(Date.now() / 1000) - Number(ts || 0));
+    if (secs < 5) return t('time.just_now');
+    if (secs < 120) return t('time.seconds_ago', { n: secs });
+    if (secs < 3600) return t('time.minutes_ago', { n: Math.floor(secs / 60) });
+    if (secs < 86400) return t('time.hours_ago', { n: Math.floor(secs / 3600) });
+    return t('time.days_ago', { n: Math.floor(secs / 86400) });
+}
+
+/**
+ * One line per scheduled job. Job health ("did the sync work") and ping delivery
+ * ("did the watchdog hear about it") are separate facts: a failed run whose alert
+ * was delivered still reads as failed, and a green run whose ping was lost says so.
+ */
+function _renderHealthcheckJobs(cfg) {
+    const box = document.getElementById('notify-healthcheck-jobs');
+    if (!box) return;
+    const jobs = (Array.isArray(cfg.notify_healthcheck_jobs) && cfg.notify_healthcheck_jobs.length)
+        ? cfg.notify_healthcheck_jobs
+        : ['smart_shopping', 'barcode_catalog', 'mealie_cache'];
+    const status = cfg.notify_healthcheck_status || {};
+    const lines = jobs.map(job => {
+        const st = status[job];
+        const label = _healthcheckJobLabel(job);
+        if (!st || !st.ts) {
+            return '🕓 ' + label + ' — ' + t('settings.notify.healthcheck_never');
+        }
+        let icon;
+        let state;
+        if (st.state === 'start') { icon = '⏳'; state = t('settings.notify.healthcheck_state_start'); }
+        else if (st.ok)           { icon = '✅'; state = t('settings.notify.healthcheck_state_ok'); }
+        else                      { icon = '❌'; state = t('settings.notify.healthcheck_state_fail'); }
+        let line = icon + ' ' + label + ' — ' + _healthcheckAgo(st.ts) + ' — ' + state;
+        if (st.sent && !st.delivered) line += ' — ⚠️ ' + t('settings.notify.healthcheck_not_delivered');
+        return line;
+    });
+    box.textContent = lines.join('\n');
+}
+
+/** Backend error key → translated message (never prints a raw key). */
+function _healthcheckErrorText(error, http) {
+    const raw = String(error || '');
+    if (raw === 'invalid_url') return t('settings.notify.err_healthcheck_invalid_url');
+    if (raw === 'healthcheck_not_configured') return t('settings.notify.healthcheck_not_configured');
+    if (raw.startsWith('curl:')) return t('settings.notify.err_curl', { error: raw.slice(5).trim() });
+    if (!raw) return http ? t('settings.notify.err_http', { code: http }) : t('settings.notify.err_generic', { error: '' });
+    return t('settings.notify.err_generic', { error: raw });
+}
+
+/**
+ * Ping the watchdog once. A URL typed in the field is tested before saving.
+ * The endpoint ignores NOTIFY_ENABLED on purpose: this is the button you press
+ * while the configuration is still being set up.
+ */
+async function testHealthcheck() {
+    const btn = document.getElementById('notify-healthcheck-test-btn');
+    const statusEl = document.getElementById('notify-healthcheck-status');
+    const typed = document.getElementById('setting-notify-healthcheck-url')?.value.trim() || '';
+    if (btn) btn.disabled = true;
+    _notifyStatus(statusEl, '', '⏳ ' + t('settings.notify.healthcheck_testing'));
+    try {
+        const body = typed ? { notify_healthcheck_url: typed } : {};
+        const result = await api('notify_healthcheck_test', {}, 'POST', body, {}, 15000);
+        if (result && result.success) {
+            const http = result.http ? ` (HTTP ${result.http})` : '';
+            _notifyStatus(statusEl, 'success', '✅ ' + t('settings.notify.healthcheck_test_ok') + http);
+            return;
+        }
+        if (result && result.configured === false) {
+            // Not an error: the panel simply has no URL to test yet.
+            _notifyStatus(statusEl, '', '🕓 ' + t('settings.notify.healthcheck_not_configured'));
+            return;
+        }
+        const detail = _healthcheckErrorText(result && result.error, result && result.http);
+        _notifyStatus(statusEl, 'error',
+            '❌ ' + t('settings.notify.healthcheck_test_fail') + (detail ? ' — ' + detail : ''));
+    } catch (e) {
+        console.error('testHealthcheck:', e);
+        _notifyStatus(statusEl, 'error', '❌ ' + t('settings.notify.healthcheck_test_fail'));
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+/**
+ * Delete the stored watchdog URL. save_settings() skips empty secrets, so an empty
+ * value has to be sent on purpose — that is exactly what this button does.
+ */
+async function clearHealthcheckUrl() {
+    const statusEl = document.getElementById('notify-healthcheck-status');
+    if (!confirm(t('settings.notify.healthcheck_confirm_remove'))) return;
+    try {
+        const result = await api('save_settings', {}, 'POST', { notify_healthcheck_url: '' });
+        if (result && result.success === false) {
+            _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic'));
+            return;
+        }
+        _notifyStatus(statusEl, 'success', '✅ ' + t('settings.notify.healthcheck_removed'));
+        _loadNotifyTab();   // repaint the field + the per-job list
+    } catch (e) {
+        console.error('clearHealthcheckUrl:', e);
+        _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic'));
     }
 }
 

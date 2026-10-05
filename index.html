@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005d">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005d">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005e">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005e">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005e">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005d"></script>
-    <script src="assets/js/core/auth.js?v=20261005d"></script>
+    <script src="assets/js/core/dom.js?v=20261005e"></script>
+    <script src="assets/js/core/auth.js?v=20261005e"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005e';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005d';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005e';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005d"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005e"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -1948,6 +1948,28 @@
                     </div>
                 </div>
 
+                <!-- Cron watchdog: dead-man's switch for the scheduled CLI jobs -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.notify.healthcheck_title">⏱️ Cron watchdog (dead-man's switch)</h4>
+                    <p class="settings-hint" data-i18n="settings.notify.healthcheck_hint">Optional. Every scheduled job pings this URL when it finishes, so a missing ping is what raises the alarm. Works with Healthchecks.io (hc-ping.com/&lt;uuid&gt;) and with a self-hosted Uptime Kuma push URL (…/api/push/&lt;token&gt;). The URL is a secret: it is not shown again after saving, and anyone who knows it can silence the alarm.</p>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.healthcheck_label">Watchdog ping URL</label>
+                        <input type="password" id="setting-notify-healthcheck-url" class="form-input" autocomplete="new-password" spellcheck="false" placeholder="https://hc-ping.com/…" data-i18n-placeholder="settings.notify.healthcheck_placeholder">
+                    </div>
+
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-secondary" style="flex:1" id="notify-healthcheck-test-btn" onclick="testHealthcheck()" data-i18n="settings.notify.healthcheck_test_btn">⏱️ Test the ping</button>
+                        <button class="btn btn-secondary" id="notify-healthcheck-clear-btn" onclick="clearHealthcheckUrl()" data-i18n="settings.notify.healthcheck_clear_btn">🗑️ Remove URL</button>
+                    </div>
+                    <div id="notify-healthcheck-status" style="display:none;margin-top:8px" class="settings-status"></div>
+
+                    <div class="form-group" style="margin-bottom:0;margin-top:12px">
+                        <label data-i18n="settings.notify.healthcheck_jobs_title">Last run of each job</label>
+                        <div id="notify-healthcheck-jobs" class="settings-hint" style="margin-top:4px;white-space:pre-line"></div>
+                    </div>
+                </div>
+
                 <!-- Test + Home Assistant note -->
                 <div class="settings-card">
                     <button class="btn btn-secondary full-width" id="notify-test-btn" onclick="testNotify()" data-i18n="settings.notify.test_btn">🔔 Invia una notifica di prova</button>
@@ -2518,6 +2540,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005d"></script>
+<script src="assets/js/app.js?v=20261005e"></script>
 </body>
 </html>
