@@ -21,6 +21,9 @@ const CACHE_FILE = __DIR__ . '/../data/smart_shopping_cache.json';
 
 evershelfRotateCronLog();
 
+// Dead man's switch: mark the run as started (no-op without a ping URL).
+evershelfHealthcheckPing('smart_shopping', 'start');
+
 try {
     $db = getDB();
 
@@ -187,6 +190,8 @@ try {
     echo '[' . date('Y-m-d H:i:s') . '] ERROR: ' . $msg . "\n";
     // Report to GitHub Issues (uses the same _phpErrorReport from index.php)
     _phpErrorReport($msg, $e->getFile(), $e->getLine(), $e->getTraceAsString(), get_class($e));
+    // Tell the watchdog now instead of waiting for the next missing ping.
+    evershelfHealthcheckPing('smart_shopping', 'fail', $msg);
     exit(1);
 }
 
@@ -303,3 +308,9 @@ if (function_exists('shell_exec')) {
         // Non-fatal: avahi not available
     }
 }
+
+// ── Cron watchdog: success ping ───────────────────────────────────────────────
+// The last line of the script, so it is reached only when the whole run survived.
+// If it stops arriving, Healthchecks.io / Uptime Kuma alerts after the grace
+// period — that is what makes a dead cron visible. No-op without a ping URL.
+evershelfHealthcheckPing('smart_shopping', 'ok', 'completed');

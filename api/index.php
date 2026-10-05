@@ -1148,6 +1148,10 @@ try {
             notifyTestAction();
             break;
 
+        case 'notify_healthcheck_test':
+            notifyHealthcheckTestAction();
+            break;
+
         case 'client_log':
             clientLog();
             break;
@@ -8101,6 +8105,12 @@ function getServerSettings(): void {
         'notify_webhook_token_set'    => !empty(env('NOTIFY_WEBHOOK_TOKEN', '')),
         'notify_webhook_header'       => env('NOTIFY_WEBHOOK_HEADER', ''),
         'notify_insecure_ssl'         => env('NOTIFY_INSECURE_SSL', 'false') === 'true',
+        // Cron watchdog (healthchecks.io / Uptime Kuma). The ping URL is a
+        // credential (its UUID can silence the alarm), so it is exposed as a
+        // boolean like the tokens — never echoed back.
+        'notify_healthcheck_set'      => evershelfHealthcheckConfigured(),
+        'notify_healthcheck_jobs'     => EVERSHELF_HEALTHCHECK_JOBS,
+        'notify_healthcheck_status'   => evershelfHealthcheckStatus(),
         // Mealie / recipe source
         'recipe_source'               => recipeEffectiveSource(),
         'mealie_url'                  => env('MEALIE_URL', ''),
@@ -8163,6 +8173,47 @@ function notifyTestAction(): void {
     ]);
 }
 
+/**
+ * action=notify_healthcheck_test — fire one manual ping for the cron watchdog.
+ *
+ * Pings the URL typed in the panel when one is sent (so a fresh paste can be
+ * verified before saving) and otherwise the stored configuration. Nothing is
+ * recorded: a manual probe must not rewrite the last run shown for a real job.
+ */
+function notifyHealthcheckTestAction(): void {
+    $typed = trim((string)($_POST['notify_healthcheck_url'] ?? ''));
+
+    if ($typed !== '') {
+        if (!evershelfNotifyUrlValid($typed)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'invalid_url']);
+            return;
+        }
+        $url = $typed;
+    } else {
+        $job = evershelfHealthcheckFirstJob();
+        if ($job === '') {
+            // Nothing to test yet — not an error, the panel explains it.
+            echo json_encode(['success' => true, 'configured' => false, 'sent' => false, 'error' => 'healthcheck_not_configured']);
+            return;
+        }
+        $url = evershelfHealthcheckUrl($job);
+    }
+
+    $result = evershelfHealthcheckSend($url, 'ok', 'test from EverShelf');
+    EverLog::info('notifyHealthcheckTestAction', ['ok' => $result['ok'], 'http' => $result['http']]);
+
+    if (empty($result['ok'])) {
+        http_response_code(400);
+    }
+    echo json_encode([
+        'success'    => !empty($result['ok']),
+        'configured' => true,
+        'sent'       => true,
+        'http'       => (int)($result['http'] ?? 0),
+        'error'      => (string)($result['error'] ?? ''),
+    ]);
+}
 
 function dbCleanup(?PDO $db = null): void {
     $recipeDays = max(1, (int)env('RECIPE_RETENTION_DAYS', '7'));
@@ -8261,6 +8312,8 @@ function saveSettings(): void {
         'notify_webhook_url'    => 'NOTIFY_WEBHOOK_URL',
         'notify_webhook_token'  => 'NOTIFY_WEBHOOK_TOKEN',
         'notify_webhook_header' => 'NOTIFY_WEBHOOK_HEADER',
+        // Cron watchdog ping URL (see api/lib/healthcheck.php)
+        'notify_healthcheck_url' => 'NOTIFY_HEALTHCHECK_URL',
     ];
     // Boolean keys
     $boolMap = [

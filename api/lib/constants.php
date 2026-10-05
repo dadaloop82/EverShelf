@@ -18,6 +18,8 @@ define('BACKUP_DIR',               EVERSHELF_ROOT . '/data/backups');
 define('BACKUP_LAST_TS_PATH',      EVERSHELF_ROOT . '/data/backup_last_ts.json');
 define('MEALIE_CACHE_PATH',        EVERSHELF_ROOT . '/data/mealie_cache.json');
 define('CRON_LOG_PATH',            EVERSHELF_ROOT . '/data/cron.log');
+/** Last outcome of every cron job — written by the watchdog (lib/healthcheck.php). */
+define('CRON_HEALTH_PATH',         EVERSHELF_ROOT . '/data/cron_health.json');
 
 define('GEMINI_COST_25F_IN',  (float)(env('GEMINI_COST_25F_IN')  ?: 0.15));
 define('GEMINI_COST_25F_OUT', (float)(env('GEMINI_COST_25F_OUT') ?: 0.60));

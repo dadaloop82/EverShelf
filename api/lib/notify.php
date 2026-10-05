@@ -254,22 +254,43 @@ function evershelfNotifyUrlValid(string $url): bool
  */
 function evershelfNotifyPost(string $url, array $headers, string $body, int $timeout = 8, bool $verifyTls = true): array
 {
+    return evershelfNotifyRequest('POST', $url, $headers, $body, $timeout, $verifyTls);
+}
+
+/**
+ * Send a request with an explicit method to a URL.
+ *
+ * GET exists for the cron watchdog: Uptime Kuma only accepts its push status as
+ * query parameters, while Healthchecks.io wants a POST. Everything else (no
+ * redirects, never the URL in the error string, TLS toggle) is shared, so the
+ * URL can keep being treated as a credential.
+ *
+ * @param string[] $headers Full header lines ("Name: value").
+ * @return array{ok:bool,http:int,error:string}
+ */
+function evershelfNotifyRequest(string $method, string $url, array $headers, string $body = '', int $timeout = 8, bool $verifyTls = true): array
+{
+    $method = strtoupper($method) === 'GET' ? 'GET' : 'POST';
     if (!function_exists('curl_init')) {
         return ['ok' => false, 'http' => 0, 'error' => 'curl_missing'];
     }
     try {
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_CONNECTTIMEOUT => min(4, $timeout),
             CURLOPT_SSL_VERIFYPEER => $verifyTls,
             CURLOPT_SSL_VERIFYHOST => $verifyTls ? 2 : 0,
             CURLOPT_FOLLOWLOCATION => false,
-        ]);
+        ];
+        if ($method === 'POST') {
+            // Always send POSTFIELDS (even empty: the body is the log line).
+            $opts[CURLOPT_POST]       = true;
+            $opts[CURLOPT_POSTFIELDS] = $body;
+        }
+        curl_setopt_array($ch, $opts);
         curl_exec($ch);
         $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $err  = curl_error($ch);
