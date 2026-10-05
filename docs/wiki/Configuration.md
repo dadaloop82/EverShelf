@@ -134,8 +134,48 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 | Scale enabled | `SCALE_ENABLED` | — |
 | Scale gateway URL | `SCALE_GATEWAY_URL` | — |
 | Settings token | `SETTINGS_TOKEN` | Write-only; current value never shown |
+| Notifications on/off | `NOTIFY_ENABLED` | Master switch for the ntfy/webhook channels (Settings → 🔔 Notifiche) |
+| ntfy topic | `NTFY_TOPIC` | Secret: anyone who knows it can read and publish |
+| ntfy / webhook tokens | `NTFY_TOKEN`, `NOTIFY_WEBHOOK_TOKEN` | Write-only; the field shows `••••••••` when a token is stored |
+| Generic webhook URL | `NOTIFY_WEBHOOK_URL` | n8n, Node-RED, Gotify, Discord/Slack bridge… |
 
 > **Security note:** `get_settings` returns only **boolean flags** (`gemini_key_set: true/false`), never raw key values. Raw values are only accessible server-side.
+
+---
+
+## Push Notifications (ntfy / generic webhook)
+
+EverShelf can push alerts to your phone **without Home Assistant**: configure it in
+**Settings → 🔔 Notifiche** (or by hand in `.env`, see `.env.example`). Both channels
+run off the same events the Home Assistant webhooks use, so an existing HA setup
+keeps working unchanged.
+
+| Field | `.env` key | Notes |
+|-------|-----------|-------|
+| Enable notifications | `NOTIFY_ENABLED` | Master switch for the two channels below only |
+| Events | `NOTIFY_EVENTS` | `expiry_alert`, `shopping_add`, `stock_update` |
+| Message language | `NOTIFY_LANGUAGE` | `it`/`en`/`de`/`fr`/`es`/`zh`; empty → English |
+| ntfy server | `NTFY_URL` | `https://ntfy.sh` or your self-hosted instance |
+| ntfy topic | `NTFY_TOPIC` | Letters, digits, `-`, `_` (max 64); the 🎲 button generates one |
+| ntfy token | `NTFY_TOKEN` | Only for servers that require `Authorization: Bearer` |
+| ntfy priority | `NTFY_PRIORITY` | `1`–`5` or `min`/`low`/`default`/`high`/`urgent` |
+| ntfy tags | `NTFY_TAGS` | Comma-separated, rendered as an icon on the notification |
+| Webhook URL | `NOTIFY_WEBHOOK_URL` | Any endpoint that accepts a JSON `POST` |
+| Webhook token / header | `NOTIFY_WEBHOOK_TOKEN`, `NOTIFY_WEBHOOK_HEADER` | Default header: `Authorization` |
+| Accept self-signed TLS | `NOTIFY_INSECURE_SSL` | LAN servers with a self-signed certificate only |
+
+**Quick start (ntfy)** — install the [ntfy app](https://ntfy.sh), then:
+
+1. **Settings → 🔔 Notifiche** → enable notifications and switch on **ntfy**.
+2. Tap 🎲 to generate a secret topic and subscribe to that same topic in the app.
+3. **Send a test notification** — every configured channel is reported with its HTTP
+   status, so a wrong URL or topic is visible immediately instead of at 3 a.m.
+4. **Save settings.**
+
+The body of every message is clamped to 3600 bytes on a UTF-8 boundary, priorities
+outside `1`–`5` fall back to the default, and only `http(s)` targets are ever
+contacted. Stored tokens are **write-only**: leave the password field empty to keep
+the current value.
 
 ---
 

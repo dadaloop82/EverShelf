@@ -313,6 +313,39 @@ X-Settings-Token: your_token
 }
 ```
 
+Notification keys accepted here (all optional): `notify_enabled`,
+`notify_channels` (`ntfy,webhook`), `notify_events` (`expiry_alert`,
+`shopping_add`, `stock_update`), `notify_language`, `ntfy_url`, `ntfy_topic`,
+`ntfy_priority`, `ntfy_tags`, `ntfy_token`, `notify_webhook_url`,
+`notify_webhook_token`, `notify_webhook_header`, `notify_insecure_ssl`.
+A token that is omitted keeps its stored value.
+
+---
+
+## Notifications
+
+### `notify_test` — POST
+
+Push a test notification through every configured channel (ntfy, generic webhook,
+legacy HA notify service). Deliberately ignores `NOTIFY_ENABLED` / `NOTIFY_EVENTS`,
+so the button works while the configuration is still switched off, and is blocked in
+demo mode (it performs an outbound request).
+
+```json
+{
+  "success": true,
+  "delivered": 1,
+  "channels": {
+    "ntfy": { "ok": true, "http": 200, "error": "" }
+  },
+  "configured": { "ntfy": true, "webhook": false, "ha": false }
+}
+```
+
+HTTP 400 with `"success": false` when nothing was delivered. `error` is either a
+machine key (`webhook_not_configured`, `ntfy_topic_invalid`, `ntfy_url_invalid`,
+`curl: …`) or a short upstream message.
+
 ---
 
 ## Error Reporting

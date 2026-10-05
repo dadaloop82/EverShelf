@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005c'; // bump when translations change
+const _I18N_VERSION = '20261005d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9880,7 +9880,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -9890,7 +9890,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -21618,6 +21618,239 @@ async function saveHaSettings() {
             statusEl.textContent = '✅ ' + t('settings.saved_local');
             setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
         }
+    }
+}
+
+// ── Notifications (ntfy / generic webhook) — Settings → 🔔 Notifiche ──────────
+// The configuration lives server-side in .env (NOTIFY_* / NTFY_*): it is read
+// from ?action=get_settings every time the tab is opened (so a second device
+// sees the same values) and written back with ?action=save_settings. Tokens are
+// write-only — the server only reports the *_set booleans — so the password
+// fields stay empty and mean "leave the stored value untouched".
+// See api/lib/notify.php and api/index.php → notifyTestAction().
+
+/** Channel name (as parsed by evershelfNotifyParseChannels) → channel checkbox id. */
+const _NOTIFY_CHANNELS = { ntfy: 'notify-channel-ntfy', webhook: 'notify-channel-webhook' };
+
+/** Event name (as fired by the backend) → event checkbox id. Never rename: the
+ *  same strings are used by the Home Assistant automations. */
+const _NOTIFY_EVENTS = { expiry_alert: 'notify-event-expiry', shopping_add: 'notify-event-shopping', stock_update: 'notify-event-stock' };
+
+/** Machine error keys returned by the notifier → user-facing i18n keys. */
+const _NOTIFY_ERROR_KEYS = {
+    curl_missing: 'settings.notify.err_curl',
+    ntfy_url_invalid: 'settings.notify.err_ntfy_url_invalid',
+    ntfy_topic_invalid: 'settings.notify.err_ntfy_topic_invalid',
+    webhook_not_configured: 'settings.notify.err_webhook_not_configured',
+    webhook_url_invalid: 'settings.notify.err_webhook_url_invalid',
+};
+
+/** Turn a backend error string into a translated message (never prints a raw key). */
+function _notifyErrorText(error, http) {
+    const raw = String(error || '');
+    if (!raw) {
+        // A 4xx/5xx from ntfy or the webhook carries no curl error: the status is
+        // the whole story (e.g. 404 = wrong topic, 401 = bad token).
+        return http ? t('settings.notify.err_http', { code: http }) : t('settings.notify.err_generic', { error: '' });
+    }
+    if (raw.startsWith('curl:')) return t('settings.notify.err_curl', { error: raw.slice(5).trim() });
+    if (_NOTIFY_ERROR_KEYS[raw]) return t(_NOTIFY_ERROR_KEYS[raw]);
+    return t('settings.notify.err_generic', { error: raw });
+}
+
+/** Show/hide the whole configuration block behind the master switch. */
+function onNotifyEnabledChange() {
+    const on = !!document.getElementById('setting-notify-enabled')?.checked;
+    const section = document.getElementById('notify-config-section');
+    if (section) section.style.display = on ? '' : 'none';
+}
+
+/** "Message language" select — labels come from the shared language list. */
+function _renderNotifyLanguageOptions() {
+    const sel = document.getElementById('setting-notify-language');
+    if (!sel || sel.dataset.ready) return;
+    sel.innerHTML = Object.entries(_SUPPORTED_LANGS)
+        .map(([code, name]) => `<option value="${code}">${escapeHtml(name)}</option>`)
+        .join('');
+    sel.dataset.ready = '1';
+}
+
+/** Paint the form from a get_settings payload (empty values fall back to defaults). */
+function _applyNotifySettingsUI(s) {
+    const cfg = s || {};
+    const setChecked = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+    const setValue = (id, v, fallback = '') => {
+        const el = document.getElementById(id);
+        if (el) el.value = (v === undefined || v === null || v === '') ? fallback : v;
+    };
+
+    setChecked('setting-notify-enabled', cfg.notify_enabled);
+    onNotifyEnabledChange();
+
+    const events = String(cfg.notify_events || '').split(',').map(e => e.trim());
+    for (const [event, id] of Object.entries(_NOTIFY_EVENTS)) setChecked(id, events.includes(event));
+
+    const channels = String(cfg.notify_channels || '').split(',').map(c => c.trim());
+    for (const [channel, id] of Object.entries(_NOTIFY_CHANNELS)) setChecked(id, channels.includes(channel));
+
+    // An empty NOTIFY_LANGUAGE means the server falls back to English.
+    setValue('setting-notify-language', cfg.notify_language, 'en');
+    setValue('setting-ntfy-url', cfg.ntfy_url, 'https://ntfy.sh');
+    setValue('setting-ntfy-topic', cfg.ntfy_topic);
+    setValue('setting-ntfy-priority', String(cfg.ntfy_priority || '3'));
+    setValue('setting-ntfy-tags', cfg.ntfy_tags, 'ever-shelf');
+    setValue('setting-notify-webhook-url', cfg.notify_webhook_url);
+    setValue('setting-notify-webhook-header', cfg.notify_webhook_header, 'Authorization');
+    setChecked('setting-notify-insecure-ssl', cfg.notify_insecure_ssl);
+
+    // Masked placeholder = "a token is stored" (its value is never sent back).
+    const masked = '••••••••';
+    const ntfyToken = document.getElementById('setting-ntfy-token');
+    if (ntfyToken) { ntfyToken.value = ''; ntfyToken.placeholder = cfg.ntfy_token_set ? masked : ''; }
+    const webhookToken = document.getElementById('setting-notify-webhook-token');
+    if (webhookToken) { webhookToken.value = ''; webhookToken.placeholder = cfg.notify_webhook_token_set ? masked : ''; }
+}
+
+
+/**
+ * Paint one of the panel status lines. Multiline results (one row per channel)
+ * are supported via `\n`; success messages auto-hide, errors stay on screen.
+ */
+function _notifyStatus(el, kind, lines) {
+    if (!el) return;
+    if (el._hideTimer) clearTimeout(el._hideTimer);
+    el.style.display = 'block';
+    el.style.whiteSpace = 'pre-line';
+    el.className = 'settings-status' + (kind ? ' ' + kind : '');
+    el.textContent = Array.isArray(lines) ? lines.join('\n') : lines;
+    if (kind === 'success') {
+        el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+}
+
+/** Read the server configuration (secrets excluded) and paint the panel. */
+async function _loadNotifyTab() {
+    _renderNotifyLanguageOptions();
+    const statusEl = document.getElementById('notify-save-status');
+    if (statusEl) statusEl.style.display = 'none';
+    try {
+        const data = await api('get_settings');
+        if (!data || data.success === false) throw new Error((data && data.error) || 'load_failed');
+        _applyNotifySettingsUI(data);
+    } catch (e) {
+        console.error('_loadNotifyTab:', e);
+        _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic'));
+    }
+}
+
+/**
+ * Random public-topic name (16 chars from a 36-symbol alphabet). The topic is the
+ * only secret protecting the messages, so it must not be guessable.
+ */
+function generateNtfyTopic() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(bytes);
+    } else {
+        for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    const topic = 'evershelf-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+    const el = document.getElementById('setting-ntfy-topic');
+    if (el) el.value = topic;
+    const ntfyCb = document.getElementById('notify-channel-ntfy');
+    if (ntfyCb) ntfyCb.checked = true;
+    showToast(t('settings.notify.ntfy_topic_generate'));
+}
+
+/**
+ * Persist the panel to .env (partial update). Secrets are only sent when the user
+ * actually typed something, so an empty password field never wipes a stored token.
+ */
+async function saveNotifySettings() {
+    const statusEl = document.getElementById('notify-save-status');
+    const get = id => document.getElementById(id);
+
+    const channels = Object.entries(_NOTIFY_CHANNELS).filter(([, id]) => get(id)?.checked).map(([name]) => name);
+    const events = Object.entries(_NOTIFY_EVENTS).filter(([, id]) => get(id)?.checked).map(([name]) => name);
+
+    const payload = {
+        notify_enabled: !!get('setting-notify-enabled')?.checked,
+        notify_channels: channels.join(','),
+        notify_events: events.join(','),
+        notify_language: get('setting-notify-language')?.value || 'en',
+        ntfy_url: get('setting-ntfy-url')?.value.trim() || 'https://ntfy.sh',
+        ntfy_topic: get('setting-ntfy-topic')?.value.trim() || '',
+        ntfy_priority: get('setting-ntfy-priority')?.value || '3',
+        ntfy_tags: get('setting-ntfy-tags')?.value.trim() || 'ever-shelf',
+        notify_webhook_url: get('setting-notify-webhook-url')?.value.trim() || '',
+        notify_webhook_header: get('setting-notify-webhook-header')?.value.trim() || 'Authorization',
+        notify_insecure_ssl: !!get('setting-notify-insecure-ssl')?.checked,
+    };
+    const ntfyToken = get('setting-ntfy-token')?.value.trim();
+    if (ntfyToken) payload.ntfy_token = ntfyToken;
+    const webhookToken = get('setting-notify-webhook-token')?.value.trim();
+    if (webhookToken) payload.notify_webhook_token = webhookToken;
+
+    // Catch the two misconfigurations the server would only report at send time.
+    if (payload.notify_enabled && channels.includes('ntfy') && !payload.ntfy_topic) {
+        _notifyStatus(statusEl, 'error', '❌ ' + t('settings.notify.err_ntfy_topic_invalid'));
+        return;
+    }
+    if (payload.notify_enabled && channels.includes('webhook') && !payload.notify_webhook_url) {
+        _notifyStatus(statusEl, 'error', '❌ ' + t('settings.notify.err_webhook_not_configured'));
+        return;
+    }
+
+    try {
+        const result = await api('save_settings', {}, 'POST', payload);
+        if (result && result.success === false) {
+            const detail = result.error ? ' (' + result.error + ')' : '';
+            _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic') + detail);
+            return;
+        }
+        _notifyStatus(statusEl, 'success', '✅ ' + t('settings.saved'));
+        _loadNotifyTab();   // re-read: masked placeholders + channel list live in .env
+    } catch (e) {
+        console.error('saveNotifySettings:', e);
+        _notifyStatus(statusEl, 'success', '✅ ' + t('settings.saved_local'));
+    }
+}
+
+/**
+ * Push one notification through every configured channel and report the outcome
+ * per channel. The endpoint deliberately ignores NOTIFY_ENABLED / NOTIFY_EVENTS:
+ * this is exactly the button you press while the configuration is still off.
+ */
+async function testNotify() {
+    const btn = document.getElementById('notify-test-btn');
+    const statusEl = document.getElementById('notify-test-status');
+    if (btn) btn.disabled = true;
+    _notifyStatus(statusEl, '', '⏳ ' + t('settings.notify.testing'));
+    try {
+        const result = await api('notify_test', {}, 'POST', {}, {}, 15000);
+        const channels = (result && result.channels) || {};
+        const rows = Object.entries(channels).map(([name, outcome]) => {
+            if (outcome && outcome.ok) {
+                return '✅ ' + name + (outcome.http ? ` (HTTP ${outcome.http})` : '');
+            }
+            return '❌ ' + name + ' — ' + _notifyErrorText(outcome && outcome.error, outcome && outcome.http);
+        });
+        const delivered = (result && result.delivered) || 0;
+        if (delivered > 0) {
+            _notifyStatus(statusEl, 'success',
+                ['✅ ' + t('settings.notify.test_ok', { count: delivered })].concat(rows));
+            return;
+        }
+        const configured = (result && result.configured) || {};
+        const anyConfigured = Object.values(configured).some(Boolean);
+        _notifyStatus(statusEl, 'error',
+            ['❌ ' + (anyConfigured ? t('settings.notify.test_fail') : t('settings.notify.test_none'))].concat(rows));
+    } catch (e) {
+        console.error('testNotify:', e);
+        _notifyStatus(statusEl, 'error', '❌ ' + t('settings.notify.test_fail'));
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
