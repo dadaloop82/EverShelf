@@ -180,5 +180,23 @@ $settings = json_encode([
 ]);
 assert_true(!str_contains($settings, 'hc-ping.com'), 'api: the ping URL is never part of the settings payload');
 
+// ── HTTP contract: the action must read the JSON body the panel posts ────────
+// `api()` in assets/js/app.js always sends `Content-Type: application/json`, so an
+// action that reads only `$_POST` silently ignores the field: testing a freshly
+// typed URL pinged the *stored* URL instead and reported *its* success, and a
+// mistyped paste looked like a working configuration. Lock both ends together.
+$actionSrc = (string)file_get_contents(__DIR__ . '/../api/index.php');
+$appJsSrc  = (string)file_get_contents(__DIR__ . '/../assets/js/app.js');
+$fnStart   = strpos($actionSrc, 'function notifyHealthcheckTestAction');
+assert_true($fnStart !== false, 'contract: notifyHealthcheckTestAction exists');
+$fnBody = $fnStart === false ? '' : substr($actionSrc, $fnStart, 1500);
+assert_true(str_contains($fnBody, "\$_POST['notify_healthcheck_url']"), 'contract: the action accepts the classic form field');
+assert_true(str_contains($fnBody, "file_get_contents('php://input')"), 'contract: the action reads the JSON body the panel posts');
+assert_true(str_contains($fnBody, 'json_decode'), 'contract: the JSON body is parsed before use');
+assert_true(str_contains($appJsSrc, 'api(\'notify_healthcheck_test\''), 'contract: the panel calls notify_healthcheck_test');
+assert_true(str_contains($appJsSrc, '{ notify_healthcheck_url: typed }'), 'contract: the panel posts notify_healthcheck_url');
+assert_true(str_contains($actionSrc, "'notify_healthcheck_url' => 'NOTIFY_HEALTHCHECK_URL'"), 'contract: save_settings persists that same key');
+assert_true(str_contains($appJsSrc, 'payload.notify_healthcheck_url = hcUrl'), 'contract: the panel saves that same key');
+
 echo $fail === 0 ? "\nAll healthcheck tests passed.\n" : "\n{$fail} test(s) FAILED.\n";
 exit($fail === 0 ? 0 : 1);
