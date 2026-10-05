@@ -17,7 +17,7 @@
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
 | `assets/css/style.css` | All styles | ~10.5k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
-| `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~730 lines; loaded **last**, deletes no selector |
+| `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded **last**, deletes no selector |
 | `api/index.php` | **Entire backend**: router + all handlers | ~19.5k lines, 408 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |

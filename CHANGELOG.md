@@ -107,6 +107,17 @@ the next release.
   `scripts/test-seasonal-match.php` grows from 57 to 86 assertions, including a
   card-vs-list consistency lock and a check that every key PHP can emit exists in
   all six locales (the i18n audit only sees keys used in JS).
+- **The ⚙️ Config tab was clipped on every phone portrait.** The bottom bar
+  reserved a hard `min-width: 56px` per tab (62px for the Gemini FAB), so seven
+  tabs needed ~398px of row — 462px with the German labels ("Einstellungen") —
+  against the 338px a 360px phone offers. The row overflowed, and because `body
+  { overflow-x: hidden }` there was nothing to scroll: the last tabs (Storico and
+  Config) simply were not there. The tabs now share the row
+  (`flex: 1 1 auto; min-width: 0`, so widths stay as they were where there is
+  room), the icons, logo and FAB scale with the viewport, and below 540px the
+  labels give way to icon-only tabs that keep their accessible name through
+  `aria-label`/`data-i18n-aria` (existing `nav.*` keys — no new translations).
+  That also disambiguates the two tabs that both showed 📋: *Storico* is 🕘 now.
 
 ## [1.8.10] - 2026-10-04
 

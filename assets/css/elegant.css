@@ -480,7 +480,7 @@ textarea.form-input:focus {
     width: min(560px, calc(100% - (2 * var(--es-nav-gap))));
     height: var(--es-nav-height);
     bottom: max(var(--es-nav-gap), env(safe-area-inset-bottom, 0px));
-    padding: 0 8px;
+    padding: 0 4px;
     background: var(--es-glass);
     border: 1px solid var(--es-border-hairline);
     border-radius: var(--es-nav-radius);
@@ -505,7 +505,7 @@ textarea.form-input:focus {
 
 .nav-btn:active { transform: scale(0.94); }
 
-.nav-icon { font-size: 1.35rem; }
+.nav-icon { font-size: clamp(1.05rem, 4.6vw, 1.35rem); }
 
 .nav-gemini-btn { margin-top: -14px; }
 
@@ -544,6 +544,19 @@ textarea.form-input:focus {
     .page-header { padding: 8px 10px; }
 
     .btn { font-size: 0.92rem; }
+}
+
+/* Phones: the seven tabs go icon-only so none of them is clipped.
+   With labels the row needs ~398px of bar width in Italian but 462px in
+   German ("Einstellungen") and similar in French: the bar only offers
+   `100% - 20px`, so on every phone portrait (320-430px) the last tab fell
+   behind the viewport edge — and `body { overflow-x: hidden }` meant it could
+   not even be scrolled to. Below 540px the tabs keep their accessible name
+   through the button's `aria-label`/`data-i18n-aria` (index.html) instead. */
+@media (max-width: 539px) {
+    .nav-label { display: none; }
+
+    .nav-btn { padding: 6px 0; }
 }
 
 /* Tablets / desktop: the bottom sheet becomes a centred dialog card */
