@@ -153,10 +153,29 @@ assert_true(str_contains($appJs, 'function _setupTestNotify()') && str_contains(
 // report "not configured" for ever, whatever the real state is.
 assert_true(str_contains($api, "'ics_enabled' => env('ICS_ENABLED'"), 'get_settings exposes ics_enabled for the calendar checklist row');
 
+// ── The card only lists what needs a decision, plus the news ───────────────
+// A list where six of nine rows say "Configured" is noise: the card renders the
+// unconfigured options and, separately, the options whose askVersion moved on
+// since the user acknowledged them (novità).
+assert_true(str_contains($appJs, 'function _checklistNewsItems()'), '_checklistNewsItems() exists');
+assert_true(str_contains($appJs, 'const news = _checklistNewsItems();'), '_renderSettingsChecklist reads the news items');
+assert_true(str_contains($appJs, 'todo.map(item => row(item, \'todo\'))')
+    && str_contains($appJs, 'news.map(item => row(item, \'news\'))'),
+    'the card renders the todo rows and the news rows');
+assert_true(!str_contains($appJs, "const ok = _checklistState(item) === 'ok';"),
+    'the card no longer renders a row per configured option');
+assert_true(str_contains($appJs, "t('settings.checklist.group_todo')") && str_contains($appJs, "t('settings.checklist.group_news')"),
+    'the two groups are titled through translations');
+assert_true(
+    str_contains((string)file_get_contents($root . '/assets/css/style.css'), '.checklist-group-title'),
+    'the group titles are styled'
+);
+
 // ── i18n: the keys the renderer emits exist in every locale ─────────────────
 $assistantKeys = [
     'settings.checklist.title', 'settings.checklist.summary_ok', 'settings.checklist.summary_todo',
     'settings.checklist.state_ok', 'settings.checklist.state_todo', 'settings.checklist.state_optional',
+    'settings.checklist.group_todo', 'settings.checklist.group_news',
     'settings.checklist.configure', 'settings.checklist.show', 'settings.checklist.hide',
     'settings.checklist.run', 'setup.notify_test_btn', 'setup.notify_need_topic',
 ];

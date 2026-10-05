@@ -154,11 +154,49 @@ foreach (['kiosk-download-banner', 'kiosk-native-settings-panel', 'kiosk-update-
 }
 assert_same(0, $xp->query("//*[@id='settings-status']/ancestor::*[@id='tab-info']")->length, 'the global save/status bar stays outside the panels');
 
-echo $fail === 0 ? "\nAll settings-navigation tests passed.\n" : "\n{$fail} test(s) FAILED.\n";
-exit($fail === 0 ? 0 : 1);
+// ── Every card is a collapsed sub-section ──────────────────────────────────
+// Two panels (Notifications, Home Assistant) hold ~ten cards each; with all of
+// them open the option you came for is somewhere below the fold. Cards with a
+// heading become collapsible sub-sections and only one is open at a time.
+assert_true(str_contains($appJs, 'function _initSettingsAccordions()'), '_initSettingsAccordions() exists');
+assert_true(str_contains($appJs, '_initSettingsAccordions();'), 'the accordion is initialised with the settings page');
+assert_true(str_contains($appJs, "card.dataset.accordion = 'ready';"), 'a card is marked once it has a header');
+assert_true(str_contains($appJs, 'function _toggleSettingsCard(card)') && str_contains($appJs, 'function _closeSettingsCards('),
+    'a card can be toggled and the others closed');
+assert_true(str_contains($appJs, 'function _openSettingsCardFor(el)'), 'a card can be opened programmatically');
+assert_true(str_contains($appJs, '_openSettingsCardFor(card);'), 'a checklist jump opens the card it points at');
+$css = (string)file_get_contents($root . '/assets/css/style.css');
+assert_true(str_contains($css, '.settings-card[data-accordion] > .settings-card-body'), 'the card body is the collapsible part');
+assert_true((bool)preg_match('/\.settings-card\[data-accordion\] > \.settings-card-body \{\s*display: none;/s', $css),
+    'cards start collapsed');
+assert_true(str_contains($css, '.settings-card[data-accordion].open > .settings-card-body'), 'an open card shows its body');
+assert_true(str_contains($css, '.settings-card[data-accordion].open > .settings-card-head .settings-card-chevron'),
+    'the chevron reports the open state');
 
+// ── Level 2 are sub-sections: wrapped, indented, all visible ────────────────
+// The pill strip scrolled horizontally, so the last sub-sections of a section
+// were unreachable-looking. They wrap now and carry a label that names the level.
+assert_true(str_contains($html, 'settings-subsections-label'), 'index.html labels the second level');
+assert_same(1, substr_count($html, 'settings-subsections-label'), 'the label appears once, not per section');
+$tabsBlock = '';
+if (preg_match('/\.settings-tabs \{(.*?)\}/s', $css, $mTabs)) {
+    $tabsBlock = $mTabs[1];
+}
+assert_true(str_contains($tabsBlock, 'flex-wrap: wrap'), 'the sub-section list wraps instead of scrolling');
+assert_true(!str_contains($tabsBlock, 'overflow-x: auto'), 'the sub-section list never scrolls sideways');
+assert_true(str_contains($tabsBlock, 'border-left'), 'the sub-sections are visually nested under their section');
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $loc) {
+    $json = json_decode((string)file_get_contents($root . "/translations/{$loc}.json"), true);
+    $label = $json['settings']['subsections_label'] ?? null;
+    assert_true(is_string($label) && trim($label) !== '', "translations/{$loc}.json has settings.subsections_label");
+}
+
+// ── The remembered section + tab must open together ────────────────────────
 preg_match('/<button class="settings-tab ([^"]*)"[^>]*data-group="([a-z_]+)" data-tab="(tab-[a-z_]+)"/', $html, $activeTab);
 preg_match('/<button class="settings-group-btn ([^"]*)"[^>]*data-group="([a-z_]+)"/', $html, $activeGroup);
 assert_same('active', $activeTab[1] ?? '', 'a tab starts as active');
 assert_same('active', $activeGroup[1] ?? '', 'a section starts as active');
 assert_same($activeGroup[2] ?? '', $activeTab[2] ?? '', 'the tab open at load belongs to the section marked active');
+
+echo $fail === 0 ? "\nAll settings-navigation tests passed.\n" : "\n{$fail} test(s) FAILED.\n";
+exit($fail === 0 ? 0 : 1);

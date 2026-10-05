@@ -7342,6 +7342,18 @@ body.cooking-mode-active .app-header {
 .checklist-state { font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
 .checklist-state.ok   { color: #059669; }
 .checklist-state.todo { color: #d97706; }
+.checklist-state.news { color: #4f46e5; }
+
+/* The card only lists what needs a decision: "Da configurare" and "Novità". */
+.checklist-group-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 8px 0 4px;
+}
+.checklist-group-title:first-child { margin-top: 0; }
 
 .checklist-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 
@@ -7353,48 +7365,59 @@ body.cooking-mode-active .app-header {
 
 .settings-card.settings-card-flash { animation: settings-card-flash 1.6s ease-out; }
 
-.settings-tabs {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    padding-bottom: 12px;
-    margin-bottom: 8px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+/* ===== LEVEL 2: THE SUB-SECTIONS OF THE ACTIVE SECTION =====
+   This used to be a horizontally scrolling strip of pills: the last tabs sat
+   off-screen with no sign they existed, and nothing said they belonged to the
+   section above. They are a wrapped, indented list of sub-sections now, so every
+   one of them is visible and the hierarchy is readable at a glance. */
+.settings-subsections-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0 0 6px 2px;
 }
 
-.settings-tabs::-webkit-scrollbar { display: none; }
+.settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow: visible;
+    padding: 0 0 0 10px;
+    margin: 0 0 12px 2px;
+    border-left: 2px solid var(--border);
+}
 
 .settings-tab {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 12px;
     background: var(--bg-card);
-    border: 2px solid var(--border);
-    border-radius: 12px;
-    padding: 6px 8px;
-    font-size: 0.72rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.8rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     transition: all 0.2s;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 52px;
 }
 
 .settings-tab-icon {
-    font-size: 1.05rem;
+    font-size: 1rem;
     line-height: 1;
 }
 
 .settings-tab-text {
-    font-size: 0.62rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    opacity: 0.85;
-    max-width: 56px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: none;
+    opacity: 1;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .settings-tab.active {
@@ -7423,6 +7446,55 @@ body.cooking-mode-active .app-header {
     font-size: 1.05rem;
     margin-bottom: 4px;
     color: var(--primary);
+}
+
+/* ===== SETTINGS CARDS ARE SUB-SECTIONS: COLLAPSED UNTIL OPENED =====
+   A panel with ten open cards buried the option you came for, so every card
+   with a heading starts closed and only one is open at a time. The heading and
+   the first hint line stay visible, so a closed card still says what it holds. */
+.settings-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.settings-card-head h4 {
+    margin-bottom: 0;
+}
+
+.settings-card-head > .settings-hint {
+    flex: 1 1 100%;
+    margin: 2px 0 0;
+}
+
+.settings-card-chevron {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: transform 0.18s ease;
+}
+
+.settings-card[data-accordion].open > .settings-card-head .settings-card-chevron {
+    transform: rotate(90deg);
+}
+
+.settings-card[data-accordion] > .settings-card-body {
+    display: none;
+}
+
+.settings-card[data-accordion].open > .settings-card-body {
+    display: block;
+    margin-top: 10px;
+    animation: settings-card-open 0.18s ease-out;
+}
+
+@keyframes settings-card-open {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: none; }
 }
 
 .settings-hint {
@@ -9335,6 +9407,83 @@ body.cooking-mode-active .app-header {
     box-shadow: var(--shadow);
     margin-bottom: 16px;
 }
+
+/* ── Extra insight panels (overview, freshness, trend) ──
+   They reuse the .nutr-card shell; these blocks keep them in the same language
+   as the waste/nutrition/monthly panels they rotate with. */
+.insight-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.insight-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 6px;
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.14);
+    text-align: center;
+}
+
+.insight-tile-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.insight-tile-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted, #6b7280);
+}
+
+.insight-foot {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text-muted, #6b7280);
+}
+
+.insight-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.insight-row:last-of-type { border-bottom: none; }
+
+.insight-row-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    min-width: 52px;
+    text-align: center;
+}
+
+.insight-row-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.insight-row-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.insight-row-diff {
+    font-size: 0.76rem;
+    color: var(--text-muted, #6b7280);
+}
+
+.fresh-bars { margin-top: 10px; }
+
 .nutr-body {
     display: flex;
     gap: 16px;

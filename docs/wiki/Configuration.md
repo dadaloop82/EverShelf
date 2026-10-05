@@ -141,47 +141,58 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 
 ### Where to find what
 
-The settings page is organised in **two levels**: *sections* on top, the tabs of
-the selected section just below. Only the tabs of the active section are listed,
-and the section + tab you used last reopen the next time you open the page.
+The settings page is organised in **two levels**: *sections* on top, and under them
+the **sub-sections** of the selected section. Only the sub-sections of the active
+section are listed — wrapped, so none of them hides off-screen — and the section you
+used last reopens the next time you open the page.
 
-| Section | Tabs |
-|---------|------|
+| Section | Sub-sections |
+|---------|--------------|
 | 🤖 App & AI | Generali, API, Voce (TTS), Fotocamera |
 | 🍳 Cucina | Spesa, Ricette, Piano, Salute, Cucina (elettrodomestici) |
 | 🔔 Avvisi e servizi | Notifiche, Home Assistant, Calendario, Bilancia |
 | ⚙️ Sistema | Sicurezza, Backup, Info |
+
+Inside a sub-section every card is **collapsed**: its heading and its first hint line
+stay visible, the rest (fields, toggles, test buttons) opens on click and **only one
+card is open at a time**. Two panels (*Notifiche*, *Home Assistant*) hold about ten
+cards each, and with all of them open the option you came for was somewhere below the
+fold. Jumping from the checklist opens the card it points at, and picking an AI
+provider opens the credential card of that provider.
 
 The Kiosk download banner, the Kiosk update panel and the About card (version,
 bug report, changelog) live inside **Info**. They used to sit outside the panels,
 so they were painted below every single tab.
 `scripts/test-settings-nav.php` fails if a tab declares a section the JS does not
 know, if a panel has no tab (or two), if the page opens on a tab of a section
-that is not highlighted, or if those blocks move back out of *Info*.
+that is not highlighted, if the sub-section list starts scrolling sideways again, or
+if those blocks move back out of *Info*.
 
 > **Security note:** `get_settings` returns only **boolean flags** (`gemini_key_set: true/false`), never raw key values. Raw values are only accessible server-side.
 
 ### Setup checklist and guided assistant
 
-The first card on the settings page lists every configurable option with its state
-(*configured* / *not configured* / *optional*) and jumps to the right tab. It stays a
-single compact line while everything is configured and opens by itself as soon as
-something is missing.
+The first card on the settings page lists **only what needs a decision**: the options
+that are still unconfigured, and — separately, under *Novità* — an option that gained
+something since you last saw it (an `askVersion` bump that the assistant has not asked
+about yet). A list where six of nine rows said "Configured" was noise. It stays a
+single compact line while there is nothing to decide and opens by itself as soon as
+something needs attention.
 
 **▶️ Review the options** re-runs the guided assistant (`_setupSteps()`): it walks
 through the open options — ntfy notifications and the cron watchdog can be tested from
 inside the wizard, before anything is saved — and can be left at any step.
 
 An option is asked **once**. The ledger is stored per item in `evershelf_setup_seen`
-(keyed by the item's `askVersion` in `SETTINGS_CHECKLIST`), and the checklist card
-keeps showing it until it is actually configured: skipping the question is not the
-same as losing it. Adding a new integration means adding one entry to that registry —
-the card and the assistant pick it up automatically, and raising `askVersion` asks
-again.
+(keyed by the item's `askVersion` in `SETTINGS_CHECKLIST`), while the *Novità* group
+covers what the ledger cannot: an option that was already configured but gained a new
+question. Adding a new integration means adding one entry to that registry — the card
+and the assistant pick it up automatically, and raising `askVersion` asks again.
 
 `scripts/test-setup-assistant.php` fails if a row points at a tab that does not exist,
 if an `ask` item names a wizard step outside `_setupSteps()`, if a label is missing in
-any of the six locales, or if the wizard goes back to a hardcoded closing step.
+any of the six locales, if the card starts listing configured options again, or if the
+wizard goes back to a hardcoded closing step.
 
 ---
 
