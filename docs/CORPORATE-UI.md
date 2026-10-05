@@ -14,7 +14,8 @@ Design tokens live in `assets/css/style.css` (`:root`). **App-wide component sty
 
 ## Scope (app-wide)
 
-The corporate layer touches every major surface:
+The corporate layer touches every major surface (the rows marked † are defined in
+`style.css` — the corporate layer only re-skins the cards and buttons they use):
 
 | Surface | Examples in `corporate.css` |
 |---------|----------------------------|
@@ -22,9 +23,9 @@ The corporate layer touches every major surface:
 | **Buttons** | `.btn`, `.btn-primary`, `.btn-success`, `.btn-warning`, `.btn-accent`, `.btn-secondary`, `.btn-large` |
 | **Cards** | `.stat-card`, `.section-card`, `.settings-card`, `.alert-card`, `.product-item`, `.es-surface` |
 | **Tabs** | Location tabs, settings tabs, shopping tabs — pill style with active gradient |
-| **Settings accordion** | `.settings-card-head` (`.settings-card-chevron`), `.settings-card-body`, `.settings-subsections-label`, one card open at a time |
-| **Dashboard rows** | `.alert-item-head` (name + brand), `.alert-item-qty`, `.alert-item-badge*`, `.alert-item-badges` (wrapping button row), `.banner-fact`, `.banner-verdict`, `.alert-more-note` |
-| **Insight panels** | `.insight-tiles`, `.insight-tile`, `.insight-row` (+ label/value/diff) for the rotating dashboard panels |
+| **Settings accordion** † | `.settings-card-head` (`.settings-card-chevron`), `.settings-card-body`, `.settings-subsections-label`, one card open at a time |
+| **Dashboard rows** † | `.alert-item-head` (name + brand), `.alert-item-qty`, `.alert-item-badge*`, `.alert-item-badges` (wrapping button row), `.banner-fact`, `.banner-verdict`, `.alert-more-note` |
+| **Insight panels** † | `.insight-tiles`, `.insight-tile`, `.insight-row` (+ label/value/diff) for the rotating dashboard panels |
 | **Forms** | `.form-input`, `.qty-input`, `.search-bar`, `.loc-btn`, `.qty-control`, chips and fraction buttons |
 | **Inventory list** | `.inventory-item`, swipe backgrounds, category headers, badges |
 | **Shopping** | `.shop-row` cards with unified border/shadow |
