@@ -17517,13 +17517,7 @@ function shoppingRemove(PDO $db): void {
 
 /** Seasonal produce review for the current shopping list (IT calendar, free data). */
 function seasonalShoppingReviewAction(PDO $db): void {
-    $lang = env('APP_LANG', 'it');
     $input = json_decode(file_get_contents('php://input'), true);
-    if (is_array($input) && !empty($input['lang'])) {
-        $lang = (string)$input['lang'];
-    } elseif (!empty($_GET['lang'])) {
-        $lang = (string)$_GET['lang'];
-    }
     $items = [];
     // Prefer items from client (covers Bring! mode); else internal DB list
     if (is_array($input) && !empty($input['items']) && is_array($input['items'])) {
@@ -17536,7 +17530,7 @@ function seasonalShoppingReviewAction(PDO $db): void {
             $items = [];
         }
     }
-    $review = seasonalReviewShopping($db, $items, $lang);
+    $review = seasonalReviewShopping($db, $items);
     echo json_encode(['success' => true] + $review, JSON_UNESCAPED_UNICODE);
 }
 

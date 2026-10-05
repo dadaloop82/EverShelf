@@ -8268,6 +8268,13 @@ body.cooking-mode-active .app-header {
     font-style: normal;
     opacity: 0.85;
 }
+.seasonal-note {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #047857;
+    opacity: 0.9;
+}
 
 [data-theme="dark"] .alert-stale {
     background: #1e1230;
@@ -8280,6 +8287,7 @@ body.cooking-mode-active .app-header {
 }
 [data-theme="dark"] .seasonal-review-tip,
 [data-theme="dark"] .seasonal-block-title { color: #6ee7b7; }
+[data-theme="dark"] .seasonal-note { color: #6ee7b7; }
 [data-theme="dark"] .seasonal-row { border-top-color: rgba(110, 231, 183, 0.15); }
 
 /* Opened expiry badges */

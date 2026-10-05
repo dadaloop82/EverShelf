@@ -139,5 +139,68 @@ assert_true(!seasonalIsAllYearCrop(''), 'an empty name is not a stored crop');
 assert_true(!seasonalProduceOutOfSeason('Cipolla Dorata degli Ausoni', 'verdura', 10), 'onions stay in October');
 assert_true(!seasonalProduceOutOfSeason('Arance I Succosi', 'frutta', 10), 'oranges stay in October');
 
+// ── All-year crops must not swallow the summer vegetables ───────────────────
+// Head-noun prefixes ate the neighbours: "mel[ae]" made "Melanzane" a stored
+// crop, "zucc[ah]" made "Zucchine" one and "rap[ae]" made "Rapanelli" one — the
+// very produce the winter list exists to hide was exempted from hiding.
+assert_true(!seasonalIsAllYearCrop('Melanzane'), 'eggplant is not a stored all-year crop');
+assert_true(!seasonalIsAllYearCrop('Melanzane Lunghe'), 'long eggplants are not a stored all-year crop');
+assert_true(!seasonalIsAllYearCrop('Zucchine'), 'zucchini are not a stored all-year crop');
+assert_true(!seasonalIsAllYearCrop('Zucchine Bio'), 'organic zucchini are not a stored all-year crop');
+assert_true(!seasonalIsAllYearCrop('Rapanelli'), 'radishes are not a stored all-year crop');
+assert_true(seasonalIsAllYearCrop('Zucche'), 'the plural "zucche" is still a stored crop');
+assert_true(seasonalIsAllYearCrop('Zucca Delica'), 'pumpkin is a stored crop');
+assert_true(seasonalIsAllYearCrop('Mele Fuji'), 'stored apples are an all-year crop');
+assert_true(seasonalIsAllYearCrop('Pere Abate'), 'stored pears are an all-year crop');
+assert_true(seasonalIsAllYearCrop('Rape Rosse'), 'stored turnips are an all-year crop');
+
+// ── Sugar is not a pumpkin: a tail of one letter may inflect, two may not ────
+assert_null(seasonalMatchProduce('Zucchero', 10), 'sugar is not a pumpkin');
+assert_null(seasonalMatchProduce('Zuccheri', 10), 'sugars are not pumpkins');
+assert_null(seasonalMatchProduce('Italia Zuccheri 100% Italiano', 10), 'a sugar brand is not a pumpkin');
+assert_true(seasonalMatchProduce('Zucca Delica', 10) !== null, 'pumpkin still matches its own name');
+
+// ── The review card must not contradict the smart list it reviews ────────────
+$cardMonth = (int)date('n');
+$cardDb = new PDO('sqlite::memory:');
+$cardNames = ['Anguria', 'Cipolla Dorata degli Ausoni', 'Zucchero', 'Melanzane Lunghe', 'Origano foglie'];
+$card = seasonalReviewShopping($cardDb, array_map(static fn(string $n): array => ['name' => $n], $cardNames));
+$cardFlagged = array_column($card['out_of_season'], 'name');
+foreach ($cardNames as $cardName) {
+    $listHides = seasonalProduceOutOfSeason($cardName, 'verdura', $cardMonth);
+    assert_true(!in_array($cardName, $cardFlagged, true) || $listHides,
+        'the card agrees with the list about "' . $cardName . '"');
+}
+assert_true(!in_array('Cipolla Dorata degli Ausoni', $cardFlagged, true), 'the card does not ask to remove stored onions');
+assert_true(!in_array('Zucchero', $cardFlagged, true), 'the card never asks to remove sugar');
+$hideable = array_values(array_filter($cardNames, static fn(string $n): bool => seasonalProduceOutOfSeason($n, 'verdura', $cardMonth)));
+assert_same($hideable, array_values(array_intersect($cardFlagged, $hideable)),
+    'the card flags every catalogue entry the list would hide in month ' . $cardMonth);
+assert_same('shopping.seasonal_tip_' . $cardMonth, $card['tip_key'], 'the card returns a stable i18n tip key');
+
+// ── Every tip key the API can emit exists in all six locales ────────────────
+// The i18n audit only sees keys used in JS; keys returned by PHP are covered here.
+$localeKeys = ['shopping.seasonal_out_note'];
+for ($m = 1; $m <= 12; $m++) {
+    $localeKeys[] = 'shopping.seasonal_tip_' . $m;
+}
+$missingKeys = [];
+foreach (['it', 'en', 'de', 'fr', 'es', 'zh'] as $locale) {
+    $raw = @file_get_contents(__DIR__ . '/../translations/' . $locale . '.json');
+    $data = $raw === false ? [] : (json_decode($raw, true) ?: []);
+    foreach ($localeKeys as $key) {
+        $node = $data;
+        foreach (explode('.', $key) as $part) {
+            $node = is_array($node) ? ($node[$part] ?? null) : null;
+        }
+        if (!is_string($node) || $node === '') {
+            $missingKeys[] = $locale . ':' . $key;
+        }
+    }
+}
+assert_true($missingKeys === [],
+    'every monthly tip key and the note exist in all six locales'
+    . ($missingKeys ? ' (missing ' . implode(', ', array_slice($missingKeys, 0, 5)) . ')' : ''));
+
 echo $fail === 0 ? "\nAll seasonal match tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);
