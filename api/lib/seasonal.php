@@ -30,15 +30,100 @@ function seasonalNormalize(string $name): string {
     return preg_replace('/\s+/u', ' ', $n) ?? $n;
 }
 
+/** True when $haystack starts with $prefix and the prefix is a whole word there. */
+function seasonalStartsWithWord(string $haystack, string $prefix): bool {
+    if ($prefix === '' || !str_starts_with($haystack, $prefix)) {
+        return false;
+    }
+    if (mb_strlen($haystack) === mb_strlen($prefix)) {
+        return true;
+    }
+    // "melone retato" starts with "melone" (space follows) but "melograno" does not.
+    return !preg_match('/[\p{L}\p{N}]/u', mb_substr($haystack, mb_strlen($prefix), 1));
+}
+
+/**
+ * First meaningful word of a normalized name — the head noun.
+ *
+ * Italian product names put the head noun first, so this is what decides
+ * whether a catalogue entry describes the product at all: "miele di arancia"
+ * is honey (matched), "cosce di pollo" is chicken (not cipollotto).
+ */
+function seasonalHeadToken(string $normalized): string {
+    static $stop = [
+        'di', 'del', 'della', 'dei', 'degli', 'delle', 'da', 'in', 'con', 'per', 'a', 'e',
+        'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'al', 'allo', 'alla', 'ai',
+        'agli', 'alle', 'su', 'se', 'che', 'non', 'ma', 'o', 'nel', 'nei', 'tra', 'fra',
+        'bio', 'gusto', 'tipo', 'extra', 'senza', 'fresco', 'fresca', 'freschi', 'fresche',
+        'biologico', 'biologica', 'biologiche', 'biologici',
+    ];
+    foreach (preg_split('/\s+/', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+        if (!preg_match('/\p{L}/u', $token)) {
+            continue;   // pure numbers, "100%", …
+        }
+        if (mb_strlen($token) < 3 || in_array($token, $stop, true)) {
+            continue;
+        }
+        return $token;
+    }
+    return '';
+}
+
+/**
+ * Score how well one catalogue candidate identifies the queried product.
+ * 0 means "not this product". Only the head noun may identify it, so a seller
+ * description like "Budino gusto vaniglia da zuccherare" never becomes "zucca".
+ */
+function seasonalScoreCandidate(string $q, string $head, string $c): int {
+    if ($c === $q || ($head !== '' && $c === $head)) {
+        return 100;
+    }
+    if (seasonalStartsWithWord($q, $c) || seasonalStartsWithWord($c, $q)) {
+        return 90;      // "zucca a pezzi" → "zucca", "melone" → "melone retato"
+    }
+    if ($head !== '' && mb_strlen($head) >= 4 && seasonalStartsWithWord($c, $head)) {
+        return 85;      // "Cipolla Dorata Biologica" → "cipolla dorata"
+    }
+    // Inflected tail ("avocados" → "avocado") — still anchored on the head noun,
+    // and only when the extra characters are a short suffix ("zucchero" must not
+    // become "zucca").
+    if (mb_strlen($c) >= 5) {
+        $tail = null;
+        if (str_starts_with($q, $c)) {
+            $tail = mb_substr($q, mb_strlen($c));
+        } elseif (str_starts_with($c, $q)) {
+            $tail = mb_substr($c, mb_strlen($q));
+        }
+        if ($tail !== null && mb_strlen($tail) <= 2 && !str_contains($tail, ' ')) {
+            return 80;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Keywords marking produce that was frozen / canned / dried / preserved.
+ *
+ * Seasonality is a property of fresh produce: frozen basil or peeled tomatoes
+ * keep their shelf life all year, so they must never be flagged (nor removed)
+ * for being "out of season".
+ */
+const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol|in vetro|vasett|conserve|conservat|sottolio|sottaceto|salamoia|marinat|pelat|passata|sugo|concentrat|polpa|essiccat|disidratat|liofilizzat|secc[oh]|marmellat|confettur|sciroppat|al naturale/u';
+
+function seasonalIsPreserved(string $name): bool {
+    return (bool)preg_match(SEASONAL_PRESERVED_PATTERN, seasonalNormalize($name));
+}
+
 /**
  * @return array{item:array,status:string,score:int}|null
  */
 function seasonalMatchProduce(string $name, ?int $month = null): ?array {
     $month = $month ?? (int)date('n');
     $q = seasonalNormalize($name);
-    if ($q === '' || mb_strlen($q) < 3) {
+    if ($q === '' || mb_strlen($q) < 3 || seasonalIsPreserved($q)) {
         return null;
     }
+    $head = seasonalHeadToken($q);
     $catalog = seasonalLoadCatalog();
     $best = null;
     $bestScore = 0;
@@ -55,16 +140,7 @@ function seasonalMatchProduce(string $name, ?int $month = null): ?array {
             if ($c === '' || mb_strlen($c) < 3) {
                 continue;
             }
-            $score = 0;
-            if ($q === $c) {
-                $score = 100;
-            } elseif (str_starts_with($q, $c) || str_starts_with($c, $q)) {
-                $score = 90;
-            } elseif (preg_match('/\b' . preg_quote($c, '/') . '\b/u', $q)) {
-                $score = 85;
-            } elseif (mb_strlen($c) >= 5 && (str_contains($q, $c) || str_contains($c, $q))) {
-                $score = 70;
-            }
+            $score = seasonalScoreCandidate($q, $head, $c);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $peak = array_map('intval', $item['peak'] ?? []);
