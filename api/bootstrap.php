@@ -29,3 +29,4 @@ require_once __DIR__ . '/lib/i18n.php';
 require_once __DIR__ . '/lib/calendar_ics.php';
 require_once __DIR__ . '/lib/recipe_shopping.php';
 require_once __DIR__ . '/lib/notify.php';
+require_once __DIR__ . '/lib/healthcheck.php';

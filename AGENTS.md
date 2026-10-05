@@ -96,6 +96,8 @@ for f in mcp-server/src/*.js; do node --check "$f"; done
 # PHP regression tests (same as CI)
 php scripts/test-shopping-guards.php
 php scripts/test-internal-shopping-cleanup.php
+php scripts/test-notify.php
+php scripts/test-healthcheck.php
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -132,6 +134,7 @@ npm run build
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
+| Cron watchdog / notifications | `api/lib/healthcheck.php`, `api/lib/notify.php`, `cron_*.php` |
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
 | Health / Fuel mode | `api/lib/health.php` |

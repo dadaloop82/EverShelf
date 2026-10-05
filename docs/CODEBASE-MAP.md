@@ -76,6 +76,7 @@
 | `seasonal.php` | **IT produce calendar** + stale-stock; the review card returns a `tip_key` the client resolves | `seasonalReviewShopping()`, `seasonalIsAllYearCrop()`, `staleInventoryItems()` |
 | `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed, the notifier and seasonal tips |
 | `notify.php` | **Outbound notifications**: ntfy + generic webhook fan-out (legacy HA notify service kept), i18n-aware event formatting, URL/topic/priority/body guards | `evershelfNotifyEvent()`, `evershelfNotifySend()`, `evershelfNotifyConfigured()`, `notifyTestAction()` (in `index.php`) |
+| `healthcheck.php` | **Cron watchdog** (dead-man's switch): pings Healthchecks.io or an Uptime Kuma push URL at the end of every CLI job + records the last outcome per job | `evershelfHealthcheckPing()`, `evershelfHealthcheckSend()`, `evershelfHealthcheckConfigured()`, `evershelfHealthcheckStatus()`, `notifyHealthcheckTestAction()` (in `index.php`) |
 | `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
 | `recipe_shopping.php` | **Recipe → shopping list** with pantry deduction (recompute the gap on open) | `evershelfRecipeShoppingPlan()`, `recipeShoppingAdd()`, `evershelfBaseQty()` |
 | `cron_log.php` | Rotates `data/cron.log` | |
@@ -127,6 +128,7 @@ Most are user/runtime state and git-ignored (`*` = committed static/tracked).
 | `seasonal_produce_it.json` * | static IT produce dataset |
 | `audit_finished_missing.json`, `reported_issue_fps.json` | tool scratch |
 | `cron.log*`, `error_reports.log`, `client_debug.log` | logs |
+| `cron_health.json` | last outcome per CLI cron job, written by the watchdog (`api/lib/healthcheck.php`) |
 | `rate_limits/` | per-IP rate-limit buckets |
 | `weather_cache_*.json` | weather cache |
 
@@ -162,6 +164,11 @@ Groups:
 - **Notifications (ntfy / webhook)**: `notify_test` (POST — pushes one message
   through every configured channel, ignores `NOTIFY_ENABLED`, reports per-channel
   HTTP status; the same fan-out runs on every `_fireHaWebhook()` event).
+- **Cron watchdog (healthchecks.io / Uptime Kuma)**: `notify_healthcheck_test`
+  (POST — pings the typed-or-stored URL once and reports the HTTP status; the
+  stored state is untouched). The CLI jobs ping from cron via
+  `evershelfHealthcheckPing()`; `get_settings` returns
+  `notify_healthcheck_set/_jobs/_status` (never the URL).
 - **Integrations**: `ha_*` (Home Assistant), `mealie_*`, `health_*`,
   `weather_get/geocode`, `scale_*` (separate PHP files).
 - **Calendar (ICS)**: `calendar_ics` (**public**, guarded by its own read-only

@@ -103,6 +103,37 @@ the next release.
   - No QR code, deliberately: the only QR generator in the repo is the
     third-party `api.qrserver.com` and the subscribe URL is a long-lived
     credential — unlike the short-lived pairing code it must not leave the server.
+- **Cron watchdog — a stopped cron job finally says so** — a CLI job that stops
+  running leaves no trace: the smart list quietly goes stale and the UI still
+  looks fine. Every job now pings a dead-man's-switch URL, so *the absence of a
+  ping* becomes an alert on a channel the household already reads. One optional
+  setting (`NOTIFY_HEALTHCHECK_URL`) covers both free services that speak the
+  same idea, and the URL shape picks the protocol:
+  - no query string → **Healthchecks.io** style: the state is a path suffix
+    (`…/<uuid>`, `…/<uuid>/fail`, `…/<uuid>/start`) and the detail text is the
+    POST body, so it shows up as the check's log.
+  - with a query string → **Uptime Kuma** push style
+    (`…/api/push/<token>?…&status=up|down&msg=<detail>`, GET).
+  - `NOTIFY_HEALTHCHECK_URL_<JOB>` overrides the shared URL per job
+    (`smart_shopping`, `barcode_catalog`, `mealie_cache`); each job sends
+    `start` at the beginning and one terminal `ok`/`fail`, and `mealie_cache`
+    stays silent while Mealie is unconfigured so an unused feature never raises
+    an alarm.
+  - The URL **is** the credential (whoever reads it can silence the alarm), so it
+    is validated as an `http(s)` URL, never logged, never returned by the API and
+    never put into an error string — and a value that is set but not a URL is
+    ignored with a warning instead of silently falling back. `NOTIFY_INSECURE_SSL`
+    is the only way to reach a self-signed LAN Uptime Kuma.
+  - The last outcome of every job is recorded in `data/cron_health.json` (best
+    effort, `start` excluded) and returned by `get_settings` as
+    `notify_healthcheck_status`, so the last run of every job is visible even
+    before a URL is configured; job health and ping delivery are tracked
+    separately, because a failing sync whose alert was delivered fine must not
+    read as healthy.
+  - New `api/lib/healthcheck.php`, action `notify_healthcheck_test` (POST — pings
+    the typed-or-stored URL and reports the HTTP status without touching the
+    recorded state), `notify_healthcheck_*` in `get_settings`, and
+    `scripts/test-healthcheck.php`.
 
 ### Changed
 - **The seasonal review tip is translated in all six locales.** The card's tip was
