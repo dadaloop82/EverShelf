@@ -103,5 +103,41 @@ assert_same('off', seasonalStatusForName('Anguria', 10), 'seasonalStatusForName 
 assert_same('unknown', seasonalStatusForName('Sambuca extra', 10), 'a spirit is not produce');
 assert_same('unknown', seasonalStatusForName('', 10), 'an empty name is not produce');
 
+// ── Canned pulp vs a fresh variety described by its pulp ────────────────────
+assert_true(seasonalIsPreserved('Polpa di pomodoro'), 'tomato pulp is a preserve');
+assert_true(seasonalIsPreserved('Purea di mele'), 'apple puree is a preserve');
+assert_true(!seasonalIsPreserved('Pesca noce piatta a polpa gialla'), 'a yellow-fleshed peach is fresh');
+$pescaNoce = seasonalMatchProduce('Pesca noce piatta a polpa gialla', 10);
+assert_true($pescaNoce !== null && $pescaNoce['status'] === 'off', 'flat peaches are out of season in October');
+
+// ── Fresh-produce category gate (shopping-list suppression) ─────────────────
+assert_true(seasonalIsFreshCategory('frutta'), 'frutta is a fresh category');
+assert_true(seasonalIsFreshCategory('Verdura'), 'verdura is a fresh category');
+assert_true(seasonalIsFreshCategory('en:vegetables-and-their-products'), 'an Open Food Facts vegetable slug is fresh');
+assert_true(!seasonalIsFreshCategory(''), 'a missing category is not fresh');
+assert_true(!seasonalIsFreshCategory('latticini'), 'dairy is not fresh produce');
+assert_true(!seasonalIsFreshCategory('en:plant-based-foods-and-beverages'), 'a plant-based pantry shelf is not fresh produce');
+assert_true(!seasonalIsFreshCategory('conserve'), 'preserves are not fresh produce');
+
+assert_true(seasonalProduceOutOfSeason('Anguria', 'frutta', 10), 'watermelon is hidden in October');
+assert_true(!seasonalProduceOutOfSeason('Anguria', 'frutta', 7), 'watermelon is suggested in July');
+assert_true(!seasonalProduceOutOfSeason('Anguria', 'altro', 10), 'a non-produce category is never hidden');
+assert_true(!seasonalProduceOutOfSeason('Carote Cat. I', 'verdura', 10), 'in-season carrots stay');
+assert_true(!seasonalProduceOutOfSeason('Origano foglie', 'en:plant-based-foods-and-beverages', 10), 'dried oregano stays all year');
+assert_true(!seasonalProduceOutOfSeason('Pomodori pelati', 'conserve', 10), 'canned tomatoes stay all year');
+assert_true(!seasonalProduceOutOfSeason('Cosce di pollo · Fileni', 'carne', 10), 'meat never matches the catalogue');
+assert_true(seasonalProduceOutOfSeason('Pesca noce piatta a polpa gialla', 'frutta', 10), 'fresh flat peaches are hidden in October');
+
+// ── Harvest calendar vs what the shelf actually has (cured/stored crops) ────
+assert_true(seasonalIsAllYearCrop('Cipolla Dorata degli Ausoni'), 'onions are sold from storage all year');
+assert_true(seasonalIsAllYearCrop('Patate Biologiche'), 'potatoes are sold from storage all year');
+assert_true(seasonalIsAllYearCrop('limoni'), 'citrus keeps in cold storage all year');
+assert_true(seasonalIsAllYearCrop('Pomodori a grappolo'), 'tomatoes are on the shelf all year (greenhouse)');
+assert_true(!seasonalIsAllYearCrop('Melone Retato'), '"melone" is not "mela"');
+assert_true(!seasonalIsAllYearCrop('Anguria'), 'watermelon is not a stored crop');
+assert_true(!seasonalIsAllYearCrop(''), 'an empty name is not a stored crop');
+assert_true(!seasonalProduceOutOfSeason('Cipolla Dorata degli Ausoni', 'verdura', 10), 'onions stay in October');
+assert_true(!seasonalProduceOutOfSeason('Arance I Succosi', 'frutta', 10), 'oranges stay in October');
+
 echo $fail === 0 ? "\nAll seasonal match tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

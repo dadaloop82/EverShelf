@@ -108,10 +108,85 @@ function seasonalScoreCandidate(string $q, string $head, string $c): int {
  * keep their shelf life all year, so they must never be flagged (nor removed)
  * for being "out of season".
  */
-const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol|in vetro|vasett|conserve|conservat|sottolio|sottaceto|salamoia|marinat|pelat|passata|sugo|concentrat|polpa|essiccat|disidratat|liofilizzat|secc[oh]|marmellat|confettur|sciroppat|al naturale/u';
+const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol|in vetro|vasett|conserve|conservat|sottolio|sottaceto|salamoia|marinat|pelat|passata|sugo|concentrat|essiccat|disidratat|liofilizzat|secc[oh]|marmellat|confettur|sciroppat|al naturale/u';
+
+/**
+ * Head nouns that make a product a preserve on their own.
+ *
+ * "Polpa di pomodoro" is canned pulp, but "pesca noce piatta a polpa gialla"
+ * describes a fresh variety — so a bare "polpa" only counts when it is the
+ * head noun, never as a qualifier further down the name.
+ */
+const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea'];
 
 function seasonalIsPreserved(string $name): bool {
-    return (bool)preg_match(SEASONAL_PRESERVED_PATTERN, seasonalNormalize($name));
+    $n = seasonalNormalize($name);
+    if (preg_match(SEASONAL_PRESERVED_PATTERN, $n)) {
+        return true;
+    }
+    return in_array(seasonalHeadToken($n), SEASONAL_PRESERVED_HEADS, true);
+}
+
+/**
+ * Product categories that describe fresh produce.
+ *
+ * Seasonality is only meaningful for the fruit & vegetable shelf: a jar of
+ * dried oregano ("Origano foglie") or an orange-flavoured drink are correctly
+ * named after a plant but are on the shelf all year, so they must never be
+ * treated as out of season. EverShelf stores both the Italian labels used by
+ * the UI and the raw Open Food Facts slugs imported from the product barcode.
+ */
+const SEASONAL_FRESH_CATEGORIES = [
+    'frutta', 'verdura', 'verdure', 'ortofrutta', 'frutta e verdura', 'ortaggi',
+];
+
+function seasonalIsFreshCategory(string $category): bool {
+    $c = mb_strtolower(trim($category));
+    if ($c === '') {
+        return false;
+    }
+    if (in_array($c, SEASONAL_FRESH_CATEGORIES, true)) {
+        return true;
+    }
+    // Open Food Facts slugs: en:fruits, en:vegetables-and-their-products, …
+    // Anything else (en:plant-based-foods-and-beverages, en:farming-products,
+    // conserve, latticini…) is a pantry shelf, not the fresh produce crate.
+    foreach (['fruit', 'vegetable', 'verdur', 'ortofrutta'] as $needle) {
+        if (str_contains($c, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Crops whose *harvest* is seasonal but which are on the shelf all year:
+ * cured/stored alliums and roots (onions, garlic, potatoes, carrots, squash),
+ * fruit that keeps in cold storage (apples, pears, citrus) and greenhouse
+ * staples (tomatoes). The catalogue is a harvest calendar — without this list
+ * the app would stop suggesting onions in October, when every shop has them.
+ *
+ * Anchored on the head noun: "mel[ae]" never matches "melone".
+ */
+const SEASONAL_ALL_YEAR_HEADS = '/^(cipoll|scalogn|agli|porr|patat|carot|barbabietol|rap[ae]|zucc[ah]|mel[ae]|per[ae]|limon|aranc|mandarin|clementin|pomodor)/u';
+
+function seasonalIsAllYearCrop(string $name): bool {
+    $head = seasonalHeadToken(seasonalNormalize($name));
+    return $head !== '' && (bool)preg_match(SEASONAL_ALL_YEAR_HEADS, $head);
+}
+
+/**
+ * Should fresh produce be hidden from the shopping list because the current
+ * month cannot supply it? Preserved forms (frozen, canned, dried), non-produce
+ * categories and all-year crops (see above) always answer false, so pantry
+ * staples keep working whatever the calendar says.
+ */
+function seasonalProduceOutOfSeason(string $name, string $category = '', ?int $month = null): bool {
+    if (!seasonalIsFreshCategory($category) || seasonalIsAllYearCrop($name)) {
+        return false;
+    }
+    $match = seasonalMatchProduce($name, $month);
+    return $match !== null && ($match['status'] ?? '') === 'off';
 }
 
 /**

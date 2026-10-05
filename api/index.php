@@ -16146,6 +16146,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
     // 5. Analyze each product
     $items = [];
+    $skippedOutOfSeason = [];
     $wasteLearning = _loadWasteLearning($db);
     foreach ($products as $p) {
         $pid = $p['id'];
@@ -16552,6 +16553,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         if ($urgency === 'none') continue;
 
+        // Fresh produce out of season: never suggest what the shelf cannot have.
+        // The check is gated on a fresh-produce category, so a jar of dried
+        // oregano named after a plant and frozen/canned forms (excluded by
+        // seasonalIsPreserved) keep being suggested all year.
+        if (seasonalProduceOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))) {
+            $skippedOutOfSeason[] = (string)$p['name'];
+            continue;
+        }
+
         // Family stock coverage: suppress items covered by other products in the same generic family.
         // For non-expired items (including critical/empty): suppress if family has other stock.
         // For expired items: suppress if the family has FRESH stock from other products.
@@ -16849,11 +16859,20 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);
 
+    if ($skippedOutOfSeason !== []) {
+        EverLog::debug('Smart shopping skipped out-of-season produce', [
+            'event' => 'smart_shopping_out_of_season',
+            'count' => count($skippedOutOfSeason),
+            'names' => array_slice($skippedOutOfSeason, 0, 20),
+        ]);
+    }
+
     echo json_encode([
         'success' => true,
         'items' => $items,
         'plan_days' => $planDays,
         'plan_days_default' => $planDefault,
+        'skipped_out_of_season' => count($skippedOutOfSeason),
     ], JSON_UNESCAPED_UNICODE);
 }
 
