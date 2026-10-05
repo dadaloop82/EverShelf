@@ -909,6 +909,11 @@
     "timer_chip": "⏱️ 00:00 · Timer"
   },
   "settings": {
+    "groups_aria": "Sezioni delle impostazioni",
+    "group_app": "🤖 App e AI",
+    "group_cooking": "🍳 Cucina",
+    "group_alerts": "🔔 Avvisi e servizi",
+    "group_system": "⚙️ Sistema",
     "calendar": {
       "tab": "Calendario",
       "title": "🗓️ Calendario scadenze",

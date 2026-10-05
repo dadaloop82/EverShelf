@@ -152,6 +152,30 @@ the next release.
   `translations/*.json`. The out-of-season block also explains itself now
   (`seasonal_out_note`): the smart list skips out-of-season fresh produce and brings
   it back when its season does.
+- **The settings page now navigates in two levels: four sections, then their tabs.**
+  Sixteen tab buttons shared a single scrolling strip — *Generali, API, Spesa,
+  Ricette, Salute, Piano, Cucina, Camera, Sicurezza, Voce, HA, Notifiche, Bilancia,
+  Backup, Calendario, Info* — mixing unrelated panels (Home Assistant sat between the
+  voice settings and the shopping list), and the Kiosk download banner, the two Kiosk
+  panels and the About card lived *outside* `.settings-panels`, so they were painted
+  below every single tab, whatever you were configuring. The strip is grouped in
+  **🤖 App & AI**, **🍳 Cucina**, **🔔 Avvisi e servizi**, **⚙️ Sistema** and only the
+  tabs of the active section are shown, so the page opens on four buttons instead of
+  sixteen; the Kiosk cards and About moved into *Info*, next to the version and the
+  bug-report button they belong with.
+  - `switchSettingsGroup()`, `_syncSettingsGroupForTab()` and `_restoreSettingsNav()`
+    in `assets/js/app.js`: a tab opened from anywhere (deep link, "configure" button,
+    restore) brings its section forward, the tab strip scrolls the selection into
+    view, and the section + tab you last used reopen on the next visit
+    (`evershelf_settings_group` / `evershelf_settings_tab`). `.click()` is used to
+    switch tabs so each tab keeps its own loader (`_loadNotifyTab`, `_loadHaTab`…).
+  - `scripts/test-settings-nav.php` (26 assertions) locks HTML, JS and translations
+    together: every tab names a section the JS knows, every panel has exactly one tab
+    and every tab exactly one panel, the page opens on a tab of the highlighted
+    section, the four labels exist in all six locales, and the Kiosk/About blocks
+    really live inside `#tab-info` (checked through the DOM, not a substring).
+    Dropping a single `data-group` fails it.
+  - Asset/i18n stamp → `20261005f`; 5 new keys in all six locales.
 - **A third CSS layer re-skins the UI without touching the other two.**
   `assets/css/elegant.css` loads after `style.css` and `corporate.css` and only
   re-skins what they already lay out: rounder geometry, a two-layer soft elevation,
