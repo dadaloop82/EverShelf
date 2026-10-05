@@ -161,6 +161,28 @@ that is not highlighted, or if those blocks move back out of *Info*.
 
 > **Security note:** `get_settings` returns only **boolean flags** (`gemini_key_set: true/false`), never raw key values. Raw values are only accessible server-side.
 
+### Setup checklist and guided assistant
+
+The first card on the settings page lists every configurable option with its state
+(*configured* / *not configured* / *optional*) and jumps to the right tab. It stays a
+single compact line while everything is configured and opens by itself as soon as
+something is missing.
+
+**▶️ Review the options** re-runs the guided assistant (`_setupSteps()`): it walks
+through the open options — ntfy notifications and the cron watchdog can be tested from
+inside the wizard, before anything is saved — and can be left at any step.
+
+An option is asked **once**. The ledger is stored per item in `evershelf_setup_seen`
+(keyed by the item's `askVersion` in `SETTINGS_CHECKLIST`), and the checklist card
+keeps showing it until it is actually configured: skipping the question is not the
+same as losing it. Adding a new integration means adding one entry to that registry —
+the card and the assistant pick it up automatically, and raising `askVersion` asks
+again.
+
+`scripts/test-setup-assistant.php` fails if a row points at a tab that does not exist,
+if an `ask` item names a wizard step outside `_setupSteps()`, if a label is missing in
+any of the six locales, or if the wizard goes back to a hardcoded closing step.
+
 ---
 
 ## Push Notifications (ntfy / generic webhook)

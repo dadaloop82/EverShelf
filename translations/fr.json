@@ -914,6 +914,18 @@
     "group_cooking": "🍳 Cuisine",
     "group_alerts": "🔔 Alertes & services",
     "group_system": "⚙️ Système",
+    "checklist": {
+      "title": "🧭 Liste de configuration",
+      "summary_ok": "Tout est configuré",
+      "summary_todo": "{count} options à définir",
+      "state_ok": "Configuré",
+      "state_todo": "À configurer",
+      "state_optional": "Facultatif",
+      "configure": "Configurer",
+      "show": "Afficher les entrées",
+      "hide": "Masquer les entrées",
+      "run": "▶️ Revoir les options"
+    },
     "calendar": {
       "tab": "Calendrier",
       "title": "🗓️ Calendrier des dates limites",
@@ -2301,6 +2313,8 @@
     "items_required": "Ajoutez au moins un produit"
   },
   "setup": {
+    "notify_test_btn": "📨 Envoyer une notification de test",
+    "notify_need_topic": "Saisissez d'abord un topic ntfy.",
     "complete_desc": "Configuration terminée. Vous pouvez modifier ces paramètres à tout moment dans Réglages.",
     "ready_title": "Tout est prêt !",
     "next_btn": "Suivant →",

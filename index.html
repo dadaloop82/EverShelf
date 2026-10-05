@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005f">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005f">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005g">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005g">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005g">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005f"></script>
-    <script src="assets/js/core/auth.js?v=20261005f"></script>
+    <script src="assets/js/core/dom.js?v=20261005g"></script>
+    <script src="assets/js/core/auth.js?v=20261005g"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005g';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005f';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005g';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005f"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005g"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -941,6 +941,21 @@
         <div class="page-header">
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
+        </div>
+        <!-- Setup checklist: what is already configured, what still needs a decision,
+             and the way into the guided assistant. Rendered by
+             _renderSettingsChecklist() in app.js from SETTINGS_CHECKLIST (the same
+             registry the assistant asks its questions from). -->
+        <div class="settings-card checklist-card" id="settings-checklist" data-state="ok">
+            <div class="checklist-head">
+                <h4 data-i18n="settings.checklist.title">🧭 Configurazione guidata</h4>
+                <span class="checklist-summary" id="checklist-summary">…</span>
+            </div>
+            <div class="checklist-items" id="checklist-items" hidden></div>
+            <div class="checklist-actions">
+                <button class="btn btn-small btn-accent" onclick="startSetupAssistant()" data-i18n="settings.checklist.run">▶️ Rivedi le opzioni</button>
+                <button class="btn btn-small btn-secondary" id="checklist-toggle" onclick="_toggleChecklistItems()" data-i18n="settings.checklist.show">▼ Mostra voci</button>
+            </div>
         </div>
         <!-- Level 1: sections. The tab strip below only shows the tabs of the active section,
              so 16 buttons are never on screen at once. See switchSettingsGroup() in app.js. -->
@@ -2546,6 +2561,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005f"></script>
+<script src="assets/js/app.js?v=20261005g"></script>
 </body>
 </html>

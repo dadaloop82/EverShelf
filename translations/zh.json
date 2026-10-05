@@ -914,6 +914,18 @@
     "group_cooking": "🍳 烹饪",
     "group_alerts": "🔔 提醒与服务",
     "group_system": "⚙️ 系统",
+    "checklist": {
+      "title": "🧭 配置清单",
+      "summary_ok": "全部已配置",
+      "summary_todo": "{count} 个选项待确定",
+      "state_ok": "已配置",
+      "state_todo": "未配置",
+      "state_optional": "可选",
+      "configure": "配置",
+      "show": "显示条目",
+      "hide": "隐藏条目",
+      "run": "▶️ 查看选项"
+    },
     "calendar": {
       "tab": "日历",
       "title": "🗓️ 保质期日历",
@@ -2301,6 +2313,8 @@
     "items_required": "请至少添加一件商品"
   },
   "setup": {
+    "notify_test_btn": "📨 发送测试通知",
+    "notify_need_topic": "请先填写 ntfy topic。",
     "complete_desc": "设置已完成。可随时在设置中修改。",
     "ready_title": "一切就绪！",
     "next_btn": "下一步 →",

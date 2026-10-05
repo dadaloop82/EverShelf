@@ -142,6 +142,33 @@ the next release.
     plain form field), `notify_healthcheck_*` in `get_settings`, and
     `scripts/test-healthcheck.php`.
 
+- **A setup checklist and a guided assistant, so a new option cannot be missed.**
+  Configurable options only ever lived inside the settings page: to discover one you
+  had to open the right tab, and nothing ever told you that notifications — the whole
+  point of an app pinging you — were still unconfigured. A single registry
+  (`SETTINGS_CHECKLIST` in `assets/js/app.js`) now describes every option, the tab it
+  lives in and whether it is set, and two things read it:
+  - a **checklist card at the top of Settings** — one compact line while everything is
+    configured, the full list the moment something is missing — with the state of all
+    nine configurable options, a row per option and a **Configura →** button that
+    opens the right tab and flashes the right card;
+  - the **guided assistant** (the first-run wizard) now asks about notifications and
+    the cron watchdog too, with a 🎲 topic generator and buttons that prove the
+    configuration *before* it is saved (**send a real test notification**, **ping the
+    watchdog**). Every asked step is recorded in `evershelf_setup_seen` together with
+    the item's `askVersion`, so the question is asked **once** — bump that number to
+    re-ask after a genuinely new option — while the checklist keeps showing whatever is
+    still missing. **▶️ Rivedi le opzioni** re-runs the assistant on demand over every
+    open option, not only the never-asked ones. This also fixes the wizard appearing
+    only on a truly fresh install (`evershelf_setup_done`): every later start consults
+    the registry.
+  - The wizard's closing step is no longer the hardcoded index 4 (the list grew to
+    six), and `get_settings` returns `ics_enabled` so the calendar row is not stuck on
+    "not configured".
+  - 12 new keys in all six locales; asset/i18n stamp → `20261005g`;
+    `scripts/test-setup-assistant.php` (257 assertions: registry ↔ real tabs, wizard
+    steps, all six locales, the ask-once ledger, no hardcoded closing index).
+
 ### Changed
 - **The seasonal review tip is translated in all six locales.** The card's tip was
   built from two hardcoded `it`/`en` tables inside `api/lib/seasonal.php` — a
