@@ -11,6 +11,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.9.3] - 2026-10-05
+
+One bug, and it explains why settings on an install with a read-only `.env` kept
+"disappearing": they were stored, and then never read back.
+
+**Highlights**
+
+- **Settings stored in the database are read again** — when `.env` cannot be written
+  by the web server (Docker, or a `.env` owned by root), `save_settings` stores the
+  value in SQLite and answers `success — stored: database`. But bootstrap.php read
+  `DISPLAY_ERRORS` through `env()` *before* `api/database.php` was loaded, and
+  `loadEnvOverrides()` cached that "database not ready" answer for the rest of the
+  request — so from then on every `env()` call in that request ignored the database.
+  Custom storage units, dietary preferences and the rest looked lost after an
+  update, and adding one again appeared to save nothing although the row WAS written
+  every single time.
+
+  Closes [#261](https://github.com/dadaloop82/EverShelf/issues/261).
+
+**Upgrading from 1.9.2**
+
+- Nothing to do, and nothing to re-enter: the values saved during the broken window
+  are still in the database, they simply start being read again.
+- `save_settings` now reads its own fallback back before answering, so a store that
+  cannot be read fails loudly (`settings_not_persisted`) instead of showing a green
+  toast.
+- The database fallback lives in `data/evershelf.db`: if you run EverShelf in Docker
+  and your `.env` is not writable, keep `data/` on a volume or the overrides go away
+  with the container.
+
+Below is the long form of the fix, plus what the new test locks down.
+
+### Fixed
+- **Settings stored in the DB fallback were ignored for the rest of the request
+  (#261)** — `loadEnvOverrides()` no longer caches the "the database is not loaded
+  yet" answer that bootstrap triggers on every HTTP request. It also means the
+  fallback now behaves exactly like a `.env` write: the same `env()` call, the same
+  effective value, in the request that saved it and in every request after it.
+  CLI and cron were never affected — a `CRON_MODE` process short-circuits the early
+  `env('DISPLAY_ERRORS')` — which is why the watchdog, the notifier and the
+  smart-shopping jobs kept reading their overrides while the web UI did not.
+- **`save_settings` no longer claims a success it cannot prove (#261)** — after the
+  fallback stores the value it is read back through `env()`; a mismatch returns
+  `settings_not_persisted` and logs `settings_fallback_readback_failed` instead of
+  leaving the user with a green toast and an old value. `scripts/test-env-overrides.php`
+  replays the bootstrap order in a child process and fails when the value written by
+  the fallback cannot be read back afterwards, so this cannot silently regress. The
+  same test asserts the structural rule that let it happen: the "database is not
+  loaded yet" answer must never enter the static cache.
+
 ## [1.9.2] - 2026-10-05
 
 Two bug reports from the tracker: EverShelf answered in the wrong language, and

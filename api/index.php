@@ -8467,6 +8467,25 @@ function saveSettings(): void {
         }
     }
     if (!empty($overrideUpdates) && saveEnvOverrides($overrideUpdates)) {
+        // Prove the value is readable before telling the user it was saved: a
+        // fallback that stores but does not read back is worse than an error
+        // (issue #261 — the toast said "saved" while every later request showed
+        // the old value).
+        foreach ($overrideUpdates as $overrideKey => $overrideValue) {
+            if (env($overrideKey) !== $overrideValue) {
+                EverLog::warn('settings fallback stored a value it cannot read back', [
+                    'event' => 'settings_fallback_readback_failed',
+                    'key'   => $overrideKey,
+                ]);
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'settings_not_persisted',
+                    'key'     => $overrideKey,
+                ]);
+                return;
+            }
+        }
         echo json_encode(['success' => true, 'stored' => 'database']);
         return;
     }
