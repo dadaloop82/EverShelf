@@ -146,6 +146,20 @@ $required = [
     'dashboard.still_have_qty'               => ['{qty}'],
     'dashboard.banner_expired_action_extend' => [],
     'recipes.fuel_badge_target'              => ['{kcal}', '{protein}'],
+    // The three extra insight panels + the spend panel's empty state
+    'dashboard.overview_title'               => [],
+    'dashboard.tile_total'                   => [],
+    'dashboard.tile_expiring'                => [],
+    'dashboard.tile_expired'                 => [],
+    'dashboard.tile_opened'                  => [],
+    'dashboard.tile_locations'               => [],
+    'dashboard.freshness_title'              => [],
+    'dashboard.score_tracked'                => [],
+    'dashboard.trend_title'                  => [],
+    'dashboard.trend_consumed'               => [],
+    'dashboard.trend_wasted'                 => [],
+    'dashboard.trend_source'                 => [],
+    'stats_spend.empty_hint'                 => [],
 ];
 foreach ($required as $key => $placeholders) {
     $problems = [];

@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005h'; // bump when translations change
+const _I18N_VERSION = '20261005i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4692,7 +4692,11 @@ function onShoppingEnabledChange() {
 
 function onShoppingModeChange(value) {
     const bringSection = document.getElementById('bring-subsection');
-    if (bringSection) bringSection.style.display = value === 'bring' ? '' : 'none';
+    if (bringSection) {
+        bringSection.style.display = value === 'bring' ? '' : 'none';
+        // It is a collapsed card now: showing it without opening it would look empty.
+        if (value === 'bring') _openSettingsCardFor(bringSection);
+    }
     const s = getSettings();
     s.shopping_mode = value;
     saveSettingsToStorage(s);
@@ -5189,6 +5193,7 @@ function _syncSettingsGroupForTab(tabId) {
 
 /** Reopen the last section/tab the user configured (called by loadSettingsUI). */
 function _restoreSettingsNav() {
+    _initSettingsAccordions();
     let tab = 'tab-general';
     let group = 'app';
     try {
@@ -5201,6 +5206,90 @@ function _restoreSettingsNav() {
     } else {
         switchSettingsGroup(group, true);
     }
+}
+
+// ── Settings cards: everything starts collapsed, one opens at a time ───────
+// A panel with ten open cards (Notifications, Home Assistant) buries the option
+// you came for. Every card that has a heading becomes a sub-section: the heading
+// turns into a clickable row with a chevron and the rest of the card is hidden
+// until it is opened. A card without a heading (or the checklist) is left alone,
+// and the checklist opens the card it jumps to.
+
+/** Cards the accordion must leave alone. */
+const SETTINGS_ACCORDION_SKIP = ['settings-checklist'];
+
+/** Give every settings card an openable header. Idempotent. */
+function _initSettingsAccordions() {
+    document.querySelectorAll('.settings-panels .settings-card').forEach(card => {
+        if (card.dataset.accordion === 'ready') return;
+        if (SETTINGS_ACCORDION_SKIP.includes(card.id)) return;
+        const head = card.querySelector(':scope > h4, :scope > h3');
+        if (!head) return;                    // nothing to name the card with
+        card.dataset.accordion = 'ready';
+
+        const headWrap = document.createElement('div');
+        headWrap.className = 'settings-card-head';
+        headWrap.setAttribute('role', 'button');
+        headWrap.setAttribute('tabindex', '0');
+        headWrap.setAttribute('aria-expanded', 'false');
+        const chevron = document.createElement('span');
+        chevron.className = 'settings-card-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        chevron.textContent = '▸';
+
+        card.insertBefore(headWrap, head);
+        headWrap.appendChild(head);           // the h4 keeps its data-i18n
+        headWrap.appendChild(chevron);
+
+        const body = document.createElement('div');
+        body.className = 'settings-card-body';
+        [...card.childNodes]
+            .filter(node => node !== headWrap)
+            .forEach(node => body.appendChild(node));
+        card.appendChild(body);
+
+        // Keep the card's own explanation visible while it is collapsed, so a
+        // header still says what the option is about (and it must not appear twice).
+        const hint = body.querySelector(':scope > .settings-hint');
+        if (hint) headWrap.appendChild(hint);
+
+        headWrap.addEventListener('click', () => _toggleSettingsCard(card));
+        headWrap.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                _toggleSettingsCard(card);
+            }
+        });
+    });
+}
+
+/** Open/close one card; opening closes whichever other card was open. */
+function _toggleSettingsCard(card) {
+    const open = !card.classList.contains('open');
+    if (open) _closeSettingsCards(card);
+    _setSettingsCardOpen(card, open);
+}
+
+function _setSettingsCardOpen(card, open) {
+    if (!card) return;
+    card.classList.toggle('open', open);
+    const head = card.querySelector(':scope > .settings-card-head');
+    if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/** Close every open card except $except (there is only ever one open). */
+function _closeSettingsCards(except = null) {
+    document.querySelectorAll('.settings-panels .settings-card.open').forEach(card => {
+        if (card !== except) _setSettingsCardOpen(card, false);
+    });
+}
+
+/** Open the card an element lives in (checklist jumps, cards shown by a toggle). */
+function _openSettingsCardFor(el) {
+    const card = el && el.closest ? el.closest('.settings-card') : null;
+    if (!card) return;
+    _closeSettingsCards(card);
+    _setSettingsCardOpen(card, true);
 }
 
 function _getSelectedAiProvider() {
@@ -5220,6 +5309,10 @@ function _onAiProviderChange(prov) {
     s.ai_provider = prov;
     saveSettingsToStorage(s);
     _syncAiProviderUi();
+    // Only one credential card is shown per provider: open it, otherwise the
+    // panel would look like the provider has nothing to configure.
+    _openSettingsCardFor(document.getElementById(prov === 'openai' ? 'settings-ai-openai-card'
+        : prov === 'llama' ? 'settings-ai-llama-card' : 'settings-ai-gemini-card'));
 }
 
 function _syncAiProviderUi() {
@@ -6159,13 +6252,39 @@ function _renderMonthlyStatsSection(data) {
 
 // ===== SPEND SECTION =====
 // Panel in dashboard insight rotation (month-to-month shopping spend).
+// ===== SHOPPING SPEND (empty state) =====
+/**
+ * The spend panel before anything was ever recorded: say so, say how the number is
+ * produced, and show the current list total when the price module has one.
+ */
+function _renderSpendEmpty(section) {
+    const s = getSettings();
+    const total = (s.price_enabled && _canonicalShoppingTotal) ? _canonicalShoppingTotal.label : '';
+    section.innerHTML = `
+        <div class="nutr-card spend-card">
+            <div class="aw-header">
+                <div class="aw-title-row">
+                    <span class="aw-live-dot"></span>
+                    <h3 class="aw-title">${escapeHtml(t('stats_spend.title'))}</h3>
+                </div>
+            </div>
+            <p class="settings-hint" style="margin:8px 0 0">${escapeHtml(t('stats_spend.empty_hint'))}</p>
+            ${total ? `<div class="insight-foot">${escapeHtml(t('shopping.price_total_label'))}: <strong>${escapeHtml(total)}</strong></div>` : ''}
+            <div class="aw-source">${escapeHtml(t('shopping.spend_modal_hint'))}</div>
+        </div>`;
+    section.style.display = (_insightPhase === 'spend') ? 'block' : 'none';
+}
+
 function _renderSpendSection(data) {
     const section = document.getElementById('spend-section');
     if (!section) return;
 
-    if (!data || !data.success || !Array.isArray(data.totals) || data.totals.length === 0) {
-        section.innerHTML = '';
-        section.style.display = 'none';
+    // No spend recorded yet: explain where the number comes from instead of hiding
+    // the panel, because "the chart is always zero" is not something a user can
+    // even guess (the amount is asked when a shopping session is closed).
+    if (!data || !data.success || !Array.isArray(data.totals) || data.totals.length === 0
+        || data.totals.every(row => Number(row.amount || 0) <= 0)) {
+        _renderSpendEmpty(section);
         return;
     }
 
@@ -6229,6 +6348,131 @@ function _renderSpendSection(data) {
     section.style.display = (_insightPhase === 'spend') ? 'block' : 'none';
 }
 
+// ===== DASHBOARD OVERVIEW (#119) =====
+/**
+ * Snapshot of the pantry: how much is in it, how much is urgent and where it is.
+ * The old rotation never answered "how is my pantry doing right now" in one look.
+ */
+function _renderOverviewSection(stats, summary) {
+    const section = document.getElementById('overview-section');
+    if (!section) return;
+    if (!stats) { section.innerHTML = ''; return; }
+
+    const total = (summary || []).reduce((sum, row) => sum + (row.product_count || 0), 0);
+    const tiles = [
+        { key: 'dashboard.tile_total',    value: total,                          icon: '📦' },
+        { key: 'dashboard.tile_expiring', value: (stats.expiring_soon || []).length, icon: '⏰' },
+        { key: 'dashboard.tile_expired',  value: (stats.expired || []).length,       icon: '🚫' },
+        { key: 'dashboard.tile_opened',   value: (stats.opened || []).length,        icon: '🫙' },
+    ];
+    const locations = (summary || [])
+        .filter(row => (row.product_count || 0) > 0)
+        .map(row => {
+            const info = LOCATIONS[row.location] || { icon: '📦', label: row.location };
+            return `${info.icon} ${info.label} ${row.product_count}`;
+        })
+        .join(' · ');
+
+    section.innerHTML = `
+    <div class="nutr-card">
+        <div class="aw-header">
+            <div class="aw-title-row">
+                <span class="aw-live-dot aw-live-on"></span>
+                <h3 class="aw-title">${escapeHtml(t('dashboard.overview_title'))}</h3>
+            </div>
+        </div>
+        <div class="insight-tiles">
+            ${tiles.map(tile => `<div class="insight-tile">
+                <span class="insight-tile-value">${tile.value}</span>
+                <span class="insight-tile-label">${tile.icon} ${escapeHtml(t(tile.key))}</span>
+            </div>`).join('')}
+        </div>
+        ${locations ? `<div class="insight-foot">${escapeHtml(t('dashboard.tile_locations'))}: ${escapeHtml(locations)}</div>` : ''}
+    </div>`;
+
+    section.style.display = (_insightPhase === 'overview') ? 'block' : 'none';
+}
+
+// ===== DASHBOARD FRESHNESS (#120) =====
+/**
+ * How well the pantry is tracked and how varied it is: the share of products with
+ * an expiry date, the number of categories in use and the fresh/shelf-stable split.
+ */
+function _renderFreshnessSection(inventory) {
+    const section = document.getElementById('freshness-section');
+    if (!section) return;
+    const data = _buildNutritionData(inventory);
+    if (!data) { section.innerHTML = ''; return; }
+
+    const { slices, total, freshnessScore, varietyScore, fresh_pct } = data;
+    const top = slices[0];
+
+    section.innerHTML = `
+    <div class="nutr-card">
+        <div class="aw-header">
+            <div class="aw-title-row">
+                <span class="aw-live-dot aw-live-on"></span>
+                <h3 class="aw-title">${escapeHtml(t('dashboard.freshness_title'))}</h3>
+            </div>
+            <span class="aw-grade" style="background:#0ea5e9;font-size:.75rem;padding:4px 10px">
+                ${escapeHtml(t('nutrition.products_n', { n: total }))}
+            </span>
+        </div>
+        <div class="fresh-bars">
+            ${_nutrScoreBar(escapeHtml(t('dashboard.score_tracked')), freshnessScore, '#a78bfa')}
+            ${_nutrScoreBar(escapeHtml(t('nutrition.label_variety')), varietyScore, '#60a5fa')}
+            ${_nutrScoreBar(escapeHtml(t('nutrition.label_fresh')), fresh_pct, '#22d3ee')}
+        </div>
+        ${top ? `<div class="insight-foot">${escapeHtml(t('stats_monthly.top_cats'))}: ${categoryLabel(top.cat)}</div>` : ''}
+        <div class="aw-source">${escapeHtml(t('nutrition.source', { n: total }))}</div>
+    </div>`;
+
+    section.style.display = (_insightPhase === 'freshness') ? 'block' : 'none';
+}
+
+// ===== DASHBOARD TREND (#121) =====
+/**
+ * The last 30 days against the 30 before them: are you using more and wasting less?
+ * The anti-waste card shows the current month only, as a grade.
+ */
+function _renderTrendSection(stats) {
+    const section = document.getElementById('trend-section');
+    if (!section) return;
+    if (!stats) { section.innerHTML = ''; return; }
+
+    const delta = (curr, prev) => {
+        if (!prev) return '';
+        const pct = Math.round((curr - prev) / prev * 100);
+        if (pct > 3) return t('stats_monthly.trend_up', { pct, prev: t('antiwaste.months_ago_1') });
+        if (pct < -3) return t('stats_monthly.trend_down', { pct: Math.abs(pct), prev: t('antiwaste.months_ago_1') });
+        return t('stats_monthly.trend_same');
+    };
+    const rows = [
+        { label: 'dashboard.trend_consumed', value: stats.used_30d || 0,   diff: delta(stats.used_30d || 0, stats.used_prev_30d || 0),       color: '#22c55e' },
+        { label: 'dashboard.trend_wasted',   value: stats.wasted_30d || 0, diff: delta(stats.wasted_30d || 0, stats.wasted_prev_30d || 0), color: '#ef4444' },
+    ];
+
+    section.innerHTML = `
+    <div class="nutr-card">
+        <div class="aw-header">
+            <div class="aw-title-row">
+                <span class="aw-live-dot aw-live-on"></span>
+                <h3 class="aw-title">${escapeHtml(t('dashboard.trend_title'))}</h3>
+            </div>
+        </div>
+        ${rows.map(row => `<div class="insight-row">
+            <span class="insight-row-value" style="color:${row.color}">${row.value}</span>
+            <span class="insight-row-body">
+                <span class="insight-row-label">${escapeHtml(t(row.label))}</span>
+                <span class="insight-row-diff">${escapeHtml(row.diff)}</span>
+            </span>
+        </div>`).join('')}
+        <div class="aw-source">${escapeHtml(t('dashboard.trend_source'))}</div>
+    </div>`;
+
+    section.style.display = (_insightPhase === 'trend') ? 'block' : 'none';
+}
+
 // ===== MACROS SECTION (#118) =====
 /**
  * Render the macronutrient breakdown panel into #macros-section.
@@ -6278,10 +6522,11 @@ function _renderMacrosSection(data) {
 }
 
 /**
- * Start the waste ↔ nutrition ↔ monthly stats alternation on the dashboard.
+ * Start the insight rotation on the dashboard: overview, waste, trend, nutrition,
+ * freshness, monthly stats, spend, macros — one panel per minute.
  */
-let _insightPhase = null; // 'waste' | 'nutrition' | 'monthly' | 'spend' | 'macros'
-const _INSIGHT_PHASES = ['waste', 'nutrition', 'monthly', 'spend', 'macros'];
+let _insightPhase = null;
+const _INSIGHT_PHASES = ['overview', 'waste', 'trend', 'nutrition', 'freshness', 'monthly', 'spend', 'macros'];
 
 function _startInsightAlternation() {
     clearInterval(_insightFlipTimer);
@@ -6302,12 +6547,18 @@ function _applyInsightPhase() {
     const monthlyEl = document.getElementById('monthly-stats-section');
     const macrosEl  = document.getElementById('macros-section');
     const spendEl   = document.getElementById('spend-section');
+    const overviewEl  = document.getElementById('overview-section');
+    const freshnessEl = document.getElementById('freshness-section');
+    const trendEl     = document.getElementById('trend-section');
     if (!wasteEl || !nutrEl) return;
 
     // Map of which panels actually have rendered content
     const hasContent = {
+        'overview':  !!overviewEl  && overviewEl.innerHTML.trim()  !== '',
         'waste':     wasteEl.innerHTML.trim()    !== '',
+        'trend':     !!trendEl     && trendEl.innerHTML.trim()     !== '',
         'nutrition': nutrEl.innerHTML.trim()     !== '',
+        'freshness': !!freshnessEl && freshnessEl.innerHTML.trim() !== '',
         'monthly':   !!monthlyEl && monthlyEl.innerHTML.trim() !== '',
         'macros':    !!macrosEl  && macrosEl.innerHTML.trim()  !== '',
         'spend':     !!spendEl && spendEl.innerHTML.trim()  !== '',
@@ -6320,21 +6571,19 @@ function _applyInsightPhase() {
         phase = _INSIGHT_PHASES[(_INSIGHT_PHASES.indexOf(phase) + 1) % _INSIGHT_PHASES.length];
     }
 
-    const showWaste   = phase === 'waste';
-    const showNutr    = phase === 'nutrition';
-    const showMonthly = phase === 'monthly';
-    const showMacros  = phase === 'macros';
-    const showSpend   = phase === 'spend';
-
-    // Fade-swap all panels
-    const els = [wasteEl, nutrEl, ...(monthlyEl ? [monthlyEl] : []), ...(macrosEl ? [macrosEl] : []), ...(spendEl ? [spendEl] : [])];
+    const els = [wasteEl, nutrEl,
+        ...(monthlyEl ? [monthlyEl] : []), ...(macrosEl ? [macrosEl] : []), ...(spendEl ? [spendEl] : []),
+        ...(overviewEl ? [overviewEl] : []), ...(freshnessEl ? [freshnessEl] : []), ...(trendEl ? [trendEl] : [])];
     els.forEach(el => { el.style.opacity = '0'; el.style.transition = 'opacity .6s'; });
     setTimeout(() => {
-        wasteEl.style.display   = showWaste   ? 'block' : 'none';
-        nutrEl.style.display    = showNutr    ? 'block' : 'none';
-        if (monthlyEl) monthlyEl.style.display = showMonthly ? 'block' : 'none';
-        if (macrosEl)  macrosEl.style.display  = showMacros  ? 'block' : 'none';
-        if (spendEl)   spendEl.style.display   = showSpend   ? 'block' : 'none';
+        wasteEl.style.display   = phase === 'waste'   ? 'block' : 'none';
+        nutrEl.style.display    = phase === 'nutrition' ? 'block' : 'none';
+        if (monthlyEl)   monthlyEl.style.display   = phase === 'monthly'   ? 'block' : 'none';
+        if (macrosEl)    macrosEl.style.display    = phase === 'macros'    ? 'block' : 'none';
+        if (spendEl)     spendEl.style.display     = phase === 'spend'     ? 'block' : 'none';
+        if (overviewEl)  overviewEl.style.display  = phase === 'overview'  ? 'block' : 'none';
+        if (freshnessEl) freshnessEl.style.display = phase === 'freshness' ? 'block' : 'none';
+        if (trendEl)     trendEl.style.display     = phase === 'trend'     ? 'block' : 'none';
         requestAnimationFrame(() => {
             els.forEach(el => { el.style.opacity = '1'; });
             if (showNutr) {
@@ -6568,6 +6817,12 @@ async function loadDashboard() {
 
         // Nutrition section — built from the full inventory list
         _renderNutritionSection(invForNutr);
+
+        // Pantry snapshot, tracking quality and the 30-day trend (three more
+        // panels of the same rotation: "how is my pantry doing right now")
+        _renderOverviewSection(statsData, summary);
+        _renderFreshnessSection(invForNutr);
+        _renderTrendSection(statsData);
 
         // Monthly stats panel
         _renderMonthlyStatsSection(monthlyData);
@@ -9990,7 +10245,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10000,7 +10255,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -25643,6 +25898,20 @@ function _checklistTodoItems() {
 }
 
 /**
+ * "News": options the assistant can ask about whose `askVersion` has moved on
+ * since the user acknowledged them, while the option itself is already set up —
+ * otherwise it would simply be in the todo list. A brand-new option therefore
+ * shows up here once (and the assistant asks about it) instead of shipping
+ * unnoticed inside a panel nobody opens.
+ */
+function _checklistNewsItems() {
+    const seen = _setupSeen();
+    return SETTINGS_CHECKLIST.filter(i => i.ask
+        && _checklistState(i) === 'ok'
+        && (seen[i.id] || 0) < (i.askVersion || 1));
+}
+
+/**
  * Wizard steps the assistant still has to ask about: flagged `ask`, not configured
  * and never asked at the current `askVersion`. Bumping askVersion re-asks once, so
  * a genuinely new option reaches people who already finished the setup.
@@ -25660,28 +25929,33 @@ function _assistantPendingSteps() {
 }
 
 // ===== SETUP WIZARD =====
-/** Paint the checklist card: compact when everything is configured, open when not. */
+/**
+ * Paint the checklist card. It only lists what needs a decision — the options that
+ * are not configured yet and the "news" (an option that gained something since the
+ * user last saw it) — because a list of nine rows where six say "Configured" is
+ * noise. With nothing to show it collapses to one line.
+ */
 function _renderSettingsChecklist() {
     const card = document.getElementById('settings-checklist');
     const box = document.getElementById('checklist-items');
     if (!card || !box) return;
     const todo = _checklistTodoItems();
+    const news = _checklistNewsItems();
+    const pending = todo.length + news.length;
 
-    card.dataset.state = todo.length === 0 ? 'ok' : 'todo';
+    card.dataset.state = pending === 0 ? 'ok' : 'todo';
     const summary = document.getElementById('checklist-summary');
     if (summary) {
-        summary.textContent = todo.length === 0
-            ? '✅ ' + t('settings.checklist.summary_ok')
-            : '⚠️ ' + t('settings.checklist.summary_todo', { count: todo.length });
+        summary.textContent = pending === 0
+            ? iconLabel('✅', 'settings.checklist.summary_ok')
+            : iconLabel('⚠️', t('settings.checklist.summary_todo', { count: pending }));
     }
 
-    box.innerHTML = SETTINGS_CHECKLIST.map(item => {
-        const ok = _checklistState(item) === 'ok';
-        const label = ok ? t('settings.checklist.state_ok')
+    const row = (item, kind) => {
+        const label = kind === 'news' ? t('settings.checklist.group_news')
             : (item.level === 'optional' ? t('settings.checklist.state_optional') : t('settings.checklist.state_todo'));
-        const chip = `<span class="checklist-state ${ok ? 'ok' : 'todo'}">${ok ? '✅' : (item.level === 'optional' ? '➖' : '⚠️')} ${escapeHtml(label)}</span>`;
-        const btn = ok ? ''
-            : `<button class="btn btn-small btn-secondary" onclick="_checklistGoTo('${item.id}')">${escapeHtml(t('settings.checklist.configure'))}</button>`;
+        const chip = `<span class="checklist-state ${kind === 'news' ? 'news' : 'todo'}">${kind === 'news' ? '🆕' : (item.level === 'optional' ? '➖' : '⚠️')} ${escapeHtml(label)}</span>`;
+        const btn = `<button class="btn btn-small btn-secondary" onclick="_checklistGoTo('${item.id}')">${escapeHtml(t('settings.checklist.configure'))}</button>`;
         return `<div class="checklist-item" data-item="${item.id}">
                     <div class="checklist-item-text">
                         <span class="checklist-item-title">${escapeHtml(t(item.titleKey))}</span>
@@ -25689,11 +25963,22 @@ function _renderSettingsChecklist() {
                     </div>
                     ${chip}${btn}
                 </div>`;
-    }).join('');
+    };
+
+    let html = '';
+    if (todo.length) {
+        html += `<div class="checklist-group-title">${escapeHtml(t('settings.checklist.group_todo'))}</div>`
+            + todo.map(item => row(item, 'todo')).join('');
+    }
+    if (news.length) {
+        html += `<div class="checklist-group-title">${escapeHtml(t('settings.checklist.group_news'))}</div>`
+            + news.map(item => row(item, 'news')).join('');
+    }
+    box.innerHTML = html;
 
     // Open the list when something still needs a decision, or when the user left
     // it open the last time.
-    let open = todo.length > 0;
+    let open = pending > 0;
     try { if (localStorage.getItem('evershelf_checklist_open') === '1') open = true; } catch (e) {}
     box.hidden = !open;
     _syncChecklistToggle(open);
@@ -25722,11 +26007,12 @@ function _checklistGoTo(id) {
     _flashSettingsCard(item.titleKey);
 }
 
-/** Scroll to a settings card and flash it, so a jump never lands in a guessing place. */
+/** Scroll to a settings card, open it and flash it, so a jump never guesses. */
 function _flashSettingsCard(titleKey) {
     const head = document.querySelector(`.settings-panels h4[data-i18n="${titleKey}"]`);
     const card = head ? head.closest('.settings-card') : null;
     if (!card) return;
+    _openSettingsCardFor(card);
     card.scrollIntoView({ block: 'center' });
     card.classList.remove('settings-card-flash');
     void card.offsetWidth;   // restart the animation when the same card is reopened

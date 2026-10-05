@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005h">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005h">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005h">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005i">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005i">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005i">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005h"></script>
-    <script src="assets/js/core/auth.js?v=20261005h"></script>
+    <script src="assets/js/core/dom.js?v=20261005i"></script>
+    <script src="assets/js/core/auth.js?v=20261005i"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005i';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005h';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005i';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005h"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005i"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -214,8 +214,11 @@
 
         <!-- Anti-Waste Report Card + Nutrition Analysis + Monthly Stats (alternating, content rendered by JS) -->
         <div id="dashboard-insight-wrap" style="position:relative">
+            <div id="overview-section" style="display:none"></div>
             <div id="waste-chart-section" style="display:none"></div>
+            <div id="trend-section" style="display:none"></div>
             <div id="nutrition-section" style="display:none"></div>
+            <div id="freshness-section" style="display:none"></div>
             <div id="monthly-stats-section" style="display:none"></div>
             <div id="macros-section" style="display:none"></div>
             <div id="spend-section" style="display:none"></div>
@@ -965,6 +968,10 @@
             <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')" data-i18n="settings.group_alerts">🔔 Avvisi</button>
             <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')" data-i18n="settings.group_system">⚙️ Sistema</button>
         </div>
+        <!-- Level 2: the sub-sections of the active section. They wrap instead of
+             scrolling sideways, so none of them can hide off-screen. See
+             switchSettingsGroup() in app.js. -->
+        <div class="settings-subsections-label" data-i18n="settings.subsections_label">Sottosezioni</div>
         <div class="settings-tabs" role="tablist">
             <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-group="app" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-group="app" data-tab="tab-api" title="API Keys" data-i18n-title="settings.tab_api"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
@@ -2561,6 +2568,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005h"></script>
+<script src="assets/js/app.js?v=20261005i"></script>
 </body>
 </html>

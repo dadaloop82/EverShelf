@@ -142,6 +142,25 @@ the next release.
     plain form field), `notify_healthcheck_*` in `get_settings`, and
     `scripts/test-healthcheck.php`.
 
+- **Three more dashboard panels, and the spend card explains itself.** The rotation
+  carried waste → nutrition → monthly → spend → macros and had nothing to say about the
+  pantry as a whole; the spend panel silently hid itself whenever nothing was logged
+  (so "the tracked spend is always zero" looked like a bug rather than a feature you
+  have to feed). The rotation is eight panels now — overview, waste, trend, nutrition,
+  freshness, monthly, spend, macros (`_INSIGHT_PHASES`) — with:
+  - **overview** (`/dashboard.tile_*`): products, expiring, expired, open packages as
+    tiles, plus where the stock actually is ("🗄️ Dispensa 12 · 🧊 Frigo 5…");
+  - **freshness** (`dashboard.freshness_title`, `dashboard.score_tracked`): how many
+    products have a tracked expiry, how varied the pantry is, how much of it is fresh
+    (fridge + freezer) and the leading category;
+  - **trend** (`dashboard.trend_*`): products used and thrown away in the last 30 days,
+    each compared with the 30 before it;
+  - **spend** never disappears: with nothing recorded it says so and explains where the
+    number comes from (*close a shopping session from continuous scanning and enter the
+    amount*), showing the current list total when the price module has one
+    (`stats_spend.empty_hint`).
+  - 13 new keys in all six locales, locked by `scripts/test-i18n-icons.php`.
+
 - **A setup checklist and a guided assistant, so a new option cannot be missed.**
   Configurable options only ever lived inside the settings page: to discover one you
   had to open the right tab, and nothing ever told you that notifications — the whole
@@ -149,9 +168,9 @@ the next release.
   (`SETTINGS_CHECKLIST` in `assets/js/app.js`) now describes every option, the tab it
   lives in and whether it is set, and two things read it:
   - a **checklist card at the top of Settings** — one compact line while everything is
-    configured, the full list the moment something is missing — with the state of all
-    nine configurable options, a row per option and a **Configura →** button that
-    opens the right tab and flashes the right card;
+    configured — that lists only what needs a decision (the unconfigured options plus a
+    *Novità* group, see below) with a **Configura →** button per row that opens the right
+    tab, the right card and flashes it;
   - the **guided assistant** (the first-run wizard) now asks about notifications and
     the cron watchdog too, with a 🎲 topic generator and buttons that prove the
     configuration *before* it is saved (**send a real test notification**, **ping the
@@ -170,6 +189,31 @@ the next release.
     steps, all six locales, the ask-once ledger, no hardcoded closing index).
 
 ### Changed
+- **The settings page opens collapsed: every card is a sub-section now.** Two panels
+  (*Notifiche*, *Home Assistant*) hold about ten cards each and all of them were open at
+  once, so the option you came for sat somewhere below the fold; the second level was
+  also still a horizontally scrolling pill strip, where the last sub-sections of a
+  section had no visible existence. Now:
+  - every card with a heading becomes a **collapsible sub-section**: its heading and its
+    first hint line stay visible while collapsed, the rest (fields, toggles, test
+    buttons) opens on click, and **only one card is open at a time** — clicking a second
+    header closes the first (`_initSettingsAccordions()`, `_toggleSettingsCard()`,
+    `_closeSettingsCards()`, `.settings-card-head` / `.settings-card-body`). The `h4`
+    stays where it is, so a checklist jump still finds the card *and now opens it*
+    (`_openSettingsCardFor()`); the checklist card itself is exempt, and picking an AI
+    provider or switching to Bring! opens the card it reveals instead of showing an
+    apparently empty panel;
+  - the second level reads as a **sub-section list**: wrapped, indented under its
+    section and labelled (*Sottosezioni* / *Sub-sections* / *Unterabschnitte*), so all of
+    them are on screen instead of scrolling sideways.
+  - The checklist card now lists **only what needs a decision** — unconfigured options
+    plus a *Novità* group for an option whose `askVersion` moved on since you saw it
+    (`_checklistNewsItems()`). Nine rows where six said "Configured" was noise.
+  - `scripts/test-settings-nav.php` grows the accordion + sub-section locks (and the four
+    assertions that had ended up *after* its own `exit()`, so they now actually run);
+    `scripts/test-setup-assistant.php` locks the two-group rendering, and the new
+    `settings.subsections_label` / `settings.checklist.group_todo` / `group_news` keys
+    exist in all six locales. Asset/i18n stamp → `20261005i`.
 - **The dashboard shows fewer rows, one fact per line, and buttons side by side.**
   Every block stacked its buttons vertically (name, brand, quantity, location and
   four action buttons, each on its own line) and the top banner glued every fact into
