@@ -11,6 +11,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.9.2] - 2026-10-05
+
+Two bug reports from the tracker: EverShelf answered in the wrong language, and
+one API branch could take the whole backend down.
+
+**Highlights**
+
+- **Photo identification answers in the app language** — the `gemini_identify`
+  prompt was hardcoded in Italian, so a user whose UI is in English photographed
+  toilet paper and got `Carta igienica` with an Italian description back. The
+  prompt is now assembled from one fragment set per locale
+  (`api/lib/ai_prompts.php`), both scan entry points send the UI language, and
+  the Open Food Facts lookup is asked in that locale instead of a hardcoded `it`.
+
+  Closes [#260](https://github.com/dadaloop82/EverShelf/issues/260).
+- **The API can no longer die on a function that moves** — `ping`,
+  `app_bootstrap` and `health_check` answer *before* the router, so they may only
+  call functions PHP has already hoisted. A declaration placed inside a block is
+  not hoisted, and that shape produced 61 `Call to undefined function
+  checkRateLimit()` crashes in one 20-minute window. `checkRateLimit()` now sits
+  at the top of `api/index.php`, and `scripts/test-api-hoisting.php` fails on any
+  function declared inside a block, or called before it exists.
+
+  Closes [#246](https://github.com/dadaloop82/EverShelf/issues/246).
+
+**Upgrading from 1.9.1**
+
+- Nothing to do: no schema change and no new setting. The next photo is simply
+  identified in the language the app is set to (Settings → 🌍 Language), and the
+  scan does not care whether the UI was reloaded in the meantime.
+- The two new checks are plain PHP scripts and run like the rest of the suite:
+  `php scripts/test-api-hoisting.php` and `php scripts/test-ai-language.php`.
+
+Below is the long form of the two fixes, plus what the new tests lock down.
+
+### Fixed
+- **`gemini_identify` ignored the UI language (#260)** — both scan entry points
+  now send `lang`, the handler normalizes it with the same `recipeNormalizeLang()`
+  the recipe endpoints use, and the prompt, the description, the confidence label
+  and the Open Food Facts response (`lc`, `product_name_<lang>`) all follow it.
+  The `category` field deliberately keeps the canonical Italian tokens, because
+  `mapToLocalCategory()` matches them against the app's category keys.
+- **`checkRateLimit()` could be undefined for the early API branches (#246)** —
+  the function sits at the top of `api/index.php`, above every call site, and the
+  new test locks that invariant with a self-tested tokenizer scan, so it cannot
+  pass by accident. The same test also fails when an early branch calls a function
+  that is declared nowhere, which is how a one-character typo in `ping` would
+  otherwise reach production unnoticed, and it reports the exact line of the
+  offending call so the fix is obvious.
+
 ## [1.9.1] - 2026-10-05
 
 Everything below landed on `develop` after v1.9.0 was published and ships as **v1.9.1**.

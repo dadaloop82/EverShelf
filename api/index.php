@@ -11813,6 +11813,7 @@ PROMPT;
 }
 
 // ===== GEMINI AI PRODUCT IDENTIFICATION =====
+
 function geminiIdentifyProduct(): void {
     $apiKey = aiCredential();
     if (empty($apiKey)) {
@@ -11823,24 +11824,32 @@ function geminiIdentifyProduct(): void {
 
     $input = json_decode(file_get_contents('php://input'), true);
     $imageBase64 = $input['image'] ?? '';
+    // The UI language travels with the request: an English (or German, …) user
+    // must not get an Italian name/description back (issue #260).
+    $lang = recipeNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
 
     if (empty($imageBase64)) {
         echo json_encode(['success' => false, 'error' => 'No image provided']);
         return;
     }
 
-    // Step 1: Ask Gemini to identify the product
-    $prompt = <<<PROMPT
-Analizza questa foto di un prodotto alimentare o di uso domestico. Identifica il prodotto nel modo più preciso possibile.
+    // Step 1: Ask Gemini to identify the product — prompt localized in the
+    // language the user reads, so name/description/confidence come back in it.
+    $p = evershelfIdentifyPromptFragments($lang);
 
-Rispondi SOLO con un JSON valido (senza markdown, senza backtick):
+    $prompt = <<<PROMPT
+{$p['intro']}
+
+{$p['lang_rule']}
+
+{$p['json_rule']}
 {
-  "name": "Nome del prodotto (es: Yogurt Greco Bianco)",
-  "brand": "Marca se visibile (es: Fage, Müller) o stringa vuota",
-  "category": "Categoria in italiano (es: latticini, pasta, bevande, snack, carne, pesce, frutta, verdura, surgelati, condimenti, conserve, cereali, pane, igiene, pulizia, altro)",
-  "search_terms": "termini di ricerca per trovare il prodotto su un database (es: greek yogurt fage, pasta barilla spaghetti)",
-  "confidence": "alta/media/bassa",
-  "description": "Breve descrizione del prodotto identificato"
+  "name": "{$p['name']}",
+  "brand": "{$p['brand']}",
+  "category": "{$p['category']}",
+  "search_terms": "{$p['search_terms']}",
+  "confidence": "{$p['confidence']}",
+  "description": "{$p['description']}"
 }
 PROMPT;
 
@@ -11889,7 +11898,7 @@ PROMPT;
 
     // Step 2: Search Open Food Facts by product name to find a matching barcode
     $searchTerms = $identified['search_terms'] ?? $identified['name'];
-    $offProducts = searchOpenFoodFacts($searchTerms, $identified['name'], $identified['brand'] ?? '');
+    $offProducts = searchOpenFoodFacts($searchTerms, $identified['name'], $identified['brand'] ?? '', $lang);
 
     echo json_encode([
         'success' => true,
@@ -11898,8 +11907,19 @@ PROMPT;
     ]);
 }
 
-function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): array {
+/**
+ * Looks an identified product up on Open Food Facts.
+ *
+ * @param string $lang UI language: it drives the API locale (`lc`) and which
+ *                     localized product-name field is preferred, so the
+ *                     suggestions match what the user typed/sees (issue #260).
+ */
+function searchOpenFoodFacts(string $searchTerms, string $name, string $brand, string $lang = 'en'): array {
     $results = [];
+
+    $lang               = recipeNormalizeLang($lang);
+    $localizedNameField = 'product_name_' . $lang;
+    $fields             = "code,product_name,{$localizedNameField},brands,image_front_small_url,quantity,categories_tags";
 
     // Try multiple search strategies
     $queries = [];
@@ -11915,7 +11935,7 @@ function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): 
     $seen = [];
     foreach ($queries as $query) {
         $encodedQuery = urlencode($query);
-        $url = "https://world.openfoodfacts.org/cgi/search.pl?search_terms={$encodedQuery}&search_simple=1&action=process&json=1&page_size=5&fields=code,product_name,product_name_it,brands,image_front_small_url,quantity,categories_tags&lc=it";
+        $url = "https://world.openfoodfacts.org/cgi/search.pl?search_terms={$encodedQuery}&search_simple=1&action=process&json=1&page_size=5&fields={$fields}&lc={$lang}";
 
         $ctx = stream_context_create([
             'http' => [
@@ -11935,7 +11955,7 @@ function searchOpenFoodFacts(string $searchTerms, string $name, string $brand): 
             if (empty($code) || isset($seen[$code])) continue;
             $seen[$code] = true;
 
-            $pName = $p['product_name_it'] ?? $p['product_name'] ?? '';
+            $pName = $p[$localizedNameField] ?? $p['product_name'] ?? '';
             if (empty($pName)) continue;
 
             $results[] = [
