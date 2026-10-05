@@ -8181,7 +8181,17 @@ function notifyTestAction(): void {
  * recorded: a manual probe must not rewrite the last run shown for a real job.
  */
 function notifyHealthcheckTestAction(): void {
+    // The panel always posts a JSON body (`api()` in assets/js/app.js sends
+    // `Content-Type: application/json`), so `$_POST` is empty there and the body
+    // has to be read explicitly — as `saveSettings()` and the `mealie_*` handlers
+    // do. A form/curl caller that sends the field the classic way still works.
     $typed = trim((string)($_POST['notify_healthcheck_url'] ?? ''));
+    if ($typed === '') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (is_array($input)) {
+            $typed = trim((string)($input['notify_healthcheck_url'] ?? ''));
+        }
+    }
 
     if ($typed !== '') {
         if (!evershelfNotifyUrlValid($typed)) {

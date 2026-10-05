@@ -130,9 +130,16 @@ the next release.
     before a URL is configured; job health and ping delivery are tracked
     separately, because a failing sync whose alert was delivered fine must not
     read as healthy.
+  - **Settings → 🔔 Notifiche → ⏱️ Cron watchdog** is where it is configured: the URL
+    field is write-only (masked `••••••••` when stored, empty never overwrites),
+    **⏱️ Test the ping** pings the typed-or-stored URL and reports the HTTP status,
+    **🗑️ Remove URL** deletes it, and the card lists the last run of every job with
+    its age, its health and whether the ping was delivered. 22 new keys in all six
+    locales; asset/i18n stamp → `20261005e`.
   - New `api/lib/healthcheck.php`, action `notify_healthcheck_test` (POST — pings
     the typed-or-stored URL and reports the HTTP status without touching the
-    recorded state), `notify_healthcheck_*` in `get_settings`, and
+    recorded state; the URL may come in the JSON body the panel posts *or* as a
+    plain form field), `notify_healthcheck_*` in `get_settings`, and
     `scripts/test-healthcheck.php`.
 
 ### Changed

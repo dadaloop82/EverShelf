@@ -179,6 +179,46 @@ the current value.
 
 ---
 
+## Cron watchdog (Healthchecks.io / Uptime Kuma)
+
+EverShelf's scheduled work runs as CLI cron jobs (`cron_smart_shopping.php`,
+`cron_barcode_catalog.php`, `cron_mealie_cache.php`). A cron that stops running
+leaves no trace: the data simply stops moving and the UI still looks fine. The
+watchdog closes that blind spot with a *dead-man's switch* — every job pings an
+external URL when it finishes, so what raises the alarm is the **missing** ping.
+
+**Settings → 🔔 Notifiche → ⏱️ Cron watchdog**: paste the ping URL, press **Test the
+ping** to prove the connection works (the answer is the HTTP status), then **Save**.
+The stored URL is a secret — like a token it is shown as `••••••••`, is never sent
+back by the API, and **🗑️ Remove URL** deletes it. The same card lists the last run
+of every job (`Smart shopping — 2 h ago — ok`), which stays readable even before a
+URL is configured.
+
+| Field | `.env` key | Notes |
+|-------|-----------|-------|
+| Ping URL | `NOTIFY_HEALTHCHECK_URL` | `https://hc-ping.com/<uuid>` or `https://kuma.example/api/push/<token>` |
+| Per-job override | `NOTIFY_HEALTHCHECK_URL_SMART_SHOPPING`, `…_BARCODE_CATALOG`, `…_MEALIE_CACHE` | Wins over the shared URL for that job only |
+| Accept self-signed TLS | `NOTIFY_INSECURE_SSL` | Shared with the ntfy / webhook channels |
+
+The **URL shape picks the protocol**: with no query string it is treated as
+Healthchecks.io (the state is a path suffix — `…/<uuid>/start`, `…/<uuid>/fail` —
+and the detail text is the POST body, so it shows up in the check's log); with a
+query string it is treated as an Uptime Kuma push URL (`…&status=up|down&msg=…`,
+`GET`). Create the check on either service and copy its ping URL:
+[Healthchecks.io](https://healthchecks.io) (free tier, e-mail / Slack / ntfy alerts)
+or a self-hosted [Uptime Kuma](https://github.com/louislam/uptime-kuma) *Push*
+monitor.
+
+Each job sends `start` when it begins and one terminal `ok`/`fail` when it ends, and
+`mealie_cache` stays silent while Mealie is unconfigured so an unused feature never
+raises an alarm. The last outcome per job is recorded in `data/cron_health.json`
+(job health and ping delivery are tracked separately: a failed sync whose alert was
+delivered still reads as failed). The ping URL **is** a credential — whoever knows
+it can silence the alarm — so it is never logged, never returned by the API and
+never put into an error message.
+
+---
+
 ## Protecting the API with a token
 
 If your EverShelf instance is reachable from an untrusted network, set `API_TOKEN` to a strong random string:
