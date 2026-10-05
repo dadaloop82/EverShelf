@@ -180,17 +180,30 @@ evershelf.yourdomain.com {
 
 ---
 
-## Cron Job (optional)
+## Cron Jobs (optional)
 
-For smart shopping predictions to stay up to date:
+Scheduled work keeps the predictions and the caches fresh. Every job is a plain CLI
+script and is safe to run by hand:
 
 ```bash
 # Edit crontab
 crontab -e
 
-# Add (runs every 5 minutes)
+# Smart shopping predictions (every 5 minutes)
 */5 * * * * php /var/www/html/dispensa/api/cron_smart_shopping.php >> /var/www/html/dispensa/data/cron.log 2>&1
+
+# Barcode catalog refresh (weekly; daily for small catalogs)
+0 3 * * 0 php /var/www/html/dispensa/api/cron_barcode_catalog.php >> /var/www/html/dispensa/data/cron.log 2>&1
+
+# Mealie recipe cache (weekly; only if the Mealie integration is configured)
+0 4 * * 0 php /var/www/html/dispensa/api/cron_mealie_cache.php >> /var/www/html/dispensa/data/cron.log 2>&1
 ```
+
+> **A cron that stops running leaves no trace** — the data just stops moving and the UI
+> still looks fine. Turn on the **cron watchdog** (*Settings → 🔔 Notifiche → ⏱️ Cron
+> watchdog*) and each job pings an external URL when it finishes, so what raises the
+> alarm is the *missing* ping. Healthchecks.io and Uptime Kuma push monitors both work;
+> see [Configuration → Cron watchdog](Configuration#cron-watchdog-healthchecksio--uptime-kuma).
 
 ---
 

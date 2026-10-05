@@ -8,8 +8,9 @@ Design tokens live in `assets/css/style.css` (`:root`). **App-wide component sty
 |------|------|
 | `style.css` | Page layout, page-specific rules, dark mode, legacy components, CSS custom properties |
 | `corporate.css` | Unified buttons, cards, forms, modals, tabs, lists, navigation, shopping rows |
+| `elegant.css` | Third layer (v1.9.0): a restyle **and** the dark-mode repairs it caused. Loaded **last**, deletes no selector — removing it restores the previous look |
 
-`corporate.css` is a **layer on top** of `style.css` — it standardizes look-and-feel without replacing routing, i18n, or dark-mode logic.
+`corporate.css` is a **layer on top** of `style.css` — it standardizes look-and-feel without replacing routing, i18n, or dark-mode logic. `elegant.css` is a layer on top of both, so every rule added to the first two is inherited (and can be overridden there) without touching them.
 
 ## Scope (app-wide)
 
@@ -21,6 +22,9 @@ The corporate layer touches every major surface:
 | **Buttons** | `.btn`, `.btn-primary`, `.btn-success`, `.btn-warning`, `.btn-accent`, `.btn-secondary`, `.btn-large` |
 | **Cards** | `.stat-card`, `.section-card`, `.settings-card`, `.alert-card`, `.product-item`, `.es-surface` |
 | **Tabs** | Location tabs, settings tabs, shopping tabs — pill style with active gradient |
+| **Settings accordion** | `.settings-card-head` (`.settings-card-chevron`), `.settings-card-body`, `.settings-subsections-label`, one card open at a time |
+| **Dashboard rows** | `.alert-item-head` (name + brand), `.alert-item-qty`, `.alert-item-badge*`, `.alert-item-badges` (wrapping button row), `.banner-fact`, `.banner-verdict`, `.alert-more-note` |
+| **Insight panels** | `.insight-tiles`, `.insight-tile`, `.insight-row` (+ label/value/diff) for the rotating dashboard panels |
 | **Forms** | `.form-input`, `.qty-input`, `.search-bar`, `.loc-btn`, `.qty-control`, chips and fraction buttons |
 | **Inventory list** | `.inventory-item`, swipe backgrounds, category headers, badges |
 | **Shopping** | `.shop-row` cards with unified border/shadow |
@@ -80,6 +84,33 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 - **During swipe:** colored row backgrounds with action labels (`.inv-swipe-bg-left` / `-right`).
 - **Input:** pointer events (mouse drag + touch).
 
+## Settings page
+
+- **Two levels.** The `.settings-tabs` strip is now a wrapped, indented list of the
+  **sub-sections of the active section** (`border-left` + `.settings-subsections-label`
+  caption) instead of a horizontally scrolling row whose last pills sat off-screen. The
+  section you used last is remembered in `localStorage`.
+- **Accordion cards.** `_initSettingsAccordions()` gives every `.settings-card` with a
+  heading a clickable `.settings-card-head` (with a `.settings-card-chevron` that rotates
+  90°) and a `.settings-card-body` that starts hidden (`data-accordion="ready"` marks a
+  card that was already wired, so re-rendering cannot double-bind). **One card open at a
+  time**; the checklist card (`SETTINGS_ACCORDION_SKIP`) is exempt and stays expanded.
+- **Deep links open the card they point at** — `_openSettingsCardFor(el)` (used by the
+  checklist rows and the AI provider picker) opens the card and flashes it with
+  `.settings-card-flash`, so nothing ever lands on a closed card.
+
+## Dashboard rows
+
+- **One fact per line.** `.alert-item-head` (name + muted brand) then `.alert-item-qty`
+  (`location · quantity · note`), then `.banner-fact` / `.banner-verdict` for the verdict
+  and its short tip — a single long sentence used to wrap into four ragged lines.
+- **Actions side by side.** `.alert-item-badges` is a wrapping flex row, so Use / Throw /
+  Edit / Extend / Dismiss never collapse into a vertical stack on a narrow phone.
+- **Insight panels.** `.insight-tiles` holds equal-height `.insight-tile` tiles
+  (value + label) and `.insight-row` lines (label, value, delta). The rotation
+  (`_INSIGHT_PHASES`, one panel per 60 s) hides the inactive panels with `display: none`
+  and fades the change, skipping any panel whose body is empty.
+
 ## Modals
 
 - Header: title left, icon actions right (edit ✏️, close ✕).
@@ -92,7 +123,10 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 
 - **Do** reuse CSS variables; avoid one-off hex colors.
 - **Do** keep one font family and two weights (600/700 for emphasis).
-- **Do** load `corporate.css` after `style.css` when adding new pages.
+- **Do** load `corporate.css` after `style.css` (and `elegant.css` last) when adding new pages.
+- **Do** give a settings card a heading (`<h4>`) if it should be collapsible — the accordion skips a card without one.
 - **Don’t** mix unrelated button heights on the same row.
 - **Don’t** reintroduce persistent swipe text hints — use the one-time demo instead.
+- **Don’t** put a literal emoji next to a translated label: translation values already carry their icon, so print it through `iconLabel(icon, key)` / `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` fails otherwise).
 - **Don’t** use Italian copy in Markdown docs (English only).
+

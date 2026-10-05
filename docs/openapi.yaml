@@ -11,7 +11,7 @@ info:
     - General: 120 requests/minute
     - AI endpoints: 15 requests/minute
     - Login endpoints: 5 requests/minute
-  version: "1.2.0"
+  version: "1.9.1"
   contact:
     name: Stimpfl Daniel
     email: evershelfproject@gmail.com
@@ -532,6 +532,188 @@ paths:
         "200":
           description: Expiry history entries
 
+  /index.php?action=notify_test:
+    post:
+      summary: Send a test notification through every configured channel
+      description: |
+        Deliberately ignores `NOTIFY_ENABLED` / `NOTIFY_EVENTS` so the button works
+        while the configuration is still switched off. Blocked in demo mode.
+      tags: [Notifications]
+      responses:
+        "200":
+          description: At least one channel delivered the message
+        "400":
+          description: Nothing delivered — `error` carries a machine key such as
+            `webhook_not_configured` or `ntfy_topic_invalid`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  delivered:
+                    type: integer
+                  channels:
+                    type: object
+                    additionalProperties:
+                      type: object
+                  configured:
+                    type: object
+                    properties:
+                      ntfy:
+                        type: boolean
+                      webhook:
+                        type: boolean
+                      ha:
+                        type: boolean
+                  error:
+                    type: string
+
+  /index.php?action=notify_healthcheck_test:
+    post:
+      summary: Fire one manual ping against the cron-watchdog URL
+      description: |
+        Pings the URL sent in `notify_healthcheck_url` when present (a fresh paste can
+        be verified before saving), otherwise the stored URL. Nothing is recorded, so a
+        manual probe never rewrites the "last run" shown for the real cron job.
+      tags: [Notifications]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notify_healthcheck_url:
+                  type: string
+      responses:
+        "200":
+          description: "Ping sent (or `configured: false` when no URL is stored yet)"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  configured:
+                    type: boolean
+                  sent:
+                    type: boolean
+                  http:
+                    type: integer
+                  error:
+                    type: string
+        "400":
+          description: Invalid URL (`invalid_url`) or the ping failed
+
+  /index.php?action=calendar_ics:
+    get:
+      summary: Expiry feed for calendar clients (ICS / WebCal)
+      description: |
+        Returns `text/calendar`, never JSON — this response goes to a calendar client,
+        not to `fetch()`, so errors are plain text with the matching status code.
+      tags: [Calendar]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          description: Read-only feed secret, compared in constant time
+          schema:
+            type: string
+        - name: lang
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [it, en, de, fr, es, zh]
+            default: en
+      responses:
+        "200":
+          description: The ICS feed (attachment, cached 15 min)
+          content:
+            text/calendar:
+              schema:
+                type: string
+        "403":
+          description: Missing or wrong token
+        "404":
+          description: The feed is disabled in Settings
+
+  /index.php?action=get_ics_settings:
+    get:
+      summary: ICS feed status + the subscribe URL shown in Settings
+      tags: [Calendar]
+      responses:
+        "200":
+          description: Status object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  ics_enabled:
+                    type: boolean
+                  ics_days:
+                    type: integer
+                  ics_past_days:
+                    type: integer
+                  ics_token:
+                    type: string
+                  ics_url:
+                    type: string
+                  ics_count:
+                    type: integer
+
+  /index.php?action=rotate_ics_token:
+    post:
+      summary: Mint a new ICS feed secret
+      description: An enabled feed without a token would be reachable by anyone, so
+        this is also the "enable" step.
+      tags: [Calendar]
+      responses:
+        "200":
+          description: The new token and the URL built from it
+
+  /index.php?action=recipe_shopping_add:
+    post:
+      summary: Push a recipe's ingredients to the shopping list
+      description: Accepts a full recipe object, or a `recipe_id` loaded from the
+        archive, and deducts what the pantry already holds.
+      tags: [Recipes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recipe:
+                  type: object
+                recipe_id:
+                  type: integer
+                only_missing:
+                  type: boolean
+                  default: true
+                dry_run:
+                  type: boolean
+                  default: false
+                selected:
+                  type: array
+                  items:
+                    type: string
+                lang:
+                  type: string
+      responses:
+        "200":
+          description: Plan / applied changes, with a `summary` of total, missing,
+            partial, covered, added and updated items
+        "500":
+          description: Database busy — please retry
+
 components:
   schemas:
     Product:
@@ -651,6 +833,10 @@ tags:
     description: Bring! shopping list integration
   - name: Recipes
     description: Recipe storage
+  - name: Notifications
+    description: ntfy / webhook push notifications and the cron watchdog
+  - name: Calendar
+    description: ICS / WebCal expiry feed
   - name: Settings
     description: Application and server settings
   - name: TTS

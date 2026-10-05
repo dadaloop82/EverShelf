@@ -2,27 +2,59 @@
 
 ```
 dispensa/
+├── index.html                  # SPA shell (i18n badges, CSS/JS ?v= cache-busting)
+├── sw.js / manifest.json       # PWA service worker (CACHE name carries the version)
 ├── api/
-│   ├── bootstrap.php       # Shared init: env, security, DB, logger
-│   ├── index.php           # HTTP handlers + router (split planned per domain)
-│   ├── database.php        # SQLite schema & migrations
-│   ├── logger.php          # Rotating file logger (logs/)
-│   ├── cron_smart_shopping.php  # CLI cron (uses bootstrap + index handlers)
+│   ├── bootstrap.php           # Shared init: env, security, DB, logger
+│   ├── index.php               # HTTP handlers + the single `switch ($action)` router
+│   ├── database.php            # SQLite schema & migrations
+│   ├── logger.php              # Rotating file logger (logs/)
+│   ├── cron_smart_shopping.php # CLI cron (uses bootstrap + index handlers)
+│   ├── cron_barcode_catalog.php# CLI cron: offline barcode catalog refresh
+│   ├── cron_mealie_cache.php   # CLI cron: Mealie recipe cache
 │   ├── lib/
-│   │   ├── env.php         # .env loader
-│   │   ├── constants.php   # Paths & pricing constants
-│   │   ├── security.php    # API auth, CORS, demo mode, scale allowlist
-│   │   ├── github.php      # Encrypted GitHub Issues token
-│   │   └── cron_log.php    # data/cron.log rotation
-│   └── scale_*.php         # Scale gateway helpers (auth + SSRF guards)
+│   │   ├── env.php             # .env loader
+│   │   ├── constants.php       # Paths & pricing constants
+│   │   ├── security.php        # API auth, CORS, CSRF, demo mode, redaction
+│   │   ├── pairing.php         # One-time pairing code → API token
+│   │   ├── ai_provider.php     # Gemini / OpenAI / Llama fan-out
+│   │   ├── health.php          # Health & Fuel mode
+│   │   ├── weather.php         # Optional weather enrichment
+│   │   ├── seasonal.php        # Seasonal produce (+ data/seasonal_produce_it.json)
+│   │   ├── shopping_guards.php # Spend limits & cooldowns on the shopping list
+│   │   ├── shopping_sync.php   # Shared Bring! / internal list sync
+│   │   ├── recipe_shopping.php # Recipe ingredients → shopping list (pantry deducted)
+│   │   ├── calendar_ics.php    # ICS/WebCal expiry feed (RFC 5545 + token gate)
+│   │   ├── notify.php          # ntfy + generic webhook fan-out (legacy HA kept)
+│   │   ├── healthcheck.php     # Cron watchdog (dead-man's switch ping)
+│   │   ├── barcode_catalog.php # Offline barcode catalog builder
+│   │   ├── mealie.php / mealie_setup.php # Mealie recipe integration + wizard
+│   │   ├── github.php          # Encrypted GitHub Issues token
+│   │   ├── i18n.php            # Server-side translations
+│   │   └── cron_log.php        # data/cron.log rotation
+│   └── scale_*.php             # Scale gateway helpers (auth + SSRF guards)
 ├── assets/
+│   ├── css/
+│   │   ├── style.css           # Base layout
+│   │   ├── corporate.css       # Layer 2 — corporate look
+│   │   └── elegant.css         # Layer 3 — elegant refinements (loaded last; drop the <link> to revert)
 │   ├── js/
-│   │   ├── core/           # auth.js, dom.js (loaded before app.js)
-│   │   └── app.js          # SPA logic (domain modules: future split)
-│   └── vendor/             # Offline CDN fallbacks (quagga, transformers)
-├── data/                   # Runtime data (.htaccess: deny all)
-├── logs/                   # Application logs (.htaccess: deny all)
-└── scripts/                # migrate-env-security, fix-permissions, encrypt-gh-token
+│   │   ├── core/               # auth.js, dom.js (loaded before app.js)
+│   │   └── app.js              # SPA logic (domain modules: future split)
+│   └── vendor/                 # Offline CDN fallbacks (quagga, tesseract, transformers, zbar)
+├── translations/               # it, en, de, fr, es, zh (+ _SUPPORTED_LANGS in app.js)
+├── data/                       # Runtime data (.htaccess: deny all)
+├── logs/                       # Application logs (.htaccess: deny all)
+├── mcp-server/                 # MCP bridge (ESM Node, talks to the same REST API)
+├── evershelf-kiosk/            # Android kiosk + BLE scale gateway
+├── evershelf-health-bridge/    # Android Health Connect → EverShelf bridge
+├── docker/                     # Dockerfile + compose (the alternative install path)
+├── .github/workflows/          # CI: PHP/JS lint, smoke build, auto-merge, release
+├── package.json                # Optional minify build (`npm run build`)
+├── backup.sh                   # SQLite + .env backup helper
+├── releases/                   # Release artifacts (kiosk/health-bridge APKs)
+├── docs/                       # Architecture, wiki, generated code indexes, openapi.yaml
+└── scripts/                    # bump-version, gen-code-index, i18n audits, test-*.php
 ```
 
 ## Security model

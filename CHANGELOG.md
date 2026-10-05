@@ -11,22 +11,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
-## [Unreleased] — after the 1.8.10 tag
+## [1.9.1] - 2026-10-05
 
-Landed on `develop` (and therefore `main`) after v1.8.10 was published; ships in
-the next release.
+Everything below landed on `develop` after v1.9.0 was published and ships as **v1.9.1**.
+The badges in `index.html`, `manifest.json` and the service-worker cache all say 1.9.1, so
+the tag is no longer blocked by a mismatched version string.
 
-### Security
-- **The public client-log sink wrote whatever a client sent, verbatim and
-  unbounded.** `client_log` is a public action, and its `messages` array went
-  straight into `data/client_debug.log` — the file the in-app log viewer
-  (`get_client_log`) serves and that backups copy around. A client that logs its
-  own request URLs (the documented auth accepts `?api_token=…`) or its headers
-  wrote that token into the
-  file, and one request could append up to `post_max_size` (32 MB in the shipped
-  image) to a log the rotation only checks *before* writing. Lines are now redacted
-  with `evershelfRedactSecrets()` and capped at 1 KB, at most 100 per request; a
-  non-array `messages` is ignored instead of reaching `foreach`.
+**Highlights**
+
+- **Alerts without Home Assistant** — a free [ntfy](https://ntfy.sh) topic and/or any JSON
+  webhook (n8n, Node-RED, Gotify, a Discord/Slack bridge) configured in *Settings → 🔔
+  Notifiche*, with a test button that reports the HTTP status of every channel. Expiry push
+  used to be locked behind the Home Assistant integration: no HA, no phone notification.
+- **Cron watchdog** — every CLI job pings a dead-man's-switch URL (Healthchecks.io or the
+  Uptime Kuma push style), so a scheduled job that stops running raises an alert on a
+  channel the household already reads, instead of leaving a smart list that quietly goes
+  stale while the UI still looks fine.
+- **Settings, reorganised** — the endless horizontally scrolling tab strip collapses into
+  four sub-sections with their own sub-navigation, and every card becomes a collapsible
+  sub-section whose heading and hint stay visible while collapsed.
+- **Dashboard** — three more rotating panels (overview, freshness, trends) beside the
+  existing insights, so the home page says something useful without being scrolled.
+- **Setup checklist and guided assistant** — a fresh install is walked through the steps it
+  still has to do (server, cron, notifications, backup…) instead of leaving the user to
+  find every switch alone.
+- **ICS calendar feed** — *Settings → 🗓️ Calendar* publishes the pantry as a WebCal
+  subscription: one all-day event per item that has an expiry date, a ⚠️ EXPIRED prefix for
+  the ones already gone, a reminder the day before, stable `UID`s, and a rotatable token.
+- **Recipe → shopping list** — a recipe's ingredients land on the shopping list with the
+  pantry already deducted, so only what is actually missing is asked for.
+- **Seasonal produce** — shopping and recipes can be filtered against the current season
+  (`data/seasonal_produce_it.json`), with every tip key translated in all six locales.
+- **Android kiosk** — the setup wizard is now 9 steps (language first, permissions and
+  server discovery included), and the kiosk update check polls every 30 minutes while
+  throttling the GitHub API to once every 6 hours.
+- **Docs and tests** — API reference and OpenAPI schema for the notification, calendar and
+  recipe-shopping endpoints, an updated wiki/architecture/kiosk guide, and the checks that
+  keep i18n keys, settings navigation and the shopping guards honest.
+
+**Upgrading from 1.9.0**
+
+- Nothing to do: the SQLite migrations run on the first request, and the new `NOTIFY_*`
+  variables are written from *Settings* like any other option.
+- Existing Home Assistant automations keep working: the notification events keep their
+  names (`expiry_alert`, `shopping_add`, `stock_update`) and still fire from the same choke
+  point. `NOTIFY_ENABLED` gates the two new channels only, it does not touch the HA notify
+  service, which keeps its own `HA_ENABLED` + `HA_NOTIFY_SERVICE` switch.
+- The calendar feed is off until you generate a token, and rotating that token invalidates
+  the old subscription URL immediately.
+
+Every item below is the long form of the list above.
 
 ### Added
 - **Outbound notifications without Home Assistant (ntfy + generic webhook)** —
@@ -60,49 +94,7 @@ the next release.
     boundary, header sanitising, URL scheme guard, the language-aware message
     builders, `evershelfNotifyConfigured()`). 60 new i18n keys in all six locales;
     the daily cron expiry push goes through the same fan-out.
-- **Recipe → shopping list, minus what the pantry already holds** — a recipe used
-  to hand you a frozen list the AI wrote when it was generated (no quantities, and
-  wrong the next day). The 🛒 panel under the ingredients now recomputes the gap
-  every time the recipe is opened, against the pantry as it is *right now*:
-  `need − have = to buy`, so a 500 g recipe with 200 g left asks for 300 g. The
-  rows are tickable and default to the gaps; **Add the missing ones** writes them
-  through `shoppingAddItemsCore()`, the same core the manual add uses, so Bring!
-  sync, the blocklist, generic-name normalisation and the HA webhook are unchanged.
-  - Matching is by `product_id` first, then the shopping-family key, then name
-    tokens (`evershelfNameTokens()`, now shared with `shopping_sync.php`); stock
-    held in another unit (3 ricotta tubs vs "250 g asked") counts as *covered*, and
-    free staples (water, salt, pepper, oil) are never nagged about in strict pantry
-    mode. An ingredient already on the list is reported as *listed*, never added twice.
-  - New action `recipe_shopping_add` (POST, authenticated + CSRF, blocked in demo),
-    accepting a full recipe or a `recipe_id`, with `dry_run` for the page render,
-    `selected[]` for the ticked rows and `only_missing` for "ignore what I have";
-    new `api/lib/recipe_shopping.php` (`evershelfRecipeShoppingPlan()`,
-    `recipeShoppingAdd()`) and `scripts/test-recipe-shopping.php` (57 assertions on
-    the isolated fixture: unit families, container expansion, g/ml/pz maths,
-    staples, covered/partial/listed states, dry-run purity, "only the gap" inserts).
-  - The panel follows the existing *recipe shopping mode* setting: *ask* (default),
-    *add automatically*, *off*. 11 new i18n keys in all six locales.
-- **Calendar feed of expiries (ICS / WebCal)** — the pantry deadlines now show up
-  where the household already looks. *Settings → 🗓️ Calendar* turns the feed on,
-  picks the horizon (`ICS_DAYS`, default 30) and keeps recently missed dates
-  visible with a ⚠️ prefix (`ICS_PAST_DAYS`, default 7); the same tab shows the
-  subscribe URL, a copy button and *Open in Calendar* (`webcal://` on phones).
-  Every in-stock row with an expiry date becomes an all-day `VEVENT` with a stable
-  UID (`evershelf-inv-<id>@<host>`), location/quantity/brand in the description
-  and a `-P1D` reminder alarm. Text is escaped and folded per RFC 5545
-  (multi-byte safe, no line over 73 octets), served as
-  `text/calendar; charset=utf-8` with `X-Robots-Tag: noindex`.
-  - `GET api/index.php?action=calendar_ics&token=…` sits in
-    `evershelfPublicActions()` because a calendar client can only GET a URL: it
-    authenticates with a dedicated read-only `ICS_TOKEN` (`hash_equals`, never
-    logged, 403/404 on mismatch) that Settings mints and *Rotate link* revokes.
-  - New `api/lib/calendar_ics.php`, `api/lib/i18n.php` (the server-side
-    `evershelfTr()` the feed's own labels use) and `scripts/test-calendar-ics.php`
-    (escaping, folding, all-day date maths, feed shape). `scripts/i18n-audit.py`
-    now counts `evershelfTr()` keys, so PHP-rendered strings are audited too.
-  - No QR code, deliberately: the only QR generator in the repo is the
-    third-party `api.qrserver.com` and the subscribe URL is a long-lived
-    credential — unlike the short-lived pairing code it must not leave the server.
+
 - **Cron watchdog — a stopped cron job finally says so** — a CLI job that stops
   running leaves no trace: the smart list quietly goes stale and the UI still
   looks fine. Every job now pings a dead-man's-switch URL, so *the absence of a
@@ -185,7 +177,7 @@ the next release.
     six), and `get_settings` returns `ics_enabled` so the calendar row is not stuck on
     "not configured".
   - 12 new keys in all six locales; asset/i18n stamp → `20261005g`;
-    `scripts/test-setup-assistant.php` (257 assertions: registry ↔ real tabs, wizard
+    `scripts/test-setup-assistant.php` (275 assertions: registry ↔ real tabs, wizard
     steps, all six locales, the ask-once ledger, no hardcoded closing index).
 
 ### Changed
@@ -214,6 +206,7 @@ the next release.
     `scripts/test-setup-assistant.php` locks the two-group rendering, and the new
     `settings.subsections_label` / `settings.checklist.group_todo` / `group_news` keys
     exist in all six locales. Asset/i18n stamp → `20261005i`.
+
 - **The dashboard shows fewer rows, one fact per line, and buttons side by side.**
   Every block stacked its buttons vertically (name, brand, quantity, location and
   four action buttons, each on its own line) and the top banner glued every fact into
@@ -249,15 +242,7 @@ the next release.
     placeholder, a finished-product toast was a hardcoded Italian string (now
     `toast.finished_all`), and the Fuel badge glued "· target … kcal / ≥…g prot" onto
     the layout (now `recipes.fuel_badge_target`). Asset/i18n stamp → `20261005h`.
-- **The seasonal review tip is translated in all six locales.** The card's tip was
-  built from two hardcoded `it`/`en` tables inside `api/lib/seasonal.php` — a
-  user-facing string the translation audit could not see — so de/fr/es/zh users read
-  English. The card now returns a stable key (`shopping.seasonal_tip_<month>`) that
-  `assets/js/app.js` resolves through `t()`, the same "PHP returns a key, the client
-  translates it" contract as `hint_key`, and the wording lives in
-  `translations/*.json`. The out-of-season block also explains itself now
-  (`seasonal_out_note`): the smart list skips out-of-season fresh produce and brings
-  it back when its season does.
+
 - **The settings page now navigates in two levels: four sections, then their tabs.**
   Sixteen tab buttons shared a single scrolling strip — *Generali, API, Spesa,
   Ricette, Salute, Piano, Cucina, Camera, Sicurezza, Voce, HA, Notifiche, Bilancia,
@@ -275,21 +260,13 @@ the next release.
     view, and the section + tab you last used reopen on the next visit
     (`evershelf_settings_group` / `evershelf_settings_tab`). `.click()` is used to
     switch tabs so each tab keeps its own loader (`_loadNotifyTab`, `_loadHaTab`…).
-  - `scripts/test-settings-nav.php` (26 assertions) locks HTML, JS and translations
+  - `scripts/test-settings-nav.php` (58 assertions) locks HTML, JS and translations
     together: every tab names a section the JS knows, every panel has exactly one tab
     and every tab exactly one panel, the page opens on a tab of the highlighted
     section, the four labels exist in all six locales, and the Kiosk/About blocks
     really live inside `#tab-info` (checked through the DOM, not a substring).
     Dropping a single `data-group` fails it.
   - Asset/i18n stamp → `20261005f`; 5 new keys in all six locales.
-- **A third CSS layer re-skins the UI without touching the other two.**
-  `assets/css/elegant.css` loads after `style.css` and `corporate.css` and only
-  re-skins what they already lay out: rounder geometry, a two-layer soft elevation,
-  a floating translucent bottom bar, a translucent header, roomier gutters and a
-  fluid type scale. It deletes no selector, so removing its single `<link>` restores
-  the previous look. It is also where the restyle's dark-mode regressions are
-  repaired — the opened-product tints, `.inv-opened-section` and `--primary` used as
-  a foreground — which neither existing layer answers.
 
 ### Fixed
 - **Labels no longer print their icon twice.** Lots of the UI showed two identical
@@ -304,12 +281,98 @@ the next release.
   already inside the translation (wizard steps, save toasts, `product.edit_info`,
   `btn.cancel`, `use.disambiguation_all`, `use.toast_opened_finished`,
   `recipes.opt_fuel`), and the checklist row/tab markup was verified to keep one icon
-  only. New `scripts/test-i18n-icons.php` (10 assertions) fails on the whole class:
+  only. New `scripts/test-i18n-icons.php` (23 assertions) fails on the whole class:
   it walks `app.js` for an emoji immediately before a `t('key')` whose value starts
   with the same emoji in any locale (and `index.html` for an icon element followed by
   a label that repeats it), and it locks the new dashboard copy — verdict format,
   expiry-date line, "you still have X", fuel target — plus the short verdict labels
   in all six locales.
+
+## [1.9.0] - 2026-10-05
+
+What shipped between the `1.8.10` tag and this one: the calendar feed, recipe →
+shopping with the pantry deducted, the seasonal-produce filters, the third CSS
+layer, and the hardening of the public client-log sink.
+
+### Security
+- **The public client-log sink wrote whatever a client sent, verbatim and
+  unbounded.** `client_log` is a public action, and its `messages` array went
+  straight into `data/client_debug.log` — the file the in-app log viewer
+  (`get_client_log`) serves and that backups copy around. A client that logs its
+  own request URLs (the documented auth accepts `?api_token=…`) or its headers
+  wrote that token into the
+  file, and one request could append up to `post_max_size` (32 MB in the shipped
+  image) to a log the rotation only checks *before* writing. Lines are now redacted
+  with `evershelfRedactSecrets()` and capped at 1 KB, at most 100 per request; a
+  non-array `messages` is ignored instead of reaching `foreach`.
+
+### Added
+- **Recipe → shopping list, minus what the pantry already holds** — a recipe used
+  to hand you a frozen list the AI wrote when it was generated (no quantities, and
+  wrong the next day). The 🛒 panel under the ingredients now recomputes the gap
+  every time the recipe is opened, against the pantry as it is *right now*:
+  `need − have = to buy`, so a 500 g recipe with 200 g left asks for 300 g. The
+  rows are tickable and default to the gaps; **Add the missing ones** writes them
+  through `shoppingAddItemsCore()`, the same core the manual add uses, so Bring!
+  sync, the blocklist, generic-name normalisation and the HA webhook are unchanged.
+  - Matching is by `product_id` first, then the shopping-family key, then name
+    tokens (`evershelfNameTokens()`, now shared with `shopping_sync.php`); stock
+    held in another unit (3 ricotta tubs vs "250 g asked") counts as *covered*, and
+    free staples (water, salt, pepper, oil) are never nagged about in strict pantry
+    mode. An ingredient already on the list is reported as *listed*, never added twice.
+  - New action `recipe_shopping_add` (POST, authenticated + CSRF, blocked in demo),
+    accepting a full recipe or a `recipe_id`, with `dry_run` for the page render,
+    `selected[]` for the ticked rows and `only_missing` for "ignore what I have";
+    new `api/lib/recipe_shopping.php` (`evershelfRecipeShoppingPlan()`,
+    `recipeShoppingAdd()`) and `scripts/test-recipe-shopping.php` (57 assertions on
+    the isolated fixture: unit families, container expansion, g/ml/pz maths,
+    staples, covered/partial/listed states, dry-run purity, "only the gap" inserts).
+  - The panel follows the existing *recipe shopping mode* setting: *ask* (default),
+    *add automatically*, *off*. 11 new i18n keys in all six locales.
+
+- **Calendar feed of expiries (ICS / WebCal)** — the pantry deadlines now show up
+  where the household already looks. *Settings → 🗓️ Calendar* turns the feed on,
+  picks the horizon (`ICS_DAYS`, default 30) and keeps recently missed dates
+  visible with a ⚠️ prefix (`ICS_PAST_DAYS`, default 7); the same tab shows the
+  subscribe URL, a copy button and *Open in Calendar* (`webcal://` on phones).
+  Every in-stock row with an expiry date becomes an all-day `VEVENT` with a stable
+  UID (`evershelf-inv-<id>@<host>`), location/quantity/brand in the description
+  and a `-P1D` reminder alarm. Text is escaped and folded per RFC 5545
+  (multi-byte safe, no line over 73 octets), served as
+  `text/calendar; charset=utf-8` with `X-Robots-Tag: noindex`.
+  - `GET api/index.php?action=calendar_ics&token=…` sits in
+    `evershelfPublicActions()` because a calendar client can only GET a URL: it
+    authenticates with a dedicated read-only `ICS_TOKEN` (`hash_equals`, never
+    logged, 403/404 on mismatch) that Settings mints and *Rotate link* revokes.
+  - New `api/lib/calendar_ics.php`, `api/lib/i18n.php` (the server-side
+    `evershelfTr()` the feed's own labels use) and `scripts/test-calendar-ics.php`
+    (escaping, folding, all-day date maths, feed shape). `scripts/i18n-audit.py`
+    now counts `evershelfTr()` keys, so PHP-rendered strings are audited too.
+  - No QR code, deliberately: the only QR generator in the repo is the
+    third-party `api.qrserver.com` and the subscribe URL is a long-lived
+    credential — unlike the short-lived pairing code it must not leave the server.
+
+### Changed
+- **The seasonal review tip is translated in all six locales.** The card's tip was
+  built from two hardcoded `it`/`en` tables inside `api/lib/seasonal.php` — a
+  user-facing string the translation audit could not see — so de/fr/es/zh users read
+  English. The card now returns a stable key (`shopping.seasonal_tip_<month>`) that
+  `assets/js/app.js` resolves through `t()`, the same "PHP returns a key, the client
+  translates it" contract as `hint_key`, and the wording lives in
+  `translations/*.json`. The out-of-season block also explains itself now
+  (`seasonal_out_note`): the smart list skips out-of-season fresh produce and brings
+  it back when its season does.
+
+- **A third CSS layer re-skins the UI without touching the other two.**
+  `assets/css/elegant.css` loads after `style.css` and `corporate.css` and only
+  re-skins what they already lay out: rounder geometry, a two-layer soft elevation,
+  a floating translucent bottom bar, a translucent header, roomier gutters and a
+  fluid type scale. It deletes no selector, so removing its single `<link>` restores
+  the previous look. It is also where the restyle's dark-mode regressions are
+  repaired — the opened-product tints, `.inv-opened-section` and `--primary` used as
+  a foreground — which neither existing layer answers.
+
+### Fixed
 - **The seasonal review card asked to remove what the smart list kept suggesting.**
   The card flagged any catalogue entry the month marks `off`, while the list also
   exempts the crops that are on the shelf all year: in October the card told you to
@@ -324,6 +387,7 @@ the next release.
   `scripts/test-seasonal-match.php` grows from 57 to 86 assertions, including a
   card-vs-list consistency lock and a check that every key PHP can emit exists in
   all six locales (the i18n audit only sees keys used in JS).
+
 - **The ⚙️ Config tab was clipped on every phone portrait.** The bottom bar
   reserved a hard `min-width: 56px` per tab (62px for the Gemini FAB), so seven
   tabs needed ~398px of row — 462px with the German labels ("Einstellungen") —

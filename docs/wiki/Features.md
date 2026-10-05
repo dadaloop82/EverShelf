@@ -159,6 +159,22 @@ Start cooking mode from any recipe by tapping **▶ Start Cooking**.
 
 ## 📊 Dashboard
 
+### Insight panels (rotating)
+
+The area under the banners cycles through **eight panels**, one per minute, and skips
+any panel that has nothing to say — the rotation never lands on an empty card.
+
+| Panel | What it shows |
+|-------|---------------|
+| **Overview** | products, expiring, expired and open packages as tiles, plus where the stock actually is (`🗄️ Pantry 12 · 🧊 Fridge 5…`) |
+| **Waste** | waste rate vs. the national average and the estimated yearly kg |
+| **Trend** | products used and thrown away in the last 30 days, each compared with the 30 before |
+| **Nutrition** | macro split of what you used |
+| **Freshness** | how many products have a tracked expiry, how varied the pantry is, how much of it is fresh (fridge + freezer), leading category |
+| **Monthly** | this month against the last |
+| **Spend** | what you spent — and when nothing is recorded it says so and explains where the number comes from, instead of hiding |
+| **Macros** | Fuel Mode targets against what you consumed |
+
 ### Inventory Overview
 
 Three stat cards at the top show item counts for Pantry, Fridge, and Freezer with animated skeleton loading while data fetches.
@@ -169,7 +185,20 @@ Priority-sorted notifications for:
 - Expired products (with safety assessment — green ✅ safe, amber 👀 check, red 🚫 danger)
 - Products expiring within 3 days
 
-Actions per item: Use, Throw away, Edit, Dismiss. Swipe or tap arrows to navigate.
+Every row is **one fact per line**: name and brand, then location · quantity · note,
+then the verdict with a short tip (`{verdict} — {tip}`, e.g. *👀 Check — past its date
+by over a month: open, smell, taste*). Actions (Use, Throw away, Edit, Extend, Dismiss)
+sit **side by side** in a wrapping row — never stacked in a column.
+
+| Block | Rows shown | Order |
+|-------|-----------|-------|
+| Expiring soon | 3 | closest expiry first |
+| Expired | 5 | most overdue first |
+| Opened | 5 | open the longest first |
+| Unused for too long | 3 | a different slice every 30 minutes |
+
+Blocks with more products than the limit show an **“…and N more…”** line that opens the
+full list instead of stretching the dashboard.
 
 ### Anomaly Banner
 
@@ -179,13 +208,11 @@ Highlights suspicious quantities (e.g. "You have 0 eggs but used 12 this month")
 - "🤖 Explain" for AI explanation
 - Dismiss (with current quantity shown: "The quantity is correct (2 pcs)")
 
-### Anti-Waste Report
-
-Shows your waste rate vs. the national average with an estimated annual kg of food wasted.
-
 ### Quick Recipe Bar
 
-One-tap recipe suggestion using the ingredients closest to expiry.
+One-tap recipe suggestion using the ingredients closest to expiry. It sits **below** the
+expiry alerts, so a suggested recipe never pushes the products that need attention off
+the screen.
 
 ---
 
@@ -256,7 +283,7 @@ When a new EverShelf release is published on GitHub, a small pill appears in the
 
 ## 🌍 Multi-language
 
-The app auto-detects your browser language. Supported: 🇮🇹 Italian, 🇬🇧 English, 🇩🇪 German.
+The app auto-detects your browser language. Supported: 🇮🇹 Italian, 🇬🇧 English, 🇩🇪 German, 🇫🇷 French, 🇪🇸 Spanish, 🇨🇳 Chinese.
 
 Change the language in **Settings → Language**.
 
@@ -271,6 +298,28 @@ See [Translations](Translations) to add a new language.
 - Any operation within the **last 24 hours** shows a red ↩ undo button
 - Tapping ↩ shows a 5-second countdown confirmation before reversing the transaction
 - The original stock is restored and a counter-transaction is logged
+
+---
+
+## ⚙️ Settings
+
+The settings page is organised in **two levels**, so a panel with ten cards no longer
+buries the option you came for:
+
+- **Four sections** across the top (App & AI · Cucina · Avvisi e servizi · Sistema); only
+  the **sub-sections** of the active one are listed, wrapped instead of scrolling
+  sideways. The section you used last reopens next time.
+- **Every card is collapsed** to its heading and first hint line: click to open the
+  fields, toggles and test buttons, and **only one card is open at a time**. Jumping
+  from the checklist opens the card it points at, and picking an AI provider opens the
+  card holding that provider's credentials.
+- The **checklist card** at the top lists only what needs a decision — the options that
+  are still unconfigured, plus a *Novità* group when an option gained a new question
+  since you last saw it. It stays one compact line when there is nothing to decide.
+- **▶️ Review the options** re-runs the guided assistant over the open options; ntfy
+  notifications and the cron watchdog can be tested *inside* the wizard, before saving.
+
+Full detail: [Configuration](Configuration).
 
 ---
 

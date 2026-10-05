@@ -41,6 +41,8 @@ EverShelf is a **self-hosted pantry management system** that runs entirely on yo
 - **Fuel Mode** — optional bio-driven recipes from Health Bridge activity + your profile
 - Predicts what you'll need to buy before you run out
 - Integrates with the **Bring!** shopping list app and **Home Assistant** (HACS)
+- **Notifies you about expiring products** without Home Assistant — [ntfy](https://ntfy.sh) or any JSON webhook
+- **Subscribes your calendar to the expiries** — ICS/WebCal feed for Google/Apple Calendar
 - Supports a **BLE smart scale** for weight-based tracking
 - Runs as a **Progressive Web App** installable on any device
 - Optionally pairs with a dedicated **Android kiosk tablet app**
@@ -51,21 +53,23 @@ All data stays on your server. No cloud, no subscriptions.
 
 ## 🆕 What's New
 
-### v1.7.13 (2026-05-16)
-- **Fix:** Kiosk Settings button (⚙️) added to the web overlay — tapping the camera button no longer accidentally opens kiosk settings
-- **Fix:** Opened-item expiry badge is now consistent with the top banner: low-risk items (jams, condiments) show amber ⚠️ "Check soon" instead of misleading red ⛔ "Expired"
-- **Cooking Mode:** 3D wheel UI with perspective card flip, ghost steps (prev/next), float animation, and full `prefers-reduced-motion` support
-- **CI:** `data/category_ai_cache.json` added to `.gitignore`
-- **Critical fix (DB):** Fresh-install crash resolved — `transactions` schema was missing the `undone` column
+### v1.9.1 (2026-10-05)
+- **Settings collapse into sub-sections** — one card open at a time, the second-level
+  strip wraps instead of scrolling, and the checklist lists only what still needs a
+  decision (unconfigured options + *Novità*)
+- **Dashboard** — new *overview*, *freshness* and *trend* insight panels, and the spend
+  panel now explains a zero instead of hiding
+- **Push notifications without Home Assistant** — [ntfy](https://ntfy.sh) or any JSON
+  webhook, with a test button that reports the HTTP status
+- **Cron watchdog** — a stopped cron job is reported instead of staying silent
+- Setup checklist + guided assistant for every configurable option
 
-### v1.7.12 (2026-05-13)
-- "Use first" banner now shows opening date and location instead of a confusing calculated expiry
-- "Use All / Done" in recipes no longer deletes the inventory row — uses exact quantity instead
-- Scan page fully redesigned: 2× zoom, torch, camera flip, 3 input tabs, AI Number OCR, recent products chips
-- Anomaly detection: false positives eliminated (untracked direction removed, minimum 5 txn + 7-day span)
-- AI price estimation for each Bring! shopping item with real-time dashboard total badge
-- Kiosk v1.6.0: BLE scale gateway is now built-in — no separate APK needed
-- Complete i18n: 934 keys per language
+### v1.9.0 (2026-10-05)
+- **Calendar feed (ICS / WebCal)** — subscribe to the pantry expiries in Google/Apple Calendar
+- **Recipe → shopping list** — recomputed against the pantry, so you buy only the gap
+- **Seasonal produce** — the smart list hides what the current month cannot supply
+- **Third CSS layer** (`assets/css/elegant.css`) — a restyle that deletes no selector
+- **Client-log hardening** — the public log sink is redacted and bounded
 
 → See the full [CHANGELOG](https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md)
 
@@ -77,19 +81,23 @@ All data stays on your server. No cloud, no subscriptions.
 EverShelf/
 ├── index.html                  # Single-page application entry point
 ├── manifest.json               # PWA manifest
+├── sw.js                       # Service worker (offline shell + cache)
 ├── .env.example                # Configuration template
 ├── api/
-│   ├── index.php               # Main API router
+│   ├── index.php               # Main API router + all handlers
+│   ├── bootstrap.php           # Shared init (env, security, DB, logger)
 │   ├── database.php            # SQLite schema + migrations
+│   ├── lib/                    # Domain helpers (security, notify, seasonal, health…)
 │   └── cron_smart_shopping.php # Background predictions job
 ├── assets/
-│   ├── css/style.css
-│   ├── js/app.js
+│   ├── css/                    # style.css → corporate.css → elegant.css
+│   ├── js/app.js               # SPA logic (assets/js/core/ = auth, dom)
 │   └── img/
-├── translations/               # i18n JSON files (it, en, de)
-├── docs/openapi.yaml           # OpenAPI 3.0 spec
+├── translations/               # i18n JSON files (it, en, de, fr, es, zh)
+├── docs/                       # openapi.yaml, code indexes, wiki sources
+├── scripts/                    # CI test suite + maintenance CLIs
 ├── evershelf-kiosk/            # Android kiosk app (Kotlin)
-└── evershelf-scale-gateway/    # Android BLE gateway app (Kotlin) — DEPRECATED, built into kiosk since v1.6.0
+└── evershelf-health-bridge/    # Android Health Connect bridge app (Kotlin)
 ```
 
 ---

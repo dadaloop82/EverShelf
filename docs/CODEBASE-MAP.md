@@ -4,30 +4,30 @@
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
 >
-> Counts and line numbers below were measured for **v1.9.0** (`ab6f083`, 2026-10-05)
+> Counts and line numbers below were measured for **v1.9.1** (`fe318b9`, 2026-10-05)
 > and are rounded.
 
 ## 1. Top-level layout
 
 | Path | What it is | Size / notes |
 |---|---|---|
-| `index.html` | SPA shell, all pages as `<section>` + modals | ~2.4k lines |
-| `assets/js/app.js` | **Entire frontend logic** (single file) | ~26.2k lines, 933 fns |
+| `index.html` | SPA shell, all pages as `<section>` + modals | ~2.6k lines |
+| `assets/js/app.js` | **Entire frontend logic** (single file) | ~27.1k lines, 974 fns |
 | `assets/js/core/auth.js` | API token helpers (`getApiToken`, `apiAuthHeaders`) | loaded before app.js |
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
-| `assets/css/style.css` | All styles | ~10.5k lines |
+| `assets/css/style.css` | All styles | ~10.8k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
 | `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded **last**, deletes no selector |
-| `api/index.php` | **Entire backend**: router + all handlers | ~19.5k lines, 408 fns |
+| `api/index.php` | **Entire backend**: router + all handlers | ~19.6k lines, 409 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |
 | `api/logger.php` | `EverLog` rotating file logger + `LoggingPDO` | |
 | `api/lib/*.php` | Domain libs (see §4) | |
 | `api/cron_*.php` | CLI jobs (smart shopping, mealie cache, barcode catalog) | run by cron |
 | `api/scale_*.php` | Kitchen-scale gateway relay/discovery | |
-| `translations/*.json` | 6 languages, nested keys | 66 top-level keys |
+| `translations/*.json` | 6 languages, nested keys | 2,184 leaf keys, 67 top-level groups |
 | `data/` | Runtime DB + caches + logs (**HTTP denied** via `.htaccess`) | not all committed |
-| `scripts/*` | Maintenance CLIs (i18n sync, backfills, GH triage, env migration) | |
+| `scripts/*` | Maintenance CLIs + the regression suite CI runs | |
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |
 | `evershelf-kiosk/`, `evershelf-health-bridge/` | Android apps (Kotlin/Gradle) | |
 | `docs/`, `docs/wiki/` | Documentation | |
@@ -49,13 +49,25 @@
 
 ## 3. Frontend lifecycle
 
-- `DOMContentLoaded` (~line 24731) wires everything; `showPage()` switches
-  `<section class="page">` visibility; `api()` (line **5073**) is the single
+- `DOMContentLoaded` (~line 25800) wires everything; `showPage()` switches
+  `<section class="page">` visibility; `api()` (line **5384**) is the single
   fetch wrapper (retries on SQLite `database_busy`, offline queue, error report).
 - State held in module-level `let` vars (`shoppingItems`, `LOCATIONS`,
   `_currentLang`, `_scale*`, banner queue, …). No framework/reactivity.
 - i18n via `t(key)` + `data-i18n` attributes; `loadTranslations()` fetches
-  `translations/<lang>.json`.
+  `translations/<lang>.json`. **Never** print a literal emoji beside a translated
+  label: the values already carry their icon, so use `iconLabel(icon, key)` /
+  `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` enforces it in all six locales).
+- Dashboard: the alert blocks are capped per block (`DASHBOARD_EXPIRING_MAX` 3,
+  `DASHBOARD_OPENED_MAX` 5, `DASHBOARD_ALERT_MAX` 5 for expired,
+  `DASHBOARD_STALE_MAX` 3 with a deterministic 30-minute `_staleRotationPick`). The
+  insight area rotates `_INSIGHT_PHASES` (8 panels, 60 s each) through
+  `_applyInsightPhase()`, which skips any panel whose body is empty.
+- Settings: `_initSettingsAccordions()` turns every heading-bearing `.settings-card`
+  into an accordion (`_toggleSettingsCard`/`_setSettingsCardOpen`/`_closeSettingsCards`,
+  one open at a time, `SETTINGS_ACCORDION_SKIP = ['settings-checklist']`), and
+  `_openSettingsCardFor(el)` opens + flashes the card a checklist row points at.
+  `SETTINGS_CHECKLIST` drives both the checklist card and the guided assistant.
 - PWA: `sw.js` caches the app shell; `manifest.json` for install.
 
 ## 4. Library reference (`api/lib`)
@@ -200,11 +212,21 @@ Groups:
 
 ## 10. CI/CD (`.github/workflows`)
 
-- `ci.yml`: PHP lint (all files), JS/ESM syntax check (all files), `shellcheck`
-  on the shell scripts, the **PHP regression suite** (`scripts/test-*.php`),
-  Docker build smoke test, `scripts/i18n-audit.py` (flattened key parity), then
-  **auto-merge develop → main** and **create GH Release** using the version in
-  `index.html`.
+- `ci.yml`: PHP lint (`php -l` on every file under `api/`), `node -c
+  assets/js/app.js`, translation JSON validity + top-level key parity against
+  `it.json`, a Docker build smoke test, then **auto-merge develop → main** and
+  **create GH Release** using the version in `index.html` (the release body is the
+  `## [x.y.z]` CHANGELOG section for that version, when it exists). Two details are
+  worth remembering when writing the entry: `awk` collects the section up to the next
+  `^## [0-9]` line — which the bracketed `## [1.9.0]` headings do **not** match, so the
+  range runs to end-of-file — and CI then truncates it with `head -50`. Keep the
+  headline summary in the first ~47 lines after the heading, or it never reaches the
+  release page (fixing the workflow needs the same `workflow`-scoped PAT as below).
+- The heavier gates — the `scripts/test-*.php` regression suite,
+  `scripts/i18n-audit.py`, `shellcheck` and `node -c` on **every** JS file
+  (including `mcp-server/`) — are listed in `AGENTS.md` and run **locally today**.
+  Wiring them into CI needs a `workflow`-scoped PAT, so the patch waits in
+  `todo/0001-ci-run-the-test-suite-lint-every-JS-file-shellcheck-.patch`.
 - `build-kiosk.yml`, `build-health-bridge.yml`, `build-scale-gateway.yml`,
   `publish-docker.yml`, `security.yml`, dependabot.
 

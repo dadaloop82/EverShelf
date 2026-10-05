@@ -89,11 +89,13 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 # PHP syntax check (same as CI)
 find api -name '*.php' -exec php -l {} \;
 
-# JS syntax check (same as CI; mcp-server is ESM → --check, not -c)
+# JS syntax check (CI runs `node -c` on app.js; the rest are local-only;
+# mcp-server is ESM → --check, not -c)
 node -c assets/js/app.js && node -c sw.js
 for f in mcp-server/src/*.js; do node --check "$f"; done
 
-# PHP regression tests (same as CI)
+# PHP regression tests — local-only until the CI patch lands (see the note at
+# the end of this file), so run them yourself before pushing
 php scripts/test-shopping-guards.php
 php scripts/test-internal-shopping-cleanup.php
 php scripts/test-notify.php
@@ -111,11 +113,11 @@ python3 scripts/i18n-audit.py
 # i18n value audit: keys whose value is still English (report; --strict to fail)
 python3 scripts/i18n-value-audit.py
 
-# Shell scripts (same as CI)
+# Shell scripts (local-only for now, like the test suite)
 shellcheck -S warning backup.sh scripts/*.sh
 
 # Bump the version in the 4 touchpoints at once (+ cache-busting stamp)
-scripts/bump-version.sh 1.9.0
+scripts/bump-version.sh 1.9.2
 
 # Regenerate the cheap code indexes (do this after big edits)
 bash scripts/gen-code-index.sh
@@ -141,8 +143,11 @@ npm run build
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
 | Health / Fuel mode | `api/lib/health.php` |
-| Frontend API wrapper | `api()` in `assets/js/app.js` line **5073** |
-| i18n helper | `t()` line ~1195, `loadTranslations()` ~1206 |
+| Frontend API wrapper | `api()` in `assets/js/app.js` line **5384** |
+| i18n helper | `t()` line ~1198, `loadTranslations()` ~1209 |
+| Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST` (~25820), `_initSettingsAccordions()` (~5222), `_openSettingsCardFor()` (~5288), `_checklistNewsItems()` (~25907) |
+| Dashboard panels & limits | `DASHBOARD_*_MAX` (~6617), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544) |
+| Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |
 | PWA service worker | `sw.js` |
 
 ## Anti-patterns to avoid (already present — do not copy)

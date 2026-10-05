@@ -346,6 +346,73 @@ HTTP 400 with `"success": false` when nothing was delivered. `error` is either a
 machine key (`webhook_not_configured`, `ntfy_topic_invalid`, `ntfy_url_invalid`,
 `curl: …`) or a short upstream message.
 
+### `notify_healthcheck_test` — POST
+
+Fire one manual ping for the **cron watchdog** from *Settings → 🔔 Notifiche →
+⏱️ Cron watchdog*. It pings the URL in `notify_healthcheck_url` when one is sent (so a
+fresh paste can be verified before saving) and otherwise the stored URL from the first
+configured job.
+
+```json
+{ "notify_healthcheck_url": "https://hc-ping.com/your-uuid" }
+```
+
+```json
+{ "success": true, "configured": true, "sent": true, "http": 200, "error": "" }
+```
+
+Nothing is recorded, so a manual probe never rewrites the "last run" shown for the real
+cron job. With no URL stored yet it answers `200`
+(`{"success":true,"configured":false,"sent":false,"error":"healthcheck_not_configured"}`),
+an unparseable URL answers `400 invalid_url`, and a failed ping answers `400` with the
+upstream message.
+
+---
+
+## Calendar (ICS / WebCal)
+
+### `calendar_ics` — GET
+
+The expiry feed a calendar client subscribes to. Like `scale_relay` this is **not JSON**:
+it returns `text/calendar` and plain-text errors, because the caller is a calendar app
+and not `fetch()`.
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `token` | string | Read-only feed secret, compared in constant time |
+| `lang` | string | Event language, defaults to `en` |
+
+```
+GET /api/index.php?action=calendar_ics&token=…&lang=it
+```
+
+| Status | Meaning |
+|--------|---------|
+| 200 | The `.ics` feed (served as an attachment, `Cache-Control: private, max-age=900`) |
+| 403 | Missing or wrong token |
+| 404 | The feed is switched off in *Settings → 🗓️ Calendar* |
+
+### `get_ics_settings` — GET
+
+Status of the feed plus the subscribe URL to show in Settings:
+
+```json
+{
+  "success": true,
+  "ics_enabled": true,
+  "ics_days": 30,
+  "ics_past_days": 7,
+  "ics_token": "…",
+  "ics_url": "https://your-server/api/index.php?action=calendar_ics&token=…",
+  "ics_count": 12
+}
+```
+
+### `rotate_ics_token` — POST
+
+Mint a new secret and return the URL built from it. This is also the **enable** step: an
+enabled feed without a token would be reachable by anyone who guesses one.
+
 ---
 
 ## Error Reporting
