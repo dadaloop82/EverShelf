@@ -89,7 +89,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 git commit -m "feat(inventory): add bulk delete"
 git commit -m "fix(scale): handle BLE disconnect during countdown"
 git commit -m "docs: update kiosk setup guide"
-git commit -m "chore: bump version to 1.8.0"
+git commit -m "chore: bump version to 1.9.2"
 ```
 
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
