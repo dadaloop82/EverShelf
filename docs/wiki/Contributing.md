@@ -39,23 +39,47 @@ The app has **no build step**. Edit files directly and refresh the browser.
 
 Key files:
 - `assets/js/app.js` — all frontend logic
-- `assets/css/style.css` — all styles
+- `assets/css/style.css` (+ `corporate.css`, `elegant.css`) — styles
 - `api/index.php` — all API endpoints
 - `api/database.php` — SQLite schema and migrations
 - `translations/*.json` — i18n strings
 
 ### 5. Test
 
-```bash
-# Check PHP syntax
-php -l api/index.php
-php -l api/database.php
+Run the same gates CI runs, before you push:
 
-# Check JS syntax
-node --check assets/js/app.js
+```bash
+# PHP syntax (same as CI)
+find api -name '*.php' -exec php -l {} \;
+
+# JS syntax (same as CI; mcp-server is ESM → --check, not -c)
+node -c assets/js/app.js && node -c sw.js
+for f in mcp-server/src/*.js; do node --check "$f"; done
+
+# Translation files are valid JSON
+python3 -c "import json; json.load(open('translations/it.json'))"
 ```
 
-There are no automated JS tests yet — manual testing in the browser is the current approach. If you add a feature, test the full flow: add, use, undo.
+Then the regression suite and the audits — **these run locally today**, CI does not
+have them yet (see the CI/CD section):
+
+```bash
+php scripts/test-shopping-guards.php
+php scripts/test-internal-shopping-cleanup.php
+php scripts/test-notify.php
+php scripts/test-healthcheck.php
+php scripts/test-calendar-ics.php
+php scripts/test-recipe-shopping.php
+php scripts/test-settings-nav.php     # settings sections ↔ tabs ↔ panels ↔ locales
+php scripts/test-setup-assistant.php  # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
+php scripts/test-i18n-icons.php       # no label prints its icon twice (all locales)
+python3 scripts/i18n-audit.py         # keys used in code exist in every locale
+python3 scripts/i18n-value-audit.py   # keys whose value is still English (report)
+shellcheck -S warning backup.sh scripts/*.sh
+```
+
+There are no automated **browser** tests yet — for UI work, test the full flow by hand:
+add, use, undo.
 
 ### 6. Commit
 
@@ -97,13 +121,27 @@ CI auto-merges `develop → main` on every push to `develop`.
 
 ## CI / CD Pipeline
 
-GitHub Actions runs on every push to `develop` and `main`:
+`.github/workflows/ci.yml` runs on every push to `develop`/`main` and on PRs to `main`:
 
-1. **PHP lint** — `php -l` on all PHP files
-2. **JS syntax check** — `node --check assets/js/app.js`
-3. **Translation validation** — checks that all language files have the same keys
-4. **Docker build** — verifies the Docker image builds successfully
-5. **Android build** — (on tagged commits) builds Kiosk and Scale Gateway APKs
+1. **PHP syntax** — `php -l` on every file under `api/`
+2. **JS syntax** — `node -c assets/js/app.js`
+3. **Docker build smoke test** — builds the image and starts the container
+4. **Translation validation** — every `translations/*.json` is valid JSON and has the
+   same top-level keys as `it.json`
+5. **Auto-merge `develop → main`** — runs when all four checks pass on `develop`
+6. **Create GitHub Release** — reads the version from `index.html`, tags `vX.Y.Z` when
+   the tag does not exist yet, and uses that version's `## [x.y.z]` CHANGELOG section as
+   the release body
+
+This is what makes the release ritual mechanical: **bump the version** with
+`scripts/bump-version.sh X.Y.Z` (index.html, `manifest.json`, `sw.js`, the `app.js` i18n
+token) and **write the `## [X.Y.Z]` CHANGELOG section** before pushing to `develop`;
+CI does the merge and the tag. Android APKs (kiosk, health bridge) and the Docker image
+have their own workflows and build on their own triggers.
+
+> The regression suite, the i18n audits and `shellcheck` from the step above are **not
+> in CI yet** — run them yourself. Wiring them in needs a `workflow`-scoped PAT (the
+> ready-made patch lives in the git-ignored `todo/` folder).
 
 ---
 
@@ -114,7 +152,8 @@ See the full guide in [Translations](Translations).
 Short version:
 1. Copy `translations/it.json` → `translations/xx.json`
 2. Translate all values
-3. Add `'xx'` to `SUPPORTED_LANGUAGES` in `app.js`
+3. Add `'xx'` to `_SUPPORTED_LANGS` in `app.js` (the single source for detection and
+   the language `<select>`)
 4. Open a PR
 
 ---

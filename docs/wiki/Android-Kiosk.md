@@ -8,7 +8,7 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 **[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-kiosk.apk)**
 
-> Current version: **v1.6.0** — requires Android 7.0+
+> Current version: **v1.7.20** (versionCode 21) — requires Android 7.0+
 
 ---
 
@@ -23,22 +23,29 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 ---
 
-## Setup Wizard (6 steps)
+## Setup Wizard (9 steps)
 
-The wizard runs automatically on first launch.
+The wizard runs automatically on first launch. Steps already configured (the Gemini key,
+the Bring! account) are skipped, and the progress dots at the top show where you are.
 
-### Step 1 — Language
-Select the app and web interface language (Italian, English, German).
+| # | Step | What it asks |
+|---|------|--------------|
+| 0 | **Language** | App and web-interface language: Italiano, English, Deutsch, Español, Français |
+| 1 | **Welcome** | Overview of what the wizard will configure |
+| 2 | **Permissions** | Runtime permissions needed by the web app: camera + microphone (storage/media on older Androids) |
+| 3 | **Server URL** | Your EverShelf URL, or LAN auto-discovery |
+| 4 | **Smart Scale** | Optional Bluetooth LE scale |
+| 5 | **Features** | Four toggles: screensaver, price tracking, meal-plan and zero-waste mode |
+| 6 | **Gemini AI** | Optional AI key, so scan/recipe features work out of the box |
+| 7 | **Bring!** | Optional Bring! shopping-list account |
+| 8 | **Done** | Launch the kiosk |
 
-### Step 2 — Welcome
-Overview of what the wizard will configure.
-
-### Step 3 — Permissions
-Grant camera, microphone, and storage permissions needed by the web app.
+### Step 2 — Permissions
 
 The button transforms from **"Grant permissions"** to **"✅ Permissions granted — Continue →"** (green) once all permissions are granted.
 
-### Step 4 — Server URL
+### Step 3 — Server URL
+
 Enter your EverShelf server URL (e.g. `https://192.168.1.100/dispensa`).
 
 **Or tap "Auto-discover"** to let the wizard scan your LAN:
@@ -46,7 +53,8 @@ Enter your EverShelf server URL (e.g. `https://192.168.1.100/dispensa`).
 - Only scans your actual Wi-Fi/Ethernet subnet (VPN and cellular interfaces ignored)
 - Real-time feedback as hosts are tested
 
-### Step 5 — Smart Scale
+### Step 4 — Smart Scale
+
 If you have a Bluetooth LE smart scale, configure it here:
 1. Tap **"Yes, I have a scale"** — the app scans for nearby BLE devices
 2. Tap your scale in the list (devices most likely to be scales are marked with ⭐)
@@ -54,43 +62,63 @@ If you have a Bluetooth LE smart scale, configure it here:
 
 The BLE gateway runs as a built-in foreground service — **no external APK needed**.
 
-### Step 6 — Screensaver
-Choose whether the screen should go dark after inactivity.
+### Step 5 — Features
 
-### Summary
+Four toggles that are pushed to the web app: **screensaver** (screen goes dark after
+inactivity, the web app draws the clock overlay), **price tracking**, **meal-plan** and
+**zero-waste mode**.
+
+### Steps 6–7 — Gemini AI and Bring! (optional)
+
+Both can be skipped and configured later in the web app; the wizard writes what you enter
+straight into the server settings.
+
+### Step 8 — Summary
+
 All done — the web app loads in full-screen kiosk mode.
 
 ---
 
-## Header Overlay Buttons
+## On-screen Buttons
 
-Three buttons are injected into the top-left of the web header by the kiosk app:
+| Button | Where | Action |
+|--------|-------|--------|
+| **✕** | Web overlay, injected into `#header-left` | Exit kiosk mode (confirmation dialog → `_kioskBridge.exit()`) |
+| **↻** | Web overlay, injected into `#header-left` | Hard-refresh — clears the WebView cache and reloads the app |
+| **⚙️** | Web overlay, injected into `#header-left` | Open the **web** Settings page (`showPage('settings')`) |
 
-| Button | Action |
-|--------|--------|
-| **✕** | Exit kiosk mode (confirmation dialog) |
-| **↻** | Hard-refresh — clears WebView cache and reloads the app |
-| **⚙️** | Open EverShelf Settings |
+The **native** Android gear (`btnSettings`, `alpha 0.28`, bottom-right) is permanently
+hidden as soon as the overlay is injected (`_kioskBridge.setNativeSettingsVisible(false)`),
+so kiosk configuration happens inside the web app. An earlier layout left the native
+button on top of the header, where it swallowed the 📷 scan tap — which is why it is now
+faint, moved above the bottom nav bar, and switched off.
 
-The native Android settings button is permanently hidden once the overlay is injected — the **⚙️** web button replaces it entirely.
+The native *SettingsActivity* (server URL, BLE scale, screensaver) is still reachable
+from the web app: *Settings → ℹ️ Info → Kiosk* → **Apri configurazione kiosk**
+(`_openKioskNativeSettings()` → `_kioskBridge.openNativeSettings()`). The same card can
+re-run the BLE scale wizard (`reconfigureScale`), check for an APK update, or show the
+download link. An older APK that does not expose those bridges gets a "please update
+the kiosk" notice instead.
 
 ---
 
 ## Exiting Kiosk Mode
 
-Tap the **✕** button in the header overlay (top-left). A confirmation dialog appears.
+Tap the **✕** button in the top-left overlay. A confirmation dialog appears.
 
 ---
 
 ## Hard Refresh
 
-Tap the **↻** button in the header to clear the WebView cache and reload the latest version of the web app.
+Tap the **↻** button in the top-left overlay to clear the WebView cache and reload the latest version of the web app.
 
 ---
 
 ## Update Notifications
 
-Every 6 hours the app checks GitHub releases. If a newer version is available, a banner appears with a one-tap download and install flow.
+The app polls for updates every **30 minutes**, while the real GitHub API call is
+throttled to **once every 6 hours**. If a newer version is available, a banner appears
+with a one-tap download and install flow (`REQUEST_INSTALL_PACKAGES`).
 
 ---
 
@@ -113,7 +141,7 @@ The WebView accepts self-signed certificates automatically. No configuration nee
 
 ## Troubleshooting
 
-### "Server non trovato" during auto-discovery
+### "Nessun server EverShelf trovato automaticamente"
 - Make sure your tablet and server are on the same Wi-Fi network
 - Ensure the server is not on a VPN-only interface
 - Try entering the URL manually

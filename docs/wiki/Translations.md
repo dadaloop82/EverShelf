@@ -8,9 +8,16 @@ EverShelf uses JSON translation files in the `translations/` folder. The app aut
 
 | Language | File | Status |
 |----------|------|--------|
-| 🇮🇹 Italian | `translations/it.json` | ✅ Complete (base language) |
-| 🇬🇧 English | `translations/en.json` | ✅ Complete |
+| 🇮🇹 Italian | `translations/it.json` | ✅ Complete (base language, 2184 keys) |
+| 🇬🇧 English | `translations/en.json` | ✅ Complete — the fallback for every other locale |
 | 🇩🇪 German | `translations/de.json` | ✅ Complete |
+| 🇫🇷 French | `translations/fr.json` | ✅ Complete |
+| 🇪🇸 Spanish | `translations/es.json` | ✅ Complete |
+| 🇨🇳 Chinese (simplified) | `translations/zh.json` | ✅ Complete |
+
+`python3 scripts/i18n-audit.py` reports the current count and exits `1` the moment a
+locale falls behind; `python3 scripts/i18n-value-audit.py` lists the keys whose value is
+still English.
 
 ---
 
@@ -19,12 +26,12 @@ EverShelf uses JSON translation files in the `translations/` folder. The app aut
 ### 1. Copy the base file
 
 ```bash
-cp translations/it.json translations/fr.json
+cp translations/it.json translations/pt.json
 ```
 
 ### 2. Translate all values
 
-Open `fr.json` in your editor and translate every **value** (leave the **keys** unchanged).
+Open `pt.json` in your editor and translate every **value** (leave the **keys** unchanged).
 
 ```json
 {
@@ -44,44 +51,46 @@ Open `fr.json` in your editor and translate every **value** (leave the **keys** 
 - Keep `{placeholder}` tokens unchanged — they are replaced at runtime
   - Example: `"toast.added": "Added {name} to {location}"` — keep `{name}` and `{location}`
 - Keep HTML tags if present (rare): `<strong>`, `<br>`
-- Keep emojis (they are part of the UX design)
+- Keep emojis (they are part of the UX design) — and **never** print an extra icon next
+  to a translated label in code: the value already carries it. Use `iconLabel(icon, key)`
+  in JS / `data-i18n` in HTML; `php scripts/test-i18n-icons.php` fails on a doubled icon
+  in any of the six locales.
 - Plurals: some keys have `_one` / `_many` variants — translate both
 
 ### 3. Register the language in the app
 
-Open `assets/js/app.js` and find the `SUPPORTED_LANGUAGES` constant (near the top):
+Open `assets/js/app.js` and add the code + native name to `_SUPPORTED_LANGS` (~line 1165):
 
 ```js
-const SUPPORTED_LANGUAGES = ['it', 'en', 'de'];
+const _SUPPORTED_LANGS = { it: 'Italiano', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', zh: '简体中文' };
 ```
 
-Add your language code:
+That object drives both the detection allow-list and the language `<select>` in
+*Settings → 🌐 Language* (`_populateLanguageSelector()`), so no other file needs editing.
 
-```js
-const SUPPORTED_LANGUAGES = ['it', 'en', 'de', 'fr'];
-```
+### 4. Check the coverage
 
-### 4. Add the language to `translations/` badge list
-
-Update the `README.md` badge:
-
-```markdown
-[![i18n](https://img.shields.io/badge/i18n-IT%20%7C%20EN%20%7C%20DE%20%7C%20FR-orange.svg)](translations/)
+```bash
+python3 scripts/i18n-audit.py          # keys used in code but missing in a locale → exit 1
+python3 scripts/i18n-value-audit.py    # keys whose value is still English (report)
 ```
 
 ### 5. Test
 
-Open the app with `?lang=fr` in the URL to force your language:
+Pick the new language in *Settings → 🌐 Language* (the page reloads), or set the stored
+key by hand:
 
-```
-http://localhost:8080/?lang=fr
+```js
+localStorage.setItem('evershelf_lang', 'pt'); location.reload();
 ```
 
-Check for missing keys — they will show the raw key name in the UI (e.g. `nav.title`).
+Missing keys show the raw key name in the UI (e.g. `nav.title`), and `t()` falls back to
+English rather than to Italian for any non-Italian locale.
 
 ### 6. Submit a PR
 
-Open a pull request with your new `translations/fr.json` and the updated `app.js` line. See [Contributing](Contributing).
+Open a pull request with your new `translations/pt.json` and the updated `app.js` line.
+See [Contributing](Contributing).
 
 ---
 
@@ -115,29 +124,28 @@ The file is a nested JSON object. Here are the main sections:
 
 ## Updating Existing Translations
 
-If a new feature adds keys to `it.json` (the base), you need to add the same keys to `en.json` and `de.json`.
+If a new feature adds keys to `it.json` (the base), the same keys must be added to the
+other five files (`en`, `de`, `fr`, `es`, `zh`).
 
-The CI pipeline validates that all language files contain the same keys — a missing key will fail the build.
-
-To check locally:
+Locally:
 
 ```bash
-node -e "
-const it = require('./translations/it.json');
-const en = require('./translations/en.json');
-// flatten and compare keys...
-"
+python3 scripts/i18n-audit.py        # keys used in code but missing in a locale (exit 1)
+python3 scripts/i18n-value-audit.py  # keys whose value is still English
+php scripts/test-i18n-icons.php      # no label prints its icon twice, in any locale
 ```
 
-Or just open a PR — CI will flag any missing keys automatically.
+In CI, the *Validate Translation Files* job checks that every file is valid JSON and that
+no locale is missing a **top-level** section present in `it.json`. The full nested audit
+(`i18n-audit.py`) runs locally until it is wired into CI, so run it before pushing.
 
 ---
 
 ## Language Detection Order
 
-1. `?lang=xx` URL parameter (forces a specific language)
-2. `localStorage.getItem('lang')` (last manually selected language)
-3. `navigator.language` / `navigator.languages` (browser preference)
-4. Fallback: `en`
+1. `localStorage.getItem('evershelf_lang')` — the language the user last picked
+   (written by `changeLanguage()`; the setup wizard sets it on first run)
+2. `navigator.language` / `navigator.languages` (browser preference, first two letters)
+3. Fallback: `en` — also when the detected code is not in `_SUPPORTED_LANGS`
 
-Users can change the language in **Settings → Language**.
+Users can change the language in **Settings → 🌐 Language** (the page reloads).
