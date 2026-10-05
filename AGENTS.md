@@ -26,8 +26,8 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 ```
 
 - **All** HTTP actions are dispatched by one `switch ($action)` in
-  `api/index.php` (line **902**). See `docs/INDEX-actions.md` for action → handler.
-- Frontend is one file `assets/js/app.js` (~26.0k lines, 924 top-level functions).
+  `api/index.php` (line **898**). See `docs/INDEX-actions.md` for action → handler.
+- Frontend is one file `assets/js/app.js` (~26.2k lines, 933 top-level functions).
   See `docs/INDEX-app-js.md` for function → line.
 - Backend is one file `api/index.php` (~19.5k lines, 408 functions).
   See `docs/INDEX-api-index.md`.
@@ -126,7 +126,7 @@ npm run build
 
 | Want to… | Go to |
 |---|---|
-| Add/change an HTTP endpoint | `api/index.php` switch (line 902) + a handler `function` below |
+| Add/change an HTTP endpoint | `api/index.php` switch (line 898) + a handler `function` below |
 | Auth / CORS / demo mode | `api/lib/security.php` |
 | Config / `.env` read+write | `api/lib/env.php`, `saveSettings()` (~8082) |
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |

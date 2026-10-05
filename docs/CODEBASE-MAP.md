@@ -12,7 +12,7 @@
 | Path | What it is | Size / notes |
 |---|---|---|
 | `index.html` | SPA shell, all pages as `<section>` + modals | ~2.4k lines |
-| `assets/js/app.js` | **Entire frontend logic** (single file) | ~26.0k lines, 924 fns |
+| `assets/js/app.js` | **Entire frontend logic** (single file) | ~26.2k lines, 933 fns |
 | `assets/js/core/auth.js` | API token helpers (`getApiToken`, `apiAuthHeaders`) | loaded before app.js |
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
 | `assets/css/style.css` | All styles | ~10.5k lines |
@@ -44,7 +44,7 @@
    `gemini_usage`, `health_check`.
 4. `getDB()` (SQLite, WAL, busy_timeout 20s) then global exception handlers.
 5. Rate limit (`checkRateLimit`) → CSRF guard for write actions →
-   `evershelfRequireApiAuth` → demo-mode block → `switch ($action)` (line ~902).
+   `evershelfRequireApiAuth` → demo-mode block → `switch ($action)` (line ~898).
 6. Handlers read `php://input` JSON or `$_GET`, write DB, `echo json_encode`.
 
 ## 3. Frontend lifecycle
@@ -74,7 +74,8 @@
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
 | `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
 | `seasonal.php` | **IT produce calendar** + stale-stock; the review card returns a `tip_key` the client resolves | `seasonalReviewShopping()`, `seasonalIsAllYearCrop()`, `staleInventoryItems()` |
-| `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed |
+| `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed, the notifier and seasonal tips |
+| `notify.php` | **Outbound notifications**: ntfy + generic webhook fan-out (legacy HA notify service kept), i18n-aware event formatting, URL/topic/priority/body guards | `evershelfNotifyEvent()`, `evershelfNotifySend()`, `evershelfNotifyConfigured()`, `notifyTestAction()` (in `index.php`) |
 | `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
 | `recipe_shopping.php` | **Recipe → shopping list** with pantry deduction (recompute the gap on open) | `evershelfRecipeShoppingPlan()`, `recipeShoppingAdd()`, `evershelfBaseQty()` |
 | `cron_log.php` | Rotates `data/cron.log` | |
@@ -158,6 +159,9 @@ Groups:
   `db_cleanup`, `backup_now/list/delete/restore`, `gdrive_*`, `check_update`,
   `client_log`, `get_client_log`, `get_logs`, `gemini_usage`, `report_error`,
   `report_bug`, `migrate_units`, `export_inventory`, `import_inventory`.
+- **Notifications (ntfy / webhook)**: `notify_test` (POST — pushes one message
+  through every configured channel, ignores `NOTIFY_ENABLED`, reports per-channel
+  HTTP status; the same fan-out runs on every `_fireHaWebhook()` event).
 - **Integrations**: `ha_*` (Home Assistant), `mealie_*`, `health_*`,
   `weather_get/geocode`, `scale_*` (separate PHP files).
 - **Calendar (ICS)**: `calendar_ics` (**public**, guarded by its own read-only

@@ -29,6 +29,37 @@ the next release.
   non-array `messages` is ignored instead of reaching `foreach`.
 
 ### Added
+- **Outbound notifications without Home Assistant (ntfy + generic webhook)** —
+  push alerts used to be locked behind the HA integration: no Home Assistant, no
+  phone notification. *Settings → 🔔 Notifiche* now configures a free
+  [ntfy](https://ntfy.sh) topic and/or any JSON webhook (n8n, Node-RED, Gotify, a
+  Discord/Slack bridge) and can **send a test notification** that reports the HTTP
+  status of every channel — replacing a failure mode nobody could debug, a silent
+  non-delivery discovered days later.
+  - Events keep the names the HA automations already use (`expiry_alert`,
+    `shopping_add`, `stock_update`) and fire from the same `_fireHaWebhook()` choke
+    point, so an existing automation keeps working untouched. `NOTIFY_ENABLED` is
+    the master switch for the two new channels *only*; the legacy HA notify service
+    keeps its own `HA_ENABLED` + `HA_NOTIFY_SERVICE` gate. Message text is built
+    server-side in `NOTIFY_LANGUAGE` (it/en/de/fr/es/zh), so one household can read
+    notifications in one language while the UI follows the browser.
+  - The ntfy topic is validated as a URL path segment (letters, digits, `-`, `_`,
+    max 64) and the 🎲 button generates a 16-char unguessable one, because the topic
+    *is* the credential on a public server. The body is clamped to 3600 bytes on a
+    UTF-8 boundary, CR/LF is stripped from every header value (Title, Tags,
+    Authorization, custom token header) so a product name cannot inject a header,
+    and only `http(s)` targets are ever contacted. `NOTIFY_INSECURE_SSL` (opt-in)
+    covers LAN servers with a self-signed certificate; the URL is never logged
+    because it may carry the topic.
+  - Tokens are write-only end to end: `get_settings` returns `*_token_set`
+    booleans, the field shows `••••••••` when one is stored and an empty field means
+    "leave the stored value alone". A non-`Authorization` token header (e.g.
+    `X-Api-Key`) is sent verbatim, `Authorization` as `Bearer …`.
+  - New `api/lib/notify.php`, action `notify_test` (POST, demo-blocked) and
+    `scripts/test-notify.php` (44 assertions: priority clamps, UTF-8 clamp
+    boundary, header sanitising, URL scheme guard, the language-aware message
+    builders, `evershelfNotifyConfigured()`). 60 new i18n keys in all six locales;
+    the daily cron expiry push goes through the same fan-out.
 - **Recipe → shopping list, minus what the pantry already holds** — a recipe used
   to hand you a frozen list the AI wrote when it was generated (no quantities, and
   wrong the next day). The 🛒 panel under the ingredients now recomputes the gap

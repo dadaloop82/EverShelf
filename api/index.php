@@ -1144,6 +1144,10 @@ try {
             aiTestConnection();
             break;
 
+        case 'notify_test':
+            notifyTestAction();
+            break;
+
         case 'client_log':
             clientLog();
             break;
@@ -2415,6 +2419,10 @@ function ttsProxy() {
  * Non-blocking: uses a 5 s cURL timeout; failures are logged but never thrown.
  */
 function _fireHaWebhook(string $event, array $data): void {
+    // Notifications ride along: every event that reaches Home Assistant also goes
+    // to the NOTIFY_* channels (ntfy / generic webhook — api/lib/notify.php).
+    evershelfNotifyEvent($event, $data);
+
     if (env('HA_ENABLED', 'false') !== 'true') return;
     $haUrl     = rtrim(env('HA_URL', ''), '/');
     $webhookId = env('HA_WEBHOOK_ID', '');
@@ -2445,49 +2453,6 @@ function _fireHaWebhook(string $event, array $data): void {
         EverLog::warn("_fireHaWebhook[$event]: cURL error – $err");
     } else {
         EverLog::debug("_fireHaWebhook[$event]: HTTP $code");
-    }
-}
-
-/**
- * Send a notification via HA notify service (e.g. notify.mobile_app_phone).
- * Used for expiry alerts when HA_NOTIFY_SERVICE is configured.
- */
-function _sendHaNotify(string $message, array $data = []): void {
-    if (env('HA_ENABLED', 'false') !== 'true') return;
-    $haUrl   = rtrim(env('HA_URL', ''), '/');
-    $token   = env('HA_TOKEN', '');
-    $service = env('HA_NOTIFY_SERVICE', '');
-    if (!$haUrl || !$token || !$service) return;
-
-    // service format: "notify.mobile_app_xyz" → POST /api/services/notify/mobile_app_xyz
-    [$domain, $svcName] = array_pad(explode('.', $service, 2), 2, '');
-    if (!$svcName) return;
-
-    $url     = $haUrl . '/api/services/' . urlencode($domain) . '/' . urlencode($svcName);
-    $payload = json_encode(array_merge(['message' => $message, 'data' => $data], []), JSON_UNESCAPED_UNICODE);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $token,
-        ],
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_CONNECTTIMEOUT => 4,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($err) {
-        EverLog::warn("_sendHaNotify: cURL error – $err");
-    } else {
-        EverLog::debug("_sendHaNotify: HTTP $code");
     }
 }
 
@@ -8120,6 +8085,22 @@ function getServerSettings(): void {
         'ha_webhook_events'           => env('HA_WEBHOOK_EVENTS', 'expiry,shopping_add,stock_update,barcode_scan'),
         'ha_notify_service'           => env('HA_NOTIFY_SERVICE', ''),
         'ha_expiry_days'              => (int)env('HA_EXPIRY_DAYS', '3'),
+        // Notifications (ntfy / generic webhook) — tokens are exposed as *_set only.
+        // The ntfy topic *is* returned: the user has to copy it into the phone app.
+        'notify_enabled'              => evershelfNotifyEnabled(),
+        'notify_channels'             => implode(',', evershelfNotifyChannels()),
+        'notify_events'               => implode(',', evershelfNotifyEvents()),
+        'notify_language'             => env('NOTIFY_LANGUAGE', ''),
+        'notify_configured'           => evershelfNotifyConfigured(),
+        'ntfy_url'                    => env('NTFY_URL', 'https://ntfy.sh'),
+        'ntfy_topic'                  => env('NTFY_TOPIC', ''),
+        'ntfy_token_set'              => !empty(env('NTFY_TOKEN', '')),
+        'ntfy_priority'               => evershelfNotifyPriority((string)env('NTFY_PRIORITY', 'default')),
+        'ntfy_tags'                   => env('NTFY_TAGS', 'ever-shelf'),
+        'notify_webhook_url'          => env('NOTIFY_WEBHOOK_URL', ''),
+        'notify_webhook_token_set'    => !empty(env('NOTIFY_WEBHOOK_TOKEN', '')),
+        'notify_webhook_header'       => env('NOTIFY_WEBHOOK_HEADER', ''),
+        'notify_insecure_ssl'         => env('NOTIFY_INSECURE_SSL', 'false') === 'true',
         // Mealie / recipe source
         'recipe_source'               => recipeEffectiveSource(),
         'mealie_url'                  => env('MEALIE_URL', ''),
@@ -8144,6 +8125,44 @@ function aiTestConnection(): void {
     http_response_code(($result['error'] ?? '') === 'ai_disabled' ? 503 : 400);
     echo json_encode(['success' => false] + $result);
 }
+
+/**
+ * action=notify_test — push one notification through every configured channel.
+ *
+ * Deliberately ignores NOTIFY_ENABLED and NOTIFY_EVENTS: testing the setup is
+ * exactly when those gates are still off. The per-channel outcome and the list
+ * of configured channels are returned so the Settings panel can explain what
+ * happened; error strings are machine keys, never prose.
+ */
+function notifyTestAction(): void {
+    $lang   = evershelfNotifyLanguage();
+    $result = evershelfNotifySend(
+        'test',
+        evershelfTr('notify.test_title', $lang),
+        evershelfTr('notify.test_message', $lang, ['time' => date('Y-m-d H:i')]),
+        ['test' => true],
+        true
+    );
+
+    $delivered = 0;
+    foreach ($result['channels'] as $outcome) {
+        if (!empty($outcome['ok'])) {
+            $delivered++;
+        }
+    }
+
+    EverLog::info('notifyTestAction', ['delivered' => $delivered, 'configured' => evershelfNotifyConfigured()]);
+    if ($delivered === 0) {
+        http_response_code(400);
+    }
+    echo json_encode([
+        'success'    => $delivered > 0,
+        'delivered'  => $delivered,
+        'channels'   => $result['channels'],
+        'configured' => evershelfNotifyConfigured(),
+    ]);
+}
+
 
 function dbCleanup(?PDO $db = null): void {
     $recipeDays = max(1, (int)env('RECIPE_RETENTION_DAYS', '7'));
@@ -8230,6 +8249,18 @@ function saveSettings(): void {
         'weather_lat'        => 'WEATHER_LAT',
         'weather_lon'        => 'WEATHER_LON',
         'weather_city'       => 'WEATHER_CITY',
+        // Notifications (ntfy / generic webhook) — see api/lib/notify.php
+        'notify_channels'       => 'NOTIFY_CHANNELS',
+        'notify_events'         => 'NOTIFY_EVENTS',
+        'notify_language'       => 'NOTIFY_LANGUAGE',
+        'ntfy_url'              => 'NTFY_URL',
+        'ntfy_topic'            => 'NTFY_TOPIC',
+        'ntfy_token'            => 'NTFY_TOKEN',
+        'ntfy_priority'         => 'NTFY_PRIORITY',
+        'ntfy_tags'             => 'NTFY_TAGS',
+        'notify_webhook_url'    => 'NOTIFY_WEBHOOK_URL',
+        'notify_webhook_token'  => 'NOTIFY_WEBHOOK_TOKEN',
+        'notify_webhook_header' => 'NOTIFY_WEBHOOK_HEADER',
     ];
     // Boolean keys
     $boolMap = [
@@ -8257,6 +8288,9 @@ function saveSettings(): void {
         'barcode_ai_fallback' => 'BARCODE_AI_FALLBACK',
         // Home Assistant
         'ha_enabled'    => 'HA_ENABLED',
+        // Notifications (ntfy / generic webhook)
+        'notify_enabled'      => 'NOTIFY_ENABLED',
+        'notify_insecure_ssl' => 'NOTIFY_INSECURE_SSL',
         // Calendar (ICS expiry feed)
         'ics_enabled'   => 'ICS_ENABLED',
     ];

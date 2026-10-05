@@ -55,9 +55,13 @@ NEUTRAL_VALUES = frozenset({
     '1ABCdef_xyz…',                                # Google OAuth client id
     '1234567890-abc….apps.googleusercontent.com',  # Google OAuth client id (full)
     'X-API-Key',                                   # custom auth header name
+    'Authorization',                               # HTTP auth header name
+    'ever-shelf,warning',                          # ntfy tag shortcodes (map to emoji)
     # Endpoint examples
     'https://...',
     'http://127.0.0.1:9925',                       # local Mealie
+    'https://ntfy.sh',                             # public ntfy server (same in every language)
+    'http://n8n.local:5678/webhook/evershelf',      # local n8n webhook (illustrative URL)
     # Model names
     'gpt-4o-mini',
     'llama3.2',

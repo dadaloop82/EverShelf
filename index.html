@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005c">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005c">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005c">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005d">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005d">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005d">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005c"></script>
-    <script src="assets/js/core/auth.js?v=20261005c"></script>
+    <script src="assets/js/core/dom.js?v=20261005d"></script>
+    <script src="assets/js/core/auth.js?v=20261005d"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005d';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005c';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005d';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005c"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005d"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -954,6 +954,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-notify'); _loadNotifyTab();" data-tab="tab-notify" title="Notifiche" data-i18n-title="settings.notify.tab"><span class="settings-tab-icon">🔔</span><span class="settings-tab-text" data-i18n="settings.notify.tab">Notifiche</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
@@ -1813,6 +1814,151 @@
                 <button class="btn btn-large btn-accent full-width" onclick="saveHaSettings()" data-i18n="settings.ha.save_btn">💾 Salva impostazioni HA</button>
                 <div id="ha-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
             </div>
+            <!-- Notifications Tab (ntfy / generic webhook — works without Home Assistant) -->
+            <div class="settings-panel" id="tab-notify">
+                <!-- Master switch + events + language -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.notify.title">🔔 Notifiche push</h4>
+                    <p class="settings-hint" data-i18n="settings.notify.hint">Ricevi gli avvisi su scadenze e lista della spesa senza Home Assistant: basta un topic ntfy o un webhook.</p>
+
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.notify.enabled">✅ Abilita le notifiche (ntfy / webhook)</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-notify-enabled" onchange="onNotifyEnabledChange()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.notify.enabled_hint">Interruttore principale per i canali ntfy e webhook. Il servizio notify di Home Assistant continua a funzionare separatamente.</p>
+                    </div>
+
+                    <div id="notify-config-section">
+                        <div class="form-group">
+                            <label data-i18n="settings.notify.events_title">📋 Eventi da notificare</label>
+                            <div style="display:flex;flex-direction:column;gap:6px">
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-expiry"> <span data-i18n="settings.notify.event_expiry">Prodotti in scadenza (controllo giornaliero)</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-shopping"> <span data-i18n="settings.notify.event_shopping">Aggiunta alla lista della spesa</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-stock"> <span data-i18n="settings.notify.event_stock">Aggiornamento scorte (quantità modificata)</span>
+                                </label>
+                            </div>
+                            <p class="settings-hint" data-i18n="settings.notify.events_hint">Scegli cosa deve arrivarti sul telefono. Le scadenze sono consigliate: gli altri eventi possono essere frequenti.</p>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:0">
+                            <label data-i18n="settings.notify.language_label">🌐 Lingua dei messaggi</label>
+                            <select id="setting-notify-language" class="form-input"></select>
+                            <p class="settings-hint" data-i18n="settings.notify.language_hint">Lingua del testo generato dal server (l'interfaccia segue la lingua del browser).</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- ntfy channel -->
+                <div class="settings-card">
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.notify.ntfy_title">📲 ntfy (consigliato)</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify-channel-ntfy">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.notify.ntfy_hint">ntfy è gratuito e non richiede account: scegli un topic segreto e iscriviti con l'app ntfy (Android, iOS o web).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.ntfy_url_label">🌐 Server ntfy</label>
+                        <input type="url" id="setting-ntfy-url" class="form-input" placeholder="https://ntfy.sh">
+                        <p class="settings-hint" data-i18n="settings.notify.ntfy_url_hint">Lascia https://ntfy.sh oppure inserisci il tuo server ntfy self-hosted (es. http://192.168.1.50:8080).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.ntfy_topic_label">🔑 Topic ntfy</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" id="setting-ntfy-topic" class="form-input" style="flex:1" placeholder="evershelf-casa-7f3a91" data-i18n-placeholder="settings.notify.ntfy_topic_placeholder" autocomplete="off" spellcheck="false">
+                            <button class="btn btn-secondary" style="flex-shrink:0" onclick="generateNtfyTopic()" data-i18n-title="settings.notify.ntfy_topic_generate" data-i18n="settings.notify.ntfy_topic_generate">🎲</button>
+                        </div>
+                        <p class="settings-hint" data-i18n="settings.notify.ntfy_topic_hint">Solo lettere, numeri, trattino e underscore (max 64). Chi conosce il topic può leggerlo e pubblicare: trattalo come una password.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.ntfy_token_label">🔒 Token (solo per server protetti)</label>
+                        <input type="password" id="setting-ntfy-token" class="form-input" autocomplete="new-password">
+                        <p class="settings-hint" data-i18n="settings.notify.ntfy_token_hint">Serve solo se il tuo server ntfy richiede autenticazione (Authorization: Bearer).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.ntfy_priority_label">⚡ Priorità</label>
+                        <select id="setting-ntfy-priority" class="form-input">
+                            <option value="1" data-i18n="settings.notify.priority_min">Minima</option>
+                            <option value="2" data-i18n="settings.notify.priority_low">Bassa</option>
+                            <option value="3" data-i18n="settings.notify.priority_default" selected>Normale</option>
+                            <option value="4" data-i18n="settings.notify.priority_high">Alta</option>
+                            <option value="5" data-i18n="settings.notify.priority_urgent">Urgente</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:0">
+                        <label data-i18n="settings.notify.ntfy_tags_label">🏷️ Tag (emoji ntfy)</label>
+                        <input type="text" id="setting-ntfy-tags" class="form-input" placeholder="ever-shelf,warning">
+                        <p class="settings-hint" data-i18n="settings.notify.ntfy_tags_hint">Separati da virgola, es. ever-shelf,warning. Aggiungono un'icona accanto alla notifica.</p>
+                    </div>
+                </div>
+                <!-- Generic webhook channel -->
+                <div class="settings-card">
+                    <div class="form-group" style="margin-bottom:10px">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.notify.webhook_title">🔗 Webhook generico (opzionale)</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="notify-channel-webhook">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.notify.webhook_hint">Un POST JSON verso qualsiasi URL: n8n, Node-RED, Gotify, un bridge Discord o Slack…</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.webhook_url_label">URL del webhook</label>
+                        <input type="url" id="setting-notify-webhook-url" class="form-input" placeholder="http://n8n.local:5678/webhook/evershelf">
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.webhook_token_label">Token (facoltativo)</label>
+                        <input type="password" id="setting-notify-webhook-token" class="form-input" autocomplete="new-password">
+                    </div>
+
+                    <div class="form-group">
+                        <label data-i18n="settings.notify.webhook_header_label">Header del token</label>
+                        <input type="text" id="setting-notify-webhook-header" class="form-input" placeholder="Authorization">
+                        <p class="settings-hint" data-i18n="settings.notify.webhook_header_hint">Nome dell'header che porta il token (default: Authorization: Bearer …).</p>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:0">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.notify.insecure_ssl_label">🔓 Accetta certificati TLS self-signed</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-notify-insecure-ssl">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                        <p class="settings-hint" data-i18n="settings.notify.insecure_ssl_hint">Attiva solo per un server ntfy o webhook nella tua LAN con certificato self-signed.</p>
+                    </div>
+                </div>
+
+                <!-- Test + Home Assistant note -->
+                <div class="settings-card">
+                    <button class="btn btn-secondary full-width" id="notify-test-btn" onclick="testNotify()" data-i18n="settings.notify.test_btn">🔔 Invia una notifica di prova</button>
+                    <div id="notify-test-status" style="display:none;margin-top:8px" class="settings-status"></div>
+                    <p class="settings-hint" style="margin-top:12px" data-i18n="settings.notify.ha_note">🏠 Il servizio notify di Home Assistant resta attivo: se l'hai configurato, gli stessi eventi arrivano anche lì.</p>
+                </div>
+
+                <!-- Save button -->
+                <button class="btn btn-large btn-accent full-width" onclick="saveNotifySettings()" data-i18n="settings.notify.save_btn">💾 Salva impostazioni notifiche</button>
+                <div id="notify-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
+            </div>
             <!-- Calendar Tab (ICS expiry feed) -->
             <div class="settings-panel" id="tab-calendar">
                 <div class="settings-card">
@@ -2372,6 +2518,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005c"></script>
+<script src="assets/js/app.js?v=20261005d"></script>
 </body>
 </html>

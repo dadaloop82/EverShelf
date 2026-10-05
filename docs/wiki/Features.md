@@ -208,6 +208,31 @@ Full details: [Calendar Feed](Calendar).
 
 ---
 
+## 📲 Push Notifications (ntfy / generic webhook)
+
+Get the alerts on your phone **without Home Assistant** — set it up in
+**Settings → 🔔 Notifiche**.
+
+- **ntfy** (recommended) — free, no account: generate a secret topic with the 🎲
+  button and subscribe to that same topic in the [ntfy app](https://ntfy.sh) for
+  Android, iOS or the web.
+- **Generic webhook** — a JSON `POST` to n8n, Node-RED, Gotify, a Discord/Slack
+  bridge, or your own script, optionally with a bearer-style token header.
+- **Events** — products about to expire (daily check), items added to the shopping
+  list, and stock updates. Same event names as the Home Assistant webhooks, so an
+  existing automation keeps working untouched.
+- **Message language** — the text is generated server-side (`NOTIFY_LANGUAGE`), so a
+  household can read notifications in one language while the UI follows the browser.
+- **Test button** — pushes a notification through every configured channel and
+  reports its HTTP status, so a wrong URL or topic shows up right away.
+- Safety rails: the topic is validated as a URL path segment, messages are clamped to
+  3600 bytes on a UTF-8 boundary, headers cannot be injected, only `http(s)` targets
+  are contacted, and stored tokens are write-only (the field shows `••••••••`).
+
+Full details: [Configuration](Configuration) → *Push Notifications*.
+
+---
+
 ## 📱 Progressive Web App (PWA)
 
 EverShelf is installable as a PWA on any device:

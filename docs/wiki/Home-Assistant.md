@@ -261,6 +261,10 @@ If you prefer to receive push alerts without using webhooks, configure a **HA no
 
 EverShelf will call this service from the cron job whenever expiry alerts fire.
 
+> **No Home Assistant?** The same events can be pushed to **ntfy** or to any generic
+> webhook from **Settings → 🔔 Notifiche** — free, no account, and it can send a test
+> notification. See [Configuration](Configuration) → *Push Notifications*.
+
 ---
 
 ## TTS on Smart Speakers

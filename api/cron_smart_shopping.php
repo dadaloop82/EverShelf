@@ -255,12 +255,9 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
                     'days'     => $expiryDays,
                     'summary'  => $names,
                 ]);
-                // Also send HA notification if service configured
-                if (env('HA_NOTIFY_SERVICE', '') !== '') {
-                    $msg = count($expiringItems) . ' product(s) expiring within ' . $expiryDays . ' days: ' . $names;
-                    _sendHaNotify($msg, ['expiring_items' => $expiringItems]);
-                }
-                echo '[' . date('Y-m-d H:i:s') . '] HA expiry_alert fired: ' . count($expiringItems) . " items\n";
+                // The push itself (HA notify service + NOTIFY_* channels) is fired
+                // inside _fireHaWebhook() via api/lib/notify.php.
+                echo '[' . date('Y-m-d H:i:s') . '] expiry alert fired: ' . count($expiringItems) . " items\n";
             }
 
             if (!empty($expiredItems)) {
