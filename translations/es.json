@@ -167,6 +167,7 @@
     "wasted": "Desperdiciado: {n} ({pct}%)",
     "more_opened": "y {n} más abiertos...",
     "more_items": "y {n} más…",
+    "still_have_qty": "Te quedan {qty}",
     "stale_title": "🕰️ Sin usar desde hace tiempo",
     "stale_hint": "Los 3 productos de la despensa más tiempo sin usar — receta, usar, editar o tirar.",
     "stale_days": "sin usar desde hace {n} días",
@@ -182,7 +183,9 @@
     "banner_explain_btn": "Explicar",
     "banner_analyzing": "🤖 Analizando…",
     "banner_expired_action_modify": "Editar",
-    "banner_expired_action_extend": "Ampliar",
+    "banner_expired_action_extend": "Ampliar caducidad",
+    "banner_advice_format": "{label} — {tip}",
+    "banner_sold_date": "caducaba el {date}",
     "banner_expired_action_vacuum": "Vacío",
     "banner_prediction_confirmed": "✅ Confirmado — las previsiones se recalcularán con tus próximos registros",
     "banner_anomaly_explain_fail": "No se pudo obtener la explicación de IA",
@@ -563,6 +566,7 @@
     "fuel_status_error": "Datos de salud no disponibles",
     "fuel_no_daily": "Sin actividad hoy — se usa el perfil",
     "fuel_match": "del objetivo",
+    "fuel_badge_target": "objetivo {kcal} kcal / ≥{protein} g de proteína",
     "fuel_why_title": "Por qué estos ingredientes",
     "generate_fuel_btn": "🔥 Generar receta Fuel",
     "shopping_suggestions_intro": "Para una versión alternativa necesitarías (no en despensa — opcional):",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "Comprobar pronto"
   },
   "status": {
-    "ok": "OK",
+    "ok": "Aún bueno",
     "check": "Comprobar",
-    "discard": "Desechar",
-    "tip_freezer_ok": "En congelador: aún seguro (~{n}d de margen)",
-    "tip_freezer_check": "En el congelador mucho tiempo, puede haber perdido calidad. Consumir pronto",
-    "tip_freezer_danger": "En el congelador demasiado tiempo, riesgo de quemadura por congelación y degradación",
-    "tip_highRisk_check": "Caducado recientemente, comprueba el olor y el aspecto antes de consumir",
-    "tip_highRisk_danger": "Producto perecedero caducado: desechar por seguridad",
-    "tip_medRisk_check1": "Comprueba el aspecto y el olor antes de consumir",
-    "tip_medRisk_check2": "Caducado hace tiempo, comprueba cuidadosamente antes de usar",
-    "tip_medRisk_danger": "Demasiado tiempo desde la caducidad, mejor desechar",
-    "tip_lowRisk_ok": "Producto de larga duración, aún seguro para consumir",
-    "tip_lowRisk_check": "Caducado hace más de un mes, comprueba la integridad del envase",
-    "tip_lowRisk_danger": "Caducado hace demasiado tiempo, mejor no arriesgarse"
+    "discard": "Tirar",
+    "tip_freezer_ok": "En el congelador te quedan unos {n} días de margen: es seguro. Consúmelo dentro de ese plazo para una mejor calidad.",
+    "tip_freezer_check": "Lleva mucho tiempo en el congelador: puede haber perdido calidad. Consúmelo pronto y no lo vuelvas a congelar tras descongelarlo.",
+    "tip_freezer_danger": "Demasiado tiempo en el congelador: riesgo de quemadura por frío. Tíralo si ves hielo o huele raro; si no, consúmelo enseguida bien cocinado.",
+    "tip_highRisk_check": "Recién caducado y guardado en el frigo: comprueba olor, color y textura. Si todo es normal, consúmelo enseguida; si no, tíralo.",
+    "tip_highRisk_danger": "Producto perecedero caducado: no lo consumas, tíralo.",
+    "tip_medRisk_check1": "Caducado hace pocos días: comprueba aspecto, olor y moho. Si todo es normal aún puedes consumirlo; si no, tíralo.",
+    "tip_medRisk_check2": "Caducado hace un tiempo: revísalo bien antes de consumirlo y, si dudas, tíralo.",
+    "tip_medRisk_danger": "Caducado hace demasiado tiempo: tíralo.",
+    "tip_lowRisk_ok": "Producto de larga conservación: comprueba que el envase esté intacto y huélelo antes de usarlo.",
+    "tip_lowRisk_check": "Caducado hace más de un mes: abre, huele y prueba. Si huele o tiene mal aspecto, tíralo.",
+    "tip_lowRisk_danger": "Caducado hace más de seis meses: no te arriesgues, tíralo."
   },
   "toast": {
     "ics_copied": "Enlace del calendario copiado",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS no está activo — actívalo antes de probar.",
     "web_speech_unsupported": "❌ La API Web Speech no es compatible con este navegador.",
     "cloud_only": "❌ Solo hay voces en la nube — la síntesis sin conexión requiere una voz local instalada en el dispositivo (p. ej. Google Text-to-Speech → Descargar voces sin conexión)."
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — Caducidades de la despensa",

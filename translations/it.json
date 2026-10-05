@@ -116,7 +116,9 @@
     "banner_expired_action_throw": "Buttato",
     "banner_expired_action_edit": "Data",
     "banner_expired_action_modify": "Modifica",
-    "banner_expired_action_extend": "Estendi",
+    "banner_expired_action_extend": "Estendi Scadenza",
+    "banner_advice_format": "{label} — {tip}",
+    "banner_sold_date": "scadeva il {date}",
     "banner_expired_action_vacuum": "Sottovuoto",
     "banner_anomaly_action_edit": "Correggi",
     "banner_anomaly_action_dismiss": "Giusta",
@@ -170,6 +172,7 @@
     "wasted": "Buttati: {n} ({pct}%)",
     "more_opened": "e altri {n} prodotti aperti...",
     "more_items": "e altri {n}…",
+    "still_have_qty": "Ne hai ancora {qty}",
     "stale_title": "🕰️ Da troppo che non usi",
     "stale_hint": "Priorità alle confezioni aperte ferme da più tempo — ricetta, usa, modifica o butta.",
     "stale_days": "non usato da {n} giorni",
@@ -521,6 +524,7 @@
     "fuel_status_error": "Dati salute non disponibili",
     "fuel_no_daily": "Nessun dato attività oggi — uso il profilo",
     "fuel_match": "del target",
+    "fuel_badge_target": "obiettivo {kcal} kcal / ≥{protein} g proteine",
     "fuel_why_title": "Perché questi ingredienti",
     "generate_fuel_btn": "🔥 Genera a ritmo mio",
     "generate_btn": "✨ Genera Ricetta",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "Controlla presto"
   },
   "status": {
-    "ok": "OK",
+    "ok": "Ancora buono",
     "check": "Controlla",
-    "discard": "Buttare",
-    "tip_freezer_ok": "In freezer: ancora sicuro (~{n}g di margine)",
-    "tip_freezer_check": "In freezer da molto, potrebbe aver perso qualità. Consumare presto",
-    "tip_freezer_danger": "In freezer da troppo tempo, rischio di bruciatura da gelo e degrado",
-    "tip_highRisk_check": "Scaduto da poco, controlla odore e aspetto prima di consumare",
-    "tip_highRisk_danger": "Prodotto deperibile scaduto: da buttare per sicurezza",
-    "tip_medRisk_check1": "Controlla aspetto e odore prima di consumare",
-    "tip_medRisk_check2": "Scaduto da un po', verificare bene prima dell'uso",
-    "tip_medRisk_danger": "Troppo tempo dalla scadenza, meglio buttare",
-    "tip_lowRisk_ok": "Prodotto a lunga conservazione, ancora sicuro da consumare",
-    "tip_lowRisk_check": "Scaduto da oltre un mese, controllare integrità confezione",
-    "tip_lowRisk_danger": "Scaduto da troppo tempo, meglio non rischiare"
+    "discard": "Butta via",
+    "tip_freezer_ok": "In freezer hai ancora circa {n} giorni di margine: è sicuro. Consumalo entro quel periodo per la qualità migliore.",
+    "tip_freezer_check": "In freezer da parecchio tempo: può aver perso qualità. Consumalo presto e, una volta scongelato, non ricongelarlo.",
+    "tip_freezer_danger": "In freezer da troppo tempo: rischio di bruciatura da gelo. Se vedi ghiaccio o ha un odore strano buttalo, altrimenti consumalo subito ben cotto.",
+    "tip_highRisk_check": "Fuori data da poco e conservato in frigo: controlla odore, colore e consistenza. Se è tutto normale consumalo subito, altrimenti buttalo.",
+    "tip_highRisk_danger": "Prodotto deperibile scaduto: non consumarlo, buttalo.",
+    "tip_medRisk_check1": "Fuori data da pochi giorni: controlla aspetto, odore e muffe. Se è tutto normale puoi ancora consumarlo, altrimenti buttalo.",
+    "tip_medRisk_check2": "Fuori data da un po': verifica bene prima di consumarlo e, se hai dubbi, buttalo.",
+    "tip_medRisk_danger": "Fuori data da troppo tempo: buttalo.",
+    "tip_lowRisk_ok": "Prodotto a lunga conservazione: controlla che la confezione sia integra e annusalo prima di aprirlo.",
+    "tip_lowRisk_check": "Fuori data da oltre un mese: apri, annusa e assaggia. Se ha un odore o un aspetto strano buttalo.",
+    "tip_lowRisk_danger": "Fuori data da più di sei mesi: non rischiare, buttalo."
   },
   "toast": {
     "ics_copied": "Link del calendario copiato",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS non attivo — attiva il toggle prima di testare.",
     "web_speech_unsupported": "❌ Web Speech API non supportata da questo browser.",
     "cloud_only": "❌ Solo voci cloud disponibili — la sintesi offline richiede una voce locale installata (es. Google Text-to-Speech → Scarica voci offline)."
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — Scadenze dispensa",

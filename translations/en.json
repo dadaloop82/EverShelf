@@ -116,7 +116,9 @@
     "banner_expired_action_throw": "Bin",
     "banner_expired_action_edit": "Date",
     "banner_expired_action_modify": "Edit",
-    "banner_expired_action_extend": "Extend",
+    "banner_expired_action_extend": "Extend expiry",
+    "banner_advice_format": "{label} — {tip}",
+    "banner_sold_date": "expiry date was {date}",
     "banner_expired_action_vacuum": "Vacuum",
     "banner_anomaly_action_edit": "Fix",
     "banner_anomaly_action_dismiss": "OK",
@@ -170,6 +172,7 @@
     "wasted": "Wasted: {n} ({pct}%)",
     "more_opened": "and {n} more opened...",
     "more_items": "and {n} more…",
+    "still_have_qty": "You still have {qty}",
     "stale_title": "🕰️ Unused for a while",
     "stale_hint": "Opened packs left unused the longest first — recipe, use, edit, or discard.",
     "stale_days": "unused for {n} days",
@@ -521,6 +524,7 @@
     "fuel_status_error": "Health data unavailable",
     "fuel_no_daily": "No activity data today — using your profile",
     "fuel_match": "of target",
+    "fuel_badge_target": "target {kcal} kcal / ≥{protein} g protein",
     "fuel_why_title": "Why these ingredients",
     "generate_fuel_btn": "🔥 Generate Fuel-mode recipe",
     "generate_btn": "✨ Generate Recipe",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "Check soon"
   },
   "status": {
-    "ok": "OK",
+    "ok": "Still good",
     "check": "Check",
-    "discard": "Discard",
-    "tip_freezer_ok": "In freezer: still safe (~{n}d margin)",
-    "tip_freezer_check": "In freezer for a long time, may have lost quality. Consume soon",
-    "tip_freezer_danger": "In freezer too long, risk of freezer burn and degradation",
-    "tip_highRisk_check": "Expired recently, check smell and appearance before consuming",
-    "tip_highRisk_danger": "Perishable product expired: discard for safety",
-    "tip_medRisk_check1": "Check appearance and smell before consuming",
-    "tip_medRisk_check2": "Expired a while ago, check carefully before use",
-    "tip_medRisk_danger": "Too long since expiry, better to discard",
-    "tip_lowRisk_ok": "Long-lasting product, still safe to consume",
-    "tip_lowRisk_check": "Expired over a month ago, check package integrity",
-    "tip_lowRisk_danger": "Expired too long ago, better not to risk it"
+    "discard": "Throw away",
+    "tip_freezer_ok": "In the freezer you still have about {n} days of margin: it is safe. Eat it within that window for the best quality.",
+    "tip_freezer_check": "In the freezer for a long time: it may have lost quality. Eat it soon and do not refreeze it once thawed.",
+    "tip_freezer_danger": "In the freezer far too long: risk of freezer burn. Throw it away if you see ice or it smells odd, otherwise eat it straight away, well cooked.",
+    "tip_highRisk_check": "Just past its date and kept in the fridge: check smell, colour and texture. If everything is normal eat it at once, otherwise throw it away.",
+    "tip_highRisk_danger": "Perishable product past its date: do not eat it, throw it away.",
+    "tip_medRisk_check1": "A few days past its date: check appearance, smell and mould. If everything is normal you can still eat it, otherwise throw it away.",
+    "tip_medRisk_check2": "Past its date for a while: check it carefully before eating and, if in doubt, throw it away.",
+    "tip_medRisk_danger": "Past its date far too long: throw it away.",
+    "tip_lowRisk_ok": "Long-life product: check that the package is intact and smell it before opening.",
+    "tip_lowRisk_check": "More than a month past its date: open it, smell it and taste it. If the smell or the look is odd, throw it away.",
+    "tip_lowRisk_danger": "More than six months past its date: do not take the risk, throw it away."
   },
   "toast": {
     "ics_copied": "Calendar link copied",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS is not active — turn it on before testing.",
     "web_speech_unsupported": "❌ Web Speech API is not supported by this browser.",
     "cloud_only": "❌ Only cloud voices available — offline speech requires a local voice installed on the device (e.g. Google Text-to-Speech → Download offline voices)."
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — Pantry expiries",

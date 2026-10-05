@@ -170,6 +170,41 @@ the next release.
     steps, all six locales, the ask-once ledger, no hardcoded closing index).
 
 ### Changed
+- **The dashboard shows fewer rows, one fact per line, and buttons side by side.**
+  Every block stacked its buttons vertically (name, brand, quantity, location and
+  four action buttons, each on its own line) and the top banner glued every fact into
+  one sentence — "Scaduto da 106 giorni · hai ancora 15 conf (da 37g). · dispensa ·
+  2026-06-21 👀 Scaduto da oltre un mese, controllare integrità confezione" — which
+  says nothing a reader can act on. Now:
+  - **name and brand share one line** (`.alert-item-head`, built by `_alertItemHead()`)
+    and so do **location and quantity** (`_alertItemMeta()` → "🗄️ Dispensa · ne hai
+    ancora 15 conf"), through the new `dashboard.still_have_qty` key;
+  - **buttons sit in a wrapping row** (`.alert-item-badges` is a `flex-wrap` row with
+    compact buttons instead of a `flex-direction: column` stack), so two or three fit
+    per line wherever the row has room — the same layout for expired, upcoming, opened
+    and rarely-used stock;
+  - **expired stock is judged, not just labelled**: `status.tip_*` are full sentences
+    ("Fuori data da oltre un mese: apri, annusa e assaggia…") rendered as
+    `{label} — {tip}` (`dashboard.banner_advice_format`) under each row and in the
+    banner, whose detail is now one fact per line (`.banner-fact` / `.banner-verdict`)
+    plus the expiry date (`dashboard.banner_sold_date`) — eat / check / discard is
+    always spelled out, and the label is the verdict ("Ancora buono", "Controlla",
+    "Butta via") instead of a bare "OK";
+  - **only the most urgent rows are shown**: 3 upcoming expiries
+    (`DASHBOARD_EXPIRING_MAX`), 5 opened packages (`DASHBOARD_OPENED_MAX`, now sorted
+    by `opened_at` so the *longest* open come first instead of the server's
+    days-to-expiry order), 3 rarely-used items (`DASHBOARD_STALE_MAX`);
+  - **the rarely-used block rotates**: it fetches a pool of 24 and shows a
+    deterministic slice that changes every 30 minutes (`_staleRotationPick()` seeds a
+    shuffle with the half-hour slot; `_startStaleRotation()` re-renders on the tick),
+    so the same window shows the same items and the next one shows different ones;
+  - **🍳 Ricetta veloce moved under the "Scaduti" card** it cooks from, and "Estendi"
+    is now **"Estendi Scadenza"** (`dashboard.banner_expired_action_extend`, all six
+    locales).
+  - Removed while passing through: the TTS test toast printed the raw `{code}`
+    placeholder, a finished-product toast was a hardcoded Italian string (now
+    `toast.finished_all`), and the Fuel badge glued "· target … kcal / ≥…g prot" onto
+    the layout (now `recipes.fuel_badge_target`). Asset/i18n stamp → `20261005h`.
 - **The seasonal review tip is translated in all six locales.** The card's tip was
   built from two hardcoded `it`/`en` tables inside `api/lib/seasonal.php` — a
   user-facing string the translation audit could not see — so de/fr/es/zh users read
@@ -213,6 +248,24 @@ the next release.
   a foreground — which neither existing layer answers.
 
 ### Fixed
+- **Labels no longer print their icon twice.** Lots of the UI showed two identical
+  pictographs in a row — the guided assistant opened on "⏱️ ⏱️ Cron watchdog",
+  "🔔 🔔 Push notifications" and "🎲 🎲 Genera topic", every settings save toasted
+  "✅ ✅ Configurazione salvata!", and the trash bin, the pen and the "✕ Annulla"
+  buttons of the product/edit dialogs doubled themselves. The cause was the same
+  everywhere: a translation value that already carries its emoji
+  (`settings.notify.title = "🔔 Push notifications"`) with code that has to add an
+  icon of its own. Those sites now go through the existing
+  `iconLabel(icon, key)` / `_stripLeadingEmoji()` helpers, which strip the emoji
+  already inside the translation (wizard steps, save toasts, `product.edit_info`,
+  `btn.cancel`, `use.disambiguation_all`, `use.toast_opened_finished`,
+  `recipes.opt_fuel`), and the checklist row/tab markup was verified to keep one icon
+  only. New `scripts/test-i18n-icons.php` (10 assertions) fails on the whole class:
+  it walks `app.js` for an emoji immediately before a `t('key')` whose value starts
+  with the same emoji in any locale (and `index.html` for an icon element followed by
+  a label that repeats it), and it locks the new dashboard copy — verdict format,
+  expiry-date line, "you still have X", fuel target — plus the short verdict labels
+  in all six locales.
 - **The seasonal review card asked to remove what the smart list kept suggesting.**
   The card flagged any catalogue entry the month marks `off`, while the list also
   exempts the crops that are on the shelf all year: in October the card told you to
