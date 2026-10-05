@@ -37,10 +37,17 @@ function loadEnvOverrides(bool $reload = false): array {
     if (!$reload && $cache !== null) {
         return $cache;
     }
-    $cache = [];
     if (!function_exists('getDB')) {
-        return $cache;
+        // bootstrap.php reads DISPLAY_ERRORS through env() *before* api/database.php is
+        // loaded, so this branch runs first on every HTTP request. Answer "no overrides"
+        // but do NOT cache that answer: getDB() exists a few lines later and the
+        // overrides written by the fallback for a read-only .env must win for the rest
+        // of the request. Caching the empty answer here silently ignored every setting
+        // such an install had saved — it reported success and then showed the old value
+        // (issue #261).
+        return [];
     }
+    $cache = [];
     try {
         $row = getDB()->query("SELECT value FROM app_settings WHERE key = 'env_overrides'")->fetchColumn();
         if ($row) {
