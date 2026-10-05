@@ -4320,6 +4320,9 @@ async function loadSettingsUI() {
 
     // Populate About section version
     _loadAboutSection();
+
+    // Reopen the section + tab the user was configuring last (level-1 nav).
+    _restoreSettingsNav();
 }
 
 // ── Kiosk: trigger native BLE scale reconfiguration wizard ────────────
@@ -5128,6 +5131,69 @@ function switchSettingsTab(btn, tabId) {
     document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(tabId).classList.add('active');
+    // A tab can be opened from anywhere (deep link, "configure" button, restore):
+    // bring its section forward and remember where the user was.
+    _syncSettingsGroupForTab(tabId);
+}
+
+// ── Settings navigation: sections (level 1) → tabs (level 2) ──────────────
+// 16 tabs in a single strip was unreadable (see CHANGELOG 1.9.1). Each tab
+// declares its section in the `data-group` attribute in index.html and only the
+// active section's tabs are shown. scripts/test-settings-nav.php keeps the two
+// ends in sync — add a group here AND a data-group there.
+const SETTINGS_GROUPS = ['app', 'cooking', 'alerts', 'system'];
+
+/**
+ * Show the tab strip of one section.
+ * @param {string} group            one of SETTINGS_GROUPS
+ * @param {boolean} [keepTab]       true when a tab jump already picked the target
+ */
+function switchSettingsGroup(group, keepTab = false) {
+    if (!SETTINGS_GROUPS.includes(group)) group = SETTINGS_GROUPS[0];
+    try { localStorage.setItem('evershelf_settings_group', group); } catch (e) {}
+    document.querySelectorAll('.settings-group-btn').forEach(b => {
+        const on = b.dataset.group === group;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.settings-tabs .settings-tab').forEach(t => {
+        t.classList.toggle('settings-tab-hidden', t.dataset.group !== group);
+    });
+    if (keepTab) return;
+    // The selected tab lives in another section: open the first tab of this
+    // one through .click() so its own loader (notify, HA, info…) still runs.
+    const active = document.querySelector('.settings-tabs .settings-tab.active');
+    if (active && active.dataset.group === group) return;
+    const first = document.querySelector(`.settings-tabs .settings-tab[data-group="${group}"]`);
+    if (first) first.click();
+}
+
+/** Keep the section strip in sync when a tab is activated, then remember it. */
+function _syncSettingsGroupForTab(tabId) {
+    const btn = document.querySelector(`.settings-tabs .settings-tab[data-tab="${tabId}"]`);
+    if (!btn) return;
+    const activeGroup = document.querySelector('.settings-group-btn.active');
+    if (!activeGroup || activeGroup.dataset.group !== btn.dataset.group) {
+        switchSettingsGroup(btn.dataset.group, true);
+    }
+    try { localStorage.setItem('evershelf_settings_tab', tabId); } catch (e) {}
+    if (btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+/** Reopen the last section/tab the user configured (called by loadSettingsUI). */
+function _restoreSettingsNav() {
+    let tab = 'tab-general';
+    let group = 'app';
+    try {
+        tab = localStorage.getItem('evershelf_settings_tab') || tab;
+        group = localStorage.getItem('evershelf_settings_group') || group;
+    } catch (e) {}
+    const tabBtn = document.querySelector(`.settings-tabs .settings-tab[data-tab="${tab}"]`);
+    if (tabBtn) {
+        tabBtn.click();
+    } else {
+        switchSettingsGroup(group, true);
+    }
 }
 
 function _getSelectedAiProvider() {

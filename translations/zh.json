@@ -909,6 +909,11 @@
     "timer_chip": "⏱️ 00:00 · 计时器"
   },
   "settings": {
+    "groups_aria": "设置分区",
+    "group_app": "🤖 应用与 AI",
+    "group_cooking": "🍳 烹饪",
+    "group_alerts": "🔔 提醒与服务",
+    "group_system": "⚙️ 系统",
     "calendar": {
       "tab": "日历",
       "title": "🗓️ 保质期日历",

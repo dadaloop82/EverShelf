@@ -909,6 +909,11 @@
     "timer_chip": "⏱️ 00:00 · Temporizador"
   },
   "settings": {
+    "groups_aria": "Secciones de ajustes",
+    "group_app": "🤖 App e IA",
+    "group_cooking": "🍳 Cocina",
+    "group_alerts": "🔔 Avisos y servicios",
+    "group_system": "⚙️ Sistema",
     "calendar": {
       "tab": "Calendario",
       "title": "🗓️ Calendario de caducidades",

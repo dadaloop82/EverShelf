@@ -7221,6 +7221,44 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== SETTINGS PAGE ===== */
+/* Level 1 of the navigation: 4 sections. The tab strip underneath shows only
+   the active section's tabs, so the page never opens with 16 buttons. */
+.settings-groups {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    padding-bottom: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.settings-groups::-webkit-scrollbar { display: none; }
+
+.settings-group-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.settings-group-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* Tabs of the sections that are not selected stay out of the way. */
+.settings-tab.settings-tab-hidden { display: none; }
+
 .settings-tabs {
     display: flex;
     gap: 4px;

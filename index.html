@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005e">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005e">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005e">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005f">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005f">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005f">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005e"></script>
-    <script src="assets/js/core/auth.js?v=20261005e"></script>
+    <script src="assets/js/core/dom.js?v=20261005f"></script>
+    <script src="assets/js/core/auth.js?v=20261005f"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005f';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005e';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005f';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005e"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005f"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -942,23 +942,31 @@
             <button class="back-btn" onclick="goBack()" data-i18n="btn.back">← Indietro</button>
             <h2 data-i18n="settings.title">⚙️ Configurazione</h2>
         </div>
+        <!-- Level 1: sections. The tab strip below only shows the tabs of the active section,
+             so 16 buttons are never on screen at once. See switchSettingsGroup() in app.js. -->
+        <div class="settings-groups" role="tablist" aria-label="Sezioni" data-i18n-aria="settings.groups_aria">
+            <button class="settings-group-btn active" data-group="app" role="tab" aria-selected="true" onclick="switchSettingsGroup('app')" data-i18n="settings.group_app">🤖 App &amp; AI</button>
+            <button class="settings-group-btn" data-group="cooking" role="tab" aria-selected="false" onclick="switchSettingsGroup('cooking')" data-i18n="settings.group_cooking">🍳 Cucina</button>
+            <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')" data-i18n="settings.group_alerts">🔔 Avvisi</button>
+            <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')" data-i18n="settings.group_system">⚙️ Sistema</button>
+        </div>
         <div class="settings-tabs" role="tablist">
-            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-tab="tab-api" title="API Keys" data-i18n-title="settings.tab_api"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-tab="tab-mealplan" title="Piano Settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-notify'); _loadNotifyTab();" data-tab="tab-notify" title="Notifiche" data-i18n-title="settings.notify.tab"><span class="settings-tab-icon">🔔</span><span class="settings-tab-text" data-i18n="settings.notify.tab">Notifiche</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
-            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
+            <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-group="app" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-api')" data-group="app" data-tab="tab-api" title="API Keys" data-i18n-title="settings.tab_api"><span class="settings-tab-icon">🔑</span><span class="settings-tab-text" data-i18n="settings.tab_api">API</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-bring')" data-group="cooking" data-tab="tab-bring" title="Lista spesa" data-i18n-title="settings.shopping.tab"><span class="settings-tab-icon">🛒</span><span class="settings-tab-text" data-i18n="settings.shopping.tab">Spesa</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-recipe')" data-group="cooking" data-tab="tab-recipe" title="Ricette" data-i18n-title="settings.tab_recipe"><span class="settings-tab-icon">🍳</span><span class="settings-tab-text" data-i18n="settings.tab_recipe">Ricette</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-health'); loadHealthSettingsTab();" data-group="cooking" data-tab="tab-health" title="Salute" data-i18n-title="settings.tab_health"><span class="settings-tab-icon">🫀</span><span class="settings-tab-text" data-i18n="settings.tab_health">Salute</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-mealplan')" data-group="cooking" data-tab="tab-mealplan" title="Piano Settimanale" data-i18n-title="settings.tab_mealplan"><span class="settings-tab-icon">📅</span><span class="settings-tab-text" data-i18n="settings.tab_mealplan">Piano</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-appliances')" data-group="cooking" data-tab="tab-appliances" title="Elettrodomestici" data-i18n-title="settings.tab_appliances"><span class="settings-tab-icon">🔌</span><span class="settings-tab-text" data-i18n="settings.tab_appliances">Cucina</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-camera')" data-group="app" data-tab="tab-camera" title="Fotocamera" data-i18n-title="settings.tab_camera"><span class="settings-tab-icon">📷</span><span class="settings-tab-text" data-i18n="settings.tab_camera">Camera</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-security')" data-group="system" data-tab="tab-security" title="Sicurezza" data-i18n-title="settings.tab_security"><span class="settings-tab-icon">🔒</span><span class="settings-tab-text" data-i18n="settings.tab_security">Sicurezza</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-tts')" data-group="app" data-tab="tab-tts" title="Voce (TTS)" data-i18n-title="settings.tab_tts"><span class="settings-tab-icon">🔊</span><span class="settings-tab-text" data-i18n="settings.tab_tts">Voce</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-ha'); _loadHaTab();" data-group="alerts" data-tab="tab-ha" title="Home Assistant" data-i18n-title="settings.ha.tab"><span class="settings-tab-icon">🏠</span><span class="settings-tab-text" data-i18n="settings.ha.tab">HA</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-notify'); _loadNotifyTab();" data-group="alerts" data-tab="tab-notify" title="Notifiche" data-i18n-title="settings.notify.tab"><span class="settings-tab-icon">🔔</span><span class="settings-tab-text" data-i18n="settings.notify.tab">Notifiche</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-scale')" data-group="alerts" data-tab="tab-scale" title="Bilancia Smart" data-i18n-title="settings.scale.tab"><span class="settings-tab-icon">⚖️</span><span class="settings-tab-text" data-i18n="settings.scale.tab">Bilancia</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-group="system" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-group="alerts" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
+            <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-group="system" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
         </div>
         <div class="settings-panels">
             <!-- Generali Tab -->
@@ -2236,75 +2244,73 @@
                         <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Kiosk app download banner (hidden inside kiosk WebView) -->
-        <div id="kiosk-download-banner" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.12));border:1.5px solid rgba(16,185,129,0.25);border-radius:12px;padding:16px;margin-top:16px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                <span style="font-size:1.6rem">📺</span>
-                <div>
-                    <p style="margin:0;font-weight:700;font-size:0.95rem;color:#065f46">EverShelf Kiosk</p>
-                    <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.hint">Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.</p>
+                <!-- Kiosk app download banner (hidden inside the kiosk WebView) -->
+                <div class="settings-card" id="kiosk-download-banner" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.12));border:1.5px solid rgba(16,185,129,0.25)">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                        <span style="font-size:1.6rem">📺</span>
+                        <div>
+                            <p style="margin:0;font-weight:700;font-size:0.95rem;color:#065f46">EverShelf Kiosk</p>
+                            <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.hint">Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.</p>
+                        </div>
+                    </div>
+                    <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_btn">📥 Scarica EverShelf Kiosk (APK)</a>
+                    <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: <code>evershelf-kiosk/</code></p>
                 </div>
-            </div>
-            <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_btn">📥 Scarica EverShelf Kiosk (APK)</a>
-            <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: <code>evershelf-kiosk/</code></p>
-        </div>
-
-        <!-- Kiosk native settings panel (visible only inside kiosk WebView) -->
-        <div id="kiosk-native-settings-panel" style="display:none;background:rgba(99,102,241,0.06);border:1.5px solid rgba(99,102,241,0.2);border-radius:12px;padding:16px;margin-top:16px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-                <span style="font-size:1.4rem">🖥️</span>
-                <div>
-                    <p style="margin:0;font-weight:700;font-size:0.9rem" data-i18n="settings.kiosk.native_title">Configurazione Kiosk</p>
-                    <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.native_hint">URL server, bilancia BLE, salvaschermo e setup wizard.</p>
+                <!-- Kiosk native settings panel (visible only inside the kiosk WebView) -->
+                <div class="settings-card" id="kiosk-native-settings-panel" style="display:none;background:rgba(99,102,241,0.06);border:1.5px solid rgba(99,102,241,0.2)">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                        <span style="font-size:1.4rem">🖥️</span>
+                        <div>
+                            <p style="margin:0;font-weight:700;font-size:0.9rem" data-i18n="settings.kiosk.native_title">Configurazione Kiosk</p>
+                            <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.native_hint">URL server, bilancia BLE, salvaschermo e setup wizard.</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary full-width" onclick="_openKioskNativeSettings()">⚙️ <span data-i18n="settings.kiosk.native_btn">Apri configurazione kiosk</span></button>
                 </div>
-            </div>
-            <button class="btn btn-secondary full-width" onclick="_openKioskNativeSettings()">⚙️ <span data-i18n="settings.kiosk.native_btn">Apri configurazione kiosk</span></button>
-        </div>
-
-        <!-- Kiosk self-update panel (visible only inside kiosk WebView) -->
-        <div id="kiosk-update-panel" style="display:none;background:rgba(16,185,129,0.06);border:1.5px solid rgba(16,185,129,0.2);border-radius:12px;padding:16px;margin-top:16px">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-                <div style="display:flex;align-items:center;gap:8px">
-                    <span style="font-size:1.4rem">📦</span>
-                    <div>
-                        <p style="margin:0;font-weight:700;font-size:0.9rem" data-i18n="settings.kiosk.update_title">Aggiornamento Kiosk</p>
-                        <p class="settings-hint" style="margin:2px 0 0" id="kiosk-update-version-label">—</p>
+                <!-- Kiosk self-update panel (visible only inside the kiosk WebView) -->
+                <div class="settings-card" id="kiosk-update-panel" style="display:none;background:rgba(16,185,129,0.06);border:1.5px solid rgba(16,185,129,0.2)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <span style="font-size:1.4rem">📦</span>
+                            <div>
+                                <p style="margin:0;font-weight:700;font-size:0.9rem" data-i18n="settings.kiosk.update_title">Aggiornamento Kiosk</p>
+                                <p class="settings-hint" style="margin:2px 0 0" id="kiosk-update-version-label">—</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" style="white-space:nowrap;min-width:120px" id="btn-kiosk-check-update" onclick="_kioskCheckForUpdates()" data-i18n="settings.kiosk.check_updates_btn">🔍 Cerca aggiornamenti</button>
+                    </div>
+                    <div id="kiosk-update-status" style="display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4"></div>
+                    <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()" data-i18n="settings.kiosk.install_update_btn">⬇️ Install update</button>
+                </div>
+                <!-- About & Support -->
+                <div class="settings-section" style="margin-top:4px">
+                    <h3 class="settings-section-title" data-i18n="about.title">About</h3>
+                    <div class="settings-row" style="justify-content:space-between;align-items:center">
+                        <span class="settings-label" data-i18n="about.version">Version</span>
+                        <span id="about-version-label" class="settings-hint" style="font-family:monospace">—</span>
+                    </div>
+                    <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+                        <button class="btn btn-outline full-width" onclick="reportBugManual()" id="btn-report-bug">
+                            🐛 <span data-i18n="about.report_bug">Segnala un problema</span>
+                        </button>
+                        <p class="settings-hint" style="text-align:center;margin:0" data-i18n="about.report_bug_hint">Qualcosa non funziona? Inviaci una segnalazione direttamente dall'app.</p>
+                        <div style="display:flex;gap:8px">
+                            <a class="btn btn-outline full-width" style="text-decoration:none;text-align:center"
+                               href="https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md"
+                               target="_blank" rel="noopener" data-i18n="about.changelog">Changelog</a>
+                            <a class="btn btn-outline full-width" style="text-decoration:none;text-align:center"
+                               href="https://github.com/dadaloop82/EverShelf"
+                               target="_blank" rel="noopener" data-i18n="about.github">GitHub</a>
+                        </div>
                     </div>
                 </div>
-                <button class="btn btn-secondary" style="white-space:nowrap;min-width:120px" id="btn-kiosk-check-update" onclick="_kioskCheckForUpdates()" data-i18n="settings.kiosk.check_updates_btn">🔍 Cerca aggiornamenti</button>
             </div>
-            <div id="kiosk-update-status" style="display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4"></div>
-            <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()" data-i18n="settings.kiosk.install_update_btn">⬇️ Install update</button>
         </div>
 
+        <!-- Global save: applies to every section, so it stays below the panels. -->
         <button class="btn btn-large btn-success full-width mt-2" onclick="saveSettings()" data-i18n="btn.save_config">💾 Salva Configurazione</button>
         <div id="settings-status" class="settings-status" style="display:none"></div>
 
-        <!-- About & Support -->
-        <div class="settings-section" style="margin-top:24px">
-            <h3 class="settings-section-title" data-i18n="about.title">About</h3>
-            <div class="settings-row" style="justify-content:space-between;align-items:center">
-                <span class="settings-label" data-i18n="about.version">Version</span>
-                <span id="about-version-label" class="settings-hint" style="font-family:monospace">—</span>
-            </div>
-            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-                <button class="btn btn-outline full-width" onclick="reportBugManual()" id="btn-report-bug">
-                    🐛 <span data-i18n="about.report_bug">Segnala un problema</span>
-                </button>
-                <p class="settings-hint" style="text-align:center;margin:0" data-i18n="about.report_bug_hint">Qualcosa non funziona? Inviaci una segnalazione direttamente dall'app.</p>
-                <div style="display:flex;gap:8px">
-                    <a class="btn btn-outline full-width" style="text-decoration:none;text-align:center"
-                       href="https://github.com/dadaloop82/EverShelf/blob/main/CHANGELOG.md"
-                       target="_blank" rel="noopener" data-i18n="about.changelog">Changelog</a>
-                    <a class="btn btn-outline full-width" style="text-decoration:none;text-align:center"
-                       href="https://github.com/dadaloop82/EverShelf"
-                       target="_blank" rel="noopener" data-i18n="about.github">GitHub</a>
-                </div>
-            </div>
-        </div>
     </section>
 
     <!-- ===== GEMINI CHAT ===== -->
@@ -2540,6 +2546,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005e"></script>
+<script src="assets/js/app.js?v=20261005f"></script>
 </body>
 </html>

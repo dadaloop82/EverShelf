@@ -139,6 +139,26 @@ Most settings can also be configured from the browser via **Settings → ⚙️*
 | ntfy / webhook tokens | `NTFY_TOKEN`, `NOTIFY_WEBHOOK_TOKEN` | Write-only; the field shows `••••••••` when a token is stored |
 | Generic webhook URL | `NOTIFY_WEBHOOK_URL` | n8n, Node-RED, Gotify, Discord/Slack bridge… |
 
+### Where to find what
+
+The settings page is organised in **two levels**: *sections* on top, the tabs of
+the selected section just below. Only the tabs of the active section are listed,
+and the section + tab you used last reopen the next time you open the page.
+
+| Section | Tabs |
+|---------|------|
+| 🤖 App & AI | Generali, API, Voce (TTS), Fotocamera |
+| 🍳 Cucina | Spesa, Ricette, Piano, Salute, Cucina (elettrodomestici) |
+| 🔔 Avvisi e servizi | Notifiche, Home Assistant, Calendario, Bilancia |
+| ⚙️ Sistema | Sicurezza, Backup, Info |
+
+The Kiosk download banner, the Kiosk update panel and the About card (version,
+bug report, changelog) live inside **Info**. They used to sit outside the panels,
+so they were painted below every single tab.
+`scripts/test-settings-nav.php` fails if a tab declares a section the JS does not
+know, if a panel has no tab (or two), if the page opens on a tab of a section
+that is not highlighted, or if those blocks move back out of *Info*.
+
 > **Security note:** `get_settings` returns only **boolean flags** (`gemini_key_set: true/false`), never raw key values. Raw values are only accessible server-side.
 
 ---
