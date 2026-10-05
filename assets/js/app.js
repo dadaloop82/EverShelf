@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005e'; // bump when translations change
+const _I18N_VERSION = '20261005h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4938,12 +4938,12 @@ async function saveSettings() {
         const statusEl = document.getElementById('settings-status');
         if (result.success) {
             statusEl.className = 'settings-status success';
-            statusEl.textContent = `✅ ${t('settings.saved')}`;
+            statusEl.textContent = iconLabel('✅', 'settings.saved');
         } else {
             statusEl.className = 'settings-status error';
             const errMsg = result.error === 'unauthorized'
                 ? t('error.invalid_token')
-                : `⚠️ ${t('settings.saved_local_error').replace('{error}', result.error || '')}`;
+                : iconLabel('⚠️', t('settings.saved_local_error').replace('{error}', result.error || ''));
             statusEl.textContent = errMsg;
         }
         statusEl.style.display = 'block';
@@ -4951,7 +4951,7 @@ async function saveSettings() {
     } catch(e) {
         const statusEl = document.getElementById('settings-status');
         statusEl.className = 'settings-status success';
-        statusEl.textContent = `✅ ${t('settings.saved_local')}`;
+        statusEl.textContent = iconLabel('✅', 'settings.saved_local');
         statusEl.style.display = 'block';
         setTimeout(() => statusEl.style.display = 'none', 4000);
     }
@@ -5052,7 +5052,7 @@ async function saveCalendarSettings() {
         if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.className = result.success ? 'settings-status success' : 'settings-status error';
-            statusEl.textContent = result.success ? '✅ ' + t('settings.saved') : '❌ ' + (result.error || t('settings.saved_local_error'));
+            statusEl.textContent = result.success ? iconLabel('✅', 'settings.saved') : '❌ ' + (result.error || t('settings.saved_local_error'));
             setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
         }
     } catch (e) {
@@ -5060,7 +5060,7 @@ async function saveCalendarSettings() {
         if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.className = 'settings-status success';
-            statusEl.textContent = '✅ ' + t('settings.saved_local');
+            statusEl.textContent = iconLabel('✅', 'settings.saved_local');
             setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
         }
     }
@@ -6366,10 +6366,71 @@ function _applyInsightPhase() {
 // ===== DASHBOARD =====
 /** Cap dashboard alert lists to the N most urgent items. */
 const DASHBOARD_ALERT_MAX = 5;
+/** Vertical-space budget per dashboard block: only the most urgent rows are shown. */
+const DASHBOARD_EXPIRING_MAX = 3;   // closest expiry dates only
+const DASHBOARD_OPENED_MAX = 5;     // longest-open packages only
+const DASHBOARD_STALE_MAX = 3;      // rarely used stock, rotated over time
 function _dashboardAlertCap(items, max = DASHBOARD_ALERT_MAX) {
     const all = Array.isArray(items) ? items : [];
     const shown = all.slice(0, max);
     return { shown, extra: Math.max(0, all.length - shown.length) };
+}
+
+/**
+ * Name + brand of a dashboard row on one line (they wrap only when really narrow).
+ */
+function _alertItemHead(item) {
+    if (!item) return '';
+    const brand = item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : '';
+    return `<div class="alert-item-head"><span class="alert-item-name">${escapeHtml(item.name)}</span>${brand}</div>`;
+}
+
+/**
+ * Second line of a dashboard row: where the product is, how much is left and any
+ * extra note ("🗄️ Dispensa · ne hai ancora 15 conf · non usato da 40 giorni").
+ */
+function _alertItemMeta(item, extra = '') {
+    if (!item) return '';
+    const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location || '' };
+    const parts = [];
+    if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
+    if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
+        const qty = stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
+        if (qty) parts.push(t('dashboard.still_have_qty', { qty }));
+    }
+    if (extra) parts.push(extra);
+    return parts.length ? `<span class="alert-item-qty">${escapeHtml(parts.join(' · '))}</span>` : '';
+}
+
+/**
+ * Deterministic 30-minute rotation: the same window always shows the same slice
+ * of rarely-used stock, and every half hour the slice changes.
+ */
+function _staleRotationPick(items, n) {
+    const arr = (items || []).slice();
+    const slot = Math.floor(Date.now() / (30 * 60 * 1000));
+    let seed = (slot ^ 0x9e3779b9) >>> 0;
+    const rnd = () => {
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, n);
+}
+
+let _staleRotateTimer = null;
+/** Re-pick the rarely-used slice when the 30-minute window rolls over. */
+function _startStaleRotation() {
+    if (_staleRotateTimer) return;
+    _staleRotateTimer = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        loadStaleDashboardItems();
+    }, 30 * 60 * 1000);
 }
 
 async function loadDashboard() {
@@ -6416,12 +6477,12 @@ async function loadDashboard() {
             recipeBar.style.display = 'none';
         }
         
-        // Expiring items (top 5 most urgent)
+        // Expiring items — always the 3 closest dates (less noise, more readable)
         const expiringSection = document.getElementById('alert-expiring');
         const expiringList = document.getElementById('expiring-list');
         const visibleExpiring = (statsData.expiring_soon || []).filter(item => !isInventoryDepleted(item));
         if (visibleExpiring.length > 0) {
-            const { shown: expiringShown, extra: expiringExtra } = _dashboardAlertCap(visibleExpiring);
+            const { shown: expiringShown, extra: expiringExtra } = _dashboardAlertCap(visibleExpiring, DASHBOARD_EXPIRING_MAX);
             expiringSection.style.display = 'block';
             expiringList.innerHTML = expiringShown.map(item => {
                 const days = daysUntilExpiry(item.expiry_date);
@@ -6431,15 +6492,13 @@ async function loadDashboard() {
                 else if (days <= 7) { badgeText = t('expiry.days').replace('{days}', days); badgeClass = 'expiring'; }
                 else if (days <= 30) { badgeText = t('expiry.days_compact').replace('{n}', days); badgeClass = 'expiring-soon'; }
                 else { const m = Math.round(days/30); badgeText = m <= 1 ? t('expiry.days_compact').replace('{n}', days) : t('expiry.months_approx').replace('{n}', m); badgeClass = 'expiring-later'; }
-                const qtyDisplay = alertQtyDisplay(item);
                 return `
                 <div class="alert-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
-                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                        ${_alertItemHead(item)}
+                        ${_alertItemMeta(item)}
                     </div>
                     <div class="alert-item-badges">
-                        <span class="alert-item-qty">${qtyDisplay}</span>
                         <span class="alert-item-badge ${badgeClass}">${badgeText}</span>
                         ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
@@ -6468,18 +6527,17 @@ async function loadDashboard() {
                 else if (days === 1) daysText = t('expiry.expired_yesterday');
                 else daysText = t('expiry.expired_days').replace('{days}', days);
                 const safety = getExpiredSafety(item, days);
-                const locIcon = item.location === 'freezer' ? '❄️' : item.location === 'frigo' ? '🧊' : '';
-                const qtyDisplayExp = alertQtyDisplay(item);
+                // One plain sentence saying what to do with it (eat / check / discard).
+                const verdict = t('dashboard.banner_advice_format', { label: safety.label, tip: safety.tip });
                 return `
                 <div class="alert-item expired-item alert-item-clickable" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        <span class="alert-item-name">${locIcon ? locIcon + ' ' : ''}${escapeHtml(item.name)}</span>
-                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
-                        <span class="alert-item-qty">${qtyDisplayExp}</span>
+                        ${_alertItemHead(item)}
+                        ${_alertItemMeta(item)}
+                        <span class="alert-item-verdict banner-safety-${safety.level}">${safety.icon} ${escapeHtml(verdict)}</span>
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-badge expired">${daysText}</span>
-                        <span class="safety-badge safety-${safety.level}" title="${safety.tip}">${safety.icon} ${safety.label}</span>
                         ${_shouldOfferExtendExpiry(item) ? `<button type="button" class="btn-alert-extend" onclick="event.stopPropagation(); extendInventoryExpiry(${item.id})">${t('dashboard.banner_expired_action_extend')}</button>` : ''}
                     </div>
                 </div>`;
@@ -6526,10 +6584,12 @@ async function loadDashboard() {
         const openedSection = document.getElementById('alert-opened');
         const openedList = document.getElementById('opened-list');
         if (statsData.opened && statsData.opened.length > 0) {
-            // Sorted server-side by days_to_expiry ASC — show top 5 most urgent
+            // Packages open the longest first — those are the ones to finish.
             openedSection.style.display = 'block';
-            const openedVisible = statsData.opened.filter(item => !isInventoryDepleted(item));
-            const { shown: visible, extra } = _dashboardAlertCap(openedVisible);
+            const openedVisible = statsData.opened
+                .filter(item => !isInventoryDepleted(item))
+                .sort((a, b) => String(a.opened_at || '9999').localeCompare(String(b.opened_at || '9999')));
+            const { shown: visible, extra } = _dashboardAlertCap(openedVisible, DASHBOARD_OPENED_MAX);
             openedList.innerHTML = visible.map(item => {
                 const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
                 const qty = parseFloat(item.quantity);
@@ -6612,8 +6672,7 @@ async function loadDashboard() {
                 return `
                 <div class="alert-item alert-item-clickable${!isEdible ? ' alert-item-spoiled' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
-                        <span class="alert-item-name">${escapeHtml(item.name)}</span>
-                        ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
+                        ${_alertItemHead(item)}
                     </div>
                     <div class="alert-item-badges">
                         <span class="alert-item-qty">${locInfo.icon} ${locInfo.label}</span>
@@ -6664,8 +6723,11 @@ async function loadStaleDashboardItems() {
     const list = document.getElementById('stale-list');
     if (!section || !list) return;
     try {
-        const data = await api('stale_inventory_items', { limit: 3, min_days: 21 });
-        const items = data.items || [];
+        const data = await api('stale_inventory_items', { limit: 24, min_days: 21 });
+        // Rotate the visible slice every 30 minutes: same window = same items,
+        // next window = another slice of the long-unused stock.
+        const items = _staleRotationPick(data.items || [], DASHBOARD_STALE_MAX);
+        _startStaleRotation();
         if (!items.length) {
             section.style.display = 'none';
             list.innerHTML = '';
@@ -6673,7 +6735,6 @@ async function loadStaleDashboardItems() {
         }
         section.style.display = 'block';
         list.innerHTML = items.map(item => {
-            const locInfo = LOCATIONS[item.location] || { icon: '📦', label: item.location };
             const days = item.days_unused != null ? item.days_unused : '—';
             const unusedLabel = item.never_used
                 ? t('dashboard.stale_never_used')
@@ -6681,16 +6742,13 @@ async function loadStaleDashboardItems() {
             const openedBadge = item.is_opened
                 ? `<span class="alert-item-badge opened">${escapeHtml(t('dashboard.stale_opened'))}</span>`
                 : '';
-            const qty = stripHtml(formatQuantity(item.quantity, item.unit));
             const pid = item.product_id;
             const iid = item.inventory_id;
             const loc = (item.location || 'dispensa').replace(/'/g, "\\'");
-            const nameEsc = escapeHtml(item.name);
             return `<div class="alert-item stale-item">
                 <div class="alert-item-info">
-                    <span class="alert-item-name">${nameEsc}</span>
-                    ${item.brand ? `<span class="alert-item-brand">${escapeHtml(item.brand)}</span>` : ''}
-                    <span class="alert-item-brand">${locInfo.icon} ${escapeHtml(locInfo.label)} · ${escapeHtml(qty)} · ${escapeHtml(unusedLabel)}</span>
+                    ${_alertItemHead(item)}
+                    ${_alertItemMeta(item, unusedLabel)}
                 </div>
                 <div class="alert-item-badges stale-actions">
                     ${openedBadge}
@@ -7256,31 +7314,21 @@ function renderBannerItem() {
 
     if (entry.type === 'expired') {
         const item = entry.data;
-        const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
         const isOpenedExpiry = !!item.opened_at;
         const safety = getExpiredSafety(item, item.days_expired);
 
-        let daysText, suffix;
+        let whenText, dateText = '';
         if (isOpenedExpiry) {
             const todayMs = new Date(); todayMs.setHours(0, 0, 0, 0);
             const daysSinceOpened = Math.round((todayMs - new Date(item.opened_at)) / 86400000);
-            daysText = daysSinceOpened === 0
+            whenText = daysSinceOpened === 0
                 ? t('expiry.opened_today_long')
                 : t('expiry.opened_ago_long').replace('{n}', daysSinceOpened);
-            suffix = safety.level === 'ok'
-                ? t('expiry.opened_suffix_ok')
-                : safety.level === 'warning'
-                    ? t('expiry.opened_suffix_warning')
-                    : t('expiry.opened_suffix');
         } else {
-            daysText = item.days_expired === 0
+            whenText = item.days_expired === 0
                 ? t('expiry.expired_today_long')
                 : t('expiry.expired_ago_long').replace('{n}', item.days_expired);
-            suffix = safety.level === 'ok'
-                ? t('expiry.expired_suffix_ok')
-                : safety.level === 'warning'
-                    ? t('expiry.expired_suffix_warning')
-                    : t('expiry.expired_suffix');
+            if (item.expiry_date) dateText = t('dashboard.banner_sold_date', { date: item.expiry_date });
         }
 
         if (safety.level === 'danger') {
@@ -7293,24 +7341,13 @@ function renderBannerItem() {
             banner.className = 'alert-banner banner-expired banner-expired-ok';
             iconEl.textContent = '✅';
         }
-        titleEl.textContent = `${item.name}${item.brand ? ' (' + item.brand + ')' : ''} ${suffix}`;
-
-        let baseDetail;
-        if (isOpenedExpiry) {
-            const locLabel = (LOCATIONS[item.location]
-                ? LOCATIONS[item.location].icon + ' ' + LOCATIONS[item.location].label
-                : (item.location || ''));
-            baseDetail = t('dashboard.banner_opened_detail')
-                .replace('{when}', daysText)
-                .replace('{location}', escapeHtml(locLabel))
-                .replace('{qty}', qtyDisplay);
-        } else {
-            baseDetail = t('dashboard.banner_expired_detail').replace('{when}', daysText).replace('{qty}', qtyDisplay);
-            const locationTag = item.location ? ` · <strong>${escapeHtml(item.location)}</strong>` : '';
-            const expiryTag = item.expiry_date ? ` · ${escapeHtml(item.expiry_date)}` : '';
-            baseDetail += locationTag + expiryTag;
-        }
-        detailEl.innerHTML = `${baseDetail} <span class="banner-safety-tip banner-safety-${safety.level}">${safety.icon} ${safety.tip}</span>`;
+        // Title: product + brand. The stock situation and the verdict go in the
+        // detail as separate, plain-language lines instead of one long sentence.
+        titleEl.innerHTML = `${escapeHtml(item.name)}${item.brand ? ` <span class="banner-brand">(${escapeHtml(item.brand)})</span>` : ''}`;
+        detailEl.innerHTML = `
+            <div class="banner-fact">${escapeHtml(whenText)}${dateText ? ' · ' + escapeHtml(dateText) : ''}</div>
+            ${_alertItemMeta(item)}
+            <div class="banner-verdict banner-safety-${safety.level}">${safety.icon} ${escapeHtml(t('dashboard.banner_advice_format', { label: safety.label, tip: safety.tip }))}</div>`;
         let btns = '';
         btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
         if (!isOpenedExpiry && safety.level !== 'danger') {
@@ -9953,7 +9990,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -9963,7 +10000,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -11442,7 +11479,7 @@ function showProductAction() {
     
     editInfoEl.innerHTML = `
         <div class="edit-unknown-card ${isUnknown ? 'highlight' : ''}">
-            <h4>${isUnknown ? '⚠️ ' + t('product.unknown_product') : '✏️ ' + t('product.edit_info')}</h4>
+            <h4>${isUnknown ? iconLabel('⚠️', 'product.unknown_product') : iconLabel('✏️', 'product.edit_info')}</h4>
             ${isUnknown ? `<p class="edit-unknown-hint">${escapeHtml(t('edit.unknown_hint'))}</p>` : ''}
             <div class="edit-unknown-form">
                 <div class="form-group">
@@ -11631,7 +11668,7 @@ function showProductAction() {
                 <span class="stb-hint">${escapeHtml(t('shopping.bought_banner_hint'))}</span>
             </div>
             <div class="shopping-scan-target-actions">
-                <button class="btn btn-secondary stb-btn" onclick="_shoppingBoughtFlow=false;_spesaScanTarget=null;document.getElementById('shopping-scan-target-banner').style.display='none';showPage('shopping')">✕ ${t('btn.cancel')}</button>
+                <button class="btn btn-secondary stb-btn" onclick="_shoppingBoughtFlow=false;_spesaScanTarget=null;document.getElementById('shopping-scan-target-banner').style.display='none';showPage('shopping')">${iconLabel('✕', 'btn.cancel')}</button>
             </div>`;
         } else {
             banner.innerHTML = `
@@ -11641,7 +11678,7 @@ function showProductAction() {
             </div>
             <div class="shopping-scan-target-actions">
                 <button class="btn btn-success stb-btn" onclick="confirmShoppingItemFound()">✅ ${t('shopping.scan_target_found')}</button>
-                <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>goBack()">✕ ${t('btn.cancel')}</button>
+                <button class="btn btn-secondary stb-btn" onclick="_spesaScanTarget=null; document.getElementById('shopping-scan-target-banner').style.display='none'; document.getElementById('action-back-btn').onclick=()=>goBack()">${iconLabel('✕', 'btn.cancel')}</button>
             </div>`;
         }
     } else if (banner) {
@@ -14496,7 +14533,7 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
         ${oneConfBtn}
         <button class="btn btn-danger full-width" style="margin-top:4px"
             onclick="closeModal(); _confirmThenSubmitUseAllAt('__all__', false)">
-            🗑️ ${t('use.disambiguation_all').replace('{qty}', escapeHtml(totalStr))}
+            ${iconLabel('🗑️', t('use.disambiguation_all').replace('{qty}', escapeHtml(totalStr)))}
         </button>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -14570,8 +14607,8 @@ async function _submitUseAllAt(location, isOpenedOnly) {
         showLoading(false);
         if (result.success) {
             const toastMsg = isOpenedOnly
-                ? `🔓 ${t('use.toast_opened_finished').replace('{name}', currentProduct.name)}`
-                : `📤 ${currentProduct.name} terminato!`;
+                ? iconLabel('🔓', t('use.toast_opened_finished').replace('{name}', currentProduct.name))
+                : iconLabel('📤', t('toast.finished_all', { name: currentProduct.name }));
             showToast(toastMsg, 'success');
             if (result.added_to_shopping || result.added_to_bring) {
                 setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
@@ -20872,7 +20909,7 @@ async function renderRecipe(r) {
                 eatenHint = ` · ${t('recipes.fuel_eaten_today', { kcal: ek })}`;
                 if (rem != null) eatenHint += ` · ${t('recipes.fuel_remaining', { kcal: rem })}`;
             }
-            html += `<div class="recipe-fuel-badge">🔥 ${escapeHtml(fb.label || t('recipes.opt_fuel'))} · target ${target} kcal / ≥${fb.protein_g || '?'}g prot${match}${eatenHint}</div>`;
+            html += `<div class="recipe-fuel-badge">${iconLabel('🔥', fb.label || t('recipes.opt_fuel'))} · ${escapeHtml(t('recipes.fuel_badge_target', { kcal: target, protein: fb.protein_g || '?' }))}${match}${eatenHint}</div>`;
         }
         html += `<div class="recipe-nutrition-grid">
                 <div class="recipe-nutrition-item">
@@ -21681,14 +21718,14 @@ async function saveHaSettings() {
         if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.className = result.success ? 'settings-status success' : 'settings-status error';
-            statusEl.textContent = result.success ? '✅ ' + t('settings.saved') : '❌ ' + (result.error || t('settings.saved_local_error'));
+            statusEl.textContent = result.success ? iconLabel('✅', 'settings.saved') : '❌ ' + (result.error || t('settings.saved_local_error'));
             setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
         }
     } catch(e) {
         if (statusEl) {
             statusEl.style.display = 'block';
             statusEl.className = 'settings-status success';
-            statusEl.textContent = '✅ ' + t('settings.saved_local');
+            statusEl.textContent = iconLabel('✅', 'settings.saved_local');
             setTimeout(() => { if (statusEl) statusEl.style.display = 'none'; }, 4000);
         }
     }
@@ -21897,11 +21934,11 @@ async function saveNotifySettings() {
             _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic') + detail);
             return;
         }
-        _notifyStatus(statusEl, 'success', '✅ ' + t('settings.saved'));
+        _notifyStatus(statusEl, 'success', iconLabel('✅', 'settings.saved'));
         _loadNotifyTab();   // re-read: masked placeholders + channel list live in .env
     } catch (e) {
         console.error('saveNotifySettings:', e);
-        _notifyStatus(statusEl, 'success', '✅ ' + t('settings.saved_local'));
+        _notifyStatus(statusEl, 'success', iconLabel('✅', 'settings.saved_local'));
     }
 }
 
@@ -22264,7 +22301,7 @@ async function testTTS() {
                     '</div>';
                 window._ttsTestYes = () => {
                     window._ttsTestYes = null; window._ttsTestNo = null;
-                    if (statusEl) { statusEl.className = 'settings-status success'; statusEl.innerHTML = '✅ ' + t('settings.tts.test_ok'); }
+                    if (statusEl) { statusEl.className = 'settings-status success'; statusEl.innerHTML = iconLabel('✅', 'settings.tts.test_ok_kiosk'); }
                 };
                 window._ttsTestNo = () => {
                     window._ttsTestYes = null; window._ttsTestNo = null;
@@ -25760,7 +25797,7 @@ function _getMissingSetupSteps(serverSettings) {
 function _setupSteps() {
     return [
         {
-            title: '🌐 ' + t('settings.language.label'),
+            title: iconLabel('🌐', 'settings.language.label'),
             desc: t('settings.language.hint'),
             render: () => {
                 let html = '<div class="setup-lang-grid">';
@@ -25773,7 +25810,7 @@ function _setupSteps() {
             }
         },
         {
-            title: '🤖 Google Gemini AI',
+            title: iconLabel('🤖', 'settings.gemini.title'),
             desc: t('settings.gemini.hint'),
             render: () => `
                 <div class="form-group">
@@ -25787,7 +25824,7 @@ function _setupSteps() {
             `
         },
         {
-            title: '🛒 Bring! Shopping List',
+            title: iconLabel('🛒', 'settings.bring.title'),
             desc: t('settings.bring.hint'),
             render: () => `
                 <div class="form-group">
@@ -25802,7 +25839,7 @@ function _setupSteps() {
             `
         },
         {
-            title: '☁️ Google Drive Backup',
+            title: iconLabel('☁️', 'settings.backup.gdrive_title'),
             desc: t('settings.backup.gdrive_wizard_hint') || 'Optional: automatically back up to Google Drive daily.',
             render: () => `
                 <details style="margin-bottom:14px;background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:10px 14px">
@@ -25826,7 +25863,7 @@ function _setupSteps() {
             `
         },
         {
-            title: '🔔 ' + t('settings.notify.title'),
+            title: iconLabel('🔔', 'settings.notify.title'),
             desc: t('settings.notify.hint'),
             render: () => `
                 <div class="form-group">
@@ -25842,7 +25879,7 @@ function _setupSteps() {
                     <label>${t('settings.notify.ntfy_topic_label')}</label>
                     <div style="display:flex;gap:8px;align-items:center">
                         <input type="text" id="setup-notify-topic" class="form-input" style="flex:1" placeholder="${t('settings.notify.ntfy_topic_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeHtml(_setupData.notify_topic)}">
-                        <button type="button" class="btn btn-secondary" style="flex-shrink:0" onclick="_setupGenerateTopic()">🎲 ${t('settings.notify.ntfy_topic_generate')}</button>
+                        <button type="button" class="btn btn-secondary" style="flex-shrink:0" onclick="_setupGenerateTopic()">${iconLabel('🎲', 'settings.notify.ntfy_topic_generate')}</button>
                     </div>
                     <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.notify.ntfy_topic_hint')}</p>
                 </div>
@@ -25854,7 +25891,7 @@ function _setupSteps() {
             `
         },
         {
-            title: '⏱️ ' + t('settings.notify.healthcheck_title'),
+            title: iconLabel('⏱️', 'settings.notify.healthcheck_title'),
             desc: t('settings.notify.healthcheck_hint'),
             render: () => `
                 <div class="form-group">
@@ -25870,7 +25907,7 @@ function _setupSteps() {
             `
         },
         {
-            title: '✅ ' + t('setup.ready_title'),
+            title: iconLabel('✅', 'setup.ready_title'),
             desc: t('setup.complete_desc'),
             render: () => {
                 let summary = '<div style="text-align:center;font-size:2.5rem;margin:12px 0">🎉</div>';

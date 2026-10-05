@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005g">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005g">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005g">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005h">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005h">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005h">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005g"></script>
-    <script src="assets/js/core/auth.js?v=20261005g"></script>
+    <script src="assets/js/core/dom.js?v=20261005h"></script>
+    <script src="assets/js/core/auth.js?v=20261005h"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005h';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005g';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005h';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005g"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005h"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -197,19 +197,19 @@
             <div class="alert-banner-counter" id="alert-banner-counter"></div>
         </div>
 
-        <!-- Quick recipe suggestion -->
-        <div class="quick-recipe-bar" id="quick-recipe-bar" style="display:none">
-            <button class="btn-quick-recipe" onclick="quickRecipeSuggestion()">
-                <span>🍳</span>
-                <span class="quick-recipe-text" data-i18n="dashboard.quick_recipe">🍳 Ricetta veloce con prodotti in scadenza</span>
-                <span>→</span>
-            </button>
-        </div>
-
         <!-- Alert for expired items (on top) -->
         <div class="alert-section alert-danger" id="alert-expired" style="display:none">
             <h3 data-i18n="dashboard.expired_title">🚫 Scaduti</h3>
             <div id="expired-list"></div>
+        </div>
+
+        <!-- Quick recipe suggestion — sits right under the expired stock it cooks from -->
+        <div class="quick-recipe-bar" id="quick-recipe-bar" style="display:none">
+            <button class="btn-quick-recipe" onclick="quickRecipeSuggestion()">
+                <span>🍳</span>
+                <span class="quick-recipe-text" data-i18n="dashboard.quick_recipe">Ricetta veloce con prodotti in scadenza</span>
+                <span>→</span>
+            </button>
         </div>
 
         <!-- Anti-Waste Report Card + Nutrition Analysis + Monthly Stats (alternating, content rendered by JS) -->
@@ -2561,6 +2561,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005g"></script>
+<script src="assets/js/app.js?v=20261005h"></script>
 </body>
 </html>

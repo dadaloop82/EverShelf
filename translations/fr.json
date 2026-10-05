@@ -167,6 +167,7 @@
     "wasted": "Gaspillé : {n} ({pct}%)",
     "more_opened": "et {n} autres ouverts...",
     "more_items": "et {n} de plus…",
+    "still_have_qty": "Il t'en reste {qty}",
     "stale_title": "🕰️ Inutilisés depuis longtemps",
     "stale_hint": "Les 3 produits du garde-manger inutilisés depuis le plus longtemps — recette, utiliser, modifier ou jeter.",
     "stale_days": "inutilisé depuis {n} jours",
@@ -182,7 +183,9 @@
     "banner_explain_btn": "Expliquer",
     "banner_analyzing": "🤖 Analyse en cours…",
     "banner_expired_action_modify": "Modifier",
-    "banner_expired_action_extend": "Prolonger",
+    "banner_expired_action_extend": "Prolonger la date",
+    "banner_advice_format": "{label} — {tip}",
+    "banner_sold_date": "la date limite était le {date}",
     "banner_expired_action_vacuum": "Sous vide",
     "banner_prediction_confirmed": "✅ Confirmé — les prévisions seront recalculées à partir de vos prochains enregistrements",
     "banner_anomaly_explain_fail": "Impossible d'obtenir l'explication IA",
@@ -563,6 +566,7 @@
     "fuel_status_error": "Données santé indisponibles",
     "fuel_no_daily": "Pas d’activité aujourd’hui — profil utilisé",
     "fuel_match": "de l’objectif",
+    "fuel_badge_target": "objectif {kcal} kcal / ≥{protein} g de protéines",
     "fuel_why_title": "Pourquoi ces ingrédients",
     "generate_fuel_btn": "🔥 Générer une recette Fuel",
     "shopping_suggestions_intro": "Pour une version alternative il vous faudrait (pas en stock — optionnel) :",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "Vérifier prochainement"
   },
   "status": {
-    "ok": "OK",
+    "ok": "Encore bon",
     "check": "Vérifier",
     "discard": "Jeter",
-    "tip_freezer_ok": "Au congélateur : encore sûr (~{n}j de marge)",
-    "tip_freezer_check": "Au congélateur depuis longtemps, peut avoir perdu en qualité. Consommer rapidement",
-    "tip_freezer_danger": "Au congélateur trop longtemps, risque de brûlure de congélation et de dégradation",
-    "tip_highRisk_check": "Périmé récemment, vérifiez l'odeur et l'aspect avant de consommer",
-    "tip_highRisk_danger": "Produit périssable périmé : jeter pour la sécurité",
-    "tip_medRisk_check1": "Vérifiez l'aspect et l'odeur avant de consommer",
-    "tip_medRisk_check2": "Périmé depuis un moment, vérifiez soigneusement avant utilisation",
-    "tip_medRisk_danger": "Trop longtemps depuis la péremption, mieux vaut jeter",
-    "tip_lowRisk_ok": "Produit longue conservation, encore sûr à consommer",
-    "tip_lowRisk_check": "Périmé depuis plus d'un mois, vérifiez l'intégrité de l'emballage",
-    "tip_lowRisk_danger": "Périmé depuis trop longtemps, mieux vaut ne pas risquer"
+    "tip_freezer_ok": "Au congélateur il te reste environ {n} jours de marge : c'est sûr. Consomme-le dans ce délai pour une meilleure qualité.",
+    "tip_freezer_check": "Depuis longtemps au congélateur : il a pu perdre en qualité. Consomme-le vite et ne le recongèle pas après décongélation.",
+    "tip_freezer_danger": "Trop longtemps au congélateur : risque de brûlure de congélation. Jette-le si tu vois de la glace ou s'il sent bizarre, sinon consomme-le tout de suite bien cuit.",
+    "tip_highRisk_check": "Juste périmé et conservé au frigo : vérifie l'odeur, la couleur et la texture. Si tout est normal, consomme-le tout de suite, sinon jette-le.",
+    "tip_highRisk_danger": "Produit périssable périmé : ne pas consommer, jeter.",
+    "tip_medRisk_check1": "Périmé depuis quelques jours : vérifie l'aspect, l'odeur et les moisissures. Si tout va bien tu peux encore le consommer, sinon jette-le.",
+    "tip_medRisk_check2": "Périmé depuis un moment : vérifie bien avant de consommer et, en cas de doute, jette-le.",
+    "tip_medRisk_danger": "Périmé depuis trop longtemps : jette-le.",
+    "tip_lowRisk_ok": "Produit à longue conservation : vérifie que l'emballage est intact et sens-le avant de l'utiliser.",
+    "tip_lowRisk_check": "Périmé depuis plus d'un mois : ouvre, sens et goûte. S'il a une odeur ou un aspect bizarre, jette-le.",
+    "tip_lowRisk_danger": "Périmé depuis plus de six mois : ne prends pas de risque, jette-le."
   },
   "toast": {
     "ics_copied": "Lien de l’agenda copié",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS inactif — activez-le avant de tester.",
     "web_speech_unsupported": "❌ L'API Web Speech n'est pas prise en charge par ce navigateur.",
     "cloud_only": "❌ Seules les voix cloud sont disponibles — la synthèse hors ligne nécessite une voix locale installée sur l'appareil (ex. Google Text-to-Speech → Télécharger les voix hors ligne)."
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — Dates limites du garde-manger",

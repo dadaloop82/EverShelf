@@ -100,6 +100,7 @@ php scripts/test-notify.php
 php scripts/test-healthcheck.php
 php scripts/test-settings-nav.php      # settings sections ↔ tabs ↔ panels ↔ locales
 php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
+php scripts/test-i18n-icons.php         # no label prints its icon twice (all locales)
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"

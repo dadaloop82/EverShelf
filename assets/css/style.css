@@ -1332,10 +1332,40 @@ body.server-offline .bottom-nav {
 /* Safety badges for expired items */
 .alert-item-badges {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
     gap: 4px;
     flex-shrink: 0;
+    max-width: 64%;
+}
+
+/* Name + brand share one line when they fit (saves a lot of vertical space). */
+.alert-item-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    min-width: 0;
+}
+.alert-item-head .alert-item-name,
+.alert-item-head .alert-item-brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Action buttons inside a dashboard row: compact, 2-3 per line, never a stack. */
+.alert-item-badges .btn-banner,
+.alert-item-badges .btn-alert-extend {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    line-height: 1.2;
 }
 
 .safety-badge {
@@ -8559,7 +8589,9 @@ body.cooking-mode-active .app-header {
     padding: 2px 8px;
     background: rgba(255,255,255,0.6);
     border-radius: 12px;
-    white-space: nowrap;
+    white-space: normal;
+    align-self: flex-start;
+    max-width: 100%;
 }
 
 /* ===== GEMINI CHAT ===== */
@@ -9791,6 +9823,30 @@ body.cooking-mode-active .app-header {
 }
 .banner-safety-ok {
     color: #166534;
+}
+/* Product + brand on the banner title, one line */
+.banner-brand {
+    font-size: 0.9em;
+    font-weight: 600;
+    opacity: 0.75;
+}
+/* Banner detail: one fact per line, then the verdict sentence */
+.banner-fact {
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+.banner-verdict {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+/* Same verdict line inside a dashboard row */
+.alert-item-verdict {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
 }
 .btn-banner-throw-primary {
     background: #dc2626;

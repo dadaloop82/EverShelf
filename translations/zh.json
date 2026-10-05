@@ -116,7 +116,9 @@
     "banner_expired_action_throw": "丢弃",
     "banner_expired_action_edit": "日期",
     "banner_expired_action_modify": "修改",
-    "banner_expired_action_extend": "延长",
+    "banner_expired_action_extend": "延长保质期",
+    "banner_advice_format": "{label}：{tip}",
+    "banner_sold_date": "保质期至 {date}",
     "banner_expired_action_vacuum": "真空",
     "banner_anomaly_action_edit": "修正",
     "banner_anomaly_action_dismiss": "正确",
@@ -170,6 +172,7 @@
     "wasted": "已浪费：{n}（{pct}%）",
     "more_opened": "另有 {n} 件已开封商品…",
     "more_items": "另有 {n} 件…",
+    "still_have_qty": "你还有 {qty}",
     "stale_title": "🕰️ 很久没用的食材",
     "stale_hint": "橱柜里闲置最久的 3 样——做菜、使用、编辑或丢弃。",
     "stale_days": "已 {n} 天未使用",
@@ -521,6 +524,7 @@
     "fuel_status_error": "健康数据不可用",
     "fuel_no_daily": "今天暂无活动数据——将使用个人档案",
     "fuel_match": "目标完成度",
+    "fuel_badge_target": "目标 {kcal} 千卡 / ≥{protein} 克蛋白质",
     "fuel_why_title": "选择这些食材的原因",
     "generate_fuel_btn": "🔥 生成能量补给食谱",
     "generate_btn": "✨ 生成食谱",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "请尽快检查"
   },
   "status": {
-    "ok": "状态良好",
-    "check": "请检查",
-    "discard": "建议丢弃",
-    "tip_freezer_ok": "冷冻保存：通常仍可安全食用（约有 {n} 天余量）",
-    "tip_freezer_check": "冷冻时间较长，品质可能下降，请尽快食用",
-    "tip_freezer_danger": "冷冻时间过长，可能出现冻伤或品质劣化",
-    "tip_highRisk_check": "刚过期不久，食用前请检查气味和外观",
-    "tip_highRisk_danger": "易腐食品已经过期，为安全起见请丢弃",
-    "tip_medRisk_check1": "食用前请检查外观和气味",
-    "tip_medRisk_check2": "已过期一段时间，使用前请仔细检查",
-    "tip_medRisk_danger": "过期时间较长，建议丢弃",
-    "tip_lowRisk_ok": "耐储存商品，通常仍可安全食用",
-    "tip_lowRisk_check": "已过期一个多月，请检查包装是否完好",
-    "tip_lowRisk_danger": "过期时间太长，不建议冒险食用"
+    "ok": "仍可食用",
+    "check": "检查",
+    "discard": "丢弃",
+    "tip_freezer_ok": "冷冻室里大约还有 {n} 天余量：安全。为保持最佳品质，请在此期间食用。",
+    "tip_freezer_check": "冷冻时间较长：品质可能下降。请尽快食用，解冻后不要再次冷冻。",
+    "tip_freezer_danger": "冷冻时间过长：有冻伤风险。若出现结冰或异味请丢弃，否则请彻底煮熟后尽快食用。",
+    "tip_highRisk_check": "刚过期且存放在冰箱：请检查气味、颜色和质地。若一切正常请尽快食用，否则丢弃。",
+    "tip_highRisk_danger": "易腐食品已过期：请勿食用，丢弃。",
+    "tip_medRisk_check1": "过期几天：请检查外观、气味和霉菌。若一切正常仍可食用，否则丢弃。",
+    "tip_medRisk_check2": "过期一段时间：食用前请仔细检查，如有疑虑请丢弃。",
+    "tip_medRisk_danger": "过期过久：请丢弃。",
+    "tip_lowRisk_ok": "长保质期食品：请确认包装完好，食用前闻一下。",
+    "tip_lowRisk_check": "过期超过一个月：打开、闻一闻、尝一尝。若气味或外观异常请丢弃。",
+    "tip_lowRisk_danger": "过期超过六个月：不要冒险，请丢弃。"
   },
   "toast": {
     "ics_copied": "日历链接已复制",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS 未启用 — 请先开启再测试。",
     "web_speech_unsupported": "❌ 此浏览器不支持 Web Speech API。",
     "cloud_only": "❌ 仅有云端语音 — 离线语音合成需要在设备上安装本地语音（例如 Google 文字转语音 → 下载离线语音）。"
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — 食品保质期",

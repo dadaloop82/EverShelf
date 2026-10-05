@@ -116,7 +116,9 @@
     "banner_expired_action_throw": "Weg",
     "banner_expired_action_edit": "Datum",
     "banner_expired_action_modify": "Ändern",
-    "banner_expired_action_extend": "Verlängern",
+    "banner_expired_action_extend": "Haltbarkeit verlängern",
+    "banner_advice_format": "{label} — {tip}",
+    "banner_sold_date": "MHD war {date}",
     "banner_expired_action_vacuum": "Vakuum",
     "banner_anomaly_action_edit": "Korrigieren",
     "banner_anomaly_action_dismiss": "Stimmt",
@@ -170,6 +172,7 @@
     "wasted": "Weggeworfen: {n} ({pct}%)",
     "more_opened": "und {n} weitere geöffnet...",
     "more_items": "und {n} weitere…",
+    "still_have_qty": "Du hast noch {qty}",
     "stale_title": "🕰️ Lange ungenutzt",
     "stale_hint": "Die 3 Vorräte, die am längsten ungenutzt sind — Rezept, nutzen, bearbeiten oder wegwerfen.",
     "stale_days": "seit {n} Tagen ungenutzt",
@@ -572,6 +575,7 @@
     "fuel_status_error": "Gesundheitsdaten nicht verfügbar",
     "fuel_no_daily": "Heute keine Aktivitätsdaten — Profil wird verwendet",
     "fuel_match": "des Ziels",
+    "fuel_badge_target": "Ziel {kcal} kcal / ≥{protein} g Protein",
     "fuel_why_title": "Warum diese Zutaten",
     "generate_fuel_btn": "🔥 Rezept im Fuel-Modus erzeugen",
     "shopping_suggestions_intro": "Für eine Alternative bräuchtest du (nicht im Vorrat — optional):",
@@ -1678,20 +1682,20 @@
     "badge_check_soon": "Bald prüfen"
   },
   "status": {
-    "ok": "OK",
+    "ok": "Noch gut",
     "check": "Prüfen",
-    "discard": "Entsorgen",
-    "tip_freezer_ok": "Im Gefrierschrank: noch sicher (~{n}T Puffer)",
-    "tip_freezer_check": "Seit langem im Gefrierschrank, könnte an Qualität verloren haben. Bald verbrauchen",
-    "tip_freezer_danger": "Zu lange im Gefrierschrank, Gefrierbrand- und Qualitätsverlust-Risiko",
-    "tip_highRisk_check": "Kürzlich abgelaufen, Geruch und Aussehen vor dem Verzehr prüfen",
-    "tip_highRisk_danger": "Verderbliches Produkt abgelaufen: aus Sicherheitsgründen entsorgen",
-    "tip_medRisk_check1": "Aussehen und Geruch vor dem Verzehr prüfen",
-    "tip_medRisk_check2": "Schon eine Weile abgelaufen, vor dem Verzehr gut prüfen",
-    "tip_medRisk_danger": "Zu lange seit dem Ablaufdatum, lieber entsorgen",
-    "tip_lowRisk_ok": "Haltbares Produkt, noch sicher zu verzehren",
-    "tip_lowRisk_check": "Seit über einem Monat abgelaufen, Verpackungsintegrität prüfen",
-    "tip_lowRisk_danger": "Zu lange abgelaufen, besser kein Risiko eingehen"
+    "discard": "Wegwerfen",
+    "tip_freezer_ok": "Im Gefrierschrank hast du noch etwa {n} Tage Spielraum: sicher. Verbrauche es in dieser Zeit für die beste Qualität.",
+    "tip_freezer_check": "Sehr lange im Gefrierschrank: kann an Qualität verloren haben. Bald verbrauchen und nach dem Auftauen nicht wieder einfrieren.",
+    "tip_freezer_danger": "Zu lange im Gefrierschrank: Gefahr von Gefrierbrand. Bei Eis oder seltsamem Geruch wegwerfen, sonst sofort gut durchgegart verbrauchen.",
+    "tip_highRisk_check": "Erst kurz abgelaufen und im Kühlschrank gelagert: Geruch, Farbe und Konsistenz prüfen. Wenn alles normal ist, sofort verbrauchen — sonst wegwerfen.",
+    "tip_highRisk_danger": "Verderbliches Produkt abgelaufen: nicht verzehren, wegwerfen.",
+    "tip_medRisk_check1": "Seit wenigen Tagen abgelaufen: Aussehen, Geruch und Schimmel prüfen. Wenn alles normal ist, kannst du es noch verbrauchen — sonst wegwerfen.",
+    "tip_medRisk_check2": "Schon länger abgelaufen: vor dem Verzehr gut prüfen und im Zweifel wegwerfen.",
+    "tip_medRisk_danger": "Seit zu langer Zeit abgelaufen: wegwerfen.",
+    "tip_lowRisk_ok": "Lang haltbares Produkt: prüfe, dass die Verpackung intakt ist, und rieche daran, bevor du es verwendest.",
+    "tip_lowRisk_check": "Seit über einem Monat abgelaufen: öffnen, riechen, probieren. Bei seltsamem Geruch oder Aussehen wegwerfen.",
+    "tip_lowRisk_danger": "Seit mehr als sechs Monaten abgelaufen: kein Risiko eingehen, wegwerfen."
   },
   "toast": {
     "ics_copied": "Kalender-Link kopiert",
@@ -2341,8 +2345,7 @@
     "not_active": "⚠️ TTS ist nicht aktiv — vor dem Test aktivieren.",
     "web_speech_unsupported": "❌ Die Web Speech API wird von diesem Browser nicht unterstützt.",
     "cloud_only": "❌ Nur Cloud-Stimmen verfügbar — Offline-Sprachausgabe erfordert eine lokale Stimme auf dem Gerät (z. B. Google Text-to-Speech → Offline-Stimmen herunterladen)."
-  }
-,
+  },
   "ics": {
     "calendar": {
       "name": "EverShelf — Vorrats-Ablaufdaten",
