@@ -24,6 +24,7 @@ require_once __DIR__ . '/lib/pairing.php';
 require_once __DIR__ . '/lib/health.php';
 require_once __DIR__ . '/lib/weather.php';
 require_once __DIR__ . '/lib/ai_provider.php';
+require_once __DIR__ . '/lib/ai_prompts.php';
 require_once __DIR__ . '/lib/seasonal.php';
 require_once __DIR__ . '/lib/i18n.php';
 require_once __DIR__ . '/lib/calendar_ics.php';

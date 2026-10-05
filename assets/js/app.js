@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005i'; // bump when translations change
+const _I18N_VERSION = '20261005j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10245,7 +10245,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005j';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10255,7 +10255,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005j';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -15034,7 +15034,8 @@ async function analyzeWithAI() {
     const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
 
     try {
-        const result = await api('gemini_identify', {}, 'POST', { image: base64 });
+        // Send the UI language so the AI answers in it (issue #260).
+        const result = await api('gemini_identify', {}, 'POST', { image: base64, lang: _currentLang });
 
         if (!result.success) {
             if (result.error === 'no_api_key') {
@@ -15380,7 +15381,8 @@ async function _pfAiAnalyze(base64) {
     resultEl.style.display = 'none';
 
     try {
-        const result = await api('gemini_identify', {}, 'POST', { image: base64 });
+        // Send the UI language so the AI answers in it (issue #260).
+        const result = await api('gemini_identify', {}, 'POST', { image: base64, lang: _currentLang });
 
         statusEl.style.display = 'none';
         resultEl.style.display = 'block';
