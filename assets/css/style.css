@@ -7259,6 +7259,70 @@ body.cooking-mode-active .app-header {
 /* Tabs of the sections that are not selected stay out of the way. */
 .settings-tab.settings-tab-hidden { display: none; }
 
+/* Setup checklist: one line while everything is configured, the full list once
+   something still needs a decision (rendered by _renderSettingsChecklist()). */
+.checklist-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.checklist-card h4 { margin-bottom: 0; }
+
+.checklist-summary {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.checklist-card[data-state="todo"] .checklist-summary { color: #d97706; }
+.checklist-card[data-state="ok"]   .checklist-summary { color: #059669; }
+
+.checklist-items {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.checklist-item-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 160px; }
+
+.checklist-item-title { font-weight: 600; font-size: 0.88rem; }
+
+.checklist-item-hint {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.checklist-state { font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
+.checklist-state.ok   { color: #059669; }
+.checklist-state.todo { color: #d97706; }
+
+.checklist-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+/* Highlight the card a checklist row just opened. */
+@keyframes settings-card-flash {
+    0%   { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.55); }
+    100% { box-shadow: var(--shadow); }
+}
+
+.settings-card.settings-card-flash { animation: settings-card-flash 1.6s ease-out; }
+
 .settings-tabs {
     display: flex;
     gap: 4px;

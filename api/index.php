@@ -8056,6 +8056,10 @@ function getServerSettings(): void {
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
         'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
         'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
+        // Expiry calendar feed: the subscribe URL is minted by get_ics_settings, but
+        // the on/off flag is also needed here — the Settings checklist reports
+        // "calendar configured" without opening that tab first.
+        'ics_enabled' => env('ICS_ENABLED', 'false') === 'true',
         'price_enabled' => env('PRICE_ENABLED', 'false') === 'true',
         'price_country' => env('PRICE_COUNTRY', 'Italia'),
         'price_currency' => env('PRICE_CURRENCY', 'EUR'),

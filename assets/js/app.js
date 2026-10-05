@@ -173,6 +173,9 @@ function _shouldRegisterServiceWorker() {
 let _geminiAvailable = false;
 let _mealieAvailable = false;
 let _demoMode = false;
+// Last `get_settings` payload: the single source of truth for the Settings
+// checklist ("is this option configured?") and for the guided assistant.
+let _serverSettings = {};
 
 function _requireRecipeEngine() {
     if (_geminiAvailable || _mealieAvailable) return true;
@@ -3419,6 +3422,7 @@ async function syncSettingsFromDB() {
  */
 function _applySyncedSettings(serverSettings) {
     if (!serverSettings) return;
+    _serverSettings = serverSettings;   // state source for the Settings checklist
     _geminiAvailable = !!(serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
     _demoMode = !!serverSettings.demo_mode;
@@ -4321,7 +4325,8 @@ async function loadSettingsUI() {
     // Populate About section version
     _loadAboutSection();
 
-    // Reopen the section + tab the user was configuring last (level-1 nav).
+    // What is still unconfigured (checklist) + reopen the last section/tab.
+    _renderSettingsChecklist();
     _restoreSettingsNav();
 }
 
@@ -4954,6 +4959,7 @@ async function saveSettings() {
     try {
         const refreshed = await api('get_settings');
         if (refreshed) {
+            _serverSettings = refreshed;   // refresh the checklist state too
             if (refreshed.ai_configured !== undefined) {
                 _geminiAvailable = !!refreshed.ai_configured;
             } else if (refreshed.gemini_key_set !== undefined) {
@@ -4965,6 +4971,7 @@ async function saveSettings() {
             }
         }
     } catch(e) {}
+    _renderSettingsChecklist();
     // Persist meal_plan and tts_voice to SQLite for cross-device sync
     try {
         const appData = {};
@@ -21810,17 +21817,17 @@ async function _loadNotifyTab() {
         const data = await api('get_settings');
         if (!data || data.success === false) throw new Error((data && data.error) || 'load_failed');
         _applyNotifySettingsUI(data);
+        // Keep the checklist ("notifications configured?") in step with the panel.
+        _serverSettings = Object.assign({}, _serverSettings, data);
+        _renderSettingsChecklist();
     } catch (e) {
         console.error('_loadNotifyTab:', e);
         _notifyStatus(statusEl, 'error', '❌ ' + t('error.generic'));
     }
 }
 
-/**
- * Random public-topic name (16 chars from a 36-symbol alphabet). The topic is the
- * only secret protecting the messages, so it must not be guessable.
- */
-function generateNtfyTopic() {
+/** A random, unguessable ntfy topic: whoever knows it can read and publish. */
+function _randomNtfyTopic() {
     const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
     const bytes = new Uint8Array(16);
     if (window.crypto && window.crypto.getRandomValues) {
@@ -21828,7 +21835,11 @@ function generateNtfyTopic() {
     } else {
         for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
     }
-    const topic = 'evershelf-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+    return 'evershelf-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+}
+
+function generateNtfyTopic() {
+    const topic = _randomNtfyTopic();
     const el = document.getElementById('setting-ntfy-topic');
     if (el) el.value = topic;
     const ntfyCb = document.getElementById('notify-channel-ntfy');
@@ -25503,10 +25514,213 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// ===== SETTINGS CHECKLIST + SETUP ASSISTANT =====
+// One registry drives both the checklist card at the top of Settings and the
+// guided assistant (the setup wizard). That is the point of keeping it in one
+// place: adding an integration means adding one entry here, and from then on
+//   * the card shows whether it is configured, and
+//   * the assistant offers it ONCE (see `askVersion`) instead of the user having
+//     to notice the new option on their own — the failure mode that made new
+//     notification channels go unnoticed.
+// `state()` reads the last get_settings payload (srv) plus local settings (s).
+// `step` is the index in _setupSteps() (only for items with ask: true).
+
+const SETTINGS_CHECKLIST = [
+    {
+        id: 'ai', tab: 'tab-api', level: 'recommended',
+        titleKey: 'settings.ai.title', hintKey: 'settings.ai.hint',
+        state: (srv, s) => (srv.ai_configured || s.gemini_key || s.openai_api_key || s.llama_base_url) ? 'ok' : 'todo',
+    },
+    {
+        id: 'shopping', tab: 'tab-bring', level: 'recommended',
+        titleKey: 'settings.shopping.title', hintKey: 'settings.shopping.hint',
+        // The built-in list needs no credentials: only Bring! asks for a login.
+        state: (srv) => (srv.shopping_mode === 'bring')
+            ? ((srv.bring_email && srv.bring_password_set) ? 'ok' : 'todo')
+            : 'ok',
+    },
+    {
+        id: 'notify', tab: 'tab-notify', level: 'recommended', ask: true, askVersion: 1, step: 4,
+        titleKey: 'settings.notify.title', hintKey: 'settings.notify.hint',
+        state: (srv) => (srv.notify_configured ? 'ok' : 'todo'),
+    },
+    {
+        id: 'healthcheck', tab: 'tab-notify', level: 'optional', ask: true, askVersion: 1, step: 5,
+        titleKey: 'settings.notify.healthcheck_title', hintKey: 'settings.notify.healthcheck_hint',
+        state: (srv) => (srv.notify_healthcheck_set ? 'ok' : 'todo'),
+    },
+    {
+        id: 'ha', tab: 'tab-ha', level: 'optional',
+        titleKey: 'settings.ha.title', hintKey: 'settings.ha.hint',
+        state: (srv) => ((srv.ha_enabled && srv.ha_token_set) ? 'ok' : 'todo'),
+    },
+    {
+        id: 'calendar', tab: 'tab-calendar', level: 'optional',
+        titleKey: 'settings.calendar.title', hintKey: 'settings.calendar.hint',
+        state: (srv) => (srv.ics_enabled ? 'ok' : 'todo'),
+    },
+    {
+        id: 'gdrive', tab: 'tab-backup', level: 'optional',
+        titleKey: 'settings.backup.gdrive_title', hintKey: 'settings.backup.gdrive_hint',
+        state: (srv) => ((srv.gdrive_refresh_token_set || srv.gdrive_client_id_set) ? 'ok' : 'todo'),
+    },
+    {
+        id: 'scale', tab: 'tab-scale', level: 'optional',
+        titleKey: 'settings.scale.title', hintKey: 'settings.scale.hint',
+        state: (srv, s) => ((srv.scale_enabled || s.scale_enabled) ? 'ok' : 'todo'),
+    },
+    {
+        id: 'tts', tab: 'tab-tts', level: 'optional',
+        titleKey: 'settings.tts.title', hintKey: 'settings.tts.hint',
+        state: (srv, s) => ((srv.tts_enabled || s.tts_enabled) ? 'ok' : 'todo'),
+    },
+];
+
+/** Ledger of what the assistant already asked, per item and version. */
+function _setupSeen() {
+    try { return JSON.parse(localStorage.getItem('evershelf_setup_seen') || '{}') || {}; } catch (e) { return {}; }
+}
+
+function _markSetupSeen(ids) {
+    const seen = _setupSeen();
+    for (const id of (ids || [])) {
+        const item = SETTINGS_CHECKLIST.find(i => i.id === id);
+        if (item) seen[id] = item.askVersion || 1;
+    }
+    try { localStorage.setItem('evershelf_setup_seen', JSON.stringify(seen)); } catch (e) {}
+}
+
+/** The checklist item a wizard step belongs to (undefined for the other steps). */
+function _checklistItemForStep(step) {
+    return SETTINGS_CHECKLIST.find(i => i.ask && i.step === step);
+}
+
+function _checklistState(item) {
+    try { return item.state(_serverSettings || {}, getSettings() || {}); }
+    catch (e) { return 'todo'; }
+}
+
+/** Items that are not configured yet (shown in the card). */
+function _checklistTodoItems() {
+    return SETTINGS_CHECKLIST.filter(i => _checklistState(i) !== 'ok');
+}
+
+/**
+ * Wizard steps the assistant still has to ask about: flagged `ask`, not configured
+ * and never asked at the current `askVersion`. Bumping askVersion re-asks once, so
+ * a genuinely new option reaches people who already finished the setup.
+ */
+function _assistantPendingSteps() {
+    const seen = _setupSeen();
+    const steps = [];
+    for (const item of SETTINGS_CHECKLIST) {
+        if (!item.ask) continue;
+        if ((seen[item.id] || 0) >= (item.askVersion || 1)) continue;
+        if (_checklistState(item) === 'ok') continue;
+        steps.push(item.step);
+    }
+    return steps;
+}
+
 // ===== SETUP WIZARD =====
+/** Paint the checklist card: compact when everything is configured, open when not. */
+function _renderSettingsChecklist() {
+    const card = document.getElementById('settings-checklist');
+    const box = document.getElementById('checklist-items');
+    if (!card || !box) return;
+    const todo = _checklistTodoItems();
+
+    card.dataset.state = todo.length === 0 ? 'ok' : 'todo';
+    const summary = document.getElementById('checklist-summary');
+    if (summary) {
+        summary.textContent = todo.length === 0
+            ? '✅ ' + t('settings.checklist.summary_ok')
+            : '⚠️ ' + t('settings.checklist.summary_todo', { count: todo.length });
+    }
+
+    box.innerHTML = SETTINGS_CHECKLIST.map(item => {
+        const ok = _checklistState(item) === 'ok';
+        const label = ok ? t('settings.checklist.state_ok')
+            : (item.level === 'optional' ? t('settings.checklist.state_optional') : t('settings.checklist.state_todo'));
+        const chip = `<span class="checklist-state ${ok ? 'ok' : 'todo'}">${ok ? '✅' : (item.level === 'optional' ? '➖' : '⚠️')} ${escapeHtml(label)}</span>`;
+        const btn = ok ? ''
+            : `<button class="btn btn-small btn-secondary" onclick="_checklistGoTo('${item.id}')">${escapeHtml(t('settings.checklist.configure'))}</button>`;
+        return `<div class="checklist-item" data-item="${item.id}">
+                    <div class="checklist-item-text">
+                        <span class="checklist-item-title">${escapeHtml(t(item.titleKey))}</span>
+                        <span class="checklist-item-hint">${escapeHtml(t(item.hintKey))}</span>
+                    </div>
+                    ${chip}${btn}
+                </div>`;
+    }).join('');
+
+    // Open the list when something still needs a decision, or when the user left
+    // it open the last time.
+    let open = todo.length > 0;
+    try { if (localStorage.getItem('evershelf_checklist_open') === '1') open = true; } catch (e) {}
+    box.hidden = !open;
+    _syncChecklistToggle(open);
+}
+
+function _syncChecklistToggle(open) {
+    const btn = document.getElementById('checklist-toggle');
+    if (btn) btn.textContent = open ? '▲ ' + t('settings.checklist.hide') : '▼ ' + t('settings.checklist.show');
+}
+
+function _toggleChecklistItems() {
+    const box = document.getElementById('checklist-items');
+    if (!box) return;
+    const open = box.hidden;
+    box.hidden = !open;
+    try { localStorage.setItem('evershelf_checklist_open', open ? '1' : '0'); } catch (e) {}
+    _syncChecklistToggle(open);
+}
+
+/** Open the settings tab (and card) where one checklist item is configured. */
+function _checklistGoTo(id) {
+    const item = SETTINGS_CHECKLIST.find(i => i.id === id);
+    if (!item) return;
+    const tabBtn = document.querySelector(`.settings-tabs .settings-tab[data-tab="${item.tab}"]`);
+    if (tabBtn) tabBtn.click();   // .click() keeps the tab's own loader
+    _flashSettingsCard(item.titleKey);
+}
+
+/** Scroll to a settings card and flash it, so a jump never lands in a guessing place. */
+function _flashSettingsCard(titleKey) {
+    const head = document.querySelector(`.settings-panels h4[data-i18n="${titleKey}"]`);
+    const card = head ? head.closest('.settings-card') : null;
+    if (!card) return;
+    card.scrollIntoView({ block: 'center' });
+    card.classList.remove('settings-card-flash');
+    void card.offsetWidth;   // restart the animation when the same card is reopened
+    card.classList.add('settings-card-flash');
+    setTimeout(() => card.classList.remove('settings-card-flash'), 1700);
+}
+
+/**
+ * "Review the options" button: run the assistant over every item that is still
+ * missing, not only the never-asked ones. With nothing to ask it opens the first
+ * unfinished card, or reports that everything is configured.
+ */
+function startSetupAssistant() {
+    const items = _checklistTodoItems();
+    const steps = items.filter(i => i.ask).map(i => i.step);
+    if (steps.length > 0) {
+        showSetupWizard(steps);
+        return;
+    }
+    if (items.length > 0) {
+        _checklistGoTo(items[0].id);
+        return;
+    }
+    showToast('✅ ' + t('settings.checklist.summary_ok'), 'success');
+}
 let _setupStep = 0;
 let _setupPendingSteps = [];
-const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '' };
+const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '', notify_topic: '', notify_enabled: true, healthcheck_url: '' };
+
+/** Index of the closing "you're all set" step (always the last one). */
+function _setupDoneStep() { return _setupSteps().length - 1; }
 
 /**
  * Returns indices of setup steps that still need configuration.
@@ -25536,9 +25750,11 @@ function _getMissingSetupSteps(serverSettings) {
         // Step 3 — Google Drive backup (always optional on first run, skippable)
         if (!srv.gdrive_refresh_token_set && !srv.gdrive_folder_id) missing.push(3);
     }
-    // Note: step 4 (done screen) gets appended automatically when there are missing steps
-
-    return missing;
+    // Note: step 6 (done screen) gets appended automatically when there are missing steps.
+    // Steps 4 & 5 (notifications, watchdog) come from the shared checklist registry:
+    // they are offered while unconfigured and asked at most once per askVersion, so a
+    // new option cannot silently ship unnoticed. Works after the first run too.
+    return missing.concat(_assistantPendingSteps());
 }
 
 function _setupSteps() {
@@ -25610,6 +25826,50 @@ function _setupSteps() {
             `
         },
         {
+            title: '🔔 ' + t('settings.notify.title'),
+            desc: t('settings.notify.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label class="toggle-row">
+                        <span>${t('settings.notify.enabled')}</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="setup-notify-enabled"${_setupData.notify_enabled ? ' checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>${t('settings.notify.ntfy_topic_label')}</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <input type="text" id="setup-notify-topic" class="form-input" style="flex:1" placeholder="${t('settings.notify.ntfy_topic_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeHtml(_setupData.notify_topic)}">
+                        <button type="button" class="btn btn-secondary" style="flex-shrink:0" onclick="_setupGenerateTopic()">🎲 ${t('settings.notify.ntfy_topic_generate')}</button>
+                    </div>
+                    <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.notify.ntfy_topic_hint')}</p>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="_setupTestNotify()">${t('setup.notify_test_btn')}</button>
+                    <p id="setup-notify-status" style="display:none;margin-top:8px;font-size:0.82rem;white-space:pre-line"></p>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
+            `
+        },
+        {
+            title: '⏱️ ' + t('settings.notify.healthcheck_title'),
+            desc: t('settings.notify.healthcheck_hint'),
+            render: () => `
+                <div class="form-group">
+                    <label>${t('settings.notify.healthcheck_label')}</label>
+                    <input type="text" id="setup-healthcheck-url" class="form-input" placeholder="${t('settings.notify.healthcheck_placeholder')}" autocomplete="off" spellcheck="false" value="${escapeHtml(_setupData.healthcheck_url)}">
+                    <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.notify.healthcheck_jobs_title')}</p>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-secondary" onclick="_setupTestHealthcheck()">${t('settings.notify.healthcheck_test_btn')}</button>
+                    <p id="setup-healthcheck-status" style="display:none;margin-top:8px;font-size:0.82rem"></p>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip')}</span>
+            `
+        },
+        {
             title: '✅ ' + t('setup.ready_title'),
             desc: t('setup.complete_desc'),
             render: () => {
@@ -25623,14 +25883,16 @@ function _setupSteps() {
 function showSetupWizard(pendingSteps) {
     _setupPendingSteps = pendingSteps || _getMissingSetupSteps();
     if (_setupPendingSteps.length === 0) return;
-    // Append the "done" step (4) at the end
-    _setupPendingSteps.push(4);
+    // Keep the steps in reading order and append the closing "done" screen last.
+    _setupPendingSteps = Array.from(new Set(_setupPendingSteps)).sort((a, b) => a - b);
+    _setupPendingSteps.push(_setupDoneStep());
     _setupStep = 0;
     // Pre-fill _setupData from existing settings so we don't lose them
     const s = getSettings();
     if (s.gemini_key) _setupData.gemini_key = s.gemini_key;
     if (s.bring_email) _setupData.bring_email = s.bring_email;
     if (s.bring_password) _setupData.bring_password = s.bring_password;
+    if (s.ntfy_topic) _setupData.notify_topic = s.ntfy_topic;
     document.getElementById('setup-wizard').style.display = '';
     _renderSetupStep();
 }
@@ -25672,7 +25934,89 @@ function _setupSelectLang(lang) {
     event.target.classList.add('selected');
 }
 
+/** 🎲 of the notification step: same generator the Settings panel uses. */
+function _setupGenerateTopic() {
+    const el = document.getElementById('setup-notify-topic');
+    if (el) el.value = _randomNtfyTopic();
+}
+
+/** One status line under a wizard button (error red, success green). */
+function _setupPaint(id, text, kind) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.color = kind === 'error' ? '#dc2626' : (kind === 'success' ? '#059669' : '#999');
+    el.textContent = text;
+}
+
+/**
+ * Save the ntfy settings from the wizard and deliver one real notification.
+ * Saving first is not optional: notify_test() reads the .env, not the form.
+ */
+async function _setupTestNotify() {
+    const topic = document.getElementById('setup-notify-topic')?.value.trim() || '';
+    if (!topic) {
+        _setupPaint('setup-notify-status', '❌ ' + t('setup.notify_need_topic'), 'error');
+        return;
+    }
+    _setupPaint('setup-notify-status', '⏳ ' + t('settings.notify.testing'));
+    const saved = await _saveSettingToServer({
+        notify_enabled: true, notify_channels: 'ntfy', ntfy_topic: topic,
+        ntfy_url: 'https://ntfy.sh', notify_language: _setupData.lang || _currentLang,
+    });
+    if (!saved) {
+        _setupPaint('setup-notify-status', '❌ ' + t('error.generic'), 'error');
+        return;
+    }
+    _setupData.notify_topic = topic;
+    _setupData.notify_enabled = true;
+    try {
+        const result = await api('notify_test', {}, 'POST', {}, {}, 15000);
+        const channels = (result && result.channels) || {};
+        const rows = Object.entries(channels).map(([name, outcome]) => (outcome && outcome.ok)
+            ? '✅ ' + name + (outcome.http ? ' (HTTP ' + outcome.http + ')' : '')
+            : '❌ ' + name + ' — ' + _notifyErrorText(outcome && outcome.error, outcome && outcome.http));
+        const delivered = (result && result.delivered) || 0;
+        const head = delivered > 0
+            ? '✅ ' + t('settings.notify.test_ok', { count: delivered })
+            : '❌ ' + t('settings.notify.test_fail');
+        _setupPaint('setup-notify-status', head + (rows.length ? '\n' + rows.join('\n') : ''), delivered > 0 ? 'success' : 'error');
+    } catch (e) {
+        console.error('_setupTestNotify:', e);
+        _setupPaint('setup-notify-status', '❌ ' + t('settings.notify.test_fail'), 'error');
+    }
+}
+
+/** Ping the watchdog URL typed in the wizard (never stored by the test itself). */
+async function _setupTestHealthcheck() {
+    const url = document.getElementById('setup-healthcheck-url')?.value.trim() || '';
+    _setupPaint('setup-healthcheck-status', '⏳ ' + t('settings.notify.healthcheck_testing'));
+    try {
+        const result = await api('notify_healthcheck_test', {}, 'POST', url ? { notify_healthcheck_url: url } : {}, {}, 15000);
+        if (result && result.success) {
+            if (url) _setupData.healthcheck_url = url;
+            const http = result.http ? ' (HTTP ' + result.http + ')' : '';
+            _setupPaint('setup-healthcheck-status', '✅ ' + t('settings.notify.healthcheck_test_ok') + http, 'success');
+            return;
+        }
+        if (result && result.configured === false) {
+            _setupPaint('setup-healthcheck-status', '🕓 ' + t('settings.notify.healthcheck_not_configured'));
+            return;
+        }
+        const detail = _healthcheckErrorText(result && result.error, result && result.http);
+        _setupPaint('setup-healthcheck-status',
+            '❌ ' + t('settings.notify.healthcheck_test_fail') + (detail ? ' — ' + detail : ''), 'error');
+    } catch (e) {
+        console.error('_setupTestHealthcheck:', e);
+        _setupPaint('setup-healthcheck-status', '❌ ' + t('settings.notify.healthcheck_test_fail'), 'error');
+    }
+}
+
 function _setupSkipStep() {
+    // "Configure later" still counts as asked: the item stays visible in the
+    // Settings checklist, but the assistant does not ask again at every start.
+    const item = _checklistItemForStep(_setupPendingSteps[_setupStep]);
+    if (item) _markSetupSeen([item.id]);
     _setupStep++;
     _renderSetupStep();
 }
@@ -25694,11 +26038,26 @@ function _setupCollectCurrent() {
         if (folderEl) _setupData.gdrive_folder_id = folderEl.value.trim();
         if (clientIdEl) _setupData.gdrive_client_id = clientIdEl.value.trim();
         if (clientSecretEl) _setupData.gdrive_client_secret = clientSecretEl.value.trim();
+    } else if (realIndex === 4) {
+        const enabledEl = document.getElementById('setup-notify-enabled');
+        const topicEl = document.getElementById('setup-notify-topic');
+        if (enabledEl) _setupData.notify_enabled = !!enabledEl.checked;
+        if (topicEl) _setupData.notify_topic = topicEl.value.trim();
+    } else if (realIndex === 5) {
+        const hcEl = document.getElementById('setup-healthcheck-url');
+        if (hcEl) _setupData.healthcheck_url = hcEl.value.trim();
     }
 }
 
 function setupWizardNav(dir) {
     _setupCollectCurrent();
+    // Leaving an assistant step — either way — records that it was asked, so the
+    // question is not repeated at every start. The card in Settings keeps showing
+    // the state until it is actually configured.
+    if (dir !== 0) {
+        const item = _checklistItemForStep(_setupPendingSteps[_setupStep]);
+        if (item) _markSetupSeen([item.id]);
+    }
     const totalPending = _setupPendingSteps.length;
     const realIndex = _setupPendingSteps[_setupStep];
 
@@ -25737,16 +26096,35 @@ async function _finishSetup() {
     if (_setupData.gdrive_folder_id) envPayload.gdrive_folder_id = _setupData.gdrive_folder_id;
     if (_setupData.gdrive_client_id) { envPayload.gdrive_client_id = _setupData.gdrive_client_id; envPayload.gdrive_enabled = true; }
     if (_setupData.gdrive_client_secret) envPayload.gdrive_client_secret = _setupData.gdrive_client_secret;
+    // Notifications: only sent when a topic was actually provided, so an empty
+    // field can never wipe a stored configuration (same rule as the panel).
+    if (_setupData.notify_topic) {
+        envPayload.notify_enabled = _setupData.notify_enabled !== false;
+        envPayload.notify_channels = 'ntfy';
+        envPayload.ntfy_topic = _setupData.notify_topic;
+        envPayload.notify_language = _setupData.lang || _currentLang;
+        s.ntfy_topic = _setupData.notify_topic;
+        saveSettingsToStorage(s);
+    }
+    if (_setupData.healthcheck_url) envPayload.notify_healthcheck_url = _setupData.healthcheck_url;
     try {
         if (Object.keys(envPayload).length > 0) {
             await api('save_settings', {}, 'POST', envPayload);
         }
     } catch(e) { /* will work locally */ }
 
+    // Anything the assistant offered counts as asked (even when the user jumped
+    // straight to the end): the checklist card is what keeps it visible now.
+    _markSetupSeen(_setupPendingSteps.map(st => (_checklistItemForStep(st) || {}).id).filter(Boolean));
+
     localStorage.setItem('evershelf_setup_done', '1');
     localStorage.removeItem('evershelf_setup_step');
     localStorage.removeItem('evershelf_setup_data');
     document.getElementById('setup-wizard').style.display = 'none';
+
+    // Refresh the checklist state so the card matches what was just saved.
+    try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (e) {}
+    _renderSettingsChecklist();
 }
 
 // ===== SERVER HEARTBEAT =====
@@ -26182,6 +26560,9 @@ async function _initApp() {
         // are taken into account before deciding which wizard steps to show.
         let serverSettings = {};
         try { serverSettings = await api('get_settings'); } catch(e) {}
+        // State source for the checklist *before* deciding which assistant steps are
+        // pending (_getMissingSetupSteps reads it through _assistantPendingSteps).
+        _serverSettings = serverSettings || {};
         _geminiAvailable = !!(serverSettings.ai_configured);
     _mealieAvailable = !!(serverSettings.mealie_usable);
         _demoMode = !!serverSettings.demo_mode;

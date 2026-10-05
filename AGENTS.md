@@ -98,6 +98,8 @@ php scripts/test-shopping-guards.php
 php scripts/test-internal-shopping-cleanup.php
 php scripts/test-notify.php
 php scripts/test-healthcheck.php
+php scripts/test-settings-nav.php      # settings sections ↔ tabs ↔ panels ↔ locales
+php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"

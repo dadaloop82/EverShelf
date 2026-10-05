@@ -914,6 +914,18 @@
     "group_cooking": "🍳 Cooking",
     "group_alerts": "🔔 Alerts & services",
     "group_system": "⚙️ System",
+    "checklist": {
+      "title": "🧭 Setup checklist",
+      "summary_ok": "Everything is configured",
+      "summary_todo": "{count} options to decide",
+      "state_ok": "Configured",
+      "state_todo": "Not configured",
+      "state_optional": "Optional",
+      "configure": "Configure",
+      "show": "Show items",
+      "hide": "Hide items",
+      "run": "▶️ Review the options"
+    },
     "calendar": {
       "tab": "Calendar",
       "title": "🗓️ Expiry calendar",
@@ -2301,6 +2313,8 @@
     "items_required": "Add at least one product"
   },
   "setup": {
+    "notify_test_btn": "📨 Send a test notification",
+    "notify_need_topic": "Enter an ntfy topic first.",
     "complete_desc": "Setup is complete. You can change these settings anytime from Settings.",
     "ready_title": "All set!",
     "next_btn": "Next →",

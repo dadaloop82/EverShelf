@@ -914,6 +914,18 @@
     "group_cooking": "🍳 Kochen",
     "group_alerts": "🔔 Hinweise & Dienste",
     "group_system": "⚙️ System",
+    "checklist": {
+      "title": "🧭 Einrichtungs-Checkliste",
+      "summary_ok": "Alles konfiguriert",
+      "summary_todo": "{count} Optionen offen",
+      "state_ok": "Konfiguriert",
+      "state_todo": "Nicht konfiguriert",
+      "state_optional": "Optional",
+      "configure": "Konfigurieren",
+      "show": "Einträge anzeigen",
+      "hide": "Einträge ausblenden",
+      "run": "▶️ Optionen durchsehen"
+    },
     "calendar": {
       "tab": "Kalender",
       "title": "🗓️ Ablauf-Kalender",
@@ -2301,6 +2313,8 @@
     "items_required": "Mindestens ein Produkt hinzufügen"
   },
   "setup": {
+    "notify_test_btn": "📨 Testbenachrichtigung senden",
+    "notify_need_topic": "Gib zuerst ein ntfy-Topic ein.",
     "complete_desc": "Einrichtung abgeschlossen. Sie können diese Einstellungen jederzeit unter Einstellungen ändern.",
     "ready_title": "Alles bereit!",
     "next_btn": "Weiter →",
