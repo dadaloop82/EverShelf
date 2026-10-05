@@ -30,15 +30,191 @@ function seasonalNormalize(string $name): string {
     return preg_replace('/\s+/u', ' ', $n) ?? $n;
 }
 
+/** True when $haystack starts with $prefix and the prefix is a whole word there. */
+function seasonalStartsWithWord(string $haystack, string $prefix): bool {
+    if ($prefix === '' || !str_starts_with($haystack, $prefix)) {
+        return false;
+    }
+    if (mb_strlen($haystack) === mb_strlen($prefix)) {
+        return true;
+    }
+    // "melone retato" starts with "melone" (space follows) but "melograno" does not.
+    return !preg_match('/[\p{L}\p{N}]/u', mb_substr($haystack, mb_strlen($prefix), 1));
+}
+
+/**
+ * First meaningful word of a normalized name — the head noun.
+ *
+ * Italian product names put the head noun first, so this is what decides
+ * whether a catalogue entry describes the product at all: "miele di arancia"
+ * is honey (matched), "cosce di pollo" is chicken (not cipollotto).
+ */
+function seasonalHeadToken(string $normalized): string {
+    static $stop = [
+        'di', 'del', 'della', 'dei', 'degli', 'delle', 'da', 'in', 'con', 'per', 'a', 'e',
+        'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'al', 'allo', 'alla', 'ai',
+        'agli', 'alle', 'su', 'se', 'che', 'non', 'ma', 'o', 'nel', 'nei', 'tra', 'fra',
+        'bio', 'gusto', 'tipo', 'extra', 'senza', 'fresco', 'fresca', 'freschi', 'fresche',
+        'biologico', 'biologica', 'biologiche', 'biologici',
+    ];
+    foreach (preg_split('/\s+/', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+        if (!preg_match('/\p{L}/u', $token)) {
+            continue;   // pure numbers, "100%", …
+        }
+        if (mb_strlen($token) < 3 || in_array($token, $stop, true)) {
+            continue;
+        }
+        return $token;
+    }
+    return '';
+}
+
+/**
+ * Score how well one catalogue candidate identifies the queried product.
+ * 0 means "not this product". Only the head noun may identify it, so a seller
+ * description like "Budino gusto vaniglia da zuccherare" never becomes "zucca".
+ */
+function seasonalScoreCandidate(string $q, string $head, string $c): int {
+    if ($c === $q || ($head !== '' && $c === $head)) {
+        return 100;
+    }
+    if (seasonalStartsWithWord($q, $c) || seasonalStartsWithWord($c, $q)) {
+        return 90;      // "zucca a pezzi" → "zucca", "melone" → "melone retato"
+    }
+    if ($head !== '' && mb_strlen($head) >= 4 && seasonalStartsWithWord($c, $head)) {
+        return 85;      // "Cipolla Dorata Biologica" → "cipolla dorata"
+    }
+    // Inflected tail ("avocados" → "avocado", "melone" → "meloni") — still anchored
+    // on the head noun, and only for a single-letter inflection. A two-letter tail
+    // bridges different words: that is how "zucchero" became "zucca" (alias
+    // "zucche", tail "ro") and the review card offered to remove the sugar.
+    if (mb_strlen($c) >= 5) {
+        $tail = null;
+        if (str_starts_with($q, $c)) {
+            $tail = mb_substr($q, mb_strlen($c));
+        } elseif (str_starts_with($c, $q)) {
+            $tail = mb_substr($c, mb_strlen($q));
+        }
+        if ($tail !== null && mb_strlen($tail) === 1 && !str_contains($tail, ' ')) {
+            return 80;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Keywords marking produce that was frozen / canned / dried / preserved.
+ *
+ * Seasonality is a property of fresh produce: frozen basil or peeled tomatoes
+ * keep their shelf life all year, so they must never be flagged (nor removed)
+ * for being "out of season".
+ */
+const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol|in vetro|vasett|conserve|conservat|sottolio|sottaceto|salamoia|marinat|pelat|passata|sugo|concentrat|essiccat|disidratat|liofilizzat|secc[oh]|marmellat|confettur|sciroppat|al naturale/u';
+
+/**
+ * Head nouns that make a product a preserve on their own.
+ *
+ * "Polpa di pomodoro" is canned pulp, but "pesca noce piatta a polpa gialla"
+ * describes a fresh variety — so a bare "polpa" only counts when it is the
+ * head noun, never as a qualifier further down the name.
+ */
+const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea'];
+
+function seasonalIsPreserved(string $name): bool {
+    $n = seasonalNormalize($name);
+    if (preg_match(SEASONAL_PRESERVED_PATTERN, $n)) {
+        return true;
+    }
+    return in_array(seasonalHeadToken($n), SEASONAL_PRESERVED_HEADS, true);
+}
+
+/**
+ * Product categories that describe fresh produce.
+ *
+ * Seasonality is only meaningful for the fruit & vegetable shelf: a jar of
+ * dried oregano ("Origano foglie") or an orange-flavoured drink are correctly
+ * named after a plant but are on the shelf all year, so they must never be
+ * treated as out of season. EverShelf stores both the Italian labels used by
+ * the UI and the raw Open Food Facts slugs imported from the product barcode.
+ */
+const SEASONAL_FRESH_CATEGORIES = [
+    'frutta', 'verdura', 'verdure', 'ortofrutta', 'frutta e verdura', 'ortaggi',
+];
+
+function seasonalIsFreshCategory(string $category): bool {
+    $c = mb_strtolower(trim($category));
+    if ($c === '') {
+        return false;
+    }
+    if (in_array($c, SEASONAL_FRESH_CATEGORIES, true)) {
+        return true;
+    }
+    // Open Food Facts slugs: en:fruits, en:vegetables-and-their-products, …
+    // Anything else (en:plant-based-foods-and-beverages, en:farming-products,
+    // conserve, latticini…) is a pantry shelf, not the fresh produce crate.
+    foreach (['fruit', 'vegetable', 'verdur', 'ortofrutta'] as $needle) {
+        if (str_contains($c, $needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Crops whose *harvest* is seasonal but which are on the shelf all year:
+ * cured/stored alliums and roots (onions, garlic, potatoes, carrots),
+ * fruit that keeps in cold storage (citrus) and greenhouse
+ * staples (tomatoes). The catalogue is a harvest calendar — without this list
+ * the app would stop suggesting onions in October, when every shop has them.
+ *
+ * Long enough to be a safe prefix, anchored on the head noun:
+ * "mel[ae]" is deliberately *not* here, it only ever matched "melone" by accident.
+ */
+const SEASONAL_ALL_YEAR_HEADS = '/^(cipoll|scalogn|agli|porr|patat|carot|barbabietol|limon|aranc|mandarin|clementin|pomodor)/u';
+
+/**
+ * The other half of the all-year list (apples/pears, squash, turnips): stems too
+ * short to be a prefix, because "mela" swallows "melanzane", "zucca" swallows
+ * "zucchine" and "zucchero", and "rapa" swallows "rapanelli". "Zucchine" and
+ * "melanzane" are exactly the summer produce this list exists to hide in winter,
+ * so these are matched as whole head nouns instead, plurals included
+ * ("Mele Fuji", "Zucca Delica", "Rape Rosse"). See seasonalIsAllYearCrop().
+ */
+const SEASONAL_ALL_YEAR_WORDS = ['rapa', 'rape', 'zucca', 'zucche', 'mela', 'mele', 'pera', 'pere'];
+
+function seasonalIsAllYearCrop(string $name): bool {
+    $head = seasonalHeadToken(seasonalNormalize($name));
+    if ($head === '') {
+        return false;
+    }
+    return in_array($head, SEASONAL_ALL_YEAR_WORDS, true)
+        || (bool)preg_match(SEASONAL_ALL_YEAR_HEADS, $head);
+}
+
+/**
+ * Should fresh produce be hidden from the shopping list because the current
+ * month cannot supply it? Preserved forms (frozen, canned, dried), non-produce
+ * categories and all-year crops (see above) always answer false, so pantry
+ * staples keep working whatever the calendar says.
+ */
+function seasonalProduceOutOfSeason(string $name, string $category = '', ?int $month = null): bool {
+    if (!seasonalIsFreshCategory($category) || seasonalIsAllYearCrop($name)) {
+        return false;
+    }
+    $match = seasonalMatchProduce($name, $month);
+    return $match !== null && ($match['status'] ?? '') === 'off';
+}
+
 /**
  * @return array{item:array,status:string,score:int}|null
  */
 function seasonalMatchProduce(string $name, ?int $month = null): ?array {
     $month = $month ?? (int)date('n');
     $q = seasonalNormalize($name);
-    if ($q === '' || mb_strlen($q) < 3) {
+    if ($q === '' || mb_strlen($q) < 3 || seasonalIsPreserved($q)) {
         return null;
     }
+    $head = seasonalHeadToken($q);
     $catalog = seasonalLoadCatalog();
     $best = null;
     $bestScore = 0;
@@ -55,16 +231,7 @@ function seasonalMatchProduce(string $name, ?int $month = null): ?array {
             if ($c === '' || mb_strlen($c) < 3) {
                 continue;
             }
-            $score = 0;
-            if ($q === $c) {
-                $score = 100;
-            } elseif (str_starts_with($q, $c) || str_starts_with($c, $q)) {
-                $score = 90;
-            } elseif (preg_match('/\b' . preg_quote($c, '/') . '\b/u', $q)) {
-                $score = 85;
-            } elseif (mb_strlen($c) >= 5 && (str_contains($q, $c) || str_contains($c, $q))) {
-                $score = 70;
-            }
+            $score = seasonalScoreCandidate($q, $head, $c);
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $peak = array_map('intval', $item['peak'] ?? []);
@@ -95,10 +262,14 @@ function seasonalStatusForName(string $name, ?int $month = null): string {
 /**
  * Review shopping list vs seasonality + suggest peak produce not already stocked/listed.
  *
+ * The tip is a stable i18n key ('shopping.seasonal_tip_<month>') that the client
+ * resolves through t(), so nothing user-visible is translated server-side and all
+ * six locales get their own wording.
+ *
  * @param list<array{name?:string,raw_name?:string}> $shoppingItems
- * @return array{month:int,tip:string,out_of_season:list,suggest_add:list,source:string}
+ * @return array{month:int,tip_key:string,out_of_season:list,suggest_add:list,source:string}
  */
-function seasonalReviewShopping(PDO $db, array $shoppingItems, string $lang = 'it'): array {
+function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
     $month = (int)date('n');
     $catalog = seasonalLoadCatalog();
 
@@ -114,7 +285,15 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems, string $lang = 'i
         if (!$match || $match['status'] !== 'off') {
             continue;
         }
-        // Only flag when it's clearly produce (matched catalog)
+        // Same rule the smart list applies (seasonalProduceOutOfSeason): cured or
+        // stored alliums and roots, cold-storage fruit and greenhouse staples are
+        // on the shelf all year. Without this the card asked to remove the onions
+        // in October while the smart list kept suggesting them.
+        // The list's category gate cannot be mirrored here — a shopping_list row
+        // carries no category — so a jar of "Origano foglie" may still be flagged.
+        if (seasonalIsAllYearCrop($label)) {
+            continue;
+        }
         $outOfSeason[] = [
             'name' => $label,
             'raw_name' => (string)($row['raw_name'] ?? $label),
@@ -198,42 +377,13 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems, string $lang = 'i
     $rest = array_values(array_filter($suggest, static fn($s) => empty($s['bought_before'])));
     $suggestAdd = array_slice(array_merge($preferBought, $rest), 0, 8);
 
-    $tips = [
-        'it' => [
-            1 => 'Di stagione: agrumi, kiwi, carciofi, verze.',
-            2 => 'Di stagione: radicchio, finocchi, pere, agrumi.',
-            3 => 'Di stagione: asparagi, piselli, spinaci.',
-            4 => 'Di stagione: asparagi, carciofi, fave, fragole.',
-            5 => 'Di stagione: zucchine, fragole, ciliegie.',
-            6 => 'Di stagione: albicocche, pesche, pomodori, melanzane.',
-            7 => 'Di stagione: anguria, pesche, melanzane, pomodori.',
-            8 => 'Di stagione: prugne, fichi, peperoni, basilico.',
-            9 => 'Di stagione: uva, fichi, porcini, melograno.',
-            10 => 'Di stagione: melograni, castagne, funghi, mele, pere.',
-            11 => 'Di stagione: cachi, cavoli, broccoli, radicchio.',
-            12 => 'Di stagione: arance, mandarini, cachi, verze.',
-        ],
-        'en' => [
-            1 => 'In season: citrus, kiwi, artichokes, cabbages.',
-            2 => 'In season: radicchio, fennel, pears, citrus.',
-            3 => 'In season: asparagus, peas, spinach.',
-            4 => 'In season: asparagus, artichokes, fava beans, strawberries.',
-            5 => 'In season: zucchini, strawberries, cherries.',
-            6 => 'In season: apricots, peaches, tomatoes, eggplant.',
-            7 => 'In season: watermelon, peaches, eggplant, tomatoes.',
-            8 => 'In season: plums, figs, peppers, basil.',
-            9 => 'In season: grapes, figs, porcini, pomegranate.',
-            10 => 'In season: pomegranates, chestnuts, mushrooms, apples, pears.',
-            11 => 'In season: persimmons, cabbages, broccoli, radicchio.',
-            12 => 'In season: oranges, mandarins, persimmons, cabbages.',
-        ],
-    ];
-    $tipLang = in_array($lang, ['it', 'en'], true) ? $lang : 'en';
-    $tip = $tips[$tipLang][$month] ?? $tips['en'][$month] ?? '';
+    // Stable key: the client resolves it (see _localizeSeasonalTip in app.js), so the
+    // payload stays language-neutral and every locale gets its own wording.
+    $tipKey = 'shopping.seasonal_tip_' . $month;
 
     return [
         'month' => $month,
-        'tip' => $tip,
+        'tip_key' => $tipKey,
         'out_of_season' => $outOfSeason,
         'suggest_add' => $suggestAdd,
         'source' => (string)($catalog['source'] ?? 'seasonal_produce_it'),

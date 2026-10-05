@@ -13231,8 +13231,40 @@ function buildSmartBringSpec(array $si): string {
 /** True when a smart-shopping row should be auto-synced to Bring!/internal list.
  *  Urgente + Presto always; also every depleted item (unless the user blocked it)
  *  so food never silently disappears from the list. */
+/**
+ * Cache variant of smartItemStockCoversNeed(): same rule, but driven by the
+ * numbers already stored in the smart-shopping cache (no DB access), so the
+ * Bring!/internal sync and the obsolete-row cleanup can use it too.
+ *
+ * Restocking a product used to leave it on the shopping list forever: the sync
+ * predicate returned true for every critical/high item no matter how much stock
+ * was back on the shelf.
+ */
+function smartItemStockCoversCacheNeed(array $si): bool {
+    $qty = (float)($si['current_qty'] ?? $si['quantity'] ?? 0);
+    $need = (float)($si['period_usage'] ?? 0);
+    if ($qty <= 0 || $need <= 0) {
+        return false;
+    }
+    $d2e = $si['days_to_expiry'] ?? null;
+    if ($d2e !== null && is_numeric($d2e) && (float)$d2e < 0) {
+        return false;   // expired leftovers still ask for a restock
+    }
+    $daysLeft = $si['days_left'] ?? null;
+    $horizon = (int)round((float)($si['edible_days'] ?? 7));
+    if ($daysLeft !== null && is_numeric($daysLeft) && (float)$daysLeft < max(1, $horizon)) {
+        return false;
+    }
+    return $qty >= $need;
+}
+
 function smartItemShouldSyncToBring(array $si): bool {
     $u = $si['urgency'] ?? 'none';
+    // Stock at home already covers the planning window → nothing to sync, at any
+    // urgency (a restocked item must not be re-added, nor kept, on the list).
+    if (smartItemStockCoversCacheNeed($si)) {
+        return false;
+    }
     if (in_array($u, ['critical', 'high'], true)) {
         return true;
     }
@@ -15955,6 +15987,30 @@ function smartCeilDiscreteQty(float $need): int {
 function smartStockBaseForGap(float $qty, string $unit, float $defQty, string $pkgUnit): float {
     return max(0.0, $qty);
 }
+/**
+ * Does the stock already at home cover this shopping trip?
+ *
+ * Regression: "Fette biscottate Integrali" (10 packs, 353 days of stock) and
+ * "Origano foglie" (20 g, 41 days) were predicted again, because the low-stock
+ * rule only compares against default_quantity and the family rule only looks at
+ * *sibling* products — neither notices plenty of stock of the product itself.
+ * An imminent expiry must not win either: buying more of the 10 packs that expire
+ * in two days is never the answer.
+ *
+ * Coverage is decided by the numbers: fresh (non-expired) stock covers the need
+ * for the planning window AND the stock outlives the window.
+ */
+function smartItemStockCoversNeed(float $freshQty, float $periodNeed, float $daysLeft, int $horizonDays): bool {
+    if ($freshQty <= 0 || $periodNeed <= 0) {
+        return false;
+    }
+    if ($daysLeft < max(1, $horizonDays)) {
+        return false;
+    }
+    return $freshQty >= $periodNeed;
+}
+
+
 
 /**
  * Suggested purchase for products tracked as conf (always returns conf).
@@ -16090,6 +16146,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
     // 5. Analyze each product
     $items = [];
+    $skippedOutOfSeason = [];
     $wasteLearning = _loadWasteLearning($db);
     foreach ($products as $p) {
         $pid = $p['id'];
@@ -16496,6 +16553,15 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         if ($urgency === 'none') continue;
 
+        // Fresh produce out of season: never suggest what the shelf cannot have.
+        // The check is gated on a fresh-produce category, so a jar of dried
+        // oregano named after a plant and frozen/canned forms (excluded by
+        // seasonalIsPreserved) keep being suggested all year.
+        if (seasonalProduceOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))) {
+            $skippedOutOfSeason[] = (string)$p['name'];
+            continue;
+        }
+
         // Family stock coverage: suppress items covered by other products in the same generic family.
         // For non-expired items (including critical/empty): suppress if family has other stock.
         // For expired items: suppress if the family has FRESH stock from other products.
@@ -16555,14 +16621,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $pkgUnit = trim($p['package_unit'] ?? '');
         $stockBase = smartStockBaseForGap($qty, $unit, $defQty, $pkgUnit);
 
-        // Just restocked (≤7 days): only hide when stock already covers the planning need.
-        // Partial buys (e.g. 3L of ~12L milk) must stay with remaining qty.
-        if ($justRestocked && !$isExpired && $periodNeed > 0 && $stockBase >= $periodNeed) {
-            $sNameRestock = strtolower(trim($shoppingName));
-            $familyStockNow = $sNameRestock !== '' ? ($stockByShoppingName[$sNameRestock] ?? 0) : $qty;
-            if ($familyStockNow > 0) {
-                continue;
-            }
+        // Stock at home already covers the planning window: nothing to buy — not
+        // even when a low-stock ratio or an imminent expiry flagged it.
+        // (Regression: 10 packs of "Fette biscottate" and 20 g of oregano were
+        // predicted again although both had weeks of stock left.)
+        // Partial buys (e.g. 3 L of ~12 L milk) stay on the list with the gap qty.
+        if (!$isExpired && smartItemStockCoversNeed($freshQty, $periodNeed, $daysLeft, $qtyHorizon)) {
+            continue;
         }
 
         if ($periodNeed > 0 || $dailyRate > 0) {
@@ -16794,11 +16859,20 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
     // Sort by score descending (most urgent first)
     usort($items, fn($a, $b) => $b['score'] - $a['score']);
 
+    if ($skippedOutOfSeason !== []) {
+        EverLog::debug('Smart shopping skipped out-of-season produce', [
+            'event' => 'smart_shopping_out_of_season',
+            'count' => count($skippedOutOfSeason),
+            'names' => array_slice($skippedOutOfSeason, 0, 20),
+        ]);
+    }
+
     echo json_encode([
         'success' => true,
         'items' => $items,
         'plan_days' => $planDays,
         'plan_days_default' => $planDefault,
+        'skipped_out_of_season' => count($skippedOutOfSeason),
     ], JSON_UNESCAPED_UNICODE);
 }
 
@@ -17443,13 +17517,7 @@ function shoppingRemove(PDO $db): void {
 
 /** Seasonal produce review for the current shopping list (IT calendar, free data). */
 function seasonalShoppingReviewAction(PDO $db): void {
-    $lang = env('APP_LANG', 'it');
     $input = json_decode(file_get_contents('php://input'), true);
-    if (is_array($input) && !empty($input['lang'])) {
-        $lang = (string)$input['lang'];
-    } elseif (!empty($_GET['lang'])) {
-        $lang = (string)$_GET['lang'];
-    }
     $items = [];
     // Prefer items from client (covers Bring! mode); else internal DB list
     if (is_array($input) && !empty($input['items']) && is_array($input['items'])) {
@@ -17462,7 +17530,7 @@ function seasonalShoppingReviewAction(PDO $db): void {
             $items = [];
         }
     }
-    $review = seasonalReviewShopping($db, $items, $lang);
+    $review = seasonalReviewShopping($db, $items);
     echo json_encode(['success' => true] + $review, JSON_UNESCAPED_UNICODE);
 }
 

@@ -73,6 +73,52 @@ the next release.
     third-party `api.qrserver.com` and the subscribe URL is a long-lived
     credential — unlike the short-lived pairing code it must not leave the server.
 
+### Changed
+- **The seasonal review tip is translated in all six locales.** The card's tip was
+  built from two hardcoded `it`/`en` tables inside `api/lib/seasonal.php` — a
+  user-facing string the translation audit could not see — so de/fr/es/zh users read
+  English. The card now returns a stable key (`shopping.seasonal_tip_<month>`) that
+  `assets/js/app.js` resolves through `t()`, the same "PHP returns a key, the client
+  translates it" contract as `hint_key`, and the wording lives in
+  `translations/*.json`. The out-of-season block also explains itself now
+  (`seasonal_out_note`): the smart list skips out-of-season fresh produce and brings
+  it back when its season does.
+- **A third CSS layer re-skins the UI without touching the other two.**
+  `assets/css/elegant.css` loads after `style.css` and `corporate.css` and only
+  re-skins what they already lay out: rounder geometry, a two-layer soft elevation,
+  a floating translucent bottom bar, a translucent header, roomier gutters and a
+  fluid type scale. It deletes no selector, so removing its single `<link>` restores
+  the previous look. It is also where the restyle's dark-mode regressions are
+  repaired — the opened-product tints, `.inv-opened-section` and `--primary` used as
+  a foreground — which neither existing layer answers.
+
+### Fixed
+- **The seasonal review card asked to remove what the smart list kept suggesting.**
+  The card flagged any catalogue entry the month marks `off`, while the list also
+  exempts the crops that are on the shelf all year: in October the card told you to
+  drop the onions the list was still proposing. Both apply
+  `seasonalIsAllYearCrop()` now. Two matcher bugs surfaced with it:
+  `mel[ae]`, `zucc[ah]` and `rap[ae]` matched as head-noun *prefixes*, so
+  "Melanzane", "Zucchine" and "Rapanelli" counted as all-year crops — the summer
+  produce the winter list exists to hide was exempt from hiding — and the candidate
+  scorer accepted a two-letter tail, so "Zucchero" became "zucca" through the alias
+  "zucche" + "ro". Short stems are matched as whole head nouns now, and only
+  single-letter inflections ("avocados" → "avocado") pass the tail guard.
+  `scripts/test-seasonal-match.php` grows from 57 to 86 assertions, including a
+  card-vs-list consistency lock and a check that every key PHP can emit exists in
+  all six locales (the i18n audit only sees keys used in JS).
+- **The ⚙️ Config tab was clipped on every phone portrait.** The bottom bar
+  reserved a hard `min-width: 56px` per tab (62px for the Gemini FAB), so seven
+  tabs needed ~398px of row — 462px with the German labels ("Einstellungen") —
+  against the 338px a 360px phone offers. The row overflowed, and because `body
+  { overflow-x: hidden }` there was nothing to scroll: the last tabs (Storico and
+  Config) simply were not there. The tabs now share the row
+  (`flex: 1 1 auto; min-width: 0`, so widths stay as they were where there is
+  room), the icons, logo and FAB scale with the viewport, and below 540px the
+  labels give way to icon-only tabs that keep their accessible name through
+  `aria-label`/`data-i18n-aria` (existing `nav.*` keys — no new translations).
+  That also disambiguates the two tabs that both showed 📋: *Storico* is 🕘 now.
+
 ## [1.8.10] - 2026-10-04
 
 Second half of the 2026-10-04 audit: what a `docker build` bakes into the image,

@@ -4755,10 +4755,18 @@ body.server-offline .bottom-nav {
     font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 6px 10px;
+    padding: 6px 6px;
     border-radius: var(--radius-sm);
     transition: all 0.2s;
-    min-width: 56px;
+    /* Fluid slots. A fixed `min-width: 56px` floor × 7 tabs (plus the 62px
+       FAB) needed ~398px — 462px with the German labels — against the 338px a
+       360px phone can give: the row overflows, and because `body` hides
+       overflow-x the clipped tabs (⚙️ Config) were unreachable, not just ugly.
+       `min-width: 0` lets the row shrink to fit any width; `flex-grow` shares
+       the leftover space, `flex-basis: auto` keeps today's label widths when
+       there is room, so nothing is truncated on tablets/desktop. */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .nav-btn.active {
@@ -4766,31 +4774,38 @@ body.server-offline .bottom-nav {
 }
 
 .nav-icon {
-    font-size: 1.4rem;
+    /* Scales with the viewport so 7 tabs always fit the bar on a phone. */
+    font-size: clamp(1.05rem, 4.6vw, 1.4rem);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .nav-logo-icon {
-    height: 24px;
+    height: clamp(20px, 5.4vw, 24px);
     width: auto;
     object-fit: contain;
     display: block;
 }
 
 .nav-label {
-    font-size: 0.65rem;
+    font-size: clamp(0.58rem, 2.3vw, 0.65rem);
+    /* Below ~540px the labels are hidden (see elegant.css §13): these guards
+       keep a long translation ("Einstellungen") from overflowing the slot. */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Gemini — center tab, elevated like mobile FAB */
 .nav-gemini-btn {
     margin-top: -10px;
-    min-width: 62px;
+    min-width: 0;
 }
 .nav-gemini-icon-wrap {
-    width: 50px;
-    height: 50px;
+    width: clamp(34px, 9.6vw, 50px);
+    height: clamp(34px, 9.6vw, 50px);
     border-radius: 50%;
     background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
     display: flex;
@@ -4799,6 +4814,12 @@ body.server-offline .bottom-nav {
     box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
     border: 3px solid var(--bg-card);
     transition: transform 0.15s, box-shadow 0.15s;
+}
+.nav-gemini-icon {
+    /* The inline width/height on the <svg> are the desktop size; this lets the
+       FAB shrink inside a narrow slot on a phone. */
+    width: clamp(18px, 5.2vw, 26px);
+    height: clamp(18px, 5.2vw, 26px);
 }
 .nav-gemini-btn:active .nav-gemini-icon-wrap {
     transform: scale(0.94);
@@ -8268,6 +8289,13 @@ body.cooking-mode-active .app-header {
     font-style: normal;
     opacity: 0.85;
 }
+.seasonal-note {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #047857;
+    opacity: 0.9;
+}
 
 [data-theme="dark"] .alert-stale {
     background: #1e1230;
@@ -8280,6 +8308,7 @@ body.cooking-mode-active .app-header {
 }
 [data-theme="dark"] .seasonal-review-tip,
 [data-theme="dark"] .seasonal-block-title { color: #6ee7b7; }
+[data-theme="dark"] .seasonal-note { color: #6ee7b7; }
 [data-theme="dark"] .seasonal-row { border-top-color: rgba(110, 231, 183, 0.15); }
 
 /* Opened expiry badges */

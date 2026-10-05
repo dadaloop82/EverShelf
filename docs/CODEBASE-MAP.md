@@ -4,27 +4,28 @@
 > Line numbers are for the commit at the time of writing; regenerate the indexes
 > with `bash scripts/gen-code-index.sh` after large edits.
 >
-> Counts and line numbers below were measured for **v1.8.8** (2026-10-04) and are
-> rounded; regenerate the indexes with `bash scripts/gen-code-index.sh` after large edits.
+> Counts and line numbers below were measured for **v1.9.0** (`ab6f083`, 2026-10-05)
+> and are rounded.
 
 ## 1. Top-level layout
 
 | Path | What it is | Size / notes |
 |---|---|---|
-| `index.html` | SPA shell, all pages as `<section>` + modals | ~2.3k lines |
-| `assets/js/app.js` | **Entire frontend logic** (single file) | ~25.7k lines, 914 fns |
+| `index.html` | SPA shell, all pages as `<section>` + modals | ~2.4k lines |
+| `assets/js/app.js` | **Entire frontend logic** (single file) | ~26.0k lines, 924 fns |
 | `assets/js/core/auth.js` | API token helpers (`getApiToken`, `apiAuthHeaders`) | loaded before app.js |
 | `assets/js/core/dom.js` | `escapeHtml` | loaded before app.js |
-| `assets/css/style.css` | All styles | ~10.4k lines |
+| `assets/css/style.css` | All styles | ~10.5k lines |
 | `assets/css/corporate.css` | Corporate/"kiosk" theme overlay | ~640 lines |
-| `api/index.php` | **Entire backend**: router + all handlers | ~19.4k lines, 406 fns |
+| `assets/css/elegant.css` | Third layer: the "elegant" restyle **and** the dark-mode repairs it caused | ~740 lines; loaded **last**, deletes no selector |
+| `api/index.php` | **Entire backend**: router + all handlers | ~19.5k lines, 408 fns |
 | `api/bootstrap.php` | Shared init for HTTP + cron | requires every lib |
 | `api/database.php` | SQLite schema + migrations | ~845 lines |
 | `api/logger.php` | `EverLog` rotating file logger + `LoggingPDO` | |
 | `api/lib/*.php` | Domain libs (see §4) | |
 | `api/cron_*.php` | CLI jobs (smart shopping, mealie cache, barcode catalog) | run by cron |
 | `api/scale_*.php` | Kitchen-scale gateway relay/discovery | |
-| `translations/*.json` | 6 languages, nested keys | ~62 top-level keys |
+| `translations/*.json` | 6 languages, nested keys | 66 top-level keys |
 | `data/` | Runtime DB + caches + logs (**HTTP denied** via `.htaccess`) | not all committed |
 | `scripts/*` | Maintenance CLIs (i18n sync, backfills, GH triage, env migration) | |
 | `mcp-server/` | Node MCP server exposing EverShelf API to agents | separate npm pkg |
@@ -72,7 +73,7 @@
 | `weather.php` | Weather fetch + geocode | `weather_get`, `weather_geocode` |
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
 | `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
-| `seasonal.php` | **IT produce calendar** + stale-stock | `seasonalReviewShopping()`, `staleInventoryItems()` |
+| `seasonal.php` | **IT produce calendar** + stale-stock; the review card returns a `tip_key` the client resolves | `seasonalReviewShopping()`, `seasonalIsAllYearCrop()`, `staleInventoryItems()` |
 | `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed |
 | `calendar_ics.php` | **ICS/WebCal expiry feed** (RFC 5545 emit + token gate) | `evershelfIcsBuild()`, `calendarIcsFeed()`, `getIcsSettings()`, `rotateIcsToken()` |
 | `recipe_shopping.php` | **Recipe → shopping list** with pantry deduction (recompute the gap on open) | `evershelfRecipeShoppingPlan()`, `recipeShoppingAdd()`, `evershelfBaseQty()` |

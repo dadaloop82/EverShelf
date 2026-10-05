@@ -1154,7 +1154,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261004i'; // bump when translations change
+const _I18N_VERSION = '20261005c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6634,13 +6634,39 @@ async function loadStaleDashboardItems() {
     }
 }
 
+/**
+ * Translate the seasonal review tip.
+ *
+ * The API sends a stable key ("shopping.seasonal_tip_7") so all six locales get
+ * their own wording and nothing user-visible is translated server-side; an
+ * unknown key (e.g. an older cached payload) is returned verbatim.
+ */
+function _localizeSeasonalTip(key) {
+    const k = String(key || '');
+    if (typeof t !== 'function') return k;
+    switch (k) {
+        case 'shopping.seasonal_tip_1':  return t('shopping.seasonal_tip_1');
+        case 'shopping.seasonal_tip_2':  return t('shopping.seasonal_tip_2');
+        case 'shopping.seasonal_tip_3':  return t('shopping.seasonal_tip_3');
+        case 'shopping.seasonal_tip_4':  return t('shopping.seasonal_tip_4');
+        case 'shopping.seasonal_tip_5':  return t('shopping.seasonal_tip_5');
+        case 'shopping.seasonal_tip_6':  return t('shopping.seasonal_tip_6');
+        case 'shopping.seasonal_tip_7':  return t('shopping.seasonal_tip_7');
+        case 'shopping.seasonal_tip_8':  return t('shopping.seasonal_tip_8');
+        case 'shopping.seasonal_tip_9':  return t('shopping.seasonal_tip_9');
+        case 'shopping.seasonal_tip_10': return t('shopping.seasonal_tip_10');
+        case 'shopping.seasonal_tip_11': return t('shopping.seasonal_tip_11');
+        case 'shopping.seasonal_tip_12': return t('shopping.seasonal_tip_12');
+        default: return k;
+    }
+}
+
 /** Shopping: in-season suggestions + out-of-season removals (free IT calendar). */
 async function loadSeasonalReview() {
     const box = document.getElementById('seasonal-review');
     if (!box) return;
     try {
         const payload = {
-            lang: _currentLang || 'it',
             items: (shoppingItems || []).map(i => ({ name: i.name, raw_name: i.rawName || i.raw_name || i.name })),
         };
         const data = await api('seasonal_shopping_review', {}, 'POST', payload);
@@ -6650,12 +6676,13 @@ async function loadSeasonalReview() {
         }
         const out = data.out_of_season || [];
         const add = data.suggest_add || [];
-        if (!out.length && !add.length && !data.tip) {
+        const tip = _localizeSeasonalTip(data.tip_key);
+        if (!out.length && !add.length && !tip) {
             box.style.display = 'none';
             return;
         }
         let html = `<div class="seasonal-review-head"><strong>🌿 ${escapeHtml(t('shopping.seasonal_title'))}</strong>`;
-        if (data.tip) html += `<span class="seasonal-review-tip">${escapeHtml(data.tip)}</span>`;
+        if (tip) html += `<span class="seasonal-review-tip">${escapeHtml(tip)}</span>`;
         html += `</div>`;
         if (out.length) {
             html += `<div class="seasonal-block"><div class="seasonal-block-title">${escapeHtml(t('shopping.seasonal_out_title'))}</div>`;
@@ -6671,6 +6698,7 @@ async function loadSeasonalReview() {
             if (out.length > 1) {
                 html += `<button type="button" class="btn-banner btn-banner-throw seasonal-remove-all" onclick="removeAllSeasonalOutOfSeason()">${t('shopping.seasonal_remove_all')}</button>`;
             }
+            html += `<div class="seasonal-note">${escapeHtml(t('shopping.seasonal_out_note'))}</div>`;
             html += `</div>`;
             window._seasonalOutOfSeason = out;
         } else {
@@ -9852,7 +9880,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004i';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -9862,7 +9890,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261004i';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

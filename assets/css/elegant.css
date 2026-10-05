@@ -1,0 +1,742 @@
+/**
+ * EverShelf — Elegant UI layer (app-wide restyle)
+ *
+ * Loaded after `style.css` and `corporate.css`, so it only re-skins what those
+ * two layers already lay out: rounder geometry, two-layer soft elevation, a
+ * floating navigation bar, a translucent header, roomier responsive gutters
+ * and a calmer, fluid type scale. No selector from the other layers is
+ * deleted, so removing the single `<link>` in `index.html` restores the
+ * previous look.
+ *
+ * Scope notes (why some things are deliberately *not* here):
+ *   - Swipe colours (`.inv-swipe-bg*`, `.shop-row-visual-bg--cat*`), the
+ *     urgency ramp (`.shop-row-urgency-*`) and `.shop-row`'s 5px left border
+ *     encode meaning — they are left untouched.
+ *   - `--nav-height` keeps its value: `.toast`, `.app-content` min-height,
+ *     `#tab-panel-acquisto`'s viewport and the notched-phone safe-area rules
+ *     all derive from it.
+ *   - `--radius` grows (16 → 24px) and `--radius-sm` (10 → 14px) because both
+ *     are consumed by the existing layers, so the whole app rounds up at once
+ *     instead of fighting 300 hand-written `border-radius` declarations.
+ *   - Every new token is namespaced `--es-*` and has a `[data-theme="dark"]`
+ *     counterpart at the bottom of this file.
+ *
+ * @author Stimpfl Daniel <evershelfproject@gmail.com>
+ * @license MIT
+ */
+
+/* ===== 1. DESIGN TOKENS ============================================ */
+:root {
+    /* Geometry — 14px controls, 18px cards, 24px surfaces, pill affordances */
+    --radius: 24px;
+    --radius-sm: 14px;
+    --es-radius-card: 18px;
+    --es-radius-pill: 999px;
+
+    /* Shell */
+    --es-shell-max: 720px;
+    --es-shell-max-wide: 1020px;
+    --es-shell-gutter: 14px;
+    --es-header-radius: 22px;
+    --es-nav-radius: 26px;
+    --es-nav-height: 62px;
+    --es-nav-gap: 10px;
+
+    /* Elevation — two soft layers read calmer than one hard drop */
+    --shadow: 0 1px 2px color-mix(in srgb, var(--primary-dark) 6%, transparent),
+              0 8px 20px -10px color-mix(in srgb, var(--primary-dark) 22%, transparent);
+    --shadow-lg: 0 2px 6px color-mix(in srgb, var(--primary-dark) 8%, transparent),
+                 0 18px 46px -20px color-mix(in srgb, var(--primary-dark) 32%, transparent);
+    --es-shadow-card: 0 1px 2px color-mix(in srgb, var(--primary-dark) 5%, transparent),
+                      0 6px 16px -10px color-mix(in srgb, var(--primary-dark) 18%, transparent);
+    --es-shadow-elevated: 0 22px 60px -24px color-mix(in srgb, #000 45%, transparent);
+    --es-shadow-float: 0 12px 32px -12px color-mix(in srgb, var(--primary-dark) 30%, transparent);
+
+    /* Motion */
+    --es-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --es-ease-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+
+    /* Fluid type scale (the desktop column keeps the same reading rhythm) */
+    --es-text-title: clamp(1.08rem, 0.98rem + 0.5vw, 1.28rem);
+    --es-text-body: clamp(0.88rem, 0.85rem + 0.15vw, 0.95rem);
+    --es-text-small: 0.8rem;
+    --es-text-micro: 0.7rem;
+
+    /* Surfaces */
+    --es-border-hairline: color-mix(in srgb, var(--border) 72%, var(--primary) 8%);
+    --es-glass: color-mix(in srgb, var(--bg-card) 84%, transparent);
+    --es-scrim: color-mix(in srgb, #0b1220 58%, transparent);
+}
+
+/* ===== 2. SHELL, SCROLLING, FOCUS ================================== */
+body {
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(1100px 520px at 100% -8%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 62%),
+        radial-gradient(880px 460px at -12% 108%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 58%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    padding-bottom: calc(var(--nav-height) + 14px + env(safe-area-inset-bottom, 0px));
+    letter-spacing: -0.005em;
+}
+
+/* Thin, self-effacing scrollbars (desktop / kiosk browsers) */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-muted) 45%, transparent) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: var(--es-radius-pill);
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-muted) 62%, transparent);
+    background-clip: content-box;
+}
+
+::selection { background: color-mix(in srgb, var(--primary) 26%, transparent); }
+
+/* Keyboard-only focus ring; pointer users keep the existing press feedback */
+:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--primary) 62%, transparent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Long unbroken names (barcodes, imported titles) must never widen a row */
+.inv-row-content,
+.shop-row-content,
+.shopping-item,
+.product-item,
+.alert-item,
+.settings-row,
+.section-card,
+.settings-card { min-width: 0; overflow-wrap: anywhere; }
+
+.app-content {
+    max-width: var(--es-shell-max);
+    padding: var(--es-shell-gutter);
+}
+
+.page.active { padding: 4px var(--es-shell-gutter) 32px; }
+
+/* ===== 3. HEADER =================================================== */
+.app-header {
+    background-image: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 88%);
+    border-bottom: 0;
+    border-radius: 0 0 var(--es-header-radius) var(--es-header-radius);
+    box-shadow: var(--es-shadow-float);
+    padding: 0 var(--es-shell-gutter);
+}
+
+.header-btn,
+.header-scan-btn,
+.header-spesa-btn { border-radius: var(--es-radius-pill); }
+
+/* ===== 4. PAGE CHROME ============================================== */
+.page-header {
+    background: var(--es-glass);
+    border: 1px solid var(--es-border-hairline);
+    border-radius: var(--es-radius-card);
+    padding: 9px 12px;
+    margin-bottom: 14px;
+    box-shadow: var(--es-shadow-card);
+}
+
+.page-header h2 {
+    font-size: var(--es-text-title);
+    font-weight: 750;
+    letter-spacing: -0.025em;
+    background-image: linear-gradient(118deg, var(--primary-dark), var(--primary-light));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: var(--primary);
+}
+
+.back-btn,
+.page-header-action-btn {
+    border-radius: var(--es-radius-pill);
+    border: 1px solid var(--es-border-hairline);
+    background: var(--bg-card);
+    min-height: 38px;
+    padding: 0 15px;
+    box-shadow: none;
+}
+
+.page-header-action-btn { padding: 0; width: 38px; }
+
+@supports ((backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px))) {
+    .page-header {
+        -webkit-backdrop-filter: blur(10px) saturate(1.12);
+        backdrop-filter: blur(10px) saturate(1.12);
+    }
+}
+
+/* ===== 5. SURFACES & CARDS ========================================= */
+.section-card,
+.settings-card,
+.stat-card,
+.alert-card,
+.opened-product-card,
+.smart-item,
+.product-item,
+.review-section,
+.nutrition-block,
+.recipe-storage-card,
+.scale-live-box,
+.product-details-card,
+.product-preview-small,
+.use-inventory-info,
+.quick-access-btn,
+.nutr-card,
+.es-surface {
+    border-radius: var(--es-radius-card);
+    border: 1px solid var(--es-border-hairline);
+    box-shadow: var(--es-shadow-card);
+}
+
+.stat-card {
+    border-radius: var(--radius);
+    padding: 16px 12px;
+    gap: 6px;
+}
+
+.stat-icon { font-size: 1.8rem; line-height: 1; }
+
+.stat-value { font-size: clamp(1.55rem, 1.25rem + 1.6vw, 2.05rem); }
+
+.section-card h3,
+.settings-card h4,
+.settings-subheading { letter-spacing: -0.02em; }
+
+.settings-card h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Accent bar: gives a flat settings list an obvious visual rhythm */
+.settings-card h4::before {
+    content: '';
+    flex: 0 0 4px;
+    width: 4px;
+    height: 1.05em;
+    border-radius: var(--es-radius-pill);
+    background: linear-gradient(180deg, var(--primary-light), var(--primary));
+}
+
+/* ===== 6. LISTS & ROWS ============================================= */
+.inventory-list,
+.products-list,
+.appliances-list,
+.smart-items,
+.shopping-items,
+.location-selector,
+.quick-access-grid { gap: 10px; }
+
+.inventory-item,
+.product-item,
+.smart-item,
+.shopping-item,
+.opened-product-card { border-radius: var(--es-radius-card); }
+
+.inventory-item,
+.product-item,
+.shopping-item,
+.smart-item { box-shadow: var(--es-shadow-card); }
+
+.inv-row-content { padding: 15px 14px; }
+
+/* `.shop-row` keeps its 5px urgency rail — only geometry is re-skinned.
+   The corporate layer already flattened it once (`.shop-row { border: 1px … }`
+   at equal specificity, later in the cascade), so the rail is re-declared here
+   *and* the four urgency colours after it, to win the cascade again. */
+.shop-row {
+    border-radius: var(--radius);
+    border-left-width: 5px;
+    border-left-style: solid;
+    border-left-color: transparent;
+    box-shadow: var(--es-shadow-card);
+}
+
+.shop-row-urgency-critical { border-left-color: #ef4444; }
+.shop-row-urgency-high { border-left-color: #f97316; }
+.shop-row-urgency-medium { border-left-color: #eab308; }
+.shop-row-urgency-low { border-left-color: #22c55e; }
+
+/* `style.css` only re-declares the *background* for dark mode, while
+   `corporate.css` repaints the whole border with `[data-theme="dark"]
+   .shop-row` (specificity 0,1,1) — that outranks the plain urgency classes
+   above (0,1,0) and turns all four rails the same grey. Re-assert the ramp
+   with matching attribute specificity so the colour keeps its meaning. */
+[data-theme="dark"] .shop-row-urgency-critical,
+.dark .shop-row-urgency-critical { border-left-color: #ef4444; }
+
+[data-theme="dark"] .shop-row-urgency-high,
+.dark .shop-row-urgency-high { border-left-color: #f97316; }
+
+[data-theme="dark"] .shop-row-urgency-medium,
+.dark .shop-row-urgency-medium { border-left-color: #eab308; }
+
+[data-theme="dark"] .shop-row-urgency-low,
+.dark .shop-row-urgency-low { border-left-color: #22c55e; }
+
+.shop-row-content {
+    padding: 15px 14px;
+    min-height: 64px;
+}
+
+.appliance-item {
+    background: var(--es-surface-tint);
+    border: 1px solid var(--es-border-hairline);
+    border-radius: var(--radius-sm);
+}
+
+.alert-item {
+    background: var(--es-surface-tint);
+    border-radius: var(--radius-sm);
+    padding: 11px 13px;
+    font-size: var(--es-text-body);
+}
+
+/* ===== 7. BUTTONS ================================================== */
+.btn {
+    border-radius: var(--es-radius-pill);
+    border-width: 1px;
+    font-weight: 650;
+    transition: transform 0.16s var(--es-ease), box-shadow 0.16s var(--es-ease),
+                background-color 0.16s var(--es-ease), opacity 0.16s var(--es-ease);
+}
+
+.btn:active {
+    transform: scale(0.975);
+    box-shadow: none;
+}
+
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-accent,
+.btn-warning { box-shadow: 0 6px 18px -9px color-mix(in srgb, var(--primary) 60%, transparent); }
+.btn-success { box-shadow: 0 6px 18px -9px color-mix(in srgb, var(--success) 60%, transparent); }
+.btn-danger { box-shadow: 0 6px 18px -9px color-mix(in srgb, var(--danger) 60%, transparent); }
+.btn-accent { box-shadow: 0 6px 18px -9px color-mix(in srgb, var(--accent) 60%, transparent); }
+.btn-warning { box-shadow: 0 6px 18px -9px color-mix(in srgb, var(--warning) 60%, transparent); }
+
+.btn-secondary,
+.btn-outline,
+.btn-ghost {
+    background: var(--bg-card);
+    border: 1px solid var(--es-border-hairline);
+    color: var(--text);
+    box-shadow: var(--es-shadow-card);
+}
+
+.btn-small,
+.btn-sm,
+.btn-text { border-radius: var(--es-radius-pill); }
+
+.btn-huge { border-radius: 22px; }
+
+.btn-banner { border-radius: var(--radius-sm); font-weight: 650; }
+
+.btn[disabled],
+.btn:disabled,
+.is-disabled {
+    opacity: 0.5;
+    box-shadow: none;
+    transform: none;
+    cursor: not-allowed;
+}
+
+/* ===== 8. FORMS & CONTROLS ========================================= */
+.form-input,
+.search-bar input,
+.qty-input,
+select.form-input,
+textarea.form-input,
+.conf-size-input,
+.shopping-plan-days-input,
+.unit-select,
+.recipe-fuel-field,
+.scan-live-code { border-radius: var(--radius-sm); }
+
+.form-input:focus,
+.search-bar input:focus,
+.qty-input:focus,
+select.form-input:focus,
+textarea.form-input:focus {
+    border-color: var(--primary-light);
+    box-shadow: var(--es-focus-ring);
+}
+
+.form-group label { font-weight: 650; }
+
+.qty-control {
+    border-radius: var(--radius-sm);
+    box-shadow: var(--es-shadow-card);
+}
+
+.loc-btn,
+.location-option,
+.radio-option,
+.checkbox-label { border-radius: var(--radius-sm); }
+
+.smart-filter { border-radius: var(--es-radius-pill); }
+
+/* ===== 9. CHIPS, BADGES & BANNERS ================================== */
+.tab,
+.settings-tab,
+.shopping-tab,
+.smart-filter,
+.recipe-option-chip,
+.quick-access-chip,
+.import-pill,
+.use-meta-pill,
+.item-detail-chip,
+.qty-unit-badge,
+.inv-badge,
+.badge-location,
+.badge-category,
+.badge-qty,
+.badge-expiry,
+.badge-expired,
+.badge-critical,
+.badge-high,
+.badge-medium,
+.badge-low,
+.badge-freq-high,
+.badge-freq-med,
+.badge-freq-low,
+.badge-local-tag,
+.alert-item-badge,
+.priority-badge,
+.smart-freq-badge,
+.smart-pred-badge,
+.shop-row-urgency-badge,
+.history-badge,
+.product-detail-tag,
+.recipe-tag { border-radius: var(--es-radius-pill); }
+
+.alert-banner,
+.offline-banner,
+.spesa-mode-banner,
+.shopping-scan-target-banner,
+.recipe-mealplan-banner,
+.inventory-status-bar,
+.scan-status-bar,
+.price-loading-bar,
+.cooking-timer-bar,
+.seasonal-review,
+.family-sibling-prompt {
+    border-radius: var(--es-radius-card);
+    box-shadow: var(--es-shadow-card);
+}
+
+/* ===== 10. MODALS & OVERLAYS ======================================= */
+.modal-overlay {
+    background: var(--es-scrim);
+    padding: 0;
+}
+
+.modal-content {
+    border: 1px solid var(--es-border-hairline);
+    border-bottom: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+    box-shadow: var(--es-shadow-elevated);
+    animation: elegantSheetUp 0.32s var(--es-ease);
+}
+
+@keyframes elegantSheetUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header h3 {
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+}
+
+.modal-close { background: var(--bg); }
+
+@supports ((backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px))) {
+    .modal-overlay {
+        -webkit-backdrop-filter: blur(4px);
+        backdrop-filter: blur(4px);
+    }
+}
+
+/* ===== 11. FLOATING NAVIGATION ===================================== */
+.bottom-nav {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(560px, calc(100% - (2 * var(--es-nav-gap))));
+    height: var(--es-nav-height);
+    bottom: max(var(--es-nav-gap), env(safe-area-inset-bottom, 0px));
+    padding: 0 4px;
+    background: var(--es-glass);
+    border: 1px solid var(--es-border-hairline);
+    border-radius: var(--es-nav-radius);
+    box-shadow: var(--es-shadow-float);
+}
+
+@supports ((backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px))) {
+    .bottom-nav {
+        -webkit-backdrop-filter: blur(16px) saturate(1.25);
+        backdrop-filter: blur(16px) saturate(1.25);
+    }
+}
+
+.nav-btn {
+    border-radius: var(--es-radius-pill);
+    padding: 6px 12px;
+    transition: color 0.18s var(--es-ease), background-color 0.18s var(--es-ease),
+                transform 0.18s var(--es-ease);
+}
+
+.nav-btn.active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+
+.nav-btn:active { transform: scale(0.94); }
+
+.nav-icon { font-size: clamp(1.05rem, 4.6vw, 1.35rem); }
+
+.nav-gemini-btn { margin-top: -14px; }
+
+.nav-gemini-icon-wrap {
+    box-shadow: 0 10px 24px -10px rgba(99, 102, 241, 0.7);
+}
+
+/* ===== 12. TOAST, EMPTY STATES, STICKY BARS ======================== */
+.toast {
+    border-radius: var(--es-radius-pill);
+    bottom: calc(var(--nav-height) + 24px);
+    box-shadow: var(--es-shadow-elevated);
+    padding: 13px 22px;
+}
+
+.empty-state {
+    border: 1.5px dashed color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+    padding: 28px 18px;
+}
+
+.empty-state-icon { font-size: 2.6rem; }
+
+.shopping-footer {
+    border-top: 1px solid var(--es-border-hairline);
+    border-radius: var(--es-radius-card) var(--es-radius-card) 0 0;
+    background: var(--es-glass);
+}
+
+/* ===== 13. RESPONSIVE ============================================== */
+/* Small phones: tighter gutters, slightly smaller chrome */
+@media (max-width: 380px) {
+    :root { --es-shell-gutter: 10px; }
+
+    .page-header { padding: 8px 10px; }
+
+    .btn { font-size: 0.92rem; }
+}
+
+/* Phones: the seven tabs go icon-only so none of them is clipped.
+   With labels the row needs ~398px of bar width in Italian but 462px in
+   German ("Einstellungen") and similar in French: the bar only offers
+   `100% - 20px`, so on every phone portrait (320-430px) the last tab fell
+   behind the viewport edge — and `body { overflow-x: hidden }` meant it could
+   not even be scrolled to. Below 540px the tabs keep their accessible name
+   through the button's `aria-label`/`data-i18n-aria` (index.html) instead. */
+@media (max-width: 539px) {
+    .nav-label { display: none; }
+
+    .nav-btn { padding: 6px 0; }
+}
+
+/* Tablets / desktop: the bottom sheet becomes a centred dialog card */
+@media (min-width: 640px) {
+    .modal-overlay,
+    #recipe-overlay {
+        align-items: center;
+        padding: 16px;
+    }
+
+    .modal-content,
+    .recipe-dialog {
+        border-radius: var(--radius);
+        border-bottom: 1px solid var(--es-border-hairline);
+        max-height: 86vh;
+    }
+}
+
+@media (min-width: 768px) {
+    :root {
+        --es-shell-max: 820px;
+        --es-nav-height: 64px;
+    }
+
+    .app-content { padding: 16px; }
+
+    .quick-access-grid { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
+}
+
+/* Desktop: two comfortable columns instead of one long strip */
+@media (min-width: 1024px) {
+    :root { --es-shell-max: var(--es-shell-max-wide); }
+
+    .dashboard-stats { gap: 14px; }
+
+    .inventory-list,
+    .products-list,
+    .appliances-list,
+    .smart-items {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: 12px;
+    }
+}
+
+/* ===== 14. POINTER-ONLY AFFORDANCES ================================ */
+@media (hover: hover) and (pointer: fine) {
+    .btn:hover { transform: translateY(-1px); box-shadow: var(--es-shadow-float); }
+
+    .btn-secondary:hover,
+    .btn-outline:hover,
+    .btn-ghost:hover { background: var(--es-surface-tint); }
+
+    .back-btn:hover,
+    .page-header-action-btn:hover { background: var(--es-surface-tint); }
+
+    .nav-btn:hover { color: var(--primary); }
+
+    /* Swipe rows only get elevation: a real transform would fight the
+       drag transform the swipe handler writes inline. */
+    .inventory-item:hover,
+    .shop-row:hover { box-shadow: var(--shadow-lg); }
+
+    .product-item:hover,
+    .smart-item:hover,
+    .alert-item-clickable:hover,
+    .quick-access-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .section-card:hover,
+    .settings-card:hover { box-shadow: var(--shadow); }
+}
+
+/* ===== 15. MOTION PREFERENCES ====================================== */
+@media (prefers-reduced-motion: reduce) {
+    .modal-content { animation: none; }
+
+    .btn,
+    .nav-btn { transition: none; }
+
+    .btn:hover,
+    .product-item:hover,
+    .smart-item:hover,
+    .alert-item-clickable:hover,
+    .quick-access-btn:hover { transform: none; }
+}
+
+/* ===== 16. DARK THEME ============================================== */
+[data-theme="dark"] {
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5),
+              0 10px 24px -12px rgba(0, 0, 0, 0.72);
+    --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.55),
+                 0 22px 52px -22px rgba(0, 0, 0, 0.85);
+    --es-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.45),
+                      0 8px 20px -12px rgba(0, 0, 0, 0.7);
+    --es-shadow-elevated: 0 24px 64px -26px rgba(0, 0, 0, 0.9);
+    --es-shadow-float: 0 14px 34px -14px rgba(0, 0, 0, 0.85);
+    --es-surface-tint: color-mix(in srgb, var(--bg-card) 93%, #ffffff 3%);
+    --es-border-hairline: color-mix(in srgb, var(--border) 78%, #ffffff 10%);
+    --es-glass: color-mix(in srgb, var(--bg-card) 84%, transparent);
+    --es-scrim: rgba(2, 6, 23, 0.72);
+}
+
+[data-theme="dark"] body {
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(1100px 520px at 100% -8%, color-mix(in srgb, var(--primary-light) 17%, transparent), transparent 60%),
+        radial-gradient(880px 460px at -12% 108%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 58%);
+}
+
+/* `--primary-dark` is near-black, so the light-theme gradient title would
+   disappear on a dark surface. */
+[data-theme="dark"] .page-header h2 {
+    background-image: linear-gradient(118deg, #d9f99d, #6ee7b7);
+}
+
+[data-theme="dark"] .back-btn,
+[data-theme="dark"] .page-header-action-btn,
+[data-theme="dark"] .btn-secondary,
+[data-theme="dark"] .btn-outline,
+[data-theme="dark"] .btn-ghost {
+    background: color-mix(in srgb, var(--bg-card) 92%, #ffffff 4%);
+}
+
+[data-theme="dark"] .modal-close { background: color-mix(in srgb, var(--bg) 80%, #ffffff 4%); }
+
+[data-theme="dark"] .nav-btn.active { background: color-mix(in srgb, var(--primary-light) 22%, transparent); }
+
+/* ===== 17. DARK-MODE CONTRAST REPAIRS ============================== */
+
+/* `style.css:1487-1495` hardcodes pastel "opened product" tints
+   (#e8f5e9 / #fff3e0 / #ffebee) and has no dark counterpart, while the row's
+   text still switches to near-white through `--text`: in dark mode the tint
+   stayed cream and the text disappeared into it. Re-tint the same three states
+   against the dark card so the colour keeps its meaning *and* stays readable. */
+[data-theme="dark"] .inventory-item.inv-opened-ok .inv-row-content,
+.dark .inventory-item.inv-opened-ok .inv-row-content {
+    background: color-mix(in srgb, #22c55e 16%, var(--bg-card));
+}
+
+[data-theme="dark"] .inventory-item.inv-opened-expiring .inv-row-content,
+.dark .inventory-item.inv-opened-expiring .inv-row-content {
+    background: color-mix(in srgb, var(--warning) 18%, var(--bg-card));
+}
+
+[data-theme="dark"] .inventory-item.inv-opened-expired .inv-row-content,
+.dark .inventory-item.inv-opened-expired .inv-row-content {
+    background: color-mix(in srgb, #ef4444 18%, var(--bg-card));
+}
+
+/* Same problem on the "opened …" group heading, hardcoded #2e7d32. */
+[data-theme="dark"] .inv-opened-section,
+.dark .inv-opened-section {
+    color: #86efac;
+}
+
+/* `--primary` is a *dark* green (#2d5016) that no layer re-tunes for dark
+   mode, yet `style.css` / `corporate.css` use it 47× as a **foreground** on
+   surfaces that *do* go dark: headings, active tabs, active nav labels. On the
+   dark card (`#24303f`) that lands at ~1.5:1. Retuning the token itself is not
+   an option — it is used 37× as a **background** (`.btn-primary`, `.tab.active`,
+   `.smart-filter-btn.active`, chips), where a light green would break the white
+   text instead. The other layers already patch the visible cases one by one
+   (`style.css:9945`, `style.css:10153`), so the two headings + the nav label
+   that the restyle paints follow that same convention. `#86efac` is the
+   green-300 already used by the existing dark overrides in this codebase. */
+[data-theme="dark"] .section-card h3,
+.dark .section-card h3,
+[data-theme="dark"] .settings-card h4,
+.dark .settings-card h4,
+[data-theme="dark"] .nav-btn.active,
+.dark .nav-btn.active,
+[data-theme="dark"] .nav-btn:hover,
+.dark .nav-btn:hover {
+    color: #86efac;
+}
+
+
+
+

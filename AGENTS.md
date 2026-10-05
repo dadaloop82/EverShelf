@@ -27,9 +27,9 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
 
 - **All** HTTP actions are dispatched by one `switch ($action)` in
   `api/index.php` (line **902**). See `docs/INDEX-actions.md` for action → handler.
-- Frontend is one file `assets/js/app.js` (~25.7k lines, 914 top-level functions).
+- Frontend is one file `assets/js/app.js` (~26.0k lines, 924 top-level functions).
   See `docs/INDEX-app-js.md` for function → line.
-- Backend is one file `api/index.php` (~19.4k lines, 406 functions).
+- Backend is one file `api/index.php` (~19.5k lines, 408 functions).
   See `docs/INDEX-api-index.md`.
 
 ## Golden rules (conventions already in the codebase)
@@ -69,7 +69,13 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   `data-i18n*` (HTML) and add the key to **all** locales (it/en/de/fr/es/zh).
   `scripts/i18n-audit.py` (run in CI) fails on used-but-missing keys; give `tl()`
   fallbacks in English. Optional UI strings from PHP should return a `hint_key`
-  (+ `hint_args`), not a literal.
+  (+ `hint_args`), not a literal — and so should a whole payload (`tip_key`,
+  `reasons[]`): the client resolves it with `t()`. The audit's JS regex is
+  literally `\bt\(\s*['"]…`, so a key wrapped in a helper (the local
+  `tr(key, fallback)` in `_localizeSmartReason`) or emitted **only** by PHP is
+  invisible to it: write the resolution as a bare `t('key')` *and* lock the set
+  with a PHP test — `scripts/test-seasonal-match.php` asserts every
+  `shopping.seasonal_tip_*` key PHP can return exists in all six locales.
 - **Secrets**: never commit keystores, `.env`, or signing passwords. Android
   builds read `keystore.properties`/env; CI reads GitHub Secrets (see `SECURITY.md`).
 - **Commits**: Conventional-ish prefixes seen in history: `feat:`, `fix:`,

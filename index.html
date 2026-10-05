@@ -11,11 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261004j">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261004j">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005c">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005c">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005c">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261004j"></script>
-    <script src="assets/js/core/auth.js?v=20261004j"></script>
+    <script src="assets/js/core/dom.js?v=20261005c"></script>
+    <script src="assets/js/core/auth.js?v=20261005c"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -23,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261004j';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005c';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -32,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261004j';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005c';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261004j"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005c"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -105,7 +106,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.8.10</span>
+        <span class="app-preloader-version" id="preloader-version">v1.9.0</span>
     </div>
 </div>
 
@@ -118,7 +119,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.8.10</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.9.0</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2174,35 +2175,35 @@
 
 <!-- Bottom Navigation -->
 <nav class="bottom-nav">
-    <button class="nav-btn" onclick="showPage('dashboard')" data-page="dashboard">
-        <span class="nav-icon"><img src="assets/img/logo/logo_icon.png" alt="" class="nav-logo-icon" /></span>
+    <button class="nav-btn" onclick="showPage('dashboard')" data-page="dashboard" aria-label="Home" data-i18n-aria="nav.home">
+        <span class="nav-icon" aria-hidden="true"><img src="assets/img/logo/logo_icon.png" alt="" class="nav-logo-icon" /></span>
         <span class="nav-label" data-i18n="nav.home">Home</span>
     </button>
-    <button class="nav-btn" onclick="showPage('inventory', '')" data-page="inventory">
-        <span class="nav-icon">📋</span>
+    <button class="nav-btn" onclick="showPage('inventory', '')" data-page="inventory" aria-label="Dispensa" data-i18n-aria="nav.inventory">
+        <span class="nav-icon" aria-hidden="true">📋</span>
         <span class="nav-label" data-i18n="nav.inventory">Dispensa</span>
     </button>
-    <button class="nav-btn" onclick="showPage('recipe')" data-page="recipe">
-        <span class="nav-icon">🍳</span>
+    <button class="nav-btn" onclick="showPage('recipe')" data-page="recipe" aria-label="Ricette" data-i18n-aria="nav.recipes">
+        <span class="nav-icon" aria-hidden="true">🍳</span>
         <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
     </button>
     <button class="nav-btn nav-gemini-btn" id="nav-gemini-btn" onclick="_openGeminiChat()" data-page="chat"
-            title="Gemini Chef" data-i18n-title="chat.title">
+            title="Gemini Chef" data-i18n-title="chat.title" aria-label="Gemini Chef" data-i18n-aria="nav.gemini">
         <span class="nav-gemini-icon-wrap" aria-hidden="true">
             <svg class="nav-gemini-icon" viewBox="0 0 24 24" width="26" height="26" fill="white"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373 12 12-12-6.627 0-12-5.373-12-12z"/></svg>
         </span>
         <span class="nav-label" data-i18n="nav.gemini">Gemini</span>
     </button>
-    <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping">
-        <span class="nav-icon">🛒</span>
+    <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping" aria-label="Spesa" data-i18n-aria="nav.shopping">
+        <span class="nav-icon" aria-hidden="true">🛒</span>
         <span class="nav-label" data-i18n="nav.shopping">Spesa</span>
     </button>
-    <button class="nav-btn" onclick="showPage('log')" data-page="log">
-        <span class="nav-icon">📋</span>
+    <button class="nav-btn" onclick="showPage('log')" data-page="log" aria-label="Storico" data-i18n-aria="nav.log">
+        <span class="nav-icon" aria-hidden="true">🕘</span>
         <span class="nav-label" data-i18n="nav.log">Storico</span>
     </button>
-    <button class="nav-btn" onclick="showPage('settings')" data-page="settings">
-        <span class="nav-icon">⚙️</span>
+    <button class="nav-btn" onclick="showPage('settings')" data-page="settings" aria-label="Config" data-i18n-aria="nav.settings">
+        <span class="nav-icon" aria-hidden="true">⚙️</span>
         <span class="nav-label" data-i18n="nav.settings">Config</span>
     </button>
 </nav>
@@ -2371,6 +2372,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261004j"></script>
+<script src="assets/js/app.js?v=20261005c"></script>
 </body>
 </html>
