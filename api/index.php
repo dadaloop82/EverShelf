@@ -8283,6 +8283,7 @@ function getServerSettings(): void {
         'shopping_smart_suggestions'  => env('SHOPPING_SMART_SUGGESTIONS', 'true') === 'true',
         'shopping_forecast'           => env('SHOPPING_FORECAST', 'true') === 'true',
         'shopping_auto_add_threshold' => (int)env('SHOPPING_AUTO_ADD_THRESHOLD', '0'),
+        'shopping_remove_on_buy'      => shoppingRemoveOnBuyMode(),
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
@@ -14057,8 +14058,25 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
  *
  * @return array{removed:bool,removed_names:string[],shopping_kept:bool,remaining:?array}
  */
+/** plan = remove only when stock covers the horizon; trip = drop list row on any purchase. */
+function shoppingRemoveOnBuyMode(): string {
+    $m = strtolower(trim((string)env('SHOPPING_REMOVE_ON_BUY', 'plan')));
+    return in_array($m, ['plan', 'trip'], true) ? $m : 'plan';
+}
+
 function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {
     $eval = shoppingEvaluateFamilyRestock($db, $productId);
+    if (shoppingRemoveOnBuyMode() === 'trip') {
+        $removal = shoppingRemoveProductFromList($db, $productId);
+        if (!empty($removal['removed'])) {
+            return [
+                'removed' => true,
+                'removed_names' => $removal['removed_names'] ?? [],
+                'shopping_kept' => false,
+                'remaining' => $eval,
+            ];
+        }
+    }
     if (!empty($eval['covered'])) {
         $removal = shoppingRemoveProductFromList($db, $productId);
         return [
@@ -16683,7 +16701,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $monthlyNeed     = smartSanitizePieceMonthly($monthlyMeta['amount'], $useCount, $usesPerMonth, $unit);
         $monthlySource   = $monthlyMeta['source'];
         $periodMeta      = smartConsumptionForPlanDays($monthlyNeed, $dailyRate, $monthlySource, $qtyHorizon, $usesPerMonth, $unit);
-        $periodNeed      = $periodMeta['amount'];
+        $periodNeed      = smartCapPeriodNeed(
+            (float)$periodMeta['amount'],
+            $unit,
+            $defQty,
+            trim($p['package_unit'] ?? ''),
+            $qtyHorizon
+        );
         $periodSource    = $periodMeta['source'];
 
         $pkgUnit = trim($p['package_unit'] ?? '');
