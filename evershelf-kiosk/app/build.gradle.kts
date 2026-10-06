@@ -85,5 +85,5 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("org.java-websocket:Java-WebSocket:1.5.5")
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
 }
