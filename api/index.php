@@ -17804,6 +17804,13 @@ function shoppingRemoveInternal(PDO $db, array $input): void {
     }
 
     @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
+    if ($removed > 0) {
+        _fireHaWebhook('shopping_remove', [
+            'removed' => $removed,
+            'purchased' => $asPurchased,
+            'item' => $batch[0]['name'] ?? '',
+        ]);
+    }
     echo json_encode(['success' => true, 'removed' => $removed, 'purchased' => $asPurchased]);
 }
 
@@ -19492,15 +19499,25 @@ function getShoppingPrice(PDO $db): void {
         return;
     }
 
-    // Guard: price estimation requires Gemini API key
-    if (empty(aiCredential())) {
-        echo json_encode(['success' => false, 'error' => 'no_api_key']);
-        return;
-    }
-
     $cache = _loadPriceCache();
     $key   = _priceKey($name, $country);
     $now   = time();
+
+    // Without AI: still serve a stale cached estimate if we have one.
+    if (empty(aiCredential())) {
+        if (isset($cache[$key])) {
+            $entry = $cache[$key];
+            $entry['success'] = true;
+            $entry['from_cache'] = true;
+            $entry['source_note'] = ($entry['source_note'] ?? '') . ' (cache, AI off)';
+            $entry['estimated_total'] = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $qty, $unit, $defQty, $pkgUnit);
+            $entry['estimated_total_label'] = _formatPrice($entry['estimated_total'], $currency);
+            echo json_encode($entry);
+            return;
+        }
+        echo json_encode(['success' => false, 'error' => 'no_api_key']);
+        return;
+    }
 
     // Use cache if fresh
     if (!$forceRefresh && isset($cache[$key])) {
