@@ -89,6 +89,8 @@ evershelf-scale-gateway/**/keystore.properties
 
 # ── Pre-built APK artifacts (published via GitHub Releases, not git) ───────
 *.apk
+!releases/evershelf-kiosk.apk
+!releases/*.apk
 *.aab
 
 # ── Runtime JSON state written by the app (regenerated, not source) ────────
