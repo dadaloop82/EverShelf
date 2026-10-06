@@ -411,10 +411,23 @@ function migrateDB(PDO $db): void {
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 
+    // Product genre (genere) resolved on save — leads the article title and lets the
+    // maintenance action re-apply rules without another AI round-trip (lib/product_kind.php).
+    $prodCols4 = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
+    if (!in_array('kind', $prodCols4)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN kind TEXT DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    // Set when the user unstars a favourite by hand: the automatic promotion
+    // (lib/auto_favorite.php) must never re-add what they removed on purpose.
+    if (!in_array('favorite_user_override', $prodCols4)) {
+        try { $db->exec("ALTER TABLE products ADD COLUMN favorite_user_override INTEGER DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+
     // Fuel Mode / Health Bridge snapshots (#fuel)
     require_once __DIR__ . '/lib/health.php';
     healthEnsureTables($db);
-
     // Repair: undo used to mark original undone=1 AND insert a compensating [Undone]
     // tx, which double-counted in ledger balance (ghost fractions like 0.233 conf).
     $undoRepair = $db->query("SELECT value FROM app_settings WHERE key = 'migration_undone_double_count_v1'")->fetchColumn();

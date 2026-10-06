@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005l'; // bump when translations change
+const _I18N_VERSION = '20261005m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3442,6 +3442,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
+        'product_kind_prefix','auto_favorite_min_uses',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -4172,6 +4173,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
+            'product_kind_prefix','auto_favorite_min_uses',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -4252,6 +4254,8 @@ async function loadSettingsUI() {
             if (priceMonthsEl) priceMonthsEl.value = s.price_update_months || 3;
             // Shopping settings (server merge)
             _applyShoppingSettingsUI(s);
+            // Product rules (genre prefix + automatic favourites)
+            _applyProductRuleSettingsUI(s);
             // HA settings (server merge)
             _applyHaSettingsUI(s);
         }
@@ -4289,6 +4293,8 @@ async function loadSettingsUI() {
     if (gdriveRetUiEl && !gdriveRetUiEl.dataset.loaded) gdriveRetUiEl.value = s.gdrive_retention_days || 30;
     // Shopping settings
     _applyShoppingSettingsUI(s);
+    // Product rules (genre prefix + automatic favourites)
+    _applyProductRuleSettingsUI(s);
     // Hide kiosk download banner if running inside Android WebView (kiosk mode)
     const kioskBanner = document.getElementById('kiosk-download-banner');
     if (kioskBanner && /; wv\)/.test(navigator.userAgent)) {
@@ -4683,6 +4689,55 @@ function _applyShoppingSettingsUI(s) {
     _applyShoppingListLabels();
 }
 
+/**
+ * Product rules: the genre that leads every article title and the promotion of the
+ * products the household keeps using to the favourites.
+ * Server keys: PRODUCT_KIND_PREFIX / AUTO_FAVORITE_MIN_USES (api/lib/product_kind.php,
+ * api/lib/auto_favorite.php).
+ */
+function _applyProductRuleSettingsUI(s) {
+    const prefixEl = document.getElementById('setting-product-kind-prefix');
+    if (prefixEl) prefixEl.checked = s.product_kind_prefix !== false;
+    const minUsesEl = document.getElementById('setting-auto-favorite-min-uses');
+    if (minUsesEl) minUsesEl.value = s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3;
+}
+
+/**
+ * "Apply to existing items": rename the titles that still lack their genre and
+ * promote the products the household keeps using. Shows what changed; the user can
+ * confirm with a preview first.
+ */
+async function applyProductAutoRules() {
+    const btn = document.getElementById('btn-apply-auto-rules');
+    if (btn) btn.disabled = true;
+    try {
+        const preview = await api('products_apply_auto_rules', {}, 'POST', { dry_run: true, lang: _currentLang });
+        if (!preview || preview.success === false) {
+            showToast(t('settings.product_rules.apply_failed'), 'error');
+            return;
+        }
+        const msg = t('settings.product_rules.apply_confirm')
+            .replace('{names}', preview.renamed || 0)
+            .replace('{favorites}', preview.favorites || 0);
+        if (!confirm(msg)) return;
+
+        const res = await api('products_apply_auto_rules', {}, 'POST', { dry_run: false, lang: _currentLang });
+        if (!res || res.success === false) {
+            showToast(t('settings.product_rules.apply_failed'), 'error');
+            return;
+        }
+        showToast(t('settings.product_rules.apply_done')
+            .replace('{names}', res.renamed || 0)
+            .replace('{favorites}', res.favorites || 0), 'success');
+        saveSettingsToStorage(getSettings());
+        if (typeof loadInventory === 'function') await loadInventory();
+    } catch (e) {
+        showToast(t('settings.product_rules.apply_failed'), 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 function onShoppingEnabledChange() {
     const s = getSettings();
     s.shopping_enabled = document.getElementById('setting-shopping-enabled').checked;
@@ -4841,6 +4896,11 @@ async function saveSettings() {
     if (shoppingForecastEl) s.shopping_forecast = shoppingForecastEl.checked;
     const shoppingAutoAddEl = document.getElementById('setting-shopping-auto-add');
     if (shoppingAutoAddEl) s.shopping_auto_add_threshold = parseInt(shoppingAutoAddEl.value, 10) || 0;
+    // Product rules: genre prefix in the title + automatic favourites
+    const productKindPrefixEl = document.getElementById('setting-product-kind-prefix');
+    if (productKindPrefixEl) s.product_kind_prefix = productKindPrefixEl.checked;
+    const autoFavMinEl = document.getElementById('setting-auto-favorite-min-uses');
+    if (autoFavMinEl) s.auto_favorite_min_uses = parseInt(autoFavMinEl.value, 10) || 0;
     // OAuth fields
     const gdriveClientIdEl = document.getElementById('setting-gdrive-client-id');
     if (gdriveClientIdEl && gdriveClientIdEl.value.trim()) s.gdrive_client_id = gdriveClientIdEl.value.trim();
@@ -4920,6 +4980,8 @@ async function saveSettings() {
             shopping_smart_suggestions:  s.shopping_smart_suggestions !== false,
             shopping_forecast:           s.shopping_forecast !== false,
             shopping_auto_add_threshold: s.shopping_auto_add_threshold || 0,
+            product_kind_prefix:         s.product_kind_prefix !== false,
+            auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
             barcode_ai_fallback:          !!s.barcode_ai_fallback,
             // Home Assistant
@@ -10256,7 +10318,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10266,7 +10328,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

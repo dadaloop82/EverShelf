@@ -84,6 +84,8 @@
 | `health.php` | Health/Fuel mode + Health Bridge | ingest, profile, daily rollups |
 | `weather.php` | Weather fetch + geocode | `weather_get`, `weather_geocode` |
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
+| `product_kind.php` | **Product genre (genere)**: the curated IT dictionary that leads every article title, the signature cache for similar products, the AI fallback | `productKindApply()`, `resolveProductKind()`, `applyProductKindPrefix()`, `evershelfShoppingPhraseMap()`/`evershelfShoppingKeywordMap()` (shared with `computeShoppingName()`) |
+| `auto_favorite.php` | **Automatic favourites**: promote the products consumed N times in the window, never overrule a manual unstar | `maybeAutoFavorite()`, `rememberFavoriteOverride()`, `autoFavoriteSweep()`, `autoFavoriteCandidates()` |
 | `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
 | `seasonal.php` | **IT produce calendar** + stale-stock; the review card returns a `tip_key` the client resolves | `seasonalReviewShopping()`, `seasonalIsAllYearCrop()`, `staleInventoryItems()` |
 | `i18n.php` | Server-side `evershelfTr('key', $lang)` for responses PHP renders itself | used by the ICS feed, the notifier and seasonal tips |
@@ -101,7 +103,8 @@ Core tables (created in `initializeDB`):
 ```sql
 products(id PK, barcode UNIQUE, name, brand, category, image_url, unit,
          default_quantity REAL, notes, shopping_name, created_at, updated_at,
-         -- added by migrations: package_unit, is_favorite, nutriments_json, ...)
+         -- added by migrations: package_unit, is_favorite, nutriments_json,
+         -- name_user_set, kind (genre), favorite_user_override, ...)
 inventory(id PK, product_id FK->products ON DELETE CASCADE, location,
           quantity REAL, expiry_date DATE, added_at, updated_at,
           -- added by migrations: vacuum_sealed, opened_at, ...)
@@ -132,6 +135,7 @@ Most are user/runtime state and git-ignored (`*` = committed static/tracked).
 | `smart_shopping_cache.json` | computed shopping plan |
 | `shopping_price_cache.json` | AI price estimates |
 | `shopping_name_cache.json` * | name→generic mapping |
+| `product_kind_cache.json` | genre resolved per product signature (similar products reuse it) |
 | `shopping_total_cache.json` * | canonical list totals |
 | `shopping_spend.json` | spend ledger |
 | `ai_usage.json` * | token usage/cost |
@@ -152,7 +156,11 @@ Groups:
 - **Products**: `search_barcode`, `lookup_barcode`, `resolve_barcode`,
   `barcode_catalog_sync`, `stock_for_name`, `product_save/get/delete/merge`,
   `products_list/search`, `inventory_search`, `ai_product_suggest`,
-  `guess_category`.
+  `guess_category`, `products_toggle_favorite`, and
+  **`products_apply_auto_rules`** (POST, `dry_run` preview) which re-applies the
+  two automatic product rules to the items already stored: the genre prefix in
+  every title (`lib/product_kind.php`) and the promotion of the products the
+  household keeps consuming to favourites (`lib/auto_favorite.php`).
 - **Inventory**: `inventory_list/add/use/update/delete`, `inventory_summary`,
   `family_sibling_suggest`, `inventory_finished_items`,
   `inventory_confirm_finished`, `inventory_restore_ghost`,

@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005l">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005l">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005l">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005m">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005m">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005m">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005l"></script>
-    <script src="assets/js/core/auth.js?v=20261005l"></script>
+    <script src="assets/js/core/dom.js?v=20261005m"></script>
+    <script src="assets/js/core/auth.js?v=20261005m"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005m';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005l';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005m';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005l"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005m"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -106,7 +106,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.9.4</span>
+        <span class="app-preloader-version" id="preloader-version">v1.10.0</span>
     </div>
 </div>
 
@@ -119,7 +119,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.9.4</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.10.0</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1106,6 +1106,34 @@
                     <p class="settings-hint" data-i18n="import.hint">Carica un CSV con lo stesso schema dell'export. Anteprima e conferma prima di scrivere.</p>
                     <button class="btn btn-outline full-width" onclick="_showImportModal()">
                         📥 <span data-i18n="import.btn_open">Apri importazione</span>
+                    </button>
+                </div>
+                <!-- Automatic product rules: the genre that leads every article title
+                     ("Yogurt Fiori di latte") and the products the household keeps
+                     using becoming favourites on their own. -->
+                <div class="settings-card">
+                    <h4 data-i18n="settings.product_rules.card_title">🏷️ Nomi e preferiti automatici</h4>
+                    <p class="settings-hint" data-i18n="settings.product_rules.card_hint">Ogni articolo porta davanti al titolo il suo genere (es. «Yogurt Fiori di latte»). Se il nome non lo dice, l'app lo ricava dal dizionario interno e — solo se serve — chiede all'AI una parola sola, poi la tiene in cache per i prodotti simili.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.product_rules.kind_prefix_label">Aggiungi il genere al titolo</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-product-kind-prefix">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="form-group" style="margin-top:8px">
+                        <label data-i18n="settings.product_rules.auto_favorite_label">Preferiti automatici dopo</label>
+                        <div class="qty-control" style="margin-top:6px">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-auto-favorite-min-uses', -1, 0, 50)">−</button>
+                            <input type="number" id="setting-auto-favorite-min-uses" value="3" min="0" max="50" class="qty-input">
+                            <button type="button" class="qty-btn" onclick="adjustQty('setting-auto-favorite-min-uses', 1, 0, 50)">+</button>
+                        </div>
+                        <p class="settings-hint" data-i18n="settings.product_rules.auto_favorite_suffix">utilizzi negli ultimi 90 giorni (0 = disattivato)</p>
+                    </div>
+                    <button class="btn btn-outline full-width" id="btn-apply-auto-rules" onclick="applyProductAutoRules()">
+                        🪄 <span data-i18n="settings.product_rules.apply_existing">Applica agli articoli esistenti</span>
                     </button>
                 </div>
             </div>
@@ -2568,6 +2596,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005l"></script>
+<script src="assets/js/app.js?v=20261005m"></script>
 </body>
 </html>

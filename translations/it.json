@@ -1450,6 +1450,17 @@
       "mode_bring_on": "Bring! attivato",
       "mode_internal_on": "Lista spesa interna attivata"
     },
+    "product_rules": {
+      "card_title": "🏷️ Nomi e preferiti automatici",
+      "card_hint": "Ogni articolo porta davanti al titolo il suo genere (es. «Yogurt Fiori di latte»). Se il nome non lo dice, l'app lo ricava dal dizionario interno e — solo se serve — chiede all'AI una parola sola, poi la tiene in cache per i prodotti simili.",
+      "kind_prefix_label": "Aggiungi il genere al titolo",
+      "auto_favorite_label": "Preferiti automatici dopo",
+      "auto_favorite_suffix": "utilizzi negli ultimi 90 giorni (0 = disattivato)",
+      "apply_existing": "Applica agli articoli esistenti",
+      "apply_confirm": "Aggiornare {names} nomi e aggiungere {favorites} preferiti?",
+      "apply_done": "Aggiornati {names} nomi, aggiunti {favorites} preferiti",
+      "apply_failed": "Non è stato possibile applicare le regole"
+    },
     "notify": {
       "tab": "Notifiche",
       "title": "🔔 Notifiche push",

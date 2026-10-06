@@ -11,6 +11,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.10.0] - 2026-10-05
+
+Two things the pantry should do by itself: say what every article actually is, and
+keep the products you really use where you can reach them.
+
+**Highlights**
+
+- **The genre leads the title.** A scanned, imported or hand-typed product now
+  carries its genre in front of the name — `Fiori di latte` becomes
+  `Yogurt Fiori di latte` (or `Formaggio …`, depending on what it is) — because the
+  label rarely says what the product *is*. The genre is resolved cheapest-first:
+  the curated Italian dictionary that already drives the shopping/Bring! names,
+  then the signature cache so similar products reuse it, then **one** AI word
+  (cached per name and per signature, still capped by `GEMINI_CLASSIFY_DAILY_MAX`),
+  then the localized app category. A title that already leads with a genre is never
+  touched twice, and `settings → Nomi e preferiti automatici → Applica agli
+  articoli esistenti` renames the articles already stored (with a preview first).
+  Off with `PRODUCT_KIND_PREFIX=false`.
+- **Products you use often become favourites.** Consuming a product
+  `AUTO_FAVORITE_MIN_USES` times (default 3) within `AUTO_FAVORITE_WINDOW_DAYS`
+  (default 90, the same window `recent_popular_products` reports) promotes it to the
+  top of the inventory. The rule only ever *adds* favourites, and unstarring one by
+  hand records a veto (`products.favorite_user_override`) so the automation never
+  puts it back.
+
+**Schema**
+
+- `products.kind` — the genre resolved for that article (also makes the maintenance
+  pass idempotent and free of extra AI calls).
+- `products.favorite_user_override` — set when you un-star a favourite by hand.
+
+**New action**
+
+- `products_apply_auto_rules` (POST, `dry_run` supported) — applies both rules to
+  the products already in the pantry; returns what it renamed/promoted plus a few
+  samples.
+
+**Internals**
+
+- The curated dictionaries (phrase map, keyword map, stop words, tokenizer) moved
+  from `computeShoppingName()` into `api/lib/product_kind.php` so the shopping name
+  and the genre resolver can never drift apart;
+  `scripts/test-product-kind-prefix.php` locks that down together with the new
+  i18n keys and the UI wiring. `scripts/test-auto-favorite.php` runs the favourite
+  rules on an in-memory database (threshold, window, veto, sweep).
+
 ## [1.9.4] - 2026-10-05
 
 Two UI bugs that no test was watching: the home page drew every chart empty, and a
