@@ -42,6 +42,7 @@ RewriteRule ^docker/ - [F,L]
 # EVERSHELF_CANONICAL_HOST must be set in the Apache vhost (SetEnv) to avoid
 # reflecting an attacker-controlled Host header into the redirect (open redirect /
 # cache poisoning). Without it no redirect is issued.
+RewriteCond %{ENV:EVERSHELF_DISABLE_HTTPS_REDIRECT} !^1$
 RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !^https$ [NC]
 RewriteCond %{ENV:EVERSHELF_CANONICAL_HOST} ^[A-Za-z0-9.-]+(:[0-9]+)?$
