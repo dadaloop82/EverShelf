@@ -60,7 +60,16 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   (`Tarallini`/`Taralli`, `Pera Italiana`/`Pere`, `Kaffee`/`Caffè`, `Italia
   Zuccheri`/`Zucchero`) nor when the title already opens with the genre stored in
   `products.kind`: a maintenance pass must replay without drifting a single title
-  (`productKindNameAlreadyHasKind()`, `productKindStartsWithWord()`). One vocabulary,
+  (`productKindNameAlreadyHasKind()`, `productKindStartsWithWord()`). The same choke
+  point also owns the *case* of the title: `productTitleCapitalize()` raises the first
+  letter (`"latte fresco"` → `"Latte fresco"`) and nothing else — the rest of the case
+  is kept (`NUTELLA` stays `NUTELLA`, while a brand spelling such as `iPhone` becomes
+  `IPhone`: the rule is mechanical so it cannot disagree with itself) and a title opening
+  with a digit or an emoji is left alone. It is applied in `mergeIncomingProductFields()`
+  **outside** the genre guard, so `PRODUCT_KIND_PREFIX=false` switches off the prefix
+  only, never the spelling, and it is idempotent, so the maintenance pass can replay it.
+  `normalizeProductName()` (api/index.php) is **not** the storage normalizer: it
+  lowercases a *copy* to compare two products in duplicate detection. One vocabulary,
   two consumers — `products.kind` (genre embedded in the title: precise, may legitimately
   stay empty) and `products.shopping_name` (the buyable word of the list/Bring!: historical,
   may be a raw token such as "Potato") are **two columns on purpose**, both reading that one
@@ -84,6 +93,14 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   must stay above `#app-preloader` **and** `#network-error-overlay` (300000). At the
   `.modal-overlay` default of 200 the dialog is invisible behind the splash and the
   app dead-ends on "API token required".
+- **The splash must not lie about the boot.** The rail icons are driven by
+  `_preloaderStage(stage, state)` and the stage→check ownership in
+  `_PRELOADER_STAGE_OF_CHECK`: a health check nobody owns leaves its icon blinking
+  forever, and a stage whose `startup.stage_*` string is missing from any of the six
+  locales prints its raw key. New check → give it a stage; new stage → add the markup row
+  *and* the six translations. Keep the version chip's `id="preloader-version">vX.Y.Z`
+  shape too: `scripts/bump-version.sh` rewrites it (`scripts/test-preloader-stages.php`
+  locks all of it).
 - **Versioning**: bump version in **4 places** together with `scripts/bump-version.sh`
   (`index.html` badges, `manifest.json`, `sw.js` cache name, `app.js` i18n token),
   and add a `CHANGELOG.md` entry. `auto-merge-to-main` + `create-release` read the
@@ -130,6 +147,7 @@ php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (s
 php scripts/test-dashboard-panels.php   # dashboard rotation: phases ↔ sections ↔ bar fills, no orphan flags
 php scripts/test-product-kind-prefix.php # genre leading every article title (dictionary → cache → AI, no double prefix)
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
+php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -178,6 +196,7 @@ npm run build
 | Dashboard panels & limits | `DASHBOARD_*_MAX` (~6623), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544); bars are drawn at 0% and filled from `data-target` on reveal — guard test `scripts/test-dashboard-panels.php` |
 | Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |
 | HTML printed as text (screensaver fact, alert banner, chooser modal) | `formatQuantity()` returns `<span class="conf-size-info">`; text-only callers use `_formatQtyPlain()` / `stripHtml()`; guard test `scripts/test-html-in-text.php` |
+| Splash / boot rail | `#app-preloader` in `index.html` + `_preloaderStage()` / `_PRELOADER_STAGE_KEYS` / `_PRELOADER_STAGE_OF_CHECK` in `app.js` (grey → blink → coloured aura; `is-pending|is-active|is-done|is-warn|is-error`), version chip `#preloader-version`; guard test `scripts/test-preloader-stages.php` |
 | PWA service worker | `sw.js` |
 
 ## Anti-patterns to avoid (already present — do not copy)

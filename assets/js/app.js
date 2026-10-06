@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005m'; // bump when translations change
+const _I18N_VERSION = '20261005n'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -4703,9 +4703,9 @@ function _applyProductRuleSettingsUI(s) {
 }
 
 /**
- * "Apply to existing items": rename the titles that still lack their genre and
- * promote the products the household keeps using. Shows what changed; the user can
- * confirm with a preview first.
+ * "Apply to existing items": rename the titles that still lack their genre or lead with
+ * a lowercase letter, and promote the products the household keeps using. Shows what
+ * changed; the user can confirm with a preview first.
  */
 async function applyProductAutoRules() {
     const btn = document.getElementById('btn-apply-auto-rules');
@@ -10318,7 +10318,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005m';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005n';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10328,7 +10328,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005n';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -26626,6 +26626,75 @@ function _heartbeatRetry() {
 }
 
 // ── Startup / Splash health check ────────────────────────────────────────────
+
+/**
+ * I18n label of every icon of the splash boot rail, in the order the rail is
+ * drawn in index.html. The stage ids are the `data-stage` attributes there:
+ * one vocabulary, two consumers (the markup and the health-check loop below).
+ */
+const _PRELOADER_STAGE_KEYS = {
+    connect: 'startup.stage_connect',
+    php:     'startup.stage_php',
+    files:   'startup.stage_files',
+    db:      'startup.stage_db',
+    config:  'startup.stage_config',
+    network: 'startup.stage_network',
+    ui:      'startup.stage_ui',
+};
+
+/**
+ * Which rail icon owns each low-level check of the health_check payload. The
+ * payload reports ~30 flat checks; the rail groups them into the seven things a
+ * human can actually act on. Guard test: scripts/test-preloader-stages.php
+ * (every key of the startup CHECKS list must be owned by exactly one stage).
+ */
+const _PRELOADER_STAGE_OF_CHECK = {
+    php:     ['php_version', 'ext_pdo_sqlite', 'ext_curl', 'ext_json', 'ext_mbstring',
+              'ext_openssl', 'ext_fileinfo', 'ext_zip', 'ext_intl',
+              'php_memory', 'php_max_exec', 'php_upload'],
+    files:   ['data_dir', 'data_rate_limits', 'data_backups', 'data_write_test', 'disk_space'],
+    db:      ['db_legacy', 'db_connect', 'db_tables', 'db_integrity', 'db_wal',
+              'db_size', 'db_row_count'],
+    config:  ['env_file', 'gemini_key', 'bring_credentials', 'bring_token', 'tts_url',
+              'scale_gateway'],
+    network: ['curl_ssl', 'internet'],
+};
+/** Reverse index of _PRELOADER_STAGE_OF_CHECK (check key → stage id). */
+const _PRELOADER_CHECK_STAGE = (() => {
+    const map = {};
+    for (const [stage, keys] of Object.entries(_PRELOADER_STAGE_OF_CHECK)) {
+        for (const key of keys) map[key] = stage;
+    }
+    return map;
+})();
+
+/**
+ * Paint one icon of the splash boot rail.
+ *
+ * The icon is grey while its stage is pending, blinks while the checks of that
+ * stage run, and lights up with an aura in the stage's own colour once it has
+ * passed ('done'), or in amber / red when it did not ('warn' / 'error').
+ * Also names the running stage in the caption line, which is the only label
+ * shown on narrow screens (the per-icon labels are sr-only there).
+ *
+ * @param {string} stage One of _PRELOADER_STAGE_KEYS (the `data-stage` ids).
+ * @param {string} state 'pending' | 'active' | 'done' | 'warn' | 'error'
+ */
+function _preloaderStage(stage, state) {
+    const row = document.querySelector(`#preloader-stages .preloader-stage[data-stage="${stage}"]`);
+    if (row) {
+        row.classList.remove('is-pending', 'is-active', 'is-done', 'is-warn', 'is-error');
+        row.classList.add('is-' + state);
+    }
+    if (state === 'pending') return;
+    const caption = document.getElementById('preloader-stage-caption');
+    const key     = _PRELOADER_STAGE_KEYS[stage];
+    if (!caption || !key || typeof t !== 'function') return;
+    const name = t(key);
+    // t() echoes the key when the locale has none: keep the previous name then.
+    if (name && name !== key) caption.textContent = name;
+}
+
 /**
  * Run a comprehensive server-side diagnostic during the splash screen.
  * Shows a real-time progress bar + current check label.
@@ -26656,7 +26725,6 @@ async function _runStartupCheck() {
         el.textContent = cleanLabel;
     }
 
-    const spinnerEl  = document.getElementById('preloader-spinner');
     const wrapEl     = document.getElementById('preloader-progress-wrap');
     const barEl      = document.getElementById('preloader-bar');
     const labelEl    = document.getElementById('preloader-check-label');
@@ -26672,8 +26740,9 @@ async function _runStartupCheck() {
         return (v === full) ? fallback : v;
     };
 
-    // Switch from spinner to progress bar
-    if (spinnerEl) spinnerEl.style.display = 'none';
+    // The boot rail is painted from the first HTML paint: light up the stage it
+    // starts on, then hand the bar + ticker their first value.
+    _preloaderStage('connect', 'active');
     wrapEl.style.display = '';
 
     // Auto-provision API token for same-origin browser sessions
@@ -26709,10 +26778,12 @@ async function _runStartupCheck() {
             // generic "API token required" which gives the user nothing to act on.
             if (window._pairingRequired && typeof _promptPairingCode === 'function') {
                 _promptPairingCode();
+                _preloaderStage('connect', 'warn');
                 setProgress(100, tl('pairing_required', 'Pair this device — the code is in the server log'), 'warn');
                 return false;
             }
             if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();
+            _preloaderStage('connect', 'warn');
             setProgress(100, tl('token_required', 'API token required'), 'warn');
             return false;
         }
@@ -26720,8 +26791,10 @@ async function _runStartupCheck() {
             const resp2 = await fetch('api/index.php?action=health_check', { headers: apiAuthHeaders() });
             result = await resp2.json();
         }
+        _preloaderStage('connect', 'done');
     } catch(e) {
         clearInterval(slowAnim);
+        _preloaderStage('connect', 'error');
         _showStartupErrorPopup(
             tl('error_network', 'Cannot reach the server.'),
             tl('error_network_detail', 'The browser cannot reach the PHP server.\n\nPossible causes:\n• Apache/PHP server is not running\n• Network or firewall issue\n• Incorrect app URL\n\nMake sure the server is started and try again.'),
@@ -26781,9 +26854,28 @@ async function _runStartupCheck() {
     let   done     = 0;
 
     // Phase 2: step through each check with animated label
+    // The rail advances with the stages: a stage blinks while its checks run and
+    // is settled (colour + aura) as soon as the loop moves on to the next one.
+    let railStage = null;
+    let railHasWarn = false;
+    let railHasError = false;
+    const settleStage = () => {
+        if (!railStage) return;
+        _preloaderStage(railStage, railHasError ? 'error' : railHasWarn ? 'warn' : 'done');
+        railStage = null;
+        railHasWarn = false;
+        railHasError = false;
+    };
     for (const def of CHECKS) {
         const c = checks[def.key];
         if (c === undefined) continue; // not returned by server (feature not enabled)
+
+        const stage = _PRELOADER_CHECK_STAGE[def.key];
+        if (stage && stage !== railStage) {
+            settleStage();
+            railStage = stage;
+            _preloaderStage(stage, 'active');
+        }
 
         done++;
         const pct    = 15 + Math.round((done / total) * 83); // 15→98%
@@ -26802,10 +26894,12 @@ async function _runStartupCheck() {
 
         if (!isOk && !isFresh) {
             (isOpt ? warnings : errors).push({ def, c });
+            if (isOpt) railHasWarn = true; else railHasError = true;
         }
 
         await new Promise(r => setTimeout(r, 40));
     }
+    settleStage(); // last stage of the rail (network) once the loop is over
 
     // ── Errors → red bar + blocking popup ────────────────────────────────────
     if (errors.length > 0) {
@@ -26943,6 +27037,8 @@ async function _initApp() {
     // ── Startup health check (runs during splash, blocks app if critical) ──────
     const _startupOk = await _runStartupCheck();
     if (!_startupOk) return; // preloader stays visible with error; app does not start
+    // Final rail stage: settings, wizard and first render happen below
+    _preloaderStage('ui', 'active');
 
     // Check for setup wizard resume (after language change)
     const resumeStep = localStorage.getItem('evershelf_setup_step');
@@ -27031,6 +27127,8 @@ async function _initApp() {
         const elapsed = Date.now() - _splashStart;
         const minDelay = Math.max(0, 3000 - elapsed);
         setTimeout(() => {
+            // Last icon of the rail: settings, wizard and dashboard are done
+            _preloaderStage('ui', 'done');
             preloader.classList.add('fade-out');
             setTimeout(() => preloader.remove(), 380);
         }, minDelay);

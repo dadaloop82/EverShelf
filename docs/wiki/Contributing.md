@@ -77,6 +77,7 @@ php scripts/test-html-in-text.php      # no HTML reaches a text-only surface
 php scripts/test-dashboard-panels.php  # dashboard rotation: phases ↔ sections ↔ bar fills
 php scripts/test-product-kind-prefix.php # genre leading every article title (no double prefix)
 php scripts/test-auto-favorite.php     # used-often products become favourites; an unstar wins
+php scripts/test-preloader-stages.php  # splash boot rail: stages ↔ health checks ↔ locales
 python3 scripts/i18n-audit.py          # keys used in code exist in every locale
 python3 scripts/i18n-value-audit.py   # keys whose value is still English (report)
 shellcheck -S warning backup.sh scripts/*.sh

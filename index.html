@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005m">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005m">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005m">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005n">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005n">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005n">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005m"></script>
-    <script src="assets/js/core/auth.js?v=20261005m"></script>
+    <script src="assets/js/core/dom.js?v=20261005n"></script>
+    <script src="assets/js/core/auth.js?v=20261005n"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005m';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005n';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005m';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005n';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005m"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005n"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -92,11 +92,55 @@
 </head>
 <body>
 
-<!-- ===== APP PRELOADER (hidden by JS once _initApp completes) ===== -->
+<!-- ===== APP PRELOADER (hidden by JS once _initApp completes) =====
+     Boot rail: every stage icon starts grey, blinks while that stage is being
+     checked and lights up with an aura in its own colour once it has passed
+     (amber / red when it has not). The `data-stage` ids and `_PRELOADER_STAGE_KEYS`
+     in assets/js/app.js are one list — guard test scripts/test-preloader-stages.php. -->
 <div id="app-preloader" aria-hidden="true">
     <div class="app-preloader-inner">
-        <img src="assets/img/logo/logo.png" alt="EverShelf" class="app-preloader-logo" />
-        <div class="app-preloader-spinner" id="preloader-spinner"></div>
+        <div class="app-preloader-brand">
+            <img src="assets/img/logo/logo.png" alt="EverShelf" class="app-preloader-logo" />
+            <!-- Version chip: the splash is where the version gets read out on a bug report -->
+            <span class="app-preloader-verchip">
+                <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.10.1</span>
+            </span>
+        </div>
+
+        <ul class="preloader-stages" id="preloader-stages">
+            <li class="preloader-stage is-active" data-stage="connect" style="--stage-accent:#60a5fa;--stage-glow:rgba(96,165,250,.55)">
+                <span class="preloader-stage-icon">🔌</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_connect">Connessione e accesso</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="php" style="--stage-accent:#a78bfa;--stage-glow:rgba(167,139,250,.55)">
+                <span class="preloader-stage-icon">🐘</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_php">Runtime PHP</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="files" style="--stage-accent:#22d3ee;--stage-glow:rgba(34,211,238,.55)">
+                <span class="preloader-stage-icon">📁</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_files">Archivio e permessi</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="db" style="--stage-accent:#34d399;--stage-glow:rgba(52,211,153,.55)">
+                <span class="preloader-stage-icon">🗄️</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_db">Database</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="config" style="--stage-accent:#fb923c;--stage-glow:rgba(251,146,60,.55)">
+                <span class="preloader-stage-icon">⚙️</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_config">Configurazione</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="network" style="--stage-accent:#38bdf8;--stage-glow:rgba(56,189,248,.55)">
+                <span class="preloader-stage-icon">🌐</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_network">Rete e servizi</span>
+            </li>
+            <li class="preloader-stage is-pending" data-stage="ui" style="--stage-accent:#4ade80;--stage-glow:rgba(74,222,128,.55)">
+                <span class="preloader-stage-icon">🚀</span>
+                <span class="preloader-stage-label" data-i18n="startup.stage_ui">Avvio interfaccia</span>
+            </li>
+        </ul>
+        <!-- Name of the stage currently running — the only label on narrow screens -->
+        <div class="preloader-stage-caption" id="preloader-stage-caption" data-i18n="startup.stage_connect">Connessione e accesso</div>
+
         <div id="preloader-progress-wrap" class="preloader-progress-wrap" style="display:none">
             <div class="preloader-bar-track">
                 <div id="preloader-bar" class="preloader-bar"></div>
@@ -106,7 +150,6 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.10.0</span>
     </div>
 </div>
 
@@ -119,7 +162,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.10.0</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.10.1</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2596,6 +2639,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005m"></script>
+<script src="assets/js/app.js?v=20261005n"></script>
 </body>
 </html>

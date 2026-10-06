@@ -6156,6 +6156,12 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $nameUserSet = $forceName ? 1 : 0;
     }
 
+    // Every article title opens with a capital letter, whichever pass wrote the name
+    // (scan, import, catalog, AI, hand-typed rename): "latte fresco" → "Latte fresco".
+    // Deliberately OUTSIDE the genre guard below — the genre prefix can be switched
+    // off with PRODUCT_KIND_PREFIX=false, the spelling rule cannot.
+    $name = productTitleCapitalize($name);
+
     // Genre (genere) as an integral part of the article title: "Fiori di latte" →
     // "Yogurt Fiori di latte". Cheap paths first — curated dictionary, then the
     // signature cache, then ONE cached AI word (lib/product_kind.php) — and never a
@@ -12605,7 +12611,9 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     $needsAI = !$isCleanItalianToken || ($hasCategoryHint && count($tokens) >= 2);
     if ($allowAi && $needsAI) {
         $aiResult = _geminiClassifyProduct($name, $brand, $category);
-        if ($aiResult !== null) return $aiResult;
+        // The AI word goes straight into the shopping list: give it the capital letter
+        // every other branch of this function already produces.
+        if ($aiResult !== null) return productTitleCapitalize($aiResult);
     }
 
     // 4. Fallback: capitalize the first meaningful token.

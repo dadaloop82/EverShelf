@@ -52,6 +52,13 @@
 - `DOMContentLoaded` (~line 25800) wires everything; `showPage()` switches
   `<section class="page">` visibility; `api()` (line **5384**) is the single
   fetch wrapper (retries on SQLite `database_busy`, offline queue, error report).
+- **Splash / boot rail**: `#app-preloader` (index.html) is dressed by
+  `_runStartupCheck()` — one `health_check` call whose ~30 flat checks are grouped into
+  seven stages by `_PRELOADER_STAGE_OF_CHECK`. Each icon is painted by
+  `_preloaderStage(stage, state)`: grey (`is-pending`) → blinking (`is-active`) →
+  coloured with an aura (`is-done`), amber/red for `is-warn`/`is-error`; the version
+  chip `#preloader-version` is rewritten by `scripts/bump-version.sh`. The stages, their
+  labels and the six locales are locked together by `scripts/test-preloader-stages.php`.
 - State held in module-level `let` vars (`shoppingItems`, `LOCATIONS`,
   `_currentLang`, `_scale*`, banner queue, …). No framework/reactivity.
 - i18n via `t(key)` + `data-i18n` attributes; `loadTranslations()` fetches
@@ -84,7 +91,7 @@
 | `health.php` | Health/Fuel mode + Health Bridge | ingest, profile, daily rollups |
 | `weather.php` | Weather fetch + geocode | `weather_get`, `weather_geocode` |
 | `shopping_guards.php` | Anti-waste qty guards for shopping | used by `smartShopping` |
-| `product_kind.php` | **Product genre (genere)**: the curated IT dictionary that leads every article title, the signature cache for similar products, the AI fallback. `productKindFromDictionary()` is the project's *single* dictionary lookup — `computeShoppingName()` returns it verbatim, so the shopping generic and the title genre never disagree on a known product | `productKindApply()`, `resolveProductKind()`, `applyProductKindPrefix()`, `productKindFromDictionary()`, `evershelfShoppingPhraseMap()`/`evershelfShoppingKeywordMap()` |
+| `product_kind.php` | **Product title rules**: the curated IT dictionary that leads every article title, the signature cache for similar products, the AI fallback, and the case of the title. `productKindFromDictionary()` is the project's *single* dictionary lookup — `computeShoppingName()` returns it verbatim, so the shopping generic and the title genre never disagree on a known product; `productTitleCapitalize()` raises the first letter of every stored title (idempotent) | `productKindApply()`, `resolveProductKind()`, `applyProductKindPrefix()`, `productTitleCapitalize()`, `productKindFromDictionary()`, `evershelfShoppingPhraseMap()`/`evershelfShoppingKeywordMap()` |
 | `auto_favorite.php` | **Automatic favourites**: promote the products consumed N times in the window, never overrule a manual unstar | `maybeAutoFavorite()`, `rememberFavoriteOverride()`, `autoFavoriteSweep()`, `autoFavoriteCandidates()` |
 | `shopping_sync.php` | **Shared Bring!/internal list sync** (markers, smart-item index, "still needed?" predicate) | `evershelfShoppingRowStillNeeded()`, `evershelfBuildShoppingSpec()`, `evershelfLoadSmartItemsForSync()` |
 | `seasonal.php` | **IT produce calendar** + stale-stock; the review card returns a `tip_key` the client resolves | `seasonalReviewShopping()`, `seasonalIsAllYearCrop()`, `staleInventoryItems()` |
@@ -158,8 +165,9 @@ Groups:
   `products_list/search`, `inventory_search`, `ai_product_suggest`,
   `guess_category`, `products_toggle_favorite`, and
   **`products_apply_auto_rules`** (POST, `dry_run` preview) which re-applies the
-  two automatic product rules to the items already stored: the genre prefix in
-  every title (`lib/product_kind.php`) and the promotion of the products the
+  two automatic product rules to the items already stored: the title rules in
+  every name — the genre prefix and the leading capital letter
+  (`lib/product_kind.php`) — and the promotion of the products the
   household keeps consuming to favourites (`lib/auto_favorite.php`).
 - **Inventory**: `inventory_list/add/use/update/delete`, `inventory_summary`,
   `family_sibling_suggest`, `inventory_finished_items`,

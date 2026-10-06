@@ -3,7 +3,7 @@
     "short_name": "EverShelf",
     "lang": "en",
     "description": "Home pantry management with barcode scanning",
-    "version": "1.10.0",
+    "version": "1.10.1",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#f0f4e8",
