@@ -9,8 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Ideas collected during development. No priority or date implied.
 
-- **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
-- **UI refresh audit** — See `docs/OPTIMIZATION-BACKLOG.md` (P0): unify post-mutation refresh across inventory, banner, shopping.
+- **UI refresh audit** — Widen `refreshAppDataAfterMutation()` to every inventory/shopping mutation (partial pass in 1.11.3).
+- **G1–G7 structural gaps** — Multi-user tokens, Web Push, receipt OCR, AGP 9 upgrade, full multi-list UX.
+
+## [1.11.3] - 2026-10-06
+
+Audit-driven shopping, notify, and UX batch (see `todo/AUDIT-2026-10-06.md`).
+
+**Shopping**
+
+- Generic list matching by shopping group; normalize/prune/dedupe on load and cron; audit script.
+- `SHOPPING_REMOVE_ON_BUY=trip` removes list rows on purchase; **Spesa fatta** clears the list.
+- Smart `period_usage` caps; `need_qty` / `need_unit` columns; regression tests.
+
+**Notify & integrations**
+
+- ntfy/webhook events: `shopping_remove`, `shopping_trip_complete`, `weekly_digest` + cron.
+- Telegram webhook: `/lista`, `/scadenze` (optional `TELEGRAM_*` in `.env`).
+
+**UI & cooking**
+
+- `refreshAppDataAfterMutation()` after key flows; list subtitle under generic title.
+- Cooking scrap reuse hints (peels, cores, shells); price cache when AI is off.
+
+**Ops**
+
+- `EVERSHELF_DISABLE_HTTPS_REDIRECT`; mcp-server npm audit fix (proxy-addr).
 
 ## [1.11.2] - 2026-10-06
 
