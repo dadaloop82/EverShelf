@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261005k">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005k">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005k">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261005l">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261005l">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261005l">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261005k"></script>
-    <script src="assets/js/core/auth.js?v=20261005k"></script>
+    <script src="assets/js/core/dom.js?v=20261005l"></script>
+    <script src="assets/js/core/auth.js?v=20261005l"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005l';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005k';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005l';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261005k"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261005l"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -106,7 +106,7 @@
         <div id="preloader-warnings" class="preloader-warnings" style="display:none"></div>
         <div id="preloader-error-msg" class="preloader-error-msg" style="display:none"></div>
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
-        <span class="app-preloader-version" id="preloader-version">v1.9.3</span>
+        <span class="app-preloader-version" id="preloader-version">v1.9.4</span>
     </div>
 </div>
 
@@ -119,7 +119,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.9.3</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.9.4</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -2568,6 +2568,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261005k"></script>
+<script src="assets/js/app.js?v=20261005l"></script>
 </body>
 </html>

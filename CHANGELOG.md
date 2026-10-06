@@ -11,6 +11,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.9.4] - 2026-10-05
+
+Two UI bugs that no test was watching: the home page drew every chart empty, and a
+few screens printed an HTML tag instead of a quantity.
+
+**Highlights**
+
+- **The dashboard charts are back** — macros, nutrition score, monthly categories and
+  the spend comparison sat at zero since **v1.9.1**. `_applyInsightPhase()` reveals one
+  panel per rotation and fills its bars from their `data-target`, but it asked
+  `showNutr`/`showMonthly`/`showMacros`/`showSpend` whether that panel was the current
+  one: the commit that gave the dashboard three more panels deleted those constants and
+  left the `if (show… )` branches behind, so every rotation tick threw
+  `ReferenceError: showNutr is not defined` inside the `requestAnimationFrame()`
+  callback. The exception aborted the whole reveal step, which is why *no* chart was
+  drawn — not only the nutrition one — while the numbers printed around them looked
+  fine. The branches now test the phase itself.
+- **No HTML tags on text-only surfaces** — `formatQuantity()` appends
+  `<span class="conf-size-info">(da 36g)</span>` for `conf` units, and the screensaver
+  facts, the home alert banner and the item action modal print with
+  `textContent`/`escapeHtml()`, where the tag showed up as literal text
+  (`Lenticchie: ne hai 2 conf <span class="conf-size-info">(da 250g)</span>`). They go
+  through `_formatQtyPlain()` / `stripHtml()` now.
+
+**Upgrading from 1.9.3**
+
+- Nothing to do: no schema change and no new setting. The charts fill in again on the
+  next dashboard rotation.
+- The spend comparison shows what you actually recorded: remember the
+  "🧾 Quanto hai speso?" prompt when a shopping session starts — "Non ora" records
+  nothing, so a month you never entered stays at `0`.
+- Two guard tests join the suite and run like the rest of it:
+  `php scripts/test-dashboard-panels.php` and `php scripts/test-html-in-text.php`.
+
+### Fixed
+- **The insight rotation never filled a bar since v1.9.1** —
+  `_applyInsightPhase()` branches on `phase === 'nutrition' | 'monthly' | 'macros' |
+  'spend'` now, exactly like the panel visibility code above it, so the
+  `ReferenceError` is gone and each bar receives the width/height its `data-target`
+  asks for. `scripts/test-dashboard-panels.php` (341 lines, 53 assertions) fails on any
+  part of that contract: an undeclared identifier used as a guard **anywhere** in
+  `app.js` (the generic half of the crash class), a reveal branch testing the deleted
+  flags, a phase listed in `_INSIGHT_PHASES` without a section, a reveal branch and a
+  renderer, or a bar emitted without a `data-target` — or never filled from it. The
+  `data-target` rule is deliberate: bars are painted at `0%` and animated in by the CSS
+  transition, so a bar rendered pre-filled would hide a broken rotation instead of
+  showing it.
+- **Quantity helpers leaked markup into text-only surfaces** — the two screensaver
+  facts and the home alert banner now build their strings with `_formatQtyPlain()`, and
+  the item action modal strips the markup with `stripHtml()` before escaping it.
+  `scripts/test-html-in-text.php` (251 lines, 18 assertions) locks the class: a
+  text-only call site may not hand a bare `formatQuantity()` result to
+  `escapeHtml()`/`textContent`/`title`, `generateScreensaverFact()` may only build its
+  `{qty}` values with a text-only helper, and the fact element itself is written with
+  `textContent`, never with `innerHTML`.
+
 ## [1.9.3] - 2026-10-05
 
 One bug, and it explains why settings on an install with a read-only `.env` kept
