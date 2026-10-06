@@ -38,6 +38,19 @@ $cappedRate = shoppingSanitizeDailyRate($badBurstRate, 'g', 0, 1, 450, 450, 3, 6
 assert_true($badBurstRate > 500, 'sanity: burst rate would have been >500 g/day');
 assert_near($fixedRate, 450 / 13, 1.0, 'fallback spreads over calendar days');
 assert_true($cappedRate <= SHOPPING_GUARD_MAX_G_PER_DAY, 'sanitize caps absurd g/day rate');
+
+// Depleted family must not count as "covered" (would block list removal logic).
+$db = getDB();
+$pid = (int)$db->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();
+if ($pid > 0) {
+    $evalZero = shoppingEvaluateFamilyRestock($db, $pid);
+    $stmt = $db->prepare('SELECT COALESCE(SUM(quantity),0) FROM inventory WHERE product_id = ?');
+    $stmt->execute([$pid]);
+    $stock = (float)$stmt->fetchColumn();
+    if ($stock <= 0.001 && ($evalZero['need_base'] ?? 0) > 0.001) {
+        assert_true(empty($evalZero['covered']), 'zero stock + positive need is not covered');
+    }
+}
 assert_true($cappedRate < 100, 'spinaci-like burst capped below 100 g/day');
 
 // ── Suggested qty cap ───────────────────────────────────────────────────────

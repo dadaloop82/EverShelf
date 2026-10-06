@@ -13714,6 +13714,26 @@ function bringListTokenize(string $s): array {
     ));
 }
 
+/** Match internal list row to catalog product via generic shopping group (stricter than token overlap). */
+function shoppingListRowMatchesProduct(PDO $db, string $listName, string $listRaw, string $prodName, string $prodShoppingName): bool {
+    $listKey = internalShoppingListGenericKey($db, $listName, $listRaw);
+    if ($listKey === '') {
+        return false;
+    }
+    $shop = trim($prodShoppingName) !== '' ? trim($prodShoppingName) : computeShoppingName($prodName);
+    foreach ([$shop, $prodName] as $candidate) {
+        if ($candidate === '') {
+            continue;
+        }
+        $prodKey = mb_strtolower(resolveBringGenericKey($db, $candidate));
+        if ($prodKey !== '' && $prodKey === $listKey) {
+            return true;
+        }
+    }
+    $bringKey = italianToBring($shop);
+    return bringListItemMatchesProduct($listName, $shop, $prodName, $bringKey);
+}
+
 /** Does a Bring! purchase row match this product (generic + specific names)? */
 function bringListItemMatchesProduct(string $rawName, string $displayName, string $prodName, string $bringKey): bool {
     $rawItalian = bringToItalian($rawName);
@@ -13930,10 +13950,10 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
         }
     }
 
-    // Covered when we have no remaining need. If no history, any positive stock covers
-    // (keeps prior behaviour for unknown products).
-    $covered = $needBase <= 0.001;
-    if (!$hasHistory && $familyQty > 0) {
+    // Covered only when stock actually covers the plan window (depleted ≠ covered).
+    $thresh = productQtyThreshold($unit);
+    $covered = ($needBase <= 0.001) && ($familyQty > $thresh);
+    if (!$hasHistory && $familyQty > $thresh) {
         $covered = true;
     }
 
@@ -14018,7 +14038,7 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
         if ($listName === '') {
             continue;
         }
-        if (!bringListItemMatchesProduct($listName, $generic, $generic, $bringKey)) {
+        if (!shoppingListRowMatchesProduct($db, $listName, (string)($row['raw_name'] ?? ''), $generic, $generic)) {
             continue;
         }
         $oldSpec = (string)($row['specification'] ?? '');
@@ -14093,7 +14113,7 @@ function internalShoppingRemoveProductFromList(PDO $db, int $productId): array {
         if ($listName === '') {
             continue;
         }
-        if (!bringListItemMatchesProduct($listName, $displayName, $prodName, $bringKey)) {
+        if (!shoppingListRowMatchesProduct($db, $listName, (string)($row['raw_name'] ?? ''), $prodName, (string)($prod['shopping_name'] ?? ''))) {
             continue;
         }
         $del = $db->prepare("DELETE FROM shopping_list WHERE id = ?");
@@ -17222,6 +17242,68 @@ function internalFindShoppingListRowByGeneric(PDO $db, string $name, string $raw
  * Merge duplicate internal list rows (generic + specific name for the same product).
  * e.g. "Latte" + "Bianco fior di latte", "Asparagi" + "Asparagi freschi".
  */
+/** Rewrite list titles to canonical generic labels; keep brand/specific in raw_name. */
+function internalShoppingNormalizeNames(PDO $db): array {
+    if (isShoppingBringMode()) {
+        return ['skipped' => 'bring_mode'];
+    }
+    $rows = $db->query('SELECT id, name, raw_name FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $updated = 0;
+    foreach ($rows as $row) {
+        $name = trim((string)($row['name'] ?? ''));
+        $raw  = trim((string)($row['raw_name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        $genKey = internalShoppingListGenericKey($db, $name, $raw);
+        $canonical = computeShoppingName($genKey);
+        if ($canonical === '' || mb_strtolower($canonical) === mb_strtolower($name)) {
+            continue;
+        }
+        if ($raw === '' || strcasecmp($raw, $canonical) === 0) {
+            $raw = $name;
+        }
+        $db->prepare('UPDATE shopping_list SET name = ?, raw_name = ? WHERE id = ?')
+            ->execute([$canonical, $raw, (int)$row['id']]);
+        $updated++;
+    }
+    return ['updated' => $updated];
+}
+
+/** Drop internal rows whose family stock already covers the smart-shopping plan window. */
+function internalShoppingPruneCovered(PDO $db): array {
+    if (isShoppingBringMode()) {
+        return ['skipped' => 'bring_mode'];
+    }
+    $rows = $db->query('SELECT id, name, raw_name FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $prods = $db->query('SELECT id, name, shopping_name FROM products')->fetchAll(PDO::FETCH_ASSOC);
+    $removed = 0;
+    foreach ($rows as $row) {
+        $listName = (string)$row['name'];
+        $listRaw  = (string)($row['raw_name'] ?? '');
+        $bestPid  = null;
+        foreach ($prods as $p) {
+            if (!shoppingListRowMatchesProduct($db, $listName, $listRaw, (string)$p['name'], (string)($p['shopping_name'] ?? ''))) {
+                continue;
+            }
+            $bestPid = (int)$p['id'];
+            break;
+        }
+        if ($bestPid === null) {
+            continue;
+        }
+        $eval = shoppingEvaluateFamilyRestock($db, $bestPid);
+        if (!empty($eval['covered'])) {
+            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+            $removed++;
+        }
+    }
+    if ($removed > 0) {
+        @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
+    }
+    return ['removed' => $removed];
+}
+
 function internalShoppingDedupeGenerics(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
@@ -17306,6 +17388,8 @@ function shoppingGetList(PDO $db): void {
         bringGetList();
         return;
     }
+    internalShoppingNormalizeNames($db);
+    internalShoppingPruneCovered($db);
     internalShoppingDedupeGenerics($db);
     $items   = $db->query(
         "SELECT name, raw_name, specification FROM shopping_list ORDER BY sort_order ASC, added_at ASC"
