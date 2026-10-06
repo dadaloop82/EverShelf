@@ -611,6 +611,144 @@ function productNameStartsWithKnownKind(string $name): bool {
 }
 
 /**
+ * True when the title opens with exactly that word ("Toast …" for the genre "Toast",
+ * "Yogurt …" for "Yogurt"): whole word, punctuation and case ignored.
+ */
+function productKindStartsWithWord(string $name, string $word): bool {
+    $word = trim((string)preg_replace('/[^\p{L}]+/u', ' ', mb_strtolower($word)));
+    $name = trim((string)preg_replace('/[^\p{L}]+/u', ' ', mb_strtolower($name)));
+    if ($word === '' || $name === '') {
+        return false;
+    }
+    return $name === $word || mb_strpos($name, $word . ' ') === 0;
+}
+
+/** Comparison form of a word: lowercase, accents folded, letters only. */
+function productKindFoldWord(string $word): string {
+    $word = mb_strtolower(trim($word), 'UTF-8');
+    if ($word === '') {
+        return '';
+    }
+    if (function_exists('iconv')) {
+        $folded = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $word);
+        if (is_string($folded) && $folded !== '') {
+            $word = $folded;
+        }
+    }
+    return (string)preg_replace('/[^a-z]+/', '', $word);
+}
+
+/**
+ * Crude singular/plural stem: "taralli"/"tarallini" → "tarall", "pera"/"pere" → "per",
+ * "biscotti"/"biscotto" → "biscott".
+ */
+function productKindStem(string $word): string {
+    $w = productKindFoldWord($word);
+    $w = (string)preg_replace('/(etti|ette|otti|otte|ini|ine|oni|one)$/', '', $w);
+    return (string)preg_replace('/(ie|[aeio])$/', '', $w);
+}
+
+/** True when one word is the genre and the other the same word written slightly differently. */
+function productKindWordsSimilar(string $a, string $b, bool $strict = false): bool {
+    $a = productKindFoldWord($a);
+    $b = productKindFoldWord($b);
+    if ($a === '' || $b === '') {
+        return false;
+    }
+    if ($a === $b) {
+        return true;
+    }
+
+    $stemA = productKindStem($a);
+    $stemB = productKindStem($b);
+    if ($strict) {
+        // Strict mode (a word *anywhere* in the title): only the same root clearly
+        // written in the singular/plural, or one character apart. "Zuccheri" counts as
+        // the genre "Zucchero"; unrelated look-alikes ("sale"/"salumi") do not.
+        if ($stemA !== '' && $stemA === $stemB && mb_strlen($stemA) >= 4) {
+            return true;
+        }
+        return max(mb_strlen($a), mb_strlen($b)) >= 5 && levenshtein($a, $b) <= 1;
+    }
+
+    if ($stemA !== '' && $stemA === $stemB && mb_strlen($stemA) >= 3) {
+        return true; // pera/pere, taralli/tarallini, biscotti/biscotto
+    }
+
+    $longest = max(mb_strlen($a), mb_strlen($b));
+    $shortest = min(mb_strlen($a), mb_strlen($b));
+    $distance = levenshtein($a, $b);
+    if ($longest <= 6 && $distance <= 1) {
+        return true; // one typo on a short word
+    }
+    if ($longest >= 5 && $distance <= 2) {
+        return true; // kaffee/caffe, yogurt/yogurth
+    }
+
+    // Shared opening ("piadelle"/"piadina", "riso"/"risotto") — only when it covers
+    // most of the shorter word, so unrelated words that merely start alike stay untouched.
+    $shared = 0;
+    while ($shared < $shortest && $a[$shared] === $b[$shared]) {
+        $shared++;
+    }
+    $gap = abs(mb_strlen($a) - mb_strlen($b));
+    if ($shared >= 4 && $gap <= 4) {
+        return true; // same root, different suffix (piadelle/piadina)
+    }
+    return $shared >= 3 && $shared / $shortest >= 0.6 && $gap <= 3;
+}
+
+/**
+ * True when the title already carries the genre or a close variant of it — either as
+ * the opening word ("Tarallini" vs "Taralli", "Pera Italiana …" vs "Pere", "Kaffee"
+ * vs "Caffè") or somewhere further along ("Italia Zuccheri …" vs "Zucchero").
+ *
+ * The rule exists because the prefix must be added only "where it — or something
+ * similar — is not already there": prefixing those titles would produce
+ * "Taralli Tarallini" and "Pere Pera Italiana Succo e polpa frutta".
+ *
+ * The opening word is compared loosely (plural, one letter, same root); any other
+ * word strictly, so a mere look-alike further along the title never blocks a prefix.
+ */
+function productKindNameAlreadyHasKind(string $name, string $kind): bool {
+    $nameWords = [];
+    foreach (preg_split('/[^\p{L}\p{N}]+/u', $name) ?: [] as $w) {
+        $folded = productKindFoldWord($w);
+        if ($folded !== '') {
+            $nameWords[] = $folded;
+        }
+    }
+    if ($nameWords === []) {
+        return false;
+    }
+
+    $stop    = array_map('productKindFoldWord', evershelfShoppingStopWords());
+    $kindWords = [];
+    foreach (preg_split('/[^\p{L}\p{N}]+/u', $kind) ?: [] as $w) {
+        $folded = productKindFoldWord($w);
+        if ($folded !== '' && !in_array($folded, $stop, true)) {
+            $kindWords[] = $folded;
+        }
+    }
+    if ($kindWords === []) {
+        return false;
+    }
+
+    // "Latte di soia" is already there in "Soia drink", "Panna da cucina" in "Panna Chef".
+    foreach ($nameWords as $i => $nameWord) {
+        foreach ($kindWords as $kindWord) {
+            if (productKindWordsSimilar($nameWord, $kindWord, $i > 0)) {
+                return true;
+            }
+        }
+    }
+    // …and the opening words of the title taken together ("latte di soia").
+    $joined = implode(' ', $nameWords);
+    $phrase = implode(' ', $kindWords);
+    return $phrase !== '' && (mb_strpos($joined . ' ', $phrase . ' ') === 0);
+}
+
+/**
  * Make the genre an integral part of the article title
  * ("Fiori di latte" → "Yogurt Fiori di latte"). Idempotent: a title that already
  * carries a genre (any genre) is returned untouched.
@@ -621,7 +759,7 @@ function applyProductKindPrefix(string $name, string $kind): string {
     if ($name === '' || $kind === '') {
         return $name;
     }
-    if (productNameHasKind($name, $kind) || productNameStartsWithKnownKind($name)) {
+    if (productNameHasKind($name, $kind) || productNameStartsWithKnownKind($name) || productKindNameAlreadyHasKind($name, $kind)) {
         return $name;
     }
     return $kind . ' ' . $name;
@@ -650,6 +788,13 @@ function productKindApply(string $name, string $brand = '', string $category = '
     $name = trim($name);
     if ($name === '' || !productKindPrefixEnabled()) {
         return ['name' => $name, 'kind' => '', 'source' => ''];
+    }
+    // The title already opens with the genre stored on the product ("Toast Sandwich
+    // American Style" + kind "Toast"): whichever pass wrote it, this one has no business
+    // rewriting it — the dictionary may well suggest a broader genre for the same word
+    // (its own "toast" → "Pane"), which would drift the title at every run.
+    if ($knownKind !== '' && productKindStartsWithWord($name, $knownKind)) {
+        return ['name' => $name, 'kind' => $knownKind, 'source' => 'existing'];
     }
     if (productNameStartsWithKnownKind($name)) {
         return ['name' => $name, 'kind' => $knownKind, 'source' => 'existing'];

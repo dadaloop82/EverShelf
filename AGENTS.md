@@ -56,7 +56,11 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   dictionaries `computeShoppingName()` uses) — and the AI only when the genre word
   does not lead the name, i.e. when the dictionary cannot tell a yoghurt from a
   cheese. One paid word per signature (`data/product_kind_cache.json`), never two
-  prefixes on the same title.
+  prefixes on the same title — neither when the genre is already there in another form
+  (`Tarallini`/`Taralli`, `Pera Italiana`/`Pere`, `Kaffee`/`Caffè`, `Italia
+  Zuccheri`/`Zucchero`) nor when the title already opens with the genre stored in
+  `products.kind`: a maintenance pass must replay without drifting a single title
+  (`productKindNameAlreadyHasKind()`, `productKindStartsWithWord()`).
 - **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes the
   products consumed `AUTO_FAVORITE_MIN_USES` times in `AUTO_FAVORITE_WINDOW_DAYS`;
   `products.favorite_user_override` records a manual unstar so the rule never re-adds
