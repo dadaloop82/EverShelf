@@ -5603,6 +5603,15 @@ function refreshCurrentPage() {
     }
 }
 
+/** Reload banner + current page (and shopping tabs when relevant) after a mutation. */
+function refreshAppDataAfterMutation() {
+    if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+    refreshCurrentPage();
+    if (_currentPageId === 'shopping' && typeof loadSmartShopping === 'function') {
+        loadSmartShopping(true);
+    }
+}
+
 function showPage(pageId, param = null, options = {}) {
     if (!options.skipAddGuard && pageId !== 'add' && _isAddFormLeaveGuardActive()) {
         _promptAddFormLeave(() => showPage(pageId, param, { ...options, skipAddGuard: true }));
@@ -8236,8 +8245,7 @@ async function extendInventoryExpiry(inventoryId, itemHint = null) {
                 .replace('{date}', newExpiry)
                 .replace('{name}', item.name || '');
             showToast(msg, 'success');
-            if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
-            if (typeof refreshCurrentPage === 'function') refreshCurrentPage();
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
             return true;
         }
         showToast(res.error || t('error.generic'), 'error');
@@ -13514,9 +13522,11 @@ async function submitAdd(e) {
                         }
                     }).catch(() => {});
                 }
+                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
                 showPage('dashboard');
             } else if (result.removed_from_bring) {
                 setTimeout(() => showToast(t('toast.removed_from_shopping'), 'info'), 1500);
+                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
             } else if (result.shopping_kept) {
                 try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
             }
@@ -15051,6 +15061,7 @@ async function _doSubmitUseAll() {
             if (result.added_to_shopping || result.added_to_bring) {
                 setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
             }
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
             showToast(result.error || t('error.generic'), 'error');
