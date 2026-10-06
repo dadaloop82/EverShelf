@@ -18,7 +18,7 @@
   "keywords": ["mcp", "evershelf", "pantry", "home-assistant"],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "zod": "^4.6.5"
   },
   "overrides": {
