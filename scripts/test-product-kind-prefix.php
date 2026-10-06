@@ -117,6 +117,17 @@ assert_same('Yogurt', evershelfShoppingKeywordMap()['yogurt'] ?? '', 'shopping: 
 assert_same('Yogurt', computeShoppingName('Yogurt Greco Fage', 'latticini', 'Fage', false), 'shopping: computeShoppingName() output unchanged');
 assert_same('Fette biscottate', computeShoppingName('Fette biscottate integrali', 'pane', 'Mulino Bianco', false), 'shopping: phrase map still first');
 
+// Trailing genre tokens (packaging/brand opener) — must not let ingredients steal the name.
+assert_same('Piadina', computeShoppingName('La sfogliata tradizionale piadine', '', '', false), 'shopping: trailing piadine → Piadina');
+assert_same('Avocado', computeShoppingName('Frutta fresca Avocados', '', '', false), 'shopping: trailing avocados → Avocado');
+assert_same('Cereali', computeShoppingName('Muesli Frutta Secca', '', '', false), 'shopping: muesli family → Cereali');
+assert_same('Cereali', computeShoppingName('Granola con cioccolato', '', '', false), 'shopping: granola family → Cereali');
+// Ingredient further along must not become the dictionary genre (phrase map lead-only).
+assert_same('', productKindFromDictionary('Campagnole con farina di riso')['kind'],
+    'dictionary: ingredient "farina di riso" mid-title is not a genre');
+assert_same('Farina di riso', productKindFromDictionary('Farina di riso Caputo')['kind'],
+    'dictionary: a real flour title still resolves');
+
 // One vocabulary, two consumers: the shopping generic IS productKindFromDictionary()'s
 // answer, so the buyable name and the genre leading the title can never drift apart.
 $oneVocabulary = [

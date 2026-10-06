@@ -53,8 +53,9 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 - README version badge and “What’s new” should track `index.html` / `CHANGELOG` (automate in CI or bump script).
 - Root `TODO.md` is Italian scratch — point to this file for backlog; keep TODO for session checkboxes only.
 - **Security:** rotate any PAT pasted in chat; never commit `.env`.
-- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — **CI checks drift since 1.11.4**.
+- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — run `bash scripts/gen-code-index.sh` (CI INDEX job needs a workflow-scoped PAT; see `todo/CI-INDEX-NOTE.md`).
+- After shopping/list changes: `php scripts/test-shopping-guards.php` and `php scripts/test-notify.php`.
 
 ## Done recently (context)
 
-See **[1.11.3]** and **[1.11.4]** in `CHANGELOG.md`: shopping trip mode, ntfy/Telegram, Open Prices, Web Push, settings checklist “da decidere”, UI refresh/undo/torch, INDEX CI.
+See **[1.11.3]**–**[1.11.5]** in `CHANGELOG.md`: shopping pack-equiv restock + HA expiry parity, Bring hard-off when internal, ntfy/Telegram, Open Prices, Web Push, settings checklist “da decidere”, UI refresh/undo/torch.

@@ -40,7 +40,34 @@ assert_near($fixedRate, 450 / 13, 1.0, 'fallback spreads over calendar days');
 assert_true($cappedRate <= SHOPPING_GUARD_MAX_G_PER_DAY, 'sanitize caps absurd g/day rate');
 
 $cappedPeriod = smartCapPeriodNeed(400.0, 'conf', 200.0, 'g', 30);
-assert_true($cappedPeriod <= 24.0, 'period_usage for conf units is capped');
+assert_true($cappedPeriod <= SHOPPING_GUARD_MAX_CONF_PACKS, 'period_usage for conf units is capped to a trip');
+assert_true(smartCapPeriodNeed(400.0, 'conf', 690.0, 'g', 14) <= 3.0, 'passata-like 14d window never asks for dozens of jars');
+$sug = smartSuggestedConfQty(13.35, 690.0, 'g', 24);
+assert_true($sug[0] <= SHOPPING_GUARD_MAX_CONF_PACKS, 'suggested conf packs hard-capped even if caller passes 24');
+
+// Internal list rows must mark matching smart items as already on the list.
+$onList = [
+    'pelati' => true,
+    'olive' => true,
+    'salsiccia' => true,
+    'liquore' => true,
+];
+assert_true(_productOnBring('Datterini Pelati', $onList, 'Pelati'), 'list Pelati covers Datterini Pelati suggestion');
+assert_true(_productOnBring('Olive verdi denocciolate', $onList, 'Olive'), 'list Olive covers olive suggestion');
+assert_true(_productOnBring('Sugo pronto Il mio gran ragù con salsiccia', $onList, 'Salsiccia'), 'list Salsiccia covers ragù suggestion via shopping_name');
+assert_true(!_productOnBring('Origano foglie', $onList, 'Origano'), 'unrelated Origano is not on the list');
+
+// Bring! live API must stay dark when SHOPPING_MODE=internal.
+assert_true(!isShoppingBringMode(), 'test host runs with Bring mode off');
+assert_true(bringAuth() === null, 'bringAuth is null when Bring is disabled');
+assert_true(bringRequest('GET', 'https://api.getbring.com/rest/v2/bringlists/x') === null, 'bringRequest is null when Bring is disabled');
+assert_true(computeShoppingName('Campagnole con farina di riso', '', '', false) !== 'Farina', 'Bring catalog is not used for shopping names when Bring is off');
+
+// Mixed g + conf family must not treat "250 g used" as "250 packs".
+assert_near(shoppingQtyToConfPacks(250.0, 'g', 1.0, '', 250.0), 1.0, 0.01, '250g → 1 pack of 250g');
+assert_near(shoppingQtyToConfPacks(0.65, 'conf', 500.0, 'g', 250.0), 0.65, 0.01, 'fractional conf stays packs');
+assert_near(shoppingQtyToConfPacks(690.0, 'conf', 690.0, 'g', 690.0), 1.0, 0.01, 'gram write-off on conf → 1 pack');
+assert_near(shoppingQtyToConfPacks(130.0, 'g', 130.0, '', 60.0), 130.0 / 60.0, 0.05, 'tuna fillets → pack-equiv');
 
 // Depleted family must not count as "covered" (would block list removal logic).
 $db = getDB();

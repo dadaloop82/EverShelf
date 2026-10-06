@@ -1078,27 +1078,31 @@ try {
             healthMealLogAction($db);
             break;
 
-        // ===== BRING! SHOPPING LIST =====
+        // ===== BRING! SHOPPING LIST (live API — refused when SHOPPING_MODE=internal) =====
         case 'bring_list':
-            bringGetList();
-            break;
         case 'bring_add':
-            bringAddItems($db);
-            break;
         case 'bring_remove':
-            bringRemoveItem();
-            break;
         case 'bring_clean_specs':
-            bringCleanSpecs();
-            break;
         case 'bring_migrate_names':
-            bringMigrateNames($db);
-            break;
         case 'bring_sync':
-            bringSyncFull($db, true);
-            break;
         case 'bring_suggest':
-            bringSuggestItems($db);
+            if (!isShoppingBringMode()) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Bring! is disabled (SHOPPING_MODE=internal)',
+                    'bring_disabled' => true,
+                ]);
+                break;
+            }
+            match ($action) {
+                'bring_list' => bringGetList(),
+                'bring_add' => bringAddItems($db),
+                'bring_remove' => bringRemoveItem(),
+                'bring_clean_specs' => bringCleanSpecs(),
+                'bring_migrate_names' => bringMigrateNames($db),
+                'bring_sync' => bringSyncFull($db, true),
+                'bring_suggest' => bringSuggestItems($db),
+            };
             break;
         // Shopping abstraction layer (delegates to internal DB or Bring!)
         case 'shopping_list':
@@ -2440,6 +2444,81 @@ function ttsProxy() {
 // ===== HOME ASSISTANT INTEGRATION =====
 
 /**
+ * True when an inventory row deserves an expiry alert (HA / notify).
+ * Mirrors assets/js `getExpiredSafety` + `shouldShowExpiredBanner`: low-risk
+ * "best before" leftovers (cracker, flour, spices…) stay silent for 30 days past
+ * the printed date, crumbs are ignored, vacuum-sealed items keep their grace window.
+ * That is why HA used to show scadenze the dashboard did not.
+ */
+function evershelfExpiryNeedsAttention(array $row, ?int $alertHorizonDays = null): bool {
+    if ((float)($row['quantity'] ?? 0) <= 0) {
+        return false;
+    }
+    if (function_exists('isInventoryDepleted') && isInventoryDepleted($row)) {
+        return false;
+    }
+    $expiry = trim((string)($row['expiry_date'] ?? ''));
+    if ($expiry === '' || !preg_match('/^\d{4}-\d{2}-\d{2}/', $expiry)) {
+        return false;
+    }
+    $horizon = $alertHorizonDays ?? max(1, (int)env('HA_EXPIRY_DAYS', '3'));
+    try {
+        $today = new DateTimeImmutable('today');
+        $expDt = new DateTimeImmutable(substr($expiry, 0, 10));
+    } catch (Throwable $e) {
+        return false;
+    }
+    $daysRemaining = (int)$today->diff($expDt)->format('%r%a');
+    if (!empty($row['vacuum_sealed']) && $daysRemaining < 0) {
+        $daysRemaining += (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30');
+    }
+    if ($daysRemaining >= 0) {
+        return $daysRemaining <= $horizon;
+    }
+
+    $daysExpired = abs($daysRemaining);
+    $cat = mb_strtolower(trim((string)($row['category'] ?? '')));
+    $loc = mb_strtolower(trim((string)($row['location'] ?? '')));
+    $name = (string)($row['name'] ?? '');
+    if (function_exists('sanitizeProductCategory')) {
+        $cat = mb_strtolower(sanitizeProductCategory($cat, $name, (string)($row['brand'] ?? '')));
+    }
+
+    if ($loc === 'freezer') {
+        $bonus = match (true) {
+            in_array($cat, ['carne', 'pesce'], true) => 90,
+            in_array($cat, ['verdura', 'frutta'], true) => 180,
+            in_array($cat, ['latticini', 'pane'], true) => 60,
+            default => 120,
+        };
+        return ($daysExpired - $bonus) > 0;
+    }
+
+    if (in_array($cat, ['latticini', 'carne', 'pesce', 'verdura', 'frutta'], true)) {
+        return true;
+    }
+    if (in_array($cat, ['pane', 'surgelati'], true)) {
+        return true;
+    }
+    // Low-risk shelf-stable: silent while the UI still says "ok"
+    return $daysExpired > 30;
+}
+
+/** HA_WEBHOOK_EVENTS uses "expiry"; cron/notify fire "expiry_alert". */
+function evershelfHaEventAllowed(string $event, array $allowed): bool {
+    if (in_array($event, $allowed, true)) {
+        return true;
+    }
+    if ($event === 'expiry_alert' && in_array('expiry', $allowed, true)) {
+        return true;
+    }
+    if ($event === 'expiry' && in_array('expiry_alert', $allowed, true)) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * Fire an outbound webhook to Home Assistant.
  * Respects HA_ENABLED, HA_URL, HA_WEBHOOK_ID and HA_WEBHOOK_EVENTS.
  * Non-blocking: uses a 5 s cURL timeout; failures are logged but never thrown.
@@ -2455,7 +2534,7 @@ function _fireHaWebhook(string $event, array $data): void {
     if (!$haUrl || !$webhookId) return;
 
     $allowed = array_map('trim', explode(',', env('HA_WEBHOOK_EVENTS', 'expiry,shopping_add,stock_update,barcode_scan')));
-    if (!in_array($event, $allowed, true)) return;
+    if (!evershelfHaEventAllowed($event, $allowed)) return;
 
     $url     = $haUrl . '/api/webhook/' . urlencode($webhookId);
     $payload = json_encode(array_merge(['event' => $event, 'source' => 'evershelf', 'ts' => time()], $data), JSON_UNESCAPED_UNICODE);
@@ -2603,6 +2682,18 @@ function haInventorySensor(PDO $db): void {
                AND i.expiry_date < date('now')
              ORDER BY i.expiry_date ASC"
         )->fetchAll(PDO::FETCH_ASSOC);
+
+        // Same urgency rules as the EverShelf dashboard — no silent "best before" noise.
+        $expiringItems = array_values(array_filter(
+            $expiringItems,
+            static fn(array $r): bool => evershelfExpiryNeedsAttention($r, $expiryDays)
+        ));
+        $expiredItemsList = array_values(array_filter(
+            $expiredItemsList,
+            static fn(array $r): bool => evershelfExpiryNeedsAttention($r, $expiryDays)
+        ));
+        $expiring = count($expiringItems);
+        $expired = count($expiredItemsList);
 
         // Low-stock items (quantity <= 1 but > 0, full product info)
         $lowStockItemsList = $db->query(
@@ -6276,8 +6367,10 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
     // "Yogurt Fiori di latte". Cheap paths first — curated dictionary, then the
     // signature cache, then ONE cached AI word (lib/product_kind.php) — and never a
     // second prefix on a title that already carries a genre.
+    // When the user locked the title, never mutate the name (prefix stays off).
     $kind = (string)($existing['kind'] ?? '');
-    if (productKindPrefixEnabled()) {
+    $nameLocked = !empty($nameUserSet);
+    if (productKindPrefixEnabled() && !$nameLocked) {
         $applied = productKindApply($name, $brand, $category, $lang, true, $kind);
         if ($applied['kind'] !== '') {
             $kind = $applied['kind'];
@@ -6292,11 +6385,23 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
             ]);
             $name = $applied['name'];
         }
+    } elseif ($nameLocked && $kind === '') {
+        // Still learn the genre for filters, without rewriting the locked title.
+        $curated = productKindFromDictionary($name, $brand);
+        if ($curated['kind'] !== '') {
+            $kind = $curated['kind'];
+        }
     }
 
-    $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
-        ? (string)$input['shopping_name']
-        : computeShoppingName($name, $category, $brand, true);
+    // Locked title owns the buyable word: ignore catalog/OFF shopping_name and
+    // recompute from the name the user chose (so "La sfogliata… piadine" → Piadina).
+    if ($nameLocked) {
+        $shoppingName = computeShoppingName($name, $category, $brand, false);
+    } else {
+        $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
+            ? (string)$input['shopping_name']
+            : computeShoppingName($name, $category, $brand, true);
+    }
 
     $fields = [
         'name'              => $name,
@@ -12428,6 +12533,12 @@ APPL;
 // ===== BRING! SHOPPING LIST INTEGRATION =====
 
 function bringAuth(): ?array {
+    // Hard gate: never contact getbring.com when shopping mode is internal,
+    // even if leftover BRING_EMAIL/PASSWORD sit in .env.
+    if (!isShoppingBringMode()) {
+        return null;
+    }
+
     $email = env('BRING_EMAIL');
     $password = env('BRING_PASSWORD');
     
@@ -12475,6 +12586,9 @@ function bringAuth(): ?array {
 }
 
 function bringRequest(string $method, string $url, ?string $body = null): ?array {
+    if (!isShoppingBringMode()) {
+        return null;
+    }
     $auth = bringAuth();
     if (!$auth) {
         EverLog::debug('bringRequest');
@@ -12807,12 +12921,16 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         return $curated['kind'];
     }
 
-    // 2. Bring! catalog back-translation: "Latte di Montagna" → "Milch" → "Latte"
-    $bringKey = italianToBring($name);
-    if ($bringKey !== $name) {
-        $italian = bringToItalian($bringKey);
-        if ($italian && mb_strtolower($italian) !== $lower) {
-            return $italian;
+    // 2. Bring! catalog back-translation — only when Bring mode is on.
+    //    With SHOPPING_MODE=internal the local dictionaries above are the only source;
+    //    otherwise leftover catalog mappings (Milch↔Latte) rewrite titles unexpectedly.
+    if (isShoppingBringMode()) {
+        $bringKey = italianToBring($name);
+        if ($bringKey !== $name) {
+            $italian = bringToItalian($bringKey);
+            if ($italian && mb_strtolower($italian) !== $lower) {
+                return $italian;
+            }
         }
     }
 
@@ -13944,6 +14062,12 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
 
     // Family = same shopping_name (fallback: this product only)
     $famIds = [(int)$productId];
+    $famRows = [[
+        'id' => (int)$productId,
+        'unit' => $unit,
+        'default_quantity' => $defQty,
+        'package_unit' => $pkgUnit,
+    ]];
     if ($generic !== '') {
         $fam = $db->prepare(
             "SELECT id, unit, default_quantity, package_unit FROM products
@@ -13953,9 +14077,9 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
         $famRows = $fam->fetchAll(PDO::FETCH_ASSOC);
         if ($famRows) {
             $famIds = array_map(static fn($r) => (int)$r['id'], $famRows);
-            // Prefer representative packaging from the heaviest-stock / matching unit row
+            // Prefer representative packaging from a conf row with a real package size
             foreach ($famRows as $fr) {
-                if (($fr['unit'] ?: 'pz') === 'conf' && (float)($fr['default_quantity'] ?? 0) > 0) {
+                if (($fr['unit'] ?: 'pz') === 'conf' && (float)($fr['default_quantity'] ?? 0) >= 20) {
                     $unit = (string)($fr['unit'] ?: $unit);
                     $defQty = (float)$fr['default_quantity'];
                     $pkgUnit = (string)($fr['package_unit'] ?? $pkgUnit);
@@ -13964,14 +14088,43 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
             }
         }
     }
+    $famById = [];
+    foreach ($famRows as $fr) {
+        $famById[(int)$fr['id']] = $fr;
+    }
+    $familyPack = shoppingFamilyPackSize($famRows);
+    $usePackMath = in_array(strtolower($unit), ['conf', 'pz'], true) && $familyPack >= 20.0;
 
     $placeholders = implode(',', array_fill(0, count($famIds), '?'));
+    // Per-product stock, converted to pack-equiv when the family is conf/pz.
     $stockStmt = $db->prepare(
-        "SELECT COALESCE(SUM(quantity),0) FROM inventory
-         WHERE product_id IN ($placeholders) AND quantity > 0"
+        "SELECT product_id, COALESCE(SUM(quantity),0) AS qty FROM inventory
+         WHERE product_id IN ($placeholders) AND quantity > 0
+         GROUP BY product_id"
     );
     $stockStmt->execute($famIds);
-    $familyQty = (float)$stockStmt->fetchColumn();
+    $familyQty = 0.0;
+    foreach ($stockStmt->fetchAll(PDO::FETCH_ASSOC) as $sr) {
+        $pid = (int)$sr['product_id'];
+        $q = (float)$sr['qty'];
+        $meta = $famById[$pid] ?? ['unit' => $unit, 'default_quantity' => $defQty, 'package_unit' => $pkgUnit];
+        $u = (string)($meta['unit'] ?: $unit);
+        $threshEarly = productQtyThreshold($u);
+        if ($q > 0 && $q <= $threshEarly) {
+            continue; // crumb
+        }
+        if ($usePackMath) {
+            $familyQty += shoppingQtyToConfPacks(
+                $q,
+                $u,
+                (float)($meta['default_quantity'] ?? 0),
+                (string)($meta['package_unit'] ?? ''),
+                $familyPack
+            );
+        } else {
+            $familyQty += $q;
+        }
+    }
     $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
 
     $planDays = smartDefaultPlanDays($db);
@@ -13985,7 +14138,8 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
     $periodNeed = 0.0;
     $hasHistory = false;
 
-    // Prefer smart-cache period_usage (already edible-capped when cache is fresh)
+    // Prefer smart-cache period_usage only when its unit matches the family unit —
+    // a stale cache entry in grams must not drive conf pack math.
     $si = findSmartItemForProduct(loadSmartShoppingCacheItems(), $productId);
     if ($si === null && $generic !== '') {
         foreach (loadSmartShoppingCacheItems() as $row) {
@@ -13996,51 +14150,71 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
         }
     }
     if ($si) {
-        if (!empty($si['edible_days'])) {
-            $qtyHorizon = max(1, (int)$si['edible_days']);
+        $siUnit = strtolower(trim((string)($si['unit'] ?? '')));
+        $unitOk = ($siUnit === '' || $siUnit === strtolower($unit)
+            || ($usePackMath && in_array($siUnit, ['conf', 'pz'], true)));
+        if ($unitOk) {
+            if (!empty($si['edible_days'])) {
+                $qtyHorizon = max(1, (int)$si['edible_days']);
+            }
+            $periodNeed = (float)($si['period_usage'] ?? 0);
+            if ($periodNeed <= 0 && (float)($si['monthly_usage'] ?? 0) > 0) {
+                $periodNeed = (float)$si['monthly_usage'] * ($qtyHorizon / 30.0);
+            }
+            if ($periodNeed <= 0 && (float)($si['daily_rate'] ?? 0) > 0) {
+                $periodNeed = (float)$si['daily_rate'] * $qtyHorizon;
+            }
+            // Gram rates on a conf family → pack-equiv
+            if ($usePackMath && in_array($siUnit, ['g', 'ml', 'kg', 'l', 'lt'], true) && $periodNeed > 0) {
+                $periodNeed = shoppingQtyToConfPacks($periodNeed, $siUnit, $defQty, $pkgUnit, $familyPack);
+            }
+            $hasHistory = $periodNeed > 0.001
+                || (int)($si['use_count'] ?? 0) > 0
+                || (float)($si['monthly_usage'] ?? 0) > 0;
+            if ((float)($si['default_qty'] ?? 0) >= 20) {
+                $defQty = (float)$si['default_qty'];
+            }
+            if (($si['package_unit'] ?? '') !== '') {
+                $pkgUnit = (string)$si['package_unit'];
+            }
         }
-        $periodNeed = (float)($si['period_usage'] ?? 0);
-        if ($periodNeed <= 0 && (float)($si['monthly_usage'] ?? 0) > 0) {
-            $periodNeed = (float)$si['monthly_usage'] * ($qtyHorizon / 30.0);
-        }
-        if ($periodNeed <= 0 && (float)($si['daily_rate'] ?? 0) > 0) {
-            $periodNeed = (float)$si['daily_rate'] * $qtyHorizon;
-        }
-        $hasHistory = $periodNeed > 0.001
-            || (int)($si['use_count'] ?? 0) > 0
-            || (float)($si['monthly_usage'] ?? 0) > 0;
-        if (($si['unit'] ?? '') !== '') {
-            $unit = (string)$si['unit'];
-        }
-        if ((float)($si['default_qty'] ?? 0) > 0) {
-            $defQty = (float)$si['default_qty'];
-        }
-        if (($si['package_unit'] ?? '') !== '') {
-            $pkgUnit = (string)$si['package_unit'];
-        }
-        $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
     }
 
     if ($periodNeed <= 0.001) {
         $txReal = shoppingTxNotMoveNotesSql('notes');
+        // Per-product TX so mixed g/conf rows convert before summing.
         $txStmt = $db->prepare(
-            "SELECT
+            "SELECT product_id,
                 COALESCE(SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
                     AND datetime(created_at) >= datetime('now','-30 days') THEN quantity ELSE 0 END),0) AS used_30d,
                 COALESCE(SUM(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal}
                     AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now','-1 month')
                     THEN quantity ELSE 0 END),0) AS used_prev_month,
                 COUNT(CASE WHEN type IN ('out','waste') AND undone=0 AND {$txReal} THEN 1 END) AS use_count
-             FROM transactions WHERE product_id IN ($placeholders)"
+             FROM transactions WHERE product_id IN ($placeholders)
+             GROUP BY product_id"
         );
         $txStmt->execute($famIds);
-        $tx = $txStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        $daily = 0.0;
-        $used30 = (float)($tx['used_30d'] ?? 0);
-        $usedPrev = (float)($tx['used_prev_month'] ?? 0);
-        if ($used30 > 0) {
-            $daily = $used30 / 30.0;
+        $used30 = 0.0;
+        $usedPrev = 0.0;
+        $useCount = 0;
+        foreach ($txStmt->fetchAll(PDO::FETCH_ASSOC) as $tr) {
+            $pid = (int)$tr['product_id'];
+            $meta = $famById[$pid] ?? ['unit' => $unit, 'default_quantity' => $defQty, 'package_unit' => $pkgUnit];
+            $u = (string)($meta['unit'] ?: $unit);
+            $d = (float)($meta['default_quantity'] ?? 0);
+            $pu = (string)($meta['package_unit'] ?? '');
+            $u30 = (float)$tr['used_30d'];
+            $uPrev = (float)$tr['used_prev_month'];
+            if ($usePackMath) {
+                $u30 = shoppingQtyToConfPacks($u30, $u, $d, $pu, $familyPack);
+                $uPrev = shoppingQtyToConfPacks($uPrev, $u, $d, $pu, $familyPack);
+            }
+            $used30 += $u30;
+            $usedPrev += $uPrev;
+            $useCount += (int)$tr['use_count'];
         }
+        $daily = $used30 > 0 ? $used30 / 30.0 : 0.0;
         $monthlyMeta = smartMonthlyConsumptionNeed(
             ['used_prev_month' => $usedPrev, 'used_30d' => $used30],
             $daily
@@ -14054,20 +14228,23 @@ function shoppingEvaluateFamilyRestock(PDO $db, int $productId): array {
             $unit
         );
         $periodNeed = (float)$periodMeta['amount'];
-        $hasHistory = $periodNeed > 0.001 || (int)($tx['use_count'] ?? 0) > 0;
+        $hasHistory = $periodNeed > 0.001 || $useCount > 0;
     }
 
+    // Cap absurd period needs (biscuits → hundreds of packs) before gap math.
+    $periodNeed = smartCapPeriodNeed($periodNeed, $unit, $defQty, $pkgUnit, $qtyHorizon);
+    $stockBase = smartStockBaseForGap($familyQty, $unit, $defQty, $pkgUnit);
     $needBase = max(0.0, $periodNeed - $stockBase);
     $suggestedQty = null;
     $suggestedUnit = $unit;
     if ($needBase > 0.001) {
         if ($unit === 'conf') {
-            [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit, 24);
+            [$suggestedQty, $suggestedUnit] = smartSuggestedConfQty($needBase, $defQty, $pkgUnit, SHOPPING_GUARD_MAX_CONF_PACKS);
         } elseif ($unit === 'pz') {
             $suggestedQty = (float) max(1, min(smartMaxSuggestedPieces($qtyHorizon), smartCeilDiscreteQty($needBase)));
             $suggestedUnit = 'pz';
         } elseif (($unit === 'g' || $unit === 'ml') && $defQty > 0) {
-            $pkgs = max(1, min(24, (int) ceil($needBase / $defQty)));
+            $pkgs = max(1, min(SHOPPING_GUARD_MAX_CONF_PACKS, (int) ceil($needBase / $defQty)));
             $suggestedQty = (float) ($pkgs * $defQty);
             $suggestedUnit = $unit;
         } else {
@@ -15913,14 +16090,24 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
             fn($t) => mb_strlen($t) > 2 && !in_array($t, $stop)
         ));
     };
-    $pTokens = $tokenize($productName);
-    if (empty($pTokens)) return false;
-    $pFirst = $pTokens[0];
-    foreach (array_keys($bringItems) as $bKey) {
-        $bTokens = $tokenize($bKey);
-        if (empty($bTokens)) continue;
-        // First token of product must equal first token of Bring item
-        if ($bTokens[0] === $pFirst) return true;
+    // Prefer the buyable generic's first token ("Salsiccia") over a long product title
+    // ("Sugo … con salsiccia") so list row "Salsiccia" marks the suggestion on_bring.
+    $probeNames = array_values(array_filter([$shoppingName, $productName], static fn($s) => trim((string)$s) !== ''));
+    foreach ($probeNames as $probe) {
+        $pTokens = $tokenize($probe);
+        if (empty($pTokens)) {
+            continue;
+        }
+        $pFirst = $pTokens[0];
+        foreach (array_keys($bringItems) as $bKey) {
+            $bTokens = $tokenize($bKey);
+            if (empty($bTokens)) {
+                continue;
+            }
+            if ($bTokens[0] === $pFirst) {
+                return true;
+            }
+        }
     }
     return false;
 }
@@ -16262,8 +16449,9 @@ function smartItemStockCoversNeed(float $freshQty, float $periodNeed, float $day
  *
  * @return array{0:float,1:string}
  */
-function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, int $maxPkgs = 24): array {
+function smartSuggestedConfQty(float $needBase, float $defQty, string $pkgUnit, int $maxPkgs = SHOPPING_GUARD_MAX_CONF_PACKS): array {
     $qty = smartCeilDiscreteQty($needBase);
+    $maxPkgs = max(1, min(SHOPPING_GUARD_MAX_CONF_PACKS, $maxPkgs));
     return [(float) max(1, min($maxPkgs, $qty)), 'conf'];
 }
 
@@ -16346,20 +16534,50 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $txData[$tx['product_id']] = $tx;
     }
 
-    // 4. Fetch current Bring! list to know what's already there
+    // 4. Fetch current shopping list to know what's already there.
+    // Bring! when that mode is on; always also merge the internal shopping_list so
+    // SHOPPING_MODE=internal (or a stale Bring session) still marks on_bring and
+    // does not re-suggest Pelati/Olive/… that are already on Spesa.
     $bringItems = [];
     try {
-        $auth = bringAuth();
-        if ($auth) {
-            $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$auth['bringListUUID']}");
-            if ($listData && isset($listData['purchase'])) {
-                foreach ($listData['purchase'] as $bi) {
-                    $bringItems[mb_strtolower(bringToItalian($bi['name'] ?? ''))] = true;
-                    $bringItems[mb_strtolower($bi['name'] ?? '')] = true;
+        if (isShoppingBringMode()) {
+            $auth = bringAuth();
+            if ($auth) {
+                $listData = bringRequest('GET', "https://api.getbring.com/rest/v2/bringlists/{$auth['bringListUUID']}");
+                if ($listData && isset($listData['purchase'])) {
+                    foreach ($listData['purchase'] as $bi) {
+                        $bringItems[mb_strtolower(bringToItalian($bi['name'] ?? ''))] = true;
+                        $bringItems[mb_strtolower($bi['name'] ?? '')] = true;
+                    }
                 }
             }
         }
     } catch (Exception $e) { /* ignore */ }
+
+    try {
+        foreach ($db->query('SELECT name, raw_name FROM shopping_list') as $row) {
+            $n = trim((string)($row['name'] ?? ''));
+            $r = trim((string)($row['raw_name'] ?? ''));
+            if ($n !== '') {
+                $bringItems[mb_strtolower($n)] = true;
+                $gk = internalShoppingListGenericKey($db, $n, $r);
+                if ($gk !== '') {
+                    $bringItems[mb_strtolower($gk)] = true;
+                }
+                $cn = computeShoppingName($n, '', '', false);
+                if ($cn !== '') {
+                    $bringItems[mb_strtolower($cn)] = true;
+                }
+            }
+            if ($r !== '' && mb_strtolower($r) !== mb_strtolower($n)) {
+                $bringItems[mb_strtolower($r)] = true;
+                $cn = computeShoppingName($r, '', '', false);
+                if ($cn !== '') {
+                    $bringItems[mb_strtolower($cn)] = true;
+                }
+            }
+        }
+    } catch (Throwable $e) { /* ignore */ }
 
     // 4b. Build stockByShoppingName: normalized generic name → total qty.
     // And freshStockByShoppingName: same but only counting non-expired batches.
@@ -16786,7 +17004,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // The check is gated on a fresh-produce category, so a jar of dried
         // oregano named after a plant and frozen/canned forms (excluded by
         // seasonalIsPreserved) keep being suggested all year.
-        if (seasonalProduceOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))) {
+        if (seasonalShoppingItemOutOfSeason((string)$p['name'], (string)($p['category'] ?? ''))) {
             $skippedOutOfSeason[] = (string)$p['name'];
             continue;
         }
@@ -17135,10 +17353,10 @@ function bringSuggestItems(PDO $db): void {
         $smartItems = $data['items'] ?? [];
     }
 
-    // 2. Get Bring! listUUID for response
-    $listUUID = '';
-    $auth = bringAuth();
-    if ($auth) $listUUID = $auth['bringListUUID'] ?? '';
+    // 2. List UUID for the client — Bring only when that mode is on.
+    $listUUID = isShoppingBringMode()
+        ? (string)((bringAuth()['bringListUUID'] ?? '') ?: '')
+        : 'internal-list';
 
     // 3. Convert smart shopping items → suggestions (alta/media priority only, skip on_bring)
     $suggestions = [];
@@ -17452,6 +17670,12 @@ function internalShoppingPruneCovered(PDO $db): array {
     foreach ($rows as $row) {
         $listName = (string)$row['name'];
         $listRaw  = (string)($row['raw_name'] ?? '');
+        if (seasonalShoppingItemOutOfSeason($listName)
+            || ($listRaw !== '' && seasonalShoppingItemOutOfSeason($listRaw))) {
+            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+            $removed++;
+            continue;
+        }
         $bestPid  = null;
         foreach ($prods as $p) {
             if (!shoppingListRowMatchesProduct($db, $listName, $listRaw, (string)$p['name'], (string)($p['shopping_name'] ?? ''))) {

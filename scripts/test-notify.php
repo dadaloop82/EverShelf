@@ -118,6 +118,31 @@ assert_same('Farina: 3', $m4, 'stock_update message trims a trailing zero in the
 [$t5, $m5] = evershelfNotifyFormatEvent('something_new', ['a' => 1], 'en');
 assert_true($t5 !== '' && str_contains($m5, 'something_new'), 'unknown event falls back to the raw payload');
 
+// HA settings store "expiry"; cron fires "expiry_alert" — both must pass the gate.
+assert_true(evershelfHaEventAllowed('expiry_alert', ['expiry', 'shopping_add']), 'HA gate: expiry_alert aliases expiry');
+assert_true(evershelfHaEventAllowed('expiry', ['expiry_alert']), 'HA gate: expiry aliases expiry_alert');
+assert_true(!evershelfHaEventAllowed('stock_update', ['expiry']), 'HA gate: unrelated event stays out');
+
+// Dashboard-parity: low-risk best-before leftovers must not alert HA.
+$flour = [
+    'name' => 'farina integrale', 'brand' => '', 'category' => 'cereali', 'unit' => 'conf',
+    'quantity' => 1, 'location' => 'dispensa', 'expiry_date' => date('Y-m-d', strtotime('-7 days')),
+    'vacuum_sealed' => 0, 'default_quantity' => 1, 'package_unit' => '',
+];
+assert_true(!evershelfExpiryNeedsAttention($flour, 3), 'expiry attention: flour 7d past best-before is silent');
+$milk = [
+    'name' => 'Latte fresco', 'brand' => '', 'category' => 'latticini', 'unit' => 'conf',
+    'quantity' => 1, 'location' => 'frigo', 'expiry_date' => date('Y-m-d', strtotime('-1 days')),
+    'vacuum_sealed' => 0, 'default_quantity' => 1, 'package_unit' => 'l',
+];
+assert_true(evershelfExpiryNeedsAttention($milk, 3), 'expiry attention: milk 1d past still alerts');
+$soon = [
+    'name' => 'Yogurt', 'brand' => '', 'category' => 'latticini', 'unit' => 'conf',
+    'quantity' => 1, 'location' => 'frigo', 'expiry_date' => date('Y-m-d', strtotime('+2 days')),
+    'vacuum_sealed' => 0, 'default_quantity' => 1, 'package_unit' => 'g',
+];
+assert_true(evershelfExpiryNeedsAttention($soon, 3), 'expiry attention: yoghurt in 2 days is inside the horizon');
+
 // ── Configuration probe ────────────────────────────────────────────────────
 $configured = evershelfNotifyConfigured();
 assert_same(['ntfy', 'webhook', 'ha', 'webpush'], array_keys($configured), 'configured(): reports ntfy/webhook/ha/webpush');
