@@ -1110,6 +1110,9 @@ try {
         case 'shopping_remove':
             shoppingRemove($db);
             break;
+        case 'shopping_trip_complete':
+            shoppingTripComplete($db);
+            break;
         case 'shopping_suggest':
             bringSuggestItems($db);
             break;
@@ -17676,6 +17679,34 @@ function shoppingRemove(PDO $db): void {
     }
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     shoppingRemoveInternal($db, $input);
+}
+
+/** Clear the internal shopping list after a trip; blocklist rows until depleted again. */
+function shoppingTripComplete(PDO $db): void {
+    if (isShoppingBringMode()) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'bring_mode']);
+        return;
+    }
+    $rows = $db->query('SELECT name, raw_name FROM shopping_list')->fetchAll(PDO::FETCH_ASSOC);
+    $names = [];
+    foreach ($rows as $row) {
+        $n = trim((string)($row['name'] ?? ''));
+        if ($n !== '') {
+            $names[] = $n;
+        }
+        $raw = trim((string)($row['raw_name'] ?? ''));
+        if ($raw !== '' && strcasecmp($raw, $n) !== 0) {
+            $names[] = $raw;
+        }
+    }
+    $db->exec('DELETE FROM shopping_list');
+    if ($names !== []) {
+        bringMarkPurchased($db, $names);
+    }
+    @unlink(__DIR__ . '/../data/smart_shopping_cache.json');
+    _fireHaWebhook('shopping_trip_complete', ['cleared' => count($rows), 'names' => array_slice($names, 0, 40)]);
+    echo json_encode(['success' => true, 'cleared' => count($rows)], JSON_UNESCAPED_UNICODE);
 }
 
 /** Seasonal produce review for the current shopping list (IT calendar, free data). */
