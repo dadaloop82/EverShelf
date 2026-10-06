@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005k'; // bump when translations change
+const _I18N_VERSION = '20261005l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6586,24 +6586,30 @@ function _applyInsightPhase() {
         if (trendEl)     trendEl.style.display     = phase === 'trend'     ? 'block' : 'none';
         requestAnimationFrame(() => {
             els.forEach(el => { el.style.opacity = '1'; });
-            if (showNutr) {
+            // Every bar is rendered at 0% and carries the target in data-target, so
+            // the CSS transition animates it in when its panel is revealed: fill the
+            // panel of the phase we are showing. These branches used to test the
+            // showNutr/showMonthly/showMacros/showSpend flags, until a refactor deleted
+            // the declarations and left the references behind — the ReferenceError
+            // thrown here silently left every dashboard chart empty.
+            if (phase === 'nutrition') {
                 nutrEl.querySelectorAll('.nutr-score-fill').forEach(bar => {
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showMonthly && monthlyEl) {
+            if (phase === 'monthly' && monthlyEl) {
                 monthlyEl.querySelectorAll('.ms-cat-bar').forEach(bar => {
                     bar.style.transition = 'width 0.6s ease';
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showMacros && macrosEl) {
+            if (phase === 'macros' && macrosEl) {
                 macrosEl.querySelectorAll('.macro-bar-fill').forEach(bar => {
                     bar.style.transition = 'width 0.6s ease';
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showSpend && spendEl) {
+            if (phase === 'spend' && spendEl) {
                 spendEl.querySelectorAll('.spend-bar-fill').forEach(bar => {
                     bar.style.height = (bar.dataset.target || 0) + '%';
                 });
@@ -7635,7 +7641,9 @@ function renderBannerItem() {
             const totalSub = Math.round(parseFloat(item.quantity) * parseFloat(item.default_quantity));
             qtyDisplay = `${totalSub} ${item.package_unit}`;
         } else {
-            qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: this banner is written with textContent below (titleEl/detailEl), so
+            // the <span class="conf-size-info"> that formatQuantity() can add must not reach it.
+            qtyDisplay = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
         }
         const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
         const isLow  = !!item._isLow; // set when banner item was built
@@ -9525,8 +9533,11 @@ function showInvActionChooser(productId, location, invId) {
     const img = item?.image_url || '';
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
     const locInfo = LOCATIONS[location] || { icon: '📦', label: location };
+    // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
+    // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
+    // "conf" units would be printed as a literal tag instead of a quantity.
     const qtyLabel = item
-        ? formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)
+        ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
         : '';
 
     document.getElementById('modal-content').innerHTML = `
@@ -10245,7 +10256,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10255,7 +10266,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261005l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -24950,7 +24961,10 @@ function generateScreensaverFact() {
         });
         facts.push(() => {
             const item = rItem(inv);
-            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: the screensaver prints the fact with textContent, so the
+            // <span class="conf-size-info"> that formatQuantity() adds for "conf" units
+            // would be shown as a literal tag. Use the text-only formatter.
+            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
             return t('facts.item_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
@@ -24973,7 +24987,8 @@ function generateScreensaverFact() {
     if (highQtyItems.length > 0) {
         facts.push(() => {
             const item = rItem(highQtyItems);
-            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: same reason as facts.item_qty above — never feed markup to textContent.
+            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
             return t('facts.high_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
