@@ -14050,8 +14050,14 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
         if ($newBit !== '') {
             $spec = $spec !== '' ? ($spec . ' · ' . $newBit) : $newBit;
         }
-        $db->prepare("UPDATE shopping_list SET specification=? WHERE id=?")
-            ->execute([dedupeBringSpec($spec), (int)$row['id']]);
+        $db->prepare(
+            'UPDATE shopping_list SET specification=?, need_qty=?, need_unit=? WHERE id=?'
+        )->execute([
+            dedupeBringSpec($spec),
+            (float)$eval['suggested_qty'],
+            (string)($eval['suggested_unit'] ?? 'conf'),
+            (int)$row['id'],
+        ]);
         break;
     }
 }
