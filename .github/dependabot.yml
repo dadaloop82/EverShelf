@@ -31,6 +31,9 @@ updates:
       - "dependencies"
 
   # Android Gradle dependencies
+  # Keep ignores in sync with evershelf-*/app/build.gradle.kts comments:
+  # Kotlin 2.4 + AGP 8.5.2 + compileSdk 35 cannot take core-ktx ≥1.16,
+  # Health Connect 1.2.x, or Gradle 9 / AGP 9 without a coordinated upgrade.
   - package-ecosystem: "gradle"
     directory: "/evershelf-kiosk"
     schedule:
@@ -39,6 +42,15 @@ updates:
       prefix: "deps"
     labels:
       - "dependencies"
+    ignore:
+      - dependency-name: "androidx.core:core-ktx"
+        versions: [">=1.16.0"]
+      - dependency-name: "org.jetbrains.kotlin.android"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.android.application"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "gradle"
+        versions: [">=9.0.0"]
 
   - package-ecosystem: "gradle"
     directory: "/evershelf-health-bridge"
@@ -48,3 +60,14 @@ updates:
       prefix: "deps"
     labels:
       - "dependencies"
+    ignore:
+      - dependency-name: "androidx.core:core-ktx"
+        versions: [">=1.16.0"]
+      - dependency-name: "androidx.health.connect:connect-client"
+        versions: [">=1.2.0-alpha01"]
+      - dependency-name: "org.jetbrains.kotlin.android"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.android.application"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "gradle"
+        versions: [">=9.0.0"]
