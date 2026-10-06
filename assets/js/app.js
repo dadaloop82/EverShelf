@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261005n'; // bump when translations change
+const _I18N_VERSION = '20261006a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8802,7 +8802,7 @@ function renderInventoryItem(item, opts = {}) {
                 ${thumb}
             </div>
             <div class="inv-info">
-                <div class="inv-name">${escapeHtml(item.name)}</div>
+                <div class="inv-name">${escapeHtml(item.display_name || item.name)}</div>
                 ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
                 <div class="inv-meta">
                     <span class="inv-badge badge-location">${locInfo.icon} ${locInfo.label}</span>
@@ -10318,7 +10318,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261005n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10328,7 +10328,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261005n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261006a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

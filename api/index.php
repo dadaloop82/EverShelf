@@ -4445,7 +4445,7 @@ function listInventory(PDO $db): void {
     $includeDepleted = !empty($_GET['include_depleted']) || !empty($_GET['for_recipe']);
     $query = "
         SELECT i.*, p.name, p.brand, p.category, p.image_url, p.unit, p.barcode, p.default_quantity, p.package_unit,
-               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name,
+               COALESCE(i.vacuum_sealed, 0) as vacuum_sealed, i.opened_at, p.shopping_name, COALESCE(p.kind, '') as kind,
                COALESCE(p.is_favorite, 0) as is_favorite
         FROM inventory i
         JOIN products p ON i.product_id = p.id
@@ -4463,6 +4463,19 @@ function listInventory(PDO $db): void {
     if (!$includeDepleted) {
         $rows = array_values(array_filter($rows, fn(array $r): bool => !isInventoryDepleted($r)));
     }
+    // The pantry list reads what is really on the shelf: "3 Mele", "12 Uova" — while the
+    // stored title (p.name) stays the SINGULAR of the article ("Mela", "Uovo"), which is
+    // what the catalog, the search and the maintenance pass must always see. Only piece
+    // rows are pluralised: "500 g Pasta" is a mass and never becomes "500 g Paste".
+    foreach ($rows as &$row) {
+        $row['display_name'] = productNameForPieces(
+            (string)$row['name'],
+            (float)$row['quantity'],
+            (string)($row['unit'] ?? ''),
+            (string)($row['kind'] ?? '')
+        );
+    }
+    unset($row);
     EverLog::debug('inventory_list fetched', [
         'rows' => count($rows),
         'location' => $location ?: 'all',
@@ -4501,7 +4514,12 @@ function productToggleFavorite(PDO $db): void {
  *
  *   * titles that still miss their genre get it ("Fiori di latte" → "Yogurt Fiori di
  *     latte") through the same dictionary → cache → one-word-AI pipeline used on save,
+ *   * the titles are brought to the singular sentence case the rest of the list speaks
+ *     ("Fette biscottate Integrali" → "Fetta biscottata integrale"),
  *   * the products consumed AUTO_FAVORITE_MIN_USES times are promoted to favourites.
+ *
+ * `products.shopping_name` — the buyable word of the list/Bring! — is left untouched:
+ * it is not a title (see the comment on the UPDATE below).
  *
  * Body: { dry_run?: bool, lang?: string } — dry_run reports what would change and
  * writes nothing.
@@ -4513,7 +4531,7 @@ function applyAutoProductRules(PDO $db): void {
     $lang   = productKindNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
 
     $rows = $db->query(
-        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind FROM products ORDER BY id"
+        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind, COALESCE(shopping_name, '') AS shopping_name FROM products ORDER BY id"
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $update  = $db->prepare(
@@ -4543,10 +4561,19 @@ function applyAutoProductRules(PDO $db): void {
             }
         }
         if (!$dryRun) {
+            // The buyable word of the list is NOT a title: this pass renames titles, so it
+            // hands back the word the app already derived. A plural buyable word ("Grissini",
+            // "Piselli", "Fette biscottate") must not lose its number just because the title
+            // did: the shopping list buys "Grissini", never one "Grissino". The column is
+            // historical on purpose — only a product that never got one is given its word here.
+            $shopping = trim((string)$row['shopping_name']);
+            if ($shopping === '') {
+                $shopping = computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false);
+            }
             $update->execute([
                 $newName,
                 $newKind,
-                computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false),
+                $shopping,
                 (int)$row['id'],
             ]);
         }

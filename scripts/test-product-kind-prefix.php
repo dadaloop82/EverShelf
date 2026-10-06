@@ -161,46 +161,92 @@ if (is_file($liveDb)) {
     }
 }
 
-// ── The pipeline prefixes, and reports where the genre came from ────────────
+// ── The pipeline prefixes, brings the title to the singular, and reports the source ──
 $applied = productKindApply('Fette biscottate integrali', 'Mulino Bianco', 'pane', 'it', false, 'Fette biscottate');
-assert_same('Fette biscottate integrali', $applied['name'], 'pipeline: a title already led by its genre is not touched');
+assert_same('Fetta biscottata integrale', $applied['name'], 'pipeline: a title led by its genre is not prefixed again, only brought to the singular');
 assert_same('existing', $applied['source'], 'pipeline: the short-circuit is reported');
-assert_same('Fette biscottate', $applied['kind'], 'pipeline: the genre already stored on the product is carried over');
-assert_same('', productKindApply('Fette biscottate integrali', 'Mulino Bianco', 'pane', 'it', false)['kind'],
-    'pipeline: without a stored genre the short-circuit reports none');
+assert_same('Fetta biscottata', $applied['kind'], 'pipeline: the genre already stored on the product is carried over (in its singular form)');
+assert_same('Fetta biscottata', productKindApply('Fette biscottate integrali', 'Mulino Bianco', 'pane', 'it', false)['kind'],
+    'pipeline: without a stored genre the dictionary still names the genre — a title that already leads with it is never left without one');
 
 $fresh = productKindApply('Orecchiette', 'De Cecco', 'pasta', 'it', false);
 assert_same('Pasta', $fresh['kind'], 'pipeline: dictionary still finds a genre with the AI switched off');
-assert_same('Pasta Orecchiette', $fresh['name'], 'pipeline: the resolved genre leads the title');
+assert_same('Pasta orecchiette', $fresh['name'], 'pipeline: the resolved genre leads the title');
 assert_same($fresh['name'], productKindApply($fresh['name'], 'De Cecco', 'pasta', 'it', false, $fresh['kind'])['name'],
     'pipeline: re-running it changes nothing');
 
 // A title that already says "pomodoro" must not become "Pomodori Bucce cotte di pomodoro":
-// the genre is there, only the number differs.
+// the genre is there, only the number differs. And because this title does NOT lead with the
+// genre, the stored genre keeps the dictionary's own form — narrowing it would store a word
+// the title never had ("Bucce cotte di Pelato").
 $redundant = productKindApply('Bucce cotte di pomodoro xyzq', 'Rossi', 'verdura', 'it', false);
 assert_same('Pomodori', $redundant['kind'], 'pipeline: the weak dictionary still reports the genre');
-assert_same('Bucce cotte di pomodoro xyzq', $redundant['name'], 'pipeline: …but a singular/plural genre is not prefixed again');
+assert_same('Bucce cotte di pomodoro xyzq', $redundant['name'], 'pipeline: …but a genre already worded in the title is not prefixed again');
+// A genre that DOES lead the title is the genre of that title, and is stored singular.
+assert_same('Carota', productKindApply('Carote baby xyzq', 'Bonduelle', 'verdura', 'it', false)['kind'],
+    'pipeline: a genre leading the title is stored in its singular form');
+assert_same('Carota baby xyzq', productKindApply('Carote baby xyzq', 'Bonduelle', 'verdura', 'it', false)['name'],
+    'pipeline: …and the title itself is brought to the singular');
 
 // The genre stored on the product freezes the title, even when the dictionary would now
 // suggest a broader genre for the same word (its own "toast" → "Pane"): a real run of the
 // maintenance pass must be the last word on the title, or every pass would drift it.
 $frozen = productKindApply('Toast Sandwich American Style', 'Xyz', 'pane', 'it', false, 'Toast');
-assert_same('Toast Sandwich American Style', $frozen['name'], 'pipeline: a stored genre leading the title is not overwritten');
+assert_same('Toast sandwich american style', $frozen['name'], 'pipeline: a stored genre leading the title is not overwritten (the sentence case still applies)');
 assert_same('Toast', $frozen['kind'], 'pipeline: …and the stored genre is kept');
 assert_same('existing', $frozen['source'], 'pipeline: …and reported as already present');
 
-// ── Every title opens with a capital letter (and only one letter is raised) ──
+// ── Every title opens with a capital letter and keeps no other (sentence case) ──
 assert_same('Latte fresco', productTitleCapitalize('latte fresco'), 'capital: a lowercase title is raised');
-assert_same('Yogurt Fiori di latte', productTitleCapitalize('yogurt Fiori di latte'), 'capital: only the first letter is touched');
+assert_same('Latte fresco', productTitleCapitalize('LATTE FRESCO'), 'case: the rest of the title is lowered');
+assert_same('Yogurt fiori di latte', productTitleCapitalize('yogurt Fiori di latte'), 'case: only the first letter keeps a capital');
 assert_same('Latte fresco', productTitleCapitalize('Latte fresco'), 'capital: an already correct title is left alone');
 assert_same('Latte fresco', productTitleCapitalize('  latte fresco  '), 'capital: surrounding spaces are trimmed');
 assert_same('È pronto', productTitleCapitalize('è pronto'), 'capital: accents are raised in UTF-8 (è → È)');
-assert_same('IPhone 15', productTitleCapitalize('iPhone 15'), 'capital: the rule is mechanical — a brand spelling loses its lowercase first letter too');
-assert_same('NUTELLA', productTitleCapitalize('NUTELLA'), 'capital: the rest of the title keeps its own case');
+assert_same('Iphone 15', productTitleCapitalize('iPhone 15'), 'case: the rule is mechanical — a brand spelling loses its lowercase first letter too');
+assert_same('Nutella', productTitleCapitalize('NUTELLA'), 'case: a shouting brand is tamed like any other word');
 assert_same('3 mele', productTitleCapitalize('3 mele'), 'capital: a title opening with a digit is left alone (no letter to raise)');
+assert_same('6 UOVA PASTA GIALLA', productTitleCapitalize('6 UOVA PASTA GIALLA'), 'case: a title with no first letter is not rewritten at all');
 assert_same('🍎 mela', productTitleCapitalize('🍎 mela'), 'capital: a title opening with an emoji is left alone');
 assert_same('', productTitleCapitalize('   '), 'capital: an empty title stays empty');
 assert_same('Latte fresco', productTitleCapitalize(productTitleCapitalize('latte fresco')), 'capital: idempotent (the pass can replay it)');
+// …but a sigla keeps its capitals, or a whole pantry of IGP/DOP files would be wrecked.
+assert_same('Aceto balsamico di modena IGP', productTitleCapitalize('Aceto Balsamico di Modena IGP'),
+    'case: a sigla keeps its capitals (IGP); a place name is a word like any other and is lowered');
+assert_same('Mozzarella di bufala DOP', productTitleCapitalize('MOZZARELLA DI BUFALA DOP'),
+    'case: DOP survives the lowercasing');
+assert_same('Olio EVO XYZ', productTitleCapitalize('OLIO EVO XYZ'),
+    'case: an all-caps token the vocabulary does not know is read as a sigla and kept (EVO, XYZ)');
+assert_same('Bio uova', productTitleCapitalize('BIO uova'), 'case: "BIO" is a word, not a sigla — it goes to lowercase like everything else');
+assert_same('Uova pasta', productTitleCapitalize('UOVA PASTA'), 'case: "UOVA"/"PASTA" are words of the vocabulary, not sigle');
+assert_same('Aceto balsamico di modena IGP', productTitleCapitalize('aceto balsamico di modena I.G.P'),
+    'case: a sigla is written back in its canonical capitals (I.G.P → IGP)');
+assert_same('Aceto balsamico di modena IGP', productTitleCapitalize('aceto balsamico di modena Igp'),
+    'case: …even when the user typed it in mixed case');
+assert_same('Mozzarella (DOP)', productTitleCapitalize('Mozzarella (DOP)'),
+    'case: the brackets the user typed around a sigla stay where they are');
+assert_same('Marmellata di &quot;limone di siracusa IGP&quot;',
+    productTitleCapitalize('Marmellata di &quot;Limone di Siracusa I.G.P.&quot;'),
+    'case: HTML entities in a title survive, and the sigla inside them is still canonical');
+
+// ── The stored title is the singular, and only the head brings its adjectives along ──
+assert_same('Uovo', productKindApply('Uova', '', '', 'it', false)['name'], 'singular: a bare plural title is stored singular');
+assert_same('Uovo fresco grande', productKindApply('Uova Fresche Grandi', '', '', 'it', false)['name'],
+    'singular: the adjectives right after the genre follow it');
+assert_same('Biscotto macine con panna fresca', productKindApply('Biscotti Macine con Panna Fresca', '', '', 'it', false)['name'],
+    'singular: …but an adjective further along belongs to another noun and stays put ("panna fresco" would be wrong)');
+assert_same('Carota baby', productKindApply('carote baby', '', '', 'it', false)['name'],
+    'singular: …and a variety name is never inflected');
+assert_same('«Carota» baby', productKindApply('«Carote» baby', '', '', 'it', false)['name'],
+    'singular: the punctuation around the genre travels with it');
+assert_same('6 UOVA PASTA GIALLA', productKindApply('6 UOVA PASTA GIALLA', '', '', 'it', false)['name'],
+    'singular: a title opening with a quantity is left alone (the number must not move behind the genre)');
+assert_same('Uova medie', productNameForPieces('Uovo medio', 6, 'pz', 'Uovo'),
+    'plural: the list derives the plural of the singular title back');
+assert_same('Uova fresche grandi', productNameForPieces('Uovo fresco grande', 6, 'pz', 'Uovo'),
+    'plural: …with the agreeing adjectives');
+assert_same('6 UOVA PASTA GIALLA', productNameForPieces('6 UOVA PASTA GIALLA', 6, 'pz', 'Uovo'),
+    'plural: …and a quantity-led title is never rewritten either');
 
 // The pipeline capitalizes as well, so a save and the maintenance pass agree…
 assert_same('Pasta orecchiette', productKindApply('orecchiette', 'De Cecco', 'pasta', 'it', false)['name'],
