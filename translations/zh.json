@@ -35,7 +35,8 @@
     "retry": "🔄 重试",
     "next": "下一步 →",
     "yes_short": "是",
-    "no_short": "否"
+    "no_short": "否",
+    "undo": "撤销"
   },
   "form": {
     "select_placeholder": "-- 请选择 --"
@@ -997,8 +998,8 @@
       "password_placeholder": "密码"
     },
     "price": {
-      "title": "💰 AI 价格估算",
-      "hint": "使用 AI 估算购物清单中每件商品的价格。",
+      "title": "💰 价格估算",
+      "hint": "在购物清单上显示估算价格。可用 AI、免费的 Open Prices，或两者。",
       "enabled_label": "启用价格估算",
       "country_label": "🌍 参考国家/地区",
       "currency_label": "💱 货币",
@@ -1019,7 +1020,12 @@
         "australia": "🇦🇺 澳大利亚",
         "brazil": "🇧🇷 巴西",
         "japan": "🇯🇵 日本"
-      }
+      },
+      "source_label": "价格来源",
+      "source_auto": "自动（先 Open Prices，再 AI）",
+      "source_open_prices": "仅 Open Prices（免费，条码）",
+      "source_ai": "仅 AI",
+      "source_hint": "Open Prices 免费（Open Food Facts）。覆盖因地区而异；无条码时可回退到 AI。"
     },
     "recipe": {
       "title": "🍳 食谱偏好",
@@ -1692,7 +1698,23 @@
       "webhook_label": "Telegram Webhook URL",
       "webhook_hint": "在 api.telegram.org 用此公网 HTTPS URL 调用 setWebhook。"
     },
-    "nav_aria": "设置导航"
+    "nav_aria": "设置导航",
+    "webpush": {
+      "title": "📱 浏览器通知（PWA）",
+      "hint": "免费、无需 ntfy：在 HTTPS 下安装 PWA 后，浏览器可收到提醒。可选。",
+      "enabled": "启用 Web Push",
+      "subscribe": "在此设备上启用",
+      "test": "发送测试",
+      "setup_note": "保存后请允许此设备的通知权限（需要 HTTPS）。",
+      "status_on": "已启用 · {count} 台设备已订阅",
+      "status_off": "未启用",
+      "unsupported": "此浏览器不支持 Web Push",
+      "need_enable": "请先启用并保存 Web Push",
+      "need_keys": "缺少 VAPID 密钥 — 启用后请再保存一次",
+      "denied": "通知权限被拒绝",
+      "subscribed": "设备已订阅",
+      "test_ok": "测试通知已发送"
+    }
   },
   "expiry": {
     "today": "今天",

@@ -9,8 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Ideas collected during development. No priority or date implied.
 
-- **UI refresh audit** — Widen `refreshAppDataAfterMutation()` to every inventory/shopping mutation (partial pass in 1.11.3).
-- **G1–G7 structural gaps** — Multi-user tokens, Web Push, receipt OCR, AGP 9 upgrade, full multi-list UX.
+- **G1–G3 / G6–G7** — Real money ledger, multi-user roles, multi-list UX, recipe matching depth, offline conflict resolution.
+- **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
+
+## [1.11.4] - 2026-10-06
+
+Free opt-in features (each with Settings + guided “da decidere” until configured).
+
+**Prices**
+
+- Open Prices (Open Food Facts) as free barcode price source; `PRICE_SOURCE=auto|open_prices|ai`.
+- `price_enabled_set` so the checklist asks once before enabling estimates.
+
+**Web Push (PWA)**
+
+- Optional browser push: VAPID keys minted locally, empty-payload wake + `webpush_inbox`.
+- Subscribe / test from Notifiche; requires HTTPS.
+
+**UX polish**
+
+- Toast undo after simple inventory delete; torch also tries `fillLightMode`.
+- Wider `refreshAppDataAfterMutation()` (favourites, discard, vacuum).
+- CI regenerates/checks `docs/INDEX-*.md`.
 
 ## [1.11.3] - 2026-10-06
 

@@ -6,7 +6,7 @@
  * pin a stale app.js indefinitely. The cache below is only a safety net when the
  * server cannot be reached.
  */
-const CACHE = 'evershelf-v1.11.3';
+const CACHE = 'evershelf-v1.11.4';
 const BASE = (() => {
     const p = self.location.pathname || '/';
     return p.endsWith('sw.js') ? p.slice(0, -'sw.js'.length) : '/';
@@ -72,4 +72,54 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.includes('/api/')) return;
     if (event.request.method !== 'GET') return;
     event.respondWith(networkFirst(event.request));
+});
+
+/* Empty-payload Web Push: wake, pull inbox, show system notification. */
+self.addEventListener('push', (event) => {
+    event.waitUntil((async () => {
+        let items = [];
+        try {
+            const res = await fetch(BASE + 'api/index.php?action=webpush_inbox', {
+                credentials: 'same-origin',
+                headers: { 'X-EverShelf-Request': '1' },
+                cache: 'no-store',
+            });
+            if (res.ok) {
+                const data = await res.json();
+                items = Array.isArray(data.items) ? data.items : [];
+            }
+        } catch (_) { /* offline */ }
+        if (!items.length) {
+            items = [{ title: 'EverShelf', body: '', url: BASE }];
+        }
+        await Promise.all(items.map((it) =>
+            self.registration.showNotification(String(it.title || 'EverShelf'), {
+                body: String(it.body || ''),
+                icon: BASE + 'assets/img/logo/logo_icon.png',
+                badge: BASE + 'assets/img/logo/logo_icon.png',
+                data: { url: it.url || BASE },
+                tag: 'evershelf-' + String(it.ts || Date.now()),
+            })
+        ));
+    })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const target = (event.notification.data && event.notification.data.url) || BASE;
+    event.waitUntil((async () => {
+        const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of all) {
+            if ('focus' in client) {
+                await client.focus();
+                if (client.navigate) {
+                    try { await client.navigate(target); } catch (_) {}
+                }
+                return;
+            }
+        }
+        if (self.clients.openWindow) {
+            await self.clients.openWindow(target);
+        }
+    })());
 });

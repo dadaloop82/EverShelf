@@ -35,7 +35,8 @@
     "retry": "🔄 Erneut versuchen",
     "next": "Weiter →",
     "yes_short": "Ja",
-    "no_short": "Nein"
+    "no_short": "Nein",
+    "undo": "Rückgängig"
   },
   "form": {
     "select_placeholder": "-- Auswählen --"
@@ -996,8 +997,8 @@
       "password_placeholder": "Passwort"
     },
     "price": {
-      "title": "💰 Preisschätzung (KI)",
-      "hint": "Zeigt geschätzte Kosten pro Produkt in der Einkaufsliste mithilfe von KI an.",
+      "title": "💰 Preisschätzung",
+      "hint": "Geschätzte Kosten auf der Einkaufsliste. AI, kostenlose Open Prices oder beides.",
       "enabled_label": "Preisschätzung aktivieren",
       "country_label": "🌍 Referenzland",
       "currency_label": "💱 Währung",
@@ -1018,7 +1019,12 @@
         "australia": "🇦🇺 Australien",
         "brazil": "🇧🇷 Brasilien",
         "japan": "🇯🇵 Japan"
-      }
+      },
+      "source_label": "Preisquelle",
+      "source_auto": "Auto (Open Prices, dann AI)",
+      "source_open_prices": "Nur Open Prices (kostenlos, Barcode)",
+      "source_ai": "Nur AI",
+      "source_hint": "Open Prices ist kostenlos (Open Food Facts). Abdeckung schwankt; ohne Barcode folgt AI falls verfügbar."
     },
     "recipe": {
       "title": "🍳 Rezept-Einstellungen",
@@ -1692,7 +1698,23 @@
       "webhook_label": "Webhook-URL für Telegram",
       "webhook_hint": "setWebhook auf api.telegram.org mit dieser öffentlichen HTTPS-URL."
     },
-    "nav_aria": "Einstellungen-Navigation"
+    "nav_aria": "Einstellungen-Navigation",
+    "webpush": {
+      "title": "📱 Browser-Benachrichtigungen (PWA)",
+      "hint": "Kostenlos, ohne ntfy: der Browser erhält Warnungen, wenn die PWA per HTTPS installiert ist. Optional.",
+      "enabled": "Web Push aktivieren",
+      "subscribe": "Auf diesem Gerät aktivieren",
+      "test": "Test senden",
+      "setup_note": "Nach dem Speichern Benachrichtigungen auf diesem Gerät erlauben (HTTPS nötig).",
+      "status_on": "Aktiv · {count} Gerät(e) abonniert",
+      "status_off": "Aus",
+      "unsupported": "Dieser Browser unterstützt kein Web Push",
+      "need_enable": "Zuerst Web Push aktivieren und speichern",
+      "need_keys": "VAPID-Schlüssel fehlen — nach dem Aktivieren erneut speichern",
+      "denied": "Benachrichtigungsrecht verweigert",
+      "subscribed": "Gerät abonniert",
+      "test_ok": "Testbenachrichtigung gesendet"
+    }
   },
   "expiry": {
     "today": "HEUTE",

@@ -9,16 +9,16 @@
 
 | ID | Area | Problem | Direction |
 |----|------|---------|-----------|
-| UI-REFRESH | Frontend | After many mutations (extend expiry, use, merge, favourite toggle, shopping add/remove, Bring sync) only a toast appears; dashboard, banner, inventory and product list stay stale until manual navigation. | Centralise post-mutation refresh: always `loadBannerAlerts()` + `refreshCurrentPage()` (or invalidate server-backed caches first). Audit `api(...).then` success paths in `app.js`. Add a lightweight guard test that greps for success handlers missing refresh on inventory/shopping actions. |
+| UI-REFRESH | Frontend | After many mutations only a toast appeared (partially fixed 1.11.3–1.11.4 via `refreshAppDataAfterMutation`). | Keep auditing remaining toast-only paths; favourites / discard / vacuum refreshed in 1.11.4. |
 | BANNER-EXT | Dashboard / banner | Extending expiry from dashboard or inventory did not clear the expiry banner or alert cards (fixed partially in 1.11.2 — verify all entry points). | Same as UI-REFRESH; ensure `_bannerQueue` rebuild respects `setReviewConfirmed('exp_*')` and new `days_to_expiry`. |
 | SHOP-GAPS | Smart shopping | Depleted / near-empty items still missed in edge cases (multi-location, family `shopping_name` mismatch, recently un-favourited). | Keep `scripts/test-shopping-guards.php` extended with real DB fixtures; log trace crumbs in `smartShopping()` behind `EverLog::debug`. |
-| SHOP-MATCH | Shopping list | Loose token matching and “covered with 0 stock” left bought items on the list (fixed 2026-10-06: generic key matcher, prune on load). | Add regression tests; optional spesa “remove on any buy” setting. See `todo/AUDIT-2026-10-06.md`. |
+| SHOP-MATCH | Shopping list | Loose token matching and “covered with 0 stock” left bought items on the list (fixed 2026-10-06: generic key matcher, prune on load). | Regression tests shipped; **remove-on-buy** setting shipped in 1.11.3. |
 
 ## P1 — quality & performance
 
 | ID | Area | Problem | Direction |
 |----|------|---------|-----------|
-| SCAN-PERF | Barcode | Camera path improved in 1.11.1; low light and damaged codes still slow. | Optional torch hint, expose decode timing in dev overlay, cache last-good GTIN per session. |
+| SCAN-PERF | Barcode | Camera path improved in 1.11.1; torch + `fillLightMode` fallback in 1.11.4. | Optional decode timing in dev overlay; cache last-good GTIN per session. |
 | PRODUCT-KIND | Titles | Dictionary + AI genre prefix still wrong on niche brands / multilingual packs. | Expand phrase maps from production misses; keep one dictionary for `kind` and `shopping_name`. |
 | OFF-LIMIT | API | Open Food Facts rate limits under heavy scan bursts. | Respect `Retry-After`, stagger mirrors, surface “lookup busy” in UI. |
 | SQLITE-LOCK | Backend | Long `products_apply_auto_rules` or maintenance pass vs concurrent writes. | WAL is on; consider busy timeout and queue maintenance to cron only. |
@@ -38,10 +38,12 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 
 | ID | Idea | Notes |
 |----|------|-------|
-| NTFY-A1 | ntfy.sh first-class notify channel | Cheapest “phone in pocket” win; see IDEAS A1. Partially shipped for expiry — extend to shopping/low-stock. |
-| TELEGRAM-A2 | Telegram bot `/lista`, `/scadenze`, photo→scan | Household members who won’t install PWA; see IDEAS A2. |
-| UNDO-UI | Undo after “use all” / accidental delete | User expectation from banner flows; ledger exists for some paths — unify. |
-| RECIPE-SCRAP | Reuse tips for peels/cores (CHANGELOG Unreleased) | Optional step card; AI optional. |
+| NTFY-A1 | ntfy.sh first-class notify channel | **Shipped 1.11.3** (events + digest). Keep HA parity. |
+| TELEGRAM-A2 | Telegram bot `/lista`, `/scadenze` | **Shipped 1.11.3** (photo→scan still open). |
+| WEBPUSH-G5 | Browser Web Push PWA | **Shipped 1.11.4** (opt-in, VAPID, empty payload + inbox). |
+| OPEN-PRICES | Open Prices / OFF price fallback | **Shipped 1.11.4** (`PRICE_SOURCE`). |
+| UNDO-UI | Undo after accidental delete | **Partial 1.11.4** (delete toast undo); use-all still slide-confirm. |
+| RECIPE-SCRAP | Reuse tips for peels/cores | **Shipped 1.11.3** (opt-in zerowaste tips). |
 | SEASONAL-UX | Seasonal review dismiss sticks but dashboard chip stale | Same refresh pattern as UI-REFRESH. |
 | SPEND-MODE | Spesa session list vs server reconciliation after crash | Persist session id; resume partial trip. |
 | FORK-PR | Reconcile community PRs (#234 reconciliation, #235 i18n) | Branches `fork-recon`, `fork-i18n` exist locally — rebase on develop, run test suite, merge or close with comment. |
@@ -51,8 +53,8 @@ These overlap **IDEAS-2026-10-05** — implement in that doc’s order where not
 - README version badge and “What’s new” should track `index.html` / `CHANGELOG` (automate in CI or bump script).
 - Root `TODO.md` is Italian scratch — point to this file for backlog; keep TODO for session checkboxes only.
 - **Security:** rotate any PAT pasted in chat; never commit `.env`.
-- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits.
+- Regenerate `docs/INDEX-*.md` after large `app.js` / `index.php` edits — **CI checks drift since 1.11.4**.
 
 ## Done recently (context)
 
-See **[1.11.1]** and **[1.11.2]** in `CHANGELOG.md`: barcode speed, package collectives invariant, top-3 auto-favourites, smart shopping depleted rules, Dependabot/Android CI stabilisation, expiry extend UI refresh.
+See **[1.11.3]** and **[1.11.4]** in `CHANGELOG.md`: shopping trip mode, ntfy/Telegram, Open Prices, Web Push, settings checklist “da decidere”, UI refresh/undo/torch, INDEX CI.

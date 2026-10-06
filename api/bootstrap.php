@@ -36,3 +36,5 @@ require_once __DIR__ . '/lib/recipe_shopping.php';
 require_once __DIR__ . '/lib/notify.php';
 require_once __DIR__ . '/lib/telegram.php';
 require_once __DIR__ . '/lib/healthcheck.php';
+require_once __DIR__ . '/lib/open_prices.php';
+require_once __DIR__ . '/lib/webpush.php';

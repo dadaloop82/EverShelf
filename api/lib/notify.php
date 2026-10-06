@@ -461,6 +461,21 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
     if (env('HA_ENABLED', 'false') === 'true' && env('HA_NOTIFY_SERVICE', '') !== '') {
         $result['channels']['ha'] = evershelfHaNotifySend($message, $data);
     }
+    // Browser Web Push (empty payload + inbox) — optional, free, user-opt-in.
+    if ($allowed && function_exists('evershelfWebPushNotify') && evershelfWebPushEnabled()) {
+        try {
+            $db = getDB();
+            $wp = evershelfWebPushNotify($db, $title, $message);
+            $result['channels']['webpush'] = [
+                'ok'    => empty($wp['skipped']) && (($wp['ok'] ?? 0) > 0 || ($wp['fail'] ?? 0) === 0),
+                'error' => '',
+                'http'  => 0,
+                'detail'=> $wp,
+            ];
+        } catch (Throwable $e) {
+            $result['channels']['webpush'] = ['ok' => false, 'error' => $e->getMessage(), 'http' => 0];
+        }
+    }
 
     foreach ($result['channels'] as $name => $outcome) {
         if (!empty($outcome['ok'])) {
@@ -487,7 +502,7 @@ function evershelfNotifySend(string $event, string $title, string $message, arra
  * Which channels are configured right now? The Settings panel uses it to explain
  * *why* nothing was delivered instead of failing silently.
  *
- * @return array{ntfy:bool,webhook:bool,ha:bool}
+ * @return array{ntfy:bool,webhook:bool,ha:bool,webpush:bool}
  */
 function evershelfNotifyConfigured(): array
 {
@@ -496,5 +511,7 @@ function evershelfNotifyConfigured(): array
                      && evershelfNtfyTopicValid(trim((string)env('NTFY_TOPIC', ''))),
         'webhook' => evershelfNotifyUrlValid(trim((string)env('NOTIFY_WEBHOOK_URL', ''))),
         'ha'      => env('HA_ENABLED', 'false') === 'true' && env('HA_NOTIFY_SERVICE', '') !== '',
+        'webpush' => function_exists('evershelfWebPushEnabled') && evershelfWebPushEnabled()
+                     && function_exists('evershelfWebPushVapidMaterial') && evershelfWebPushVapidMaterial() !== null,
     ];
 }
