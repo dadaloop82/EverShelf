@@ -60,7 +60,12 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   (`Tarallini`/`Taralli`, `Pera Italiana`/`Pere`, `Kaffee`/`Caffè`, `Italia
   Zuccheri`/`Zucchero`) nor when the title already opens with the genre stored in
   `products.kind`: a maintenance pass must replay without drifting a single title
-  (`productKindNameAlreadyHasKind()`, `productKindStartsWithWord()`).
+  (`productKindNameAlreadyHasKind()`, `productKindStartsWithWord()`). One vocabulary,
+  two consumers — `products.kind` (genre embedded in the title: precise, may legitimately
+  stay empty) and `products.shopping_name` (the buyable word of the list/Bring!: historical,
+  may be a raw token such as "Potato") are **two columns on purpose**, both reading that one
+  dictionary through `productKindFromDictionary()`; never merge them and never add a second
+  dictionary, or the two will disagree again.
 - **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes the
   products consumed `AUTO_FAVORITE_MIN_USES` times in `AUTO_FAVORITE_WINDOW_DAYS`;
   `products.favorite_user_override` records a manual unstar so the rule never re-adds

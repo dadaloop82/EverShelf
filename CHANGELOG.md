@@ -56,7 +56,14 @@ keep the products you really use where you can reach them.
 
 - The curated dictionaries (phrase map, keyword map, stop words, tokenizer) moved
   from `computeShoppingName()` into `api/lib/product_kind.php` so the shopping name
-  and the genre resolver can never drift apart;
+  and the genre resolver can never drift apart, and `computeShoppingName()` now calls
+  `productKindFromDictionary()` instead of re-reading the two maps itself: **one**
+  vocabulary and **one** lookup, so on any product the dictionary knows the buyable
+  name and the genre leading the title are the same string by construction (asserted
+  over the whole live pantry, 397 products). `products.shopping_name` and
+  `products.kind` stay two separate columns on purpose: the first is the buyable word
+  of the list/Bring! (historical, may be a raw token), the second the genre inside the
+  title (precise, and allowed to stay empty).
   `scripts/test-product-kind-prefix.php` locks that down together with the new
   i18n keys and the UI wiring. `scripts/test-auto-favorite.php` runs the favourite
   rules on an in-memory database (threshold, window, veto, sweep).

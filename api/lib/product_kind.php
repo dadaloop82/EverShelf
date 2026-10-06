@@ -372,9 +372,16 @@ function evershelfProductKindVocabulary(): array {
 /**
  * Genre straight from the curated dictionary — no AI, no cache.
  *
- * `confident` is false when the matched keyword is not the FIRST significant
- * token: "Fiori di latte" matches "latte", but the dictionary cannot know whether
- * the product is a yoghurt or a cheese, so the caller must ask the AI (cached).
+ * THE single dictionary lookup of the project: computeShoppingName() returns this
+ * result verbatim for the shopping list, so the buyable generic and the genre embedded
+ * in the title are the same vocabulary and can never drift apart. `confident` is the
+ * only thing the two consumers read differently:
+ *
+ *   * the shopping name accepts the match anywhere in the name (the list wants a
+ *     buyable word either way),
+ *   * the genre prefix is authoritative only when the matched word LEADS the name:
+ *     "Fiori di latte" matches "latte", but the dictionary cannot know whether the
+ *     product is a yoghurt or a cheese, so the caller must ask the AI (cached).
  *
  * @return array{kind:string,confident:bool}
  */
