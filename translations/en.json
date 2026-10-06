@@ -1452,7 +1452,7 @@
     },
     "product_rules": {
       "card_title": "🏷️ Names and automatic favourites",
-      "card_hint": "Every article carries its genre in front of the title (e.g. \"Yogurt Fiori di latte\"). When the name does not say it, the app derives it from the built-in dictionary and — only if needed — asks the AI for a single word, then caches it for similar products.",
+      "card_hint": "Every article carries its genre in front of the title (e.g. \"Yogurt Fiori di latte\"). When the name does not say it, the app derives it from the built-in dictionary and — only if needed — asks the AI for a single word, then caches it for similar products. Every title also always starts with a capital letter.",
       "kind_prefix_label": "Add the genre to the title",
       "auto_favorite_label": "Automatic favourites after",
       "auto_favorite_suffix": "uses in the last 90 days (0 = off)",
@@ -2216,6 +2216,14 @@
   },
   "startup": {
     "connecting": "Connecting to server...",
+    "version": "Version",
+    "stage_connect": "Connection & access",
+    "stage_php": "PHP runtime",
+    "stage_files": "Storage & permissions",
+    "stage_db": "Database",
+    "stage_config": "Configuration",
+    "stage_network": "Network & services",
+    "stage_ui": "Starting the app",
     "check_php_memory": "PHP memory",
     "check_php_timeout": "PHP timeout",
     "check_php_upload": "PHP upload",

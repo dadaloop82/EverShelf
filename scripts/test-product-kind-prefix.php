@@ -12,6 +12,8 @@
  *     cannot tell a yoghurt from a cheese, so it is not authoritative,
  *   * the signature cache serves similar products, so the family pays one AI word,
  *   * the prefix is idempotent: a title that already carries a genre is untouched,
+ *   * every title opens with a capital letter (productTitleCapitalize()), whichever
+ *     pass wrote the name — the genre prefix can be switched off, this rule cannot,
  *   * computeShoppingName() still reads the SAME dictionaries through the SAME lookup
  *     (productKindFromDictionary) — the shopping/Bring! names must not change, and on a
  *     dictionary-known product the shopping generic and the title genre are the same
@@ -187,6 +189,33 @@ assert_same('Toast Sandwich American Style', $frozen['name'], 'pipeline: a store
 assert_same('Toast', $frozen['kind'], 'pipeline: …and the stored genre is kept');
 assert_same('existing', $frozen['source'], 'pipeline: …and reported as already present');
 
+// ── Every title opens with a capital letter (and only one letter is raised) ──
+assert_same('Latte fresco', productTitleCapitalize('latte fresco'), 'capital: a lowercase title is raised');
+assert_same('Yogurt Fiori di latte', productTitleCapitalize('yogurt Fiori di latte'), 'capital: only the first letter is touched');
+assert_same('Latte fresco', productTitleCapitalize('Latte fresco'), 'capital: an already correct title is left alone');
+assert_same('Latte fresco', productTitleCapitalize('  latte fresco  '), 'capital: surrounding spaces are trimmed');
+assert_same('È pronto', productTitleCapitalize('è pronto'), 'capital: accents are raised in UTF-8 (è → È)');
+assert_same('IPhone 15', productTitleCapitalize('iPhone 15'), 'capital: the rule is mechanical — a brand spelling loses its lowercase first letter too');
+assert_same('NUTELLA', productTitleCapitalize('NUTELLA'), 'capital: the rest of the title keeps its own case');
+assert_same('3 mele', productTitleCapitalize('3 mele'), 'capital: a title opening with a digit is left alone (no letter to raise)');
+assert_same('🍎 mela', productTitleCapitalize('🍎 mela'), 'capital: a title opening with an emoji is left alone');
+assert_same('', productTitleCapitalize('   '), 'capital: an empty title stays empty');
+assert_same('Latte fresco', productTitleCapitalize(productTitleCapitalize('latte fresco')), 'capital: idempotent (the pass can replay it)');
+
+// The pipeline capitalizes as well, so a save and the maintenance pass agree…
+assert_same('Pasta orecchiette', productKindApply('orecchiette', 'De Cecco', 'pasta', 'it', false)['name'],
+    'pipeline: the genre prefixes the title, which then opens with a capital letter');
+// …even on a title the dictionary already answers for (no prefix added, letter raised).
+assert_same('Latte fresco', productKindApply('latte fresco', '', '', 'it', false)['name'],
+    'pipeline: a genre-led lowercase title is raised, not prefixed again');
+
+// The save path is the choke point: whatever wrote the name, the stored title opens
+// with a capital letter.
+$typed = mergeIncomingProductFields(null, ['name' => 'latte fresco parzialmente scremato', 'lang' => 'it'], null);
+assert_same('Latte fresco parzialmente scremato', $typed['name'], 'save path: the stored title opens with a capital letter');
+$forced = mergeIncomingProductFields(null, ['name' => 'passata di pomodoro xyz', 'name_user_set' => 1], null);
+assert_same('Passata di pomodoro xyz', $forced['name'], 'save path: a hand-typed name is capitalized too (and not prefixed twice)');
+
 // ── Settings keys exist in every locale (and the UI is wired to them) ───────
 $keys = [
     'card_title', 'card_hint', 'kind_prefix_label', 'auto_favorite_label',
@@ -215,6 +244,15 @@ assert_true(str_contains($appJs, "'product_kind_prefix'") && str_contains($appJs
 assert_true(str_contains($apiPhp, "case 'products_apply_auto_rules':"), 'api: the maintenance action is routed');
 assert_true(str_contains($apiPhp, 'productKindApply('), 'api: the save path applies the genre prefix');
 assert_true(str_contains($apiPhp, 'mergeIncomingProductFields'), 'api: the single title choke point still exists');
+// The capital letter must survive PRODUCT_KIND_PREFIX=false: in the save path the call
+// sits OUTSIDE the genre guard (and the guard is what the comment above it marks).
+$capCall  = strpos($apiPhp, '$name = productTitleCapitalize($name);');
+$kindGuard = strpos($apiPhp, '// Genre (genere) as an integral part of the article title');
+assert_true($capCall !== false, 'api: the save path capitalizes the stored title');
+assert_true($capCall !== false && $kindGuard !== false && $capCall < $kindGuard,
+    'api: …outside the genre guard, so switching the genre prefix off cannot switch the capital letter off');
+assert_true(str_contains((string)file_get_contents(__DIR__ . '/../api/lib/product_kind.php'), 'function productTitleCapitalize'),
+    'api: the title capitalizer lives with the other title rules (lib/product_kind.php)');
 
 echo $fail === 0 ? "\nAll product-kind tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

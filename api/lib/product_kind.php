@@ -6,6 +6,10 @@
  * ("Yogurt Fiori di latte", "Formaggio Fiori di latte") because the generic type is
  * often missing from the name printed on the label.
  *
+ * The same title also always opens with a capital letter (productTitleCapitalize()):
+ * "latte fresco" and "Latte fresco" are one article and the pantry must spell it one
+ * way, whichever pass wrote the name.
+ *
  * Resolution order (cheap first, AI last, cached):
  *   1. the curated Italian dictionary below (the same one computeShoppingName()
  *      has always used for the Bring!/shopping name),
@@ -756,6 +760,39 @@ function productKindNameAlreadyHasKind(string $name, string $kind): bool {
 }
 
 /**
+ * Force the article title to open with a capital letter.
+ *
+ * The user asked for every article to be spelled the same way: "latte fresco" and
+ * "Latte fresco" are the same product, and the pantry must not show both. Whatever
+ * wrote the name — scan, import, catalog, AI, hand-typed rename — the stored title
+ * goes through here.
+ *
+ * Only the first letter is touched, and only when the title really starts with one:
+ * a name that opens with a number, a symbol or an emoji ("3 mele", "🍎 mela") is left
+ * alone — raising its second word would read worse than the original — while the rest
+ * of the title keeps its own case ("NUTELLA" stays "NUTELLA"). The rule is deliberately
+ * mechanical, so it cannot disagree with itself: a first letter that is lower only
+ * because of a brand spelling ("iPhone") is raised too ("IPhone"), which is the price
+ * of a title that *always* opens with a capital. Idempotent: running it twice on the
+ * same title changes nothing, so the maintenance pass can replay it without drifting a
+ * single title.
+ *
+ * NOT to be confused with normalizeProductName() (api/index.php), which lowercases a
+ * *copy* of the name to compare two products: the stored title keeps its case.
+ */
+function productTitleCapitalize(string $name): string {
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+    $first = mb_substr($name, 0, 1, 'UTF-8');
+    if (!preg_match('/^\p{L}$/u', $first)) {
+        return $name; // opens with a digit / symbol / emoji: there is no letter to raise
+    }
+    return mb_strtoupper($first, 'UTF-8') . mb_substr($name, 1, null, 'UTF-8');
+}
+
+/**
  * Make the genre an integral part of the article title
  * ("Fiori di latte" → "Yogurt Fiori di latte"). Idempotent: a title that already
  * carries a genre (any genre) is returned untouched.
@@ -786,6 +823,10 @@ function productKindNormalizeLang($lang): string {
 /**
  * Full pipeline used on save: resolve the genre and return the prefixed title.
  *
+ * The returned title always opens with a capital letter: this is the ONE place the
+ * stored name is shaped, so the rule holds for a save and for the maintenance pass
+ * (products_apply_auto_rules) alike — even with PRODUCT_KIND_PREFIX=false.
+ *
  * A title that already starts with a genre short-circuits: re-saving a product must
  * never cost another AI call (and the genre we already stored is carried over).
  *
@@ -793,26 +834,27 @@ function productKindNormalizeLang($lang): string {
  */
 function productKindApply(string $name, string $brand = '', string $category = '', string $lang = 'en', bool $allowAi = true, string $knownKind = ''): array {
     $name = trim($name);
+    // ONE exit for every branch: the title rule (a capital letter) must not depend on
+    // which branch happened to answer, so nobody can forget it when adding a new one.
+    $out = static function (string $title, string $kind, string $source): array {
+        return ['name' => productTitleCapitalize($title), 'kind' => $kind, 'source' => $source];
+    };
     if ($name === '' || !productKindPrefixEnabled()) {
-        return ['name' => $name, 'kind' => '', 'source' => ''];
+        return $out($name, '', '');
     }
     // The title already opens with the genre stored on the product ("Toast Sandwich
     // American Style" + kind "Toast"): whichever pass wrote it, this one has no business
     // rewriting it — the dictionary may well suggest a broader genre for the same word
     // (its own "toast" → "Pane"), which would drift the title at every run.
     if ($knownKind !== '' && productKindStartsWithWord($name, $knownKind)) {
-        return ['name' => $name, 'kind' => $knownKind, 'source' => 'existing'];
+        return $out($name, $knownKind, 'existing');
     }
     if (productNameStartsWithKnownKind($name)) {
-        return ['name' => $name, 'kind' => $knownKind, 'source' => 'existing'];
+        return $out($name, $knownKind, 'existing');
     }
     $resolved = resolveProductKind($name, $brand, $category, productKindNormalizeLang($lang), $allowAi);
     if ($resolved['kind'] === '') {
-        return ['name' => $name, 'kind' => '', 'source' => ''];
+        return $out($name, '', '');
     }
-    return [
-        'name'   => applyProductKindPrefix($name, $resolved['kind']),
-        'kind'   => $resolved['kind'],
-        'source' => $resolved['source'],
-    ];
+    return $out(applyProductKindPrefix($name, $resolved['kind']), $resolved['kind'], $resolved['source']);
 }

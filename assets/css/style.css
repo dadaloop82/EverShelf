@@ -100,6 +100,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow-y: auto;
     transition: opacity 0.45s ease;
 }
 #app-preloader.fade-out {
@@ -110,15 +111,12 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 28px;
-}
-.app-preloader-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: #4ade80;
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
+    /* margin:auto (not align-items on the parent) so a tall splash scrolls instead
+       of being clipped at the top on a short viewport. */
+    margin: auto;
+    width: 100%;
+    padding: 24px 0;
+    gap: clamp(18px, 3.5vh, 28px);
 }
 .app-preloader-label {
     color: rgba(255,255,255,0.75);
@@ -136,12 +134,181 @@ body {
     0%, 100% { filter: drop-shadow(0 4px 20px rgba(74,222,128,0.18)); }
     50%       { filter: drop-shadow(0 4px 36px rgba(74,222,128,0.48)); }
 }
-.app-preloader-version {
-    color: rgba(255,255,255,0.22);
-    font-size: 0.68rem;
-    font-family: monospace;
-    letter-spacing: 0.6px;
-    margin-top: -16px;
+/* ── Brand: logo + version chip ──────────────────────────────────────── */
+.app-preloader-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+/* The version is deliberately loud: the splash is where it gets read out when
+   someone opens a bug report. `#preloader-version` must keep the
+   `preloader-version">v1.2.3` shape — scripts/bump-version.sh rewrites it. */
+.app-preloader-verchip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 16px;
+    border-radius: 99px;
+    background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.35);
+    box-shadow: 0 0 20px rgba(74,222,128,0.16), inset 0 0 14px rgba(74,222,128,0.05);
+}
+.app-preloader-verchip-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(134,239,172,0.75);
+}
+.app-preloader-verchip-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #bbf7d0;
+    text-shadow: 0 0 14px rgba(74,222,128,0.45);
+}
+/* ── Boot rail: one icon per startup stage ───────────────────────────────
+   pending → grey · active → blinks while the checks run · done → keeps the
+   colour of its own emoji and gains an aura in `--stage-accent`.
+   warn / error override the accent so a failed stage can never look green. */
+.preloader-stages {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: clamp(4px, 2vw, 12px);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.preloader-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 34px;
+}
+/* Connector between two icons: lights up when the stage on its left is done */
+.preloader-stage:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: calc(50% + 19px);
+    width: calc(clamp(4px, 2vw, 12px) - 3px);
+    height: 2px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.08);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+.preloader-stage.is-done:not(:last-child)::after {
+    background: var(--stage-accent);
+    box-shadow: 0 0 10px var(--stage-glow);
+}
+.preloader-stage-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.95rem;
+    line-height: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    filter: grayscale(1) opacity(0.42);
+    transition: filter 0.45s ease, background 0.45s ease, border-color 0.45s ease,
+                box-shadow 0.45s ease, transform 0.3s ease;
+}
+.preloader-stage-label {
+    font-size: 0.58rem;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    text-align: center;
+    color: rgba(255,255,255,0.28);
+    max-width: 76px;
+    transition: color 0.4s ease;
+}
+.preloader-stage.is-active .preloader-stage-icon {
+    filter: grayscale(1) opacity(0.9);
+    border-color: rgba(255,255,255,0.4);
+    animation: stageBlink 1.15s ease-in-out infinite;
+}
+.preloader-stage.is-active .preloader-stage-label { color: rgba(255,255,255,0.82); }
+@keyframes stageBlink {
+    0%, 100% { opacity: 0.5; transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255,255,255,0.14); }
+    50%      { opacity: 1;   transform: scale(1.06); box-shadow: 0 0 0 7px rgba(255,255,255,0.04); }
+}
+.preloader-stage.is-done .preloader-stage-icon,
+.preloader-stage.is-warn .preloader-stage-icon,
+.preloader-stage.is-error .preloader-stage-icon {
+    filter: grayscale(0) opacity(1);
+    background: color-mix(in srgb, var(--stage-accent) 16%, transparent);
+    border-color: var(--stage-accent);
+    box-shadow: 0 0 16px var(--stage-glow),
+                0 0 0 3px color-mix(in srgb, var(--stage-accent) 12%, transparent);
+    animation: stagePop 0.5s cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+.preloader-stage.is-done .preloader-stage-label,
+.preloader-stage.is-warn .preloader-stage-label,
+.preloader-stage.is-error .preloader-stage-label { color: var(--stage-accent); }
+.preloader-stage.is-warn  { --stage-accent: #fbbf24; --stage-glow: rgba(251,191,36,0.5); }
+.preloader-stage.is-error { --stage-accent: #f87171; --stage-glow: rgba(248,113,113,0.5); }
+@keyframes stagePop {
+    0%   { transform: scale(0.72); }
+    55%  { transform: scale(1.14); }
+    100% { transform: scale(1); }
+}
+/* Name of the running stage — replaces the per-icon labels on narrow screens */
+.preloader-stage-caption {
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.72);
+    text-align: center;
+    max-width: 92vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (min-width: 641px) {
+    .preloader-stages { gap: clamp(10px, 4vw, 28px); }
+    .preloader-stage { min-width: 44px; }
+    .preloader-stage-icon {
+        width: 38px;
+        height: 38px;
+        font-size: 1.05rem;
+    }
+    .preloader-stage:not(:last-child)::after {
+        top: 19px;
+        left: calc(50% + 21px);
+        width: calc(clamp(10px, 4vw, 28px) - 4px);
+    }
+    /* The per-icon labels are readable here, so the caption would repeat them */
+    .preloader-stage-caption { display: none; }
+}
+@media (max-width: 640px) {
+    /* Icons only: the caption spells out the stage that is running */
+    .preloader-stage-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+}
+@media (max-height: 720px) {
+    .app-preloader-logo { height: 108px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .preloader-stage.is-active .preloader-stage-icon,
+    .preloader-stage.is-done .preloader-stage-icon,
+    .preloader-stage.is-warn .preloader-stage-icon,
+    .preloader-stage.is-error .preloader-stage-icon,
+    .app-preloader-logo {
+        animation: none !important;
+    }
 }
 /* ── Startup progress section ────────────────────────────────────────── */
 .preloader-progress-wrap {

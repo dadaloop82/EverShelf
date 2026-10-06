@@ -11,6 +11,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.10.1] - 2026-10-05
+
+The splash screen now shows what the app is doing instead of a bare spinner: a rail
+of stage icons that starts grey, blinks while a stage is being checked, and lights up
+with an aura in its own colour when it passes — amber or red when it does not. The
+version is printed large enough to be read out when opening a bug report.
+
+**Added**
+
+- **Boot rail on the splash.** Seven icons — connection & access, PHP runtime, storage
+  & permissions, database, configuration, network, app start — driven by
+  `_preloaderStage()`: grey (`is-pending`) → blinking (`is-active`) → coloured with a
+  glow (`is-done`), with a lit connector behind every settled stage. The ~30 flat
+  `health_check` keys are grouped by `_PRELOADER_STAGE_OF_CHECK`, so a failed stage
+  can never look green (`is-warn` / `is-error` override the accent). On phones the
+  per-icon labels collapse into the caption line naming the running stage.
+- **Version chip on the splash.** Previously a 0.68rem grey footnote; it is now a
+  bordered pill next to the logo, and `bump-version.sh` keeps rewriting it (the
+  `preloader-version">v<semver>` marker is unchanged, and a guard test locks both
+  sides of that contract).
+- **Every article title starts with a capital letter.** The name is shaped at the one
+  choke point (`mergeIncomingProductFields()` → `productTitleCapitalize()`), so a scan,
+  an import, a catalog title, the AI and a hand-typed rename all land as `Latte fresco`,
+  never `latte fresco`. Only the first letter is raised: the rest of the word keeps its
+  case (`NUTELLA` stays `NUTELLA`; a brand spelling such as `iPhone` becomes `IPhone`,
+  because the rule is mechanical and cannot disagree with itself), a title that opens
+  with a digit or an emoji is left alone, and the rule stays on when the genre prefix is
+  switched off (`PRODUCT_KIND_PREFIX=false`) because it is applied outside that guard.
+  Titles already stored are fixed by the same pass
+  (`settings → Nomi e preferiti automatici → Applica agli articoli esistenti`).
+- **`scripts/test-preloader-stages.php`** — asserts the drawn rail, `_PRELOADER_STAGE_KEYS`,
+  the stage ownership of every health check and the six locales stay in sync, plus the
+  CSS state rules (grey → blink → aura, reduced-motion) and the version markup.
+
 ## [1.10.0] - 2026-10-05
 
 Two things the pantry should do by itself: say what every article actually is, and

@@ -1409,7 +1409,7 @@
     },
     "product_rules": {
       "card_title": "🏷️ Namen und automatische Favoriten",
-      "card_hint": "Jeder Artikel trägt seine Gattung vor dem Titel (z. B. „Yogurt Fiori di latte\"). Sagt der Name es nicht, leitet die App sie aus dem internen Wörterbuch ab und fragt — nur falls nötig — die KI nach einem einzigen Wort; danach wird es für ähnliche Produkte zwischengespeichert.",
+      "card_hint": "Jeder Artikel trägt seine Gattung vor dem Titel (z. B. „Yogurt Fiori di latte\"). Sagt der Name es nicht, leitet die App sie aus dem internen Wörterbuch ab und fragt — nur falls nötig — die KI nach einem einzigen Wort; danach wird es für ähnliche Produkte zwischengespeichert. Außerdem beginnt jeder Titel immer mit einem Großbuchstaben.",
       "kind_prefix_label": "Gattung im Titel ergänzen",
       "auto_favorite_label": "Automatische Favoriten nach",
       "auto_favorite_suffix": "Verwendungen in den letzten 90 Tagen (0 = aus)",
@@ -2216,6 +2216,14 @@
   },
   "startup": {
     "connecting": "Serververbindung wird hergestellt...",
+    "version": "Version",
+    "stage_connect": "Verbindung & Zugriff",
+    "stage_php": "PHP-Laufzeit",
+    "stage_files": "Speicher & Rechte",
+    "stage_db": "Datenbank",
+    "stage_config": "Konfiguration",
+    "stage_network": "Netzwerk & Dienste",
+    "stage_ui": "App-Start",
     "check_php_memory": "PHP-Speicher",
     "check_php_timeout": "PHP-Timeout",
     "check_php_upload": "PHP-Upload",
