@@ -8578,6 +8578,7 @@ function saveSettings(): void {
         'backup_retention_days'       => 'BACKUP_RETENTION_DAYS',
         'gdrive_retention_days'           => 'GDRIVE_RETENTION_DAYS',
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
+        'shopping_remove_on_buy'         => 'SHOPPING_REMOVE_ON_BUY',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',

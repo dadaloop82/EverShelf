@@ -39,6 +39,9 @@ assert_true($badBurstRate > 500, 'sanity: burst rate would have been >500 g/day'
 assert_near($fixedRate, 450 / 13, 1.0, 'fallback spreads over calendar days');
 assert_true($cappedRate <= SHOPPING_GUARD_MAX_G_PER_DAY, 'sanitize caps absurd g/day rate');
 
+$cappedPeriod = smartCapPeriodNeed(400.0, 'conf', 200.0, 'g', 30);
+assert_true($cappedPeriod <= 24.0, 'period_usage for conf units is capped');
+
 // Depleted family must not count as "covered" (would block list removal logic).
 $db = getDB();
 $pid = (int)$db->query('SELECT id FROM products ORDER BY id LIMIT 1')->fetchColumn();

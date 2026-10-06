@@ -95,6 +95,10 @@ try {
                 echo '[' . date('Y-m-d H:i:s') . '] Internal list cleanup — removed: ' . ($internalCleanup['removed'] ?? 0)
                     . '/' . ($internalCleanup['candidates'] ?? 0) . " candidates\n";
             }
+            internalShoppingNormalizeNames($db);
+            internalShoppingPruneCovered($db);
+            internalShoppingDedupeGenerics($db);
+
             $internalAdd = internalShoppingAutoAddCritical($db);
             if (isset($internalAdd['skipped'])) {
                 echo '[' . date('Y-m-d H:i:s') . '] Internal list auto-add skipped: ' . $internalAdd['skipped'] . "\n";
