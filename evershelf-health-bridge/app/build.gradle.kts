@@ -83,7 +83,7 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("androidx.health.connect:connect-client:1.2.0-alpha06")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }
