@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'evershelf-kiosk/**'
+      - '.github/workflows/build-kiosk.yml'
   workflow_dispatch:
 
 permissions:
@@ -29,9 +30,10 @@ jobs:
           distribution: 'temurin'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.6'
+          # Kotlin 2.4 wants ≥ 8.14.4; keep in sync with gradle-wrapper.properties
+          gradle-version: '8.14.4'
 
       - name: Get version name
         id: version
@@ -41,6 +43,36 @@ jobs:
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$VCODE" >> "$GITHUB_OUTPUT"
           echo "Kiosk version: $VERSION (versionCode $VCODE)"
+
+      - name: Prepare signing keystore
+        working-directory: evershelf-kiosk
+        env:
+          KIOSK_KEYSTORE_BASE64: ${{ secrets.KIOSK_KEYSTORE_BASE64 }}
+          KIOSK_STORE_PASSWORD: ${{ secrets.KIOSK_STORE_PASSWORD }}
+          KIOSK_KEY_ALIAS: ${{ secrets.KIOSK_KEY_ALIAS }}
+          KIOSK_KEY_PASSWORD: ${{ secrets.KIOSK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KIOSK_KEYSTORE_BASE64:-}" ]; then
+            echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > evershelf.jks
+            {
+              echo "storeFile=evershelf.jks"
+              echo "storePassword=${KIOSK_STORE_PASSWORD}"
+              echo "keyAlias=${KIOSK_KEY_ALIAS}"
+              echo "keyPassword=${KIOSK_KEY_PASSWORD:-$KIOSK_STORE_PASSWORD}"
+            } > keystore.properties
+            echo "Using KIOSK_KEYSTORE_BASE64 for signing"
+          else
+            mkdir -p "$HOME/.android"
+            if [ ! -f "$HOME/.android/debug.keystore" ]; then
+              keytool -genkeypair -v \
+                -keystore "$HOME/.android/debug.keystore" \
+                -storepass android -alias androiddebugkey -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+            echo "No KIOSK_KEYSTORE_BASE64 secret — using generated debug keystore"
+          fi
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon

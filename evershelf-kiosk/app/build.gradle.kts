@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -10,7 +11,7 @@ plugins {
 // the project root, or via environment variables (used by CI from GitHub Secrets):
 //   KIOSK_STORE_FILE / KIOSK_STORE_PASSWORD / KIOSK_KEY_ALIAS / KIOSK_KEY_PASSWORD
 // If nothing is configured the default Android debug keystore is used so local
-// `assembleDebug` keeps working.
+// `assembleDebug` keeps working. CI creates that keystore when secrets are absent.
 val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -41,7 +42,6 @@ android {
                 keyAlias = signingValue("keyAlias", "KIOSK_KEY_ALIAS")
                 keyPassword = signingValue("keyPassword", "KIOSK_KEY_PASSWORD")
             } else {
-                // No project keystore configured — use the standard debug keystore.
                 storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
                 storePassword = "android"
                 keyAlias = "androiddebugkey"
@@ -66,11 +66,14 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
