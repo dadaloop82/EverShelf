@@ -382,6 +382,22 @@ function migrateDB(PDO $db): void {
         ");
         $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_shopping_list_name ON shopping_list(lower(name))");
     }
+    $shopCols = array_column($db->query("PRAGMA table_info(shopping_list)")->fetchAll(), 'name');
+    foreach ([
+        'need_qty'   => 'REAL',
+        'need_unit'  => 'TEXT NOT NULL DEFAULT \'\'',
+        'is_checked' => 'INTEGER NOT NULL DEFAULT 0',
+    ] as $col => $type) {
+        if (!in_array($col, $shopCols, true)) {
+            try {
+                $db->exec("ALTER TABLE shopping_list ADD COLUMN {$col} {$type}");
+            } catch (PDOException $e) {
+                if (strpos($e->getMessage(), 'duplicate column') === false) {
+                    throw $e;
+                }
+            }
+        }
+    }
 
     // Add is_favorite column to recipes if missing (#124)
     $recCols = array_column($db->query("PRAGMA table_info(recipes)")->fetchAll(), 'name');
