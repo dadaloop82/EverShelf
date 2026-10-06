@@ -1455,7 +1455,7 @@
       "card_hint": "每个条目在标题前都会带上它的品类（例如「Yogurt Fiori di latte」）。如果名称里没有，应用会从内置词典推断，必要时只向 AI 询问一个词，并把结果缓存给相似商品使用。此外，每个标题始终以大写字母开头。",
       "kind_prefix_label": "在标题前添加品类",
       "auto_favorite_label": "自动收藏（使用次数达到）",
-      "auto_favorite_suffix": "近 90 天的使用次数（0 = 关闭）",
+      "auto_favorite_suffix": "次使用 — 仅自动收藏使用最多的前 3 项（0 = 关闭）",
       "apply_existing": "应用到已有条目",
       "apply_confirm": "要重命名 {names} 个条目并添加 {favorites} 个收藏吗？",
       "apply_done": "已重命名 {names} 个条目，添加 {favorites} 个收藏",

@@ -1412,7 +1412,7 @@
       "card_hint": "Jeder Artikel trägt seine Gattung vor dem Titel (z. B. „Yogurt Fiori di latte\"). Sagt der Name es nicht, leitet die App sie aus dem internen Wörterbuch ab und fragt — nur falls nötig — die KI nach einem einzigen Wort; danach wird es für ähnliche Produkte zwischengespeichert. Außerdem beginnt jeder Titel immer mit einem Großbuchstaben.",
       "kind_prefix_label": "Gattung im Titel ergänzen",
       "auto_favorite_label": "Automatische Favoriten nach",
-      "auto_favorite_suffix": "Verwendungen in den letzten 90 Tagen (0 = aus)",
+      "auto_favorite_suffix": "Verwendungen — nur die 3 meistgenutzten insgesamt (0 = aus)",
       "apply_existing": "Auf vorhandene Artikel anwenden",
       "apply_confirm": "{names} Namen ändern und {favorites} Favoriten hinzufügen?",
       "apply_done": "{names} Namen geändert, {favorites} Favoriten hinzugefügt",

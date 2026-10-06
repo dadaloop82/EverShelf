@@ -1455,7 +1455,7 @@
       "card_hint": "Every article carries its genre in front of the title (e.g. \"Yogurt Fiori di latte\"). When the name does not say it, the app derives it from the built-in dictionary and — only if needed — asks the AI for a single word, then caches it for similar products. Every title also always starts with a capital letter.",
       "kind_prefix_label": "Add the genre to the title",
       "auto_favorite_label": "Automatic favourites after",
-      "auto_favorite_suffix": "uses in the last 90 days (0 = off)",
+      "auto_favorite_suffix": "uses — only the top 3 most-used overall (0 = off)",
       "apply_existing": "Apply to existing items",
       "apply_confirm": "Rename {names} items and add {favorites} favourites?",
       "apply_done": "Renamed {names} items, added {favorites} favourites",

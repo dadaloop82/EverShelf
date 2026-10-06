@@ -1310,7 +1310,7 @@
       "card_hint": "Chaque article porte son genre devant le titre (ex. « Yogurt Fiori di latte »). Si le nom ne l'indique pas, l'application le déduit du dictionnaire interne et — seulement si nécessaire — demande un mot à l'IA, puis le met en cache pour les produits similaires. De plus, chaque titre commence toujours par une majuscule.",
       "kind_prefix_label": "Ajouter le genre au titre",
       "auto_favorite_label": "Favoris automatiques après",
-      "auto_favorite_suffix": "utilisations ces 90 derniers jours (0 = désactivé)",
+      "auto_favorite_suffix": "utilisations — seulement les 3 plus utilisés (0 = désactivé)",
       "apply_existing": "Appliquer aux articles existants",
       "apply_confirm": "Renommer {names} articles et ajouter {favorites} favoris ?",
       "apply_done": "{names} articles renommés, {favorites} favoris ajoutés",

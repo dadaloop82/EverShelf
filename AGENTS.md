@@ -85,8 +85,9 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   round trip (`singular → plural → singular`), which is what lets the maintenance pass
   replay. `products.shopping_name` is deliberately **not** rewritten by that pass: it is
   the buyable word of the list, and the shopping list buys `Grissini`, not one `Grissino`.
-- **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes the
-  products consumed `AUTO_FAVORITE_MIN_USES` times in `AUTO_FAVORITE_WINDOW_DAYS`;
+- **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes only
+  the absolute top `AUTO_FAVORITE_TOP_N` (default 3) products by consumption that also
+  clear `AUTO_FAVORITE_MIN_USES` inside `AUTO_FAVORITE_WINDOW_DAYS`;
   `products.favorite_user_override` records a manual unstar so the rule never re-adds
   it. Favourites are only ever added, never removed by the rule.
 - **Security**: every POST action goes through the CSRF guard and the API-token

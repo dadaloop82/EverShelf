@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261006b'; // bump when translations change
+const _I18N_VERSION = '20261006a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2545,9 +2545,9 @@ let _detectorZbar = null;
 let _barcodeEnginesReady = null;
 let _tesseractWorker = null;
 let _tesseractInitPromise = null;
-const _LOCAL_OCR_DELAY_MS = 2500;           // local digit OCR when no native engine
-const _LOCAL_OCR_DELAY_NATIVE_MS = 5000;    // defer heavy OCR when Native BarcodeDetector is active
-const _ZBAR_FALLBACK_DELAY_MS = 700;        // skip ZBar until native had time to decode
+const _LOCAL_OCR_DELAY_MS = 1800;           // local digit OCR when no native engine
+const _LOCAL_OCR_DELAY_NATIVE_MS = 3500;    // defer heavy OCR when Native BarcodeDetector is active
+const _ZBAR_FALLBACK_DELAY_MS = 350;        // skip ZBar until native had a few frames
 const _BARCODE_PERSIST_KEY = 'evershelf_barcode_resolve_v1';
 const _BARCODE_PERSIST_MAX = 500;
 const _SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'];
@@ -10327,7 +10327,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10337,7 +10337,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261006b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261006a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -10442,8 +10442,14 @@ function _finalizeBarcode(code, method) {
 }
 
 function _tryConfirmBarcode(code, format, method) {
-    const digits = String(code || '').replace(/\D/g, '');
+    let digits = String(code || '').replace(/\D/g, '');
     if (!digits || digits.length < 8) return false;
+
+    // UPC-A (12) → EAN-13 with leading 0 so the checksum path and the server
+    // candidate list agree on one canonical form.
+    if (digits.length === 12 && validateEANChecksum('0' + digits)) {
+        digits = '0' + digits;
+    }
 
     const isEan = _isEanFormat(format) || digits.length === 13 || digits.length === 8;
     if (isEan && (digits.length === 13 || digits.length === 8)) {
@@ -10502,10 +10508,11 @@ function _buildScanCropFrame(videoEl, frameCount) {
     const canvas = document.getElementById('scanner-canvas');
     const ctx = canvas.getContext('2d');
     const variants = [
-        { x: 0, y: 0, w: 1, h: 1, scale: 0.85, enhance: false },
+        { x: 0, y: 0, w: 1, h: 1, scale: 0.85, enhance: true },
         { x: 0.075, y: 0.28, w: 0.85, h: 0.44, scale: 1, enhance: true },
         { x: 0.1, y: 0.18, w: 0.8, h: 0.55, scale: 1, enhance: true },
-        { x: 0.05, y: 0.35, w: 0.9, h: 0.35, scale: 1.2, enhance: true },
+        { x: 0.05, y: 0.35, w: 0.9, h: 0.35, scale: 1.25, enhance: true },
+        { x: 0.15, y: 0.32, w: 0.7, h: 0.36, scale: 1.4, enhance: true },
     ];
     const v = variants[frameCount % variants.length];
     const sw = Math.round(vw * v.w);
@@ -10878,16 +10885,21 @@ function enhanceCanvasForBarcode(ctx, w, h) {
         return;
     }
     const d = imageData.data;
-    // Convert to high-contrast grayscale
+    // Adaptive threshold around the frame's mean luminance — fixed 140 washed out
+    // shiny packs and missed dark barcodes under kiosk lighting.
+    let sum = 0;
+    const n = d.length / 4;
     for (let i = 0; i < d.length; i += 4) {
-        // Luminance
-        let gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        // Increase contrast
-        gray = ((gray - 128) * 1.5) + 128;
+        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    }
+    const mean = sum / Math.max(1, n);
+    const threshold = Math.max(90, Math.min(170, mean * 0.92));
+    for (let i = 0; i < d.length; i += 4) {
+        let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        gray = ((gray - 128) * 1.65) + 128;
         gray = gray < 0 ? 0 : gray > 255 ? 255 : gray;
-        // Threshold to make bars more distinct
-        gray = gray < 140 ? 0 : 255;
-        d[i] = d[i+1] = d[i+2] = gray;
+        gray = gray < threshold ? 0 : 255;
+        d[i] = d[i + 1] = d[i + 2] = gray;
     }
     try {
         ctx.putImageData(imageData, 0, 0);

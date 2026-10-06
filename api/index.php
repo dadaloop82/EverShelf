@@ -3571,20 +3571,36 @@ function barcodeNormalizeDigits(string $barcode): string {
     return preg_replace('/\D/', '', trim($barcode));
 }
 
-/** EAN-13 / UPC-A variant barcodes to try against local DB and external APIs. */
+/** EAN-13 / UPC-A / GTIN-14 / EAN-8 variant barcodes to try against local DB and external APIs. */
 function barcodeLookupCandidates(string $barcode): array {
     $barcode = barcodeNormalizeDigits($barcode);
     if ($barcode === '') {
         return [];
     }
     $candidates = [$barcode];
+    // UPC-A (12) ↔ EAN-13 (leading 0)
     if (strlen($barcode) === 12 && ctype_digit($barcode)) {
         $candidates[] = '0' . $barcode;
     }
     if (strlen($barcode) === 13 && $barcode[0] === '0') {
         $candidates[] = substr($barcode, 1);
     }
-    return array_values(array_unique($candidates));
+    // GTIN-14 → EAN-13 / UPC-A (drop indicator digit when it is 0)
+    if (strlen($barcode) === 14 && ctype_digit($barcode) && $barcode[0] === '0') {
+        $ean13 = substr($barcode, 1);
+        $candidates[] = $ean13;
+        if ($ean13[0] === '0') {
+            $candidates[] = substr($ean13, 1);
+        }
+    }
+    // EAN-8 often stored zero-padded to 13
+    if (strlen($barcode) === 8 && ctype_digit($barcode)) {
+        $candidates[] = str_pad($barcode, 13, '0', STR_PAD_LEFT);
+    }
+    if (strlen($barcode) === 13 && ctype_digit($barcode) && str_starts_with($barcode, '00000')) {
+        $candidates[] = substr($barcode, 5);
+    }
+    return array_values(array_unique(array_filter($candidates, static fn($c) => $c !== '')));
 }
 
 function barcodeFindLocalProduct(PDO $db, string $barcode): ?array {
@@ -3638,10 +3654,26 @@ function barcodeCacheSet(PDO $db, string $barcode, array $payload, bool $found):
     ]);
 }
 
-/** Parallel HTTP GET — returns map key => body (or null). */
-function barcodeHttpParallel(array $requests, int $timeoutSec = 4): array {
+/**
+ * Parallel HTTP GET — returns map key => body (or null).
+ *
+ * When $earlyKeys is set, the first successful body among those keys aborts the
+ * remaining transfers so a fast Open Food Facts hit does not wait on the slowest
+ * mirror (typical win: ~1–2 s instead of the full timeout).
+ *
+ * @param array<string,string> $requests
+ * @param list<string>|null    $earlyKeys
+ * @return array<string,?string>
+ */
+function barcodeHttpParallel(array $requests, int $timeoutSec = 4, ?array $earlyKeys = null): array {
     if (empty($requests)) {
         return [];
+    }
+    $earlySet = [];
+    if ($earlyKeys) {
+        foreach ($earlyKeys as $k) {
+            $earlySet[$k] = true;
+        }
     }
     $mh = curl_multi_init();
     $handles = [];
@@ -3657,19 +3689,50 @@ function barcodeHttpParallel(array $requests, int $timeoutSec = 4): array {
         curl_multi_add_handle($mh, $ch);
         $handles[$key] = $ch;
     }
+    $out = array_fill_keys(array_keys($requests), null);
+    $done = [];
+    $abortEarly = false;
     $running = null;
     do {
         $status = curl_multi_exec($mh, $running);
+        while ($info = curl_multi_info_read($mh)) {
+            $ch = $info['handle'];
+            $key = null;
+            foreach ($handles as $k => $h) {
+                if ($h === $ch) {
+                    $key = $k;
+                    break;
+                }
+            }
+            if ($key === null || isset($done[$key])) {
+                continue;
+            }
+            $done[$key] = true;
+            $body = curl_multi_getcontent($ch);
+            $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $out[$key] = ($body !== false && $body !== '' && $code >= 200 && $code < 300) ? $body : null;
+            if ($out[$key] !== null && isset($earlySet[$key])) {
+                $abortEarly = true;
+            }
+        }
+        if ($abortEarly) {
+            break;
+        }
         if ($running && $status === CURLM_OK) {
-            curl_multi_select($mh, 0.15);
+            curl_multi_select($mh, 0.05);
         }
     } while ($running > 0);
 
-    $out = [];
     foreach ($handles as $key => $ch) {
-        $body = curl_multi_getcontent($ch);
-        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $out[$key] = ($body !== false && $body !== '' && $code >= 200 && $code < 300) ? $body : null;
+        if (!isset($done[$key])) {
+            // Still in flight — prefer whatever partial body we already have.
+            curl_setopt($ch, CURLOPT_TIMEOUT_MS, 1);
+            $body = curl_multi_getcontent($ch);
+            $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if ($out[$key] === null && $body !== false && $body !== '' && $code >= 200 && $code < 300) {
+                $out[$key] = $body;
+            }
+        }
         curl_multi_remove_handle($mh, $ch);
         curl_close($ch);
     }
@@ -3891,7 +3954,8 @@ function barcodeResolveExternal(PDO $db, string $barcode, bool $forceRefresh = f
             'obf'       => "https://world.openbeautyfacts.org/api/v2/product/{$bc}.json?fields={$altFields}",
             'opff'      => "https://world.openpetfoodfacts.org/api/v2/product/{$bc}.json?fields={$altFields}",
         ];
-        $bodies = barcodeHttpParallel($requests, $timeout);
+        // Abort as soon as an OFF mirror answers — AI stays opt-in via BARCODE_AI_FALLBACK.
+        $bodies = barcodeHttpParallel($requests, $timeout, ['off_it', 'off_world', 'off_v0']);
         foreach ($priority as $key) {
             $body = $bodies[$key] ?? null;
             $product = null;
@@ -8222,6 +8286,7 @@ function getServerSettings(): void {
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
+        'auto_favorite_top_n'         => (int)env('AUTO_FAVORITE_TOP_N', '3'),
         'dark_mode'                   => env('DARK_MODE', 'auto'),
         'barcode_ai_fallback'         => env('BARCODE_AI_FALLBACK', 'false') === 'true',
         // Home Assistant Integration
@@ -8514,6 +8579,7 @@ function saveSettings(): void {
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
+        'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',
         // Home Assistant
         'ha_expiry_days' => 'HA_EXPIRY_DAYS',
         'mealie_cache_sync_days' => 'MEALIE_CACHE_SYNC_DAYS',
@@ -16116,23 +16182,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         }
     } catch (Exception $e) { /* ignore */ }
 
-    // 4b. Build stockByAnyToken: every significant token of in-stock products → total qty.
-    // Used to skip depleted products covered by any equivalent in-stock product.
-    // Any-token (not just first) groups product families:
-    //   'Passata di pomodoro' + 'Polpa di pomodoro' + 'Pelato Cirio' all share 'pomodoro'
-    //   'Aglio rosso' + 'Aglio' share 'aglio'
-    //   'Latte di Montagna' + 'Latte Parzialmente Scremato' share 'latte'
-    $stockByAnyToken = [];
-    // Also build stockByShoppingName: normalized generic name → total qty.
+    // 4b. Build stockByShoppingName: normalized generic name → total qty.
     // And freshStockByShoppingName: same but only counting non-expired batches.
     $stockByShoppingName = [];
     $freshStockByShoppingName = [];
     foreach ($products as $pStock) {
         $qty = isset($inventory[$pStock['id']]) ? (float)$inventory[$pStock['id']]['total_qty'] : 0;
         if ($qty <= 0) continue;
-        foreach ($nameTokens($pStock['name']) as $tok) {
-            $stockByAnyToken[$tok] = ($stockByAnyToken[$tok] ?? 0) + $qty;
-        }
         $sName = strtolower(trim($pStock['shopping_name'] ?? ''));
         if ($sName !== '' && productMatchesShoppingFamily($pStock['name'], $pStock['shopping_name'])) {
             $stockByShoppingName[$sName] = ($stockByShoppingName[$sName] ?? 0) + $qty;
@@ -16159,6 +16215,12 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         $unit = $p['unit'] ?: 'pz';
         $defQty = (float)($p['default_quantity'] ?: 0);
         $isOpened = $inv && !empty($inv['opened_at']);
+
+        // Trace crumbs (2 g honey, 0.1 pz) count as finished for the shopping list —
+        // otherwise the product sits in limbo: not "out of stock", not "near empty".
+        if ($qty > 0 && $qty <= productQtyThreshold($unit)) {
+            $qty = 0;
+        }
 
         // --- Usage frequency ---
         $useCount = $tx ? (int)$tx['use_count'] : 0;
@@ -16298,32 +16360,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         // Out of stock
         if ($qty <= 0) {
-            // If ANY *specific* token of this depleted product also appears in an in-stock product,
-            // the user's need is already covered — skip flagging it.
-            // Generic preparation/type words (succo, polpa, crema, ecc.) are excluded from this check
-            // to avoid false coverage: 'limmi succo di limone' must NOT be suppressed by 'Succo e polpa di pera'.
-            // A token must appear in both names AND be specific (not in the generic list) to count.
-            $coverageGeneric = ['succo','polpa','crema','salsa','frutta','verdura','intero',
-                                'parzialmente','scremato','biologico','naturale','integrale',
-                                'cotto','fresco','secco','arrostito','bollito','sgusciato',
-                                'bianco','rosso','nero','giallo','verde','misto','dolce','light'];
-            $pToks = array_diff($nameTokens($p['name']), $coverageGeneric);
+            // Coverage is ONLY the same shopping_name family. Loose any-token matching
+            // (e.g. "latte" linking soya milk to cow milk) hid finished staples the
+            // user still needed on the next trip.
             $coveredByEquivalent = false;
-            // Loose any-token match: only when NOT recently exhausted (avoids hiding a just-finished
-            // product behind a vaguely related in-stock name).
-            if (!$recentlyExhausted) {
-                foreach ($pToks as $tok) {
-                    if (($stockByAnyToken[$tok] ?? 0) > 0) { $coveredByEquivalent = true; break; }
-                }
-            }
-            // Same shopping_name family ALWAYS covers depleted rows (generic list philosophy).
-            // Example: "Uova" confirmed empty 4 days ago must not stay Urgente while "uova medie" = 9.
-            // Flavor-specific restock (yogurt) is intentional via manual add — family stock = no buy.
-            if (!$coveredByEquivalent) {
-                $sName = strtolower(trim($p['shopping_name'] ?? ''));
-                if ($sName !== '' && ($stockByShoppingName[$sName] ?? 0) > 0) {
-                    $coveredByEquivalent = true;
-                }
+            $sName = strtolower(trim($p['shopping_name'] ?? ''));
+            if ($sName !== '' && ($stockByShoppingName[$sName] ?? 0) > 0) {
+                $coveredByEquivalent = true;
             }
             if ($coveredByEquivalent) continue;
 
@@ -16340,8 +16383,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
                 $urgency = 'medium'; $score += 50;
             } elseif ($isRegular && ($useCount >= 3 || $buyCount >= 2)) {
                 $urgency = 'medium'; $score += 40;
-            } elseif ($isRegular || $useCount >= 2 || $buyCount >= 2) {
-                $urgency = 'low'; $score += 25;
+            } elseif ($useCount >= 1 || $buyCount >= 1 || $recentlyExhausted) {
+                // Anything the household has actually bought or finished must reappear.
+                $urgency = 'medium'; $score += 35;
             } else {
                 $urgency = 'low'; $score += 10;
             }
@@ -16384,6 +16428,13 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
             $urgency = 'low';
             $reasons[] = 'low_stock:' . round($pctLeft);
             $score += 25;
+        } elseif (!$familyCovered && $qty > 0 && $pctLeft <= 25
+            && ($useCount >= 1 || $buyCount >= 1) && $urgency === 'none') {
+            // Catch-all for "almost finished" products that never became staples in the
+            // rate model — still show them so the next shopping trip does not forget them.
+            $urgency = 'low';
+            $reasons[] = 'near_empty:' . round($pctLeft);
+            $score += 20;
         }
 
         // Expiring soon or expired (needs replacement)

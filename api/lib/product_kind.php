@@ -381,10 +381,17 @@ function evershelfProductKindVocabulary(): array {
  *
  *   canonical => [singular, plural, gender of the plural]
  *
- * Only countable genres are listed. Everything else — the mass/foreign nouns a pantry
- * is full of ("Latte", "Riso", "Sale", "Yogurt", "Kiwi", "Caffè", "Aceto") — is
- * invariant by construction and comes back unchanged: "3 Latte" is what an Italian
- * says, "3 Latti" is not. A missing entry can therefore never invent a plural.
+ * Only countable piece genres are listed — fruit, veg, eggs, packs you buy as
+ * "one mozzarella / three mozzarelle". Everything else is invariant by construction
+ * and comes back unchanged:
+ *
+ *   * mass / foreign nouns ("Latte", "Riso", "Sale", "Yogurt", "Kiwi", "Caffè"),
+ *   * package collectives whose singular is wrong on a shelf ("Ceci" must never
+ *     become "Cece", nor "Fagioli"→"Fagiolo", "Lenticchie", "Piselli", "Cereali",
+ *     "Spinaci", "Gnocchi", "Grissini", "Taralli", "Sardine", "Pelati") — one tin
+ *     still holds many beans, so the title stays plural even for a single pack.
+ *
+ * A missing entry can therefore never invent a plural (or a bogus singular).
  *
  * @return array<string,array{0:string,1:string,2:string}>
  */
@@ -398,18 +405,12 @@ function evershelfProductKindNumberForms(): array {
         'Birra'            => ['Birra', 'Birre', 'f'],
         'Biscotti'         => ['Biscotto', 'Biscotti', 'm'],
         'Carote'           => ['Carota', 'Carote', 'f'],
-        'Ceci'             => ['Cece', 'Ceci', 'm'],
-        'Cereali'          => ['Cereale', 'Cereali', 'm'],
         'Cipolla'          => ['Cipolla', 'Cipolle', 'f'],
-        'Fagioli'          => ['Fagiolo', 'Fagioli', 'm'],
         'Fette biscottate' => ['Fetta biscottata', 'Fette biscottate', 'f'],
         'Finocchio'        => ['Finocchio', 'Finocchi', 'm'],
         'Formaggio'        => ['Formaggio', 'Formaggi', 'm'],
         'Gelato'           => ['Gelato', 'Gelati', 'm'],
-        'Gnocchi'          => ['Gnocco', 'Gnocchi', 'm'],
-        'Grissini'         => ['Grissino', 'Grissini', 'm'],
         'Insalata'         => ['Insalata', 'Insalate', 'f'],
-        'Lenticchie'       => ['Lenticchia', 'Lenticchie', 'f'],
         'Limone'           => ['Limone', 'Limoni', 'm'],
         'Liquore'          => ['Liquore', 'Liquori', 'm'],
         'Marmellata'       => ['Marmellata', 'Marmellate', 'f'],
@@ -417,20 +418,15 @@ function evershelfProductKindNumberForms(): array {
         'Melone'           => ['Melone', 'Meloni', 'm'],
         'Mozzarella'       => ['Mozzarella', 'Mozzarelle', 'f'],
         'Passata'          => ['Passata', 'Passate', 'f'],
-        'Pelati'           => ['Pelato', 'Pelati', 'm'],
         'Pere'             => ['Pera', 'Pere', 'f'],
         'Piadina'          => ['Piadina', 'Piadine', 'f'],
-        'Piselli'          => ['Pisello', 'Piselli', 'm'],
         'Pomodori'         => ['Pomodoro', 'Pomodori', 'm'],
         'Pomodorini'       => ['Pomodorino', 'Pomodorini', 'm'],
         'Ricotta'          => ['Ricotta', 'Ricotte', 'f'],
         'Salsiccia'        => ['Salsiccia', 'Salsicce', 'f'],
-        'Sardine'          => ['Sardina', 'Sardine', 'f'],
-        'Spinaci'          => ['Spinacio', 'Spinaci', 'm'],
         'Succo'            => ['Succo', 'Succhi', 'm'],
         'Sugo'             => ['Sugo', 'Sughi', 'm'],
         'Surgelati'        => ['Surgelato', 'Surgelati', 'm'],
-        'Taralli'          => ['Tarallo', 'Taralli', 'm'],
         'Uova'             => ['Uovo', 'Uova', 'f'],
         'Verdure'          => ['Verdura', 'Verdure', 'f'],
         'Zucchine'         => ['Zucchina', 'Zucchine', 'f'],

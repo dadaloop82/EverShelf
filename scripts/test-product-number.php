@@ -63,6 +63,10 @@ assert_same('Fetta biscottata integrale', productKindSingularizeName('Fette bisc
 // A genre the dictionary does not know has no singular to move to: the title is kept.
 assert_same('Cracker integrali', productKindSingularizeName('Cracker integrali', 'Cracker'), 'invariant: an unknown genre never changes the title');
 assert_same('Latte di Montagna', productKindSingularizeName('Latte di Montagna', 'Latte'), 'invariant: a mass noun has no plural (and no singular to move to)');
+assert_same('Ceci lessati', productKindSingularizeName('Ceci lessati', 'Ceci'), 'invariant: package collectives stay plural (Ceci must never become Cece)');
+assert_same('Fagioli borlotti', productKindSingularizeName('Fagioli borlotti', 'Fagioli'), 'invariant: a tin of beans stays Fagioli');
+assert_same('Lenticchie rosse', productKindSingularizeName('Lenticchie rosse', 'Lenticchie'), 'invariant: lentils stay plural');
+assert_same('Grissini stirati', productKindSingularizeName('Grissini stirati', 'Grissini'), 'invariant: a pack of breadsticks stays Grissini');
 assert_same('Tarallini salati', productKindSingularizeName('Tarallini salati', 'Taralli'),
     'whole words: "Tarallini" is not "Taralli" (the pass cannot drag a variety)');
 assert_same('Bucce cotte di pomodoro', productKindSingularizeName('Bucce cotte di pomodoro', 'Pomodori'),

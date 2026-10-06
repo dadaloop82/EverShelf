@@ -2,23 +2,30 @@
 /**
  * EverShelf — automatic favourites.
  *
- * The products the household actually uses must end up among the favourites
- * without anyone starring them by hand. A product consumed
- * autoFavoriteMinUses() times inside the recent window (the same 90-day window
- * recentPopularProducts() uses for its "usage_count") is promoted to favourite on
- * the next use.
+ * Only the household's absolute top-N products by real consumption become
+ * favourites on their own (default N = 3). A product must still clear
+ * autoFavoriteMinUses() inside the window; reaching the threshold alone is no
+ * longer enough — otherwise every staple the family touches would fill the
+ * favourites rail.
  *
  * Two guards keep the automatic rule from fighting the user:
  *   * products.favorite_user_override = 1 as soon as the user unstars a favourite,
  *     so a manual decision always wins and the rule never re-adds it,
- *   * the rule only ever ADDS favourites — it never removes one.
+ *   * the rule only ever ADDS favourites — it never removes one (a product that
+ *     drops out of the top N keeps its star).
  *
- * Config: AUTO_FAVORITE_MIN_USES (default 3, 0 = off), AUTO_FAVORITE_WINDOW_DAYS (90).
+ * Config: AUTO_FAVORITE_MIN_USES (default 3, 0 = off), AUTO_FAVORITE_TOP_N (3),
+ *         AUTO_FAVORITE_WINDOW_DAYS (90).
  */
 
-/** How many consumptions promote a product to favourite (0 disables the feature). */
+/** How many consumptions are required before a product can even compete for a slot (0 disables). */
 function autoFavoriteMinUses(): int {
     return max(0, (int)env('AUTO_FAVORITE_MIN_USES', '3'));
+}
+
+/** How many of the most-used products may be auto-starred (default 3). */
+function autoFavoriteTopN(): int {
+    return max(1, (int)env('AUTO_FAVORITE_TOP_N', '3'));
 }
 
 /** Rolling window in days — mirrors the window recentPopularProducts() reports. */
@@ -44,7 +51,35 @@ function autoFavoriteUseCount(PDO $db, int $productId): int {
 }
 
 /**
- * Promote a frequently used product to favourite.
+ * Absolute top-N product ids by consumption in the window (meeting the min-uses
+ * floor). Rank is global — already-starred and vetoed products still occupy a
+ * slot so a 4th contender cannot sneak in behind them.
+ *
+ * @return list<int>
+ */
+function autoFavoriteTopProductIds(PDO $db): array {
+    $min = autoFavoriteMinUses();
+    if ($min <= 0) {
+        return [];
+    }
+    $topN = autoFavoriteTopN();
+    $stmt = $db->prepare(
+        "SELECT p.id FROM products p
+         WHERE (SELECT COUNT(*) FROM transactions t
+                WHERE t.product_id = p.id AND t.type = 'out' AND t.undone = 0
+                  AND t.created_at >= datetime('now', '-' || ? || ' days')) >= CAST(? AS INTEGER)
+         ORDER BY (SELECT COUNT(*) FROM transactions t
+                   WHERE t.product_id = p.id AND t.type = 'out' AND t.undone = 0
+                     AND t.created_at >= datetime('now', '-' || ? || ' days')) DESC,
+                  p.id ASC
+         LIMIT " . (int)$topN
+    );
+    $stmt->execute([autoFavoriteWindowDays(), $min, autoFavoriteWindowDays()]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/**
+ * Promote a top-N product to favourite.
  *
  * @return bool true when the star was actually added
  */
@@ -75,6 +110,11 @@ function maybeAutoFavorite(PDO $db, int $productId): bool {
             return false;
         }
 
+        $topIds = autoFavoriteTopProductIds($db);
+        if (!in_array($productId, $topIds, true)) {
+            return false;
+        }
+
         $db->prepare(
             'UPDATE products SET is_favorite = 1, updated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND COALESCE(favorite_user_override, 0) = 0'
@@ -86,6 +126,8 @@ function maybeAutoFavorite(PDO $db, int $productId): bool {
             'name'        => (string)$row['name'],
             'uses'        => $uses,
             'min_uses'    => $min,
+            'top_n'       => autoFavoriteTopN(),
+            'rank_ids'    => $topIds,
             'window_days' => autoFavoriteWindowDays(),
         ]);
         return true;
@@ -112,8 +154,8 @@ function rememberFavoriteOverride(PDO $db, int $productId, bool $isFavorite): vo
 }
 
 /**
- * Products that qualify for automatic promotion right now: not a favourite yet and
- * no manual veto. Used by the sweep and by its dry-run preview.
+ * Products that qualify for automatic promotion right now: in the absolute top N,
+ * not a favourite yet, no manual veto. Used by the sweep and by its dry-run preview.
  *
  * @return list<int>
  */
@@ -122,17 +164,24 @@ function autoFavoriteCandidates(PDO $db): array {
     if ($min <= 0) {
         return [];
     }
-    $stmt = $db->prepare(
-        "SELECT p.id FROM products p
-         WHERE COALESCE(p.is_favorite, 0) = 0
-           AND COALESCE(p.favorite_user_override, 0) = 0
-           AND (SELECT COUNT(*) FROM transactions t
-                WHERE t.product_id = p.id AND t.type = 'out' AND t.undone = 0
-                  AND t.created_at >= datetime('now', '-' || ? || ' days')) >= CAST(? AS INTEGER)"
-    );
-    $stmt->execute([autoFavoriteWindowDays(), $min]);
-
-    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    $out = [];
+    foreach (autoFavoriteTopProductIds($db) as $id) {
+        $stmt = $db->prepare(
+            'SELECT COALESCE(is_favorite, 0) AS is_favorite,
+                    COALESCE(favorite_user_override, 0) AS favorite_user_override
+             FROM products WHERE id = ?'
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            continue;
+        }
+        if ((int)$row['is_favorite'] === 1 || (int)$row['favorite_user_override'] === 1) {
+            continue;
+        }
+        $out[] = $id;
+    }
+    return $out;
 }
 
 /**
