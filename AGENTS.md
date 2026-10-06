@@ -224,6 +224,7 @@ npm run build
 ## See also
 
 - `docs/CODEBASE-MAP.md` — deep architecture, DB schema, data files, action catalog.
+- `docs/OPTIMIZATION-BACKLOG.md` — prioritized bugs, perf, CI, and feature ideas.
 - `docs/ARCHITECTURE.md`, `docs/CORPORATE-UI.md`, `SECURITY.md`, `CONTRIBUTING.md`.
 
 > Audit / review notes are **internal working documents**. They are kept in the

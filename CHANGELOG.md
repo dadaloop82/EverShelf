@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > Ideas collected during development. No priority or date implied.
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
+- **UI refresh audit** — See `docs/OPTIMIZATION-BACKLOG.md` (P0): unify post-mutation refresh across inventory, banner, shopping.
+
+## [1.11.2] - 2026-10-06
+
+**Fixes**
+
+- **Extend expiry updates the UI.** After `inventory_update` for a new expiry date, the client
+  recalculates days-to-expiry from the date, marks the review as confirmed for the banner
+  queue, reloads banner alerts, and calls `refreshCurrentPage()` so dashboard cards and
+  inventory lists do not stay stale.
+
+**Docs**
+
+- Added `docs/OPTIMIZATION-BACKLOG.md` — prioritized bugs, optimizations, and feature ideas.
 
 ## [1.11.1] - 2026-10-06
 

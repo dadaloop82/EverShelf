@@ -8223,14 +8223,21 @@ async function extendInventoryExpiry(inventoryId, itemHint = null) {
             // Keep local banner/dashboard state consistent immediately
             item.expiry_date = newExpiry;
             item.expiry_user_set = 1;
-            item.days_to_expiry = days;
-            item.days_expired = 0;
-            item.is_edible = true;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const expDay = new Date(newExpiry + 'T12:00:00');
+            const daysLeft = Math.round((expDay - today) / 86400000);
+            item.days_to_expiry = daysLeft;
+            item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
+            item.is_edible = daysLeft >= 0;
+            setReviewConfirmed('exp_' + item.id);
             const msg = (t('toast.expiry_extended') || 'Expiry extended by {n} days → {date}')
                 .replace('{n}', String(days))
                 .replace('{date}', newExpiry)
                 .replace('{name}', item.name || '');
             showToast(msg, 'success');
+            if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+            if (typeof refreshCurrentPage === 'function') refreshCurrentPage();
             return true;
         }
         showToast(res.error || t('error.generic'), 'error');
