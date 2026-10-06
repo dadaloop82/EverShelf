@@ -30,9 +30,12 @@ const EVERSHELF_NOTIFY_CHANNELS_KNOWN = ['ntfy', 'webhook'];
  *  The names are the ones `_fireHaWebhook()` already uses, so notifications and
  *  Home Assistant automations never drift apart. Only wired events are listed. */
 const EVERSHELF_NOTIFY_EVENTS_KNOWN = [
-    'expiry_alert',   // daily cron: items expiring / already expired
-    'shopping_add',   // item added to the shopping list
-    'stock_update',   // inventory quantity changed
+    'expiry_alert',          // daily cron: items expiring / already expired
+    'shopping_add',          // item added to the shopping list
+    'shopping_remove',       // item removed (incl. purchased)
+    'shopping_trip_complete', // user cleared list after a trip
+    'stock_update',          // inventory quantity changed
+    'weekly_digest',         // cron summary
 ];
 
 /**

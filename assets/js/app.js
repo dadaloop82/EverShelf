@@ -16549,6 +16549,23 @@ async function autoAddCriticalItems() {
  * auto-add/cleanup timers, then re-adds all urgent items from scratch.
  * Triggered by the user pressing "Forza sincronizzazione Bring!".
  */
+async function shoppingTripComplete() {
+    if (!confirm(t('shopping.trip_complete_confirm'))) return;
+    try {
+        const r = await api('shopping_trip_complete', {}, 'POST');
+        if (r?.success) {
+            shoppingItems = [];
+            showToast(t('shopping.trip_complete_done').replace('{n}', String(r.cleared ?? 0)), 'success');
+            await loadShoppingList();
+            await loadSmartShopping(true);
+        } else {
+            showToast(r?.error || t('error.generic'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
 async function forceSyncBring() {
     const btn = document.getElementById('btn-force-sync');
     if (btn) { btn.disabled = true; btn.textContent = `⏳ ${t('shopping.syncing')}`; }
