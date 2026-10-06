@@ -13720,18 +13720,16 @@ function shoppingListRowMatchesProduct(PDO $db, string $listName, string $listRa
     if ($listKey === '') {
         return false;
     }
-    $shop = trim($prodShoppingName) !== '' ? trim($prodShoppingName) : computeShoppingName($prodName);
-    foreach ([$shop, $prodName] as $candidate) {
-        if ($candidate === '') {
-            continue;
-        }
-        $prodKey = mb_strtolower(resolveBringGenericKey($db, $candidate));
-        if ($prodKey !== '' && $prodKey === $listKey) {
-            return true;
-        }
+    $shop = trim($prodShoppingName) !== '' ? trim($prodShoppingName) : computeShoppingName($prodName, '', '');
+    $prodKey = mb_strtolower(resolveBringGenericKey($db, $shop));
+    if ($prodKey !== '' && $prodKey === $listKey) {
+        return true;
     }
-    $bringKey = italianToBring($shop);
-    return bringListItemMatchesProduct($listName, $shop, $prodName, $bringKey);
+    if (trim($prodShoppingName) === '' && $prodName !== '') {
+        $nameKey = mb_strtolower(resolveBringGenericKey($db, $prodName));
+        return $nameKey !== '' && $nameKey === $listKey;
+    }
+    return false;
 }
 
 /** Does a Bring! purchase row match this product (generic + specific names)? */
@@ -17215,6 +17213,12 @@ function internalShoppingListGenericKey(PDO $db, string $name, string $rawName =
     $key = resolveBringGenericKey($db, $name);
     if ($rawName !== '' && mb_strtolower(trim($rawName)) !== mb_strtolower(trim($name))) {
         $rawKey = resolveBringGenericKey($db, $rawName);
+        // Keep a short canonical list title (e.g. "Ragù") — do not drift to a ingredient
+        // token inside a long product name ("… con salsiccia" → Salsiccia).
+        $titleTokens = bringListTokenize($name);
+        if (count($titleTokens) <= 2 && $key !== '' && $rawKey !== $key) {
+            return $key;
+        }
         if ($rawKey !== mb_strtolower(trim($rawName))) {
             return $rawKey;
         }
