@@ -12563,27 +12563,21 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         return 'Insalata di riso';
     }
     // Tokenizer + curated vocabulary live in api/lib/product_kind.php, shared with
-    // resolveProductKind() so both read exactly the same dictionaries.
+    // resolveProductKind() so both read exactly the same dictionaries — through the
+    // ONE lookup productKindFromDictionary(), so the shopping generic and the genre
+    // embedded in the title can never disagree on a product the dictionary knows.
     $tokens = evershelfSignificantTokens($name);
 
-    // 0. Compound-phrase map — checked against the FULL lowercase name (stop words included)
-    //    so multi-word product types are classified BEFORE single-token lookup.
-    //    This prevents "Pane grattugiato" → "Pane", "Panna da cucina" → "Panna", etc.
-    $phraseMap = evershelfShoppingPhraseMap();
-    foreach ($phraseMap as $phrase => $canonical) {
-        if (mb_strpos($lower, $phrase) !== false) {
-            return $canonical;
-        }
-    }
-
-    // 1. Curated keyword → canonical group name.
-    //    Extended list covers the most common Italian pantry items and avoids Gemini calls.
-    $keywordMap = evershelfShoppingKeywordMap();
-
-    foreach ($tokens as $token) {
-        if (isset($keywordMap[$token])) {
-            return $keywordMap[$token];
-        }
+    // 0-1. Curated vocabulary: compound phrases first (checked against the FULL lowercase
+    //      name, stop words included, so "Pane grattugiato" never collapses to "Pane" and
+    //      "Panna da cucina" never to "Panna"), then the first matching significant token.
+    //      The match may sit anywhere in the name (unlike the genre, which needs the word
+    //      to lead the title): the shopping list wants a buyable word either way.
+    //      The brand is deliberately NOT passed, so the token list — and the resulting
+    //      name — stay exactly what they have always been.
+    $curated = productKindFromDictionary($name);
+    if ($curated['kind'] !== '') {
+        return $curated['kind'];
     }
 
     // 2. Bring! catalog back-translation: "Latte di Montagna" → "Milch" → "Latte"

@@ -12,8 +12,10 @@
  *     cannot tell a yoghurt from a cheese, so it is not authoritative,
  *   * the signature cache serves similar products, so the family pays one AI word,
  *   * the prefix is idempotent: a title that already carries a genre is untouched,
- *   * computeShoppingName() still reads the SAME dictionaries (they moved to
- *     api/lib/product_kind.php) — the shopping/Bring! names must not change.
+ *   * computeShoppingName() still reads the SAME dictionaries through the SAME lookup
+ *     (productKindFromDictionary) — the shopping/Bring! names must not change, and on a
+ *     dictionary-known product the shopping generic and the title genre are the same
+ *     string by construction (asserted over the whole live pantry below).
  *
  * Run: php scripts/test-product-kind-prefix.php
  */
@@ -112,6 +114,50 @@ assert_same([], $doublePrefixed, 'guard: no genre in the vocabulary can be prefi
 assert_same('Yogurt', evershelfShoppingKeywordMap()['yogurt'] ?? '', 'shopping: keyword map still resolves yogurt');
 assert_same('Yogurt', computeShoppingName('Yogurt Greco Fage', 'latticini', 'Fage', false), 'shopping: computeShoppingName() output unchanged');
 assert_same('Fette biscottate', computeShoppingName('Fette biscottate integrali', 'pane', 'Mulino Bianco', false), 'shopping: phrase map still first');
+
+// One vocabulary, two consumers: the shopping generic IS productKindFromDictionary()'s
+// answer, so the buyable name and the genre leading the title can never drift apart.
+$oneVocabulary = [
+    'Yogurt Greco Fage', 'Penne rigate', 'Panna da cucina 200 ml', 'Fette biscottate integrali',
+    'Passata di pomodoro', 'Pomodori pelati', 'Tarallini', 'Bucce cotte di pomodoro',
+    'Farina di mais', 'Acqua frizzante', 'Prosciutto cotto a fette',
+];
+$drifted = [];
+foreach ($oneVocabulary as $oneName) {
+    $dict = productKindFromDictionary($oneName)['kind'];
+    if ($dict === '') {
+        continue;
+    }
+    $shop = computeShoppingName($oneName, '', '', false);
+    if ($shop !== $dict) {
+        $drifted[] = "{$oneName}: shopping={$shop} dict={$dict}";
+    }
+}
+assert_same([], $drifted, 'shopping + genre: one dictionary, no drift');
+
+// …and the same invariant must hold for the live pantry (read-only, skipped without a DB).
+$liveDb = __DIR__ . '/../data/evershelf.db';
+if (is_file($liveDb)) {
+    try {
+        $pdo = new PDO('sqlite:' . $liveDb);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $bad = 0;
+        $checked = 0;
+        foreach ($pdo->query('SELECT name, category, brand FROM products') as $row) {
+            $dict = productKindFromDictionary((string)($row['name'] ?? ''))['kind'];
+            if ($dict === '') {
+                continue; // the dictionary does not know it → shopping falls back to its own tail
+            }
+            $checked++;
+            if (computeShoppingName((string)$row['name'], (string)($row['category'] ?? ''), (string)($row['brand'] ?? ''), false) !== $dict) {
+                $bad++;
+            }
+        }
+        assert_same(0, $bad, "shopping + genre: same generic over the live pantry ({$checked} dictionary-known products)");
+    } catch (Throwable $e) {
+        echo 'SKIP: live pantry check (' . $e->getMessage() . ")\n";
+    }
+}
 
 // ── The pipeline prefixes, and reports where the genre came from ────────────
 $applied = productKindApply('Fette biscottate integrali', 'Mulino Bianco', 'pane', 'it', false, 'Fette biscottate');
