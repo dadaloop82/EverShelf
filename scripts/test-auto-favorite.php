@@ -1,11 +1,13 @@
 #!/usr/bin/env php
 <?php
 /**
- * Regression tests: the products the household uses most become favourites on their
- * own — and the automatic rule never fights the user.
+ * Regression tests: only the household's absolute top-N products by real
+ * consumption become favourites on their own — and the automatic rule never
+ * fights the user.
  *
  * Rules under test (api/lib/auto_favorite.php):
- *   * a product consumed AUTO_FAVORITE_MIN_USES times in the window is promoted,
+ *   * a product consumed AUTO_FAVORITE_MIN_USES times in the window can compete,
+ *   * only the absolute top AUTO_FAVORITE_TOP_N (default 3) are promoted,
  *   * only real consumption counts ('out', not undone, inside AUTO_FAVORITE_WINDOW_DAYS),
  *   * a manual unstar vetoes the product for good (favorite_user_override),
  *   * the rule only ever ADDS favourites.
@@ -99,7 +101,7 @@ $reached = mkProduct($db, 'Yogurt Greco usato');
 for ($i = 0; $i < $min; $i++) {
     addTx($db, $reached, 'out', 2);
 }
-assert_true(maybeAutoFavorite($db, $reached) === true, 'threshold: reaching the threshold promotes to favourite');
+assert_true(maybeAutoFavorite($db, $reached) === true, 'threshold: reaching the threshold promotes to favourite when it is in the top N');
 assert_same(1, isFavorite($db, $reached), 'threshold: the star is stored');
 assert_true(maybeAutoFavorite($db, $reached) === false, 'idempotent: an existing favourite is left alone');
 
@@ -175,6 +177,31 @@ assert_true(str_contains($apiPhp, 'maybeAutoFavorite($db, (int)$productId);'), '
 assert_true(str_contains($apiPhp, 'rememberFavoriteOverride($db, $id, (bool)$fav);'), 'wiring: the manual toggle records the veto');
 assert_true(str_contains($apiPhp, "'auto_favorite_min_uses'"), 'wiring: the threshold is exposed to the settings page');
 assert_true(str_contains($html, 'id="setting-auto-favorite-min-uses"'), 'wiring: the threshold input exists');
+
+// ── Top-N cap: a 4th contender never sneaks in (run last so it cannot steal
+//    sweep slots from the products above) ────────────────────────────────────
+$topN = autoFavoriteTopN();
+assert_true($topN >= 1, 'top-n: at least one slot');
+$contenders = [];
+for ($n = 0; $n < $topN + 2; $n++) {
+    $id = mkProduct($db, 'Staple contender ' . $n);
+    // More uses than anything above, descending so rank is deterministic.
+    for ($i = 0; $i < $min + 50 + ($topN + 2 - $n); $i++) {
+        addTx($db, $id, 'out', 1);
+    }
+    $contenders[] = $id;
+}
+$promotedIds = [];
+foreach ($contenders as $id) {
+    if (maybeAutoFavorite($db, $id)) {
+        $promotedIds[] = $id;
+    }
+}
+assert_same($topN, count($promotedIds), 'top-n: exactly the top N contenders are promoted');
+assert_same(array_slice($contenders, 0, $topN), $promotedIds, 'top-n: the most used products win the slots');
+foreach (array_slice($contenders, $topN) as $id) {
+    assert_same(0, isFavorite($db, $id), 'top-n: a product outside the top N stays unstarred');
+}
 
 echo $fail === 0 ? "\nAll auto-favourite tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

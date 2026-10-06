@@ -75,8 +75,19 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   may be a raw token such as "Potato") are **two columns on purpose**, both reading that one
   dictionary through `productKindFromDictionary()`; never merge them and never add a second
   dictionary, or the two will disagree again.
-- **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes the
-  products consumed `AUTO_FAVORITE_MIN_USES` times in `AUTO_FAVORITE_WINDOW_DAYS`;
+  The same choke point also owns the **number**: the stored title is the *singular*
+  (`productKindSingularizeName()`: `"Uova medie"` → `"Uovo medio"` — only the genre leading
+  the title moves, the adjective run right after it follows, a variety name never does, and
+  a title opening with a quantity is left alone), while the *plural* is derived where a
+  count is shown, and only for units that count pieces (`productKindUnitCountsPieces()`,
+  `productNameForPieces()`): the pantry read hands the client a `display_name` (`"3 Uova
+  medie"`), so `500 g Pasta` stays a mass and never becomes `500 g Paste`. The two are one
+  round trip (`singular → plural → singular`), which is what lets the maintenance pass
+  replay. `products.shopping_name` is deliberately **not** rewritten by that pass: it is
+  the buyable word of the list, and the shopping list buys `Grissini`, not one `Grissino`.
+- **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes only
+  the absolute top `AUTO_FAVORITE_TOP_N` (default 3) products by consumption that also
+  clear `AUTO_FAVORITE_MIN_USES` inside `AUTO_FAVORITE_WINDOW_DAYS`;
   `products.favorite_user_override` records a manual unstar so the rule never re-adds
   it. Favourites are only ever added, never removed by the rule.
 - **Security**: every POST action goes through the CSRF guard and the API-token
@@ -146,6 +157,8 @@ php scripts/test-i18n-icons.php         # no label prints its icon twice (all lo
 php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (screensaver facts)
 php scripts/test-dashboard-panels.php   # dashboard rotation: phases ↔ sections ↔ bar fills, no orphan flags
 php scripts/test-product-kind-prefix.php # genre leading every article title (dictionary → cache → AI, no double prefix)
+php scripts/test-product-number.php     # singular title in the catalog, plural only in the pantry (piece units)
+php scripts/test-product-rename.php     # a scanned title/brand can be corrected, and a rescan cannot undo it
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
 
@@ -185,7 +198,9 @@ npm run build
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
 | Genre in the article title | `api/lib/product_kind.php` + `mergeIncomingProductFields()` (the single title choke point) + `products.kind`; dictionary shared with `computeShoppingName()` — guard test `scripts/test-product-kind-prefix.php` |
+| Singular title ↔ plural pantry | `productKindSingularizeName()` (stored title), `productNameForPieces()` + `display_name` in `listInventory()`, `productKindUnitCountsPieces()` — guard test `scripts/test-product-number.php` |
 | Automatic favourites | `api/lib/auto_favorite.php` (`maybeAutoFavorite()` on every `inventory_use`), `products.favorite_user_override`, maintenance action `products_apply_auto_rules` — guard test `scripts/test-auto-favorite.php` |
+| Correct a scanned title/brand | `showAddForm()` → `_renderAddProductPreview()` / `_commitAddProductRename()` in app.js (`name_user_set` locks the user name) + the AI card `_showAiMatchChoices()` — guard test `scripts/test-product-rename.php` |
 | Cron watchdog / notifications | `api/lib/healthcheck.php`, `api/lib/notify.php`, `cron_*.php` |
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |

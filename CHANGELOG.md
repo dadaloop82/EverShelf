@@ -11,6 +11,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipe scraps tips** — During cooking steps, detect "waste" generated (peels, cores, bones, eggshells, coffee grounds, citrus zest, etc.) and surface AI-powered tips on how to reuse them (compost, natural cleaner, broth, candied peel, etc.). Could be shown as an optional collapsible hint card below the step that generates the scrap.
 
+## [1.11.1] - 2026-10-06
+
+Faster barcode identity, fewer bogus singular titles, a short favourites rail, and
+a shopping list that actually remembers what ran out.
+
+**Highlights**
+
+- **Barcode lookup is snappier without calling the AI.** Parallel OFF mirrors abort
+  as soon as the first one answers; GTIN-14 / EAN-8 / UPC-A variants are tried as
+  candidates; the camera path confirms UPC-A in one good frame, brings ZBar in
+  earlier, and uses an adaptive threshold on the crop so shiny packs decode faster.
+  AI stays behind the manual button / `BARCODE_AI_FALLBACK`.
+- **Package collectives stay plural.** `Ceci`, `Fagioli`, `Lenticchie`, `Piselli`,
+  `Cereali`, `Spinaci`, `Gnocchi`, `Grissini`, `Taralli`, `Sardine`, `Pelati` are
+  invariant — one tin still holds many beans, so the title never becomes `Cece`.
+- **Automatic favourites are the top 3 only.** Reaching `AUTO_FAVORITE_MIN_USES` is
+  no longer enough; only the absolute top `AUTO_FAVORITE_TOP_N` (default 3) most-used
+  products get the star. A manual unstar still always wins.
+- **Shopping list catches finished and almost-finished products.** Trace crumbs
+  count as empty, depleted products the household has bought/used come back at
+  least as medium urgency, near-empty stock (≤25 %) is flagged even for non-staples,
+  and loose any-token "already covered" matching no longer hides a finished staple
+  behind a loosely related cousin on the shelf.
+
+## [1.11.0] - 2026-10-06
+
+An article is now named the way a catalog names it, and counted the way a pantry
+counts it: the title stays singular, the shelf says how many there are.
+
+**Highlights**
+
+- **The stored title is the singular.** `Fette biscottate Integrali` becomes
+  `Fetta biscottata integrale`, `Uova medie` becomes `Uovo medio` — the catalog, the
+  search and the maintenance pass always speak of *one* article, so the same product
+  cannot look like two. Only the genre that **leads** the title moves (a title that
+  merely contains it, `Bucce cotte di pomodoro`, is left alone), the adjectives right
+  after it follow the move (`Uova medie` → `Uovo medio`), a variety name never does
+  (`Tarallini` is not `Taralli`, `Mela rossa Gala` keeps its `Gala`), and a title
+  opening with a quantity is not touched at all (`6 UOVA PASTA GIALLA`): the number
+  must not jump behind the genre. Package collectives (`Ceci`, `Fagioli`, …) and
+  mass nouns the dictionary does not number are invariant — the app never invents a
+  plural (or a bogus singular) it was not given.
+- **The pantry shows the plural, counting pieces only.** The list is rendered from a
+  `display_name` the API derives at read time (`3 Uova medie`, `2 Mozzarelle`), so three
+  eggs read like three eggs while `500 g Pasta` stays a mass and never becomes
+  `500 g Paste`, and millilitres, kilos and unknown units are never guessed.
+- **Certifications keep their capitals.** `Igp`, `i.g.p.` and `igp` are all written back
+  as `IGP`, `Dop` as `DOP`, `Evo` as `EVO`, inside brackets or not, HTML entities
+  included; an unknown all-caps token is read as a sigla and kept (`XYZ`), while `BIO`
+  stays a word and follows the sentence case like everything else.
+- **The buyable word is not a title.** The maintenance pass leaves
+  `products.shopping_name` exactly as it is: the shopping list buys `Grissini`, not one
+  `Grissino`, so renaming the title does not rename the Bring! item.
+
+**Internals**
+
+- `productKindSingularizeName()` / `productNameForPieces()` and the curated
+  `evershelfProductKindNumberForms()` / `...AgreementForms()` directories live in
+  `api/lib/product_kind.php`: one vocabulary shared with the genre resolver, read
+  through one lookup, with the two directions asserted to be a round trip
+  (singular → plural → singular) so the pass can replay without drifting a title.
+  `scripts/test-product-number.php` locks the number rules, `productTitleSiglaForm()`
+  the certifications, and `scripts/test-product-kind-prefix.php` the genre, the case
+  and the single dictionary.
+
 ## [1.10.1] - 2026-10-05
 
 The splash screen now shows what the app is doing instead of a bare spinner: a rail
@@ -73,6 +138,13 @@ keep the products you really use where you can reach them.
   top of the inventory. The rule only ever *adds* favourites, and unstarring one by
   hand records a veto (`products.favorite_user_override`) so the automation never
   puts it back.
+- **The scan step no longer decides by itself.** A barcode label or an AI guess can
+  be wrong, and the add-to-pantry step is the last moment you see it: the identified
+  **title and brand are now tappable there** (and on the AI match card) so you can
+  correct them before saving. The correction is stored with `products.name_user_set`,
+  which is what stops the next rescan of the same barcode from putting the wrong name
+  back; the stored title still comes back through the API with the genre prefix, the
+  capital letter and the singular form applied.
 
 **Schema**
 

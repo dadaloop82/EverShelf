@@ -372,6 +372,349 @@ function evershelfProductKindVocabulary(): array {
     }
     return $vocab = array_keys($seen);
 }
+/**
+ * Number forms of the ONE vocabulary: the genres are fixed strings, but an Italian
+ * title must read at the SINGULAR ("Mela", "Uovo medio") and the pantry list at the
+ * plural of what is really there ("3 Mele", "12 Uova medie"). The dictionary already
+ * holds the genre; here it is given its inflection, keyed by the SAME canonical, so no
+ * second vocabulary is born:
+ *
+ *   canonical => [singular, plural, gender of the plural]
+ *
+ * Only countable piece genres are listed — fruit, veg, eggs, packs you buy as
+ * "one mozzarella / three mozzarelle". Everything else is invariant by construction
+ * and comes back unchanged:
+ *
+ *   * mass / foreign nouns ("Latte", "Riso", "Sale", "Yogurt", "Kiwi", "Caffè"),
+ *   * package collectives whose singular is wrong on a shelf ("Ceci" must never
+ *     become "Cece", nor "Fagioli"→"Fagiolo", "Lenticchie", "Piselli", "Cereali",
+ *     "Spinaci", "Gnocchi", "Grissini", "Taralli", "Sardine", "Pelati") — one tin
+ *     still holds many beans, so the title stays plural even for a single pack.
+ *
+ * A missing entry can therefore never invent a plural (or a bogus singular).
+ *
+ * @return array<string,array{0:string,1:string,2:string}>
+ */
+function evershelfProductKindNumberForms(): array {
+    return [
+        'Affettato'        => ['Affettato', 'Affettati', 'm'],
+        'Aglio'            => ['Aglio', 'Agli', 'm'],
+        'Arance'           => ['Arancia', 'Arance', 'f'],
+        'Banane'           => ['Banana', 'Banane', 'f'],
+        'Bevande'          => ['Bevanda', 'Bevande', 'f'],
+        'Birra'            => ['Birra', 'Birre', 'f'],
+        'Biscotti'         => ['Biscotto', 'Biscotti', 'm'],
+        'Carote'           => ['Carota', 'Carote', 'f'],
+        'Cipolla'          => ['Cipolla', 'Cipolle', 'f'],
+        'Fette biscottate' => ['Fetta biscottata', 'Fette biscottate', 'f'],
+        'Finocchio'        => ['Finocchio', 'Finocchi', 'm'],
+        'Formaggio'        => ['Formaggio', 'Formaggi', 'm'],
+        'Gelato'           => ['Gelato', 'Gelati', 'm'],
+        'Insalata'         => ['Insalata', 'Insalate', 'f'],
+        'Limone'           => ['Limone', 'Limoni', 'm'],
+        'Liquore'          => ['Liquore', 'Liquori', 'm'],
+        'Marmellata'       => ['Marmellata', 'Marmellate', 'f'],
+        'Mele'             => ['Mela', 'Mele', 'f'],
+        'Melone'           => ['Melone', 'Meloni', 'm'],
+        'Mozzarella'       => ['Mozzarella', 'Mozzarelle', 'f'],
+        'Passata'          => ['Passata', 'Passate', 'f'],
+        'Pere'             => ['Pera', 'Pere', 'f'],
+        'Piadina'          => ['Piadina', 'Piadine', 'f'],
+        'Pomodori'         => ['Pomodoro', 'Pomodori', 'm'],
+        'Pomodorini'       => ['Pomodorino', 'Pomodorini', 'm'],
+        'Ricotta'          => ['Ricotta', 'Ricotte', 'f'],
+        'Salsiccia'        => ['Salsiccia', 'Salsicce', 'f'],
+        'Succo'            => ['Succo', 'Succhi', 'm'],
+        'Sugo'             => ['Sugo', 'Sughi', 'm'],
+        'Surgelati'        => ['Surgelato', 'Surgelati', 'm'],
+        'Uova'             => ['Uovo', 'Uova', 'f'],
+        'Verdure'          => ['Verdura', 'Verdure', 'f'],
+        'Zucchine'         => ['Zucchina', 'Zucchine', 'f'],
+    ];
+}
+
+
+/**
+ * The adjectives that follow a genre and must agree with it, in their four forms
+ * [masculine-singular, feminine-singular, masculine-plural, feminine-plural].
+ *
+ * Only these are ever touched. A word nobody put here — a variety, a place, a brand
+ * ("Gala", "Basmati", "Siracusa", "Zuppalatte") — keeps the spelling the user wrote,
+ * so the rule can never invent an agreement for a word it does not understand.
+ *
+ * @return list<array{0:string,1:string,2:string,3:string}>
+ */
+function evershelfProductKindAgreementForms(): array {
+    return [
+        ['bio', 'bio', 'bio', 'bio'],
+        ['biologico', 'biologica', 'biologici', 'biologiche'],
+        ['cotto', 'cotta', 'cotti', 'cotte'],
+        ['crudo', 'cruda', 'crudi', 'crude'],
+        ['dolce', 'dolce', 'dolci', 'dolci'],
+        ['dorato', 'dorata', 'dorati', 'dorate'],
+        ['fino', 'fina', 'fini', 'fine'],
+        ['fresco', 'fresca', 'freschi', 'fresche'],
+        ['giallo', 'gialla', 'gialli', 'gialle'],
+        ['grande', 'grande', 'grandi', 'grandi'],
+        ['grattugiato', 'grattugiata', 'grattugiati', 'grattugiate'],
+        ['grosso', 'grossa', 'grossi', 'grosse'],
+        ['integrale', 'integrale', 'integrali', 'integrali'],
+        ['intero', 'intera', 'interi', 'intere'],
+        ['lungo', 'lunga', 'lunghi', 'lunghe'],
+        ['macinato', 'macinata', 'macinati', 'macinate'],
+        ['maturo', 'matura', 'maturi', 'mature'],
+        ['medio', 'media', 'medi', 'medie'],
+        ['naturale', 'naturale', 'naturali', 'naturali'],
+        ['nero', 'nera', 'neri', 'nere'],
+        ['pelato', 'pelata', 'pelati', 'pelate'],
+        ['piccante', 'piccante', 'piccanti', 'piccanti'],
+        ['piccolo', 'piccola', 'piccoli', 'piccole'],
+        ['raffinato', 'raffinata', 'raffinati', 'raffinate'],
+        ['rosso', 'rossa', 'rossi', 'rosse'],
+        ['scremato', 'scremata', 'scremati', 'scremate'],
+        ['secco', 'secca', 'secchi', 'secche'],
+        ['sodo', 'soda', 'sodi', 'sode'],
+        ['sottile', 'sottile', 'sottili', 'sottili'],
+        ['surgelato', 'surgelata', 'surgelati', 'surgelate'],
+        ['tondo', 'tonda', 'tondi', 'tonde'],
+        ['verde', 'verde', 'verdi', 'verdi'],
+    ];
+}
+
+/** Index of evershelfProductKindAgreementForms() by folded word (both numbers, both genders). */
+function productKindAgreementIndex(): array {
+    static $index = null;
+    if ($index === null) {
+        $index = [];
+        foreach (evershelfProductKindAgreementForms() as $i => $forms) {
+            foreach ($forms as $form) {
+                $fold = productKindFoldWord($form);
+                if ($fold !== '') {
+                    $index[$fold] = $i;
+                }
+            }
+        }
+    }
+    return $index;
+}
+
+/** True when the word is one of the curated adjectives — the only words that inflect. */
+function productKindIsAgreementWord(string $word): bool {
+    $index = productKindAgreementIndex();
+    return isset($index[productKindFoldWord($word)]);
+}
+/**
+ * Number forms of a genre, answerable from ANY of its forms ("Mele", "Mela" and the
+ * stored "Mela" all give the same pair). An unknown genre — a mass noun, or a
+ * shopping generic that came from the AI such as "Patate" — is invariant by
+ * construction: singular and plural are the same string, so nothing downstream can
+ * derive a form the dictionary never had.
+ *
+ * @return array{singular:string,plural:string,gender:string}
+ */
+function productKindNumberFormsFor(string $kind): array {
+    $kind = trim($kind);
+    if ($kind === '') {
+        return ['singular' => '', 'plural' => '', 'gender' => ''];
+    }
+    static $index = null;
+    if ($index === null) {
+        $index = [];
+        foreach (evershelfProductKindNumberForms() as $canonical => $forms) {
+            foreach ([$canonical, $forms[0], $forms[1]] as $key) {
+                $fold = productKindFoldWord((string)$key);
+                if ($fold !== '' && !isset($index[$fold])) {
+                    $index[$fold] = $forms;
+                }
+            }
+        }
+    }
+    $fold = productKindFoldWord($kind);
+    if (isset($index[$fold])) {
+        return ['singular' => $index[$fold][0], 'plural' => $index[$fold][1], 'gender' => $index[$fold][2]];
+    }
+    return ['singular' => $kind, 'plural' => $kind, 'gender' => ''];
+}
+
+/** Singular form of a genre ("Mele" → "Mela"); an invariant genre comes back unchanged. */
+function productKindSingularForm(string $kind): string {
+    return productKindNumberFormsFor($kind)['singular'];
+}
+
+/** Plural form of a genre ("Mela" → "Mele"); '' when the genre has no distinct plural. */
+function productKindPluralForm(string $kind): string {
+    $forms = productKindNumberFormsFor($kind);
+    return $forms['plural'] === $forms['singular'] ? '' : $forms['plural'];
+}
+
+/** Gender of a genre word from its ending ('m'/'f'); '' when the ending does not tell. */
+function productKindGenderOfWord(string $word): string {
+    $parts = preg_split('/\s+/u', trim($word)) ?: [];
+    $first = (string)($parts[0] ?? '');
+    if (preg_match('/a$/u', $first)) {
+        return 'f';
+    }
+    if (preg_match('/o$/u', $first)) {
+        return 'm';
+    }
+    return '';
+}
+
+/**
+ * Put one word in the number/gender the head of the title asks for: "uova medie" →
+ * "uovo medio" asks for 'medio', "mela rossa" → "mele rosse" for 'rosse'. A word that
+ * is not one of the curated adjectives keeps its own spelling — the rule never guesses
+ * an ending for a word it does not know.
+ */
+function productKindAgreeWord(string $word, string $number, string $gender): string {
+    if ($gender === '' || !preg_match('/^([^\p{L}]*)(\p{L}+)([^\p{L}]*)$/u', $word, $m)) {
+        return $word;
+    }
+    $index = productKindAgreementIndex();
+    $fold  = productKindFoldWord($m[2]);
+    if (!isset($index[$fold])) {
+        return $word;
+    }
+    $forms    = evershelfProductKindAgreementForms()[$index[$fold]];
+    $position = ($number === 'pl' ? 2 : 0) + ($gender === 'f' ? 1 : 0);
+    $agreed   = $forms[$position];
+    if (preg_match('/^\p{Lu}/u', $m[2])) {
+        $agreed = mb_strtoupper(mb_substr($agreed, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($agreed, 1, null, 'UTF-8');
+    }
+    return $m[1] . $agreed . $m[3];
+}
+
+/**
+ * Rewrite the head of a title into another number, carrying the words that follow with
+ * it: "Uova medie" → "Uovo medio", "Mela rossa" → "Mele rosse".
+ *
+ * The head is matched with productKindStartsWithWord() (whole words, punctuation and
+ * case ignored), so "Tarallini" is not "Taralli" and the pass leaves it alone; the
+ * words after it are agreed only through productKindAgreeWord(), so a variety or a
+ * brand stays exactly as the user wrote it.
+ */
+function productKindRewriteNameNumber(string $name, string $from, string $to, string $number, string $gender): string {
+    $name = trim($name);
+    $from = trim($from);
+    $to   = trim($to);
+    if ($name === '' || $from === '' || $to === '' || $from === $to || !productKindStartsWithWord($name, $from)) {
+        return $name;
+    }
+    // A title whose FIRST word carries no letter at all (a scanned quantity, an emoji) is
+    // not a genre-led title: the matcher forgives the "6" in front, but rebuilding the
+    // title would push it behind the genre ("Uovo6 uova pasta giallo"). A quote in front
+    // of the genre is fine — see the lead tokens below —, a number is not.
+    $tokens     = (array)preg_split('/\s+/u', $name);
+    $firstToken = (string)($tokens[0] ?? '');
+    if (!preg_match('/\p{L}/u', $firstToken)) {
+        return $name;
+    }
+    $headWords = count((array)preg_split('/\s+/u', $from));
+    $lead      = []; // tokens carried in front of the head (a quote, a symbol)
+    $head      = []; // the head words themselves
+    $tail      = [];
+    $pending   = $headWords;
+    foreach ($tokens as $token) {
+        if ($pending > 0 && productKindFoldWord($token) === '') {
+            $lead[] = $token; // no letters: never the head, but still part of the title
+            continue;
+        }
+        if ($pending > 0) {
+            $head[] = $token;
+            $pending--;
+            continue;
+        }
+        $tail[] = $token;
+    }
+    if ($pending > 0) {
+        return $name; // the matcher saw the genre, the tokens do not: never guess
+    }
+    // Whatever punctuation the user typed around the head travels with it ("«Uova»" → "«Uovo»").
+    $leadPunct  = preg_match('/^([^\p{L}]+)/u', $head[0], $m) ? $m[1] : '';
+    $trailPunct = preg_match('/([^\p{L}]+)$/u', (string)end($head), $m) ? $m[1] : '';
+    // Only the run of adjectives that directly follows the head moves with it:
+    // "Uova Fresche Grandi" → "Uovo fresco grande", while "Biscotti Macine con Panna
+    // Fresca" → "Biscotto macine con panna fresca" — that "Fresca" belongs to the panna,
+    // not to the biscotto, and a rule that guessed otherwise would write "panna fresco".
+    $inRun = true;
+    foreach ($tail as $i => $word) {
+        if (!$inRun || !productKindIsAgreementWord($word)) {
+            $inRun = false;
+            continue;
+        }
+        $tail[$i] = productKindAgreeWord($word, $number, $gender);
+    }
+    return implode(' ', array_merge($lead, [$leadPunct . $to . $trailPunct], $tail));
+}
+/**
+ * The stored article title, at the singular of the genre it carries:
+ * "Uova medie" → "Uovo medio", "Zucchine bio Bimby" → "Zucchina bio Bimby".
+ *
+ * A title that does not OPEN with the genre's plural comes back untouched: the genre
+ * may sit anywhere in the name ("Bucce cotte di pomodoro" matches "Pomodori" but
+ * already says "pomodoro" in the singular), and an invariant genre ("Cracker
+ * integrali", "Latte di Montagna") has no singular form to move to.
+ */
+function productKindSingularizeName(string $name, string $kind): string {
+    $name = trim($name);
+    $kind = trim($kind);
+    if ($name === '' || $kind === '') {
+        return $name;
+    }
+    $forms = productKindNumberFormsFor($kind);
+    if ($forms['plural'] === $forms['singular']) {
+        return $name;
+    }
+    return productKindRewriteNameNumber($name, $forms['plural'], $forms['singular'], 'sg', productKindGenderOfWord($forms['singular']));
+}
+
+/**
+ * The name the pantry list must show for the pieces really on the shelf: the plural
+ * when there is more than one ("3 Mele", "12 Uova medie"), the stored (singular) title
+ * otherwise ("1 Mela", "500 g Pasta").
+ *
+ * Only piece units are pluralised: g/ml measure a mass and a mass has no plural. The
+ * stored title is never touched by this rule — it stays the singular, which is what the
+ * catalog, the search and the maintenance pass must always see.
+ */
+function productNameForPieces(string $name, float $quantity, string $unit = '', string $kind = ''): string {
+    $name = trim($name);
+    if ($name === '' || $quantity <= 1 || !productKindUnitCountsPieces($unit)) {
+        return $name;
+    }
+    $kind = trim($kind);
+    if ($kind === '') {
+        $kind = (string)(productKindFromDictionary($name)['kind'] ?? '');
+    }
+    if ($kind === '') {
+        return $name;
+    }
+    $forms = productKindNumberFormsFor($kind);
+    if ($forms['plural'] === $forms['singular']) {
+        return $name;
+    }
+    return productKindRewriteNameNumber($name, $forms['singular'], $forms['plural'], 'pl', $forms['gender']);
+}
+
+/**
+ * True for the units that count pieces — the app's own "pz"/"conf" (products.unit
+ * defaults to 'pz') and their full words. g/ml and anything unknown measure a mass:
+ * "500 g Pasta" must never become "500 g Paste".
+ */
+function productKindUnitCountsPieces(string $unit): bool {
+    $unit = mb_strtolower(trim($unit), 'UTF-8');
+    if ($unit === '') {
+        return true;
+    }
+    return in_array($unit, ['pz', 'pezzo', 'pezzi', 'nr', 'n', 'unità', 'unita', 'conf', 'confezione', 'confezioni', 'box', 'piece', 'pieces'], true);
+}
+
+
+
+
+
+
+
 
 /**
  * Genre straight from the curated dictionary — no AI, no cache.
@@ -760,25 +1103,137 @@ function productKindNameAlreadyHasKind(string $name, string $kind): bool {
 }
 
 /**
- * Force the article title to open with a capital letter.
+ * True when a word already belongs to the vocabulary this file owns (the curated
+ * genre/shopping dictionaries, the stop words, the number forms, the adjectives that
+ * agree). Such a word is a word, never a sigla — so productTitleCapitalize()
+ * lowercases it.
+ */
+function productKindIsKnownWord(string $word): bool {
+    $fold = productKindFoldWord($word);
+    if ($fold === '') {
+        return false;
+    }
+    static $known = null;
+    if ($known === null) {
+        $known = [];
+        foreach ([evershelfShoppingKeywordMap(), evershelfShoppingPhraseMap()] as $map) {
+            foreach ($map as $key => $value) {
+                foreach (array_merge((array)preg_split('/\s+/u', (string)$key), [$value]) as $w) {
+                    $f = productKindFoldWord((string)$w);
+                    if ($f !== '') {
+                        $known[$f] = true;
+                    }
+                }
+            }
+        }
+        foreach (array_merge(evershelfShoppingStopWords(), evershelfProductKindNumberForms()) as $entry) {
+            foreach (is_array($entry) ? $entry : [$entry] as $w) {
+                $f = productKindFoldWord((string)$w);
+                if ($f !== '') {
+                    $known[$f] = true;
+                }
+            }
+        }
+        foreach (evershelfProductKindAgreementForms() as $forms) {
+            foreach ($forms as $w) {
+                $known[productKindFoldWord($w)] = true;
+            }
+        }
+    }
+    return isset($known[$fold]);
+}
+
+/**
+ * The sigle this app knows by name (Italian food certifications and the like). A token
+ * in here is written back in its canonical capitals whatever case the user typed it in
+ * ("Igp" → "IGP"), which the mechanical all-caps rule alone could not do.
+ */
+function evershelfProductKindSigle(): array {
+    return ['IGP', 'IGT', 'DOP', 'DOC', 'DOCG', 'DOCA', 'STG', 'PGI', 'PDO', 'EVO', 'OGM', 'GMO', 'MSC', 'ASC'];
+}
+
+/**
+ * True when a token is a sigla (IGP, DOP, IGT, EVO, XXL, I.G.P.): all capitals, no
+ * digit, 2-5 letters, and not a word of the vocabulary. "BIO", "UOVA" and "PASTA" are
+ * words, so they are not sigle and go back to their lowercase spelling.
+ */
+function productTitleIsAcronym(string $token): bool {
+    return productTitleSiglaForm($token) !== '';
+}
+
+/**
+ * The canonical capital spelling of a sigla, or '' when the token is an ordinary word
+ * that must go back to lowercase. The curated sigle are recognised in any case the user
+ * typed them; everything else has to be all caps to qualify.
+ */
+function productTitleSiglaForm(string $token): string {
+    // HTML entities are stripped first: a title that carries them ("&quot;Limone … I.G.P.&quot;")
+    // must still have its sigla recognised, and the entity itself is given back by
+    // productTitleRestoreAcronyms().
+    $letters = (string)preg_replace('/&\w+;|[^\p{L}]/u', '', $token);
+    if ($letters === '' || preg_match('/\p{Nd}/u', $token)) {
+        return '';
+    }
+    $upper = mb_strtoupper($letters, 'UTF-8');
+    if (in_array($upper, evershelfProductKindSigle(), true)) {
+        return $upper; // canonical: "Igp", "igp" and "I.G.P." all read back as "IGP"
+    }
+    if (mb_strtoupper($letters, 'UTF-8') !== $letters) {
+        return ''; // mixed case is a word the user capitalised, not a sigla
+    }
+    $len = mb_strlen($letters, 'UTF-8');
+    if ($len < 2 || $len > 5) {
+        return '';
+    }
+    return productKindIsKnownWord($letters) ? '' : $upper;
+}
+
+/**
+ * Give back the capitals the lowercasing took from the sigle of a title
+ * ("aceto balsamico IGP" → "Aceto balsamico IGP"). Tokens are matched position by
+ * position against the title as the user wrote it, so no other capital survives.
+ */
+function productTitleRestoreAcronyms(string $original, string $lowered): string {
+    $originals = (array)preg_split('/\s+/u', trim($original));
+    $i         = 0;
+    return (string)preg_replace_callback('/\S+/u', static function (array $m) use ($originals, &$i): string {
+        $token = (string)($originals[$i] ?? '');
+        $i++;
+        $sigla = productTitleSiglaForm($token);
+        if ($sigla === '') {
+            return $m[0];
+        }
+        // The user's own punctuation travels with the sigla ("(IGP)" stays "(IGP)", an
+        // entity stays an entity); the dots are the sigla's own spelling and go
+        // ("I.G.P." → "IGP", "I.G.P.," → "IGP,").
+        $pre  = preg_match('/^(&\w+;|[^\p{L}]+)/u', $token, $p) ? $p[1] : '';
+        $post = preg_match('/(&\w+;|[^\p{L}]+)$/u', $token, $p) ? $p[1] : '';
+        $post = (string)preg_replace('/\.+/', '', $post);
+        return $pre . $sigla . $post;
+    }, $lowered);
+}
+
+/**
+ * The stored title: first letter capital, everything else lowercase
+ * ("LATTE Fresco" → "Latte fresco", "iPhone 15" → "Iphone 15"). The user asked for one
+ * single spelling of an article, so "latte fresco" and "Latte Fresco" can never be two
+ * products in the pantry. Whatever wrote the name — scan, import, catalog, AI,
+ * hand-typed rename — the stored title goes through here (one exit, in productKindApply).
  *
- * The user asked for every article to be spelled the same way: "latte fresco" and
- * "Latte fresco" are the same product, and the pantry must not show both. Whatever
- * wrote the name — scan, import, catalog, AI, hand-typed rename — the stored title
- * goes through here.
+ * Two exceptions, both mechanical, so the rule cannot disagree with itself:
+ *   * a sigla keeps its capitals ("I.G.P.", "DOP", "IGT", "EVO"): an all-caps token of
+ *     2-5 letters the vocabulary does not know as a word — "BIO" and "UOVA" are words
+ *     and do go back to lowercase,
+ *   * a title that does not open with a letter ("3 mele", "🍎 mela") is left alone:
+ *     there is no first letter to raise, and lowercasing a quantity-led title is a
+ *     guess nobody asked for.
  *
- * Only the first letter is touched, and only when the title really starts with one:
- * a name that opens with a number, a symbol or an emoji ("3 mele", "🍎 mela") is left
- * alone — raising its second word would read worse than the original — while the rest
- * of the title keeps its own case ("NUTELLA" stays "NUTELLA"). The rule is deliberately
- * mechanical, so it cannot disagree with itself: a first letter that is lower only
- * because of a brand spelling ("iPhone") is raised too ("IPhone"), which is the price
- * of a title that *always* opens with a capital. Idempotent: running it twice on the
- * same title changes nothing, so the maintenance pass can replay it without drifting a
- * single title.
+ * Idempotent: running it twice on the same title changes nothing, so the maintenance
+ * pass can replay it without drifting a single title.
  *
  * NOT to be confused with normalizeProductName() (api/index.php), which lowercases a
- * *copy* of the name to compare two products: the stored title keeps its case.
+ * *copy* of the name to compare two products: the stored title keeps the case this
+ * function gives it.
  */
 function productTitleCapitalize(string $name): string {
     $name = trim($name);
@@ -789,13 +1244,19 @@ function productTitleCapitalize(string $name): string {
     if (!preg_match('/^\p{L}$/u', $first)) {
         return $name; // opens with a digit / symbol / emoji: there is no letter to raise
     }
-    return mb_strtoupper($first, 'UTF-8') . mb_substr($name, 1, null, 'UTF-8');
+    $lowered = mb_strtolower($name, 'UTF-8');
+    $lowered = mb_strtoupper(mb_substr($lowered, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($lowered, 1, null, 'UTF-8');
+    return productTitleRestoreAcronyms($name, $lowered);
 }
 
 /**
  * Make the genre an integral part of the article title
  * ("Fiori di latte" → "Yogurt Fiori di latte"). Idempotent: a title that already
  * carries a genre (any genre) is returned untouched.
+ *
+ * The prefix is the genre's SINGULAR form ("Fetta biscottata", not "Fette biscottate"):
+ * the stored title is the singular of the article (productKindApply), so a genre the
+ * dictionary only knows at the plural must not put that plural in front of the name.
  */
 function applyProductKindPrefix(string $name, string $kind): string {
     $name = trim($name);
@@ -806,7 +1267,11 @@ function applyProductKindPrefix(string $name, string $kind): string {
     if (productNameHasKind($name, $kind) || productNameStartsWithKnownKind($name) || productKindNameAlreadyHasKind($name, $kind)) {
         return $name;
     }
-    return $kind . ' ' . $name;
+    $singular = productKindSingularForm($kind);
+    if (productNameHasKind($name, $singular) || productKindNameAlreadyHasKind($name, $singular)) {
+        return $name;
+    }
+    return $singular . ' ' . $name;
 }
 
 /** PRODUCT_KIND_PREFIX=false switches the genre prefix off (default: on). */
@@ -823,9 +1288,11 @@ function productKindNormalizeLang($lang): string {
 /**
  * Full pipeline used on save: resolve the genre and return the prefixed title.
  *
- * The returned title always opens with a capital letter: this is the ONE place the
- * stored name is shaped, so the rule holds for a save and for the maintenance pass
- * (products_apply_auto_rules) alike — even with PRODUCT_KIND_PREFIX=false.
+ * The returned title always opens with a capital letter and carries the singular of
+ * the article's genre: this is the ONE place the stored name is shaped, so the rule
+ * holds for a save and for the maintenance pass (products_apply_auto_rules) alike —
+ * even with PRODUCT_KIND_PREFIX=false (the capital letter survives, the genre is only
+ * carried over when the title already has one).
  *
  * A title that already starts with a genre short-circuits: re-saving a product must
  * never cost another AI call (and the genre we already stored is carried over).
@@ -834,9 +1301,25 @@ function productKindNormalizeLang($lang): string {
  */
 function productKindApply(string $name, string $brand = '', string $category = '', string $lang = 'en', bool $allowAi = true, string $knownKind = ''): array {
     $name = trim($name);
-    // ONE exit for every branch: the title rule (a capital letter) must not depend on
-    // which branch happened to answer, so nobody can forget it when adding a new one.
+    // ONE exit for every branch: the title rules — the singular number and the capital
+    // letter — must not depend on which branch happened to answer, so nobody can forget
+    // them when adding a new one.
     $out = static function (string $title, string $kind, string $source): array {
+        // The stored title is the SINGULAR of the article ("Uova medie" → "Uovo medio"):
+        // the pantry list derives the plural of what is really there on the fly
+        // (productNameForPieces).
+        if ($kind !== '') {
+            $title = productKindSingularizeName($title, $kind);
+            // The genre is stored in its singular form only when it is the genre OF THIS
+            // TITLE — the one the title leads with. A genre the dictionary merely suggested
+            // for a title that words it differently ("Tarallini" and its weak suggestion
+            // "Taralli", "Datterini pelati" and its "Pelati") is left as it was resolved:
+            // narrowing it to "Tarallo"/"Pelato" would store a word the article never had,
+            // and products.kind must stay a description of the title, not a rewrite of it.
+            if (productKindStartsWithWord($title, $kind) || productKindStartsWithWord($title, productKindSingularForm($kind))) {
+                $kind = productKindSingularForm($kind);
+            }
+        }
         return ['name' => productTitleCapitalize($title), 'kind' => $kind, 'source' => $source];
     };
     if ($name === '' || !productKindPrefixEnabled()) {
@@ -850,7 +1333,15 @@ function productKindApply(string $name, string $brand = '', string $category = '
         return $out($name, $knownKind, 'existing');
     }
     if (productNameStartsWithKnownKind($name)) {
-        return $out($name, $knownKind, 'existing');
+        // The title already opens with a genre, but maybe nobody ever stored WHICH one
+        // (a product created before the genre was kept, or a title the user typed
+        // himself): the dictionary says it for free — the same lookup the shopping name
+        // reads — so the article keeps its genre without paying a second AI word. Only a
+        // confident answer (the one the dictionary gives for the leading word) is taken,
+        // so a mere look-alike further along the title cannot invent a genre.
+        $dict     = productKindFromDictionary($name);
+        $dictKind = !empty($dict['confident']) ? (string)$dict['kind'] : '';
+        return $out($name, $knownKind !== '' ? $knownKind : $dictKind, 'existing');
     }
     $resolved = resolveProductKind($name, $brand, $category, productKindNormalizeLang($lang), $allowAi);
     if ($resolved['kind'] === '') {

@@ -1310,7 +1310,7 @@
       "card_hint": "Cada artículo lleva su género delante del título (p. ej. «Yogurt Fiori di latte»). Si el nombre no lo indica, la app lo deduce del diccionario interno y —solo si hace falta— pide una sola palabra a la IA y luego la guarda en caché para productos similares. Además, cada título empieza siempre con mayúscula.",
       "kind_prefix_label": "Añadir el género al título",
       "auto_favorite_label": "Favoritos automáticos tras",
-      "auto_favorite_suffix": "usos en los últimos 90 días (0 = desactivado)",
+      "auto_favorite_suffix": "usos — solo los 3 más usados en absoluto (0 = desactivado)",
       "apply_existing": "Aplicar a los articulos existentes",
       "apply_confirm": "¿Renombrar {names} artículos y añadir {favorites} favoritos?",
       "apply_done": "{names} artículos renombrados, {favorites} favoritos añadidos",
