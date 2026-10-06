@@ -2709,19 +2709,31 @@ function haInventorySensor(PDO $db): void {
         )->fetchColumn();
 
         // Fixed 3-day expiry count (always 3 days, regardless of expiry_days param)
-        $expiring3d = ($expiryDays === 3)
-            ? $expiring
-            : (int)$db->query(
-                "SELECT COUNT(*) FROM inventory WHERE quantity > 0 AND expiry_date IS NOT NULL
-                 AND expiry_date BETWEEN date('now') AND date('now', '+3 days')"
-            )->fetchColumn();
+        if ($expiryDays === 3) {
+            $expiring3d = $expiring;
+        } else {
+            $raw3d = $db->query(
+                "SELECT " . _haProductSelect() . "
+                 FROM inventory i JOIN products p ON p.id = i.product_id
+                 WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
+                   AND i.expiry_date BETWEEN date('now') AND date('now', '+3 days')"
+            )->fetchAll(PDO::FETCH_ASSOC);
+            $expiring3d = count(array_filter(
+                $raw3d,
+                static fn(array $r): bool => evershelfExpiryNeedsAttention($r, 3)
+            ));
+        }
 
-        // Items expiring today or tomorrow (max urgency)
-        $expiringToday = (int)$db->query(
-            "SELECT COUNT(*) FROM inventory WHERE quantity > 0 AND expiry_date IS NOT NULL
-             AND expiry_date <= date('now', '+1 days')"
-        )->fetchColumn();
-
+        // Today / tomorrow only (dashboard urgency) — not every past best-before date.
+        $todayYmd = date('Y-m-d');
+        $tomorrowYmd = date('Y-m-d', strtotime('+1 day'));
+        $expiringToday = 0;
+        foreach ($expiringItems as $r) {
+            $d = (string)($r['expiry_date'] ?? '');
+            if ($d >= $todayYmd && $d <= $tomorrowYmd) {
+                $expiringToday++;
+            }
+        }
         // Location breakdown
         $locationRows = $db->query(
             "SELECT location, COUNT(*) as n FROM inventory WHERE quantity > 0 GROUP BY location"
@@ -2837,6 +2849,8 @@ function haInventorySensor(PDO $db): void {
                 'last_backup_at'         => $lastBackupAt,
                 'days_to_next_expiry'    => $daysToNextExpiry,
                 'bring_connected'        => $bringConnected,
+                'shopping_mode'          => isShoppingBringMode() ? 'bring' : 'internal',
+                'expiry_filter'          => 'attention',
                 'shopping_items'         => $shoppingCount,
                 'shopping_total'         => $shoppingTotal,
                 'price_tracking_enabled' => $priceEnabled,
@@ -2861,31 +2875,56 @@ function haInventorySensor(PDO $db): void {
 // ===== HA CALENDAR =====
 
 /**
- * Returns all inventory items with expiry dates as calendar events.
- * GET /api/index.php?action=ha_calendar
+ * Returns inventory expiry dates as calendar events.
+ * GET /api/index.php?action=ha_calendar[&attention=1]
+ *
+ * By default every dated pack is an event (useful for planning).
+ * Pass attention=1 to keep only rows that deserve an alert (same rules as ha_sensor /
+ * the EverShelf dashboard) — hide silent low-risk "best before" leftovers.
  */
 function haCalendar(PDO $db): void {
     header('Content-Type: application/json; charset=utf-8');
     try {
+        $attentionOnly = isset($_GET['attention'])
+            && in_array((string)$_GET['attention'], ['1', 'true', 'yes'], true);
+        $horizon = max(1, (int)env('HA_EXPIRY_DAYS', '3'));
         $rows = $db->query(
-            "SELECT p.name, i.quantity, p.unit, i.location, i.expiry_date
+            "SELECT p.name, p.brand, p.category, i.quantity, p.unit, i.location,
+                    i.expiry_date, COALESCE(i.vacuum_sealed, 0) AS vacuum_sealed,
+                    p.default_quantity, p.package_unit
              FROM inventory i
              JOIN products p ON p.id = i.product_id
              WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL
              ORDER BY i.expiry_date ASC"
         )->fetchAll(PDO::FETCH_ASSOC);
 
-        $events = array_map(fn($r) => [
-            'summary'      => $r['name'],
-            'description'  => number_format((float)$r['quantity'], 2, '.', '') . ' ' . $r['unit'] . ' — ' . $r['location'],
-            'start'        => $r['expiry_date'],
-            'end'          => $r['expiry_date'],
-            'location'     => $r['location'],
-            'quantity'     => (float)$r['quantity'],
-            'unit'         => $r['unit'],
-        ], $rows);
+        $events = [];
+        foreach ($rows as $r) {
+            $needs = evershelfExpiryNeedsAttention($r, $horizon);
+            if ($attentionOnly && !$needs) {
+                continue;
+            }
+            if (function_exists('isInventoryDepleted') && isInventoryDepleted($r)) {
+                continue;
+            }
+            $events[] = [
+                'summary'         => $r['name'],
+                'description'     => number_format((float)$r['quantity'], 2, '.', '') . ' ' . $r['unit'] . ' — ' . $r['location'],
+                'start'           => $r['expiry_date'],
+                'end'             => $r['expiry_date'],
+                'location'        => $r['location'],
+                'quantity'        => (float)$r['quantity'],
+                'unit'            => $r['unit'],
+                'needs_attention' => $needs,
+                'category'        => $r['category'] ?? null,
+            ];
+        }
 
-        echo json_encode(['events' => $events], JSON_UNESCAPED_UNICODE);
+        echo json_encode([
+            'events' => $events,
+            'attention_only' => $attentionOnly,
+            'expiry_filter' => $attentionOnly ? 'attention' : 'all',
+        ], JSON_UNESCAPED_UNICODE);
     } catch (Throwable $e) {
         http_response_code(500);
         echo json_encode(['error' => $e->getMessage()]);

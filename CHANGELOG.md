@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.6] - 2026-10-06
+
+Home Assistant sensor/calendar parity for [ha-evershelf 1.3.2](https://github.com/dadaloop82/ha-evershelf/releases/tag/v1.3.2).
+
+- `ha_sensor` exposes `shopping_mode` (`internal`/`bring`) and `expiry_filter=attention`.
+- `expiring_today` / `expiring_3d` use the same attention rules as the dashboard.
+- `ha_calendar?attention=1` returns only alert-worthy expiries; full feed still available by default (with `needs_attention` on each event).
+
 ## [1.11.5] - 2026-10-06
 
 Shopping-list correctness + Home Assistant expiry parity (Bring stays dark when disabled).
