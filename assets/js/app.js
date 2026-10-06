@@ -6586,24 +6586,30 @@ function _applyInsightPhase() {
         if (trendEl)     trendEl.style.display     = phase === 'trend'     ? 'block' : 'none';
         requestAnimationFrame(() => {
             els.forEach(el => { el.style.opacity = '1'; });
-            if (showNutr) {
+            // Every bar is rendered at 0% and carries the target in data-target, so
+            // the CSS transition animates it in when its panel is revealed: fill the
+            // panel of the phase we are showing. These branches used to test the
+            // showNutr/showMonthly/showMacros/showSpend flags, until a refactor deleted
+            // the declarations and left the references behind — the ReferenceError
+            // thrown here silently left every dashboard chart empty.
+            if (phase === 'nutrition') {
                 nutrEl.querySelectorAll('.nutr-score-fill').forEach(bar => {
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showMonthly && monthlyEl) {
+            if (phase === 'monthly' && monthlyEl) {
                 monthlyEl.querySelectorAll('.ms-cat-bar').forEach(bar => {
                     bar.style.transition = 'width 0.6s ease';
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showMacros && macrosEl) {
+            if (phase === 'macros' && macrosEl) {
                 macrosEl.querySelectorAll('.macro-bar-fill').forEach(bar => {
                     bar.style.transition = 'width 0.6s ease';
                     bar.style.width = (bar.dataset.target || 0) + '%';
                 });
             }
-            if (showSpend && spendEl) {
+            if (phase === 'spend' && spendEl) {
                 spendEl.querySelectorAll('.spend-bar-fill').forEach(bar => {
                     bar.style.height = (bar.dataset.target || 0) + '%';
                 });
