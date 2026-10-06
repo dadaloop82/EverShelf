@@ -66,6 +66,7 @@ function evershelfPublicActions(): array {
         // API token can never be presented. The handler authenticates with its own
         // read-only ICS_TOKEN (?token=…, hash_equals) and returns 403/404 otherwise.
         'calendar_ics',
+        'telegram_webhook',
     ];
 }
 
@@ -103,6 +104,7 @@ function evershelfCsrfExemptPostActions(): array {
         'save_settings',
         'health_ingest',
         'ha_generate_recipe',
+        'telegram_webhook',
     ];
 }
 
