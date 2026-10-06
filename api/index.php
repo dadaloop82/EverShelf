@@ -1455,6 +1455,9 @@ try {
             break;
 
         // ===== CALENDAR (ICS EXPIRY FEED) =====
+        case 'telegram_webhook':
+            telegramWebhookHandle($db);
+            break;
         case 'calendar_ics':
             calendarIcsFeed($db);
             break;
