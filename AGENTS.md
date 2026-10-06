@@ -103,6 +103,8 @@ php scripts/test-healthcheck.php
 php scripts/test-settings-nav.php      # settings sections ↔ tabs ↔ panels ↔ locales
 php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
 php scripts/test-i18n-icons.php         # no label prints its icon twice (all locales)
+php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (screensaver facts)
+php scripts/test-dashboard-panels.php   # dashboard rotation: phases ↔ sections ↔ bar fills, no orphan flags
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -146,8 +148,9 @@ npm run build
 | Frontend API wrapper | `api()` in `assets/js/app.js` line **5384** |
 | i18n helper | `t()` line ~1198, `loadTranslations()` ~1209 |
 | Settings page (sections, accordion, checklist) | `SETTINGS_GROUPS` + `switchSettingsGroup()`, `SETTINGS_CHECKLIST` (~25820), `_initSettingsAccordions()` (~5222), `_openSettingsCardFor()` (~5288), `_checklistNewsItems()` (~25907) |
-| Dashboard panels & limits | `DASHBOARD_*_MAX` (~6617), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544) |
+| Dashboard panels & limits | `DASHBOARD_*_MAX` (~6623), `_dashboardAlertCap()`, `_staleRotationPick()`, `_INSIGHT_PHASES` (~6529) / `_applyInsightPhase()` (~6544); bars are drawn at 0% and filled from `data-target` on reveal — guard test `scripts/test-dashboard-panels.php` |
 | Emoji-before-translated-label bug | `iconLabel()` / `_stripLeadingEmoji()`; guard test `scripts/test-i18n-icons.php` |
+| HTML printed as text (screensaver fact, alert banner, chooser modal) | `formatQuantity()` returns `<span class="conf-size-info">`; text-only callers use `_formatQtyPlain()` / `stripHtml()`; guard test `scripts/test-html-in-text.php` |
 | PWA service worker | `sw.js` |
 
 ## Anti-patterns to avoid (already present — do not copy)

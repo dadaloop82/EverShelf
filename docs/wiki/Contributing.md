@@ -72,8 +72,10 @@ php scripts/test-calendar-ics.php
 php scripts/test-recipe-shopping.php
 php scripts/test-settings-nav.php     # settings sections ↔ tabs ↔ panels ↔ locales
 php scripts/test-setup-assistant.php  # SETTINGS_CHECKLIST ↔ tabs ↔ wizard steps
-php scripts/test-i18n-icons.php       # no label prints its icon twice (all locales)
-python3 scripts/i18n-audit.py         # keys used in code exist in every locale
+php scripts/test-i18n-icons.php        # no label prints its icon twice (all locales)
+php scripts/test-html-in-text.php      # no HTML reaches a text-only surface
+php scripts/test-dashboard-panels.php  # dashboard rotation: phases ↔ sections ↔ bar fills
+python3 scripts/i18n-audit.py          # keys used in code exist in every locale
 python3 scripts/i18n-value-audit.py   # keys whose value is still English (report)
 shellcheck -S warning backup.sh scripts/*.sh
 ```

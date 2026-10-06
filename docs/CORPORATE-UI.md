@@ -129,5 +129,7 @@ Background: `--bg` (`#f0f4e8`), cards: `--bg-card` (`#ffffff`).
 - **Don’t** mix unrelated button heights on the same row.
 - **Don’t** reintroduce persistent swipe text hints — use the one-time demo instead.
 - **Don’t** put a literal emoji next to a translated label: translation values already carry their icon, so print it through `iconLabel(icon, key)` / `_stripLeadingEmoji()` (`scripts/test-i18n-icons.php` fails otherwise).
+- **Don’t** hand HTML-producing helpers to a text-only surface: `formatQuantity()` embeds `<span class="conf-size-info">(da 36g)</span>` for `conf` units, so anything printed with `textContent` or escaped with `escapeHtml()` (screensaver fact, dashboard alert banner, item chooser modal, toasts) must go through `_formatQtyPlain()` / `stripHtml()` first (`scripts/test-html-in-text.php` fails otherwise).
+- **Don’t** guard a render step with a flag nobody declares any more: the dashboard bars are emitted at `0%` and filled from `data-target` when their panel is revealed (`_applyInsightPhase()`), so an `if (showNutr)`-style branch pointing at a deleted constant throws inside `requestAnimationFrame` and every chart silently stays empty (`scripts/test-dashboard-panels.php` fails otherwise).
 - **Don’t** use Italian copy in Markdown docs (English only).
 
