@@ -12,6 +12,8 @@ define('CATEGORY_CACHE_PATH',      EVERSHELF_ROOT . '/data/category_ai_cache.jso
 define('SHELF_CACHE_PATH',         EVERSHELF_ROOT . '/data/opened_shelf_cache.json');
 define('FOODFACTS_CACHE_PATH',     EVERSHELF_ROOT . '/data/food_facts_cache.json');
 define('SHOPPING_NAME_CACHE_PATH', EVERSHELF_ROOT . '/data/shopping_name_cache.json');
+// Genres already resolved per product signature (similar products reuse them).
+define('PRODUCT_KIND_CACHE_PATH',   EVERSHELF_ROOT . '/data/product_kind_cache.json');
 define('BRING_TOKEN_PATH',         EVERSHELF_ROOT . '/data/bring_token.json');
 define('AI_USAGE_PATH',            EVERSHELF_ROOT . '/data/ai_usage.json');
 define('BACKUP_DIR',               EVERSHELF_ROOT . '/data/backups');

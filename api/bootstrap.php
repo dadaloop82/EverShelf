@@ -19,6 +19,10 @@ require_once __DIR__ . '/lib/cron_log.php';
 require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/lib/shopping_guards.php';
+// Product rules: the genre (genere) that leads every article title, and the
+// automatic promotion of the products the household uses most.
+require_once __DIR__ . '/lib/product_kind.php';
+require_once __DIR__ . '/lib/auto_favorite.php';
 require_once __DIR__ . '/lib/shopping_sync.php';
 require_once __DIR__ . '/lib/pairing.php';
 require_once __DIR__ . '/lib/health.php';

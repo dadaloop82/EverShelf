@@ -918,6 +918,9 @@ try {
         case 'products_toggle_favorite':
             productToggleFavorite($db);
             break;
+        case 'products_apply_auto_rules':
+            applyAutoProductRules($db);
+            break;
         case 'product_get':
             getProduct($db);
             break;
@@ -2051,8 +2054,8 @@ function inventoryImportUpsertProduct(PDO $db, array $data): array {
         }
     } else {
         $stmt = $db->prepare('
-            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, name_user_set)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, kind, name_user_set)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute(productSaveParams($fields));
         $id = (int)$db->lastInsertId();
@@ -4173,8 +4176,8 @@ function saveProduct(PDO $db): void {
         }
 
         $stmt = $db->prepare('
-            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, name_user_set)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products (name, brand, category, image_url, unit, default_quantity, notes, barcode, package_unit, shopping_name, nutriments_json, kind, name_user_set)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute($params);
         $id = (int)$db->lastInsertId();
@@ -4487,7 +4490,79 @@ function productToggleFavorite(PDO $db): void {
     $q = $db->prepare('SELECT COALESCE(is_favorite, 0) FROM products WHERE id = ?');
     $q->execute([$id]);
     $fav = (int)$q->fetchColumn();
+    // A manual star/unstar is the last word: remember it so the automatic
+    // promotion (lib/auto_favorite.php) never re-adds what the user removed.
+    rememberFavoriteOverride($db, $id, (bool)$fav);
     echo json_encode(['success' => true, 'id' => $id, 'is_favorite' => (bool)$fav]);
+}
+
+/**
+ * POST /api/?action=products_apply_auto_rules — maintenance pass over the pantry.
+ *
+ *   * titles that still miss their genre get it ("Fiori di latte" → "Yogurt Fiori di
+ *     latte") through the same dictionary → cache → one-word-AI pipeline used on save,
+ *   * the products consumed AUTO_FAVORITE_MIN_USES times are promoted to favourites.
+ *
+ * Body: { dry_run?: bool, lang?: string } — dry_run reports what would change and
+ * writes nothing.
+ */
+function applyAutoProductRules(PDO $db): void {
+    EverLog::info('API products apply auto rules', ['event' => 'products_apply_auto_rules']);
+    $input  = json_decode(file_get_contents('php://input'), true) ?: [];
+    $dryRun = !empty($input['dry_run']);
+    $lang   = productKindNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
+
+    $rows = $db->query(
+        "SELECT id, name, brand, category, COALESCE(kind, '') AS kind FROM products ORDER BY id"
+    )->fetchAll(PDO::FETCH_ASSOC);
+
+    $update  = $db->prepare(
+        'UPDATE products SET name = ?, kind = ?, shopping_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    $renamed = 0;
+    $stored  = 0;
+    $samples = [];
+
+    foreach ($rows as $row) {
+        $oldName  = (string)$row['name'];
+        $oldKind  = (string)$row['kind'];
+        $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
+        $newName  = $applied['name'];
+        $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
+
+        if ($newName === $oldName && $newKind === $oldKind) {
+            continue;
+        }
+        if ($newKind !== '') {
+            $stored++;
+        }
+        if ($newName !== $oldName) {
+            $renamed++;
+            if (count($samples) < 5) {
+                $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $applied['source']];
+            }
+        }
+        if (!$dryRun) {
+            $update->execute([
+                $newName,
+                $newKind,
+                computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false),
+                (int)$row['id'],
+            ]);
+        }
+    }
+
+    echo json_encode([
+        'success'     => true,
+        'dry_run'     => $dryRun,
+        'scanned'     => count($rows),
+        'renamed'     => $renamed,
+        'kinds'       => $stored,
+        'favorites'   => $dryRun ? autoFavoriteSweepPreview($db) : autoFavoriteSweep($db),
+        'min_uses'    => autoFavoriteMinUses(),
+        'window_days' => autoFavoriteWindowDays(),
+        'samples'     => $samples,
+    ]);
 }
 
 function addToInventory(PDO $db): void {
@@ -5099,6 +5174,9 @@ function useFromInventory(PDO $db): void {
     try {
         dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes): void {
             useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes);
+            // A product the household keeps consuming moves to the favourites on its
+            // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
+            maybeAutoFavorite($db, (int)$productId);
         });
     } catch (\PDOException $e) {
         EverLog::error('useFromInventory db error', ['msg' => $e->getMessage()]);
@@ -6018,6 +6096,8 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
     $incomingBrand = trim((string)($input['brand'] ?? ''));
     $incomingCategory = sanitizeProductCategory((string)($input['category'] ?? ''), $incomingName, $incomingBrand);
     $forceName = !empty($input['name_user_set']) || !empty($input['force_name']);
+    // UI language of the client: drives the localized genre fallback and the AI word.
+    $lang = productKindNormalizeLang($input['lang'] ?? env('APP_LANG', 'en'));
 
     if ($existing) {
         $existingLocked = !empty($existing['name_user_set']);
@@ -6076,6 +6156,28 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         $nameUserSet = $forceName ? 1 : 0;
     }
 
+    // Genre (genere) as an integral part of the article title: "Fiori di latte" →
+    // "Yogurt Fiori di latte". Cheap paths first — curated dictionary, then the
+    // signature cache, then ONE cached AI word (lib/product_kind.php) — and never a
+    // second prefix on a title that already carries a genre.
+    $kind = (string)($existing['kind'] ?? '');
+    if (productKindPrefixEnabled()) {
+        $applied = productKindApply($name, $brand, $category, $lang, true, $kind);
+        if ($applied['kind'] !== '') {
+            $kind = $applied['kind'];
+        }
+        if ($applied['name'] !== $name) {
+            EverLog::info('product kind prefixed', [
+                'event'  => 'product_kind_prefix',
+                'kind'   => $applied['kind'],
+                'source' => $applied['source'],
+                'name'   => $applied['name'],
+                'was'    => $name,
+            ]);
+            $name = $applied['name'];
+        }
+    }
+
     $shoppingName = array_key_exists('shopping_name', $input) && $input['shopping_name'] !== null && $input['shopping_name'] !== ''
         ? (string)$input['shopping_name']
         : computeShoppingName($name, $category, $brand, true);
@@ -6092,6 +6194,7 @@ function mergeIncomingProductFields(?array $existing, array $input, ?string $bar
         'package_unit'      => $packageUnit,
         'shopping_name'     => $shoppingName,
         'nutriments_json'   => $nutriJson,
+        'kind'              => (string)($kind ?? ($existing['kind'] ?? '')),
         'name_user_set'     => (int)($nameUserSet ?? 0),
     ];
     return normalizePieceProductFields($fields, $existing);
@@ -6126,6 +6229,7 @@ function productSaveParams(array $fields): array {
         $fields['package_unit'],
         $fields['shopping_name'],
         $fields['nutriments_json'],
+        (string)($fields['kind'] ?? ''),
         (int)($fields['name_user_set'] ?? 0),
     ];
 }
@@ -6134,7 +6238,7 @@ function executeProductUpdate(PDO $db, array $fields, int $id): void {
     $stmt = $db->prepare('
         UPDATE products SET name=?, brand=?, category=?, image_url=?, unit=?,
         default_quantity=?, notes=?, barcode=?, package_unit=?, shopping_name=?,
-        nutriments_json=?, name_user_set=?,
+        nutriments_json=?, kind=?, name_user_set=?,
         updated_at=CURRENT_TIMESTAMP WHERE id=?
     ');
     $stmt->execute([...productSaveParams($fields), $id]);
@@ -8082,6 +8186,9 @@ function getServerSettings(): void {
         'shopping_smart_suggestions'  => env('SHOPPING_SMART_SUGGESTIONS', 'true') === 'true',
         'shopping_forecast'           => env('SHOPPING_FORECAST', 'true') === 'true',
         'shopping_auto_add_threshold' => (int)env('SHOPPING_AUTO_ADD_THRESHOLD', '0'),
+        // Product rules: genre prefix in the title + automatic favourites
+        'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
+        'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
         'dark_mode'                   => env('DARK_MODE', 'auto'),
         'barcode_ai_fallback'         => env('BARCODE_AI_FALLBACK', 'false') === 'true',
         // Home Assistant Integration
@@ -8372,6 +8479,8 @@ function saveSettings(): void {
         'backup_retention_days'       => 'BACKUP_RETENTION_DAYS',
         'gdrive_retention_days'           => 'GDRIVE_RETENTION_DAYS',
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
+        'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
+        'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         // Home Assistant
         'ha_expiry_days' => 'HA_EXPIRY_DAYS',
         'mealie_cache_sync_days' => 'MEALIE_CACHE_SYNC_DAYS',
@@ -12453,110 +12562,14 @@ function computeShoppingName(string $name, string $category = '', string $brand 
     if (isPreparedSaladProduct($name, $brand) && !preg_match('/insalata\s+di\s+riso/u', $lower)) {
         return 'Insalata di riso';
     }
-    $stop = ['di','del','della','dei','degli','delle','da','in','con','per','su',
-             'a','e','il','lo','la','i','gli','le','un','uno','una','al','alle','agli','allo',
-             'parzialmente','scremato','uht','bio','light','freschi','fresca','fresco'];
-    $tokens = array_values(array_filter(
-        preg_split('/\s+/', preg_replace('/[^\p{L}\s]/u', ' ', $lower)),
-        fn($w) => mb_strlen($w) > 2 && !in_array($w, $stop)
-    ));
+    // Tokenizer + curated vocabulary live in api/lib/product_kind.php, shared with
+    // resolveProductKind() so both read exactly the same dictionaries.
+    $tokens = evershelfSignificantTokens($name);
 
     // 0. Compound-phrase map — checked against the FULL lowercase name (stop words included)
     //    so multi-word product types are classified BEFORE single-token lookup.
     //    This prevents "Pane grattugiato" → "Pane", "Panna da cucina" → "Panna", etc.
-    $phraseMap = [
-        // Breadcrumbs (MUST come before generic "pane")
-        'pangrattato'           => 'Pangrattato',
-        'pan grattato'          => 'Pangrattato',
-        'pane grattato'         => 'Pangrattato',
-        'pane grattugiato'      => 'Pangrattato',
-        'pan grattugiato'       => 'Pangrattato',
-        // Cooking cream (MUST come before generic "panna")
-        'panna da cucina'       => 'Panna da cucina',
-        'panna cucina'          => 'Panna da cucina',
-        'panna chef'            => 'Panna da cucina',
-        // Tea (must not collapse to "Limone" via token)
-        'tè al limone'          => 'Tè al limone',
-        'te al limone'          => 'Tè al limone',
-        'the al limone'         => 'Tè al limone',
-        'panna acida'           => 'Panna acida',
-        // Tomato preparations (MUST come before generic "pomodoro/pomodori")
-        'passata di pomodoro'   => 'Passata',
-        'passata pomodoro'      => 'Passata',
-        'polpa di pomodoro'     => 'Polpa di pomodoro',
-        'polpa pomodoro'        => 'Polpa di pomodoro',
-        'sugo al pomodoro'      => 'Sugo',
-        'sugo di pomodoro'      => 'Sugo',
-        'salsa di pomodoro'     => 'Sugo',
-        'pomodori pelati'       => 'Pelati',
-        'pomodoro pelato'       => 'Pelati',
-        'datterini pelati'      => 'Pelati',
-        'pelati'                => 'Pelati',
-        // Frozen / prep vegetables
-        'misto soffritto'       => 'Misto soffritto',
-        'misto per soffritto'   => 'Misto soffritto',
-        // Plant-based milks (MUST come before generic "latte")
-        'latte condensato'      => 'Latte condensato',
-        'latte evaporato'       => 'Latte condensato',
-        'latte di soia'         => 'Latte di soia',
-        'latte soia'            => 'Latte di soia',
-        'latte vegetale'        => 'Latte vegetale',
-        'latte di mandorla'     => 'Latte di mandorla',
-        'latte mandorla'        => 'Latte di mandorla',
-        'latte di avena'        => 'Latte di avena',
-        'latte avena'           => 'Latte di avena',
-        'latte di riso'         => 'Latte di riso',
-        'latte riso'            => 'Latte di riso',
-        'latte di cocco'        => 'Latte di cocco',
-        'latte cocco'           => 'Latte di cocco',
-        // Baked bakery — different from bread
-        'fette biscottate'      => 'Fette biscottate',
-        'pan di spagna'         => 'Pan di Spagna',
-        // Specific vinegars
-        'aceto balsamico'       => 'Aceto balsamico',
-        'glassa balsamico'      => 'Aceto balsamico',
-        'glassa balsamic'       => 'Aceto balsamico',
-        // Cold cuts — specific cuts
-        'prosciutto cotto'      => 'Prosciutto cotto',
-        // Flour subtypes (MUST come before generic "farina")
-        'farina di riso'        => 'Farina di riso',
-        'farina riso'           => 'Farina di riso',
-        'farina di mais'        => 'Farina di mais',
-        'farina mais'           => 'Farina di mais',
-        'farina integrale'      => 'Farina integrale',
-        'farina 00'             => 'Farina',
-        // Roux / sugar subtypes
-        'zucchero di canna'     => 'Zucchero di canna',
-        'zucchero canna'        => 'Zucchero di canna',
-        'zucchero velo'         => 'Zucchero a velo',
-        'zucchero a velo'       => 'Zucchero a velo',
-        // Fresh pasta
-        'pasta fresca'          => 'Pasta fresca',
-        // Broth / stock
-        'brodo vegetale'        => 'Brodo',
-        'brodo pollo'           => 'Brodo',
-        'brodo manzo'           => 'Brodo',
-        // Mixed vegetable purée / passato (MUST come before generic carote/patate)
-        'passato di verdure'    => 'Verdure',
-        'passato di patate'     => 'Verdure',
-        // Water
-        'acqua frizzante'       => 'Acqua',
-        'acqua gassata'         => 'Acqua',
-        'acqua minerale'        => 'Acqua',
-        // Aroma / flavouring
-        'aroma vaniglia'        => 'Ingredienti Spezie',
-        'aroma mandorla'        => 'Ingredienti Spezie',
-        'aroma limone'          => 'Ingredienti Spezie',
-        'aroma rum'             => 'Ingredienti Spezie',
-        'aroma arancia'         => 'Ingredienti Spezie',
-        // Prepared salads (not fresh greens)
-        'insalata di riso'      => 'Insalata di riso',
-        'insalata di pasta'     => 'Insalata di pasta',
-        'insalata di farro'     => 'Insalata di farro',
-        'insalata di orzo'      => 'Insalata di orzo',
-        'insalata di couscous'  => 'Insalata di couscous',
-        'insalata di quinoa'    => 'Insalata di quinoa',
-    ];
+    $phraseMap = evershelfShoppingPhraseMap();
     foreach ($phraseMap as $phrase => $canonical) {
         if (mb_strpos($lower, $phrase) !== false) {
             return $canonical;
@@ -12565,190 +12578,7 @@ function computeShoppingName(string $name, string $category = '', string $brand 
 
     // 1. Curated keyword → canonical group name.
     //    Extended list covers the most common Italian pantry items and avoids Gemini calls.
-    $keywordMap = [
-        // Cold cuts / affettati
-        'mortadella'    => 'Affettato',
-        'nduja'         => 'Affettato',
-        'salame'        => 'Affettato',
-        'salami'        => 'Affettato',
-        'coppa'         => 'Affettato',
-        'capicola'      => 'Affettato',
-        'speck'         => 'Affettato',
-        'schinkenspeck' => 'Affettato',
-        'schinken'      => 'Affettato',
-        'prosciutto'    => 'Affettato',
-        // Items with their own Bring! entry
-        'bresaola'      => 'Bresaola',
-        'pancetta'      => 'Pancetta',
-        'salsiccia'     => 'Salsiccia',
-        'wurstel'       => 'Wurstel',
-        // Bread & bakery
-        'pane'          => 'Pane',
-        'bauletto'      => 'Pane',
-        'pancarrè'      => 'Pane',
-        'pancare'       => 'Pane',
-        'toast'         => 'Pane',
-        'focaccia'      => 'Pane',
-        'ciabatta'      => 'Pane',
-        'baguette'      => 'Pane',
-        'grissini'      => 'Grissini',
-        'crackers'      => 'Cracker',
-        'cracker'       => 'Cracker',
-        'taralli'       => 'Taralli',
-        'tarallini'     => 'Taralli',
-        'piadina'       => 'Piadina',
-        'piadelle'      => 'Piadina',
-        'biscotto'      => 'Biscotti',
-        'biscotti'      => 'Biscotti',
-        // Breadcrumbs single-token safety net (phrase map has priority, but just in case)
-        'grattugiato'   => 'Pangrattato',
-        'grattato'      => 'Pangrattato',
-        'pangrattato'   => 'Pangrattato',
-        'biscottate'    => 'Fette biscottate',
-        // Leavening agents
-        'lievito'       => 'Lievito',
-        // Flavourings / aromas (single-token fallback; phrases handled above)
-        'aroma'         => 'Ingredienti Spezie',
-        // Dairy
-        'latte'         => 'Latte',
-        'yogurt'        => 'Yogurt',
-        'yaourt'        => 'Yogurt',
-        'yougurt'       => 'Yogurt',
-        'burro'         => 'Burro',
-        'butter'        => 'Burro',
-        'butterschmalz' => 'Burro',
-        'panna'         => 'Panna',
-        'mozzarella'    => 'Mozzarella',
-        'formaggio'     => 'Formaggio',
-        'ricotta'       => 'Ricotta',
-        'ricottina'     => 'Ricotta',
-        'casatella'     => 'Formaggio',
-        'philadelphia'  => 'Formaggio cremoso',
-        // "Bel Paese" — known Italian cheese brand
-        'bel'           => 'Formaggio',
-        // Pasta
-        'pasta'         => 'Pasta',
-        'spaghetti'     => 'Pasta',
-        'penne'         => 'Pasta',
-        'rigatoni'      => 'Pasta',
-        'fusilli'       => 'Pasta',
-        'orecchiette'   => 'Pasta',
-        'tortiglioni'   => 'Pasta',
-        'linguine'      => 'Pasta',
-        'sedani'        => 'Pasta',
-        'lasagne'       => 'Pasta',
-        'tortellini'    => 'Pasta',
-        'gnocchi'       => 'Gnocchi',
-        // Rice
-        'riso'          => 'Riso',
-        // Eggs
-        'uova'          => 'Uova',
-        'uovo'          => 'Uova',
-        // Fruit & veg
-        'mela'          => 'Mele',
-        'mele'          => 'Mele',
-        'pera'          => 'Pere',
-        'arancia'       => 'Arance',
-        'arance'        => 'Arance',
-        'limone'        => 'Limone',
-        'banana'        => 'Banane',
-        'banane'        => 'Banane',
-        'kiwi'          => 'Kiwi',
-        'avocado'       => 'Avocado',
-        'pomodoro'      => 'Pomodori',
-        'pomodori'      => 'Pomodori',
-        'pomodorini'    => 'Pomodorini',
-        'carota'        => 'Carote',
-        'carote'        => 'Carote',
-        'cipolla'       => 'Cipolla',
-        'cipolle'       => 'Cipolla',
-        'aglio'         => 'Aglio',
-        'zucchina'      => 'Zucchine',
-        'zucchine'      => 'Zucchine',
-        'spinaci'       => 'Spinaci',
-        'lattuga gentile'       => 'Insalata',
-        'lattuga'               => 'Insalata',
-        'melone'        => 'Melone',
-        'finocchio'     => 'Finocchio',
-        // Condiments & pantry
-        'olio'          => 'Olio',
-        'aceto'         => 'Aceto',
-        'sale'          => 'Sale',
-        'zucchero'      => 'Zucchero',
-        'farina'        => 'Farina',
-        'lievito'       => 'Lievito',
-        'miele'         => 'Miele',
-        'marmellata'    => 'Marmellata',
-        'confettura'    => 'Marmellata',
-        'maionese'      => 'Maionese',
-        'senape'        => 'Senape',
-        'ketchup'       => 'Ketchup',
-        // Canned / preserved
-        'passata'       => 'Passata',
-        'polpa'         => 'Polpa di pomodoro',
-        'pelati'        => 'Pelati',
-        'tonno'         => 'Tonno',
-        'sardine'       => 'Sardine',
-        'ceci'          => 'Ceci',
-        'lenticchie'    => 'Lenticchie',
-        'fagioli'       => 'Fagioli',
-        'piselli'       => 'Piselli',
-        'mais'          => 'Mais',
-        // Frozen
-        'surgelato'     => 'Surgelati',
-        'surgelati'     => 'Surgelati',
-        // Drinks
-        'vino'          => 'Vino',
-        'birra'         => 'Birra',
-        'succo'         => 'Succo',
-        // Cereals & snacks
-        'muesli'        => 'Muesli',
-        'cereali'       => 'Cereali',
-        // Frozen & desserts (before coffee/tea tokens to avoid "gelato caffè → Caffè")
-        'gelato'        => 'Gelato',
-        'semifreddo'    => 'Gelato',
-        // Beverages (coffee, tea, herbal)
-        'camomilla'     => 'Camomilla',
-        'camomille'     => 'Camomilla',
-        'tisana'        => 'Tè',
-        // Cat food / pet
-        'gatto'         => 'Cibo per gatti',
-        'cane'          => 'Cibo per cani',
-        // Known product/brand single tokens → category override
-        'risofrolle'    => 'Cracker',
-        'zuppalatte'    => 'Biscotti',
-        'kaffee'        => 'Caffè',
-        'ovomaltine'    => 'Bevande',
-        'ciobar'        => 'Cioccolata calda',
-        'apfelsaft'     => 'Succo',
-        'kartoffelpüree'=> 'Purè',
-        'purée'         => 'Purè',
-        'pure'          => 'Purè',
-        'inchusa'       => 'Birra',
-        'ichnusa'       => 'Birra',
-        'vesoletto'     => 'Vino',
-        'trebbiano'     => 'Vino',
-        'sangiovese'    => 'Vino',
-        'barbera'       => 'Vino',
-        'chianti'       => 'Vino',
-        'soave'         => 'Vino',
-        'prosecco'      => 'Vino',
-        'frizzante'     => 'Acqua',
-        'semolino'      => 'Semolino',
-        'bicarbonato'   => 'Bicarbonato',
-        'sambuca'       => 'Liquore',
-        'limoncello'    => 'Liquore',
-        'grappa'        => 'Liquore',
-        'dado'          => 'Brodo',
-        'zuccheri'      => 'Zucchero',
-        'zucchero'      => 'Zucchero',
-        // Foreign-language tokens
-        'jus'           => 'Succo',
-        'zumo'          => 'Succo',
-        'arome'         => 'Aroma',
-        'caffe'         => 'Caffè',
-        'caffè'         => 'Caffè',
-    ];
+    $keywordMap = evershelfShoppingKeywordMap();
 
     foreach ($tokens as $token) {
         if (isset($keywordMap[$token])) {

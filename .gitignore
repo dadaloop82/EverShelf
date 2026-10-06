@@ -18,6 +18,7 @@ data/shopping_price_cache.json
 data/anomaly_dismissed.json
 data/opened_shelf_cache.json
 data/shopping_name_cache.json
+data/product_kind_cache.json
 data/shopping_total_cache.json
 data/ai_usage.json
 data/classify_daily.json

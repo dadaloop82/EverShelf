@@ -1450,6 +1450,17 @@
       "mode_bring_on": "Bring! enabled",
       "mode_internal_on": "Internal shopping list enabled"
     },
+    "product_rules": {
+      "card_title": "🏷️ Names and automatic favourites",
+      "card_hint": "Every article carries its genre in front of the title (e.g. \"Yogurt Fiori di latte\"). When the name does not say it, the app derives it from the built-in dictionary and — only if needed — asks the AI for a single word, then caches it for similar products.",
+      "kind_prefix_label": "Add the genre to the title",
+      "auto_favorite_label": "Automatic favourites after",
+      "auto_favorite_suffix": "uses in the last 90 days (0 = off)",
+      "apply_existing": "Apply to existing items",
+      "apply_confirm": "Rename {names} items and add {favorites} favourites?",
+      "apply_done": "Renamed {names} items, added {favorites} favourites",
+      "apply_failed": "The rules could not be applied"
+    },
     "notify": {
       "tab": "Notifications",
       "title": "🔔 Push notifications",

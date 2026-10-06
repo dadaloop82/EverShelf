@@ -47,6 +47,20 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   code must stay greppable with the command the docs advertise
   (`grep -i "pairing code" logs/evershelf_*.log`) — a snake_case-only message made
   that command silently return nothing.
+- **Product titles lead with their genre.** `products.name` is user data and the app
+  now owns the first word of it: a new/renamed product goes through
+  `mergeIncomingProductFields()` → `productKindApply()` (`api/lib/product_kind.php`),
+  which prefixes the genre the label usually omits (`"Fiori di latte"` →
+  `"Yogurt Fiori di latte"`) and stores it in `products.kind`. Cheap first — the
+  curated dictionary (`evershelfShoppingPhraseMap`/`...KeywordMap`, the *same*
+  dictionaries `computeShoppingName()` uses) — and the AI only when the genre word
+  does not lead the name, i.e. when the dictionary cannot tell a yoghurt from a
+  cheese. One paid word per signature (`data/product_kind_cache.json`), never two
+  prefixes on the same title.
+- **Automatic favourites respect the user.** `api/lib/auto_favorite.php` promotes the
+  products consumed `AUTO_FAVORITE_MIN_USES` times in `AUTO_FAVORITE_WINDOW_DAYS`;
+  `products.favorite_user_override` records a manual unstar so the rule never re-adds
+  it. Favourites are only ever added, never removed by the rule.
 - **Security**: every POST action goes through the CSRF guard and the API-token
   check. New action → add it to the relevant allow-lists in
   `api/lib/security.php` (`evershelfPublicActions`, `evershelfMutatingGetActions`,
@@ -105,6 +119,8 @@ php scripts/test-setup-assistant.php    # SETTINGS_CHECKLIST ↔ tabs ↔ wizard
 php scripts/test-i18n-icons.php         # no label prints its icon twice (all locales)
 php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (screensaver facts)
 php scripts/test-dashboard-panels.php   # dashboard rotation: phases ↔ sections ↔ bar fills, no orphan flags
+php scripts/test-product-kind-prefix.php # genre leading every article title (dictionary → cache → AI, no double prefix)
+php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -141,6 +157,8 @@ npm run build
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
+| Genre in the article title | `api/lib/product_kind.php` + `mergeIncomingProductFields()` (the single title choke point) + `products.kind`; dictionary shared with `computeShoppingName()` — guard test `scripts/test-product-kind-prefix.php` |
+| Automatic favourites | `api/lib/auto_favorite.php` (`maybeAutoFavorite()` on every `inventory_use`), `products.favorite_user_override`, maintenance action `products_apply_auto_rules` — guard test `scripts/test-auto-favorite.php` |
 | Cron watchdog / notifications | `api/lib/healthcheck.php`, `api/lib/notify.php`, `cron_*.php` |
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |

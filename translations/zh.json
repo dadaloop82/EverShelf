@@ -1450,6 +1450,17 @@
       "mode_bring_on": "Bring! 已启用",
       "mode_internal_on": "内置购物清单已启用"
     },
+    "product_rules": {
+      "card_title": "🏷️ 名称与自动收藏",
+      "card_hint": "每个条目在标题前都会带上它的品类（例如「Yogurt Fiori di latte」）。如果名称里没有，应用会从内置词典推断，必要时只向 AI 询问一个词，并把结果缓存给相似商品使用。",
+      "kind_prefix_label": "在标题前添加品类",
+      "auto_favorite_label": "自动收藏（使用次数达到）",
+      "auto_favorite_suffix": "近 90 天的使用次数（0 = 关闭）",
+      "apply_existing": "应用到已有条目",
+      "apply_confirm": "要重命名 {names} 个条目并添加 {favorites} 个收藏吗？",
+      "apply_done": "已重命名 {names} 个条目，添加 {favorites} 个收藏",
+      "apply_failed": "无法应用规则"
+    },
     "notify": {
       "tab": "通知",
       "title": "🔔 推送通知",
