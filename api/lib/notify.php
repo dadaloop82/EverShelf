@@ -164,6 +164,26 @@ function evershelfNotifyFormatEvent(string $event, array $data, string $lang = '
                 evershelfTr('notify.stock_update_title', $lang),
                 trim($item . ': ' . $qty),
             ];
+
+        case 'shopping_remove':
+            $item = trim((string)($data['item'] ?? ''));
+            return [
+                evershelfTr('notify.shopping_remove_title', $lang) ?: 'Shopping list',
+                $item !== '' ? $item : ('removed ' . (int)($data['removed'] ?? 0)),
+            ];
+
+        case 'shopping_trip_complete':
+            return [
+                evershelfTr('notify.trip_complete_title', $lang) ?: 'Shopping trip',
+                evershelfTr('notify.trip_complete_message', $lang, ['n' => (int)($data['cleared'] ?? 0)])
+                    ?: ('Cleared ' . (int)($data['cleared'] ?? 0) . ' items'),
+            ];
+
+        case 'weekly_digest':
+            return [
+                evershelfTr('notify.weekly_digest_title', $lang) ?: 'EverShelf weekly',
+                trim((string)($data['summary'] ?? '')),
+            ];
     }
 
     // Unknown event: still deliver, with the raw payload as the body.
