@@ -43,13 +43,22 @@ updates:
     labels:
       - "dependencies"
     ignore:
+      # Anything that needs AGP ≥ 9 / compileSdk 37 (breaks current CI).
       - dependency-name: "androidx.core:core-ktx"
         versions: [">=1.16.0"]
+      - dependency-name: "androidx.appcompat:appcompat"
+        versions: [">=1.8.0"]
+      - dependency-name: "com.google.android.material:material"
+        versions: [">=1.13.0"]
+      - dependency-name: "androidx.constraintlayout:constraintlayout"
+        versions: [">=2.2.0"]
       - dependency-name: "org.jetbrains.kotlin.android"
         update-types: ["version-update:semver-major"]
       - dependency-name: "com.android.application"
-        update-types: ["version-update:semver-major"]
+        versions: [">=8.6.0"]
       - dependency-name: "gradle"
+        versions: [">=9.0.0"]
+      - dependency-name: "org.gradle:gradle"
         versions: [">=9.0.0"]
 
   - package-ecosystem: "gradle"
@@ -63,11 +72,21 @@ updates:
     ignore:
       - dependency-name: "androidx.core:core-ktx"
         versions: [">=1.16.0"]
+      - dependency-name: "androidx.appcompat:appcompat"
+        versions: [">=1.8.0"]
+      - dependency-name: "com.google.android.material:material"
+        versions: [">=1.13.0"]
+      - dependency-name: "androidx.constraintlayout:constraintlayout"
+        versions: [">=2.2.0"]
+      - dependency-name: "androidx.work:work-runtime-ktx"
+        versions: [">=2.10.0"]
       - dependency-name: "androidx.health.connect:connect-client"
         versions: [">=1.2.0-alpha01"]
       - dependency-name: "org.jetbrains.kotlin.android"
         update-types: ["version-update:semver-major"]
       - dependency-name: "com.android.application"
-        update-types: ["version-update:semver-major"]
+        versions: [">=8.6.0"]
       - dependency-name: "gradle"
+        versions: [">=9.0.0"]
+      - dependency-name: "org.gradle:gradle"
         versions: [">=9.0.0"]
