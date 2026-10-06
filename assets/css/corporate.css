@@ -173,9 +173,8 @@ h1, h2, h3, h4,
     font-weight: 600;
 }
 
-/* ── Tabs (location, shopping, settings) ───────────────────── */
+/* ── Tabs (location, shopping) — settings uses the underline strip in style.css ── */
 .tab,
-.settings-tab,
 .shopping-tab {
     border-radius: 999px;
     font-weight: 600;
@@ -187,7 +186,6 @@ h1, h2, h3, h4,
 }
 
 .tab.active,
-.settings-tab.active,
 .shopping-tab.active {
     background: linear-gradient(135deg, var(--primary), var(--primary-light));
     color: #fff;
@@ -196,7 +194,6 @@ h1, h2, h3, h4,
 }
 
 .location-tabs,
-.settings-tabs,
 .shopping-tabs {
     gap: var(--es-space-sm);
     margin-bottom: var(--es-space-md);

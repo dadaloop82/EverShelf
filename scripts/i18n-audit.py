@@ -67,6 +67,8 @@ NEUTRAL_VALUES = frozenset({
     'llama3.2',
     # Opaque / structural placeholders
     '••••••••',                                    # masked secret
+    '123456:ABC…',                                 # Telegram bot token shape
+    '123456789,987654321',                         # Telegram chat id examples
     '...',
     'message',                                     # JSON payload field name
     'evershelf_events',                            # Home Assistant webhook id

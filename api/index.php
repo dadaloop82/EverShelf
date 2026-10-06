@@ -8263,6 +8263,7 @@ function getServerSettings(): void {
         'screensaver_enabled' => env('SCREENSAVER_ENABLED', 'false') === 'true',
         'screensaver_timeout' => (int)env('SCREENSAVER_TIMEOUT', '5'),
         'zerowaste_tips_enabled' => env('ZEROWASTE_TIPS_ENABLED', 'false') === 'true',
+        'zerowaste_tips_set' => env('ZEROWASTE_TIPS_ENABLED', '') !== '',
         // Expiry calendar feed: the subscribe URL is minted by get_ics_settings, but
         // the on/off flag is also needed here — the Settings checklist reports
         // "calendar configured" without opening that tab first.
@@ -8290,12 +8291,17 @@ function getServerSettings(): void {
         'shopping_forecast'           => env('SHOPPING_FORECAST', 'true') === 'true',
         'shopping_auto_add_threshold' => (int)env('SHOPPING_AUTO_ADD_THRESHOLD', '0'),
         'shopping_remove_on_buy'      => shoppingRemoveOnBuyMode(),
+        'shopping_remove_on_buy_set'  => shoppingRemoveOnBuyDecided(),
         // Product rules: genre prefix in the title + automatic favourites
         'product_kind_prefix'         => env('PRODUCT_KIND_PREFIX', 'true') === 'true',
         'auto_favorite_min_uses'      => (int)env('AUTO_FAVORITE_MIN_USES', '3'),
         'auto_favorite_top_n'         => (int)env('AUTO_FAVORITE_TOP_N', '3'),
         'dark_mode'                   => env('DARK_MODE', 'auto'),
         'barcode_ai_fallback'         => env('BARCODE_AI_FALLBACK', 'false') === 'true',
+        // Telegram bot (optional household client — /lista, /scadenze)
+        'telegram_token_set'          => !empty(env('TELEGRAM_BOT_TOKEN', '')),
+        'telegram_allowed_chat_ids'   => env('TELEGRAM_ALLOWED_CHAT_IDS', ''),
+        'telegram_webhook_path'       => 'api/index.php?action=telegram_webhook',
         // Home Assistant Integration
         'ha_enabled'                  => env('HA_ENABLED', 'false') === 'true',
         'ha_url'                      => env('HA_URL', ''),
@@ -8510,7 +8516,10 @@ function saveSettings(): void {
         'gdrive_client_id'   => 'GDRIVE_CLIENT_ID',
         'gdrive_client_secret'          => 'GDRIVE_CLIENT_SECRET',
         'shopping_mode'      => 'SHOPPING_MODE',
+        'shopping_remove_on_buy' => 'SHOPPING_REMOVE_ON_BUY',
         'dark_mode'         => 'DARK_MODE',
+        'telegram_bot_token' => 'TELEGRAM_BOT_TOKEN',
+        'telegram_allowed_chat_ids' => 'TELEGRAM_ALLOWED_CHAT_IDS',
         // Home Assistant
         'ha_url'             => 'HA_URL',
         'ha_token'           => 'HA_TOKEN',
@@ -8584,7 +8593,6 @@ function saveSettings(): void {
         'backup_retention_days'       => 'BACKUP_RETENTION_DAYS',
         'gdrive_retention_days'           => 'GDRIVE_RETENTION_DAYS',
         'shopping_auto_add_threshold'    => 'SHOPPING_AUTO_ADD_THRESHOLD',
-        'shopping_remove_on_buy'         => 'SHOPPING_REMOVE_ON_BUY',
         'product_kind_prefix'            => 'PRODUCT_KIND_PREFIX',
         'auto_favorite_min_uses'         => 'AUTO_FAVORITE_MIN_USES',
         'auto_favorite_top_n'            => 'AUTO_FAVORITE_TOP_N',
@@ -14071,10 +14079,20 @@ function shoppingUpdateRemainingNeedOnList(PDO $db, array $eval): void {
  *
  * @return array{removed:bool,removed_names:string[],shopping_kept:bool,remaining:?array}
  */
-/** plan = remove only when stock covers the horizon; trip = drop list row on any purchase. */
+/** plan = remove only when stock covers the horizon; trip = drop list row on any purchase.
+ *  Empty env = not decided yet (checklist "da configurare"); runtime still defaults to plan. */
 function shoppingRemoveOnBuyMode(): string {
-    $m = strtolower(trim((string)env('SHOPPING_REMOVE_ON_BUY', 'plan')));
+    $raw = trim((string)env('SHOPPING_REMOVE_ON_BUY', ''));
+    if ($raw === '') {
+        return 'plan';
+    }
+    $m = strtolower($raw);
     return in_array($m, ['plan', 'trip'], true) ? $m : 'plan';
+}
+
+/** True when the user (or .env) has explicitly set SHOPPING_REMOVE_ON_BUY. */
+function shoppingRemoveOnBuyDecided(): bool {
+    return trim((string)env('SHOPPING_REMOVE_ON_BUY', '')) !== '';
 }
 
 function shoppingHandleRestockAfterAdd(PDO $db, int $productId): array {

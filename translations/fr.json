@@ -940,11 +940,11 @@
     "checklist": {
       "title": "🧭 Liste de configuration",
       "summary_ok": "Tout est configuré",
-      "summary_todo": "{count} options à définir",
+      "summary_todo": "{count} options à décider",
       "state_ok": "Configuré",
-      "state_todo": "À configurer",
+      "state_todo": "À décider",
       "state_optional": "Facultatif",
-      "group_todo": "À configurer",
+      "group_todo": "À décider",
       "group_news": "Nouveautés",
       "configure": "Configurer",
       "show": "Afficher les entrées",
@@ -1309,7 +1309,12 @@
       "auto_add_label": "Ajouter automatiquement quand",
       "auto_add_suffix": "restant en stock (0 = seulement quand épuisé)",
       "mode_bring_on": "Bring! activé",
-      "mode_internal_on": "Liste de courses interne activée"
+      "mode_internal_on": "Liste de courses interne activée",
+      "remove_on_buy_title": "🛒 Après un achat",
+      "remove_on_buy_hint": "En mode courses, quand retirer l’article de la liste après scan ?",
+      "remove_on_buy_plan": "Seulement si le stock couvre la fenêtre du plan",
+      "remove_on_buy_trip": "Tout de suite à chaque achat (mode sortie)",
+      "trip_complete_hint": "Sur la page Courses, « Courses terminées » vide toute la liste et bloque les réajouts auto jusqu’au prochain épuisement."
     },
     "product_rules": {
       "card_title": "🏷️ Noms et favoris automatiques",
@@ -1396,7 +1401,10 @@
       "err_http": "Le serveur a répondu HTTP {code}",
       "err_generic": "Erreur : {error}",
       "save_btn": "💾 Enregistrer les paramètres de notification",
-      "ha_note": "🏠 Le service notify de Home Assistant reste actif : si tu l'as configuré, les mêmes événements y arrivent aussi."
+      "ha_note": "🏠 Le service notify de Home Assistant reste actif : si tu l'as configuré, les mêmes événements y arrivent aussi.",
+      "event_shopping_remove": "Retrait de la liste / article acheté",
+      "event_trip": "Courses terminées (liste vidée)",
+      "event_digest": "Résumé hebdomadaire (cron)"
     },
     "ha": {
       "tab": "Home Assistant",
@@ -1673,7 +1681,18 @@
       "nok": "kr Couronne norvégienne",
       "dkk": "kr Couronne danoise",
       "pln": "zł Zloty polonais"
-    }
+    },
+    "telegram": {
+      "title": "✈️ Bot Telegram",
+      "hint": "Pour ceux qui n’installent pas la PWA : /lista et /scadenze dans le bot. Optionnel et gratuit.",
+      "token_label": "Jeton du bot",
+      "token_hint": "Via @BotFather. Laisser vide pour garder un jeton déjà enregistré.",
+      "chats_label": "ID de chat autorisés",
+      "chats_hint": "Séparés par des virgules. Vide = accepter tout chat (déconseillé).",
+      "webhook_label": "URL webhook à configurer sur Telegram",
+      "webhook_hint": "setWebhook sur api.telegram.org avec cette URL HTTPS publique."
+    },
+    "nav_aria": "Navigation des réglages"
   },
   "expiry": {
     "today": "AUJOURD'HUI",
@@ -2408,6 +2427,10 @@
     "shopping_add_title": "🛒 Ajouté à la liste de courses",
     "stock_update_title": "📦 Stock mis à jour",
     "test_title": "✅ Notification de test EverShelf",
-    "test_message": "Si tu lis ce message, les notifications fonctionnent. Envoyée à {time}."
+    "test_message": "Si tu lis ce message, les notifications fonctionnent. Envoyée à {time}.",
+    "shopping_remove_title": "🛒 Retiré de la liste de courses",
+    "trip_complete_title": "✅ Courses terminées",
+    "trip_complete_message": "Liste vidée : {n} articles.",
+    "weekly_digest_title": "📊 Résumé hebdomadaire EverShelf"
   }
 }

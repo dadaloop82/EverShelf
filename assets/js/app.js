@@ -4695,6 +4695,14 @@ function _applyShoppingSettingsUI(s) {
     if (forecastEl) forecastEl.checked = s.shopping_forecast !== false;
     const autoAddEl = document.getElementById('setting-shopping-auto-add');
     if (autoAddEl) autoAddEl.value = s.shopping_auto_add_threshold || 0;
+    const removeMode = s.shopping_remove_on_buy_set
+        ? (s.shopping_remove_on_buy || 'plan')
+        : '';
+    document.querySelectorAll('input[name="shopping-remove-on-buy"]').forEach(r => {
+        r.checked = removeMode !== '' && r.value === removeMode;
+    });
+    const tripBtn = document.querySelector('[onclick="shoppingTripComplete()"]');
+    if (tripBtn) tripBtn.style.display = mode === 'bring' ? 'none' : '';
     _applyShoppingListLabels();
 }
 
@@ -4905,6 +4913,8 @@ async function saveSettings() {
     if (shoppingForecastEl) s.shopping_forecast = shoppingForecastEl.checked;
     const shoppingAutoAddEl = document.getElementById('setting-shopping-auto-add');
     if (shoppingAutoAddEl) s.shopping_auto_add_threshold = parseInt(shoppingAutoAddEl.value, 10) || 0;
+    const shoppingRemoveEl = document.querySelector('input[name="shopping-remove-on-buy"]:checked');
+    if (shoppingRemoveEl) s.shopping_remove_on_buy = shoppingRemoveEl.value;
     // Product rules: genre prefix in the title + automatic favourites
     const productKindPrefixEl = document.getElementById('setting-product-kind-prefix');
     if (productKindPrefixEl) s.product_kind_prefix = productKindPrefixEl.checked;
@@ -4956,7 +4966,10 @@ async function saveSettings() {
             meal_plan_enabled: s.meal_plan_enabled,
             screensaver_enabled: s.screensaver_enabled,
             screensaver_timeout: s.screensaver_timeout || 5,
-            zerowaste_tips_enabled: s.zerowaste_tips_enabled,
+            // Only persist once the user has decided (touched the toggle or already set).
+            ...(((_serverSettings && _serverSettings.zerowaste_tips_set)
+                || document.getElementById('setting-zerowaste-tips')?.dataset.touched === '1')
+                ? { zerowaste_tips_enabled: !!s.zerowaste_tips_enabled } : {}),
             tts_enabled: s.tts_enabled,
             tts_url: s.tts_url,
             tts_token: s.tts_token,
@@ -4989,6 +5002,7 @@ async function saveSettings() {
             shopping_smart_suggestions:  s.shopping_smart_suggestions !== false,
             shopping_forecast:           s.shopping_forecast !== false,
             shopping_auto_add_threshold: s.shopping_auto_add_threshold || 0,
+            ...(s.shopping_remove_on_buy ? { shopping_remove_on_buy: s.shopping_remove_on_buy } : {}),
             product_kind_prefix:         s.product_kind_prefix !== false,
             auto_favorite_min_uses:      s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3,
             dark_mode:                   s.dark_mode || 'auto',
@@ -21912,7 +21926,7 @@ function renderCookingStep() {
     document.getElementById('cooking-step-text').textContent = cleanStep;
     const scrapEl = document.getElementById('cooking-scrap-hint');
     if (scrapEl) {
-        const tip = _cookingScrapTip(cleanStep);
+        const tip = (getSettings().zerowaste_tips_enabled === true) ? _cookingScrapTip(cleanStep) : '';
         if (tip) {
             scrapEl.textContent = tip;
             scrapEl.style.display = '';
@@ -22388,7 +22402,14 @@ const _NOTIFY_CHANNELS = { ntfy: 'notify-channel-ntfy', webhook: 'notify-channel
 
 /** Event name (as fired by the backend) → event checkbox id. Never rename: the
  *  same strings are used by the Home Assistant automations. */
-const _NOTIFY_EVENTS = { expiry_alert: 'notify-event-expiry', shopping_add: 'notify-event-shopping', stock_update: 'notify-event-stock' };
+const _NOTIFY_EVENTS = {
+    expiry_alert: 'notify-event-expiry',
+    shopping_add: 'notify-event-shopping',
+    shopping_remove: 'notify-event-shopping-remove',
+    shopping_trip_complete: 'notify-event-trip',
+    stock_update: 'notify-event-stock',
+    weekly_digest: 'notify-event-digest',
+};
 
 /** Machine error keys returned by the notifier → user-facing i18n keys. */
 const _NOTIFY_ERROR_KEYS = {
@@ -22470,6 +22491,46 @@ function _applyNotifySettingsUI(s) {
         hcUrl.placeholder = cfg.notify_healthcheck_set ? masked : t('settings.notify.healthcheck_placeholder');
     }
     _renderHealthcheckJobs(cfg);
+    _applyTelegramSettingsUI(cfg);
+}
+
+/** Paint Telegram bot fields from get_settings (token never echoed back). */
+function _applyTelegramSettingsUI(cfg) {
+    const chats = document.getElementById('setting-telegram-chats');
+    if (chats) chats.value = cfg.telegram_allowed_chat_ids || '';
+    const tok = document.getElementById('setting-telegram-token');
+    if (tok) {
+        tok.value = '';
+        tok.placeholder = cfg.telegram_token_set ? '••••••••' : '123456:ABC…';
+    }
+    const wh = document.getElementById('setting-telegram-webhook');
+    if (wh) {
+        const path = cfg.telegram_webhook_path || 'api/index.php?action=telegram_webhook';
+        try {
+            wh.value = new URL(path, window.location.origin).href;
+        } catch (_) {
+            wh.value = path;
+        }
+    }
+}
+
+async function saveTelegramSettings() {
+    const statusEl = document.getElementById('telegram-save-status');
+    const payload = {
+        telegram_allowed_chat_ids: document.getElementById('setting-telegram-chats')?.value.trim() || '',
+    };
+    const token = document.getElementById('setting-telegram-token')?.value.trim();
+    if (token) payload.telegram_bot_token = token;
+    try {
+        const res = await api('save_settings', {}, 'POST', payload);
+        if (res?.success === false) throw new Error(res.error || 'save_failed');
+        _notifyStatus(statusEl, 'success', t('btn.save') + ' ✓');
+        try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (_) {}
+        _applyTelegramSettingsUI(_serverSettings || {});
+        _renderSettingsChecklist();
+    } catch (e) {
+        _notifyStatus(statusEl, 'error', e.message || t('error.generic'));
+    }
 }
 
 
@@ -26226,7 +26287,12 @@ const SETTINGS_CHECKLIST = [
             : 'ok',
     },
     {
-        id: 'notify', tab: 'tab-notify', level: 'recommended', ask: true, askVersion: 1, step: 4,
+        id: 'shopping_remove_on_buy', tab: 'tab-bring', level: 'recommended', ask: true, askVersion: 1, step: 6,
+        titleKey: 'settings.shopping.remove_on_buy_title', hintKey: 'settings.shopping.remove_on_buy_hint',
+        state: (srv) => (srv.shopping_remove_on_buy_set ? 'ok' : 'todo'),
+    },
+    {
+        id: 'notify', tab: 'tab-notify', level: 'recommended', ask: true, askVersion: 2, step: 4,
         titleKey: 'settings.notify.title', hintKey: 'settings.notify.hint',
         state: (srv) => (srv.notify_configured ? 'ok' : 'todo'),
     },
@@ -26234,6 +26300,16 @@ const SETTINGS_CHECKLIST = [
         id: 'healthcheck', tab: 'tab-notify', level: 'optional', ask: true, askVersion: 1, step: 5,
         titleKey: 'settings.notify.healthcheck_title', hintKey: 'settings.notify.healthcheck_hint',
         state: (srv) => (srv.notify_healthcheck_set ? 'ok' : 'todo'),
+    },
+    {
+        id: 'telegram', tab: 'tab-notify', level: 'optional', ask: true, askVersion: 1, step: 7,
+        titleKey: 'settings.telegram.title', hintKey: 'settings.telegram.hint',
+        state: (srv) => (srv.telegram_token_set ? 'ok' : 'todo'),
+    },
+    {
+        id: 'zerowaste', tab: 'tab-general', level: 'optional', ask: true, askVersion: 1, step: 8,
+        titleKey: 'settings.zerowaste.card_title', hintKey: 'settings.zerowaste.card_hint',
+        state: (srv) => (srv.zerowaste_tips_set ? 'ok' : 'todo'),
     },
     {
         id: 'ha', tab: 'tab-ha', level: 'optional',
@@ -26434,7 +26510,7 @@ function startSetupAssistant() {
 }
 let _setupStep = 0;
 let _setupPendingSteps = [];
-const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '', notify_topic: '', notify_enabled: true, healthcheck_url: '' };
+const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '', notify_topic: '', notify_enabled: true, healthcheck_url: '', shopping_remove_on_buy: '', shopping_remove_decided: false, telegram_token: '', telegram_chats: '', zerowaste_tips: false, zerowaste_decided: false };
 
 /** Index of the closing "you're all set" step (always the last one). */
 function _setupDoneStep() { return _setupSteps().length - 1; }
@@ -26584,6 +26660,56 @@ function _setupSteps() {
                     <p id="setup-healthcheck-status" style="display:none;margin-top:8px;font-size:0.82rem"></p>
                 </div>
                 <span class="setup-skip-link" onclick="_setupSkipStep()">${t('settings.backup.gdrive_skip')}</span>
+            `
+        },
+        {
+            title: iconLabel('🛒', 'settings.shopping.remove_on_buy_title'),
+            desc: t('settings.shopping.remove_on_buy_hint'),
+            render: () => `
+                <div class="form-group" style="display:flex;flex-direction:column;gap:10px">
+                    <label class="radio-option">
+                        <input type="radio" name="setup-shopping-remove" value="plan"${(!_setupData.shopping_remove_on_buy || _setupData.shopping_remove_on_buy === 'plan') ? ' checked' : ''}>
+                        <span>${t('settings.shopping.remove_on_buy_plan')}</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="setup-shopping-remove" value="trip"${_setupData.shopping_remove_on_buy === 'trip' ? ' checked' : ''}>
+                        <span>${t('settings.shopping.remove_on_buy_trip')}</span>
+                    </label>
+                </div>
+                <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.shopping.trip_complete_hint')}</p>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
+            `
+        },
+        {
+            title: iconLabel('✈️', 'settings.telegram.title'),
+            desc: t('settings.telegram.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label>${t('settings.telegram.token_label')}</label>
+                    <input type="password" id="setup-telegram-token" class="form-input" placeholder="123456:ABC…" value="${escapeHtml(_setupData.telegram_token)}">
+                </div>
+                <div class="form-group">
+                    <label>${t('settings.telegram.chats_label')}</label>
+                    <input type="text" id="setup-telegram-chats" class="form-input" placeholder="123456789" value="${escapeHtml(_setupData.telegram_chats)}">
+                    <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.telegram.chats_hint')}</p>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
+            `
+        },
+        {
+            title: iconLabel('♻️', 'settings.zerowaste.card_title'),
+            desc: t('settings.zerowaste.card_hint'),
+            render: () => `
+                <div class="form-group">
+                    <label class="toggle-row">
+                        <span>${t('settings.zerowaste.label')}</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="setup-zerowaste-tips"${_setupData.zerowaste_tips ? ' checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
             `
         },
         {
@@ -26763,6 +26889,23 @@ function _setupCollectCurrent() {
     } else if (realIndex === 5) {
         const hcEl = document.getElementById('setup-healthcheck-url');
         if (hcEl) _setupData.healthcheck_url = hcEl.value.trim();
+    } else if (realIndex === 6) {
+        const rem = document.querySelector('input[name="setup-shopping-remove"]:checked');
+        if (rem) {
+            _setupData.shopping_remove_on_buy = rem.value;
+            _setupData.shopping_remove_decided = true;
+        }
+    } else if (realIndex === 7) {
+        const tok = document.getElementById('setup-telegram-token');
+        const chats = document.getElementById('setup-telegram-chats');
+        if (tok) _setupData.telegram_token = tok.value.trim();
+        if (chats) _setupData.telegram_chats = chats.value.trim();
+    } else if (realIndex === 8) {
+        const zw = document.getElementById('setup-zerowaste-tips');
+        if (zw) {
+            _setupData.zerowaste_tips = !!zw.checked;
+            _setupData.zerowaste_decided = true;
+        }
     }
 }
 
@@ -26824,6 +26967,17 @@ async function _finishSetup() {
         saveSettingsToStorage(s);
     }
     if (_setupData.healthcheck_url) envPayload.notify_healthcheck_url = _setupData.healthcheck_url;
+    // Only write when the user pressed Next on the step (skip leaves it "da decidere").
+    if (_setupData.shopping_remove_decided && _setupData.shopping_remove_on_buy) {
+        envPayload.shopping_remove_on_buy = _setupData.shopping_remove_on_buy;
+    }
+    if (_setupData.telegram_token) envPayload.telegram_bot_token = _setupData.telegram_token;
+    if (_setupData.telegram_chats) envPayload.telegram_allowed_chat_ids = _setupData.telegram_chats;
+    if (_setupData.zerowaste_decided) {
+        envPayload.zerowaste_tips_enabled = !!_setupData.zerowaste_tips;
+        s.zerowaste_tips_enabled = !!_setupData.zerowaste_tips;
+        saveSettingsToStorage(s);
+    }
     try {
         if (Object.keys(envPayload).length > 0) {
             await api('save_settings', {}, 'POST', envPayload);

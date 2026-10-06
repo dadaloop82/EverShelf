@@ -940,11 +940,11 @@
     "checklist": {
       "title": "🧭 配置清单",
       "summary_ok": "全部已配置",
-      "summary_todo": "{count} 个选项待确定",
+      "summary_todo": "{count} 项待决定",
       "state_ok": "已配置",
-      "state_todo": "未配置",
+      "state_todo": "待决定",
       "state_optional": "可选",
-      "group_todo": "待配置",
+      "group_todo": "待决定",
       "group_news": "新功能",
       "configure": "配置",
       "show": "显示条目",
@@ -1454,7 +1454,12 @@
       "auto_add_label": "自动加入清单：当剩余库存为",
       "auto_add_suffix": "时（0 = 仅当库存为 0 时）",
       "mode_bring_on": "Bring! 已启用",
-      "mode_internal_on": "内置购物清单已启用"
+      "mode_internal_on": "内置购物清单已启用",
+      "remove_on_buy_title": "🛒 购买之后",
+      "remove_on_buy_hint": "在购物模式下扫描商品后，何时从清单移除？",
+      "remove_on_buy_plan": "仅当库存覆盖计划窗口时",
+      "remove_on_buy_trip": "每次购买立即移除（出行模式）",
+      "trip_complete_hint": "在购物页点「购物完成」会清空清单，并阻止自动重新加入，直到再次用完。"
     },
     "product_rules": {
       "card_title": "🏷️ 名称与自动收藏",
@@ -1541,7 +1546,10 @@
       "err_http": "服务器返回 HTTP {code}",
       "err_generic": "错误：{error}",
       "save_btn": "💾 保存通知设置",
-      "ha_note": "🏠 Home Assistant 的 notify 服务仍然有效：如果已配置，同样的事件也会推送到那里。"
+      "ha_note": "🏠 Home Assistant 的 notify 服务仍然有效：如果已配置，同样的事件也会推送到那里。",
+      "event_shopping_remove": "从清单移除 / 已购买",
+      "event_trip": "购物完成（清单已清空）",
+      "event_digest": "每周摘要（定时任务）"
     },
     "ha": {
       "tab": "Home Assistant",
@@ -1673,7 +1681,18 @@
       "nok": "kr 挪威克朗",
       "dkk": "kr 丹麦克朗",
       "pln": "zł 波兰兹罗提"
-    }
+    },
+    "telegram": {
+      "title": "✈️ Telegram 机器人",
+      "hint": "给不安装 PWA 的家人：机器人中的 /lista 与 /scadenze。可选且免费。",
+      "token_label": "机器人 Token",
+      "token_hint": "来自 @BotFather。留空表示不改已保存的 Token。",
+      "chats_label": "允许的 Chat ID",
+      "chats_hint": "逗号分隔。留空=接受任意聊天（不推荐）。",
+      "webhook_label": "Telegram Webhook URL",
+      "webhook_hint": "在 api.telegram.org 用此公网 HTTPS URL 调用 setWebhook。"
+    },
+    "nav_aria": "设置导航"
   },
   "expiry": {
     "today": "今天",
@@ -2408,6 +2427,10 @@
     "shopping_add_title": "🛒 已添加到购物清单",
     "stock_update_title": "📦 库存已更新",
     "test_title": "✅ EverShelf 测试通知",
-    "test_message": "如果你看到这条消息，说明通知已生效。发送时间 {time}。"
+    "test_message": "如果你看到这条消息，说明通知已生效。发送时间 {time}。",
+    "shopping_remove_title": "🛒 已从购物清单移除",
+    "trip_complete_title": "✅ 购物完成",
+    "trip_complete_message": "清单已清空：{n} 项。",
+    "weekly_digest_title": "📊 EverShelf 每周摘要"
   }
 }
