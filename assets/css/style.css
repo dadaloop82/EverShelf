@@ -5230,6 +5230,45 @@ body.server-offline .bottom-nav {
     margin: 0;
 }
 
+/* The line under a tappable title (scan/add preview, AI match card) is a second
+   "tap to correct" target: same affordance, lighter weight, inherits the colour
+   of the line it replaces. */
+.edit-subtitle-tap {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 1.5px dashed transparent;
+    color: inherit;
+    cursor: text;
+    font: inherit;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    transition: border-color 0.15s ease;
+}
+
+.edit-subtitle-tap:hover,
+.edit-subtitle-tap:focus-visible {
+    border-bottom-color: currentColor;
+    outline: none;
+}
+
+/* No brand yet: show the field label so the tap target stays visible and honest. */
+.edit-subtitle-empty {
+    font-style: italic;
+    opacity: 0.75;
+}
+
+.edit-brand-input {
+    width: 100%;
+}
+
+.scan-ai-hero-name .edit-title-tap {
+    font-weight: inherit;
+}
+
 .modal-close {
     background: var(--bg);
     border: none;

@@ -113,6 +113,13 @@ keep the products you really use where you can reach them.
   top of the inventory. The rule only ever *adds* favourites, and unstarring one by
   hand records a veto (`products.favorite_user_override`) so the automation never
   puts it back.
+- **The scan step no longer decides by itself.** A barcode label or an AI guess can
+  be wrong, and the add-to-pantry step is the last moment you see it: the identified
+  **title and brand are now tappable there** (and on the AI match card) so you can
+  correct them before saving. The correction is stored with `products.name_user_set`,
+  which is what stops the next rescan of the same barcode from putting the wrong name
+  back; the stored title still comes back through the API with the genre prefix, the
+  capital letter and the singular form applied.
 
 **Schema**
 

@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261006a'; // bump when translations change
+const _I18N_VERSION = '20261006b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2871,8 +2871,14 @@ function _showAiMatchChoices(aiProduct) {
                 <div class="scan-ai-hero-icon">${catIcon}</div>
                 <div class="scan-ai-hero-text">
                     <div class="scan-ai-match-title">${t('scan.ai_match_title')}</div>
-                    <div class="scan-ai-hero-name">${escapeHtml(aiName)}</div>
-                    ${aiBrand ? `<div class="scan-ai-hero-brand">${escapeHtml(aiBrand)}</div>` : ''}
+                    <div class="scan-ai-hero-name">
+                        <button type="button" id="scan-ai-title-display" class="edit-title-tap" onclick="startEditScanAiTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(aiName)}</button>
+                        <input type="text" id="scan-ai-product-name" class="form-input edit-title-input" value="${escapeHtml(aiName)}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+                    </div>
+                    <div class="scan-ai-hero-brand">
+                        <button type="button" id="scan-ai-brand-display" class="edit-subtitle-tap${aiBrand ? '' : ' edit-subtitle-empty'}" onclick="startEditScanAiBrand()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${aiBrand ? escapeHtml(aiBrand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
+                        <input type="text" id="scan-ai-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeHtml(aiBrand)}" placeholder="${escapeHtml(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('product.brand_label') || 'Brand')}">
+                    </div>
                 </div>
             </div>
 
@@ -2888,6 +2894,9 @@ function _showAiMatchChoices(aiProduct) {
         </div>
     `;
     result.style.display = 'block';
+    // The AI guess can be corrected before it is saved: same tap-to-edit as the add step.
+    _wireInlineTitleEdit('scan-ai-product-name', finishEditScanAiTitle);
+    _wireInlineTitleEdit('scan-ai-product-brand', finishEditScanAiBrand);
     setTimeout(() => result.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
 }
 async function _fetchAiMatchCandidates(aiProduct) {
@@ -10318,7 +10327,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10328,7 +10337,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261006a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261006b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -12528,20 +12537,229 @@ async function saveEditedProductInfo() {
     }
 }
 
-// ===== ADD TO INVENTORY =====
-function showAddForm() {
+// ===== SCAN / ADD: CORRECT THE IDENTIFIED TITLE AND BRAND =====
+// A barcode label or an AI guess is often wrong, and the add step is the last
+// moment the user sees it before it reaches the pantry. The title and the brand
+// are tappable there (same affordance as the inventory edit modal) and the
+// correction is stored with `name_user_set`, so a later rescan of the same
+// barcode cannot bring the wrong name back.
+
+/** Remember what the catalog holds now, so a rename is only sent when it changed. */
+function _snapshotCatalogTitle() {
+    if (!currentProduct) return;
+    if (currentProduct._savedTitle === undefined) {
+        currentProduct._savedTitle = String(currentProduct.name || '').trim();
+        currentProduct._savedBrand = String(currentProduct.brand || '').trim();
+    }
+}
+
+/** True when the user corrected the title or the brand of the product being added. */
+function _addProductTitleChanged() {
+    if (!currentProduct?.id) return false;
+    const name = String(currentProduct.name || '').trim();
+    const brand = String(currentProduct.brand || '').trim();
+    return name !== String(currentProduct._savedTitle ?? '').trim()
+        || brand !== String(currentProduct._savedBrand ?? '').trim();
+}
+
+/** Swap the tappable text for its input (shared by the add preview and the AI hero card). */
+function _openInlineTitleEdit(displayId, inputId) {
+    const display = document.getElementById(displayId);
+    const input = document.getElementById(inputId);
+    if (!display || !input) return;
+    display.style.display = 'none';
+    input.style.display = '';
+    input.focus();
+    input.select();
+}
+
+/** Paint the tappable text back and hide the input. */
+function _closeInlineTitleEdit(displayId, inputId) {
+    const display = document.getElementById(displayId);
+    const input = document.getElementById(inputId);
+    if (input) input.style.display = 'none';
+    if (display) display.style.display = '';
+}
+
+/** Enter commits, Escape restores, leaving the field commits — like the edit modal. */
+function _wireInlineTitleEdit(inputId, finishFn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); finishFn(); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); finishFn(true); }
+    });
+    input.addEventListener('blur', () => finishFn());
+}
+
+function _readInlineTitleEdit(inputId) {
+    return String(document.getElementById(inputId)?.value || '').trim();
+}
+
+function _paintTitleText(displayId, text) {
+    const display = document.getElementById(displayId);
+    if (display) display.textContent = text || '';
+}
+
+/** A brand is optional: without one the line shows its label, so the tap target stays visible. */
+function _paintBrandLine(displayId, brand) {
+    const display = document.getElementById(displayId);
+    if (!display) return;
+    display.textContent = brand || t('product.brand_label') || 'Brand';
+    display.classList.toggle('edit-subtitle-empty', !brand);
+}
+
+/** Preview of the product being added: the title and the brand are editable here. */
+function _renderAddProductPreview() {
+    const host = document.getElementById('add-product-preview');
+    if (!host || !currentProduct) return;
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(currentProduct.category, currentProduct.name)] || '📦';
-    document.getElementById('add-product-preview').innerHTML = `
+    const name = currentProduct.name || '';
+    const brand = currentProduct.brand || '';
+    host.innerHTML = `
         ${currentProduct.image_url ?
             `<img src="${escapeHtml(currentProduct.image_url)}" alt="">` :
             `<span style="font-size:2rem">${catIcon}</span>`
         }
         <div class="product-preview-info">
-            <h3>${escapeHtml(currentProduct.name)}</h3>
-            <p>${currentProduct.brand ? escapeHtml(currentProduct.brand) : ''}</p>
+            <h3>
+                <button type="button" id="add-title-display" class="edit-title-tap" onclick="startEditAddTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(name)}</button>
+                <input type="text" id="add-product-name" class="form-input edit-title-input" value="${escapeHtml(name)}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
+            </h3>
+            <p>
+                <button type="button" id="add-brand-display" class="edit-subtitle-tap${brand ? '' : ' edit-subtitle-empty'}" onclick="startEditAddBrand()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${brand ? escapeHtml(brand) : escapeHtml(t('product.brand_label') || 'Brand')}</button>
+                <input type="text" id="add-product-brand" class="form-input edit-title-input edit-brand-input" value="${escapeHtml(brand)}" placeholder="${escapeHtml(t('product.brand_placeholder') || '')}" list="common-brands" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('product.brand_label') || 'Brand')}">
+            </p>
             ${currentProduct.weight_info ? `<p style="font-size:0.8rem;color:var(--text-light)">${escapeHtml(currentProduct.weight_info)}</p>` : ''}
         </div>
     `;
+    _wireInlineTitleEdit('add-product-name', finishEditAddTitle);
+    _wireInlineTitleEdit('add-product-brand', finishEditAddBrand);
+}
+
+function startEditAddTitle() {
+    _openInlineTitleEdit('add-title-display', 'add-product-name');
+}
+
+function finishEditAddTitle(cancel = false) {
+    const input = document.getElementById('add-product-name');
+    if (!input || input.style.display === 'none') return;
+    const typed = _readInlineTitleEdit('add-product-name');
+    if (!cancel && !typed) {
+        showToast(t('product.name_required') || t('error.generic'), 'error');
+        input.focus();
+        return;
+    }
+    if (cancel) {
+        _closeInlineTitleEdit('add-title-display', 'add-product-name');
+        return;
+    }
+    if (currentProduct) currentProduct.name = typed;
+    _paintTitleText('add-title-display', typed);
+    _closeInlineTitleEdit('add-title-display', 'add-product-name');
+}
+
+function startEditAddBrand() {
+    _openInlineTitleEdit('add-brand-display', 'add-product-brand');
+}
+
+function finishEditAddBrand(cancel = false) {
+    const input = document.getElementById('add-product-brand');
+    if (!input || input.style.display === 'none') return;
+    const typed = _readInlineTitleEdit('add-product-brand');
+    if (currentProduct && !cancel) currentProduct.brand = typed;
+    _paintBrandLine('add-brand-display', currentProduct?.brand || '');
+    _closeInlineTitleEdit('add-brand-display', 'add-product-brand');
+}
+
+/**
+ * Persist a corrected title/brand on the catalog row before the pantry entry is
+ * created. `name_user_set: 1` is what tells the API "this name is the user's":
+ * `mergeIncomingProductFields()` then keeps it verbatim instead of letting the
+ * catalog (or a later rescan of the same barcode) replace it. The stored title is
+ * read back through `product_get`, because the backend still owns the spelling —
+ * the genre prefix, the capital letter and the singular form are applied there.
+ */
+async function _commitAddProductRename() {
+    if (!_addProductTitleChanged()) return;
+    const name = String(currentProduct.name || '').trim();
+    const brand = String(currentProduct.brand || '').trim();
+    try {
+        await api('product_save', {}, 'POST', {
+            id: currentProduct.id,
+            name,
+            brand,
+            category: currentProduct.category || '',
+            unit: currentProduct.unit || 'pz',
+            default_quantity: currentProduct.default_quantity ?? 1,
+            package_unit: currentProduct.package_unit || '',
+            lang: _currentLang,
+            name_user_set: 1,
+        });
+        const full = await api('product_get', { id: currentProduct.id }).catch(() => null);
+        if (full?.product) {
+            currentProduct.name = full.product.name || name;
+            currentProduct.brand = full.product.brand ?? brand;
+            currentProduct.category = full.product.category || currentProduct.category;
+            currentProduct.kind = full.product.kind ?? currentProduct.kind;
+            currentProduct.shopping_name = full.product.shopping_name ?? currentProduct.shopping_name;
+        } else {
+            currentProduct.name = name;
+            currentProduct.brand = brand;
+        }
+        currentProduct.name_user_set = 1;
+        currentProduct._savedTitle = String(currentProduct.name || '').trim();
+        currentProduct._savedBrand = String(currentProduct.brand || '').trim();
+        _renderAddProductPreview();
+        showToast(t('toast.product_saved'), 'success');
+    } catch (_) {
+        showToast(t('error.save'), 'error');
+    }
+}
+
+// ===== SCAN: CORRECT THE AI GUESS BEFORE IT IS SAVED =====
+
+function startEditScanAiTitle() {
+    _openInlineTitleEdit('scan-ai-title-display', 'scan-ai-product-name');
+}
+
+function finishEditScanAiTitle(cancel = false) {
+    const input = document.getElementById('scan-ai-product-name');
+    if (!input || input.style.display === 'none') return;
+    if (!_aiDetectedProductDraft) {
+        _closeInlineTitleEdit('scan-ai-title-display', 'scan-ai-product-name');
+        return;
+    }
+    const typed = _readInlineTitleEdit('scan-ai-product-name');
+    if (!cancel && !typed) {
+        showToast(t('product.name_required') || t('error.generic'), 'error');
+        input.focus();
+        return;
+    }
+    if (!cancel) _aiDetectedProductDraft.name = typed;
+    // Repaint the card: the hero text and the "add" button label both carry the name.
+    _showAiMatchChoices(_aiDetectedProductDraft);
+}
+
+function startEditScanAiBrand() {
+    _openInlineTitleEdit('scan-ai-brand-display', 'scan-ai-product-brand');
+}
+
+function finishEditScanAiBrand(cancel = false) {
+    const input = document.getElementById('scan-ai-product-brand');
+    if (!input || input.style.display === 'none') return;
+    if (!_aiDetectedProductDraft) {
+        _closeInlineTitleEdit('scan-ai-brand-display', 'scan-ai-product-brand');
+        return;
+    }
+    if (!cancel) _aiDetectedProductDraft.brand = _readInlineTitleEdit('scan-ai-product-brand');
+    _showAiMatchChoices(_aiDetectedProductDraft);
+}
+
+// ===== ADD TO INVENTORY =====
+function showAddForm() {
+    _snapshotCatalogTitle();
+    _renderAddProductPreview();
     
     // Set unit selector
     const unit = currentProduct.unit || 'pz';
@@ -13169,6 +13387,14 @@ async function submitAdd(e) {
     const pkgUnit = selectedUnit === 'conf' ? (document.getElementById('add-conf-unit')?.value || null) : null;
     const pkgSize = selectedUnit === 'conf' ? (parseFloat(document.getElementById('add-conf-size')?.value) || null) : null;
     const unitForAdd = selectedUnit !== productUnit ? selectedUnit : productUnit;
+
+    // A scanned label is often wrong: save the corrected title/brand first, so the
+    // pantry entry and every message after it carry the name the user confirmed.
+    if (_addProductTitleChanged()) {
+        showLoading(true);
+        await _commitAddProductRename();
+        showLoading(false);
+    }
 
     const recent = _findRecentInventoryAdd(currentProduct.id, location);
     if (recent) {

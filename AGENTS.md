@@ -157,6 +157,7 @@ php scripts/test-html-in-text.php       # no HTML reaches a text-only surface (s
 php scripts/test-dashboard-panels.php   # dashboard rotation: phases ↔ sections ↔ bar fills, no orphan flags
 php scripts/test-product-kind-prefix.php # genre leading every article title (dictionary → cache → AI, no double prefix)
 php scripts/test-product-number.php     # singular title in the catalog, plural only in the pantry (piece units)
+php scripts/test-product-rename.php     # a scanned title/brand can be corrected, and a rescan cannot undo it
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
 
@@ -198,6 +199,7 @@ npm run build
 | Genre in the article title | `api/lib/product_kind.php` + `mergeIncomingProductFields()` (the single title choke point) + `products.kind`; dictionary shared with `computeShoppingName()` — guard test `scripts/test-product-kind-prefix.php` |
 | Singular title ↔ plural pantry | `productKindSingularizeName()` (stored title), `productNameForPieces()` + `display_name` in `listInventory()`, `productKindUnitCountsPieces()` — guard test `scripts/test-product-number.php` |
 | Automatic favourites | `api/lib/auto_favorite.php` (`maybeAutoFavorite()` on every `inventory_use`), `products.favorite_user_override`, maintenance action `products_apply_auto_rules` — guard test `scripts/test-auto-favorite.php` |
+| Correct a scanned title/brand | `showAddForm()` → `_renderAddProductPreview()` / `_commitAddProductRename()` in app.js (`name_user_set` locks the user name) + the AI card `_showAiMatchChoices()` — guard test `scripts/test-product-rename.php` |
 | Cron watchdog / notifications | `api/lib/healthcheck.php`, `api/lib/notify.php`, `cron_*.php` |
 | `.env` bootstrap / pairing | `api/lib/env.php`, `api/lib/pairing.php`, `app_bootstrap` in `api/index.php` |
 | Seasonal produce | `api/lib/seasonal.php` + `data/seasonal_produce_it.json` |
