@@ -181,6 +181,9 @@ function evershelfShoppingKeywordMap(): array {
         // Dairy
         'latte'         => 'Latte',
         'yogurt'        => 'Yogurt',
+        'yogurth'       => 'Yogurt',
+        'jogurt'        => 'Yogurt',
+        'joghurt'       => 'Yogurt',
         'yaourt'        => 'Yogurt',
         'yougurt'       => 'Yogurt',
         'burro'         => 'Burro',
