@@ -7641,7 +7641,9 @@ function renderBannerItem() {
             const totalSub = Math.round(parseFloat(item.quantity) * parseFloat(item.default_quantity));
             qtyDisplay = `${totalSub} ${item.package_unit}`;
         } else {
-            qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: this banner is written with textContent below (titleEl/detailEl), so
+            // the <span class="conf-size-info"> that formatQuantity() can add must not reach it.
+            qtyDisplay = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
         }
         const suspDq = isSuspiciousDefaultQty(item.default_quantity, item.unit, item.package_unit);
         const isLow  = !!item._isLow; // set when banner item was built
@@ -9531,8 +9533,11 @@ function showInvActionChooser(productId, location, invId) {
     const img = item?.image_url || '';
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
     const locInfo = LOCATIONS[location] || { icon: '📦', label: location };
+    // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
+    // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
+    // "conf" units would be printed as a literal tag instead of a quantity.
     const qtyLabel = item
-        ? formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit)
+        ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
         : '';
 
     document.getElementById('modal-content').innerHTML = `
@@ -24956,7 +24961,10 @@ function generateScreensaverFact() {
         });
         facts.push(() => {
             const item = rItem(inv);
-            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: the screensaver prints the fact with textContent, so the
+            // <span class="conf-size-info"> that formatQuantity() adds for "conf" units
+            // would be shown as a literal tag. Use the text-only formatter.
+            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
             return t('facts.item_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
@@ -24979,7 +24987,8 @@ function generateScreensaverFact() {
     if (highQtyItems.length > 0) {
         facts.push(() => {
             const item = rItem(highQtyItems);
-            const qty = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+            // Plain text: same reason as facts.item_qty above — never feed markup to textContent.
+            const qty = _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit);
             return t('facts.high_qty').replace('{name}', item.name).replace('{qty}', qty);
         });
     }
