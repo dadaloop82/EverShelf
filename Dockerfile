@@ -1,4 +1,4 @@
-FROM php:8.2-apache-bookworm
+FROM php:8.5-apache-bookworm
 
 # Install required PHP extensions + Tesseract OCR for offline expiry date reading
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
