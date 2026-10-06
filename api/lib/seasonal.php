@@ -206,6 +206,26 @@ function seasonalProduceOutOfSeason(string $name, string $category = '', ?int $m
 }
 
 /**
+ * Ice cream / semifreddo are not "fresh produce" but are strongly seasonal for
+ * most households. Hide them from smart auto-add outside late spring–summer.
+ */
+function seasonalIceCreamOutOfSeason(string $name, string $category = '', ?int $month = null): bool {
+    $month = $month ?? (int)date('n');
+    // Italy-oriented default: May–September is fine; the rest of the year is off.
+    if ($month >= 5 && $month <= 9) {
+        return false;
+    }
+    $hay = mb_strtolower(trim($name . ' ' . $category));
+    return (bool)preg_match('/\b(gelato|semifreddo|ice[\s-]?cream|eis)\b/u', $hay);
+}
+
+/** True when the shopping list / smart engine should hide this name for the calendar. */
+function seasonalShoppingItemOutOfSeason(string $name, string $category = '', ?int $month = null): bool {
+    return seasonalProduceOutOfSeason($name, $category, $month)
+        || seasonalIceCreamOutOfSeason($name, $category, $month);
+}
+
+/**
  * @return array{item:array,status:string,score:int}|null
  */
 function seasonalMatchProduce(string $name, ?int $month = null): ?array {
@@ -281,6 +301,22 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
             continue;
         }
         $onListNorm[seasonalNormalize($label)] = true;
+        if (function_exists('computeShoppingName')) {
+            $gk = seasonalNormalize(computeShoppingName($label));
+            if ($gk !== '') {
+                $onListNorm[$gk] = true;
+            }
+        }
+        if (seasonalIceCreamOutOfSeason($label)) {
+            $outOfSeason[] = [
+                'name' => $label,
+                'raw_name' => (string)($row['raw_name'] ?? $label),
+                'seasonal_name' => $label,
+                'kind' => 'dessert',
+                'status' => 'off',
+            ];
+            continue;
+        }
         $match = seasonalMatchProduce($label, $month);
         if (!$match || $match['status'] !== 'off') {
             continue;
@@ -307,14 +343,23 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
     $stockNorm = [];
     try {
         $rows = $db->query("
-            SELECT p.name, p.category
+            SELECT p.name, p.category, p.shopping_name
             FROM inventory i
             JOIN products p ON p.id = i.product_id
             WHERE i.quantity > 0.001
         ")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as $r) {
             $stockNorm[seasonalNormalize((string)$r['name'])] = true;
-            // also mark category produce generically
+            $sn = trim((string)($r['shopping_name'] ?? ''));
+            if ($sn !== '') {
+                $stockNorm[seasonalNormalize($sn)] = true;
+            }
+            if (function_exists('computeShoppingName')) {
+                $gk = seasonalNormalize(computeShoppingName((string)$r['name']));
+                if ($gk !== '') {
+                    $stockNorm[$gk] = true;
+                }
+            }
         }
     } catch (Throwable $e) {
         $rows = [];
@@ -353,9 +398,15 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
         }
         $n = seasonalNormalize($name);
         $first = seasonalNormalize(explode(' ', $name)[0] ?? $name);
-        // Skip if already on list or in stock (name or first token)
-        $listed = isset($onListNorm[$n]) || isset($onListNorm[$first]);
-        $stocked = isset($stockNorm[$n]) || isset($stockNorm[$first]);
+        $shopKey = '';
+        if (function_exists('computeShoppingName')) {
+            $shopKey = seasonalNormalize(computeShoppingName($name));
+        }
+        // Skip if already on list or in stock (name, first token, or shopping generic).
+        $listed = isset($onListNorm[$n]) || isset($onListNorm[$first])
+            || ($shopKey !== '' && isset($onListNorm[$shopKey]));
+        $stocked = isset($stockNorm[$n]) || isset($stockNorm[$first])
+            || ($shopKey !== '' && isset($stockNorm[$shopKey]));
         if ($listed || $stocked) {
             continue;
         }
@@ -375,7 +426,31 @@ function seasonalReviewShopping(PDO $db, array $shoppingItems): array {
     // Prefer previously bought, then top commons — max 8
     $preferBought = array_values(array_filter($suggest, static fn($s) => !empty($s['bought_before'])));
     $rest = array_values(array_filter($suggest, static fn($s) => empty($s['bought_before'])));
-    $suggestAdd = array_slice(array_merge($preferBought, $rest), 0, 8);
+    $merged = array_merge($preferBought, $rest);
+    // One tip per buyable family ("Avocado" / "Avocado Hass" → single card).
+    $seenGeneric = [];
+    $suggestAdd = [];
+    foreach ($merged as $s) {
+        $key = seasonalNormalize((string)($s['name'] ?? ''));
+        if (function_exists('computeShoppingName')) {
+            $gk = seasonalNormalize(computeShoppingName((string)($s['name'] ?? '')));
+            if ($gk !== '') {
+                $key = $gk;
+            }
+        }
+        $first = seasonalNormalize(explode(' ', (string)($s['name'] ?? ''))[0] ?? '');
+        if ($key === '' || isset($seenGeneric[$key]) || ($first !== '' && isset($seenGeneric[$first]))) {
+            continue;
+        }
+        $seenGeneric[$key] = true;
+        if ($first !== '') {
+            $seenGeneric[$first] = true;
+        }
+        $suggestAdd[] = $s;
+        if (count($suggestAdd) >= 8) {
+            break;
+        }
+    }
 
     // Stable key: the client resolves it (see _localizeSeasonalTip in app.js), so the
     // payload stays language-neutral and every locale gets its own wording.

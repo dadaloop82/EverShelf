@@ -17379,23 +17379,27 @@ function _updateDashboardPriceTotal() {
 /**
  * Sync the on_bring flag for every smartShoppingItem against the current shoppingItems list.
  * The server cache can be up to 10 min old so on_bring may be stale — this corrects it
- * client-side using strict first-token matching: a Bring item matches a smart item only when
- * the first significant token of the Bring item's name equals the first significant token of
- * the smart item's name (or exact name match). This avoids false positives like
- * "Frutta" (fresh fruit on Bring) matching "Muesli Frutta Secca" (a different product).
+ * client-side. Match list title, raw_name, and shopping generic (first significant token),
+ * so "Pelati" on Spesa hides the "Datterini Pelati" suggestion immediately.
  */
 function _syncOnBringFlags() {
     for (const si of smartShoppingItems) {
-        const siLower = si.name.toLowerCase();
-        const siFirst = _nameTokens(si.name)[0];
-        const siShoppingLower = (si.shopping_name || '').toLowerCase();
-        const siShoppingFirst = si.shopping_name ? _nameTokens(si.shopping_name)[0] : null;
-        si.on_bring = !!(
-            shoppingItems.find(bi => bi.name.toLowerCase() === siLower) ||
-            (siShoppingLower && shoppingItems.find(bi => bi.name.toLowerCase() === siShoppingLower)) ||
-            (siFirst && shoppingItems.find(bi => _nameTokens(bi.name)[0] === siFirst)) ||
-            (siShoppingFirst && shoppingItems.find(bi => _nameTokens(bi.name)[0] === siShoppingFirst))
-        );
+        const siNames = [si.name, si.shopping_name].filter(Boolean).map(s => String(s).toLowerCase());
+        const siFirsts = new Set();
+        for (const n of [si.name, si.shopping_name].filter(Boolean)) {
+            const tok = _nameTokens(n)[0];
+            if (tok) siFirsts.add(tok);
+        }
+        si.on_bring = shoppingItems.some(bi => {
+            const listNames = [bi.name, bi.rawName || bi.raw_name].filter(Boolean);
+            for (const bn of listNames) {
+                const bl = String(bn).toLowerCase();
+                if (siNames.includes(bl)) return true;
+                const bFirst = _nameTokens(bn)[0];
+                if (bFirst && siFirsts.has(bFirst)) return true;
+            }
+            return false;
+        });
     }
 }
 
@@ -17790,6 +17794,10 @@ function renderSmartItem(item) {
 }
 
 async function migrateBringNames(btn) {
+    if (!_isShoppingBringMode()) {
+        showToast(t('settings.shopping.mode_internal_on') || 'Bring! is disabled', 'info');
+        return;
+    }
     const statusEl = document.getElementById('bring-migrate-status');
     if (btn) btn.disabled = true;
     if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = t('shopping.migration_running'); }

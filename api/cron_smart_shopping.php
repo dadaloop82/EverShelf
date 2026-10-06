@@ -255,6 +255,16 @@ if (env('HA_ENABLED', 'false') === 'true' && env('HA_WEBHOOK_ID', '') !== '') {
             $expiringItems = array_map('_haFormatProduct', $expiringItems);
             $expiredItems  = array_map('_haFormatProduct', $expiredItems);
 
+            // Dashboard-parity: drop low-risk "best before" leftovers HA used to shout about.
+            $expiringItems = array_values(array_filter(
+                $expiringItems,
+                static fn(array $r): bool => evershelfExpiryNeedsAttention($r, $expiryDays)
+            ));
+            $expiredItems = array_values(array_filter(
+                $expiredItems,
+                static fn(array $r): bool => evershelfExpiryNeedsAttention($r, $expiryDays)
+            ));
+
             if (!empty($expiringItems)) {
                 $names = implode(', ', array_column($expiringItems, 'name'));
                 _fireHaWebhook('expiry_alert', [

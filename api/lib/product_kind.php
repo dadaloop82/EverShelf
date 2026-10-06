@@ -53,6 +53,9 @@ function evershelfShoppingPhraseMap(): array {
         // Tomato preparations (MUST come before generic "pomodoro/pomodori")
         'passata di pomodoro'   => 'Passata',
         'passata pomodoro'      => 'Passata',
+        'piadina romagnola'     => 'Piadina',
+        'piadine romagnole'     => 'Piadina',
+        'sfogliata tradizionale'=> 'Piadina',
         'polpa di pomodoro'     => 'Polpa di pomodoro',
         'polpa pomodoro'        => 'Polpa di pomodoro',
         'sugo al pomodoro'      => 'Sugo',
@@ -166,6 +169,7 @@ function evershelfShoppingKeywordMap(): array {
         'taralli'       => 'Taralli',
         'tarallini'     => 'Taralli',
         'piadina'       => 'Piadina',
+        'piadine'       => 'Piadina',
         'piadelle'      => 'Piadina',
         'biscotto'      => 'Biscotti',
         'biscotti'      => 'Biscotti',
@@ -227,6 +231,7 @@ function evershelfShoppingKeywordMap(): array {
         'banane'        => 'Banane',
         'kiwi'          => 'Kiwi',
         'avocado'       => 'Avocado',
+        'avocados'      => 'Avocado',
         'pomodoro'      => 'Pomodori',
         'pomodori'      => 'Pomodori',
         'pomodorini'    => 'Pomodorini',
@@ -273,8 +278,9 @@ function evershelfShoppingKeywordMap(): array {
         'vino'          => 'Vino',
         'birra'         => 'Birra',
         'succo'         => 'Succo',
-        // Cereals & snacks
-        'muesli'        => 'Muesli',
+        // Cereals & snacks — one buyable family so muesli/granola cover "Cereali"
+        'muesli'        => 'Cereali',
+        'granola'       => 'Cereali',
         'cereali'       => 'Cereali',
         // Frozen & desserts (before coffee/tea tokens to avoid "gelato caffè → Caffè")
         'gelato'        => 'Gelato',
@@ -739,16 +745,59 @@ function productKindFromDictionary(string $name, string $brand = ''): array {
     $lower = mb_strtolower(trim($name));
 
     foreach (evershelfShoppingPhraseMap() as $phrase => $canonical) {
-        if ($phrase !== '' && mb_strpos($lower, (string)$phrase) !== false) {
-            return ['kind' => (string)$canonical, 'confident' => true];
+        $phrase = (string)$phrase;
+        if ($phrase === '' || mb_strpos($lower, $phrase) === false) {
+            continue;
         }
+        // Ingredient phrases ("farina di riso") only count when they lead the title —
+        // otherwise "Campagnole con farina di riso" would shop as flour.
+        $phraseHead = explode(' ', $phrase, 2)[0];
+        static $ingredientPhraseHeads = [
+            'farina' => true, 'olio' => true, 'sale' => true,
+            'zucchero' => true, 'aceto' => true, 'lievito' => true,
+        ];
+        $atLead = mb_strpos($lower, $phrase) === 0
+            || (bool)preg_match('/^(?:il|la|lo|i|gli|le|un|uno|una|the|a|an)\s+' . preg_quote($phrase, '/') . '/u', $lower);
+        if (isset($ingredientPhraseHeads[$phraseHead]) && !$atLead) {
+            continue;
+        }
+        return ['kind' => (string)$canonical, 'confident' => true];
     }
 
     $keywordMap = evershelfShoppingKeywordMap();
+    // Trailing genres — packaging/brand openers ("La sfogliata… piadine") and
+    // mid-title product signals ("Fiori di latte", "bucce… pomodoro") resolve;
+    // bulk ingredient tokens stay lead-only via the phrase rule above.
+    $trailingGenre = [
+        'piadina' => true, 'piadine' => true, 'piadelle' => true,
+        'avocado' => true, 'avocados' => true,
+        'muesli' => true, 'granola' => true, 'cereali' => true,
+        'yogurt' => true, 'yogurth' => true, 'jogurt' => true, 'joghurt' => true,
+        'yaourt' => true, 'yougurt' => true,
+        'gelato' => true, 'semifreddo' => true,
+        'latte' => true,
+        'pomodoro' => true, 'pomodori' => true, 'pomodorini' => true, 'pelati' => true,
+    ];
+    $trailing = null;
+    $trailingIdx = PHP_INT_MAX;
     foreach (evershelfSignificantTokens($name, $brand) as $i => $token) {
-        if (isset($keywordMap[$token])) {
-            return ['kind' => (string)$keywordMap[$token], 'confident' => $i === 0];
+        if (!isset($keywordMap[$token])) {
+            continue;
         }
+        $kind = (string)$keywordMap[$token];
+        if ($i === 0) {
+            return ['kind' => $kind, 'confident' => true];
+        }
+        if (!isset($trailingGenre[$token])) {
+            continue;
+        }
+        if ($i < $trailingIdx) {
+            $trailing = $kind;
+            $trailingIdx = $i;
+        }
+    }
+    if ($trailing !== null) {
+        return ['kind' => $trailing, 'confident' => false];
     }
 
     return ['kind' => '', 'confident' => false];

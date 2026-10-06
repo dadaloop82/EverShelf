@@ -12,6 +12,9 @@ const SHOPPING_GUARD_MAX_LINE_EUR = 25.0;
 /** Max retail packs priced per line (one supermarket trip). */
 const SHOPPING_GUARD_MAX_PRICE_PACKS = 3;
 
+/** Absolute max conf packs suggested on the list (never "24 jars of passata"). */
+const SHOPPING_GUARD_MAX_CONF_PACKS = 6;
+
 /** Max pieces suggested per line (fruit/veg bags — higher than retail packs). */
 const SHOPPING_GUARD_MAX_PIECES = 12;
 
@@ -120,6 +123,77 @@ function smartCapPeriodNeed(float $periodNeed, string $unit, float $defQty, stri
     return min($periodNeed, (float)($capped['quantity'] ?? $periodNeed));
 }
 
+/**
+ * Convert a stock/TX quantity into retail-pack count for a shopping_name family.
+ *
+ * Families mix unit=g rows (250 g butter) with unit=conf rows (0.65 packs). Summing
+ * raw quantities treated "250 g used" as "250 packs" and re-suggested butter/tuna
+ * the household already had. When $familyPackSize is the representative conf
+ * package (e.g. 250 g), grams and gram-as-conf write-offs become pack fractions.
+ */
+function shoppingQtyToConfPacks(
+    float $qty,
+    string $unit,
+    float $defQty,
+    string $pkgUnit,
+    float $familyPackSize
+): float {
+    if ($qty <= 0.0) {
+        return 0.0;
+    }
+    $u = strtolower(trim($unit));
+    $pu = strtolower(trim($pkgUnit));
+    $pack = $familyPackSize;
+    if ($pack < 20.0 && $defQty >= 20.0 && ($pu === '' || in_array($pu, ['g', 'ml', 'kg', 'l', 'lt'], true))) {
+        $pack = $defQty;
+        if (in_array($pu, ['kg', 'l', 'lt'], true)) {
+            $pack *= 1000.0;
+        }
+    }
+
+    if ($u === 'conf' || $u === 'pz') {
+        // Whole jar logged as grams on a conf product (Passata used=690, def=690).
+        if ($pack >= 20.0 && $qty > 3.0 && $qty >= $pack * 0.4) {
+            return $qty / $pack;
+        }
+        return $qty;
+    }
+    if ($pack < 20.0) {
+        return $qty;
+    }
+    if ($u === 'g' || $u === 'ml') {
+        return $qty / $pack;
+    }
+    if ($u === 'kg' || $u === 'l' || $u === 'lt') {
+        return ($qty * 1000.0) / $pack;
+    }
+    return $qty;
+}
+
+/** Representative package size (g/ml) for a conf/pz family — largest sane defQty wins. */
+function shoppingFamilyPackSize(array $famRows): float
+{
+    $best = 0.0;
+    foreach ($famRows as $fr) {
+        $unit = strtolower(trim((string)($fr['unit'] ?? '')));
+        $def = (float)($fr['default_quantity'] ?? 0);
+        $pu = strtolower(trim((string)($fr['package_unit'] ?? '')));
+        if ($def < 20.0) {
+            continue;
+        }
+        if (in_array($unit, ['conf', 'pz'], true) || in_array($pu, ['g', 'ml', 'kg', 'l', 'lt'], true)) {
+            $size = $def;
+            if (in_array($pu, ['kg', 'l', 'lt'], true)) {
+                $size *= 1000.0;
+            }
+            if ($size > $best) {
+                $best = $size;
+            }
+        }
+    }
+    return $best;
+}
+
 function shoppingCapSuggestedQty(
     ?float $qty,
     string $unit,
@@ -144,7 +218,11 @@ function shoppingCapSuggestedQty(
     }
 
     if ($u === 'conf') {
-        $maxConf = max(SHOPPING_GUARD_MAX_PRICE_PACKS, min(24, (int) ceil($planDays * 2)));
+        // Household trip: ~1 pack/week of a staple, hard-capped — never planDays×2.
+        $maxConf = max(
+            SHOPPING_GUARD_MAX_PRICE_PACKS,
+            min(SHOPPING_GUARD_MAX_CONF_PACKS, (int) ceil($planDays / 7))
+        );
         return ['quantity' => min($qty, (float) $maxConf), 'unit' => $u];
     }
 

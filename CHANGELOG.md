@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **G1–G3 / G6–G7** — Real money ledger, multi-user roles, multi-list UX, recipe matching depth, offline conflict resolution.
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
+- **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
+
+## [1.11.5] - 2026-10-06
+
+Shopping-list correctness + Home Assistant expiry parity (Bring stays dark when disabled).
+
+**Shopping**
+
+- Family restock converts mixed `g`/`conf` stock and TX into pack-equivalents (no more “24 jars of passata”).
+- Conf suggestions hard-capped at 3–6 packs per trip (`SHOPPING_GUARD_MAX_CONF_PACKS`).
+- Dictionary trailing genres (`piadine`/`avocados`/`muesli`→`Cereali`); ingredient phrases like `farina di riso` only match at title lead.
+- Off-season ice cream pruned May–Sep; seasonal tip cards deduped by buyable family.
+- Internal list marks `on_bring` so suggestions never repeat rows already on Spesa.
+- Locked user titles (`name_user_set`) own name + `shopping_name` on repurchase/rescan.
+
+**Bring!**
+
+- Hard gate: `bringAuth` / `bringRequest` and `bring_*` actions no-op when `SHOPPING_MODE=internal` (even with leftover credentials).
+- Bring catalog back-translation unused for shopping names in internal mode.
+
+**Home Assistant**
+
+- Expiry webhook/sensor uses the same urgency rules as the dashboard (silent on low-risk “best before”).
+- `expiry` ↔ `expiry_alert` alias so `HA_WEBHOOK_EVENTS=expiry` matches the cron event name.
 
 ## [1.11.4] - 2026-10-06
 
@@ -30,7 +54,7 @@ Free opt-in features (each with Settings + guided “da decidere” until config
 
 - Toast undo after simple inventory delete; torch also tries `fillLightMode`.
 - Wider `refreshAppDataAfterMutation()` (favourites, discard, vacuum).
-- CI regenerates/checks `docs/INDEX-*.md`.
+- Code indexes: run `bash scripts/gen-code-index.sh` locally (CI INDEX job awaits a workflow-scoped PAT; see Unreleased).
 
 ## [1.11.3] - 2026-10-06
 
