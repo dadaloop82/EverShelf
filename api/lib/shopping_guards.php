@@ -110,6 +110,16 @@ function shoppingSanitizeDailyRate(
  *
  * @return array{quantity: ?float, unit: string}
  */
+/** Cap smart-shopping period_usage so depleted biscuits never ask for hundreds of packs. */
+function smartCapPeriodNeed(float $periodNeed, string $unit, float $defQty, string $pkgUnit, int $planDays): float
+{
+    if ($periodNeed <= 0.001) {
+        return 0.0;
+    }
+    $capped = shoppingCapSuggestedQty($periodNeed, $unit, $defQty, $pkgUnit, $planDays);
+    return min($periodNeed, (float)($capped['quantity'] ?? $periodNeed));
+}
+
 function shoppingCapSuggestedQty(
     ?float $qty,
     string $unit,
