@@ -18251,7 +18251,19 @@ function _shopRowQtyHtml(smartData) {
     return `<span class="shop-row-qty">${escapeHtml(buyQty.label)}${anti}</span>`;
 }
 
-function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
+function _shoppingListSubtitle(item, displayName) {
+    const raw = String(item?.rawName || item?.raw_name || '').trim();
+    if (raw && raw.toLowerCase() !== String(displayName || '').trim().toLowerCase()) {
+        return raw;
+    }
+    const spec = _specDisplayText(item?.specification || '');
+    return spec || '';
+}
+
+function _shopRowInnerHtml({ displayName, subtitle = '', qtyHtml, priceCell, visualHtml, urgencyBadge = '' }) {
+    const subHtml = subtitle
+        ? `<div class="shop-row-subtitle">${escapeHtml(subtitle)}</div>`
+        : '';
     return `
     <div class="shop-row-swipe-zones">
         <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
@@ -18267,6 +18279,7 @@ function _shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgenc
                     ${qtyHtml}
                     ${urgencyBadge}
                 </div>
+                ${subHtml}
             </div>
             ${priceCell || ''}
         </div>
@@ -18542,7 +18555,14 @@ async function renderShoppingItems(force = false) {
 
             html += `
             <div class="shop-row${urgencyClass}" id="shop-item-${idx}" data-idx="${idx}" data-urgency="${urgency || ''}" data-urgent="${urgency === 'critical' || urgency === 'high' ? '1' : '0'}">
-                ${_shopRowInnerHtml({ displayName, qtyHtml, priceCell, visualHtml, urgencyBadge })}
+                ${_shopRowInnerHtml({
+                    displayName,
+                    subtitle: _shoppingListSubtitle(item, displayName),
+                    qtyHtml,
+                    priceCell,
+                    visualHtml,
+                    urgencyBadge,
+                })}
             </div>`;
         }
         html += '</div>';
@@ -21868,6 +21888,16 @@ function _animateCookingWheelTransition() {
     }, 380);
 }
 
+function _cookingScrapTip(stepText) {
+    const s = String(stepText || '').toLowerCase();
+    if (/\b(buccia|scorza|pelure|peel)\b/u.test(s)) return t('cooking.scrap_tip_peel');
+    if (/\b(nocciolo|nucleo|osso|bone|carcase)\b/u.test(s)) return t('cooking.scrap_tip_core');
+    if (/\b(guscio|gusci|shell|uova)\b/u.test(s) && /\b(guscio|shell|sgusciare|sbucciare)\b/u.test(s)) {
+        return t('cooking.scrap_tip_shell');
+    }
+    return '';
+}
+
 function renderCookingStep() {
     if (!_cookingRecipe) return;
     const steps = _cookingRecipe.steps || [];
@@ -21880,6 +21910,17 @@ function renderCookingStep() {
 
     document.getElementById('cooking-step-num').textContent = `${_cookingStep + 1} / ${total}`;
     document.getElementById('cooking-step-text').textContent = cleanStep;
+    const scrapEl = document.getElementById('cooking-scrap-hint');
+    if (scrapEl) {
+        const tip = _cookingScrapTip(cleanStep);
+        if (tip) {
+            scrapEl.textContent = tip;
+            scrapEl.style.display = '';
+        } else {
+            scrapEl.textContent = '';
+            scrapEl.style.display = 'none';
+        }
+    }
 
     const prevEl = document.getElementById('cooking-step-prev');
     const nextEl = document.getElementById('cooking-step-next');
