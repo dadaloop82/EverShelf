@@ -35,7 +35,8 @@
     "retry": "🔄 Retry",
     "next": "Next →",
     "yes_short": "Yes",
-    "no_short": "No"
+    "no_short": "No",
+    "undo": "Undo"
   },
   "form": {
     "select_placeholder": "-- Select --"
@@ -997,8 +998,8 @@
       "password_placeholder": "Password"
     },
     "price": {
-      "title": "💰 Price Estimation (AI)",
-      "hint": "Show estimated cost per product in the shopping list using AI.",
+      "title": "💰 Price estimates",
+      "hint": "Show an estimated cost on the shopping list. Use AI, free Open Prices, or both.",
       "enabled_label": "Enable price estimation",
       "country_label": "🌍 Reference country",
       "currency_label": "💱 Currency",
@@ -1019,7 +1020,12 @@
         "australia": "🇦🇺 Australia",
         "brazil": "🇧🇷 Brazil",
         "japan": "🇯🇵 Japan"
-      }
+      },
+      "source_label": "Price source",
+      "source_auto": "Auto (Open Prices, then AI)",
+      "source_open_prices": "Open Prices only (free, barcode)",
+      "source_ai": "AI only",
+      "source_hint": "Open Prices is free (Open Food Facts). Coverage varies; without a barcode the app falls back to AI when available."
     },
     "recipe": {
       "title": "🍳 Recipe Preferences",
@@ -1692,7 +1698,23 @@
       "webhook_label": "Webhook URL to set on Telegram",
       "webhook_hint": "Call setWebhook on api.telegram.org with this public HTTPS URL."
     },
-    "nav_aria": "Settings navigation"
+    "nav_aria": "Settings navigation",
+    "webpush": {
+      "title": "📱 Browser notifications (PWA)",
+      "hint": "Free, no ntfy: the browser gets alerts when the PWA is installed over HTTPS. Optional.",
+      "enabled": "Enable Web Push",
+      "subscribe": "Enable on this device",
+      "test": "Send test",
+      "setup_note": "After saving, allow notifications on this device (HTTPS required).",
+      "status_on": "On · {count} device(s) subscribed",
+      "status_off": "Off",
+      "unsupported": "This browser does not support Web Push",
+      "need_enable": "Enable and save Web Push first",
+      "need_keys": "VAPID keys missing — save again after enabling",
+      "denied": "Notification permission denied",
+      "subscribed": "Device subscribed",
+      "test_ok": "Test notification sent"
+    }
   },
   "expiry": {
     "today": "TODAY",

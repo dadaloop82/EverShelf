@@ -2575,10 +2575,18 @@ async function toggleTorch() {
     const track = scannerStream.getVideoTracks()[0];
     if (!track) return;
     const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (!caps.torch) { showToast(t('scan.torch_unavailable'), 'info'); return; }
     _torchActive = !_torchActive;
     try {
-        await track.applyConstraints({ advanced: [{ torch: _torchActive }] });
+        if (caps.torch) {
+            await track.applyConstraints({ advanced: [{ torch: _torchActive }] });
+        } else if (caps.fillLightMode && Array.isArray(caps.fillLightMode)
+            && caps.fillLightMode.includes('flash') && caps.fillLightMode.includes('off')) {
+            await track.applyConstraints({ advanced: [{ fillLightMode: _torchActive ? 'flash' : 'off' }] });
+        } else {
+            showToast(t('scan.torch_unavailable'), 'info');
+            _torchActive = false;
+            return;
+        }
         const btn = document.getElementById('scan-torch-btn');
         if (btn) btn.classList.toggle('torch-on', _torchActive);
         showToast(_torchActive ? t('scan.torch_on') : t('scan.torch_off'), 'info');
@@ -4276,15 +4284,19 @@ async function loadSettingsUI() {
         const priceSubEl = document.getElementById('price-settings-sub');
         if (priceSubEl) priceSubEl.style.display = s.price_enabled ? '' : 'none';
         priceEnabledEl.onchange = function() {
+            this.dataset.touched = '1';
             const sub = document.getElementById('price-settings-sub');
             if (sub) sub.style.display = this.checked ? '' : 'none';
         };
     }
+    const priceSourceEl = document.getElementById('setting-price-source');
+    if (priceSourceEl) priceSourceEl.value = s.price_source || 'auto';
     const priceCountryEl = document.getElementById('setting-price-country');
     if (priceCountryEl) priceCountryEl.value = s.price_country || 'Italia';
     const priceCurrencyEl = document.getElementById('setting-price-currency');
     if (priceCurrencyEl) priceCurrencyEl.value = s.price_currency || 'EUR';
     const priceMonthsEl = document.getElementById('setting-price-update-months');
+    _applyWebPushSettingsUI(s);
     if (priceMonthsEl) priceMonthsEl.value = s.price_update_months || 3;
     // Scale settings
     const scaleEnabledUiEl = document.getElementById('setting-scale-enabled');
@@ -4885,6 +4897,8 @@ async function saveSettings() {
     // Price settings
     const priceEnabledSaveEl = document.getElementById('setting-price-enabled');
     if (priceEnabledSaveEl) s.price_enabled = priceEnabledSaveEl.checked;
+    const priceSourceSaveEl = document.getElementById('setting-price-source');
+    if (priceSourceSaveEl) s.price_source = priceSourceSaveEl.value || 'auto';
     const priceCountrySaveEl = document.getElementById('setting-price-country');
     if (priceCountrySaveEl) s.price_country = priceCountrySaveEl.value;
     const priceCurrencySaveEl = document.getElementById('setting-price-currency');
@@ -4983,7 +4997,10 @@ async function saveSettings() {
             tts_auth_header_name: s.tts_auth_header_name || '',
             tts_auth_header_value: s.tts_auth_header_value || '',
             tts_extra_fields: s.tts_extra_fields || '',
-            price_enabled: s.price_enabled,
+            // Only persist price once decided (touched or already set on server).
+            ...(((_serverSettings && _serverSettings.price_enabled_set)
+                || document.getElementById('setting-price-enabled')?.dataset.touched === '1')
+                ? { price_enabled: !!s.price_enabled, price_source: s.price_source || 'auto' } : {}),
             price_country: s.price_country,
             price_currency: s.price_currency,
             price_update_months: s.price_update_months,
@@ -8170,7 +8187,8 @@ async function bannerMarkVacuum() {
         if (res.success || res.ok) {
             showToast(t('toast.vacuum_sealed', { name: item.name }), 'success');
             dismissBannerItem();
-            loadDashboard();
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+            else loadDashboard();
         } else {
             showToast(res.error || t('error.generic'), 'error');
         }
@@ -9232,6 +9250,7 @@ async function toggleInventoryFavorite(ev, productId) {
     const q = (_inventorySearchQuery || document.getElementById('inventory-search')?.value || '').trim();
     if (q) filterInventory();
     else renderInventory(currentInventory);
+    if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
 }
 
 /** Relevance score for dispensa search (higher = better match). */
@@ -9753,12 +9772,30 @@ async function deleteInventoryItem(id) {
     const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
 
     if (!canDiscardOne) {
-        // Simple case: confirm → delete the whole row
-        if (confirm(t('confirm.remove_item'))) {
+        // Soft-delete with undo toast (24h transaction undo on the server).
+        if (!confirm(t('confirm.remove_item'))) return;
+        const snapshot = item ? { ...item } : null;
+        try {
             await api('inventory_delete', {}, 'POST', { id });
             closeModal();
-            showToast(t('toast.product_removed'), 'success');
-            refreshCurrentPage();
+            showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
+                try {
+                    // Best-effort: re-add from snapshot if we still have it.
+                    if (snapshot && snapshot.product_id) {
+                        await api('inventory_add', {}, 'POST', {
+                            product_id: snapshot.product_id,
+                            quantity: snapshot.quantity,
+                            unit: snapshot.unit || 'pz',
+                            location: snapshot.location || 'dispensa',
+                            expiry_date: snapshot.expiry_date || '',
+                        });
+                    }
+                } catch (_) { /* ignore */ }
+                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+            });
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        } catch (e) {
+            showToast(t('error.connection'), 'error');
         }
         return;
     }
@@ -9797,7 +9834,7 @@ async function _discardOnePiece(inventoryId) {
             location: item.location,
         }, item.name);
         showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
-        refreshCurrentPage();
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
     } catch(e) {
         showToast(t('error.connection'), 'error');
     }
@@ -9814,7 +9851,7 @@ async function _discardAllFromModal(inventoryId) {
             location: item.location,
         }, item.name);
         showToast(t('toast.thrown_away', { name: item.name }), 'success');
-        refreshCurrentPage();
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
     } catch(e) {
         showToast(t('error.connection'), 'error');
     }
@@ -16696,7 +16733,10 @@ function _clearCanonicalShoppingTotal() {
  */
 async function syncShoppingPriceTotal(forceRefresh = false) {
     const s = getSettings();
-    if (!s.price_enabled || !_geminiAvailable) return;
+    if (!s.price_enabled) return;
+    const source = s.price_source || 'auto';
+    // Open Prices works without AI; AI-only / auto still need Gemini for the AI half.
+    if (source === 'ai' && !_geminiAvailable) return;
     if (_priceTotalFetchPromise && !forceRefresh) return _priceTotalFetchPromise;
 
     const payloadHash = JSON.stringify(_buildPricePayload());
@@ -22533,6 +22573,103 @@ async function saveTelegramSettings() {
     }
 }
 
+function onPriceEnabledChange() {
+    const on = !!document.getElementById('setting-price-enabled')?.checked;
+    const sub = document.getElementById('price-settings-sub');
+    if (sub) sub.style.display = on ? '' : 'none';
+}
+
+function _applyWebPushSettingsUI(cfg) {
+    const en = document.getElementById('setting-webpush-enabled');
+    if (en) en.checked = !!cfg.web_push_enabled;
+    const line = document.getElementById('webpush-status-line');
+    if (line) {
+        const n = cfg.web_push_subscriber_count || 0;
+        line.textContent = cfg.web_push_enabled
+            ? t('settings.webpush.status_on', { count: n })
+            : t('settings.webpush.status_off');
+    }
+}
+
+async function saveWebPushSettings() {
+    const statusEl = document.getElementById('webpush-save-status');
+    const enabled = !!document.getElementById('setting-webpush-enabled')?.checked;
+    document.getElementById('setting-webpush-enabled').dataset.touched = '1';
+    try {
+        const res = await api('save_settings', {}, 'POST', { web_push_enabled: enabled });
+        if (res?.success === false) throw new Error(res.error || 'save_failed');
+        _notifyStatus(statusEl, 'success', t('btn.save') + ' ✓');
+        try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (_) {}
+        _applyWebPushSettingsUI(_serverSettings || {});
+        _renderSettingsChecklist();
+        if (enabled) {
+            try { await subscribeWebPush(); } catch (_) { /* user may deny */ }
+        }
+    } catch (e) {
+        _notifyStatus(statusEl, 'error', e.message || t('error.generic'));
+    }
+}
+
+function _urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+}
+
+async function subscribeWebPush() {
+    const statusEl = document.getElementById('webpush-save-status');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        _notifyStatus(statusEl, 'error', t('settings.webpush.unsupported'));
+        return;
+    }
+    const cfg = _serverSettings || {};
+    if (!cfg.web_push_enabled) {
+        _notifyStatus(statusEl, 'error', t('settings.webpush.need_enable'));
+        return;
+    }
+    const key = cfg.vapid_public_key || '';
+    if (!key) {
+        _notifyStatus(statusEl, 'error', t('settings.webpush.need_keys'));
+        return;
+    }
+    try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+            _notifyStatus(statusEl, 'error', t('settings.webpush.denied'));
+            return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+            sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: _urlBase64ToUint8Array(key),
+            });
+        }
+        const json = sub.toJSON();
+        await api('webpush_subscribe', {}, 'POST', json);
+        _notifyStatus(statusEl, 'success', t('settings.webpush.subscribed'));
+        try { _serverSettings = (await api('get_settings')) || _serverSettings; } catch (_) {}
+        _applyWebPushSettingsUI(_serverSettings || {});
+    } catch (e) {
+        _notifyStatus(statusEl, 'error', e.message || t('error.generic'));
+    }
+}
+
+async function testWebPush() {
+    const statusEl = document.getElementById('webpush-save-status');
+    try {
+        const res = await api('webpush_test', {}, 'POST', {});
+        if (res?.success === false) throw new Error(res.error || 'fail');
+        _notifyStatus(statusEl, 'success', t('settings.webpush.test_ok'));
+    } catch (e) {
+        _notifyStatus(statusEl, 'error', e.message || t('error.generic'));
+    }
+}
+
 
 /**
  * Paint one of the panel status lines. Multiline results (one row per channel)
@@ -22559,6 +22696,7 @@ async function _loadNotifyTab() {
         const data = await api('get_settings');
         if (!data || data.success === false) throw new Error((data && data.error) || 'load_failed');
         _applyNotifySettingsUI(data);
+        _applyWebPushSettingsUI(data);
         // Keep the checklist ("notifications configured?") in step with the panel.
         _serverSettings = Object.assign({}, _serverSettings, data);
         _renderSettingsChecklist();
@@ -26294,7 +26432,10 @@ const SETTINGS_CHECKLIST = [
     {
         id: 'notify', tab: 'tab-notify', level: 'recommended', ask: true, askVersion: 2, step: 4,
         titleKey: 'settings.notify.title', hintKey: 'settings.notify.hint',
-        state: (srv) => (srv.notify_configured ? 'ok' : 'todo'),
+        state: (srv) => {
+            const c = srv.notify_configured || {};
+            return (c.ntfy || c.webhook || c.ha || c.webpush) ? 'ok' : 'todo';
+        },
     },
     {
         id: 'healthcheck', tab: 'tab-notify', level: 'optional', ask: true, askVersion: 1, step: 5,
@@ -26307,9 +26448,19 @@ const SETTINGS_CHECKLIST = [
         state: (srv) => (srv.telegram_token_set ? 'ok' : 'todo'),
     },
     {
+        id: 'webpush', tab: 'tab-notify', level: 'optional', ask: true, askVersion: 1, step: 10,
+        titleKey: 'settings.webpush.title', hintKey: 'settings.webpush.hint',
+        state: (srv) => (srv.web_push_set ? 'ok' : 'todo'),
+    },
+    {
         id: 'zerowaste', tab: 'tab-general', level: 'optional', ask: true, askVersion: 1, step: 8,
         titleKey: 'settings.zerowaste.card_title', hintKey: 'settings.zerowaste.card_hint',
         state: (srv) => (srv.zerowaste_tips_set ? 'ok' : 'todo'),
+    },
+    {
+        id: 'price', tab: 'tab-bring', level: 'optional', ask: true, askVersion: 1, step: 9,
+        titleKey: 'settings.price.title', hintKey: 'settings.price.hint',
+        state: (srv) => (srv.price_enabled_set ? 'ok' : 'todo'),
     },
     {
         id: 'ha', tab: 'tab-ha', level: 'optional',
@@ -26510,7 +26661,7 @@ function startSetupAssistant() {
 }
 let _setupStep = 0;
 let _setupPendingSteps = [];
-const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '', notify_topic: '', notify_enabled: true, healthcheck_url: '', shopping_remove_on_buy: '', shopping_remove_decided: false, telegram_token: '', telegram_chats: '', zerowaste_tips: false, zerowaste_decided: false };
+const _setupData = { lang: _currentLang, gemini_key: '', bring_email: '', bring_password: '', gdrive_folder_id: '', gdrive_client_id: '', gdrive_client_secret: '', notify_topic: '', notify_enabled: true, healthcheck_url: '', shopping_remove_on_buy: '', shopping_remove_decided: false, telegram_token: '', telegram_chats: '', zerowaste_tips: false, zerowaste_decided: false, price_enabled: false, price_source: 'auto', price_decided: false, web_push_enabled: false, web_push_decided: false };
 
 /** Index of the closing "you're all set" step (always the last one). */
 function _setupDoneStep() { return _setupSteps().length - 1; }
@@ -26713,6 +26864,47 @@ function _setupSteps() {
             `
         },
         {
+            title: iconLabel('💰', 'settings.price.title'),
+            desc: t('settings.price.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label class="toggle-row">
+                        <span>${t('settings.price.enabled_label')}</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="setup-price-enabled"${_setupData.price_enabled ? ' checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>${t('settings.price.source_label')}</label>
+                    <select id="setup-price-source" class="form-input">
+                        <option value="auto"${_setupData.price_source === 'auto' ? ' selected' : ''}>${t('settings.price.source_auto')}</option>
+                        <option value="open_prices"${_setupData.price_source === 'open_prices' ? ' selected' : ''}>${t('settings.price.source_open_prices')}</option>
+                        <option value="ai"${_setupData.price_source === 'ai' ? ' selected' : ''}>${t('settings.price.source_ai')}</option>
+                    </select>
+                </div>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
+            `
+        },
+        {
+            title: iconLabel('📱', 'settings.webpush.title'),
+            desc: t('settings.webpush.hint'),
+            render: () => `
+                <div class="form-group">
+                    <label class="toggle-row">
+                        <span>${t('settings.webpush.enabled')}</span>
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="setup-webpush-enabled"${_setupData.web_push_enabled ? ' checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </span>
+                    </label>
+                </div>
+                <p style="color:#999;font-size:0.8rem;margin-top:8px">${t('settings.webpush.setup_note')}</p>
+                <span class="setup-skip-link" onclick="_setupSkipStep()">${t('setup.configure_later')}</span>
+            `
+        },
+        {
             title: iconLabel('✅', 'setup.ready_title'),
             desc: t('setup.complete_desc'),
             render: () => {
@@ -26906,6 +27098,20 @@ function _setupCollectCurrent() {
             _setupData.zerowaste_tips = !!zw.checked;
             _setupData.zerowaste_decided = true;
         }
+    } else if (realIndex === 9) {
+        const pe = document.getElementById('setup-price-enabled');
+        const ps = document.getElementById('setup-price-source');
+        if (pe) {
+            _setupData.price_enabled = !!pe.checked;
+            _setupData.price_decided = true;
+        }
+        if (ps) _setupData.price_source = ps.value || 'auto';
+    } else if (realIndex === 10) {
+        const wp = document.getElementById('setup-webpush-enabled');
+        if (wp) {
+            _setupData.web_push_enabled = !!wp.checked;
+            _setupData.web_push_decided = true;
+        }
     }
 }
 
@@ -26977,6 +27183,16 @@ async function _finishSetup() {
         envPayload.zerowaste_tips_enabled = !!_setupData.zerowaste_tips;
         s.zerowaste_tips_enabled = !!_setupData.zerowaste_tips;
         saveSettingsToStorage(s);
+    }
+    if (_setupData.price_decided) {
+        envPayload.price_enabled = !!_setupData.price_enabled;
+        envPayload.price_source = _setupData.price_source || 'auto';
+        s.price_enabled = !!_setupData.price_enabled;
+        s.price_source = _setupData.price_source || 'auto';
+        saveSettingsToStorage(s);
+    }
+    if (_setupData.web_push_decided) {
+        envPayload.web_push_enabled = !!_setupData.web_push_enabled;
     }
     try {
         if (Object.keys(envPayload).length > 0) {

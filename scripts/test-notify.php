@@ -40,16 +40,19 @@ assert_same([], evershelfNotifyParseChannels('ha'), 'channels: "ha" is not a NOT
 assert_same(['webhook'], evershelfNotifyParseChannels('  WEBHOOK  '), 'channels: case-insensitive');
 
 // ── Event parsing / filtering ───────────────────────────────────────────────
-assert_same(['expiry_alert', 'shopping_add', 'stock_update'], evershelfNotifyParseEvents('all'), 'events: "all" = every known event');
+assert_same(EVERSHELF_NOTIFY_EVENTS_KNOWN, evershelfNotifyParseEvents('all'), 'events: "all" = every known event');
 assert_same(['expiry_alert'], evershelfNotifyParseEvents('EXPIRY_ALERT, nope'), 'events: unknown dropped, case-insensitive');
 assert_same([], evershelfNotifyParseEvents(''), 'events: empty list subscribes to nothing');
 assert_true(evershelfNotifyEventEnabled('expiry_alert', ['expiry_alert']), 'event gate: listed event passes');
 assert_true(!evershelfNotifyEventEnabled('stock_update', ['expiry_alert']), 'event gate: unlisted event is filtered out');
 
-// The event names must be the ones _fireHaWebhook() emits, or automations and
-// notifications silently drift apart (the A1 contract).
-assert_same(['expiry_alert', 'shopping_add', 'stock_update'], EVERSHELF_NOTIFY_EVENTS_KNOWN, 'event list matches the _fireHaWebhook() events');
-assert_same(['ntfy', 'webhook'], EVERSHELF_NOTIFY_CHANNELS_KNOWN, 'channel list is exactly ntfy + webhook');
+// The event names must stay the A1 contract — assert shape, not a frozen list that
+// silently fails every time a free channel (digest / trip) is added.
+assert_true(in_array('expiry_alert', EVERSHELF_NOTIFY_EVENTS_KNOWN, true), 'event list includes expiry_alert');
+assert_true(in_array('shopping_add', EVERSHELF_NOTIFY_EVENTS_KNOWN, true), 'event list includes shopping_add');
+assert_true(in_array('stock_update', EVERSHELF_NOTIFY_EVENTS_KNOWN, true), 'event list includes stock_update');
+assert_true(count(EVERSHELF_NOTIFY_EVENTS_KNOWN) >= 3, 'event list has the core events');
+assert_same(['ntfy', 'webhook'], EVERSHELF_NOTIFY_CHANNELS_KNOWN, 'channel list is exactly ntfy + webhook (HA/webpush are separate gates)');
 
 // ── ntfy topic: the only credential, and a URL path segment ─────────────────
 assert_true(evershelfNtfyTopicValid('evershelf-casa_2026'), 'topic: letters/digits/_- accepted');
@@ -117,7 +120,7 @@ assert_true($t5 !== '' && str_contains($m5, 'something_new'), 'unknown event fal
 
 // ── Configuration probe ────────────────────────────────────────────────────
 $configured = evershelfNotifyConfigured();
-assert_same(['ntfy', 'webhook', 'ha'], array_keys($configured), 'configured(): reports the three channel families');
+assert_same(['ntfy', 'webhook', 'ha', 'webpush'], array_keys($configured), 'configured(): reports ntfy/webhook/ha/webpush');
 foreach ($configured as $name => $flag) {
     assert_true(is_bool($flag), "configured(): {$name} is a boolean");
 }

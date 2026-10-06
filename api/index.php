@@ -1158,6 +1158,19 @@ try {
             notifyHealthcheckTestAction();
             break;
 
+        case 'webpush_subscribe':
+            webpushSubscribeAction($db);
+            break;
+        case 'webpush_unsubscribe':
+            webpushUnsubscribeAction($db);
+            break;
+        case 'webpush_inbox':
+            webpushInboxAction();
+            break;
+        case 'webpush_test':
+            webpushTestAction($db);
+            break;
+
         case 'client_log':
             clientLog();
             break;
@@ -8269,10 +8282,25 @@ function getServerSettings(): void {
         // "calendar configured" without opening that tab first.
         'ics_enabled' => env('ICS_ENABLED', 'false') === 'true',
         'price_enabled' => env('PRICE_ENABLED', 'false') === 'true',
+        'price_enabled_set' => evershelfPriceEnabledDecided(),
+        'price_source' => evershelfPriceSource(),
         'price_country' => env('PRICE_COUNTRY', 'Italia'),
         'price_currency' => env('PRICE_CURRENCY', 'EUR'),
         'price_update_months' => (int)env('PRICE_UPDATE_MONTHS', '3'),
         'price_update_weeks' => (int)env('PRICE_UPDATE_WEEKS', '1'),
+        // Browser Web Push (PWA) — empty-payload wake + inbox
+        'web_push_enabled' => evershelfWebPushEnabled(),
+        'web_push_set' => evershelfWebPushDecided(),
+        'vapid_public_key' => (evershelfWebPushVapidMaterial() ?? [])['public'] ?? '',
+        'web_push_subscriber_count' => (function () {
+            try {
+                $db = getDB();
+                evershelfWebPushEnsureTable($db);
+                return (int)$db->query('SELECT COUNT(*) FROM webpush_subscriptions')->fetchColumn();
+            } catch (Throwable $e) {
+                return 0;
+            }
+        })(),
         'recipe_retention_days' => (int)env('RECIPE_RETENTION_DAYS', '7'),
         'transaction_retention_days' => (int)env('TRANSACTION_RETENTION_DAYS', '90'),
         'vacuum_expiry_extension_days' => (int)env('VACUUM_EXPIRY_EXTENSION_DAYS', '30'),
@@ -8393,6 +8421,68 @@ function notifyTestAction(): void {
         'channels'   => $result['channels'],
         'configured' => evershelfNotifyConfigured(),
     ]);
+}
+
+function webpushSubscribeAction(PDO $db): void {
+    if (!evershelfWebPushEnabled()) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'web_push_disabled']);
+        return;
+    }
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $endpoint = trim((string)($input['endpoint'] ?? ''));
+    $keys = $input['keys'] ?? [];
+    $p256dh = trim((string)($keys['p256dh'] ?? ''));
+    $auth = trim((string)($keys['auth'] ?? ''));
+    if ($endpoint === '' || !preg_match('#^https://#i', $endpoint)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_endpoint']);
+        return;
+    }
+    evershelfWebPushEnsureTable($db);
+    $ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240);
+    $stmt = $db->prepare(
+        'INSERT INTO webpush_subscriptions (endpoint, p256dh, auth, user_agent, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth,
+           user_agent=excluded.user_agent, updated_at=CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$endpoint, $p256dh, $auth, $ua]);
+    echo json_encode(['success' => true]);
+}
+
+function webpushUnsubscribeAction(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $endpoint = trim((string)($input['endpoint'] ?? ''));
+    if ($endpoint === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'invalid_endpoint']);
+        return;
+    }
+    evershelfWebPushEnsureTable($db);
+    $stmt = $db->prepare('DELETE FROM webpush_subscriptions WHERE endpoint = ?');
+    $stmt->execute([$endpoint]);
+    echo json_encode(['success' => true]);
+}
+
+function webpushInboxAction(): void {
+    $items = evershelfWebPushInboxLoad();
+    // Drain: clients get a snapshot then we clear so repeats do not re-alert.
+    evershelfWebPushInboxSave([]);
+    echo json_encode(['success' => true, 'items' => $items]);
+}
+
+function webpushTestAction(PDO $db): void {
+    if (!evershelfWebPushEnabled()) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'web_push_disabled']);
+        return;
+    }
+    $lang = evershelfNotifyLanguage();
+    $title = evershelfTr('notify.test_title', $lang) ?: 'EverShelf';
+    $body = evershelfTr('notify.test_message', $lang, ['time' => date('Y-m-d H:i')]) ?: 'Test';
+    $result = evershelfWebPushNotify($db, $title, $body);
+    echo json_encode(['success' => empty($result['skipped']), 'result' => $result]);
 }
 
 /**
@@ -8518,8 +8608,11 @@ function saveSettings(): void {
         'shopping_mode'      => 'SHOPPING_MODE',
         'shopping_remove_on_buy' => 'SHOPPING_REMOVE_ON_BUY',
         'dark_mode'         => 'DARK_MODE',
+        'price_source'      => 'PRICE_SOURCE',
         'telegram_bot_token' => 'TELEGRAM_BOT_TOKEN',
         'telegram_allowed_chat_ids' => 'TELEGRAM_ALLOWED_CHAT_IDS',
+        'vapid_public_key'  => 'VAPID_PUBLIC_KEY',
+        'vapid_private_pem' => 'VAPID_PRIVATE_PEM',
         // Home Assistant
         'ha_url'             => 'HA_URL',
         'ha_token'           => 'HA_TOKEN',
@@ -8568,6 +8661,7 @@ function saveSettings(): void {
         'screensaver_enabled' => 'SCREENSAVER_ENABLED',
         'price_enabled' => 'PRICE_ENABLED',
         'zerowaste_tips_enabled' => 'ZEROWASTE_TIPS_ENABLED',
+        'web_push_enabled' => 'WEB_PUSH_ENABLED',
         'backup_enabled' => 'BACKUP_ENABLED',
         'gdrive_enabled' => 'GDRIVE_ENABLED',
         'shopping_enabled'           => 'SHOPPING_ENABLED',
@@ -8670,6 +8764,24 @@ function saveSettings(): void {
     if (array_key_exists('custom_locations', $input ?? [])) {
         $changedEnvKeys[] = 'CUSTOM_LOCATIONS';
     }
+
+    // Enabling Web Push without keys → mint a VAPID pair once (free, local openssl).
+    if (array_key_exists('web_push_enabled', $input ?? []) && !empty($input['web_push_enabled'])) {
+        if (evershelfWebPushVapidMaterial() === null
+            && empty($input['vapid_public_key'])
+            && empty($envVars['VAPID_PUBLIC_KEY'])) {
+            try {
+                $pair = evershelfWebPushGenerateVapidKeys();
+                $envVars['VAPID_PUBLIC_KEY'] = $pair['public'];
+                $envVars['VAPID_PRIVATE_PEM'] = str_replace("\n", '\\n', $pair['private_pem']);
+                $changedEnvKeys[] = 'VAPID_PUBLIC_KEY';
+                $changedEnvKeys[] = 'VAPID_PRIVATE_PEM';
+            } catch (Throwable $e) {
+                EverLog::error('VAPID key generation failed', ['event' => 'vapid_gen_fail', 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
     $changedEnvKeys = array_values(array_unique($changedEnvKeys));
 
     $result = false;
@@ -19530,8 +19642,32 @@ function getShoppingPrice(PDO $db): void {
     $key   = _priceKey($name, $country);
     $now   = time();
 
-    // Without AI: still serve a stale cached estimate if we have one.
+    // Without AI: try Open Prices first (when enabled), then a stale cache.
     if (empty(aiCredential())) {
+        if (evershelfOpenPricesEnabled() && function_exists('evershelfOpenPricesForProductName')) {
+            $op = evershelfOpenPricesForProductName($db, $name, $currency);
+            if ($op && ($op['price_per_unit'] ?? null) !== null) {
+                $entry = [
+                    'name'           => $name,
+                    'price_per_unit' => (float)$op['price_per_unit'],
+                    'unit_label'     => $op['unit_label'] ?? 'pz',
+                    'currency'       => $op['currency'] ?? $currency,
+                    'source_note'    => $op['source_note'] ?? 'Open Prices',
+                    'country'        => $country,
+                    'cached_at'      => $now,
+                    'source'         => 'open_prices',
+                ];
+                _storePriceCacheEntry($cache, $key, $entry);
+                $entry = $cache[$key];
+                _savePriceCache($cache);
+                $entry['success'] = true;
+                $entry['from_cache'] = false;
+                $entry['estimated_total'] = _calcEstimatedTotal($entry['price_per_unit'], $entry['unit_label'] ?? '', $qty, $unit, $defQty, $pkgUnit);
+                $entry['estimated_total_label'] = _formatPrice($entry['estimated_total'], $currency);
+                echo json_encode($entry);
+                return;
+            }
+        }
         if (isset($cache[$key])) {
             $entry = $cache[$key];
             $entry['success'] = true;
@@ -19560,7 +19696,15 @@ function getShoppingPrice(PDO $db): void {
         }
     }
 
-    $priceData = _fetchPriceFromAI($name, $country, $currency, $lang);
+    // Source preference: open_prices → AI; auto → Open Prices then AI; ai → AI only.
+    $source = evershelfPriceSource();
+    $priceData = null;
+    if (($source === 'open_prices' || $source === 'auto') && evershelfOpenPricesEnabled()) {
+        $priceData = evershelfOpenPricesForProductName($db, $name, $currency);
+    }
+    if ((!$priceData || $priceData['price_per_unit'] === null) && $source !== 'open_prices') {
+        $priceData = _fetchPriceFromAI($name, $country, $currency, $lang);
+    }
     if (!$priceData || $priceData['price_per_unit'] === null) {
         echo json_encode(['success' => false, 'error' => 'price_not_found', 'name' => $name]);
         return;
@@ -19574,6 +19718,7 @@ function getShoppingPrice(PDO $db): void {
         'source_note'   => $priceData['source_note'] ?? '',
         'country'       => $country,
         'cached_at'     => $now,
+        'source'        => $priceData['source'] ?? (($priceData['source_note'] ?? '') !== '' && str_contains((string)$priceData['source_note'], 'Open Prices') ? 'open_prices' : 'ai'),
     ];
     _storePriceCacheEntry($cache, $key, $entry);
     $entry = $cache[$key];

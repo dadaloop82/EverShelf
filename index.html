@@ -11,8 +11,8 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261006b">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261006b">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261006a">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261006a">
     <link rel="stylesheet" href="assets/css/elegant.css?v=20261006a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20261006a"></script>
@@ -104,7 +104,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.3</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.4</span>
             </span>
         </div>
 
@@ -162,7 +162,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.3</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.4</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1362,19 +1362,28 @@
                     </div>
                 </div>
                 <!-- Price Estimation Settings -->
-                <div class="settings-card" style="margin-top:12px">
-                    <h4 data-i18n="settings.price.title">💰 Stima Prezzi (AI)</h4>
-                    <p class="settings-hint" data-i18n="settings.price.hint">Mostra il costo stimato di ogni prodotto nella lista della spesa usando l'AI.</p>
+                <div class="settings-card" style="margin-top:12px" id="settings-price-card">
+                    <h4 data-i18n="settings.price.title">💰 Stima prezzi</h4>
+                    <p class="settings-hint" data-i18n="settings.price.hint">Mostra un costo stimato sulla lista della spesa. Puoi usare l’AI, i prezzi aperti di Open Food Facts (gratis), o entrambi.</p>
                     <div class="form-group">
                         <label class="toggle-row">
                             <span data-i18n="settings.price.enabled_label">Attiva stima prezzi</span>
                             <span class="toggle-switch">
-                                <input type="checkbox" id="setting-price-enabled">
+                                <input type="checkbox" id="setting-price-enabled" onchange="this.dataset.touched='1'; onPriceEnabledChange()">
                                 <span class="toggle-slider"></span>
                             </span>
                         </label>
                     </div>
                     <div id="price-settings-sub" style="display:none">
+                        <div class="form-group">
+                            <label data-i18n="settings.price.source_label">Fonte prezzi</label>
+                            <select id="setting-price-source" class="form-input">
+                                <option value="auto" data-i18n="settings.price.source_auto">Auto (Open Prices, poi AI)</option>
+                                <option value="open_prices" data-i18n="settings.price.source_open_prices">Solo Open Prices (gratis, barcode)</option>
+                                <option value="ai" data-i18n="settings.price.source_ai">Solo AI</option>
+                            </select>
+                            <p class="settings-hint" data-i18n="settings.price.source_hint">Open Prices è gratuito (Open Food Facts). Copertura variabile; senza barcode il sistema passa all’AI se disponibile.</p>
+                        </div>
                         <div class="form-group">
                             <label data-i18n="settings.price.country_label">🌍 Paese di riferimento</label>
                             <select id="setting-price-country" class="form-input" onchange="onPriceCountryChange()">
@@ -1403,6 +1412,9 @@
                             </div>
                             <span class="settings-hint" style="display:inline;margin-left:8px" data-i18n="settings.price.update_suffix">mesi</span>
                         </div>
+                    </div>
+                    <div class="form-group" style="margin-top:10px">
+                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
                     </div>
                 </div>
             </div>
@@ -2129,6 +2141,28 @@
                     <div id="telegram-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
                 </div>
 
+                <!-- Browser Web Push (free, HTTPS + user opt-in) -->
+                <div class="settings-card" id="settings-webpush-card">
+                    <h4 data-i18n="settings.webpush.title">📱 Notifiche nel browser (PWA)</h4>
+                    <p class="settings-hint" data-i18n="settings.webpush.hint">Gratis, senza ntfy: il browser riceve gli stessi avvisi quando la PWA è installata su HTTPS. Opzionale.</p>
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span data-i18n="settings.webpush.enabled">Abilita Web Push</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="setting-webpush-enabled" onchange="this.dataset.touched='1'">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                    <p class="settings-hint" id="webpush-status-line"></p>
+                    <div class="settings-btn-row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                        <button class="btn btn-primary" onclick="saveWebPushSettings()" data-i18n="btn.save">Salva</button>
+                        <button class="btn btn-secondary" onclick="subscribeWebPush()" data-i18n="settings.webpush.subscribe">Attiva su questo dispositivo</button>
+                        <button class="btn btn-secondary" onclick="testWebPush()" data-i18n="settings.webpush.test">Invia prova</button>
+                    </div>
+                    <div id="webpush-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
+                </div>
+
                 <!-- Test + Home Assistant note -->
                 <div class="settings-card">
                     <button class="btn btn-secondary full-width" id="notify-test-btn" onclick="testNotify()" data-i18n="settings.notify.test_btn">🔔 Invia una notifica di prova</button>
@@ -2698,6 +2732,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261006f"></script>
+<script src="assets/js/app.js?v=20261006a"></script>
 </body>
 </html>

@@ -252,6 +252,10 @@ function migrateDB(PDO $db): void {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
 
+    // Browser Web Push subscriptions (empty-payload wake + inbox fetch).
+    require_once __DIR__ . '/lib/webpush.php';
+    evershelfWebPushEnsureTable($db);
+
     // Migrate transactions CHECK constraint to allow 'waste' type
     $sql = $db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")->fetchColumn();
     if ($sql && strpos($sql, "'waste'") === false) {
