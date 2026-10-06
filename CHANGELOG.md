@@ -25,10 +25,14 @@ keep the products you really use where you can reach them.
   the curated Italian dictionary that already drives the shopping/Bring! names,
   then the signature cache so similar products reuse it, then **one** AI word
   (cached per name and per signature, still capped by `GEMINI_CLASSIFY_DAILY_MAX`),
-  then the localized app category. A title that already leads with a genre is never
-  touched twice, and `settings → Nomi e preferiti automatici → Applica agli
-  articoli esistenti` renames the articles already stored (with a preview first).
-  Off with `PRODUCT_KIND_PREFIX=false`.
+  then the localized app category. A title that already leads with a genre — or with
+  something similar (`Tarallini` vs `Taralli`, `Pera Italiana` vs `Pere`, `Kaffee` vs
+  `Caffè`, `Italia Zuccheri` vs `Zucchero`) — is never touched twice, and neither is a
+  title that already opens with the genre stored on the product, so the pass can be
+  re-run as often as you like without a title drifting.
+  `settings → Nomi e preferiti automatici → Applica agli articoli esistenti` renames
+  the articles already stored (with a preview first). Off with
+  `PRODUCT_KIND_PREFIX=false`.
 - **Products you use often become favourites.** Consuming a product
   `AUTO_FAVORITE_MIN_USES` times (default 3) within `AUTO_FAVORITE_WINDOW_DAYS`
   (default 90, the same window `recent_popular_products` reports) promotes it to the

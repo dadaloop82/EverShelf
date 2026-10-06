@@ -1,4 +1,4 @@
-devo#!/usr/bin/env php
+#!/usr/bin/env php
 <?php
 /**
  * Regression tests: the genre (genere) must lead every article title.
@@ -82,6 +82,21 @@ assert_same('Fiori di latte', applyProductKindPrefix('Fiori di latte', ''), 'pre
 assert_true(productNameStartsWithKnownKind('Formaggio Fiori di latte'), 'guard: detects a title that already leads with a genre');
 assert_true(!productNameStartsWithKnownKind('Fiori di latte'), 'guard: a title without genre is detected as such');
 
+// A genre already present in ANOTHER FORM must not be prefixed again: the rule is
+// "where it — or something similar — is not already there".
+assert_same('Tarallini', applyProductKindPrefix('Tarallini', 'Taralli'), 'prefix: a plural/variant of the genre is respected');
+assert_same('Pera Italiana Succo e polpa frutta', applyProductKindPrefix('Pera Italiana Succo e polpa frutta', 'Pere'),
+    'prefix: singular name + plural genre is respected');
+assert_same('Kaffee', applyProductKindPrefix('Kaffee', 'Caffè'), 'prefix: the same word with another spelling is respected');
+assert_same('Piadelle integrali', applyProductKindPrefix('Piadelle integrali', 'Piadina'), 'prefix: the same root with another suffix is respected');
+assert_same('Italia Zuccheri 100% Italiano', applyProductKindPrefix('Italia Zuccheri 100% Italiano', 'Zucchero'),
+    'prefix: a similar genre further along the title is respected');
+assert_same('Bucce cotte di pomodoro', applyProductKindPrefix('Bucce cotte di pomodoro', 'Pomodori'),
+    'prefix: the plural genre is already there as the singular');
+assert_same('Pasta Penne rigate', applyProductKindPrefix('Penne rigate', 'Pasta'), 'prefix: an absent genre is still added');
+assert_true(!productKindNameAlreadyHasKind('Bucce salumi vari', 'Sale'), 'guard: a mere look-alike further along does not count as the genre');
+assert_true(productKindNameAlreadyHasKind('Soia drink', 'Latte di soia'), 'guard: the genre phrase is recognised word by word');
+
 // Every canonical genre must be recognised in front of a title (no double prefix)
 $vocab = evershelfProductKindVocabulary();
 assert_true(count($vocab) > 40, 'vocabulary: the curated dictionaries expose their genres (' . count($vocab) . ')');
@@ -106,10 +121,25 @@ assert_same('Fette biscottate', $applied['kind'], 'pipeline: the genre already s
 assert_same('', productKindApply('Fette biscottate integrali', 'Mulino Bianco', 'pane', 'it', false)['kind'],
     'pipeline: without a stored genre the short-circuit reports none');
 
-$fresh = productKindApply('Bucce cotte di pomodoro xyzq', 'Rossi', 'verdura', 'it', false);
-assert_true($fresh['kind'] !== '', 'pipeline: dictionary still finds a genre with the AI switched off');
-assert_true(str_starts_with($fresh['name'], $fresh['kind'] . ' '), 'pipeline: the resolved genre leads the title');
-assert_true(applyProductKindPrefix($fresh['name'], $fresh['kind']) === $fresh['name'], 'pipeline: re-running it changes nothing');
+$fresh = productKindApply('Orecchiette', 'De Cecco', 'pasta', 'it', false);
+assert_same('Pasta', $fresh['kind'], 'pipeline: dictionary still finds a genre with the AI switched off');
+assert_same('Pasta Orecchiette', $fresh['name'], 'pipeline: the resolved genre leads the title');
+assert_same($fresh['name'], productKindApply($fresh['name'], 'De Cecco', 'pasta', 'it', false, $fresh['kind'])['name'],
+    'pipeline: re-running it changes nothing');
+
+// A title that already says "pomodoro" must not become "Pomodori Bucce cotte di pomodoro":
+// the genre is there, only the number differs.
+$redundant = productKindApply('Bucce cotte di pomodoro xyzq', 'Rossi', 'verdura', 'it', false);
+assert_same('Pomodori', $redundant['kind'], 'pipeline: the weak dictionary still reports the genre');
+assert_same('Bucce cotte di pomodoro xyzq', $redundant['name'], 'pipeline: …but a singular/plural genre is not prefixed again');
+
+// The genre stored on the product freezes the title, even when the dictionary would now
+// suggest a broader genre for the same word (its own "toast" → "Pane"): a real run of the
+// maintenance pass must be the last word on the title, or every pass would drift it.
+$frozen = productKindApply('Toast Sandwich American Style', 'Xyz', 'pane', 'it', false, 'Toast');
+assert_same('Toast Sandwich American Style', $frozen['name'], 'pipeline: a stored genre leading the title is not overwritten');
+assert_same('Toast', $frozen['kind'], 'pipeline: …and the stored genre is kept');
+assert_same('existing', $frozen['source'], 'pipeline: …and reported as already present');
 
 // ── Settings keys exist in every locale (and the UI is wired to them) ───────
 $keys = [
