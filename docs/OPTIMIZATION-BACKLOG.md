@@ -12,6 +12,7 @@
 | UI-REFRESH | Frontend | After many mutations (extend expiry, use, merge, favourite toggle, shopping add/remove, Bring sync) only a toast appears; dashboard, banner, inventory and product list stay stale until manual navigation. | Centralise post-mutation refresh: always `loadBannerAlerts()` + `refreshCurrentPage()` (or invalidate server-backed caches first). Audit `api(...).then` success paths in `app.js`. Add a lightweight guard test that greps for success handlers missing refresh on inventory/shopping actions. |
 | BANNER-EXT | Dashboard / banner | Extending expiry from dashboard or inventory did not clear the expiry banner or alert cards (fixed partially in 1.11.2 — verify all entry points). | Same as UI-REFRESH; ensure `_bannerQueue` rebuild respects `setReviewConfirmed('exp_*')` and new `days_to_expiry`. |
 | SHOP-GAPS | Smart shopping | Depleted / near-empty items still missed in edge cases (multi-location, family `shopping_name` mismatch, recently un-favourited). | Keep `scripts/test-shopping-guards.php` extended with real DB fixtures; log trace crumbs in `smartShopping()` behind `EverLog::debug`. |
+| SHOP-MATCH | Shopping list | Loose token matching and “covered with 0 stock” left bought items on the list (fixed 2026-10-06: generic key matcher, prune on load). | Add regression tests; optional spesa “remove on any buy” setting. See `todo/AUDIT-2026-10-06.md`. |
 
 ## P1 — quality & performance
 
