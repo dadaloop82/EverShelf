@@ -80,7 +80,7 @@ kotlin {
 dependencies {
     // core-ktx ≥ 1.16 needs AGP 9.1 + compileSdk 37 — keep the last line that fits AGP 8.5 / SDK 35
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.webkit:webkit:1.10.0")
