@@ -4020,6 +4020,13 @@ body.server-offline .bottom-nav {
     font-size: 1.15rem;
     line-height: 1.35;
 }
+.shop-row-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted, #64748b);
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
 .shop-row-title-name {
     flex: 1;
     min-width: 0;
