@@ -11,8 +11,8 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261006a">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261006a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261006b">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261006b">
     <link rel="stylesheet" href="assets/css/elegant.css?v=20261006a">
     <!-- Core modules (auth, DOM helpers) -->
     <script src="assets/js/core/dom.js?v=20261006a"></script>
@@ -1006,17 +1006,15 @@
                 <button class="btn btn-small btn-secondary" id="checklist-toggle" onclick="_toggleChecklistItems()" data-i18n="settings.checklist.show">▼ Mostra voci</button>
             </div>
         </div>
-        <!-- Level 1: sections. The tab strip below only shows the tabs of the active section,
-             so 16 buttons are never on screen at once. See switchSettingsGroup() in app.js. -->
+        <!-- Level 1 + Level 2 share the same strip style: section row, then a
+             second row of sub-sections (same buttons, new line). -->
+        <div class="settings-nav" aria-label="Navigazione impostazioni" data-i18n-aria="settings.nav_aria">
         <div class="settings-groups" role="tablist" aria-label="Sezioni" data-i18n-aria="settings.groups_aria">
             <button class="settings-group-btn active" data-group="app" role="tab" aria-selected="true" onclick="switchSettingsGroup('app')" data-i18n="settings.group_app">🤖 App &amp; AI</button>
             <button class="settings-group-btn" data-group="cooking" role="tab" aria-selected="false" onclick="switchSettingsGroup('cooking')" data-i18n="settings.group_cooking">🍳 Cucina</button>
             <button class="settings-group-btn" data-group="alerts" role="tab" aria-selected="false" onclick="switchSettingsGroup('alerts')" data-i18n="settings.group_alerts">🔔 Avvisi</button>
             <button class="settings-group-btn" data-group="system" role="tab" aria-selected="false" onclick="switchSettingsGroup('system')" data-i18n="settings.group_system">⚙️ Sistema</button>
         </div>
-        <!-- Level 2: the sub-sections of the active section. They wrap instead of
-             scrolling sideways, so none of them can hide off-screen. See
-             switchSettingsGroup() in app.js. -->
         <div class="settings-subsections-label" data-i18n="settings.subsections_label">Sottosezioni</div>
         <div class="settings-tabs" role="tablist">
             <button class="settings-tab active" onclick="switchSettingsTab(this, 'tab-general')" data-group="app" data-tab="tab-general" title="Generali" data-i18n-title="settings.tab_general"><span class="settings-tab-icon">⚙️</span><span class="settings-tab-text" data-i18n="settings.tab_general">Generali</span></button>
@@ -1035,6 +1033,7 @@
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-backup'); _loadBackupTab();" data-group="system" data-tab="tab-backup" title="Backup" data-i18n-title="settings.backup.tab"><span class="settings-tab-icon">💾</span><span class="settings-tab-text" data-i18n="settings.backup.tab">Backup</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-calendar'); _loadCalendarTab();" data-group="alerts" data-tab="tab-calendar" title="Calendario" data-i18n-title="settings.calendar.tab"><span class="settings-tab-icon">🗓️</span><span class="settings-tab-text" data-i18n="settings.calendar.tab">Calendario</span></button>
             <button class="settings-tab" onclick="switchSettingsTab(this, 'tab-info'); _loadInfoTab();" data-group="system" data-tab="tab-info" title="Info" data-i18n-title="settings.info.tab"><span class="settings-tab-icon">ℹ️</span><span class="settings-tab-text" data-i18n="settings.info.tab">Info</span></button>
+        </div>
         </div>
         <div class="settings-panels">
             <!-- Generali Tab -->
@@ -1129,10 +1128,13 @@
                         <label class="toggle-row">
                             <span data-i18n="settings.zerowaste.label">Mostra suggerimenti durante la cottura</span>
                             <span class="toggle-switch">
-                                <input type="checkbox" id="setting-zerowaste-tips">
+                                <input type="checkbox" id="setting-zerowaste-tips" onchange="this.dataset.touched='1'">
                                 <span class="toggle-slider"></span>
                             </span>
                         </label>
+                    </div>
+                    <div class="form-group" style="margin-top:10px">
+                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
                     </div>
                 </div>
                 <div class="settings-card">
@@ -1336,6 +1338,27 @@
                             <button type="button" class="qty-btn" onclick="adjustQty('setting-shopping-auto-add', 1, 0, 20)">+</button>
                         </div>
                         <p class="settings-hint" data-i18n="settings.shopping.auto_add_suffix">rimasto in magazzino (0 = solo quando esaurito)</p>
+                    </div>
+                </div>
+                <!-- After purchase: plan horizon vs trip (new in 1.11.3) -->
+                <div class="settings-card" id="settings-shopping-remove-card" style="margin-top:12px">
+                    <h4 data-i18n="settings.shopping.remove_on_buy_title">🛒 Dopo un acquisto</h4>
+                    <p class="settings-hint" data-i18n="settings.shopping.remove_on_buy_hint">Quando scannerizzi un prodotto in modalità Spesa, quando toglierlo dalla lista?</p>
+                    <div class="form-group">
+                        <div class="radio-group" style="margin-top:6px;display:flex;flex-direction:column;gap:8px">
+                            <label class="radio-option">
+                                <input type="radio" name="shopping-remove-on-buy" value="plan" id="setting-shopping-remove-plan">
+                                <span data-i18n="settings.shopping.remove_on_buy_plan">Solo se la scorta copre il piano (giorni di previsione)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="shopping-remove-on-buy" value="trip" id="setting-shopping-remove-trip">
+                                <span data-i18n="settings.shopping.remove_on_buy_trip">Subito a ogni acquisto (modalità “spesa”)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <p class="settings-hint" data-i18n="settings.shopping.trip_complete_hint">In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento.</p>
+                    <div class="form-group" style="margin-top:10px">
+                        <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">Salva</button>
                     </div>
                 </div>
                 <!-- Price Estimation Settings -->
@@ -1947,7 +1970,16 @@
                                     <input type="checkbox" id="notify-event-shopping"> <span data-i18n="settings.notify.event_shopping">Aggiunta alla lista della spesa</span>
                                 </label>
                                 <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-shopping-remove"> <span data-i18n="settings.notify.event_shopping_remove">Rimozione dalla lista / articolo comprato</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-trip"> <span data-i18n="settings.notify.event_trip">Spesa fatta (lista svuotata)</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
                                     <input type="checkbox" id="notify-event-stock"> <span data-i18n="settings.notify.event_stock">Aggiornamento scorte (quantità modificata)</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:8px;font-weight:normal">
+                                    <input type="checkbox" id="notify-event-digest"> <span data-i18n="settings.notify.event_digest">Riepilogo settimanale (cron)</span>
                                 </label>
                             </div>
                             <p class="settings-hint" data-i18n="settings.notify.events_hint">Scegli cosa deve arrivarti sul telefono. Le scadenze sono consigliate: gli altri eventi possono essere frequenti.</p>
@@ -2072,6 +2104,29 @@
                         <label data-i18n="settings.notify.healthcheck_jobs_title">Last run of each job</label>
                         <div id="notify-healthcheck-jobs" class="settings-hint" style="margin-top:4px;white-space:pre-line"></div>
                     </div>
+                </div>
+
+                <!-- Telegram bot (optional household client) -->
+                <div class="settings-card" id="settings-telegram-card">
+                    <h4 data-i18n="settings.telegram.title">✈️ Bot Telegram</h4>
+                    <p class="settings-hint" data-i18n="settings.telegram.hint">Per chi non installa la PWA: /lista e /scadenze nel bot. Opzionale e gratuito.</p>
+                    <div class="form-group">
+                        <label data-i18n="settings.telegram.token_label">Token del bot</label>
+                        <input type="password" id="setting-telegram-token" class="form-input" autocomplete="new-password" placeholder="123456:ABC…">
+                        <p class="settings-hint" data-i18n="settings.telegram.token_hint">Da @BotFather. Lascia vuoto per non modificare un token già salvato.</p>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.telegram.chats_label">Chat ID ammessi</label>
+                        <input type="text" id="setting-telegram-chats" class="form-input" placeholder="123456789,987654321" autocomplete="off">
+                        <p class="settings-hint" data-i18n="settings.telegram.chats_hint">Separati da virgola. Vuoto = accetta qualsiasi chat (sconsigliato).</p>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="settings.telegram.webhook_label">URL webhook da impostare su Telegram</label>
+                        <input type="text" id="setting-telegram-webhook" class="form-input" readonly onclick="this.select()">
+                        <p class="settings-hint" data-i18n="settings.telegram.webhook_hint">setWebhook su api.telegram.org con questo URL (HTTPS pubblico).</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveTelegramSettings()" data-i18n="btn.save">Salva</button>
+                    <div id="telegram-save-status" style="display:none;margin-top:8px" class="settings-status"></div>
                 </div>
 
                 <!-- Test + Home Assistant note -->
@@ -2643,6 +2698,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261006e"></script>
+<script src="assets/js/app.js?v=20261006f"></script>
 </body>
 </html>

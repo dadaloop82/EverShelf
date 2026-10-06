@@ -942,9 +942,9 @@
       "summary_ok": "Everything is configured",
       "summary_todo": "{count} options to decide",
       "state_ok": "Configured",
-      "state_todo": "Not configured",
+      "state_todo": "To decide",
       "state_optional": "Optional",
-      "group_todo": "To configure",
+      "group_todo": "To decide",
       "group_news": "What's new",
       "configure": "Configure",
       "show": "Show items",
@@ -1454,7 +1454,12 @@
       "auto_add_label": "Auto-add to list when",
       "auto_add_suffix": "remaining in stock (0 = only when empty)",
       "mode_bring_on": "Bring! enabled",
-      "mode_internal_on": "Internal shopping list enabled"
+      "mode_internal_on": "Internal shopping list enabled",
+      "remove_on_buy_title": "🛒 After a purchase",
+      "remove_on_buy_hint": "When you scan a product in shopping mode, when should it leave the list?",
+      "remove_on_buy_plan": "Only when stock covers the plan window",
+      "remove_on_buy_trip": "Immediately on every purchase (trip mode)",
+      "trip_complete_hint": "On the shopping page, “Trip done” clears the whole list and blocks auto re-add until items run out again."
     },
     "product_rules": {
       "card_title": "🏷️ Names and automatic favourites",
@@ -1541,7 +1546,10 @@
       "err_http": "Server answered HTTP {code}",
       "err_generic": "Error: {error}",
       "save_btn": "💾 Save notification settings",
-      "ha_note": "🏠 The Home Assistant notify service stays active: if you configured it, the same events arrive there too."
+      "ha_note": "🏠 The Home Assistant notify service stays active: if you configured it, the same events arrive there too.",
+      "event_shopping_remove": "List removal / item purchased",
+      "event_trip": "Trip done (list cleared)",
+      "event_digest": "Weekly digest (cron)"
     },
     "ha": {
       "tab": "Home Assistant",
@@ -1673,7 +1681,18 @@
       "nok": "kr Norwegian krone",
       "dkk": "kr Danish krone",
       "pln": "zł Polish złoty"
-    }
+    },
+    "telegram": {
+      "title": "✈️ Telegram bot",
+      "hint": "For household members who will not install the PWA: /lista and /scadenze in the bot. Optional and free.",
+      "token_label": "Bot token",
+      "token_hint": "From @BotFather. Leave empty to keep a stored token.",
+      "chats_label": "Allowed chat IDs",
+      "chats_hint": "Comma-separated. Empty = accept any chat (not recommended).",
+      "webhook_label": "Webhook URL to set on Telegram",
+      "webhook_hint": "Call setWebhook on api.telegram.org with this public HTTPS URL."
+    },
+    "nav_aria": "Settings navigation"
   },
   "expiry": {
     "today": "TODAY",
@@ -2408,6 +2427,10 @@
     "shopping_add_title": "🛒 Added to the shopping list",
     "stock_update_title": "📦 Stock updated",
     "test_title": "✅ EverShelf test notification",
-    "test_message": "If you can read this, notifications work. Sent at {time}."
+    "test_message": "If you can read this, notifications work. Sent at {time}.",
+    "shopping_remove_title": "🛒 Removed from the shopping list",
+    "trip_complete_title": "✅ Shopping trip done",
+    "trip_complete_message": "List cleared: {n} items.",
+    "weekly_digest_title": "📊 EverShelf weekly digest"
   }
 }

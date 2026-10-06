@@ -940,11 +940,11 @@
     "checklist": {
       "title": "🧭 Einrichtungs-Checkliste",
       "summary_ok": "Alles konfiguriert",
-      "summary_todo": "{count} Optionen offen",
+      "summary_todo": "{count} Optionen zu entscheiden",
       "state_ok": "Konfiguriert",
-      "state_todo": "Nicht konfiguriert",
+      "state_todo": "Zu entscheiden",
       "state_optional": "Optional",
-      "group_todo": "Noch einzurichten",
+      "group_todo": "Zu entscheiden",
       "group_news": "Neu",
       "configure": "Konfigurieren",
       "show": "Einträge anzeigen",
@@ -1411,7 +1411,12 @@
       "auto_add_label": "Automatisch hinzufügen wenn",
       "auto_add_suffix": "im Lager verbleibend (0 = nur wenn leer)",
       "mode_bring_on": "Bring! aktiviert",
-      "mode_internal_on": "Interne Einkaufsliste aktiviert"
+      "mode_internal_on": "Interne Einkaufsliste aktiviert",
+      "remove_on_buy_title": "🛒 Nach dem Kauf",
+      "remove_on_buy_hint": "Wann soll ein gescannter Artikel in der Einkaufsmodus von der Liste?",
+      "remove_on_buy_plan": "Nur wenn der Vorrat das Planfenster deckt",
+      "remove_on_buy_trip": "Sofort bei jedem Kauf (Trip-Modus)",
+      "trip_complete_hint": "Auf der Einkaufsseite löscht „Einkauf erledigt“ die ganze Liste und blockiert Auto-Nachträge bis Artikel wieder leer sind."
     },
     "product_rules": {
       "card_title": "🏷️ Namen und automatische Favoriten",
@@ -1498,7 +1503,10 @@
       "err_http": "Server antwortete mit HTTP {code}",
       "err_generic": "Fehler: {error}",
       "save_btn": "💾 Benachrichtigungseinstellungen speichern",
-      "ha_note": "🏠 Der Notify-Dienst von Home Assistant bleibt aktiv: wenn konfiguriert, kommen dieselben Ereignisse auch dort an."
+      "ha_note": "🏠 Der Notify-Dienst von Home Assistant bleibt aktiv: wenn konfiguriert, kommen dieselben Ereignisse auch dort an.",
+      "event_shopping_remove": "Listenentfernung / Artikel gekauft",
+      "event_trip": "Einkauf erledigt (Liste geleert)",
+      "event_digest": "Wöchentlicher Überblick (Cron)"
     },
     "ha": {
       "tab": "Home Assistant",
@@ -1673,7 +1681,18 @@
       "nok": "kr Norwegische Krone",
       "dkk": "kr Dänische Krone",
       "pln": "zł Polnischer Złoty"
-    }
+    },
+    "telegram": {
+      "title": "✈️ Telegram-Bot",
+      "hint": "Für Haushaltmitglieder ohne PWA: /lista und /scadenze im Bot. Optional und kostenlos.",
+      "token_label": "Bot-Token",
+      "token_hint": "Von @BotFather. Leer lassen, um einen gespeicherten Token zu behalten.",
+      "chats_label": "Erlaubte Chat-IDs",
+      "chats_hint": "Kommagetrennt. Leer = jede Chat-ID (nicht empfohlen).",
+      "webhook_label": "Webhook-URL für Telegram",
+      "webhook_hint": "setWebhook auf api.telegram.org mit dieser öffentlichen HTTPS-URL."
+    },
+    "nav_aria": "Einstellungen-Navigation"
   },
   "expiry": {
     "today": "HEUTE",
@@ -2408,6 +2427,10 @@
     "shopping_add_title": "🛒 Zur Einkaufsliste hinzugefügt",
     "stock_update_title": "📦 Bestand aktualisiert",
     "test_title": "✅ EverShelf-Testbenachrichtigung",
-    "test_message": "Wenn du diese Nachricht liest, funktionieren die Benachrichtigungen. Gesendet um {time}."
+    "test_message": "Wenn du diese Nachricht liest, funktionieren die Benachrichtigungen. Gesendet um {time}.",
+    "shopping_remove_title": "🛒 Von der Einkaufsliste entfernt",
+    "trip_complete_title": "✅ Einkauf erledigt",
+    "trip_complete_message": "Liste geleert: {n} Artikel.",
+    "weekly_digest_title": "📊 EverShelf Wochenübersicht"
   }
 }

@@ -942,9 +942,9 @@
       "summary_ok": "Tutto configurato",
       "summary_todo": "{count} opzioni da decidere",
       "state_ok": "Configurato",
-      "state_todo": "Da configurare",
+      "state_todo": "Da decidere",
       "state_optional": "Opzionale",
-      "group_todo": "Da configurare",
+      "group_todo": "Da decidere",
       "group_news": "Novità",
       "configure": "Configura",
       "show": "Mostra voci",
@@ -1454,7 +1454,12 @@
       "auto_add_label": "Aggiungi automaticamente quando",
       "auto_add_suffix": "rimasto in magazzino (0 = solo quando esaurito)",
       "mode_bring_on": "Bring! attivato",
-      "mode_internal_on": "Lista spesa interna attivata"
+      "mode_internal_on": "Lista spesa interna attivata",
+      "remove_on_buy_title": "🛒 Dopo un acquisto",
+      "remove_on_buy_hint": "Quando scannerizzi un prodotto in modalità Spesa, quando toglierlo dalla lista?",
+      "remove_on_buy_plan": "Solo se la scorta copre il piano (giorni di previsione)",
+      "remove_on_buy_trip": "Subito a ogni acquisto (modalità “spesa”)",
+      "trip_complete_hint": "In lista Spesa, «Spesa fatta» svuota tutta la lista e blocca i ri-aggiunti automatici fino al prossimo esaurimento."
     },
     "product_rules": {
       "card_title": "🏷️ Nomi e preferiti automatici",
@@ -1541,7 +1546,10 @@
       "err_http": "Il server ha risposto HTTP {code}",
       "err_generic": "Errore: {error}",
       "save_btn": "💾 Salva impostazioni notifiche",
-      "ha_note": "🏠 Il servizio notify di Home Assistant resta attivo: se l'hai configurato, ricevi gli stessi eventi anche lì."
+      "ha_note": "🏠 Il servizio notify di Home Assistant resta attivo: se l'hai configurato, ricevi gli stessi eventi anche lì.",
+      "event_shopping_remove": "Rimozione dalla lista / articolo comprato",
+      "event_trip": "Spesa fatta (lista svuotata)",
+      "event_digest": "Riepilogo settimanale (cron)"
     },
     "ha": {
       "tab": "Home Assistant",
@@ -1673,7 +1681,18 @@
       "nok": "kr Corona norvegese",
       "dkk": "kr Corona danese",
       "pln": "zł Zloty polacco"
-    }
+    },
+    "telegram": {
+      "title": "✈️ Bot Telegram",
+      "hint": "Per chi non installa la PWA: /lista e /scadenze nel bot. Opzionale e gratuito.",
+      "token_label": "Token del bot",
+      "token_hint": "Da @BotFather. Lascia vuoto per non modificare un token già salvato.",
+      "chats_label": "Chat ID ammessi",
+      "chats_hint": "Separati da virgola. Vuoto = accetta qualsiasi chat (sconsigliato).",
+      "webhook_label": "URL webhook da impostare su Telegram",
+      "webhook_hint": "setWebhook su api.telegram.org con questo URL (HTTPS pubblico)."
+    },
+    "nav_aria": "Navigazione impostazioni"
   },
   "expiry": {
     "today": "OGGI",
@@ -2408,6 +2427,10 @@
     "shopping_add_title": "🛒 Aggiunto alla lista della spesa",
     "stock_update_title": "📦 Scorte aggiornate",
     "test_title": "✅ Notifica di prova EverShelf",
-    "test_message": "Se leggi questo messaggio le notifiche funzionano. Inviata alle {time}."
+    "test_message": "Se leggi questo messaggio le notifiche funzionano. Inviata alle {time}.",
+    "shopping_remove_title": "🛒 Tolto dalla lista della spesa",
+    "trip_complete_title": "✅ Spesa fatta",
+    "trip_complete_message": "Lista svuotata: {n} articoli.",
+    "weekly_digest_title": "📊 Riepilogo settimanale EverShelf"
   }
 }

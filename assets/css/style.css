@@ -7463,15 +7463,20 @@ body.cooking-mode-active .app-header {
     flex-shrink: 0;
 }
 
-/* ===== SETTINGS PAGE ===== */
-/* Level 1 of the navigation: 4 sections. The tab strip underneath shows only
-   the active section's tabs, so the page never opens with 16 buttons. */
+/* ===== SETTINGS PAGE =====
+   Two-level nav in one block: section strip, then subsection strip on the next
+   row — same underline button style so the hierarchy is obvious without pills. */
+.settings-nav {
+    margin-bottom: 14px;
+}
+
 .settings-groups {
     display: flex;
+    flex-wrap: wrap;
     gap: 2px;
-    overflow-x: auto;
+    overflow: visible;
     padding-bottom: 0;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     border-bottom: 1px solid var(--border);
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -7479,24 +7484,43 @@ body.cooking-mode-active .app-header {
 
 .settings-groups::-webkit-scrollbar { display: none; }
 
-.settings-group-btn {
+.settings-group-btn,
+.settings-tab {
     background: none;
     border: none;
     border-bottom: 3px solid transparent;
     margin-bottom: -1px;
-    padding: 8px 12px;
-    font-size: 0.85rem;
+    padding: 10px 14px;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--text-muted);
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
     transition: color 0.2s, border-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 0;
+    min-width: 0;
 }
 
-.settings-group-btn.active {
+.settings-group-btn {
+    font-size: 0.92rem;
+    letter-spacing: 0.01em;
+}
+
+.settings-tab {
+    font-size: 0.84rem;
+    font-weight: 600;
+    padding: 8px 12px;
+}
+
+.settings-group-btn.active,
+.settings-tab.active {
     color: var(--primary);
     border-bottom-color: var(--primary);
+    background: none;
 }
 
 /* Tabs of the sections that are not selected stay out of the way. */
@@ -7578,45 +7602,25 @@ body.cooking-mode-active .app-header {
 
 .settings-card.settings-card-flash { animation: settings-card-flash 1.6s ease-out; }
 
-/* ===== LEVEL 2: THE SUB-SECTIONS OF THE ACTIVE SECTION =====
-   This used to be a horizontally scrolling strip of pills: the last tabs sat
-   off-screen with no sign they existed, and nothing said they belonged to the
-   section above. They are a wrapped, indented list of sub-sections now, so every
-   one of them is visible and the hierarchy is readable at a glance. */
+/* ===== LEVEL 2: sub-sections — same underline style as sections, new row ===== */
 .settings-subsections-label {
     font-size: 0.7rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-muted);
-    margin: 0 0 6px 2px;
+    margin: 10px 0 0 2px;
 }
 
 .settings-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 2px;
     overflow: visible;
-    padding: 0 0 0 10px;
-    margin: 0 0 12px 2px;
-    border-left: 2px solid var(--border);
-}
-
-.settings-tab {
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    padding: 6px 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: all 0.2s;
+    padding: 0;
+    margin: 0 0 4px 0;
+    border-bottom: 1px solid var(--border);
+    border-left: none;
 }
 
 .settings-tab-icon {
@@ -7625,18 +7629,12 @@ body.cooking-mode-active .app-header {
 }
 
 .settings-tab-text {
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 700;
     max-width: none;
     opacity: 1;
     overflow: visible;
     text-overflow: clip;
-}
-
-.settings-tab.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
 }
 
 .settings-panel {
