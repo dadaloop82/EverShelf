@@ -25849,8 +25849,9 @@ async function spesaModeAfterAdd(addResult, opts = {}) {
 
 /** Remove matching shopping-list / Bring entry after a spesa-mode purchase. */
 async function _spesaRemovePurchasedFromList(product, addResult) {
+    const tripMode = (getSettings().shopping_remove_on_buy || 'plan') === 'trip';
     // Partial restock: server kept the row with remaining need — do not remove/blocklist
-    if (addResult?.shopping_kept) {
+    if (addResult?.shopping_kept && !tripMode) {
         try { loadShoppingList._bgCall = true; loadShoppingList(); } catch (_) {}
         return;
     }
