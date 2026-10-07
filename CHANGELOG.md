@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.7] - 2026-10-06
+
+- Recipe detail no longer shows the empty «Mancano dalla dispensa» stub when the pantry already covers the dish (auto mode left the loading placeholder stuck). Panel appears only when there are real gaps; default `RECIPE_SHOPPING_MODE` is `off`.
+- Undo of a location move (`[Spostamento]`) now reverses **both** ledger halves together — undoing only the “in” half used to wipe the stock and trigger a false “è finito?” banner.
+
 ## [1.11.6] - 2026-10-06
 
 Home Assistant sensor/calendar parity for [ha-evershelf 1.3.2](https://github.com/dadaloop82/ha-evershelf/releases/tag/v1.3.2).
