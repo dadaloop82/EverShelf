@@ -7182,6 +7182,66 @@ function listTransactions(PDO $db): void {
  * balance queries already exclude undone=1; a second [Undone] in/out would
  * double-count and create ghost stock (e.g. 0.233 conf milk).
  */
+/**
+ * Apply the inventory side of undoing a single in/out/waste row.
+ * Location moves use undoMovePairInventory() instead — never half of a pair.
+ */
+function undoTransactionInventorySide(PDO $db, string $type, int $productId, float $quantity, string $location): void {
+    if ($type === 'in') {
+        // Reverse an ADD: remove quantity from inventory
+        $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY quantity DESC LIMIT 1");
+        $stmt2->execute([$productId, $location]);
+        $row = $stmt2->fetch();
+        if ($row) {
+            $newQty = max(0, (float)$row['quantity'] - $quantity);
+            if ($newQty <= 0) {
+                $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$row['id']]);
+            } else {
+                $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$newQty, $row['id']]);
+            }
+        }
+        return;
+    }
+    if ($type === 'out' || $type === 'waste') {
+        // Reverse a USE: add quantity back to inventory
+        $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? ORDER BY quantity DESC LIMIT 1");
+        $stmt2->execute([$productId, $location]);
+        $row = $stmt2->fetch();
+        if ($row) {
+            $db->prepare("UPDATE inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$quantity, $row['id']]);
+        } else {
+            $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")->execute([$productId, $location, $quantity]);
+        }
+    }
+}
+
+/**
+ * Move stock back from newLoc → oldLoc (quantity). Used when undoing a [Spostamento] pair.
+ */
+function undoMovePairInventory(PDO $db, int $productId, float $quantity, string $oldLoc, string $newLoc): void {
+    // Remove from destination (where the UPDATE left the stock)
+    $stmt = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY quantity DESC LIMIT 1");
+    $stmt->execute([$productId, $newLoc]);
+    $row = $stmt->fetch();
+    if ($row) {
+        $newQty = max(0, (float)$row['quantity'] - $quantity);
+        if ($newQty <= 0) {
+            $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$row['id']]);
+        } else {
+            $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$newQty, $row['id']]);
+        }
+    }
+    // Restore at origin
+    $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? ORDER BY quantity DESC LIMIT 1");
+    $stmt2->execute([$productId, $oldLoc]);
+    $row2 = $stmt2->fetch();
+    if ($row2) {
+        $db->prepare("UPDATE inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$quantity, $row2['id']]);
+    } else {
+        $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")->execute([$productId, $oldLoc, $quantity]);
+    }
+}
+
 function undoTransaction(PDO $db): void {
     $input = json_decode(file_get_contents('php://input'), true);
     $txId = (int)($input['id'] ?? 0);
@@ -7219,35 +7279,55 @@ function undoTransaction(PDO $db): void {
         $quantity  = (float)$tx['quantity'];
         $location  = $tx['location'] ?: 'dispensa';
         $type      = $tx['type'];
+        $notes     = (string)($tx['notes'] ?? '');
+        $isMove    = strncmp($notes, '[Spostamento]', 13) === 0;
 
-        if ($type === 'in') {
-            // Reverse an ADD: remove quantity from inventory
-            $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? AND quantity > 0 ORDER BY quantity DESC LIMIT 1");
-            $stmt2->execute([$productId, $location]);
-            $row = $stmt2->fetch();
-            if ($row) {
-                $newQty = max(0, (float)$row['quantity'] - $quantity);
-                if ($newQty <= 0) {
-                    $db->prepare("DELETE FROM inventory WHERE id = ?")->execute([$row['id']]);
-                } else {
-                    $db->prepare("UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$newQty, $row['id']]);
-                }
+        if ($isMove && preg_match('/\[Spostamento\]\s*(.+?)\s*→\s*(.+)$/u', $notes, $mLoc)) {
+            // Location moves write paired out+in. Undoing one half alone wipes stock
+            // (undo of "in" removes from destination while "out" still deducted origin).
+            $oldLoc = trim($mLoc[1]);
+            $newLoc = trim($mLoc[2]);
+            $oppType = $type === 'in' ? 'out' : 'in';
+            $sibStmt = $db->prepare(
+                "SELECT id FROM transactions
+                 WHERE product_id = ? AND notes = ? AND quantity = ? AND type = ?
+                   AND undone = 0 AND id != ?
+                   AND abs(strftime('%s', created_at) - strftime('%s', ?)) <= 5
+                 ORDER BY id ASC LIMIT 1"
+            );
+            $sibStmt->execute([$productId, $notes, $quantity, $oppType, $txId, $tx['created_at']]);
+            $sibId = (int)($sibStmt->fetchColumn() ?: 0);
+
+            // Only move stock back if the destination half is still active (not already undone).
+            // If the user previously undid only the "in", inventory is already gone from newLoc —
+            // undoing the remaining "out" must restore at oldLoc without a second remove.
+            $destStillActive = ($type === 'in') || ($sibId > 0 && $oppType === 'in');
+            $originStillActive = ($type === 'out') || ($sibId > 0 && $oppType === 'out');
+            if ($destStillActive && $originStillActive) {
+                undoMovePairInventory($db, $productId, $quantity, $oldLoc, $newLoc);
+            } elseif ($originStillActive && !$destStillActive) {
+                // Sibling "in" already undone: just put stock back at origin
+                undoTransactionInventorySide($db, 'out', $productId, $quantity, $oldLoc);
+            } elseif ($destStillActive && !$originStillActive) {
+                // Sibling "out" already undone: only remove from destination
+                undoTransactionInventorySide($db, 'in', $productId, $quantity, $newLoc);
             }
-        } elseif ($type === 'out' || $type === 'waste') {
-            // Reverse a USE: add quantity back to inventory
-            $stmt2 = $db->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location = ? ORDER BY quantity DESC LIMIT 1");
-            $stmt2->execute([$productId, $location]);
-            $row = $stmt2->fetch();
-            if ($row) {
-                $db->prepare("UPDATE inventory SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$quantity, $row['id']]);
-            } else {
-                // No row at this location — create one without expiry
-                $db->prepare("INSERT INTO inventory (product_id, location, quantity) VALUES (?, ?, ?)")->execute([$productId, $location, $quantity]);
+
+            $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$txId]);
+            if ($sibId > 0) {
+                $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$sibId]);
             }
+            EverLog::info('undoTransaction move pair', [
+                'event' => 'transaction_undo_move',
+                'tx_id' => $txId,
+                'sib_id' => $sibId,
+                'product_id' => $productId,
+            ]);
+        } else {
+            undoTransactionInventorySide($db, $type, $productId, $quantity, $location);
+            $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$txId]);
         }
 
-        // Mark original as undone (ledger balance excludes undone=1)
-        $db->prepare("UPDATE transactions SET undone = 1 WHERE id = ?")->execute([$txId]);
         $db->commit();
         echo json_encode(['success' => true, 'name' => $tx['name']]);
     } catch (Exception $e) {

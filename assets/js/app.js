@@ -4091,7 +4091,7 @@ async function loadSettingsUI() {
     const mealieSyncDaysEl = document.getElementById('setting-mealie-sync-days');
     if (mealieSyncDaysEl) mealieSyncDaysEl.value = s.mealie_cache_sync_days || 7;
     const recipeShopModeEl = document.getElementById('setting-recipe-shopping-mode');
-    if (recipeShopModeEl) recipeShopModeEl.value = s.recipe_shopping_mode || 'suggest';
+    if (recipeShopModeEl) recipeShopModeEl.value = s.recipe_shopping_mode || 'off';
     _updateMealieCacheStatus(s);
     _updateRecipeEngineHelp();
     discoverMealie(false);
@@ -4859,7 +4859,7 @@ async function saveSettings() {
     const mealieSyncDaysSave = document.getElementById('setting-mealie-sync-days');
     if (mealieSyncDaysSave) s.mealie_cache_sync_days = parseInt(mealieSyncDaysSave.value, 10) || 7;
     const recipeShopModeSave = document.getElementById('setting-recipe-shopping-mode');
-    if (recipeShopModeSave) s.recipe_shopping_mode = recipeShopModeSave.value || 'suggest';
+    if (recipeShopModeSave) s.recipe_shopping_mode = recipeShopModeSave.value || 'off';
     // TTS settings
     const ttsEnabledEl = document.getElementById('setting-tts-enabled');
     if (ttsEnabledEl) s.tts_enabled = ttsEnabledEl.checked;
@@ -5037,7 +5037,7 @@ async function saveSettings() {
             mealie_url:         s.mealie_url || '',
             mealie_offline:     s.mealie_offline || 'auto',
             mealie_cache_sync_days: parseInt(s.mealie_cache_sync_days, 10) || 7,
-            recipe_shopping_mode: s.recipe_shopping_mode || 'suggest',
+            recipe_shopping_mode: s.recipe_shopping_mode || 'off',
             ...(document.getElementById('setting-mealie-token')?.value.trim()
                 ? { mealie_api_token: document.getElementById('setting-mealie-token').value.trim() } : {}),
         }, tokenHeader);
@@ -21345,6 +21345,14 @@ async function loadRecipeShoppingPlan(autoAdd) {
         });
         if (!data || !data.success) throw new Error((data && data.error) || 'plan_failed');
         _recipeShoppingPlan = data;
+        // Populate gaps before auto-add — otherwise selected stays [] and the
+        // loading placeholder ("Mancano dalla dispensa") never gets replaced.
+        const items = data.items || [];
+        _recipeShoppingToBuy = items.filter(it => it.state === 'missing' || it.state === 'partial');
+        if (!_recipeShoppingToBuy.length) {
+            box.remove();
+            return;
+        }
         if (autoAdd) {
             await addRecipeShoppingPlan(true);
             return;
@@ -21352,11 +21360,12 @@ async function loadRecipeShoppingPlan(autoAdd) {
         renderRecipeShoppingPlan();
     } catch (e) {
         console.error('loadRecipeShoppingPlan:', e);
-        box.innerHTML = `<p>⚠️ ${escapeHtml(t('recipes.plan_error'))}</p>`;
+        // Quiet fail: recipes are pantry-first; an empty/broken plan must not leave a stub.
+        box.remove();
     }
 }
 
-/** Draw the tickable list of gaps (plus what is already covered / on the list). */
+/** Draw the tickable list of gaps. Hidden entirely when the pantry covers the recipe. */
 function renderRecipeShoppingPlan() {
     const box = document.getElementById('recipe-shopping-plan');
     const plan = _recipeShoppingPlan;
@@ -21365,35 +21374,31 @@ function renderRecipeShoppingPlan() {
     const items = plan.items || [];
     const toBuy = items.filter(it => it.state === 'missing' || it.state === 'partial');
     const listed = items.filter(it => it.state === 'listed');
-    const covered = items.filter(it => it.state === 'covered');
     _recipeShoppingToBuy = toBuy;
 
-    let html = '';
-    if (toBuy.length) {
-        html += `<p>🛒 ${escapeHtml(t('recipes.plan_intro'))}</p><ul class="recipe-plan-list">`;
-        toBuy.forEach((it, idx) => {
-            const bits = [];
-            if (it.have) bits.push(t('recipes.plan_have', { have: it.have }));
-            if (it.need) bits.push(t('recipes.plan_need', { need: it.need }));
-            html += `<li class="recipe-plan-row">
-                <label><input type="checkbox" class="recipe-plan-cb" data-idx="${idx}" checked>
-                <strong>${escapeHtml(it.name)}</strong>${it.missing ? ' · ' + escapeHtml(it.missing) : ''}</label>
-                ${bits.length ? `<small>${escapeHtml(bits.join(' · '))}</small>` : ''}
-            </li>`;
-        });
-        html += '</ul>';
-        html += `<button type="button" class="btn btn-sm btn-success" onclick="addRecipeShoppingPlan()">${escapeHtml(t('recipes.plan_btn_add'))}</button>`;
-    } else {
-        html += `<p>${escapeHtml(listed.length ? t('recipes.plan_done') : t('recipes.plan_all_in_stock'))}</p>`;
+    // Recipes are built from pantry stock: no gap → no section.
+    if (!toBuy.length) {
+        box.remove();
+        return;
     }
+
+    let html = `<p>🛒 ${escapeHtml(t('recipes.plan_intro'))}</p><ul class="recipe-plan-list">`;
+    toBuy.forEach((it, idx) => {
+        const bits = [];
+        if (it.have) bits.push(t('recipes.plan_have', { have: it.have }));
+        if (it.need) bits.push(t('recipes.plan_need', { need: it.need }));
+        html += `<li class="recipe-plan-row">
+            <label><input type="checkbox" class="recipe-plan-cb" data-idx="${idx}" checked>
+            <strong>${escapeHtml(it.name)}</strong>${it.missing ? ' · ' + escapeHtml(it.missing) : ''}</label>
+            ${bits.length ? `<small>${escapeHtml(bits.join(' · '))}</small>` : ''}
+        </li>`;
+    });
+    html += '</ul>';
+    html += `<button type="button" class="btn btn-sm btn-success" onclick="addRecipeShoppingPlan()">${escapeHtml(t('recipes.plan_btn_add'))}</button>`;
     if (listed.length) {
         html += `<small class="recipe-plan-note">${escapeHtml(listed.map(it => `${it.name} (${t('recipes.plan_listed')})`).join(' · '))}</small>`;
     }
-    if (covered.length) {
-        html += `<small class="recipe-plan-note">${escapeHtml(t('recipes.plan_in_pantry'))}: ${escapeHtml(
-            covered.map(it => (it.have ? `${it.name} (${it.have})` : it.name)).join(' · ')
-        )}</small>`;
-    }
+    box.hidden = false;
     box.innerHTML = html;
 }
 
@@ -21413,7 +21418,8 @@ async function addRecipeShoppingPlan(all) {
             .map(cb => (_recipeShoppingToBuy[parseInt(cb.dataset.idx, 10)] || {}).name)
             .filter(Boolean);
     if (!selected.length) {
-        showToast(t('recipes.plan_none_selected'), 'info');
+        // Auto mode with nothing missing must stay silent (box already removed upstream).
+        if (all !== true) showToast(t('recipes.plan_none_selected'), 'info');
         return;
     }
     try {
@@ -21545,18 +21551,17 @@ async function renderRecipe(r) {
     });
     html += '</ul>';
 
-    // Shopping panel (Q2): what the pantry does NOT cover, deducted at render time.
+    // Shopping panel (Q2): what the pantry does NOT cover, deducted after paint.
+    // Mount empty/hidden — only shown when there are real gaps (no "all in stock" stub).
     //   suggest → tickable list of the gaps;
-    //   auto    → same plan, added without asking;
+    //   auto    → gaps added without asking;
     //   off     → nothing.
-    const shopMode = getSettings().recipe_shopping_mode || 'suggest';
+    const shopMode = getSettings().recipe_shopping_mode || 'off';
     _recipeShoppingRecipe = r;
     _recipeShoppingPlan = null;
     _recipeShoppingToBuy = [];
     if (shopMode !== 'off') {
-        html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-plan">
-            <p>🛒 ${escapeHtml(t('recipes.plan_intro'))}</p>
-        </div>`;
+        html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-plan" hidden></div>`;
     }
 
     // Cooking mode between ingredients and steps

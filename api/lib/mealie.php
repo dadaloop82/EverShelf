@@ -64,8 +64,8 @@ function mealieUsable(): bool {
 
 /** off | suggest | auto — missing recipe ingredients → shopping list */
 function recipeShoppingMode(): string {
-    $m = strtolower(trim(env('RECIPE_SHOPPING_MODE', 'suggest')));
-    return in_array($m, ['off', 'suggest', 'auto'], true) ? $m : 'suggest';
+    $m = strtolower(trim(env('RECIPE_SHOPPING_MODE', 'off')));
+    return in_array($m, ['off', 'suggest', 'auto'], true) ? $m : 'off';
 }
 
 function recipeEffectiveSource(): string {
