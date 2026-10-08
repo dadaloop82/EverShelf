@@ -39,8 +39,9 @@ android {
                 ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
             val storePass = signingValue("storePassword", "KIOSK_STORE_PASSWORD")
             if (storePath != null && storePass != null) {
-                val store = java.io.File(storePath)
-                storeFile = if (store.isAbsolute) store else rootProject.file(storePath)
+                // rootProject.file() accepts absolute CI paths and relative
+                // keystore.properties paths from the kiosk project root.
+                storeFile = rootProject.file(storePath)
                 storePassword = storePass
                 keyAlias = signingValue("keyAlias", "KIOSK_KEY_ALIAS")
                 keyPassword = signingValue("keyPassword", "KIOSK_KEY_PASSWORD")
