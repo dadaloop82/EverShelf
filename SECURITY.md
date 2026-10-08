@@ -143,8 +143,8 @@ CI builds the APKs from GitHub Secrets (repository → Settings → Secrets):
 | `HEALTH_KEYSTORE_BASE64` | `build-health-bridge.yml` | |
 | `HEALTH_STORE_PASSWORD` / `HEALTH_KEY_ALIAS` / `HEALTH_KEY_PASSWORD` | `build-health-bridge.yml` | |
 
-Without these secrets the workflows fall back to the Android debug keystore so
-builds still succeed — but those APKs will not install as updates over a release
-signed with the real key. If the exposed key was already distributed, rotating it
-breaks OTA updates for existing installs (Android rejects a signature change);
-notify users to reinstall once.
+`build-kiosk.yml` **refuses to publish** if the `KIOSK_KEYSTORE_*` secrets are
+missing (a debug-signed APK would break OTA: Android rejects a different
+signature and forces uninstall). Health Bridge still warns and falls back to
+debug when its secrets are absent. If a key was already distributed and you
+rotate it, notify users to reinstall once.

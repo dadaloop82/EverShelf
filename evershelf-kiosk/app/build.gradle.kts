@@ -33,14 +33,17 @@ android {
 
     signingConfigs {
         create("project") {
+            // Paths in keystore.properties are relative to the kiosk project root
+            // (evershelf-kiosk/), not the :app module — use rootProject.file().
             val storePath = signingValue("storeFile", "KIOSK_STORE_FILE")
                 ?: if (rootProject.file("evershelf.jks").exists()) "evershelf.jks" else null
             val storePass = signingValue("storePassword", "KIOSK_STORE_PASSWORD")
             if (storePath != null && storePass != null) {
-                storeFile = file(storePath)
+                storeFile = rootProject.file(storePath)
                 storePassword = storePass
                 keyAlias = signingValue("keyAlias", "KIOSK_KEY_ALIAS")
                 keyPassword = signingValue("keyPassword", "KIOSK_KEY_PASSWORD")
+                    ?: storePass
             } else {
                 storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
                 storePassword = "android"
