@@ -54,15 +54,16 @@ import org.json.JSONObject
  * The user can always exit (finishAffinity) via the ✕ button.
  *
  * Steps:
- *  0 — Language selection (NEW — always first)
+ *  0 — Language selection (always first)
  *  1 — Welcome / intro / privacy
  *  2 — Permissions rationale + grant
  *  3 — Server URL + auto-discovery + connection test
- *  4 — Smart scale question → gateway info + install
- *  5 — Features (screensaver / prices / meal-plan / zero-waste)
- *  6 — Gemini AI key  (optional, auto-skipped if already set)
- *  7 — Bring! credentials (optional, auto-skipped if already set)
- *  8 — Done
+ *  4 — Pairing code (dedicated screen; skipped if token already stored / not required)
+ *  5 — Smart scale question → BLE scan
+ *  6 — Features (screensaver / prices / meal-plan / zero-waste)
+ *  7 — Gemini AI key  (optional, auto-skipped if already set)
+ *  8 — Bring! credentials (optional, auto-skipped if already set)
+ *  9 — Done
  */
 class SetupActivity : AppCompatActivity() {
 
@@ -74,11 +75,18 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var stepWelcome:     LinearLayout
     private lateinit var stepPermissions: LinearLayout
     private lateinit var stepServer:      LinearLayout
+    private lateinit var stepPairing:     LinearLayout
     private lateinit var stepScale:       LinearLayout
     private lateinit var stepScreensaver: LinearLayout
     private lateinit var stepGemini:      LinearLayout
     private lateinit var stepBring:       LinearLayout
     private lateinit var stepDone:        LinearLayout
+
+    /** True when the confirmed server requires an API token / pairing. */
+    private var pairingRequired = false
+    private lateinit var pairingCodeEdit: EditText
+    private lateinit var pairingStatus:   TextView
+    private lateinit var btnPairingNext:  MaterialButton
 
     // Progress dots
     private lateinit var progressDots: LinearLayout
@@ -201,9 +209,9 @@ class SetupActivity : AppCompatActivity() {
         when (currentStep) {
             0    -> confirmExit()
             1    -> showStep(0)   // back to language
-            8    -> showStep(7)   // done → bring
-            7    -> showStep(6)   // bring → gemini
-            6    -> showStep(5)   // gemini → features
+            9    -> showStep(8)   // done → bring
+            8    -> showStep(7)   // bring → gemini
+            7    -> showStep(6)   // gemini → features
             else -> showStep(currentStep - 1)
         }
     }
@@ -219,7 +227,7 @@ class SetupActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // If we're on step 4 with a saved device and not in test mode, reflect it in the UI
-        if (currentStep == 4 && !isInTestMode) {
+        if (currentStep == 5 && !isInTestMode) {
             val savedName = bleManager?.getSavedDeviceName()
             if (savedName != null) {
                 tvSelectedScale.text = "✅ $savedName"
@@ -237,11 +245,15 @@ class SetupActivity : AppCompatActivity() {
         stepWelcome      = findViewById(R.id.stepWelcome)
         stepPermissions  = findViewById(R.id.stepPermissions)
         stepServer       = findViewById(R.id.stepServer)
+        stepPairing      = findViewById(R.id.stepPairing)
         stepScale        = findViewById(R.id.stepScale)
         stepScreensaver  = findViewById(R.id.stepScreensaver)
         stepGemini       = findViewById(R.id.stepGemini)
         stepBring        = findViewById(R.id.stepBring)
         stepDone         = findViewById(R.id.stepDone)
+        pairingCodeEdit  = findViewById(R.id.setupPairingCodeEdit)
+        pairingStatus    = findViewById(R.id.setupPairingStatus)
+        btnPairingNext   = findViewById(R.id.btnPairingNext)
 
         // Gemini + Bring fields
         setupGeminiKeyEdit     = findViewById(R.id.setupGeminiKeyEdit)
@@ -323,10 +335,23 @@ class SetupActivity : AppCompatActivity() {
                 showUrlStatus(getString(R.string.setup_enter_url), false)
                 return@setOnClickListener
             }
-            prefs.edit().putString(KEY_URL, url).apply()
-            ErrorReporter.init(this, url)
-            showStep(4)
+            // Same path as a successful Test — detect whether pairing is required.
+            onServerUrlConfirmed(url, needsPairingHint = false)
         }
+
+        // ── Pairing ───────────────────────────────────────────────────────
+        findViewById<MaterialButton>(R.id.btnPairingBack).setOnClickListener { showStep(3) }
+        findViewById<MaterialButton>(R.id.btnPairingSubmit).setOnClickListener { submitPairingCode() }
+        btnPairingNext.setOnClickListener {
+            if (pairingRequired && (prefs.getString(KEY_API_TOKEN, "") ?: "").isEmpty()) {
+                Toast.makeText(this, getString(R.string.setup_pairing_required_toast), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val base = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+            if (base.isNotEmpty()) loadServerSettingsOffer(base)
+            showStep(5)
+        }
+        pairingCodeEdit.setOnEditorActionListener { _, _, _ -> submitPairingCode(); true }
 
         // ── Scale ─────────────────────────────────────────────────────────
         // Init BLE manager (lazy — needs context)
@@ -362,19 +387,19 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnScaleNo).setOnClickListener {
             prefs.edit().putBoolean(KEY_HAS_SCALE, false).apply()
             bleManager?.stopScan()
-            showStep(5)
+            showStep(6)
         }
         btnScanBle.setOnClickListener { startBleScan() }
         findViewById<MaterialButton>(R.id.btnScaleBack).setOnClickListener {
             bleManager?.stopScan()
             bleManager?.disconnect()
             isInTestMode = false
-            showStep(3)
+            showStep(4)
         }
         findViewById<MaterialButton>(R.id.btnScaleNext).setOnClickListener {
             bleManager?.stopScan()
             bleManager?.disconnect()
-            showStep(5)
+            showStep(6)
         }
 
         // Test card buttons
@@ -426,7 +451,7 @@ class SetupActivity : AppCompatActivity() {
         }
 
         // ── Features step (screensaver / prices / meal plan / zero-waste) ────
-        findViewById<MaterialButton>(R.id.btnScreensaverBack).setOnClickListener { showStep(4) }
+        findViewById<MaterialButton>(R.id.btnScreensaverBack).setOnClickListener { showStep(5) }
         findViewById<MaterialButton>(R.id.btnScreensaverNext).setOnClickListener {
             prefs.edit()
                 .putBoolean(KEY_SCREENSAVER,   setupSwitchScreensaver.isChecked)
@@ -434,27 +459,27 @@ class SetupActivity : AppCompatActivity() {
                 .putBoolean(KEY_MEAL_PLAN,      setupSwitchMealPlan.isChecked)
                 .putBoolean(KEY_ZEROWASTE_TIPS, setupSwitchZeroWaste.isChecked)
                 .apply()
-            showStep(6)
-        }
-
-        // ── Gemini step ───────────────────────────────────────────────────
-        findViewById<MaterialButton>(R.id.btnGeminiBack).setOnClickListener { showStep(5) }
-        findViewById<MaterialButton>(R.id.btnGeminiSkip).setOnClickListener { showStep(7) }
-        findViewById<MaterialButton>(R.id.btnGeminiNext).setOnClickListener {
-            val key = setupGeminiKeyEdit.text.toString().trim()
-            if (key.isNotEmpty()) prefs.edit().putString(KEY_GEMINI_KEY, key).apply()
             showStep(7)
         }
 
+        // ── Gemini step ───────────────────────────────────────────────────
+        findViewById<MaterialButton>(R.id.btnGeminiBack).setOnClickListener { showStep(6) }
+        findViewById<MaterialButton>(R.id.btnGeminiSkip).setOnClickListener { showStep(8) }
+        findViewById<MaterialButton>(R.id.btnGeminiNext).setOnClickListener {
+            val key = setupGeminiKeyEdit.text.toString().trim()
+            if (key.isNotEmpty()) prefs.edit().putString(KEY_GEMINI_KEY, key).apply()
+            showStep(8)
+        }
+
         // ── Bring step ────────────────────────────────────────────────────
-        findViewById<MaterialButton>(R.id.btnBringBack).setOnClickListener { showStep(6) }
-        findViewById<MaterialButton>(R.id.btnBringSkip).setOnClickListener { showStep(8) }
+        findViewById<MaterialButton>(R.id.btnBringBack).setOnClickListener { showStep(7) }
+        findViewById<MaterialButton>(R.id.btnBringSkip).setOnClickListener { showStep(9) }
         findViewById<MaterialButton>(R.id.btnBringNext).setOnClickListener {
             val email = setupBringEmailEdit.text.toString().trim()
             val pass  = setupBringPasswordEdit.text.toString().trim()
             if (email.isNotEmpty()) prefs.edit().putString(KEY_BRING_EMAIL, email).apply()
             if (pass.isNotEmpty())  prefs.edit().putString(KEY_BRING_PASSWORD, pass).apply()
-            showStep(8)
+            showStep(9)
         }
 
         // ── Done ──────────────────────────────────────────────────────────
@@ -488,14 +513,24 @@ class SetupActivity : AppCompatActivity() {
     // ── Step navigation ───────────────────────────────────────────────────
 
     private fun showStep(step: Int) {
+        // Auto-skip pairing when we already have a token or the server does not require one
+        if (step == 4) {
+            val hasToken = !(prefs.getString(KEY_API_TOKEN, "") ?: "").isNullOrEmpty()
+            if (hasToken || !pairingRequired) {
+                val base = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+                if (base.isNotEmpty() && hasToken) loadServerSettingsOffer(base)
+                showStep(5)
+                return
+            }
+        }
         // Auto-skip Gemini step if already configured
-        if (step == 6 && !(prefs.getString(KEY_GEMINI_KEY, "") ?: "").isNullOrEmpty()) { showStep(7); return }
+        if (step == 7 && !(prefs.getString(KEY_GEMINI_KEY, "") ?: "").isNullOrEmpty()) { showStep(8); return }
         // Auto-skip Bring step if already configured
-        if (step == 7 && !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()) { showStep(8); return }
+        if (step == 8 && !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()) { showStep(9); return }
 
         currentStep = step
         val steps = listOf(
-            stepLanguage, stepWelcome, stepPermissions, stepServer, stepScale,
+            stepLanguage, stepWelcome, stepPermissions, stepServer, stepPairing, stepScale,
             stepScreensaver, stepGemini, stepBring, stepDone
         )
         steps.forEachIndexed { i, view ->
@@ -516,7 +551,7 @@ class SetupActivity : AppCompatActivity() {
         updateProgressDots()
 
         // Reset scale step when entering it
-        if (step == 4) {
+        if (step == 5) {
             isInTestMode = false
             testHasWeight = false
             scaleTestCard.visibility  = View.GONE
@@ -547,7 +582,18 @@ class SetupActivity : AppCompatActivity() {
         }
 
         // Build summary when entering done step
-        if (step == 8) buildSummary()
+        if (step == 9) buildSummary()
+
+        // Pairing step: enable Next only when already paired
+        if (step == 4) {
+            val hasToken = !(prefs.getString(KEY_API_TOKEN, "") ?: "").isNullOrEmpty()
+            btnPairingNext.isEnabled = hasToken || !pairingRequired
+            if (hasToken) {
+                pairingStatus.visibility = View.VISIBLE
+                pairingStatus.setTextColor(0xFF34d399.toInt())
+                pairingStatus.text = getString(R.string.setup_pairing_status_ok)
+            }
+        }
 
         // Cancel auto-discover when leaving server step
         if (step != 3) discoverCancelled.set(true)
@@ -563,11 +609,11 @@ class SetupActivity : AppCompatActivity() {
 
     private fun updateProgressDots() {
         progressDots.removeAllViews()
-        // Show 7 dots for steps 1-7; step 0 (language) and step 8 (done) have no dots
-        if (currentStep == 0 || currentStep == 8) return
-        val active  = currentStep  // 1..7
+        // Show dots for steps 1-8; step 0 (language) and step 9 (done) have no dots
+        if (currentStep == 0 || currentStep == 9) return
+        val active  = currentStep  // 1..8
         val density = resources.displayMetrics.density
-        for (i in 1..7) {
+        for (i in 1..8) {
             val dot = View(this)
             val sizeDp = if (i == active) 10 else 8
             val px = (sizeDp * density).toInt()
@@ -728,7 +774,7 @@ class SetupActivity : AppCompatActivity() {
         }.start()
     }
 
-    /** Persist URL and continue with pairing / existing-settings offer. */
+    /** Persist URL and open the dedicated pairing step (or skip when not needed). */
     private fun onServerUrlConfirmed(rawBase: String, needsPairingHint: Boolean = false) {
         val base = rawBase.trim().trimEnd('/')
         if (base.isEmpty()) return
@@ -739,8 +785,44 @@ class SetupActivity : AppCompatActivity() {
                 prefs.getString(KEY_API_TOKEN, "").isNullOrEmpty() && evershelfApiTokenRequiredGuess(base)
             )
             runOnUiThread {
-                if (needsPairing) promptPairingThenLoadSettings(base)
-                else loadServerSettingsOffer(base)
+                pairingRequired = needsPairing && (prefs.getString(KEY_API_TOKEN, "") ?: "").isEmpty()
+                // Dedicated step explains where to find the code — no AlertDialog.
+                showStep(4)
+            }
+        }.start()
+    }
+
+    private fun submitPairingCode() {
+        val base = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
+        val code = pairingCodeEdit.text.toString().trim()
+        if (base.isEmpty()) {
+            Toast.makeText(this, getString(R.string.setup_enter_url), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (code.isEmpty()) {
+            Toast.makeText(this, getString(R.string.setup_pairing_required_toast), Toast.LENGTH_SHORT).show()
+            return
+        }
+        pairingStatus.visibility = View.VISIBLE
+        pairingStatus.setTextColor(0xFF94a3b8.toInt())
+        pairingStatus.text = getString(R.string.setup_pairing_status_working)
+        findViewById<MaterialButton>(R.id.btnPairingSubmit).isEnabled = false
+        Thread {
+            val ok = consumePairingCode(base, code)
+            runOnUiThread {
+                findViewById<MaterialButton>(R.id.btnPairingSubmit).isEnabled = true
+                if (ok) {
+                    pairingRequired = false
+                    btnPairingNext.isEnabled = true
+                    pairingStatus.setTextColor(0xFF34d399.toInt())
+                    pairingStatus.text = getString(R.string.setup_pairing_status_ok)
+                    Toast.makeText(this, getString(R.string.setup_pairing_ok), Toast.LENGTH_SHORT).show()
+                    loadServerSettingsOffer(base)
+                } else {
+                    pairingStatus.setTextColor(0xFFf87171.toInt())
+                    pairingStatus.text = getString(R.string.setup_pairing_fail)
+                    btnPairingNext.isEnabled = false
+                }
             }
         }.start()
     }
@@ -754,43 +836,6 @@ class SetupActivity : AppCompatActivity() {
             body.contains("\"pairing_required\":true") ||
                 (body.contains("\"api_token_required\":true") && !body.contains("\"api_token\""))
         } catch (_: Exception) { false }
-    }
-
-    /** Ask for the pairing code (same as the web UI) so we can call authenticated APIs. */
-    private fun promptPairingThenLoadSettings(base: String) {
-        val input = EditText(this).apply {
-            hint = getString(R.string.setup_pairing_hint)
-            setSingleLine()
-            setPadding(48, 32, 48, 32)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.setup_pairing_title))
-            .setMessage(getString(R.string.setup_pairing_message))
-            .setView(input)
-            .setPositiveButton(getString(R.string.setup_pairing_btn)) { _, _ ->
-                val code = input.text.toString().trim()
-                if (code.isEmpty()) {
-                    loadServerSettingsOffer(base)
-                    return@setPositiveButton
-                }
-                Thread {
-                    val ok = consumePairingCode(base, code)
-                    runOnUiThread {
-                        if (ok) {
-                            Toast.makeText(this, getString(R.string.setup_pairing_ok), Toast.LENGTH_SHORT).show()
-                            loadServerSettingsOffer(base)
-                        } else {
-                            Toast.makeText(this, getString(R.string.setup_pairing_fail), Toast.LENGTH_LONG).show()
-                            promptPairingThenLoadSettings(base)
-                        }
-                    }
-                }.start()
-            }
-            .setNegativeButton(getString(R.string.setup_pairing_skip)) { _, _ ->
-                loadServerSettingsOffer(base)
-            }
-            .setCancelable(false)
-            .show()
     }
 
     private fun consumePairingCode(base: String, code: String): Boolean {
@@ -1430,6 +1475,13 @@ class SetupActivity : AppCompatActivity() {
             runOnUiThread {
                 if (!saved) {
                     Toast.makeText(this, getString(R.string.setup_save_failed), Toast.LENGTH_LONG).show()
+                    // Stay on Done so the user can fix pairing and tap Launch again
+                    // when the server rejected the save (typically missing API token).
+                    if (apiToken.isEmpty()) {
+                        pairingRequired = true
+                        showStep(4)
+                        return@runOnUiThread
+                    }
                 }
                 setResult(RESULT_OK)
                 finish()

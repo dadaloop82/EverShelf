@@ -425,6 +425,7 @@ class KioskActivity : AppCompatActivity() {
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                injectNativeApiToken()
                 injectKioskOverlay()
                 checkForUpdates(forceCheck = false)
             }
@@ -535,7 +536,7 @@ class KioskActivity : AppCompatActivity() {
                         .putBoolean("setup_complete", false)
                         .apply()
                     val intent = Intent(this@KioskActivity, SetupActivity::class.java)
-                    intent.putExtra("start_step", 4)
+                    intent.putExtra("start_step", 5) // scale step
                     startActivity(intent)
                 }
             }
@@ -578,6 +579,12 @@ class KioskActivity : AppCompatActivity() {
                     startActivity(Intent(this@KioskActivity, SettingsActivity::class.java))
                 }
             }
+            /**
+             * API token obtained during native setup pairing. The web app must
+             * read this before asking for a pairing code again in the overlay.
+             */
+            @JavascriptInterface
+            fun getApiToken(): String = prefs.getString("api_token", "") ?: ""
         }, "_kioskBridge")
 
         val url = prefs.getString(KEY_URL, "http://evershelf.local") ?: "http://evershelf.local"
@@ -592,6 +599,20 @@ class KioskActivity : AppCompatActivity() {
         // (clock + info) shown by the webapp after inactivity, not an Android screen timeout.
         // Never clear FLAG_KEEP_SCREEN_ON regardless of the screensaver preference.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    /** Push the native pairing token into localStorage before the SPA boots auth. */
+    private fun injectNativeApiToken() {
+        val token = prefs.getString("api_token", "") ?: return
+        if (token.isEmpty()) return
+        val quoted = JSONObject.quote(token)
+        webView.evaluateJavascript(
+            "(function(){try{localStorage.setItem('evershelf_api_token',$quoted);" +
+                "if(window._pairingRequired!==undefined)window._pairingRequired=false;" +
+                "var o=document.getElementById('api-pairing-overlay');if(o)o.remove();" +
+                "}catch(e){}})();",
+            null,
+        )
     }
 
     // ── Inject kiosk overlay (exit + refresh buttons) ────────────────────

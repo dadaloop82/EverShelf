@@ -151,7 +151,7 @@ Les conserver ou tout reconfigurer ?</string>
     <string name="setup_server_url_label">URL DU SERVEUR</string>
     <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
     <string name="setup_server_test">Tester la connexion</string>
-    <string name="setup_server_tip">💡 Après un test réussi, le code d\'association peut être demandé (Réglages → Système → Sécurité sur un appareil déjà associé) ainsi que le choix de conserver les réglages déjà présents sur le serveur.</string>
+    <string name="setup_server_tip">💡 Après un test réussi, l\'étape suivante demande le code d\'association (Réglages → Système → Sécurité).</string>
     <string name="setup_scale_explain">Le kiosk inclut une passerelle BLE intégrée — pas d\'app Scale Gateway séparée. La balance reste liée au redémarrage.</string>
     <string name="setup_scale_power_title">🔋 Allumez la balance</string>
     <string name="setup_scale_power_body">Réveillez la balance, gardez-la à proximité (~2 m), puis continuez. Nous scannerons et vous demanderons de confirmer une lecture de poids.</string>
@@ -181,4 +181,13 @@ Les conserver ou tout reconfigurer ?</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifications et le reste se configurent dans l’appli web EverShelf.</string>
     <string name="settings_url_empty">L’URL ne peut pas être vide</string>
     <string name="settings_url_enter_first">Saisissez d’abord une URL</string>
+    <string name="setup_pairing_step_title">Associer ce kiosk</string>
+    <string name="setup_pairing_step_body">Le serveur protège l\'API avec un jeton. Associez la tablette une fois ici pour enregistrer les réglages et ouvrir EverShelf sans redemander le code dans l\'appli web.</string>
+    <string name="setup_pairing_where_title">Où trouver le code</string>
+    <string name="setup_pairing_where_body">1. Sur un téléphone/PC déjà lié : Réglages → Système → Sécurité (ou Infos).&#10;2. Copiez le grand code (~30 min).&#10;3. Collez-le ci-dessous.&#10;&#10;Sans appareil associé, sur le serveur :&#10;grep -i "pairing code" logs/evershelf_*.log | tail -1</string>
+    <string name="setup_pairing_code_label">CODE D\'ASSOCIATION</string>
+    <string name="setup_pairing_once_note">Une seule association suffit : le jeton reste sur la tablette et est transmis à l\'appli web.</string>
+    <string name="setup_pairing_status_ok">✅ Associé — continuez</string>
+    <string name="setup_pairing_status_working">Association…</string>
+    <string name="setup_pairing_required_toast">Saisissez un code d\'association valide</string>
 </resources>

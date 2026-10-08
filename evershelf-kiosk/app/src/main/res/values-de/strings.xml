@@ -151,7 +151,7 @@ Behalten oder neu konfigurieren?</string>
     <string name="setup_server_url_label">SERVER-URL</string>
     <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
     <string name="setup_server_test">Verbindung testen</string>
-    <string name="setup_server_tip">💡 Tipp: Nach erfolgreichem Test kann der Pairing-Code abgefragt werden (Einstellungen → System → Sicherheit auf einem bereits gekoppelten Gerät) sowie ob bestehende Servereinstellungen behalten werden.</string>
+    <string name="setup_server_tip">💡 Nach erfolgreichem Test folgt der Kopplungscode (Einstellungen → System → Sicherheit).</string>
     <string name="setup_scale_explain">Der Kiosk enthält ein integriertes BLE-Gateway — keine separate Scale-Gateway-App. Die Waage bleibt über Neustarts hinweg verbunden.</string>
     <string name="setup_scale_power_title">🔋 Waage einschalten</string>
     <string name="setup_scale_power_body">Waage wecken, in der Nähe halten (ca. 2 m), dann weiter. Wir scannen und bitten dich, eine Gewichtsanzeige zu bestätigen.</string>
@@ -181,4 +181,13 @@ Behalten oder neu konfigurieren?</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, Benachrichtigungen und der Rest werden in der EverShelf-Webapp konfiguriert.</string>
     <string name="settings_url_empty">URL darf nicht leer sein</string>
     <string name="settings_url_enter_first">Zuerst eine URL eingeben</string>
+    <string name="setup_pairing_step_title">Dieses Kiosk koppeln</string>
+    <string name="setup_pairing_step_body">Der Server schützt die API mit einem Token. Koppeln Sie das Tablet hier einmal, damit Einstellungen gespeichert werden und EverShelf den Code in der Web-App nicht erneut fragt.</string>
+    <string name="setup_pairing_where_title">Wo finde ich den Code?</string>
+    <string name="setup_pairing_where_body">1. Auf einem bereits verbundenen Telefon/PC: Einstellungen → System → Sicherheit (oder Info).&#10;2. Den großen Kopplungscode kopieren (~30 Min. gültig).&#10;3. Hier einfügen.&#10;&#10;Ohne gekoppeltes Gerät auf dem Server:&#10;grep -i "pairing code" logs/evershelf_*.log | tail -1</string>
+    <string name="setup_pairing_code_label">KOPPLUNGSCODE</string>
+    <string name="setup_pairing_once_note">Einmal koppeln reicht: Das Token bleibt auf dem Tablet und wird an die Web-App übergeben.</string>
+    <string name="setup_pairing_status_ok">✅ Gekoppelt — weiter</string>
+    <string name="setup_pairing_status_working">Kopplung…</string>
+    <string name="setup_pairing_required_toast">Gültigen Kopplungscode eingeben</string>
 </resources>

@@ -192,7 +192,7 @@ Keep them, or reconfigure from scratch?</string>
     <string name="setup_cfg_zerowaste">Zero-waste tips</string>
     <string name="setup_cfg_scale">Smart scale</string>
     <string name="setup_saving">Saving settings to the server…</string>
-    <string name="setup_save_failed">Could not save settings to the server (check pairing / API token). Local setup is still complete.</string>
+    <string name="setup_save_failed">Could not save settings to the server (check pairing / API token). Local setup is still complete — open the app and pair once if asked.</string>
     <string name="ble_permission_missing">Bluetooth permission missing</string>
     <string name="ble_connect_failed">Could not connect: %1$s</string>
     <string name="ble_connect_retry_exhausted">Could not connect to the scale (error %1$d). Turn it on, keep it close, then retry.</string>
@@ -221,7 +221,7 @@ Keep them, or reconfigure from scratch?</string>
     <string name="setup_server_url_label">SERVER URL</string>
     <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
     <string name="setup_server_test">Test connection</string>
-    <string name="setup_server_tip">💡 Tip: after a successful test you may be asked for the pairing code (Settings → System → Security on a paired device) and whether to keep existing server settings.</string>
+    <string name="setup_server_tip">💡 Tip: after a successful test, the next step asks for the pairing code (Settings → System → Security on a paired device).</string>
     <string name="setup_scale_explain">The kiosk includes a built-in BLE gateway — no separate Scale Gateway app. The scale stays linked across restarts.</string>
     <string name="setup_scale_power_title">🔋 Turn the scale on</string>
     <string name="setup_scale_power_body">Wake the scale, place it nearby (within ~2 m), then continue. We will scan and ask you to confirm a weight reading.</string>
@@ -251,4 +251,13 @@ Keep them, or reconfigure from scratch?</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifications and the rest are configured inside the EverShelf web app.</string>
     <string name="settings_url_empty">URL cannot be empty</string>
     <string name="settings_url_enter_first">Enter a URL first</string>
+    <string name="setup_pairing_step_title">Pair this kiosk</string>
+    <string name="setup_pairing_step_body">The server protects the API with a token. Pair once here so the kiosk can save settings and open EverShelf without asking again inside the web app.</string>
+    <string name="setup_pairing_where_title">Where to find the code</string>
+    <string name="setup_pairing_where_body">1. On a phone or PC already linked to this EverShelf, open Settings → System → Security (or Info).&#10;2. Copy the large pairing code (valid ~30 minutes).&#10;3. Paste it below.&#10;&#10;If you have no paired device yet: on the server run&#10;grep -i "pairing code" logs/evershelf_*.log | tail -1&#10;(or docker logs evershelf | grep -i "pairing code").</string>
+    <string name="setup_pairing_code_label">PAIRING CODE</string>
+    <string name="setup_pairing_once_note">One pairing is enough: the token stays on this tablet and is handed to the web app automatically. You will not be asked again in the browser overlay.</string>
+    <string name="setup_pairing_status_ok">✅ Paired — you can continue</string>
+    <string name="setup_pairing_status_working">Pairing…</string>
+    <string name="setup_pairing_required_toast">Enter a valid pairing code to continue</string>
 </resources>

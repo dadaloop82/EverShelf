@@ -168,7 +168,7 @@ Vuoi mantenerle o riconfigurare da zero?</string>
     <string name="setup_cfg_zerowaste">Suggerimenti zero-waste</string>
     <string name="setup_cfg_scale">Bilancia smart</string>
     <string name="setup_saving">Salvataggio impostazioni sul server…</string>
-    <string name="setup_save_failed">Impossibile salvare sul server (verifica associazione / token API). La configurazione locale è comunque completa.</string>
+    <string name="setup_save_failed">Impossibile salvare sul server (verifica associazione / token API). La configurazione locale è completa — se l’app chiede ancora il codice, riprova l’associazione.</string>
     <string name="ble_permission_missing">Permesso Bluetooth mancante</string>
     <string name="ble_connect_failed">Connessione non riuscita: %1$s</string>
     <string name="ble_connect_retry_exhausted">Impossibile collegarsi alla bilancia (errore %1$d). Accendila, tienila vicina e riprova.</string>
@@ -197,7 +197,7 @@ Vuoi mantenerle o riconfigurare da zero?</string>
     <string name="setup_server_url_label">URL SERVER</string>
     <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
     <string name="setup_server_test">Verifica connessione</string>
-    <string name="setup_server_tip">💡 Dopo un test riuscito può chiederti il codice di associazione (Impostazioni → Sistema → Sicurezza su un dispositivo già collegato) e se mantenere le impostazioni già presenti sul server.</string>
+    <string name="setup_server_tip">💡 Dopo un test riuscito, il passo successivo chiede il codice di associazione (Impostazioni → Sistema → Sicurezza su un dispositivo già collegato).</string>
     <string name="setup_scale_explain">Il kiosk include un gateway BLE integrato — nessuna app Scale Gateway separata. La bilancia resta collegata ai riavvii.</string>
     <string name="setup_scale_power_title">🔋 Accendi la bilancia</string>
     <string name="setup_scale_power_body">Sveglia la bilancia, tienila vicina (circa 2 m), poi continua. Cercheremo i dispositivi e ti chiederemo di confermare una lettura di peso.</string>
@@ -227,4 +227,13 @@ Vuoi mantenerle o riconfigurare da zero?</string>
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifiche e il resto si configurano nell’app web EverShelf.</string>
     <string name="settings_url_empty">L’URL non può essere vuoto</string>
     <string name="settings_url_enter_first">Inserisci prima un URL</string>
+    <string name="setup_pairing_step_title">Associa questo kiosk</string>
+    <string name="setup_pairing_step_body">Il server protegge l’API con un token. Associa il tablet una sola volta qui così può salvare le impostazioni e aprire EverShelf senza richiedere di nuovo il codice nell’app web.</string>
+    <string name="setup_pairing_where_title">Dove trovare il codice</string>
+    <string name="setup_pairing_where_body">1. Su un telefono o PC già collegato a questo EverShelf apri Impostazioni → Sistema → Sicurezza (o Info).&#10;2. Copia il codice grande (valido circa 30 minuti).&#10;3. Incollalo qui sotto.&#10;&#10;Se non hai ancora un dispositivo associato: sul server esegui&#10;grep -i "pairing code" logs/evershelf_*.log | tail -1&#10;(oppure docker logs evershelf | grep -i "pairing code").</string>
+    <string name="setup_pairing_code_label">CODICE DI ASSOCIAZIONE</string>
+    <string name="setup_pairing_once_note">Basta associarlo una volta: il token resta su questo tablet e viene passato all’app web automaticamente. Non ti verrà più chiesto nell’overlay del browser.</string>
+    <string name="setup_pairing_status_ok">✅ Associato — puoi continuare</string>
+    <string name="setup_pairing_status_working">Associazione in corso…</string>
+    <string name="setup_pairing_required_toast">Inserisci un codice di associazione valido per continuare</string>
 </resources>

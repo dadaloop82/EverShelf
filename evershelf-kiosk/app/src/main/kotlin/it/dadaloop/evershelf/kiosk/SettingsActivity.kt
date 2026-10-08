@@ -94,7 +94,7 @@ class SettingsActivity : AppCompatActivity() {
                         .putBoolean(KEY_SETUP_COMPLETE, false)
                         .apply()
                     val intent = Intent(this, SetupActivity::class.java)
-                    intent.putExtra("start_step", 4)
+                    intent.putExtra("start_step", 5) // scale step
                     startActivity(intent)
                     finish()
                 }
