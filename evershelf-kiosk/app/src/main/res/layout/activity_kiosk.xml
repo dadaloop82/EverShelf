@@ -2,38 +2,47 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0f172a">
+    android:background="@color/bg_dark">
 
-    <!-- Splash screen (shown briefly on launch if setup is already done) -->
+    <!-- Splash (shown briefly on launch if setup is already done) -->
     <LinearLayout
         android:id="@+id/splashContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:visibility="visible">
+        android:background="@drawable/hero_glow"
+        android:visibility="visible"
+        android:padding="32dp">
 
         <ImageView
-            android:layout_width="260dp"
+            android:layout_width="220dp"
             android:layout_height="wrap_content"
             android:src="@drawable/ic_logo"
             android:adjustViewBounds="true"
             android:scaleType="fitCenter"
-            android:layout_marginBottom="16dp"
-            android:contentDescription="EverShelf" />
+            android:layout_marginBottom="12dp"
+            android:contentDescription="@string/app_name" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="La tua dispensa smart"
-            android:textColor="#64748b"
-            android:textSize="16sp"
-            android:layout_marginBottom="48dp" />
+            android:text="@string/app_name"
+            android:textAppearance="@style/Text.EverShelf.Title"
+            android:textSize="28sp"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/splash_tagline"
+            android:textAppearance="@style/Text.EverShelf.Subtitle"
+            android:layout_marginBottom="40dp" />
 
         <ProgressBar
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:indeterminateTint="#7c3aed" />
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:indeterminateTint="@color/accent" />
     </LinearLayout>
 
     <!-- WebView (shown after setup) -->
@@ -43,8 +52,7 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- Settings gear (shown after setup, over WebView) — bottom-right corner so it never
-         overlaps the webapp header buttons (e.g. the 📷 scan button at top-right) -->
+    <!-- Settings gear — bottom-right, clear of webapp header controls -->
     <ImageButton
         android:id="@+id/btnSettings"
         android:layout_width="44dp"
@@ -55,21 +63,20 @@
         android:background="@android:color/transparent"
         android:src="@android:drawable/ic_menu_manage"
         android:alpha="0.28"
-        android:contentDescription="Settings"
+        android:contentDescription="@string/settings_title"
         android:scaleType="centerInside"
         android:visibility="gone" />
 
-    <!-- Update banner (shown at the TOP when a new version is available) -->
+    <!-- Update banner -->
     <LinearLayout
         android:id="@+id/updateBanner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
         android:orientation="vertical"
-        android:background="#1e293b"
+        android:background="@color/bg_card_elevated"
         android:visibility="gone">
 
-        <!-- Banner row: message + buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -85,7 +92,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="#fbbf24"
+                android:textColor="@color/warning"
                 android:textSize="13sp"
                 android:text="" />
 
@@ -94,10 +101,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="⬇ Scarica"
+                android:text="@string/btn_download"
                 android:textSize="12sp"
-                android:textColor="#1e293b"
-                android:backgroundTint="#fbbf24"
+                android:textColor="@color/bg_dark"
+                android:backgroundTint="@color/warning"
                 style="@style/Widget.MaterialComponents.Button" />
 
             <com.google.android.material.button.MaterialButton
@@ -107,27 +114,24 @@
                 android:layout_marginStart="4dp"
                 android:text="✕"
                 android:textSize="14sp"
-                android:textColor="#94a3b8"
+                android:textColor="@color/text_secondary"
                 android:backgroundTint="@android:color/transparent"
                 style="@style/Widget.MaterialComponents.Button.TextButton" />
         </LinearLayout>
 
-        <!-- Thin progress bar at the bottom of the banner -->
         <ProgressBar
             android:id="@+id/bannerProgressBar"
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="4dp"
-            android:progressTint="#7c3aed"
-            android:progressBackgroundTint="#334155"
+            android:progressTint="@color/accent"
+            android:progressBackgroundTint="@color/border"
             android:max="100"
             android:progress="0"
             android:indeterminate="false"
             android:visibility="gone" />
-
     </LinearLayout>
 
-    <!-- Download progress (used by download progress poll) -->
     <ProgressBar
         android:id="@+id/downloadProgressBar"
         style="@android:style/Widget.ProgressBar.Horizontal"
@@ -135,8 +139,8 @@
         android:layout_height="4dp"
         android:layout_gravity="top"
         android:layout_marginTop="56dp"
-        android:progressTint="#7c3aed"
-        android:progressBackgroundTint="#334155"
+        android:progressTint="@color/accent"
+        android:progressBackgroundTint="@color/border"
         android:max="100"
         android:progress="0"
         android:indeterminate="false"
@@ -149,7 +153,7 @@
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="64dp"
         android:text=""
-        android:textColor="#94a3b8"
+        android:textColor="@color/text_secondary"
         android:textSize="12sp"
         android:visibility="gone" />
 

@@ -45,7 +45,7 @@ TTS_ENABLED=false
 
 # When set, EVERY API action requires this token: header `X-API-Token`, or
 # `?api_token=` for Home Assistant. The web UI gets it once per browser through
-# the one-time pairing code printed in the server log (see below).
+# the pairing code (Settings → Security on a paired device, or server log — see below).
 # Compared with hash_equals() to prevent timing attacks.
 API_TOKEN=
 
@@ -290,8 +290,9 @@ From then on every API action requires it — the web UI sends `X-API-Token`, Ho
 ### First run: the pairing code
 
 The token is **never** handed to an anonymous request, so the browser cannot simply
-ask for it: the first time the UI loads it shows a **pairing dialog** and you type a
-one-time code printed in the server log.
+ask for it: the first time the UI loads it shows a **pairing dialog**. On a device that
+is already paired, the live code is under **Settings → System → Security** (and Info),
+with copy / refresh. It is also printed in the server log:
 
 ```bash
 grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
@@ -307,13 +308,13 @@ docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
 If the `grep` returns nothing at all, the web server cannot write the log file: a log
 created by a root `cron` run is owned by root and silently rejects Apache's writes, so
 the code never reaches the file you grep. Fix it with
-`bash scripts/fix-permissions.sh` (or `chown -R www-data:www-data logs/`).
+`bash scripts/fix-permissions.sh` (or `chown -R www-data:www-data logs/`). Prefer the
+in-app Security panel when you already have one paired device.
 
-The code is 8 hex characters, valid for 30 minutes, and is **consumed** by the first
-successful pairing (50 wrong attempts from one IP burn it immediately). You pair once
-per browser/device — afterwards the token lives in `localStorage` and you are not asked
-again. Unpair by clearing site data, or pair another device by waiting for the next
-code.
+The code is 8 hex characters, valid for 30 minutes (50 wrong attempts from one IP burn
+it immediately). You pair once per browser/device — afterwards the token lives in
+`localStorage` and you are not asked again. Unpair by clearing site data, or open
+Security on a paired device to show a fresh code for the next tablet.
 
 If the dialog does not show up, hard-refresh (`Ctrl+Shift+R`): an older service worker
 may still be serving a stale `app.js`.

@@ -47,6 +47,7 @@ import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import org.json.JSONObject
 
 /**
  * Full setup wizard — runs BEFORE KioskActivity locks the screen.
@@ -146,6 +147,8 @@ class SetupActivity : AppCompatActivity() {
         private const val KEY_GEMINI_KEY      = "gemini_api_key"
         private const val KEY_BRING_EMAIL     = "bring_email"
         private const val KEY_BRING_PASSWORD  = "bring_password"
+        /** API token obtained via pairing — required for save_settings when the server has API_TOKEN. */
+        private const val KEY_API_TOKEN       = "api_token"
         private const val PERMISSION_REQUEST_CODE = 2004
         private const val BLE_PERMISSION_REQUEST  = 2006
 
@@ -491,15 +494,24 @@ class SetupActivity : AppCompatActivity() {
         if (step == 7 && !(prefs.getString(KEY_BRING_EMAIL, "") ?: "").isNullOrEmpty()) { showStep(8); return }
 
         currentStep = step
-        stepLanguage.visibility    = if (step == 0) View.VISIBLE else View.GONE
-        stepWelcome.visibility     = if (step == 1) View.VISIBLE else View.GONE
-        stepPermissions.visibility = if (step == 2) View.VISIBLE else View.GONE
-        stepServer.visibility      = if (step == 3) View.VISIBLE else View.GONE
-        stepScale.visibility       = if (step == 4) View.VISIBLE else View.GONE
-        stepScreensaver.visibility = if (step == 5) View.VISIBLE else View.GONE
-        stepGemini.visibility      = if (step == 6) View.VISIBLE else View.GONE
-        stepBring.visibility       = if (step == 7) View.VISIBLE else View.GONE
-        stepDone.visibility        = if (step == 8) View.VISIBLE else View.GONE
+        val steps = listOf(
+            stepLanguage, stepWelcome, stepPermissions, stepServer, stepScale,
+            stepScreensaver, stepGemini, stepBring, stepDone
+        )
+        steps.forEachIndexed { i, view ->
+            val show = i == step
+            if (show) {
+                view.visibility = View.VISIBLE
+                view.alpha = 0f
+                view.translationY = 18f
+                view.animate().alpha(1f).translationY(0f).setDuration(280).start()
+            } else {
+                view.animate().cancel()
+                view.visibility = View.GONE
+                view.alpha = 1f
+                view.translationY = 0f
+            }
+        }
 
         updateProgressDots()
 
@@ -557,20 +569,20 @@ class SetupActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         for (i in 1..7) {
             val dot = View(this)
-            val sizeDp = if (i == active) 10 else 7
+            val sizeDp = if (i == active) 10 else 8
             val px = (sizeDp * density).toInt()
             val lp = LinearLayout.LayoutParams(px, px)
             lp.marginStart = (5 * density).toInt()
             lp.marginEnd   = (5 * density).toInt()
             dot.layoutParams = lp
-            val bg = android.graphics.drawable.GradientDrawable()
-            bg.shape = android.graphics.drawable.GradientDrawable.OVAL
-            bg.setColor(when {
-                i < active  -> 0xFF34d399.toInt()  // completed
-                i == active -> 0xFF7c3aed.toInt()  // current
-                else        -> 0xFF334155.toInt()  // future
-            })
-            dot.background = bg
+            dot.background = ContextCompat.getDrawable(
+                this,
+                when {
+                    i < active  -> R.drawable.progress_dot_done
+                    i == active -> R.drawable.progress_dot_active
+                    else        -> R.drawable.progress_dot
+                },
+            )
             progressDots.addView(dot)
         }
     }
@@ -644,6 +656,8 @@ class SetupActivity : AppCompatActivity() {
     }
 
     // ── Connection Test ───────────────────────────────────────────────────
+    // Discovery probes public `ping`. get_settings needs the API token, so the
+    // old test looked "broken" on the exact same URL that discovery had just found.
 
     private fun testConnection() {
         val url = urlEdit.text.toString().trim()
@@ -652,25 +666,44 @@ class SetupActivity : AppCompatActivity() {
 
         Thread {
             val base = url.trimEnd('/')
-            // Try both API path variants
+            // Prefer the same public endpoints discovery uses.
             val candidates = listOf(
-                "$base/api/index.php?action=get_settings",
-                "$base/api/?action=get_settings"
+                "$base/api/index.php?action=ping",
+                "$base/api/?action=ping",
+                "$base/api/index.php?action=app_bootstrap",
+                "$base/api/index.php?action=kiosk_update",
             )
             var found = false
+            var needsPairing = false
             for (apiUrl in candidates) {
                 val conn = openConn(apiUrl) ?: continue
                 try {
                     val code = conn.responseCode
-                    if (code !in 200..399) { conn.disconnect(); continue }
-                    val body = conn.inputStream.bufferedReader().readText()
+                    val stream = if (code in 200..399) conn.inputStream else conn.errorStream
+                    val body = stream?.bufferedReader()?.readText().orEmpty()
                     conn.disconnect()
-                    if (body.contains("gemini_key_set") || body.contains("\"success\"")) {
-                        found = true; break
+                    if (code in 200..399 && (
+                            body.contains("\"ok\"")
+                                || body.contains("\"success\"")
+                                || body.contains("api_token_required")
+                                || body.contains("pairing_required")
+                                || body.contains("version_code")
+                                || body.contains("gemini_key_set")
+                            )) {
+                        found = true
+                        needsPairing = body.contains("\"pairing_required\":true")
+                            || (body.contains("api_token_required") && body.contains("true")
+                                && (prefs.getString(KEY_API_TOKEN, "").isNullOrEmpty()))
+                        break
+                    }
+                    // 401 on get_settings still means the API is there.
+                    if (code == 401 && body.contains("api_token_required")) {
+                        found = true
+                        needsPairing = prefs.getString(KEY_API_TOKEN, "").isNullOrEmpty()
+                        break
                     }
                 } catch (_: Exception) { try { conn.disconnect() } catch (_: Exception) {} }
             }
-            // If API not found, try plain base URL to distinguish unreachable vs wrong path
             if (!found) {
                 var baseReachable = false
                 try {
@@ -686,10 +719,176 @@ class SetupActivity : AppCompatActivity() {
                         showUrlStatus("✗ ${getString(R.string.setup_unreachable)}", false)
                     }
                 }
-            } else {
-                runOnUiThread { showUrlStatus("✅ ${getString(R.string.setup_server_found)}", true) }
+                return@Thread
+            }
+            runOnUiThread {
+                showUrlStatus("✅ ${getString(R.string.setup_server_found)}", true)
+                onServerUrlConfirmed(base, needsPairing)
             }
         }.start()
+    }
+
+    /** Persist URL and continue with pairing / existing-settings offer. */
+    private fun onServerUrlConfirmed(rawBase: String, needsPairingHint: Boolean = false) {
+        val base = rawBase.trim().trimEnd('/')
+        if (base.isEmpty()) return
+        prefs.edit().putString(KEY_URL, base).apply()
+        ErrorReporter.init(this, base)
+        Thread {
+            val needsPairing = needsPairingHint || (
+                prefs.getString(KEY_API_TOKEN, "").isNullOrEmpty() && evershelfApiTokenRequiredGuess(base)
+            )
+            runOnUiThread {
+                if (needsPairing) promptPairingThenLoadSettings(base)
+                else loadServerSettingsOffer(base)
+            }
+        }.start()
+    }
+
+    /** Best-effort: if we already know the token is required, prefer pairing. */
+    private fun evershelfApiTokenRequiredGuess(base: String): Boolean {
+        return try {
+            val conn = openConn("$base/api/index.php?action=app_bootstrap") ?: return false
+            val body = conn.inputStream.bufferedReader().readText()
+            conn.disconnect()
+            body.contains("\"pairing_required\":true") ||
+                (body.contains("\"api_token_required\":true") && !body.contains("\"api_token\""))
+        } catch (_: Exception) { false }
+    }
+
+    /** Ask for the pairing code (same as the web UI) so we can call authenticated APIs. */
+    private fun promptPairingThenLoadSettings(base: String) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.setup_pairing_hint)
+            setSingleLine()
+            setPadding(48, 32, 48, 32)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.setup_pairing_title))
+            .setMessage(getString(R.string.setup_pairing_message))
+            .setView(input)
+            .setPositiveButton(getString(R.string.setup_pairing_btn)) { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isEmpty()) {
+                    loadServerSettingsOffer(base)
+                    return@setPositiveButton
+                }
+                Thread {
+                    val ok = consumePairingCode(base, code)
+                    runOnUiThread {
+                        if (ok) {
+                            Toast.makeText(this, getString(R.string.setup_pairing_ok), Toast.LENGTH_SHORT).show()
+                            loadServerSettingsOffer(base)
+                        } else {
+                            Toast.makeText(this, getString(R.string.setup_pairing_fail), Toast.LENGTH_LONG).show()
+                            promptPairingThenLoadSettings(base)
+                        }
+                    }
+                }.start()
+            }
+            .setNegativeButton(getString(R.string.setup_pairing_skip)) { _, _ ->
+                loadServerSettingsOffer(base)
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun consumePairingCode(base: String, code: String): Boolean {
+        return try {
+            val url = "$base/api/index.php?action=app_bootstrap&pairing_code=${java.net.URLEncoder.encode(code, "UTF-8")}"
+            val conn = openConn(url) ?: return false
+            val body = conn.inputStream.bufferedReader().readText()
+            conn.disconnect()
+            val token = Regex("\"api_token\"\\s*:\\s*\"([^\"]+)\"").find(body)?.groupValues?.get(1)
+            if (!token.isNullOrEmpty()) {
+                prefs.edit().putString(KEY_API_TOKEN, token).apply()
+                true
+            } else false
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * After the server is reachable: if it already has settings, ask keep vs reset.
+     * All feature choices still write through save_settings at the end.
+     */
+    private fun loadServerSettingsOffer(base: String) {
+        Thread {
+            val token = prefs.getString(KEY_API_TOKEN, "") ?: ""
+            val settings = fetchServerSettings(base, token)
+            if (settings == null) {
+                runOnUiThread { /* no remote snapshot — continue with local wizard defaults */ }
+                return@Thread
+            }
+            val configured = mutableListOf<String>()
+            if (settings.optBoolean("gemini_key_set")) configured += getString(R.string.setup_cfg_gemini)
+            if (settings.optBoolean("bring_password_set") || !settings.optString("bring_email").isNullOrEmpty())
+                configured += getString(R.string.setup_cfg_bring)
+            if (settings.optBoolean("screensaver_enabled")) configured += getString(R.string.setup_cfg_screensaver)
+            if (settings.optBoolean("price_enabled")) configured += getString(R.string.setup_cfg_prices)
+            if (settings.optBoolean("meal_plan_enabled")) configured += getString(R.string.setup_cfg_mealplan)
+            if (settings.optBoolean("zerowaste_tips_enabled")) configured += getString(R.string.setup_cfg_zerowaste)
+            if (settings.optBoolean("scale_enabled")) configured += getString(R.string.setup_cfg_scale)
+            if (configured.isEmpty()) return@Thread
+
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.setup_existing_title))
+                    .setMessage(getString(R.string.setup_existing_message, configured.joinToString("\n• ", prefix = "• ")))
+                    .setPositiveButton(getString(R.string.setup_existing_keep)) { _, _ ->
+                        applyServerSettingsLocally(settings)
+                        Toast.makeText(this, getString(R.string.setup_existing_kept), Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton(getString(R.string.setup_existing_reset)) { _, _ ->
+                        // Clear local feature prefs so the wizard asks again; server
+                        // values stay until finishSetup overwrites what the user chose.
+                        prefs.edit()
+                            .remove(KEY_SCREENSAVER).remove(KEY_PRICE_ENABLED)
+                            .remove(KEY_MEAL_PLAN).remove(KEY_ZEROWASTE_TIPS)
+                            .remove(KEY_GEMINI_KEY).remove(KEY_BRING_EMAIL).remove(KEY_BRING_PASSWORD)
+                            .apply()
+                        setupSwitchScreensaver.isChecked = false
+                        setupSwitchPrices.isChecked = false
+                        setupSwitchMealPlan.isChecked = false
+                        setupSwitchZeroWaste.isChecked = false
+                        setupGeminiKeyEdit.setText("")
+                        setupBringEmailEdit.setText("")
+                        setupBringPasswordEdit.setText("")
+                        Toast.makeText(this, getString(R.string.setup_existing_reset_done), Toast.LENGTH_SHORT).show()
+                    }
+                    .show()
+            }
+        }.start()
+    }
+
+    private fun fetchServerSettings(base: String, token: String): JSONObject? {
+        return try {
+            val conn = openConn("$base/api/index.php?action=get_settings") ?: return null
+            if (token.isNotEmpty()) conn.setRequestProperty("X-API-Token", token)
+            val code = conn.responseCode
+            val stream = if (code in 200..399) conn.inputStream else conn.errorStream
+            val body = stream?.bufferedReader()?.readText().orEmpty()
+            conn.disconnect()
+            if (code !in 200..399) return null
+            JSONObject(body)
+        } catch (_: Exception) { null }
+    }
+
+    private fun applyServerSettingsLocally(s: JSONObject) {
+        prefs.edit()
+            .putBoolean(KEY_SCREENSAVER, s.optBoolean("screensaver_enabled", false))
+            .putBoolean(KEY_PRICE_ENABLED, s.optBoolean("price_enabled", false))
+            .putBoolean(KEY_MEAL_PLAN, s.optBoolean("meal_plan_enabled", false))
+            .putBoolean(KEY_ZEROWASTE_TIPS, s.optBoolean("zerowaste_tips_enabled", false))
+            .apply()
+        setupSwitchScreensaver.isChecked = prefs.getBoolean(KEY_SCREENSAVER, false)
+        setupSwitchPrices.isChecked = prefs.getBoolean(KEY_PRICE_ENABLED, false)
+        setupSwitchMealPlan.isChecked = prefs.getBoolean(KEY_MEAL_PLAN, false)
+        setupSwitchZeroWaste.isChecked = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
+        val email = s.optString("bring_email", "")
+        if (email.isNotEmpty()) {
+            prefs.edit().putString(KEY_BRING_EMAIL, email).apply()
+            setupBringEmailEdit.setText(email)
+        }
     }
 
     private fun showUrlStatus(text: String, success: Boolean?) {
@@ -864,6 +1063,7 @@ class SetupActivity : AppCompatActivity() {
                             showUrlStatus("✅ ${getString(R.string.setup_server_found)}", true)
                             btnDiscover.isEnabled = true
                             btnDiscover.text = getString(R.string.setup_discover_btn)
+                            onServerUrlConfirmed(hit)
                         }
                         return@Thread
                     }
@@ -954,6 +1154,7 @@ class SetupActivity : AppCompatActivity() {
                         discoverStatus.text = "✅ ${getString(R.string.setup_server_found)}: $finalResult"
                         discoverStatus.setTextColor(0xFF34d399.toInt())
                         showUrlStatus("✅ ${getString(R.string.setup_server_found)}", true)
+                        onServerUrlConfirmed(finalResult)
                     }
                     !discoverCancelled.get() -> {
                         discoverStatus.text = getString(R.string.setup_discover_not_found)
@@ -1113,7 +1314,7 @@ class SetupActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val v = LayoutInflater.from(parent.context)
                 .inflate(android.R.layout.simple_list_item_2, parent, false)
-            v.setBackgroundColor(0x1A7c3aed)
+            v.setBackgroundColor(0x1A10B981)
             val density = parent.context.resources.displayMetrics.density
             val lp = v.layoutParams as? RecyclerView.LayoutParams
             lp?.bottomMargin = (6 * density).toInt()
@@ -1174,49 +1375,66 @@ class SetupActivity : AppCompatActivity() {
     private fun finishSetup() {
         prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
         val baseUrl = (prefs.getString(KEY_URL, "") ?: "").trimEnd('/')
-        if (baseUrl.isNotEmpty()) {
-            val hasScale      = prefs.getBoolean(KEY_HAS_SCALE, false) && (bleManager?.getSavedDeviceAddress() != null)
-            val screensaver   = prefs.getBoolean(KEY_SCREENSAVER,   false)
-            val priceEnabled  = prefs.getBoolean(KEY_PRICE_ENABLED,  false)
-            val mealPlan      = prefs.getBoolean(KEY_MEAL_PLAN,      false)
-            val zeroWaste     = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
-            Thread {
-                try {
-                    val url  = "$baseUrl/api/index.php?action=save_settings"
-                    val geminiKey    = prefs.getString(KEY_GEMINI_KEY,     "") ?: ""
-                    val bringEmail    = prefs.getString(KEY_BRING_EMAIL,    "") ?: ""
-                    val bringPassword = prefs.getString(KEY_BRING_PASSWORD, "") ?: ""
-                    val body = buildString {
-                        append("{\"screensaver_enabled\":$screensaver")
-                        append(",\"price_enabled\":$priceEnabled")
-                        append(",\"meal_plan_enabled\":$mealPlan")
-                        append(",\"zerowaste_tips_enabled\":$zeroWaste")
-                        if (hasScale) {
-                            val lanIp = getDeviceLanIp() ?: "127.0.0.1"
-                            append(",\"scale_enabled\":true,\"scale_gateway_url\":\"ws://$lanIp:8765\"")
-                        }
-                        if (geminiKey.isNotEmpty())    append(",\"gemini_api_key\":\"${geminiKey.replace("\"", "\\\"")}\"")
-                        if (bringEmail.isNotEmpty())   append(",\"bring_email\":\"${bringEmail.replace("\"", "\\\"")}\"")
-                        if (bringPassword.isNotEmpty()) append(",\"bring_password\":\"${bringPassword.replace("\"", "\\\"")}\"")
-                        append("}")
-                    }
-                    val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        setRequestProperty("Content-Type", "application/json")
-                        // The API's CSRF guard requires this header on every POST.
-                        setRequestProperty("X-EverShelf-Request", "1")
-                        connectTimeout = 5000
-                        readTimeout    = 5000
-                        doOutput = true
-                    }
-                    conn.outputStream.use { it.write(body.toByteArray()) }
-                    conn.inputStream.close()
-                    conn.disconnect()
-                } catch (_: Exception) {}
-            }.start()
+        if (baseUrl.isEmpty()) {
+            setResult(RESULT_OK)
+            finish()
+            return
         }
-        setResult(RESULT_OK)
-        finish()
+        val hasScale      = prefs.getBoolean(KEY_HAS_SCALE, false) && (bleManager?.getSavedDeviceAddress() != null)
+        val screensaver   = prefs.getBoolean(KEY_SCREENSAVER,   false)
+        val priceEnabled  = prefs.getBoolean(KEY_PRICE_ENABLED,  false)
+        val mealPlan      = prefs.getBoolean(KEY_MEAL_PLAN,      false)
+        val zeroWaste     = prefs.getBoolean(KEY_ZEROWASTE_TIPS, false)
+        val apiToken      = prefs.getString(KEY_API_TOKEN, "") ?: ""
+        Toast.makeText(this, getString(R.string.setup_saving), Toast.LENGTH_SHORT).show()
+        Thread {
+            var ok = false
+            try {
+                val url  = "$baseUrl/api/index.php?action=save_settings"
+                val geminiKey     = prefs.getString(KEY_GEMINI_KEY,     "") ?: ""
+                val bringEmail    = prefs.getString(KEY_BRING_EMAIL,    "") ?: ""
+                val bringPassword = prefs.getString(KEY_BRING_PASSWORD, "") ?: ""
+                val payload = JSONObject().apply {
+                    put("screensaver_enabled", screensaver)
+                    put("price_enabled", priceEnabled)
+                    put("meal_plan_enabled", mealPlan)
+                    put("zerowaste_tips_enabled", zeroWaste)
+                    if (hasScale) {
+                        val lanIp = getDeviceLanIp() ?: "127.0.0.1"
+                        put("scale_enabled", true)
+                        put("scale_gateway_url", "ws://$lanIp:8765")
+                    }
+                    // Server map key is gemini_key (not gemini_api_key).
+                    if (geminiKey.isNotEmpty()) put("gemini_key", geminiKey)
+                    if (bringEmail.isNotEmpty()) put("bring_email", bringEmail)
+                    if (bringPassword.isNotEmpty()) put("bring_password", bringPassword)
+                }
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("X-EverShelf-Request", "1")
+                    if (apiToken.isNotEmpty()) setRequestProperty("X-API-Token", apiToken)
+                    connectTimeout = 8000
+                    readTimeout    = 8000
+                    doOutput = true
+                }
+                conn.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                ok = code in 200..299
+                try { (if (code in 200..299) conn.inputStream else conn.errorStream)?.close() } catch (_: Exception) {}
+                conn.disconnect()
+            } catch (_: Exception) {
+                ok = false
+            }
+            val saved = ok
+            runOnUiThread {
+                if (!saved) {
+                    Toast.makeText(this, getString(R.string.setup_save_failed), Toast.LENGTH_LONG).show()
+                }
+                setResult(RESULT_OK)
+                finish()
+            }
+        }.start()
     }
 
     /**

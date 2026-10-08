@@ -4,8 +4,10 @@
  *
  * `app_bootstrap` used to hand `API_TOKEN` to any client that sent
  * `Sec-Fetch-Site: same-origin` — a header any HTTP client can forge. The token is
- * now disclosed only after presenting the one-time code printed in the server log,
- * so it is never returned to an anonymous request.
+ * now disclosed only after presenting the one-time code printed in the server log
+ * *and* shown on Settings → System → Security of an already-paired device
+ * (`pairing_code` action, authenticated), so it is never returned to an anonymous
+ * request.
  *
  * Set `API_BOOTSTRAP_OPEN=true` to restore the old behaviour on a fully trusted LAN
  * (see SECURITY.md) — this re-exposes the token to anyone who can reach the port.
@@ -74,15 +76,63 @@ function evershelfPairingEnsure(): array
     // The message contains the literal words "pairing code" so the obvious
     //   grep -i "pairing code" logs/evershelf_*.log
     // finds it; `event` keeps the stable machine-readable key for log tooling.
+    // Also remind operators the same code is on a paired device under Settings.
     EverLog::warn('API pairing code', [
         'event'       => 'api_pairing_code',
         'code'        => $code,
         'ttl_seconds' => EVERSHELF_PAIRING_TTL,
+        'hint'        => 'Settings → System → Security on a paired device',
     ]);
     // Also to stderr so container users see it with `docker logs evershelf`.
-    error_log("[EverShelf] API pairing code: {$code} (valid {$minutes} min)");
+    error_log("[EverShelf] API pairing code: {$code} (valid {$minutes} min; also Settings → System → Security on a paired device)");
 
     return ['code' => $code, 'expires_in' => EVERSHELF_PAIRING_TTL];
+}
+
+/**
+ * Authenticated status for Settings → Security: current (or freshly minted) code.
+ * Never call this from an anonymous request — the router requires the API token.
+ *
+ * GET  ?action=pairing_code
+ * POST ?action=pairing_code  body { "refresh": true } — burn and mint a new code
+ *
+ * @return void (JSON to stdout)
+ */
+function pairingCodeStatus(): void
+{
+    if (!evershelfApiTokenRequired()) {
+        echo json_encode([
+            'success'         => true,
+            'pairing_needed'  => false,
+            'reason'          => 'open',
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $input = [];
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        $raw = file_get_contents('php://input');
+        $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        if (is_array($decoded)) {
+            $input = $decoded;
+        }
+    }
+    $refresh = !empty($_GET['refresh']) || !empty($input['refresh']);
+    if ($refresh) {
+        evershelfPairingWrite([]);
+        EverLog::info('API pairing code refreshed from Settings', [
+            'event' => 'api_pairing_code_refresh',
+        ]);
+    }
+
+    $pair = evershelfPairingEnsure();
+    echo json_encode([
+        'success'        => true,
+        'pairing_needed' => true,
+        'code'           => $pair['code'],
+        'expires_in'     => $pair['expires_in'],
+        'ttl_seconds'    => EVERSHELF_PAIRING_TTL,
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 /** Check a presented code; the first success consumes it. */

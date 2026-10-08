@@ -5,7 +5,7 @@
     <!-- ── Setup wizard ─────────────────────────────────────────────────── -->
     <string name="setup_enter_url">Please enter a URL first</string>
     <string name="setup_testing">Testing connection…</string>
-    <string name="setup_server_found">EverShelf server found and API active!</string>
+    <string name="setup_server_found">EverShelf server reachable (ping OK)</string>
     <string name="setup_api_not_found">Server reachable but EverShelf API not found. Check the path.</string>
     <string name="setup_unreachable">Cannot reach server</string>
     <string name="setup_discover_btn">🔍  Search local network</string>
@@ -79,13 +79,13 @@
     <!-- ── Step 5 — Features ─────────────────────────────────────────────── -->
     <string name="setup_features_title">Features</string>
     <string name="setup_features_desc">Enable the features you want to use. You can always change them later in the server settings.</string>
-    <string name="setup_screensaver_toggle_label">Clock screensaver</string>
+    <string name="setup_screensaver_toggle_label">🕐 Clock screensaver</string>
     <string name="setup_screensaver_toggle_hint">Shows a clock overlay after 5 min of inactivity.</string>
-    <string name="setup_prices_toggle_label">Shopping list prices</string>
+    <string name="setup_prices_toggle_label">💶 Shopping list prices</string>
     <string name="setup_prices_toggle_hint">AI-powered automatic cost estimate for each item in the list.</string>
-    <string name="setup_mealplan_toggle_label">Meal plan</string>
+    <string name="setup_mealplan_toggle_label">📅 Meal plan</string>
     <string name="setup_mealplan_toggle_hint">Plan the week\'s meals with recipes based on your pantry.</string>
-    <string name="setup_zerowaste_toggle_label">Zero-waste tips</string>
+    <string name="setup_zerowaste_toggle_label">♻️ Zero-waste tips</string>
     <string name="setup_zerowaste_toggle_hint">Show tips for reusing scraps (peels, cooking water, etc.) while cooking.</string>
 
     <!-- ── Step 6 — Gemini AI key ─────────────────────────────────────────── -->
@@ -101,9 +101,9 @@
     <string name="setup_bring_pass_hint">Bring! password</string>
 
     <!-- ── Step 8 — Done ─────────────────────────────────────────────────── -->
-    <string name="setup_done_title">All set!</string>
+    <string name="setup_done_title">You are ready</string>
     <string name="setup_done_desc">Setup is complete. Press the button below to launch EverShelf in kiosk mode.</string>
-    <string name="setup_done_summary_label">CONFIGURATION SUMMARY</string>
+    <string name="setup_done_summary_label">SUMMARY</string>
 
     <!-- ── Summary lines ─────────────────────────────────────────────────── -->
     <string name="summary_lang">Language</string>
@@ -167,4 +167,88 @@
     <string name="btn_download">⬇ Download</string>
     <string name="install_apk_not_found">APK file not found on device.</string>
     <string name="install_apk_invalid">Downloaded file is not a valid APK.</string>
+    <string name="setup_pairing_title">🔗 Pair this kiosk</string>
+    <string name="setup_pairing_message">Enter the pairing code from Settings → System → Security on a device already linked to this server (or from the server log).</string>
+    <string name="setup_pairing_hint">Pairing code</string>
+    <string name="setup_pairing_btn">Pair</string>
+    <string name="setup_pairing_skip">Skip for now</string>
+    <string name="setup_pairing_ok">Device paired</string>
+    <string name="setup_pairing_fail">Invalid or expired code — try again</string>
+    <string name="setup_existing_title">Settings already on the server</string>
+    <string name="setup_existing_message">This EverShelf server already has:
+
+%s
+
+Keep them, or reconfigure from scratch?</string>
+    <string name="setup_existing_keep">Keep server settings</string>
+    <string name="setup_existing_reset">Reconfigure</string>
+    <string name="setup_existing_kept">Server settings kept</string>
+    <string name="setup_existing_reset_done">Wizard will ask again — server values update when you finish</string>
+    <string name="setup_cfg_gemini">Gemini AI</string>
+    <string name="setup_cfg_bring">Bring! shopping</string>
+    <string name="setup_cfg_screensaver">Screensaver</string>
+    <string name="setup_cfg_prices">Shopping prices</string>
+    <string name="setup_cfg_mealplan">Meal plan</string>
+    <string name="setup_cfg_zerowaste">Zero-waste tips</string>
+    <string name="setup_cfg_scale">Smart scale</string>
+    <string name="setup_saving">Saving settings to the server…</string>
+    <string name="setup_save_failed">Could not save settings to the server (check pairing / API token). Local setup is still complete.</string>
+    <string name="ble_permission_missing">Bluetooth permission missing</string>
+    <string name="ble_connect_failed">Could not connect: %1$s</string>
+    <string name="ble_connect_retry_exhausted">Could not connect to the scale (error %1$d). Turn it on, keep it close, then retry.</string>
+    <string name="setup_exit_btn">✕ Exit</string>
+    <string name="setup_lang_title">Choose your language</string>
+    <string name="setup_lang_subtitle">The kiosk and the web interface will use this language.</string>
+    <string name="setup_welcome_tagline">Your smart pantry in the kitchen</string>
+    <string name="setup_welcome_body">Turn this tablet into an always-on kitchen panel. Manage stock, scan products, cook with guidance — all from your home server.</string>
+    <string name="setup_welcome_privacy_title">🔒 Your data stays at home</string>
+    <string name="setup_welcome_privacy_body">EverShelf runs on your server. Nothing is sent to the cloud unless you enable optional services (Gemini, Bring!, price estimates).</string>
+    <string name="setup_welcome_what_title">✨ What this wizard configures</string>
+    <string name="setup_welcome_what_body">• Link to your EverShelf server&#10;• Optional Bluetooth smart scale&#10;• Features (screensaver, prices, meal plan, zero-waste)&#10;• Optional Gemini AI and Bring! shopping&#10;&#10;Everything is saved on the server so every device stays in sync.</string>
+    <string name="setup_welcome_start">Start setup →</string>
+    <string name="setup_perms_title">Permissions</string>
+    <string name="setup_perms_body">Android needs a few permissions so scanning, voice and the scale work. You can revoke them later in system settings.</string>
+    <string name="setup_perms_camera_title">📷 Camera</string>
+    <string name="setup_perms_camera_body">Scan barcodes and take photos of products when the label cannot be read.</string>
+    <string name="setup_perms_mic_title">🎤 Microphone</string>
+    <string name="setup_perms_mic_body">Optional voice commands and cooking-mode speech input.</string>
+    <string name="setup_perms_ble_title">📡 Bluetooth</string>
+    <string name="setup_perms_ble_body">Connect a smart kitchen scale. Skipped automatically if you do not use one.</string>
+    <string name="setup_perms_granted">✅ Permissions granted</string>
+    <string name="setup_perms_grant">Grant permissions</string>
+    <string name="setup_server_title">EverShelf server</string>
+    <string name="setup_server_body">This tablet needs the URL of your EverShelf instance on the LAN (or Tailscale/VPN). Prefer auto-discovery on the same Wi‑Fi.</string>
+    <string name="setup_server_url_label">SERVER URL</string>
+    <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
+    <string name="setup_server_test">Test connection</string>
+    <string name="setup_server_tip">💡 Tip: after a successful test you may be asked for the pairing code (Settings → System → Security on a paired device) and whether to keep existing server settings.</string>
+    <string name="setup_scale_explain">The kiosk includes a built-in BLE gateway — no separate Scale Gateway app. The scale stays linked across restarts.</string>
+    <string name="setup_scale_power_title">🔋 Turn the scale on</string>
+    <string name="setup_scale_power_body">Wake the scale, place it nearby (within ~2 m), then continue. We will scan and ask you to confirm a weight reading.</string>
+    <string name="setup_scale_power_ready">Scale is on — scan →</string>
+    <string name="setup_features_server_note">These choices are written to the EverShelf server when you finish. Other phones and tablets will see the same options.</string>
+    <string name="setup_gemini_what_title">What Gemini unlocks</string>
+    <string name="setup_gemini_what_body">• Identify products from a photo when the barcode fails&#10;• Recipe ideas from what is in the pantry&#10;• Smarter shopping suggestions&#10;&#10;Uses your own free Google AI Studio key. Leave empty to skip.</string>
+    <string name="setup_bring_what_title">What Bring! does</string>
+    <string name="setup_bring_what_body">Sync the EverShelf shopping list with the Bring! mobile app so the whole household shares one list. You can also use the built-in list without Bring!.</string>
+    <string name="setup_bring_password_hint">Bring! password</string>
+    <string name="setup_done_body">Settings are saved on the server. Launch EverShelf in full-screen kiosk mode.</string>
+    <string name="settings_title">Kiosk settings</string>
+    <string name="settings_section_server">SERVER</string>
+    <string name="settings_section_scale">SMART SCALE</string>
+    <string name="settings_section_display">DISPLAY</string>
+    <string name="settings_section_actions">ACTIONS</string>
+    <string name="settings_url_label">EverShelf URL</string>
+    <string name="settings_test_btn">Test connection</string>
+    <string name="settings_screensaver">Clock screensaver</string>
+    <string name="settings_screensaver_hint">Show the clock overlay after inactivity.</string>
+    <string name="settings_run_wizard">Run setup wizard again</string>
+    <string name="settings_open_app">Back to EverShelf</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_scale_status">Scale gateway status</string>
+    <string name="settings_reconfigure_scale">Reconfigure scale</string>
+    <string name="splash_tagline">Your smart pantry</string>
+    <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notifications and the rest are configured inside the EverShelf web app.</string>
+    <string name="settings_url_empty">URL cannot be empty</string>
+    <string name="settings_url_enter_first">Enter a URL first</string>
 </resources>

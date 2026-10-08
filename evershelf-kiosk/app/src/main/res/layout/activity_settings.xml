@@ -2,14 +2,18 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0f172a"
-    android:fillViewport="true">
+    android:background="@color/bg_dark"
+    android:fillViewport="true"
+    android:overScrollMode="never">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="32dp">
 
         <!-- Header -->
         <LinearLayout
@@ -17,37 +21,35 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="32dp">
+            android:layout_marginBottom="28dp">
 
             <ImageButton
                 android:id="@+id/btnBack"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:background="@drawable/card_background"
                 android:src="@android:drawable/ic_menu_revert"
                 android:scaleType="centerInside"
-                android:contentDescription="Back"
-                android:layout_marginEnd="16dp" />
+                android:contentDescription="@string/settings_open_app"
+                android:layout_marginEnd="14dp"
+                android:padding="8dp" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Settings"
-                android:textColor="#f1f5f9"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:layout_weight="1"
+                android:text="@string/settings_title"
+                android:textAppearance="@style/Text.EverShelf.Title"
+                android:textSize="22sp" />
         </LinearLayout>
 
-        <!-- Server URL Section -->
+        <!-- Server -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SERVER CONNECTION"
-            android:textColor="#7c3aed"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="12dp" />
+            android:text="@string/settings_section_server"
+            android:textAppearance="@style/Text.EverShelf.Section"
+            android:layout_marginBottom="10dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -55,14 +57,14 @@
             android:orientation="vertical"
             android:background="@drawable/card_background"
             android:padding="16dp"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="EverShelf URL"
-                android:textColor="#cbd5e1"
-                android:textSize="14sp"
+                android:text="@string/settings_url_label"
+                android:textAppearance="@style/Text.EverShelf.Hint"
+                android:textColor="@color/text_secondary"
                 android:layout_marginBottom="8dp" />
 
             <EditText
@@ -70,37 +72,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="textUri"
-                android:textColor="#f1f5f9"
-                android:textColorHint="#475569"
-                android:hint="https://192.168.1.100/dispensa"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:hint="@string/setup_server_url_hint"
                 android:background="@drawable/input_background"
                 android:padding="14dp"
                 android:textSize="15sp"
                 android:singleLine="true"
-                android:layout_marginBottom="10dp" />
+                android:layout_marginBottom="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnTestConnection"
+                style="@style/Widget.EverShelf.Button.Secondary"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="Test Connection"
-                android:textSize="13sp"
-                android:textAllCaps="false"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:strokeColor="#334155"
-                android:textColor="#94a3b8" />
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/settings_test_btn"
+                android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Scale Section -->
+        <!-- Scale -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="BILANCIA SMART"
-            android:textColor="#7c3aed"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="12dp" />
+            android:text="@string/settings_section_scale"
+            android:textAppearance="@style/Text.EverShelf.Section"
+            android:layout_marginBottom="10dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -108,77 +105,68 @@
             android:orientation="vertical"
             android:background="@drawable/card_background"
             android:padding="16dp"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="12dp">
+                android:layout_marginBottom="10dp">
 
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Servizio bilancia BLE"
-                    android:textColor="#cbd5e1"
+                    android:text="@string/settings_scale_status"
+                    android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
 
                 <TextView
                     android:id="@+id/scaleGatewayStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Active"
-                    android:textColor="#34d399"
-                    android:textSize="13sp" />
+                    android:textColor="@color/success"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <TextView
                 android:id="@+id/scaleDeviceInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="No scale connected"
-                android:textColor="#64748b"
+                android:textColor="@color/text_muted"
                 android:textSize="13sp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnConfigureGateway"
+                style="@style/Widget.EverShelf.Button.Secondary"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="⚙️  Configura bilancia"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
                 android:textSize="13sp"
-                android:textAllCaps="false"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:strokeColor="#34d399"
-                android:textColor="#34d399"
                 android:layout_marginTop="12dp"
                 android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnReconfigureScale"
+                style="@style/Widget.EverShelf.Button.Ghost"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="🔄  Riconfigura bilancia"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_reconfigure_scale"
+                android:textColor="@color/warning"
                 android:textSize="13sp"
-                android:textAllCaps="false"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:strokeColor="#fbbf24"
-                android:textColor="#fbbf24"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Screensaver Section -->
+        <!-- Display -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="SCHERMO"
-            android:textColor="#7c3aed"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="12dp" />
+            android:text="@string/settings_section_display"
+            android:textAppearance="@style/Text.EverShelf.Section"
+            android:layout_marginBottom="10dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -186,7 +174,7 @@
             android:orientation="vertical"
             android:background="@drawable/card_background"
             android:padding="16dp"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -198,21 +186,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:paddingEnd="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Salvaschermo"
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp" />
+                        android:text="@string/settings_screensaver"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Oscura lo schermo dopo inattività (default: off)"
-                        android:textColor="#64748b"
-                        android:textSize="12sp"
+                        android:text="@string/settings_screensaver_hint"
+                        android:textAppearance="@style/Text.EverShelf.Hint"
                         android:layout_marginTop="2dp" />
                 </LinearLayout>
 
@@ -224,16 +212,13 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Advanced / App Settings link -->
+        <!-- Advanced -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="IMPOSTAZIONI AVANZATE"
-            android:textColor="#7c3aed"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="12dp" />
+            android:text="@string/settings_section_actions"
+            android:textAppearance="@style/Text.EverShelf.Section"
+            android:layout_marginBottom="10dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -241,73 +226,40 @@
             android:orientation="vertical"
             android:background="@drawable/card_background"
             android:padding="16dp"
-            android:layout_marginBottom="24dp">
+            android:layout_marginBottom="20dp">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Home Assistant, Gemini AI, Bring!, TTS, notifiche e tutte le altre funzionalità si configurano direttamente nell'app EverShelf."
-                android:textColor="#94a3b8"
-                android:textSize="13sp"
+                android:text="@string/settings_advanced_hint"
+                android:textAppearance="@style/Text.EverShelf.Hint"
                 android:layout_marginBottom="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnOpenAppSettings"
+                style="@style/Widget.EverShelf.Button.Secondary"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:text="← Torna all'app per le impostazioni avanzate"
-                android:textSize="13sp"
-                android:textAllCaps="false"
-                android:backgroundTint="#7c3aed" />
-        </LinearLayout>
-
-        <!-- Danger Zone -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="RESET"
-            android:textColor="#ef4444"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.1"
-            android:layout_marginBottom="12dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/card_background"
-            android:padding="16dp"
-            android:layout_marginBottom="24dp">
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/settings_open_app"
+                android:textSize="14sp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRunWizard"
+                style="@style/Widget.EverShelf.Button.Ghost"
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:text="Run Setup Wizard Again"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_run_wizard"
                 android:textSize="14sp"
-                android:textAllCaps="false"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:strokeColor="#334155"
-                android:textColor="#94a3b8" />
+                android:layout_marginTop="4dp" />
         </LinearLayout>
 
-        <!-- Spacer -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Buttons -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSave"
+            style="@style/Widget.EverShelf.Button"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="Save Changes"
-            android:textSize="16sp"
-            android:textAllCaps="false"
-            android:backgroundTint="#7c3aed"
-            android:layout_marginBottom="12dp" />
+            android:layout_height="wrap_content"
+            android:text="@string/settings_save" />
 
     </LinearLayout>
 </ScrollView>

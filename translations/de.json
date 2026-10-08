@@ -1184,7 +1184,17 @@
       "token_hint": "Falls `SETTINGS_TOKEN` in der Server-`.env` konfiguriert ist, gib hier den Token ein, bevor du die Einstellungen speicherst. Leer lassen, wenn nicht konfiguriert.",
       "token_placeholder": "(leer = kein Schutz)",
       "token_required_hint": "🔒 Dieser Server benötigt einen Token zum Speichern der Einstellungen.",
-      "cert_instructions": "<strong>Anleitung für Chrome (Android):</strong><br>1. Zertifikat oben herunterladen<br>2. Gehe zu <em>Einstellungen &rarr; Sicherheit &amp; Datenschutz &rarr; Weitere Sicherheitseinstellungen &rarr; Vom Gerätespeicher installieren</em><br>3. Wähle die heruntergeladene <em>EverShelf_CA.crt</em> Datei<br>4. Wähle \"CA\" und bestätige<br>5. Chrome neu starten<br><br><strong>Anleitung für Chrome (PC):</strong><br>1. Zertifikat oben herunterladen<br>2. Gehe zu <em>chrome://settings/certificates</em> (oder Einstellungen &rarr; Datenschutz und Sicherheit &rarr; Sicherheit &rarr; Zertifikate verwalten)<br>3. Tab \"Zertifizierungsstellen\" &rarr; Importieren &rarr; Datei auswählen<br>4. Häkchen bei \"Dieser Zertifizierungsstelle für die Identifikation von Webseiten vertrauen\"<br>5. Chrome neu starten"
+      "cert_instructions": "<strong>Anleitung für Chrome (Android):</strong><br>1. Zertifikat oben herunterladen<br>2. Gehe zu <em>Einstellungen &rarr; Sicherheit &amp; Datenschutz &rarr; Weitere Sicherheitseinstellungen &rarr; Vom Gerätespeicher installieren</em><br>3. Wähle die heruntergeladene <em>EverShelf_CA.crt</em> Datei<br>4. Wähle \"CA\" und bestätige<br>5. Chrome neu starten<br><br><strong>Anleitung für Chrome (PC):</strong><br>1. Zertifikat oben herunterladen<br>2. Gehe zu <em>chrome://settings/certificates</em> (oder Einstellungen &rarr; Datenschutz und Sicherheit &rarr; Sicherheit &rarr; Zertifikate verwalten)<br>3. Tab \"Zertifizierungsstellen\" &rarr; Importieren &rarr; Datei auswählen<br>4. Häkchen bei \"Dieser Zertifizierungsstelle für die Identifikation von Webseiten vertrauen\"<br>5. Chrome neu starten",
+      "pairing_title": "🔗 Kopplungscode",
+      "pairing_hint": "Zeige diesen Code auf einem neuen Telefon, Tablet oder Kiosk, wenn die Kopplung verlangt wird. 30 Minuten gültig; erneuert sich automatisch.",
+      "pairing_loading": "Code wird geladen…",
+      "pairing_copy": "📋 Kopieren",
+      "pairing_refresh": "🔄 Neuer Code",
+      "pairing_expires": "Läuft ab in",
+      "pairing_copied": "Code kopiert",
+      "pairing_refreshed": "Neuer Code erzeugt",
+      "pairing_error": "Kopplungscode konnte nicht geladen werden",
+      "pairing_not_needed": "Dieser Server braucht keine Kopplung (kein API_TOKEN oder API_BOOTSTRAP_OPEN)."
     },
     "tts": {
       "title": "🔊 Sprache & TTS",
@@ -1280,8 +1290,8 @@
     },
     "kiosk": {
       "hint": "Verwandeln Sie ein Android-Tablet in ein EverShelf-Panel mit integriertem BLE-Waagen-Gateway.",
-      "download_btn": "📥 EverShelf Kiosk herunterladen (APK)",
-      "download_sub": "Vollbild-Kioskmodus + integriertes Waagen-Gateway. Quellcode: evershelf-kiosk/",
+      "download_btn": "📥 APK von diesem Server laden",
+      "download_sub": "APK auf dem Telefon/Tablet herunterladen und öffnen. Lokal im LAN bevorzugen; GitHub außerhalb des Netzes.",
       "native_title": "Kiosk-Konfiguration",
       "native_hint": "Server-URL, BLE-Waage, Bildschirmschoner und Einrichtungsassistent.",
       "native_btn": "Kiosk-Konfiguration öffnen",
@@ -1290,7 +1300,11 @@
       "update_title": "Kiosk-Aktualisierung",
       "check_updates_btn": "🔍 Nach Updates suchen",
       "needs_update": "⚠️ Das installierte Kiosk unterstützt diese Funktion nicht. Aktualisiere die Kiosk-App, um sie zu aktivieren.",
-      "install_update_btn": "⬇️ Update installieren"
+      "install_update_btn": "⬇️ Update installieren",
+      "download_local_btn": "📥 APK von diesem Server laden",
+      "download_github_btn": "🐙 Von GitHub laden (kiosk-latest)",
+      "server_apk_version": "Server-APK: v{v} (code {code})",
+      "server_apk_missing": "APK fehlt auf diesem Server — GitHub nutzen oder releases/evershelf-kiosk.apk veröffentlichen"
     },
     "saved": "✅ Konfiguration gespeichert!",
     "saved_local": "✅ Konfiguration lokal gespeichert",
@@ -1399,7 +1413,9 @@
       "bring_expired": "Token abgelaufen",
       "year_label": "Jahr {year}",
       "currency_title": "Währung",
-      "currency_hint": "Die Währung, die für alle Kosten und Preise in der App verwendet wird."
+      "currency_hint": "Die Währung, die für alle Kosten und Preise in der App verwendet wird.",
+      "pairing_hint": "Zum Koppeln eines weiteren Geräts diesen Code verwenden (auch unter Einstellungen → System → Sicherheit).",
+      "pairing_open_security": "Sicherheit öffnen"
     },
     "tab_general": "Allgemein",
     "shopping": {
@@ -2312,11 +2328,11 @@
     "token_prompt_btn": "Weiter",
     "token_prompt_placeholder": "API-Token",
     "pairing_title": "🔒 Dieses Gerät koppeln",
-    "pairing_hint": "Gib den Kopplungscode aus dem Server-Log ein (docker logs evershelf oder logs/evershelf_*.log).",
+    "pairing_hint": "Gib den Kopplungscode ein. Du findest ihn auf einem bereits gekoppelten Gerät unter Einstellungen → System → Sicherheit, oder im Server-Log (docker logs evershelf / logs/evershelf_*.log).",
     "pairing_placeholder": "Kopplungscode",
-    "pairing_required": "Dieses Gerät koppeln — der Code steht im Server-Log",
+    "pairing_required": "Gerät koppeln — der Code steht unter Einstellungen → Sicherheit auf einem anderen Gerät oder im Server-Log",
     "pairing_btn": "Koppeln",
-    "pairing_error": "Ungültiger oder abgelaufener Code — prüfe das Server-Log auf einen neuen.",
+    "pairing_error": "Ungültiger oder abgelaufener Code — hole einen neuen unter Einstellungen → System → Sicherheit auf einem gekoppelten Gerät, oder prüfe das Server-Log.",
     "hint_backups_none": "Keine Backups gefunden — ist cron konfiguriert?",
     "hint_backups_stale": "Letztes Backup ist alt — läuft cron?",
     "hint_backups_dir_missing": "Backup-Verzeichnis fehlt",

@@ -45,16 +45,17 @@ docker compose up -d
 
 Not an error: it is the token bootstrap. When `API_TOKEN` is set in `.env`, EverShelf
 never returns it to an anonymous request, so the browser must prove it is allowed by
-presenting a **one-time pairing code** printed in the server log:
+presenting a **pairing code**. On a device that is already paired, open
+**Settings → System → Security** (or Info) — the live code is shown there with a
+countdown. It is also printed in the server log:
 
 ```bash
 grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
 docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
 ```
 
-The code is 8 characters, valid for 30 minutes, and is consumed by the first successful
-pairing. You pair once per browser/device; afterwards the token is stored in
-`localStorage` and you are not asked again.
+The code is 8 characters and valid for 30 minutes. You pair once per browser/device;
+afterwards the token is stored in `localStorage` and you are not asked again.
 
 - **No dialog appears and the splash stays on "API token required"?** Hard-refresh with
   `Ctrl+Shift+R`: a service worker from a version before 1.8.8 may still be serving the
@@ -139,11 +140,14 @@ BRING_PASSWORD=yourpassword
 
 ### Kiosk app update fails
 
-The kiosk checks for a new release every 6 hours and downloads it from GitHub. If the install fails:
+The kiosk checks for a new release every 6 hours. Prefer the `kiosk-latest` tag (or
+**Settings → EverShelf Kiosk → Scarica APK da questo server** on the LAN) — GitHub’s
+“Latest” release is the web app and has no APK. If the install fails:
 
 | Symptom | Fix |
 |---------|-----|
 | "Install from unknown sources" dialog | Enable the setting for the EverShelf Kiosk app in Android Settings |
+| Signature conflict / must uninstall | CI must publish with the stable `KIOSK_KEYSTORE_*` secrets (debug-signed APKs break OTA) |
 | Persistent failure after download | Force-stop the app, clear its data, and relaunch the update flow |
 | Not enough space | Free up storage on the device |
 

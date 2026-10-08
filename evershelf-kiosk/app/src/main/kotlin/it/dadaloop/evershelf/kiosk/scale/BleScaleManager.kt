@@ -156,20 +156,33 @@ class BleScaleManager(
         return score
     }
 
+    private var connectAttempts = 0
+    private var pendingConnectDevice: BluetoothDevice? = null
+
     fun connect(device: BluetoothDevice) {
         stopScan()
         disconnect()
         connectedDeviceName = ""
+        connectAttempts = 0
+        pendingConnectDevice = device
         ScaleProtocol.resetState()
         mainHandler.post { listener.onConnecting(device) }
+        attemptConnect(device)
+    }
+
+    private fun attemptConnect(device: BluetoothDevice) {
+        connectAttempts++
         try {
             gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+                // autoConnect=false for a fast first try; retries below use true.
+                device.connectGatt(context, connectAttempts > 1, gattCallback, BluetoothDevice.TRANSPORT_LE)
             } else {
-                device.connectGatt(context, false, gattCallback)
+                device.connectGatt(context, connectAttempts > 1, gattCallback)
             }
         } catch (e: SecurityException) {
-            mainHandler.post { listener.onError("Permesso mancante: ${e.message}") }
+            mainHandler.post { listener.onError(context.getString(R.string.ble_permission_missing)) }
+        } catch (e: Exception) {
+            mainHandler.post { listener.onError(context.getString(R.string.ble_connect_failed, e.message ?: "")) }
         }
     }
 
@@ -184,15 +197,42 @@ class BleScaleManager(
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    mainHandler.postDelayed({ gatt.discoverServices() }, 500)
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        try { gatt.close() } catch (_: Exception) {}
+                        this@BleScaleManager.gatt = null
+                        maybeRetryConnect(status)
+                        return
+                    }
+                    mainHandler.postDelayed({
+                        try { gatt.discoverServices() } catch (_: Exception) {}
+                    }, 600)
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     this@BleScaleManager.gatt?.close()
                     this@BleScaleManager.gatt = null
                     connectedDeviceName = ""
-                    mainHandler.post { listener.onDisconnected() }
+                    if (status != BluetoothGatt.GATT_SUCCESS && connectAttempts in 1..2) {
+                        maybeRetryConnect(status)
+                    } else {
+                        mainHandler.post { listener.onDisconnected() }
+                    }
                 }
             }
+        }
+
+        private fun maybeRetryConnect(status: Int) {
+            val device = pendingConnectDevice
+            if (device == null || connectAttempts >= 3) {
+                mainHandler.post {
+                    listener.onError(context.getString(R.string.ble_connect_retry_exhausted, status))
+                }
+                return
+            }
+            mainHandler.post {
+                listener.onDebugEvent("BLE retry $connectAttempts status=$status")
+                listener.onConnecting(device)
+            }
+            mainHandler.postDelayed({ attemptConnect(device) }, 900L * connectAttempts)
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {

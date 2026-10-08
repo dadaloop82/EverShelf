@@ -84,7 +84,7 @@
 | `env.php` | `.env` loader + DB-stored overrides; bridges `.env` into `getenv()`/`$_ENV` | `env()`, `loadEnv()`, `evershelfWriteEnvFile()`, `saveEnvOverrides()` |
 | `constants.php` | Paths + **Gemini pricing** constants | `EVERSHELF_ROOT`, `*_CACHE_PATH`, `GEMINI_COST_*` |
 | `security.php` | Auth, CORS, security headers, demo mode, SSRF allowlists, client IP, **outbound report redaction** | `evershelfRequireApiAuth()`, `evershelfSendSecurityHeaders()`, `evershelfClientIp()`, `evershelfScaleHostAllowed()`, `evershelfRedactSecrets()`, `evershelfReportContextJson()` |
-| `pairing.php` | One-time pairing code for `app_bootstrap` token disclosure | `evershelfPairingEnsure()`, `evershelfPairingConsume()` |
+| `pairing.php` | One-time pairing code for `app_bootstrap` token disclosure; live code also via authenticated `pairing_code` (Settings → Security) | `evershelfPairingEnsure()`, `evershelfPairingConsume()`, `pairingCodeStatus()` |
 | `github.php` | Encrypted GH Issues token helpers + `REPORT_ENABLED` opt-in | `_ghToken()`, `_ghReportsEnabled()`, used by `report_error`/`report_bug` |
 | `ai_provider.php` | Provider abstraction (gemini/openai/llama) | `aiProviderConfigured()`, chat/vision calls |
 | `mealie.php`, `mealie_setup.php` | Mealie recipe-manager integration | discover/install/configure/sync |

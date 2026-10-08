@@ -1157,7 +1157,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261006a'; // bump when translations change
+const _I18N_VERSION = '20261008b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3739,6 +3739,7 @@ async function _loadInfoTab() {
     if (_infoTabTimer)   { clearInterval(_infoTabTimer);   _infoTabTimer  = null; }
     if (_backupTabTimer) { clearInterval(_backupTabTimer); _backupTabTimer = null; }
     await _renderInfoTab();
+    _loadPairingCodePanel();
     // Auto-refresh every 30s while Info tab is visible
     _infoTabTimer = setInterval(_renderInfoTab, 30_000);
 }
@@ -4316,12 +4317,10 @@ async function loadSettingsUI() {
     _applyShoppingSettingsUI(s);
     // Product rules (genre prefix + automatic favourites)
     _applyProductRuleSettingsUI(s);
-    // Hide kiosk download banner if running inside Android WebView (kiosk mode)
-    const kioskBanner = document.getElementById('kiosk-download-banner');
-    if (kioskBanner && /; wv\)/.test(navigator.userAgent)) {
-        kioskBanner.style.display = 'none';
-    }
-    // In kiosk mode: replace WebSocket scale config with native BLE reconfigure panel
+    // Kiosk APK download stays visible everywhere (local server + GitHub).
+    // Inside the kiosk WebView we also show the OTA / native-settings panels.
+    _refreshKioskApkLinks();
+    _loadPairingCodePanel();
     const isKiosk = typeof _kioskBridge !== 'undefined';
     const scaleGwDl   = document.getElementById('scale-gateway-download-section');
     const scaleWsEl   = document.getElementById('scale-websocket-section');
@@ -4385,6 +4384,148 @@ function _openKioskNativeSettings() {
 
 // ── Kiosk: manual update check ────────────────────────────────────────
 let _kioskPendingApkUrl = '';
+const _KIOSK_GITHUB_APK = 'https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk';
+
+// ── Device pairing code (Settings → System → Security / Info) ─────────────
+let _pairingExpiresAt = 0;
+let _pairingCodeValue = '';
+let _pairingTickTimer = null;
+
+function _formatPairingCountdown(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function _renderPairingBodies(html) {
+    ['settings-pairing-body', 'info-pairing-body'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    });
+}
+
+function _tickPairingCountdown() {
+    if (!_pairingExpiresAt) return;
+    const left = Math.max(0, Math.round((_pairingExpiresAt - Date.now()) / 1000));
+    document.querySelectorAll('.pairing-code-countdown').forEach(cd => {
+        cd.textContent = _formatPairingCountdown(left);
+    });
+    if (left <= 0) {
+        if (_pairingTickTimer) { clearInterval(_pairingTickTimer); _pairingTickTimer = null; }
+        _loadPairingCodePanel(true);
+    }
+}
+
+/** Load / refresh the pairing code into Security + Info panels. */
+async function _loadPairingCodePanel(forceRefresh) {
+    const bodies = [document.getElementById('settings-pairing-body'), document.getElementById('info-pairing-body')].filter(Boolean);
+    if (!bodies.length) return;
+    try {
+        const data = forceRefresh
+            ? await api('pairing_code', {}, 'POST', { refresh: true })
+            : await api('pairing_code');
+        if (!data || data.success === false) {
+            _renderPairingBodies(`<p class="settings-hint">${escapeHtml(t('settings.security.pairing_error'))}</p>`);
+            return;
+        }
+        if (data.pairing_needed === false) {
+            _pairingCodeValue = '';
+            _renderPairingBodies(`<p class="settings-hint">${escapeHtml(t('settings.security.pairing_not_needed'))}</p>`);
+            return;
+        }
+        const code = String(data.code || '').toUpperCase();
+        _pairingCodeValue = code;
+        const expiresIn = Math.max(0, parseInt(data.expires_in, 10) || 0);
+        _pairingExpiresAt = Date.now() + expiresIn * 1000;
+        _renderPairingBodies(
+            `<div style="text-align:center">
+                <div class="pairing-code-display" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:2.1rem;font-weight:800;letter-spacing:0.28em;padding:14px 10px;border-radius:12px;background:rgba(15,23,42,0.06);border:1px dashed rgba(99,102,241,0.45);color:var(--text-primary,#0f172a);user-select:all">${escapeHtml(code)}</div>
+                <p class="settings-hint" style="margin:10px 0 0">${escapeHtml(t('settings.security.pairing_expires'))}: <strong class="pairing-code-countdown">${_formatPairingCountdown(expiresIn)}</strong></p>
+             </div>`
+        );
+        if (_pairingTickTimer) clearInterval(_pairingTickTimer);
+        _pairingTickTimer = setInterval(_tickPairingCountdown, 1000);
+    } catch (e) {
+        _renderPairingBodies(`<p class="settings-hint">${escapeHtml(t('settings.security.pairing_error'))}</p>`);
+    }
+}
+
+async function _refreshPairingCode() {
+    const btn = document.getElementById('btn-pairing-refresh');
+    if (btn) { btn.disabled = true; }
+    try {
+        await _loadPairingCodePanel(true);
+        showToast(t('settings.security.pairing_refreshed'), 'success');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function _copyPairingCode() {
+    const code = _pairingCodeValue || (document.getElementById('pairing-code-display')?.textContent || '').trim();
+    if (!code) {
+        showToast(t('settings.security.pairing_error'), 'error');
+        return;
+    }
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(code);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = code;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+        showToast(t('settings.security.pairing_copied'), 'success');
+    } catch (_) {
+        showToast(t('settings.security.pairing_error'), 'error');
+    }
+}
+
+/** Absolute URL to the APK published on this EverShelf instance (LAN OTA). */
+function _kioskLocalApkUrl() {
+    try {
+        const u = new URL('releases/evershelf-kiosk.apk', location.href);
+        return u.href;
+    } catch (_) {
+        return 'releases/evershelf-kiosk.apk';
+    }
+}
+
+/** Wire download buttons to local + GitHub URLs and show the published version. */
+async function _refreshKioskApkLinks() {
+    const localUrl = _kioskLocalApkUrl();
+    ['kiosk-apk-local-link', 'kiosk-apk-update-direct-link'].forEach(id => {
+        const a = document.getElementById(id);
+        if (a) a.setAttribute('href', localUrl);
+    });
+    const gh = document.getElementById('kiosk-apk-github-link');
+    if (gh) gh.setAttribute('href', _KIOSK_GITHUB_APK);
+    const verLabel = document.getElementById('kiosk-download-version-label');
+    try {
+        const data = await api('kiosk_update');
+        if (data && data.success && data.version) {
+            if (verLabel) {
+                verLabel.textContent = t('settings.kiosk.server_apk_version')
+                    .replace('{v}', data.version)
+                    .replace('{code}', String(data.version_code || '—'));
+            }
+            if (data.apk_url) {
+                ['kiosk-apk-local-link', 'kiosk-apk-update-direct-link'].forEach(id => {
+                    const a = document.getElementById(id);
+                    if (a) a.setAttribute('href', data.apk_url);
+                });
+            }
+        } else if (verLabel) {
+            verLabel.textContent = t('settings.kiosk.server_apk_missing');
+        }
+    } catch (_) {
+        if (verLabel) verLabel.textContent = t('settings.kiosk.server_apk_missing');
+    }
+}
 
 /** Called by Kotlin with JSON: { has_update, current, latest, apk_url, error } */
 window._kioskUpdateResult = function(result) {
@@ -4402,6 +4543,9 @@ window._kioskUpdateResult = function(result) {
         status.style.border = '1px solid rgba(239,68,68,0.3)';
         status.style.color = '';
         status.innerHTML = `❌ ${t('error.prefix')}: ${result.error}`;
+        // Still offer a direct LAN download when GitHub/check fails.
+        _kioskPendingApkUrl = _kioskLocalApkUrl();
+        if (installBtn) installBtn.style.display = '';
         return;
     }
 
@@ -4410,13 +4554,18 @@ window._kioskUpdateResult = function(result) {
     if (verLabel) verLabel.textContent = t('kiosk.version_installed').replace('{v}', current);
 
     if (result.has_update) {
-        _kioskPendingApkUrl = result.apk_url || '';
+        // Prefer server LAN URL when the bridge forgot to pass one.
+        _kioskPendingApkUrl = result.apk_url || _kioskLocalApkUrl();
         status.style.display = '';
         status.style.background = 'rgba(245,158,11,0.1)';
         status.style.border = '1px solid rgba(245,158,11,0.35)';
         status.style.color = '';
         status.innerHTML = t('kiosk.update_available').replace('{latest}', latest).replace('{current}', current);
-        if (installBtn) installBtn.style.display = '';
+        if (installBtn) {
+            installBtn.style.display = '';
+            installBtn.disabled = false;
+            installBtn.textContent = t('kiosk.install_btn');
+        }
     } else {
         _kioskPendingApkUrl = '';
         status.style.display = '';
@@ -4429,21 +4578,8 @@ window._kioskUpdateResult = function(result) {
 };
 
 function _kioskCheckForUpdates() {
-    if (typeof _kioskBridge === 'undefined' || typeof _kioskBridge.checkForUpdates !== 'function') {
-        // Kiosk is present but old — trigger download via installUpdate which exists since v1.3
-        const status = document.getElementById('kiosk-update-status');
-        const installBtn = document.getElementById('btn-kiosk-install-update');
-        if (status) {
-            status.style.display = '';
-            status.style.background = 'rgba(245,158,11,0.1)';
-            status.style.border = '1px solid rgba(245,158,11,0.35)';
-            status.innerHTML = t('kiosk.too_old');
-        }
-        // Pre-set the pending URL and show the install button (installUpdate works in old APKs too)
-        _kioskPendingApkUrl = 'https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk';
-        if (installBtn) installBtn.style.display = '';
-        return;
-    }
+    if (typeof _kioskBridge === 'undefined') return;
+    // Android @JavascriptInterface methods are often not typeof === 'function'.
     const btn    = document.getElementById('btn-kiosk-check-update');
     const status = document.getElementById('kiosk-update-status');
     const installBtn = document.getElementById('btn-kiosk-install-update');
@@ -4451,33 +4587,58 @@ function _kioskCheckForUpdates() {
     if (status)     { status.style.display = 'none'; }
     if (installBtn) { installBtn.style.display = 'none'; }
     _kioskPendingApkUrl = '';
-    try { _kioskBridge.checkForUpdates(); } catch(e) {
+    try {
+        _kioskBridge.checkForUpdates();
+    } catch (e) {
+        // Old APK without checkForUpdates — offer LAN install directly.
         if (btn) { btn.disabled = false; btn.textContent = t('kiosk.check_btn'); }
-        showToast('❌ ' + t('kiosk.error_check'), 'error');
+        if (status) {
+            status.style.display = '';
+            status.style.background = 'rgba(245,158,11,0.1)';
+            status.style.border = '1px solid rgba(245,158,11,0.35)';
+            status.innerHTML = t('kiosk.too_old');
+        }
+        _kioskPendingApkUrl = _kioskLocalApkUrl();
+        if (installBtn) {
+            installBtn.style.display = '';
+            installBtn.disabled = false;
+            installBtn.textContent = t('kiosk.install_btn');
+        }
     }
 }
 
 function _kioskInstallUpdate() {
-    if (!_kioskPendingApkUrl) return;
-    if (typeof _kioskBridge === 'undefined') return;
-    if (typeof _kioskBridge.installUpdate !== 'function') {
-        // Old APK without installUpdate — show instructions
+    const apkUrl = _kioskPendingApkUrl || _kioskLocalApkUrl();
+    if (!apkUrl) return;
+    _kioskPendingApkUrl = apkUrl;
+    const installBtn = document.getElementById('btn-kiosk-install-update');
+    if (typeof _kioskBridge === 'undefined') {
+        // Browser / non-kiosk: navigate to the APK (local or GitHub).
+        window.location.href = apkUrl;
+        return;
+    }
+    if (installBtn) { installBtn.disabled = true; installBtn.textContent = t('kiosk.starting_download'); }
+    // Reset the button if the native side opens the permission screen and never returns.
+    setTimeout(() => {
+        if (installBtn && installBtn.disabled) {
+            installBtn.disabled = false;
+            installBtn.textContent = t('kiosk.install_btn');
+        }
+    }, 8000);
+    try {
+        _kioskBridge.installUpdate(apkUrl);
+    } catch (e) {
+        // Fall back to a plain download link (LAN) when the bridge cannot install.
+        if (installBtn) { installBtn.disabled = false; installBtn.textContent = t('kiosk.install_btn'); }
         const status = document.getElementById('kiosk-update-status');
         if (status) {
             status.style.display = '';
             status.style.background = 'rgba(239,68,68,0.1)';
             status.style.border = '1px solid rgba(239,68,68,0.3)';
             status.innerHTML = t('kiosk.manual_install') +
-                `<br><code style="font-size:0.75rem;word-break:break-all">
-https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk
-                </code>`;
+                `<br><a href="${escapeAttr(apkUrl)}" download="evershelf-kiosk.apk" style="font-weight:700">${escapeHtml(t('settings.kiosk.download_local_btn'))}</a>` +
+                `<br><code style="font-size:0.75rem;word-break:break-all">${escapeHtml(apkUrl)}</code>`;
         }
-        return;
-    }
-    const installBtn = document.getElementById('btn-kiosk-install-update');
-    if (installBtn) { installBtn.disabled = true; installBtn.textContent = t('kiosk.starting_download'); }
-    try { _kioskBridge.installUpdate(_kioskPendingApkUrl); } catch(e) {
-        if (installBtn) { installBtn.disabled = false; installBtn.textContent = t('kiosk.install_btn'); }
         showToast('❌ ' + t('kiosk.error_start_install'), 'error');
     }
 }
@@ -5247,6 +5408,9 @@ function switchSettingsTab(btn, tabId) {
     // A tab can be opened from anywhere (deep link, "configure" button, restore):
     // bring its section forward and remember where the user was.
     _syncSettingsGroupForTab(tabId);
+    if (tabId === 'tab-security' || tabId === 'tab-info') {
+        _loadPairingCodePanel();
+    }
 }
 
 // ── Settings navigation: sections (level 1) → tabs (level 2) ──────────────
@@ -5318,7 +5482,7 @@ function _restoreSettingsNav() {
 // and the checklist opens the card it jumps to.
 
 /** Cards the accordion must leave alone. */
-const SETTINGS_ACCORDION_SKIP = ['settings-checklist'];
+const SETTINGS_ACCORDION_SKIP = ['settings-checklist', 'settings-pairing-card', 'info-pairing-card'];
 
 /** Give every settings card an openable header. Idempotent. */
 function _initSettingsAccordions() {
@@ -10393,7 +10557,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261008a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10403,7 +10567,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261006a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261008a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -27477,7 +27641,7 @@ async function _runStartupCheck() {
             if (window._pairingRequired && typeof _promptPairingCode === 'function') {
                 _promptPairingCode();
                 _preloaderStage('connect', 'warn');
-                setProgress(100, tl('pairing_required', 'Pair this device — the code is in the server log'), 'warn');
+                setProgress(100, tl('pairing_required', 'Pair this device — code in Settings → Security on another device, or the server log'), 'warn');
                 return false;
             }
             if (typeof _promptApiTokenIfNeeded === 'function') _promptApiTokenIfNeeded();

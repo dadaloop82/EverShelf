@@ -1227,7 +1227,17 @@
       "token_hint": "If `SETTINGS_TOKEN` is configured in the server's `.env`, enter the token here before saving settings. Leave empty if not configured.",
       "token_placeholder": "(empty = no protection)",
       "token_required_hint": "🔒 This server requires a token to save settings.",
-      "cert_instructions": "<strong>Instructions for Chrome (Android):</strong><br>1. Download the certificate above<br>2. Go to <em>Settings &rarr; Security &amp; Privacy &rarr; More security settings &rarr; Install from device storage</em><br>3. Select the downloaded <em>EverShelf_CA.crt</em> file<br>4. Choose \"CA\" and confirm<br>5. Restart Chrome<br><br><strong>Instructions for Chrome (PC):</strong><br>1. Download the certificate above<br>2. Go to <em>chrome://settings/certificates</em> (or Settings &rarr; Privacy and security &rarr; Security &rarr; Manage certificates)<br>3. Tab \"Authorities\" &rarr; Import &rarr; select the file<br>4. Check \"Trust this certificate for identifying websites\"<br>5. Restart Chrome"
+      "cert_instructions": "<strong>Instructions for Chrome (Android):</strong><br>1. Download the certificate above<br>2. Go to <em>Settings &rarr; Security &amp; Privacy &rarr; More security settings &rarr; Install from device storage</em><br>3. Select the downloaded <em>EverShelf_CA.crt</em> file<br>4. Choose \"CA\" and confirm<br>5. Restart Chrome<br><br><strong>Instructions for Chrome (PC):</strong><br>1. Download the certificate above<br>2. Go to <em>chrome://settings/certificates</em> (or Settings &rarr; Privacy and security &rarr; Security &rarr; Manage certificates)<br>3. Tab \"Authorities\" &rarr; Import &rarr; select the file<br>4. Check \"Trust this certificate for identifying websites\"<br>5. Restart Chrome",
+      "pairing_title": "🔗 Pairing code",
+      "pairing_hint": "Show this code on a new phone, tablet or kiosk when it asks to pair. Valid for 30 minutes; renews automatically.",
+      "pairing_loading": "Loading code…",
+      "pairing_copy": "📋 Copy",
+      "pairing_refresh": "🔄 New code",
+      "pairing_expires": "Expires in",
+      "pairing_copied": "Code copied",
+      "pairing_refreshed": "New code generated",
+      "pairing_error": "Could not load the pairing code",
+      "pairing_not_needed": "This server does not require pairing (no API_TOKEN, or API_BOOTSTRAP_OPEN)."
     },
     "tts": {
       "title": "🔊 Voice & TTS",
@@ -1323,8 +1333,8 @@
     },
     "kiosk": {
       "hint": "Turn an Android tablet into an always-on EverShelf panel with built-in BLE scale gateway.",
-      "download_btn": "📥 Download EverShelf Kiosk (APK)",
-      "download_sub": "Full-screen kiosk mode + integrated scale gateway. Source: evershelf-kiosk/",
+      "download_btn": "📥 Download APK from this server",
+      "download_sub": "Download the APK on your phone/tablet and open it to install. Prefer the local server on LAN; GitHub when off-network.",
       "native_title": "Kiosk Configuration",
       "native_hint": "Server URL, BLE scale, screensaver and setup wizard.",
       "native_btn": "Open kiosk configuration",
@@ -1333,7 +1343,11 @@
       "update_title": "Kiosk Update",
       "check_updates_btn": "🔍 Check for updates",
       "needs_update": "⚠️ The installed kiosk does not support this feature. Update the kiosk app to enable it.",
-      "install_update_btn": "⬇️ Install update"
+      "install_update_btn": "⬇️ Install update",
+      "download_local_btn": "📥 Download APK from this server",
+      "download_github_btn": "🐙 Download from GitHub (kiosk-latest)",
+      "server_apk_version": "Server APK: v{v} (code {code})",
+      "server_apk_missing": "APK missing on this server — use GitHub or publish releases/evershelf-kiosk.apk"
     },
     "saved": "✅ Configuration saved!",
     "saved_local": "✅ Configuration saved locally",
@@ -1442,7 +1456,9 @@
       "bring_expired": "token expired",
       "year_label": "Year {year}",
       "currency_title": "Currency",
-      "currency_hint": "The currency used for all costs and prices in the app."
+      "currency_hint": "The currency used for all costs and prices in the app.",
+      "pairing_hint": "To pair another device use this code (also under Settings → System → Security).",
+      "pairing_open_security": "Open Security"
     },
     "tab_general": "General",
     "shopping": {
@@ -2312,11 +2328,11 @@
     "token_prompt_btn": "Continue",
     "token_prompt_placeholder": "API token",
     "pairing_title": "🔒 Pair this device",
-    "pairing_hint": "Enter the pairing code shown in the server log (docker logs evershelf, or logs/evershelf_*.log).",
+    "pairing_hint": "Enter the pairing code. Find it on an already-paired device under Settings → System → Security, or in the server log (docker logs evershelf / logs/evershelf_*.log).",
     "pairing_placeholder": "Pairing code",
-    "pairing_required": "Pair this device — the code is in the server log",
+    "pairing_required": "Pair this device — the code is in Settings → Security on another device, or in the server log",
     "pairing_btn": "Pair",
-    "pairing_error": "Invalid or expired code — check the server log for a new one.",
+    "pairing_error": "Invalid or expired code — get a fresh one from Settings → System → Security on a paired device, or check the server log.",
     "hint_backups_none": "No backups found — is cron configured?",
     "hint_backups_stale": "Last backup is old — is cron running?",
     "hint_backups_dir_missing": "Backup directory missing",

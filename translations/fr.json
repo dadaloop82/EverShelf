@@ -1123,7 +1123,17 @@
       "token_hint": "Si `SETTINGS_TOKEN` est configuré dans le `.env` du serveur, entrez le token ici avant de sauvegarder les paramètres. Laissez vide si non configuré.",
       "token_placeholder": "(vide = pas de protection)",
       "token_required_hint": "🔒 Ce serveur nécessite un token pour sauvegarder les paramètres.",
-      "cert_instructions": "<strong>Instructions pour Chrome (Android) :</strong><br>1. Téléchargez le certificat ci-dessus<br>2. Allez dans <em>Paramètres &rarr; Sécurité &amp; Confidentialité &rarr; Plus de paramètres de sécurité &rarr; Installer depuis le stockage</em><br>3. Sélectionnez le fichier <em>EverShelf_CA.crt</em> téléchargé<br>4. Choisissez « CA » et confirmez<br>5. Redémarrez Chrome<br><br><strong>Instructions pour Chrome (PC) :</strong><br>1. Téléchargez le certificat ci-dessus<br>2. Allez dans <em>chrome://settings/certificates</em><br>3. Onglet « Autorités » &rarr; Importer &rarr; sélectionnez le fichier<br>4. Cochez « Approuver ce certificat pour identifier les sites web »<br>5. Redémarrez Chrome"
+      "cert_instructions": "<strong>Instructions pour Chrome (Android) :</strong><br>1. Téléchargez le certificat ci-dessus<br>2. Allez dans <em>Paramètres &rarr; Sécurité &amp; Confidentialité &rarr; Plus de paramètres de sécurité &rarr; Installer depuis le stockage</em><br>3. Sélectionnez le fichier <em>EverShelf_CA.crt</em> téléchargé<br>4. Choisissez « CA » et confirmez<br>5. Redémarrez Chrome<br><br><strong>Instructions pour Chrome (PC) :</strong><br>1. Téléchargez le certificat ci-dessus<br>2. Allez dans <em>chrome://settings/certificates</em><br>3. Onglet « Autorités » &rarr; Importer &rarr; sélectionnez le fichier<br>4. Cochez « Approuver ce certificat pour identifier les sites web »<br>5. Redémarrez Chrome",
+      "pairing_title": "🔗 Code d'association",
+      "pairing_hint": "Montrez ce code sur un nouveau téléphone, tablette ou kiosk lorsqu'il demande l'association. Valable 30 minutes ; se renouvelle automatiquement.",
+      "pairing_loading": "Chargement du code…",
+      "pairing_copy": "📋 Copier",
+      "pairing_refresh": "🔄 Nouveau code",
+      "pairing_expires": "Expire dans",
+      "pairing_copied": "Code copié",
+      "pairing_refreshed": "Nouveau code généré",
+      "pairing_error": "Impossible de charger le code d'association",
+      "pairing_not_needed": "Ce serveur n'exige pas d'association (pas d'API_TOKEN, ou API_BOOTSTRAP_OPEN)."
     },
     "tts": {
       "title": "🔊 Voix & TTS",
@@ -1219,8 +1229,8 @@
     },
     "kiosk": {
       "hint": "Transformez une tablette Android en panneau EverShelf permanent avec passerelle BLE intégrée.",
-      "download_btn": "📥 Télécharger EverShelf Kiosk (APK)",
-      "download_sub": "Mode kiosque plein écran + passerelle de balance intégrée. Source : evershelf-kiosk/",
+      "download_btn": "📥 Télécharger l’APK depuis ce serveur",
+      "download_sub": "Téléchargez l’APK sur le téléphone/tablette et ouvrez-le. Préférez le serveur local en LAN ; GitHub hors réseau.",
       "native_title": "Configuration du kiosque",
       "native_hint": "URL du serveur, balance BLE, économiseur d'écran et assistant de configuration.",
       "native_btn": "Ouvrir la configuration du kiosque",
@@ -1229,7 +1239,11 @@
       "update_title": "Mise à jour du kiosque",
       "check_updates_btn": "🔍 Vérifier les mises à jour",
       "needs_update": "⚠️ Le kiosque installé ne supporte pas cette fonctionnalité. Mettez à jour l'application kiosque pour l'activer.",
-      "install_update_btn": "⬇️ Installer la mise à jour"
+      "install_update_btn": "⬇️ Installer la mise à jour",
+      "download_local_btn": "📥 Télécharger l’APK depuis ce serveur",
+      "download_github_btn": "🐙 Télécharger depuis GitHub (kiosk-latest)",
+      "server_apk_version": "APK serveur : v{v} (code {code})",
+      "server_apk_missing": "APK absent sur ce serveur — utilisez GitHub ou publiez releases/evershelf-kiosk.apk"
     },
     "saved": "✅ Configuration enregistrée !",
     "saved_local": "✅ Configuration enregistrée localement",
@@ -1504,7 +1518,9 @@
       "bring_expired": "jeton expiré",
       "year_label": "Année {year}",
       "currency_title": "Devise",
-      "currency_hint": "Devise utilisée pour tous les coûts et prix dans l'app."
+      "currency_hint": "Devise utilisée pour tous les coûts et prix dans l'app.",
+      "pairing_hint": "Pour associer un autre appareil, utilisez ce code (aussi dans Paramètres → Système → Sécurité).",
+      "pairing_open_security": "Ouvrir Sécurité"
     },
     "tab_general": "Général",
     "kiosk_update_required": "⚠️ Mettez à jour l'application kiosk pour utiliser cette fonction",
@@ -2307,11 +2323,11 @@
     "token_prompt_btn": "Continuer",
     "token_prompt_placeholder": "Jeton API",
     "pairing_title": "🔒 Associer cet appareil",
-    "pairing_hint": "Saisissez le code d'association affiché dans les journaux du serveur (docker logs evershelf ou logs/evershelf_*.log).",
+    "pairing_hint": "Saisissez le code d'association. Il se trouve sur un appareil déjà associé dans Paramètres → Système → Sécurité, ou dans les journaux du serveur (docker logs evershelf / logs/evershelf_*.log).",
     "pairing_placeholder": "Code d'association",
-    "pairing_required": "Associez cet appareil — le code se trouve dans le journal du serveur",
+    "pairing_required": "Associez cet appareil — le code est dans Paramètres → Sécurité sur un autre appareil, ou dans le journal du serveur",
     "pairing_btn": "Associer",
-    "pairing_error": "Code invalide ou expiré — consultez les journaux du serveur pour en obtenir un nouveau.",
+    "pairing_error": "Code invalide ou expiré — demandez-en un nouveau dans Paramètres → Système → Sécurité sur un appareil associé, ou consultez les journaux du serveur.",
     "check_db_legacy": "Ancienne BD (dispensa.db)",
     "check_tts": "URL synthèse vocale",
     "check_scale": "Passerelle balance",

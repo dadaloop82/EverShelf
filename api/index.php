@@ -1150,6 +1150,12 @@ try {
             getServerSettings();
             break;
 
+        case 'pairing_code':
+            // Authenticated only (router): show/renew the one-time code so a
+            // paired device can hand it to a new phone/tablet/kiosk.
+            pairingCodeStatus();
+            break;
+
         case 'ai_test':
             aiTestConnection();
             break;
@@ -8796,6 +8802,13 @@ function saveSettings(): void {
     }
 
     $input = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($input)) {
+        $input = [];
+    }
+    // Legacy kiosk wizard sent gemini_api_key — accept it as gemini_key.
+    if (!empty($input['gemini_api_key']) && empty($input['gemini_key'])) {
+        $input['gemini_key'] = $input['gemini_api_key'];
+    }
     $envFile = __DIR__ . '/../.env';
     $envVars = loadEnv();
     

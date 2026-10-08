@@ -1227,7 +1227,17 @@
       "token_hint": "Se `SETTINGS_TOKEN` è configurato nel `.env` server, inserisci qui il token prima di salvare le impostazioni. Lascia vuoto se non configurato.",
       "token_placeholder": "(vuoto = nessuna protezione)",
       "token_required_hint": "🔒 Questo server richiede un token per salvare le impostazioni.",
-      "cert_instructions": "<strong>Istruzioni per Chrome (Android):</strong><br>1. Scarica il certificato qui sopra<br>2. Vai in <em>Impostazioni &rarr; Sicurezza e privacy &rarr; Altre impostazioni di sicurezza &rarr; Installa da archivio dispositivo</em><br>3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>4. Scegli \"CA\" e conferma<br>5. Riavvia Chrome<br><br><strong>Istruzioni per Chrome (PC):</strong><br>1. Scarica il certificato qui sopra<br>2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni &rarr; Privacy e sicurezza &rarr; Sicurezza &rarr; Gestisci certificati)<br>3. Tab \"Autorità\" &rarr; Importa &rarr; seleziona il file<br>4. Spunta \"Considera attendibile per identificare siti web\"<br>5. Riavvia Chrome"
+      "cert_instructions": "<strong>Istruzioni per Chrome (Android):</strong><br>1. Scarica il certificato qui sopra<br>2. Vai in <em>Impostazioni &rarr; Sicurezza e privacy &rarr; Altre impostazioni di sicurezza &rarr; Installa da archivio dispositivo</em><br>3. Seleziona il file <em>EverShelf_CA.crt</em> scaricato<br>4. Scegli \"CA\" e conferma<br>5. Riavvia Chrome<br><br><strong>Istruzioni per Chrome (PC):</strong><br>1. Scarica il certificato qui sopra<br>2. Vai in <em>chrome://settings/certificates</em> (o Impostazioni &rarr; Privacy e sicurezza &rarr; Sicurezza &rarr; Gestisci certificati)<br>3. Tab \"Autorità\" &rarr; Importa &rarr; seleziona il file<br>4. Spunta \"Considera attendibile per identificare siti web\"<br>5. Riavvia Chrome",
+      "pairing_title": "🔗 Codice di associazione",
+      "pairing_hint": "Mostra questo codice su un nuovo telefono, tablet o kiosk quando chiede di associarsi. Valido 30 minuti; si rinnova automaticamente.",
+      "pairing_loading": "Caricamento codice…",
+      "pairing_copy": "📋 Copia",
+      "pairing_refresh": "🔄 Nuovo codice",
+      "pairing_expires": "Scade tra",
+      "pairing_copied": "Codice copiato",
+      "pairing_refreshed": "Nuovo codice generato",
+      "pairing_error": "Impossibile caricare il codice di associazione",
+      "pairing_not_needed": "Questo server non richiede associazione (API_TOKEN assente o API_BOOTSTRAP_OPEN)."
     },
     "tts": {
       "title": "🔊 Voce & TTS",
@@ -1323,8 +1333,8 @@
     },
     "kiosk": {
       "hint": "Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.",
-      "download_btn": "📥 Scarica EverShelf Kiosk (APK)",
-      "download_sub": "Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: evershelf-kiosk/",
+      "download_btn": "📥 Scarica APK da questo server",
+      "download_sub": "Scarica l’APK sul telefono/tablet e aprilo per installare. Preferisci il server locale in LAN; GitHub se sei fuori rete.",
       "native_title": "Configurazione Kiosk",
       "native_hint": "URL server, bilancia BLE, salvaschermo e setup wizard.",
       "native_btn": "Apri configurazione kiosk",
@@ -1333,7 +1343,11 @@
       "update_title": "Aggiornamento Kiosk",
       "check_updates_btn": "🔍 Cerca aggiornamenti",
       "needs_update": "⚠️ Il kiosk installato non supporta questa funzione. Aggiorna l'app kiosk per abilitarla.",
-      "install_update_btn": "⬇️ Installa aggiornamento"
+      "install_update_btn": "⬇️ Installa aggiornamento",
+      "download_local_btn": "📥 Scarica APK da questo server",
+      "download_github_btn": "🐙 Scarica da GitHub (kiosk-latest)",
+      "server_apk_version": "APK sul server: v{v} (code {code})",
+      "server_apk_missing": "APK non trovato su questo server — usa GitHub o pubblica releases/evershelf-kiosk.apk"
     },
     "saved": "✅ Configurazione salvata!",
     "saved_local": "✅ Configurazione salvata localmente",
@@ -1442,7 +1456,9 @@
       "bring_expired": "token scaduto",
       "year_label": "Anno {year}",
       "currency_title": "Valuta",
-      "currency_hint": "La valuta usata per tutti i costi e i prezzi nell'app."
+      "currency_hint": "La valuta usata per tutti i costi e i prezzi nell'app.",
+      "pairing_hint": "Per associare un altro dispositivo usa questo codice (anche in Impostazioni → Sistema → Sicurezza).",
+      "pairing_open_security": "Apri Sicurezza"
     },
     "tab_general": "Generali",
     "shopping": {
@@ -2312,11 +2328,11 @@
     "token_prompt_btn": "Continua",
     "token_prompt_placeholder": "Token API",
     "pairing_title": "🔒 Associa questo dispositivo",
-    "pairing_hint": "Inserisci il codice di associazione mostrato nei log del server (docker logs evershelf oppure logs/evershelf_*.log).",
+    "pairing_hint": "Inserisci il codice di associazione. Lo trovi su un dispositivo già associato in Impostazioni → Sistema → Sicurezza, oppure nei log del server (docker logs evershelf / logs/evershelf_*.log).",
     "pairing_placeholder": "Codice di associazione",
-    "pairing_required": "Associa questo dispositivo — il codice è nei log del server",
+    "pairing_required": "Associa questo dispositivo — il codice è in Impostazioni → Sicurezza su un altro dispositivo, o nei log del server",
     "pairing_btn": "Associa",
-    "pairing_error": "Codice non valido o scaduto — controlla i log del server per uno nuovo.",
+    "pairing_error": "Codice non valido o scaduto — chiedi un codice nuovo da Impostazioni → Sistema → Sicurezza su un dispositivo già associato, oppure controlla i log del server.",
     "hint_backups_none": "Nessun backup trovato — cron configurato?",
     "hint_backups_stale": "Ultimo backup datato — cron in esecuzione?",
     "hint_backups_dir_missing": "Cartella backup mancante",

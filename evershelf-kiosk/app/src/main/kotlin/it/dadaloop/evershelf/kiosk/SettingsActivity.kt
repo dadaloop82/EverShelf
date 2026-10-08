@@ -141,7 +141,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnSave).setOnClickListener {
             val url = urlEdit.text.toString().trim()
             if (url.isEmpty()) {
-                Toast.makeText(this, "URL cannot be empty", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.settings_url_empty), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             val screensaverOn = switchScreensaver.isChecked
@@ -177,7 +177,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun testConnection() {
         val url = urlEdit.text.toString().trim()
         if (url.isEmpty()) {
-            Toast.makeText(this, "Enter a URL first", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.settings_url_enter_first), Toast.LENGTH_SHORT).show()
             return
         }
 
