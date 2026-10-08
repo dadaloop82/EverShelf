@@ -60,23 +60,35 @@ jobs:
             echo "::error::Missing KIOSK_KEYSTORE_BASE64 / KIOSK_STORE_PASSWORD / KIOSK_KEY_ALIAS secrets — refusing to publish a differently-signed APK"
             exit 1
           fi
-          echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > evershelf.jks
+          # Absolute path so AGP never resolves relative to :app by mistake.
+          JKS_ABS="${GITHUB_WORKSPACE}/evershelf-kiosk/evershelf.jks"
+          echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > "$JKS_ABS"
+          test -s "$JKS_ABS"
           {
-            echo "storeFile=evershelf.jks"
+            echo "storeFile=${JKS_ABS}"
             echo "storePassword=${KIOSK_STORE_PASSWORD}"
             echo "keyAlias=${KIOSK_KEY_ALIAS}"
             echo "keyPassword=${KIOSK_KEY_PASSWORD:-$KIOSK_STORE_PASSWORD}"
           } > keystore.properties
-          echo "Using KIOSK_KEYSTORE_BASE64 for signing"
-          # Fingerprint for the release notes / OTA diagnostics
-          keytool -list -v -keystore evershelf.jks \
+          echo "Using KIOSK_KEYSTORE_BASE64 for signing (${JKS_ABS})"
+          keytool -list -v -keystore "$JKS_ABS" \
             -storepass "${KIOSK_STORE_PASSWORD}" \
             -alias "${KIOSK_KEY_ALIAS}" 2>/dev/null \
             | grep -E 'SHA1:|SHA256:|Alias name:' || true
 
       - name: Build release APK (stable project signature)
-        run: gradle assembleRelease --no-daemon
         working-directory: evershelf-kiosk
+        env:
+          # Belt-and-suspenders: Gradle also reads these if properties are missing.
+          KIOSK_STORE_FILE: ${{ github.workspace }}/evershelf-kiosk/evershelf.jks
+          KIOSK_STORE_PASSWORD: ${{ secrets.KIOSK_STORE_PASSWORD }}
+          KIOSK_KEY_ALIAS: ${{ secrets.KIOSK_KEY_ALIAS }}
+          KIOSK_KEY_PASSWORD: ${{ secrets.KIOSK_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -s evershelf.jks
+          test -f keystore.properties
+          gradle assembleRelease --no-daemon
 
       - name: Rename APK
         run: |
@@ -100,12 +112,13 @@ jobs:
           # Delete old release with same tag if it exists (e.g. re-run on same version)
           gh release delete "$TAG" --yes 2>/dev/null || true
           git push --delete origin "$TAG" 2>/dev/null || true
-          # Do NOT pass --latest: app releases (v1.x) own "Latest". The stable
-          # download URL is the kiosk-latest alias below — /releases/latest/download/
-          # evershelf-kiosk.apk would 404 after the next web release.
+          # Explicit --latest=false: omitting it still lets gh promote this to
+          # GitHub "Latest" and steal it from the web app (v1.x). The stable
+          # download URL is the kiosk-latest alias below.
           gh release create "$TAG" \
             --title "EverShelf Kiosk v${{ steps.version.outputs.name }}" \
             --notes "Kiosk mode app. Scarica e installa su Android 7.0+. L'aggiornamento OTA è automatico. Download alias: https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" \
+            --latest=false \
             artifacts/evershelf-kiosk.apk
 
       - name: Update kiosk-latest tag (for hardcoded download URL)
