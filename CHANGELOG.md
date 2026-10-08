@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.9] - 2026-10-08
+
+- **Kiosk pairing UX:** dedicated wizard step explains where to find the code (Settings → Security / server log) and collects it on its own screen (no AlertDialog).
+- Native API token is handed to the WebView (`_kioskBridge.getApiToken` + `localStorage`) so the web app does **not** ask for pairing again after setup.
+- Save-failed toast no longer leaves you stuck: if the server rejected the save for a missing token, the wizard returns to the pairing step.
+- Kiosk **1.7.24** (versionCode 25).
+
 ## [1.11.8] - 2026-10-08
 
 ### Web app
@@ -26,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **1.7.23 — full UI redesign:** emerald Corporate UI across setup wizard, settings and splash; welcome/privacy/feature cards with real explanations; progress dots use brand drawables; all new copy in EN/IT/DE/FR/ES; no leftover purple accents.
 
 ### Docs
-- Wiki / README / SECURITY / ARCHITECTURE / CODEBASE-MAP aligned for pairing-in-Settings, `kiosk-latest`, and the 9-step emerald wizard.
+- Wiki / README / SECURITY / ARCHITECTURE / CODEBASE-MAP aligned for pairing-in-Settings, `kiosk-latest`, and the emerald wizard.
 
 ## [1.11.7] - 2026-10-06
 

@@ -151,7 +151,7 @@
     <string name="setup_server_url_label">URL DEL SERVIDOR</string>
     <string name="setup_server_url_hint">http://192.168.1.100/dispensa</string>
     <string name="setup_server_test">Probar conexión</string>
-    <string name="setup_server_tip">💡 Tras una prueba correcta puede pedirte el código de emparejamiento (Ajustes → Sistema → Seguridad en un dispositivo ya vinculado) y si mantener los ajustes ya presentes en el servidor.</string>
+    <string name="setup_server_tip">💡 Tras una prueba correcta, el siguiente paso pide el código (Ajustes → Sistema → Seguridad).</string>
     <string name="setup_scale_explain">El kiosk incluye una pasarela BLE integrada — ninguna app Scale Gateway aparte. La balanza permanece vinculada tras reinicios.</string>
     <string name="setup_scale_power_title">🔋 Enciende la balanza</string>
     <string name="setup_scale_power_body">Despierta la balanza, mantenla cerca (~2 m) y continúa. Escanearemos y te pediremos confirmar una lectura de peso.</string>
@@ -181,4 +181,13 @@
     <string name="settings_advanced_hint">Home Assistant, Gemini AI, Bring!, TTS, notificaciones y el resto se configuran en la app web EverShelf.</string>
     <string name="settings_url_empty">La URL no puede estar vacía</string>
     <string name="settings_url_enter_first">Introduce primero una URL</string>
+    <string name="setup_pairing_step_title">Vincular este kiosk</string>
+    <string name="setup_pairing_step_body">El servidor protege la API con un token. Vincula la tablet una sola vez aquí para guardar ajustes y abrir EverShelf sin pedir el código otra vez en la app web.</string>
+    <string name="setup_pairing_where_title">Dónde encontrar el código</string>
+    <string name="setup_pairing_where_body">1. En un teléfono/PC ya vinculado: Ajustes → Sistema → Seguridad (o Info).&#10;2. Copia el código grande (~30 min).&#10;3. Pégalo abajo.&#10;&#10;Sin dispositivo vinculado, en el servidor:&#10;grep -i "pairing code" logs/evershelf_*.log | tail -1</string>
+    <string name="setup_pairing_code_label">CÓDIGO DE VINCULACIÓN</string>
+    <string name="setup_pairing_once_note">Basta vincular una vez: el token se queda en la tablet y se pasa a la app web.</string>
+    <string name="setup_pairing_status_ok">✅ Vinculado — continúa</string>
+    <string name="setup_pairing_status_working">Vinculando…</string>
+    <string name="setup_pairing_required_toast">Introduce un código de vinculación válido</string>
 </resources>

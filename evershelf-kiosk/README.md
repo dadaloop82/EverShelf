@@ -2,7 +2,7 @@
 
 Android kiosk app for wall-mounted kitchen tablets. Full-screen WebView wrapper with integrated BLE scale gateway — no external apps required.
 
-> **Version:** 1.7.23 (versionCode 24) — emerald Corporate UI redesign (wizard / settings / splash)  
+> **Version:** 1.7.24 (versionCode 25) — pairing step + token hand-off to WebView  
 > **Package:** `it.dadaloop.evershelf.kiosk`  
 > **Min SDK:** Android 7.0 (API 24)  
 > **Download:** [kiosk-latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk) (not GitHub “Latest” — that is the web app)  
@@ -37,16 +37,17 @@ Pairs with the EverShelf web app **Corporate UI** (v1.7.57+) and later fixes (sh
 - **Auto-reconnect** — reconnects automatically after 8 seconds if the BLE link drops
 - **Multi-protocol** — supports Bluetooth SIG Weight Scale (`0x181D`/`0x2A9D`), Body Composition (`0x181B`/`0x2A9C`), QN/Yolanda scales, and 100+ models via generic fallback heuristic
 
-### Setup Wizard (9 steps, emerald Corporate UI)
+### Setup Wizard (10 steps, emerald Corporate UI)
 0. **Language** — Italiano / English / Deutsch / Español / Français
 1. **Welcome** — brand intro, privacy (“data stays at home”), what the wizard configures
 2. **Permissions** — camera, microphone, BLE with rationale cards
-3. **Server URL** — manual URL or LAN auto-discovery; Test uses public `ping`; optional pairing code + keep/reset of server settings
-4. **Smart Scale** — optional BLE scale (power-on → scan with retries → confirm weight)
-5. **Features** — screensaver, prices, meal-plan, zero-waste (explained; written to the server)
-6. **Gemini AI** — optional key + “what it unlocks” card
-7. **Bring!** — optional account + “what it does” card
-8. **Done** — summary and launch full-screen kiosk
+3. **Server URL** — manual URL or LAN auto-discovery; Test uses public `ping`
+4. **Pairing** — where to find the code + enter it once; token is handed to the WebView
+5. **Smart Scale** — optional BLE scale (power-on → scan with retries → confirm weight)
+6. **Features** — screensaver, prices, meal-plan, zero-waste (explained; written to the server)
+7. **Gemini AI** — optional key + “what it unlocks” card
+8. **Bring!** — optional account + “what it does” card
+9. **Done** — summary and launch full-screen kiosk
 
 Native settings and the splash screen use the same emerald tokens (`Theme.EverShelf.Kiosk`).
 

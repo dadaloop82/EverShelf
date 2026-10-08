@@ -8,7 +8,7 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 **[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk)**
 
-> Current version: **v1.7.23** (versionCode 24) — requires Android 7.0+
+> Current version: **v1.7.24** (versionCode 25) — requires Android 7.0+
 >
 > Use the `kiosk-latest` tag (not GitHub’s “Latest” release — that tracks the web app and has no APK).
 > On a phone already on the EverShelf LAN, Settings → EverShelf Kiosk → **Scarica APK da questo server** serves `releases/evershelf-kiosk.apk` from your instance.
@@ -28,7 +28,7 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 ---
 
-## Setup Wizard (9 steps)
+## Setup Wizard (10 steps)
 
 The wizard runs automatically on first launch. Steps already configured (the Gemini key,
 the Bring! account) are skipped. Progress dots use the emerald brand palette; each step
@@ -39,12 +39,13 @@ fades in. Copy is localised (EN/IT/DE/FR/ES).
 | 0 | **Language** | App and web-interface language: Italiano, English, Deutsch, Español, Français |
 | 1 | **Welcome** | Brand intro, privacy (“data stays at home”), and what the wizard configures |
 | 2 | **Permissions** | Camera, microphone, Bluetooth — each with a short rationale card |
-| 3 | **Server URL** | EverShelf URL, LAN auto-discovery, connection test (`ping`), optional pairing + keep/reset of server settings |
-| 4 | **Smart Scale** | Optional Bluetooth LE scale (power-on tip → scan → confirm a weight reading) |
-| 5 | **Features** | Four explained toggles: screensaver, prices, meal-plan, zero-waste (written to the server) |
-| 6 | **Gemini AI** | Optional AI key, with a “what Gemini unlocks” card |
-| 7 | **Bring!** | Optional Bring! account, with a “what Bring! does” card |
-| 8 | **Done** | Summary and launch the kiosk |
+| 3 | **Server URL** | EverShelf URL, LAN auto-discovery, connection test (`ping`) |
+| 4 | **Pairing** | Dedicated screen: where to find the code (Settings → Security) + enter it once; token is handed to the web app so the browser overlay does not ask again |
+| 5 | **Smart Scale** | Optional Bluetooth LE scale (power-on tip → scan → confirm a weight reading) |
+| 6 | **Features** | Four explained toggles: screensaver, prices, meal-plan, zero-waste (written to the server) |
+| 7 | **Gemini AI** | Optional AI key, with a “what Gemini unlocks” card |
+| 8 | **Bring!** | Optional Bring! account, with a “what Bring! does” card |
+| 9 | **Done** | Summary and launch the kiosk |
 
 ### Step 2 — Permissions
 

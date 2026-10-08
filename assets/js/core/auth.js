@@ -37,6 +37,17 @@ function apiAuthHeaders() {
 /** Fetch API token from server when loading the UI from the same origin. */
 async function ensureApiToken() {
     if (getApiToken()) return true;
+    // Android kiosk may already have paired natively during SetupActivity.
+    try {
+        if (typeof _kioskBridge !== 'undefined' && typeof _kioskBridge.getApiToken === 'function') {
+            const nativeTok = String(_kioskBridge.getApiToken() || '').trim();
+            if (nativeTok) {
+                setApiToken(nativeTok);
+                window._pairingRequired = false;
+                return true;
+            }
+        }
+    } catch (_) { /* bridge unavailable */ }
     try {
         const res = await fetch('api/index.php?action=app_bootstrap', { cache: 'no-store' });
         if (!res.ok) return false;

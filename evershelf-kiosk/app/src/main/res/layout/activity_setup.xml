@@ -158,6 +158,28 @@
                 </LinearLayout>
                 </LinearLayout>
 
+                <LinearLayout android:id="@+id/stepPairing" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_step_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_step_body" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_accent" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_where_title" android:textAppearance="@style/Text.EverShelf.Subtitle" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_pairing_where_body" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_code_label" android:textAppearance="@style/Text.EverShelf.Section" android:layout_marginBottom="8dp" />
+                        <EditText android:id="@+id/setupPairingCodeEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textVisiblePassword|textNoSuggestions" android:hint="@string/setup_pairing_hint" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" android:background="@drawable/input_background" android:padding="14dp" android:textSize="20sp" android:letterSpacing="0.12" android:gravity="center" android:singleLine="true" android:layout_marginBottom="10dp" />
+                        <TextView android:id="@+id/setupPairingStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Hint" android:visibility="gone" android:layout_marginBottom="10dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPairingSubmit" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_btn" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="8dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_pairing_once_note" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="20dp">
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPairingBack" style="@style/Widget.EverShelf.Button.Ghost" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/setup_step_back" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPairingNext" style="@style/Widget.EverShelf.Button" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.4" android:layout_marginStart="8dp" android:text="@string/setup_step_next" android:enabled="false" />
+                    </LinearLayout>
+                </LinearLayout>
+
                 <LinearLayout android:id="@+id/stepScale" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_description" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
