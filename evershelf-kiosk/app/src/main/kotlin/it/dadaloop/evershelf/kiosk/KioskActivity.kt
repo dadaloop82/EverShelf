@@ -1157,8 +1157,8 @@ class KioskActivity : AppCompatActivity() {
                 Check that the server is running and the URL is correct.
             </p>
             <button onclick='location.reload()'
-                    style='background:#7c3aed;color:#fff;border:none;padding:14px 32px;
-                           border-radius:12px;font-size:16px;cursor:pointer;'>
+                    style='background:#10B981;color:#0B1220;border:none;padding:14px 32px;
+                           border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;'>
                 Retry
             </button>
         </body>

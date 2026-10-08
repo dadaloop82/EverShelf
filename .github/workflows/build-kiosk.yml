@@ -53,35 +53,41 @@ jobs:
           KIOSK_KEY_PASSWORD: ${{ secrets.KIOSK_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -n "${KIOSK_KEYSTORE_BASE64:-}" ]; then
-            echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > evershelf.jks
-            {
-              echo "storeFile=evershelf.jks"
-              echo "storePassword=${KIOSK_STORE_PASSWORD}"
-              echo "keyAlias=${KIOSK_KEY_ALIAS}"
-              echo "keyPassword=${KIOSK_KEY_PASSWORD:-$KIOSK_STORE_PASSWORD}"
-            } > keystore.properties
-            echo "Using KIOSK_KEYSTORE_BASE64 for signing"
-          else
-            mkdir -p "$HOME/.android"
-            if [ ! -f "$HOME/.android/debug.keystore" ]; then
-              keytool -genkeypair -v \
-                -keystore "$HOME/.android/debug.keystore" \
-                -storepass android -alias androiddebugkey -keypass android \
-                -keyalg RSA -keysize 2048 -validity 10000 \
-                -dname "CN=Android Debug,O=Android,C=US"
-            fi
-            echo "No KIOSK_KEYSTORE_BASE64 secret — using generated debug keystore"
+          # Publishing a debug-signed APK (or a fresh debug keystore every run)
+          # breaks OTA: Android refuses to update over a different signature and
+          # forces uninstall. Release builds MUST use the stable project keystore.
+          if [ -z "${KIOSK_KEYSTORE_BASE64:-}" ] || [ -z "${KIOSK_STORE_PASSWORD:-}" ] || [ -z "${KIOSK_KEY_ALIAS:-}" ]; then
+            echo "::error::Missing KIOSK_KEYSTORE_BASE64 / KIOSK_STORE_PASSWORD / KIOSK_KEY_ALIAS secrets — refusing to publish a differently-signed APK"
+            exit 1
           fi
+          echo "$KIOSK_KEYSTORE_BASE64" | base64 -d > evershelf.jks
+          {
+            echo "storeFile=evershelf.jks"
+            echo "storePassword=${KIOSK_STORE_PASSWORD}"
+            echo "keyAlias=${KIOSK_KEY_ALIAS}"
+            echo "keyPassword=${KIOSK_KEY_PASSWORD:-$KIOSK_STORE_PASSWORD}"
+          } > keystore.properties
+          echo "Using KIOSK_KEYSTORE_BASE64 for signing"
+          # Fingerprint for the release notes / OTA diagnostics
+          keytool -list -v -keystore evershelf.jks \
+            -storepass "${KIOSK_STORE_PASSWORD}" \
+            -alias "${KIOSK_KEY_ALIAS}" 2>/dev/null \
+            | grep -E 'SHA1:|SHA256:|Alias name:' || true
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build release APK (stable project signature)
+        run: gradle assembleRelease --no-daemon
         working-directory: evershelf-kiosk
 
       - name: Rename APK
         run: |
           mkdir -p artifacts
-          cp evershelf-kiosk/app/build/outputs/apk/debug/app-debug.apk artifacts/evershelf-kiosk.apk
+          # Prefer release; fall back to debug only if release path is missing (should not happen).
+          if [ -f evershelf-kiosk/app/build/outputs/apk/release/app-release.apk ]; then
+            cp evershelf-kiosk/app/build/outputs/apk/release/app-release.apk artifacts/evershelf-kiosk.apk
+          else
+            echo "::error::Release APK missing — refusing to ship a debug build"
+            exit 1
+          fi
 
       # Publish with a semver-compatible tag so the in-app update check can
       # compare versions numerically (tag "kiosk-1.7.0" → norm → "1.7.0").
@@ -94,10 +100,12 @@ jobs:
           # Delete old release with same tag if it exists (e.g. re-run on same version)
           gh release delete "$TAG" --yes 2>/dev/null || true
           git push --delete origin "$TAG" 2>/dev/null || true
+          # Do NOT pass --latest: app releases (v1.x) own "Latest". The stable
+          # download URL is the kiosk-latest alias below — /releases/latest/download/
+          # evershelf-kiosk.apk would 404 after the next web release.
           gh release create "$TAG" \
             --title "EverShelf Kiosk v${{ steps.version.outputs.name }}" \
-            --notes "Kiosk mode app. Scarica e installa su Android 7.0+. L'aggiornamento OTA è automatico." \
-            --latest \
+            --notes "Kiosk mode app. Scarica e installa su Android 7.0+. L'aggiornamento OTA è automatico. Download alias: https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" \
             artifacts/evershelf-kiosk.apk
 
       - name: Update kiosk-latest tag (for hardcoded download URL)

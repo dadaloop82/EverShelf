@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.8] - 2026-10-08
+
+### Web app
+- Settings → EverShelf Kiosk: **Scarica APK da questo server** (`releases/evershelf-kiosk.apk` on the LAN) plus GitHub `kiosk-latest`. The old “Latest release” URL 404’d because app tags own GitHub Latest and carry no APK.
+- Kiosk OTA panel always keeps a direct local download; install no longer dies on `typeof` bridge checks; stuck “Avvio download…” resets after 8s.
+- **Pairing code** is visible on a paired device under Settings → System → Security (and Info): large code, countdown, copy / refresh. Pairing dialog and docs no longer point only at `docker logs`.
+
+### Android kiosk
+- CI no longer marks versioned kiosk releases as GitHub `--latest`; refuses debug-signed APKs so OTA no longer forces uninstall.
+- **1.7.22:** connection Test uses public `ping` (same as discovery); wizard pairs then offers keep/reset of server settings; `save_settings` sends `gemini_key` + API token; BLE connect retries up to 3×.
+- **1.7.23 — full UI redesign:** emerald Corporate UI across setup wizard, settings and splash; welcome/privacy/feature cards with real explanations; progress dots use brand drawables; all new copy in EN/IT/DE/FR/ES; no leftover purple accents.
+
+### Docs
+- Wiki / README / SECURITY / ARCHITECTURE / CODEBASE-MAP aligned for pairing-in-Settings, `kiosk-latest`, and the 9-step emerald wizard.
+
 ## [1.11.7] - 2026-10-06
 
 - Recipe detail no longer shows the empty «Mancano dalla dispensa» stub when the pantry already covers the dish (auto mode left the loading placeholder stuck). Panel appears only when there are real gaps; default `RECIPE_SHOPPING_MODE` is `off`.

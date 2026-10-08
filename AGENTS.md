@@ -95,8 +95,10 @@ api/index.php   → switch($action) → handler fn → SQLite (data/evershelf.db
   `api/lib/security.php` (`evershelfPublicActions`, `evershelfMutatingGetActions`,
   `evershelfDemoReadOnlyActions`, …) only when intended.
   **Never authorise on client-supplied headers** (`Origin`, `Referer`,
-  `Sec-Fetch-Site` are forgeable). `app_bootstrap` only hands out `API_TOKEN` after
-  the one-time pairing code (`api/lib/pairing.php`) is presented; see `SECURITY.md`.
+  `Sec-Fetch-Site` are forgeable).   `app_bootstrap` only hands out `API_TOKEN` after
+  the one-time pairing code (`api/lib/pairing.php`) is presented; a paired device
+  shows the live code under Settings → System → Security (`pairing_code` action);
+  see `SECURITY.md`.
 - **Auth overlays are drawn during startup, above everything.** Pairing is requested
   while `_initApp()` is still running, and `_initApp()` returns early when it cannot
   authenticate — so `#app-preloader` (z-index 200000) is never removed. The auth

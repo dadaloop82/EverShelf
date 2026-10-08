@@ -45,14 +45,17 @@ Out-of-scope issues:
   write (`hash_equals` to prevent timing attacks). `DEMO_MODE=true` blocks all write
   operations at the router level
 - **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to
-  an anonymous request: the UI shows a dialog and the user types the one-time code
-  printed in the server log (`grep -i "pairing code" logs/evershelf_*.log` or
+  an anonymous request: the UI shows a dialog and the user types the one-time code.
+  The code is shown on an already-paired device under **Settings → System → Security**
+  (and Info), and is also printed in the server log
+  (`grep -i "pairing code" logs/evershelf_*.log` or
   `docker logs evershelf 2>&1 | grep -i "pairing code"`, 30 min TTL, brute-force
-  limited). If the `grep` returns nothing, the web user cannot write the log file — a
-  log created by a root `cron` run is root-owned and silently rejects Apache's writes;
-  run `scripts/fix-permissions.sh`. `API_BOOTSTRAP_OPEN=true` restores the old
-  "trust any same-origin-looking request" behaviour and should only be used on a
-  fully trusted LAN — the headers it relies on are client-controlled.
+  limited). The authenticated `pairing_code` action never returns the code to
+  anonymous clients. If the `grep` returns nothing, the web user cannot write the
+  log file — a log created by a root `cron` run is root-owned and silently rejects
+  Apache's writes; run `scripts/fix-permissions.sh`. `API_BOOTSTRAP_OPEN=true`
+  restores the old "trust any same-origin-looking request" behaviour and should
+  only be used on a fully trusted LAN — the headers it relies on are client-controlled.
 - The calendar feed's credential is **read-only and lives in the URL, by design.**
   A calendar client can only GET a URL — it cannot send `X-API-Token`, and it will
   keep calling that URL for years — so `calendar_ics` is a public action guarded by

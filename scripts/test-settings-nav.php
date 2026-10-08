@@ -152,6 +152,12 @@ foreach (['kiosk-download-banner', 'kiosk-native-settings-panel', 'kiosk-update-
         assert_same(1, $xp->query("//*[@id='tab-info']//*[@id=\"{$id}\"]")->length, "#{$id} lives inside the Info panel (not below every tab)");
     }
 }
+assert_same(1, $xp->query("//*[@id='tab-security']//*[@id='settings-pairing-card']")->length, 'pairing card lives in Security');
+assert_same(1, $xp->query("//*[@id='tab-info']//*[@id='info-pairing-card']")->length, 'pairing shortcut lives in Info');
+assert_true(str_contains($appJs, "SETTINGS_ACCORDION_SKIP = ['settings-checklist', 'settings-pairing-card', 'info-pairing-card']")
+    || (str_contains($appJs, 'settings-pairing-card') && str_contains($appJs, 'SETTINGS_ACCORDION_SKIP')),
+    'pairing cards stay open (not collapsed by the accordion)');
+assert_true(str_contains($appJs, 'function _loadPairingCodePanel'), 'pairing panel loader exists');
 assert_same(0, $xp->query("//*[@id='settings-status']/ancestor::*[@id='tab-info']")->length, 'the global save/status bar stays outside the panels');
 
 // ── Every card is a collapsed sub-section ──────────────────────────────────

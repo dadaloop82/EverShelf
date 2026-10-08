@@ -1227,7 +1227,17 @@
       "token_hint": "如果服务器的 `.env` 中配置了 `SETTINGS_TOKEN`，请在保存设置前在此输入令牌；未配置时留空。",
       "token_placeholder": "（留空 = 不启用保护）",
       "token_required_hint": "🔒 此服务器要求使用令牌保存设置。",
-      "cert_instructions": "<strong>Chrome（Android）操作步骤：</strong><br>1. 下载上方证书<br>2. 前往<em>设置 &rarr; 安全 &amp; 隐私 &rarr; 更多安全设置 &rarr; 从设备存储空间安装</em><br>3. 选择下载的 <em>EverShelf_CA.crt</em> 文件<br>4. 选择“CA”并确认<br>5. 重新启动 Chrome<br><br><strong>Chrome（电脑）操作步骤：</strong><br>1. 下载上方证书<br>2. 前往 <em>chrome://settings/certificates</em>（或“设置 &rarr; 隐私和安全 &rarr; 安全 &rarr; 管理证书”）<br>3. 打开“授权机构”标签页 &rarr; 点击“导入” &rarr; 选择文件<br>4. 勾选“信任此证书以标识网站”<br>5. 重新启动 Chrome"
+      "cert_instructions": "<strong>Chrome（Android）操作步骤：</strong><br>1. 下载上方证书<br>2. 前往<em>设置 &rarr; 安全 &amp; 隐私 &rarr; 更多安全设置 &rarr; 从设备存储空间安装</em><br>3. 选择下载的 <em>EverShelf_CA.crt</em> 文件<br>4. 选择“CA”并确认<br>5. 重新启动 Chrome<br><br><strong>Chrome（电脑）操作步骤：</strong><br>1. 下载上方证书<br>2. 前往 <em>chrome://settings/certificates</em>（或“设置 &rarr; 隐私和安全 &rarr; 安全 &rarr; 管理证书”）<br>3. 打开“授权机构”标签页 &rarr; 点击“导入” &rarr; 选择文件<br>4. 勾选“信任此证书以标识网站”<br>5. 重新启动 Chrome",
+      "pairing_title": "🔗 配对码",
+      "pairing_hint": "新手机、平板或 kiosk 要求配对时出示此码。有效期 30 分钟，到期会自动更新。",
+      "pairing_loading": "正在加载配对码…",
+      "pairing_copy": "📋 复制",
+      "pairing_refresh": "🔄 新配对码",
+      "pairing_expires": "剩余时间",
+      "pairing_copied": "已复制配对码",
+      "pairing_refreshed": "已生成新配对码",
+      "pairing_error": "无法加载配对码",
+      "pairing_not_needed": "此服务器不需要配对（未设置 API_TOKEN，或启用了 API_BOOTSTRAP_OPEN）。"
     },
     "tts": {
       "title": "🔊 语音与 TTS",
@@ -1323,8 +1333,8 @@
     },
     "kiosk": {
       "hint": "将 Android 平板变成常亮的 EverShelf 控制面板，并使用内置 BLE 智能秤网关。",
-      "download_btn": "📥 下载 EverShelf Kiosk（APK）",
-      "download_sub": "全屏终端模式 + 内置智能秤网关。源代码：evershelf-kiosk/",
+      "download_btn": "📥 从本服务器下载 APK",
+      "download_sub": "将 APK 下载到手机/平板并打开安装。局域网优先用本服务器；离线网络用 GitHub。",
       "native_title": "终端配置",
       "native_hint": "配置服务器 URL、BLE 智能秤、屏保和设置向导。",
       "native_btn": "打开终端配置",
@@ -1333,7 +1343,11 @@
       "update_title": "终端更新",
       "check_updates_btn": "🔍 检查更新",
       "needs_update": "⚠️ 当前安装的终端版本不支持此功能，请更新终端应用。",
-      "install_update_btn": "⬇️ 安装更新"
+      "install_update_btn": "⬇️ 安装更新",
+      "download_local_btn": "📥 从本服务器下载 APK",
+      "download_github_btn": "🐙 从 GitHub 下载（kiosk-latest）",
+      "server_apk_version": "服务器 APK：v{v}（code {code}）",
+      "server_apk_missing": "本服务器上没有 APK — 请用 GitHub 或发布 releases/evershelf-kiosk.apk"
     },
     "saved": "✅ 配置已保存！",
     "saved_local": "✅ 配置已保存到本地",
@@ -1442,7 +1456,9 @@
       "bring_expired": "令牌已过期",
       "year_label": "{year} 年",
       "currency_title": "货币",
-      "currency_hint": "应用中所有费用和价格使用的货币。"
+      "currency_hint": "应用中所有费用和价格使用的货币。",
+      "pairing_hint": "配对另一台设备时使用此码（也可在 设置 → 系统 → 安全 中查看）。",
+      "pairing_open_security": "打开安全"
     },
     "tab_general": "常规",
     "shopping": {
@@ -2312,11 +2328,11 @@
     "token_prompt_btn": "继续",
     "token_prompt_placeholder": "API 令牌",
     "pairing_title": "🔒 配对此设备",
-    "pairing_hint": "请输入服务器日志中显示的配对码（docker logs evershelf 或 logs/evershelf_*.log）。",
+    "pairing_hint": "输入配对码。可在已配对设备的 设置 → 系统 → 安全 中查看，或查看服务器日志（docker logs evershelf / logs/evershelf_*.log）。",
     "pairing_placeholder": "配对码",
-    "pairing_required": "配对此设备 — 配对码在服务器日志中",
+    "pairing_required": "请配对此设备 — 配对码在另一台设备的 设置 → 安全，或服务器日志中",
     "pairing_btn": "配对",
-    "pairing_error": "验证码无效或已过期——请查看服务器日志获取新的验证码。",
+    "pairing_error": "配对码无效或已过期 — 请在已配对设备的 设置 → 系统 → 安全 生成新码，或查看服务器日志。",
     "hint_backups_none": "未找到备份 — cron 是否已配置？",
     "hint_backups_stale": "最近备份过旧 — cron 是否在运行？",
     "hint_backups_dir_missing": "缺少备份目录",

@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261006a">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261006a">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261006a">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261008b">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261008b">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261008b">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261006a"></script>
-    <script src="assets/js/core/auth.js?v=20261006a"></script>
+    <script src="assets/js/core/dom.js?v=20261008b"></script>
+    <script src="assets/js/core/auth.js?v=20261008b"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261006a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261008b';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261006a';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261008b';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261006a"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261008b"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -104,7 +104,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.7</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.8</span>
             </span>
         </div>
 
@@ -162,7 +162,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.7</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.8</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -1698,6 +1698,18 @@
             </div>
             <!-- Security Tab -->
             <div class="settings-panel" id="tab-security">
+                <!-- Pairing code: always open (not an accordion) so it is impossible to miss -->
+                <div class="settings-card open" id="settings-pairing-card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(59,130,246,0.10));border:1.5px solid rgba(99,102,241,0.35)">
+                    <h4 data-i18n="settings.security.pairing_title">🔗 Codice di associazione</h4>
+                    <p class="settings-hint" data-i18n="settings.security.pairing_hint">Mostra questo codice su un nuovo telefono, tablet o kiosk quando chiede di associarsi. Valido 30 minuti; si rinnova automaticamente.</p>
+                    <div id="settings-pairing-body" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.security.pairing_loading">Caricamento codice…</p>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+                        <button type="button" class="btn btn-secondary" id="btn-pairing-copy" onclick="_copyPairingCode()" data-i18n="settings.security.pairing_copy">📋 Copia</button>
+                        <button type="button" class="btn btn-secondary" id="btn-pairing-refresh" onclick="_refreshPairingCode()" data-i18n="settings.security.pairing_refresh">🔄 Nuovo codice</button>
+                    </div>
+                </div>
                 <div class="settings-card">
                     <h4 data-i18n="settings.security.token_title">🔑 Token Impostazioni</h4>
                     <p class="settings-hint" data-i18n="settings.security.token_hint">Se <code>SETTINGS_TOKEN</code> è configurato nel <code>.env</code> server, inserisci qui il token prima di salvare le impostazioni. Lascia vuoto se non configurato.</p>
@@ -2241,7 +2253,7 @@
                         <div id="kiosk-needs-update-notice" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:8px;font-size:0.83rem">
                             <span data-i18n="settings.kiosk.needs_update">⚠️ Il kiosk installato non supporta questa funzione.
                             Aggiorna l'app kiosk per abilitarla.</span>
-                            <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" style="display:block;margin-top:6px;color:#d97706;font-weight:600;text-decoration:none" data-i18n="settings.kiosk.download_btn">📥 Scarica aggiornamento kiosk</a>
+                            <a href="releases/evershelf-kiosk.apk" download="evershelf-kiosk.apk" style="display:block;margin-top:6px;color:#d97706;font-weight:600;text-decoration:none" data-i18n="settings.kiosk.download_local_btn">📥 Scarica APK da questo server</a>
                         </div>
                     </div>
 
@@ -2429,17 +2441,28 @@
                         <p class="settings-hint" data-i18n="settings.info.loading">Caricamento…</p>
                     </div>
                 </div>
-                <!-- Kiosk app download banner (hidden inside the kiosk WebView) -->
+                <!-- Pairing shortcut on Info (same code as Security) -->
+                <div class="settings-card" id="info-pairing-card" style="background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(59,130,246,0.10));border:1.5px solid rgba(99,102,241,0.35)">
+                    <h4 data-i18n="settings.security.pairing_title">🔗 Codice di associazione</h4>
+                    <p class="settings-hint" data-i18n="settings.info.pairing_hint">Per associare un altro dispositivo usa questo codice (anche in Impostazioni → Sistema → Sicurezza).</p>
+                    <div id="info-pairing-body" style="margin-top:10px">
+                        <p class="settings-hint" data-i18n="settings.security.pairing_loading">Caricamento codice…</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary full-width" style="margin-top:10px" onclick="switchSettingsGroup('system'); document.querySelector('[data-tab=tab-security]')?.click();" data-i18n="settings.info.pairing_open_security">Apri Sicurezza</button>
+                </div>
+                <!-- Kiosk app download: always visible; primary = this server (LAN), secondary = GitHub -->
                 <div class="settings-card" id="kiosk-download-banner" style="background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.12));border:1.5px solid rgba(16,185,129,0.25)">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
                         <span style="font-size:1.6rem">📺</span>
                         <div>
                             <p style="margin:0;font-weight:700;font-size:0.95rem;color:#065f46">EverShelf Kiosk</p>
                             <p class="settings-hint" style="margin:2px 0 0" data-i18n="settings.kiosk.hint">Trasforma un tablet Android in un pannello EverShelf sempre acceso, con bilancia BLE integrata.</p>
+                            <p class="settings-hint" style="margin:4px 0 0;font-family:monospace" id="kiosk-download-version-label">—</p>
                         </div>
                     </div>
-                    <a href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_btn">📥 Scarica EverShelf Kiosk (APK)</a>
-                    <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Modalità kiosk full-screen + gateway bilancia integrato. Sorgente: <code>evershelf-kiosk/</code></p>
+                    <a id="kiosk-apk-local-link" href="releases/evershelf-kiosk.apk" download="evershelf-kiosk.apk" class="btn btn-large btn-accent full-width" style="text-decoration:none;display:block;text-align:center;background:linear-gradient(135deg,#059669,#10b981);color:#fff" data-i18n="settings.kiosk.download_local_btn">📥 Scarica APK da questo server</a>
+                    <a id="kiosk-apk-github-link" href="https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk" target="_blank" rel="noopener noreferrer" class="btn btn-secondary full-width" style="text-decoration:none;display:block;text-align:center;margin-top:8px" data-i18n="settings.kiosk.download_github_btn">🐙 Scarica da GitHub (kiosk-latest)</a>
+                    <p class="settings-hint" style="margin-top:8px" data-i18n="settings.kiosk.download_sub">Scarica l’APK sul telefono/tablet e aprilo per installare. Preferisci il server locale in LAN; GitHub se sei fuori rete.</p>
                 </div>
                 <!-- Kiosk native settings panel (visible only inside the kiosk WebView) -->
                 <div class="settings-card" id="kiosk-native-settings-panel" style="display:none;background:rgba(99,102,241,0.06);border:1.5px solid rgba(99,102,241,0.2)">
@@ -2466,6 +2489,7 @@
                     </div>
                     <div id="kiosk-update-status" style="display:none;padding:10px 12px;border-radius:8px;font-size:0.85rem;line-height:1.4"></div>
                     <button id="btn-kiosk-install-update" style="display:none;width:100%;margin-top:10px" class="btn btn-accent btn-large" onclick="_kioskInstallUpdate()" data-i18n="settings.kiosk.install_update_btn">⬇️ Install update</button>
+                    <a id="kiosk-apk-update-direct-link" href="releases/evershelf-kiosk.apk" download="evershelf-kiosk.apk" class="btn btn-secondary full-width" style="text-decoration:none;display:block;text-align:center;margin-top:8px" data-i18n="settings.kiosk.download_local_btn">📥 Scarica APK da questo server</a>
                 </div>
                 <!-- About & Support -->
                 <div class="settings-section" style="margin-top:4px">
@@ -2732,6 +2756,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261006a"></script>
+<script src="assets/js/app.js?v=20261008b"></script>
 </body>
 </html>

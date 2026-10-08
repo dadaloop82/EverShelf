@@ -62,13 +62,14 @@ function _anyAuthOverlayOpen() {
 }
 
 /**
- * Ask for the one-time pairing code printed in the server log (docker logs / logs/).
+ * Ask for the one-time pairing code shown on a paired device
+ * (Settings → System → Security) or printed in the server log.
  * The server never hands API_TOKEN to an anonymous request any more.
  */
 function _promptPairingCode() {
     if (_anyAuthOverlayOpen()) return;
     const title = typeof t === 'function' ? t('startup.pairing_title') : '🔒 Pair this device';
-    const hint  = typeof t === 'function' ? t('startup.pairing_hint') : 'Enter the pairing code shown in the server log (docker logs evershelf).';
+    const hint  = typeof t === 'function' ? t('startup.pairing_hint') : 'Enter the pairing code from Settings → System → Security on a paired device, or from the server log.';
     const btn   = typeof t === 'function' ? t('startup.pairing_btn') : 'Pair';
     const ph    = typeof t === 'function' ? t('startup.pairing_placeholder') : 'Pairing code';
     const overlay = document.createElement('div');
@@ -102,7 +103,7 @@ function _promptPairingCode() {
             }
         } catch (_) { /* fall through to the error below */ }
         if (errEl) {
-            errEl.textContent = typeof t === 'function' ? t('startup.pairing_error') : 'Invalid or expired code. Check the server log for a new one.';
+            errEl.textContent = typeof t === 'function' ? t('startup.pairing_error') : 'Invalid or expired code. Get a fresh one from Settings → Security on a paired device, or the server log.';
             errEl.style.display = '';
         }
     };

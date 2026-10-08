@@ -3,9 +3,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0f172a">
+    android:background="@color/bg_dark"
+    android:fitsSystemWindows="true">
 
-    <!-- ── Top bar: progress dots + exit button ── -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
@@ -13,8 +13,7 @@
         android:gravity="center_vertical"
         android:paddingStart="20dp"
         android:paddingEnd="8dp"
-        android:background="#0f172a">
-
+        android:background="@color/bg_dark">
         <LinearLayout
             android:id="@+id/setupProgressDots"
             android:layout_width="0dp"
@@ -22,1596 +21,426 @@
             android:layout_weight="1"
             android:orientation="horizontal"
             android:gravity="start|center_vertical" />
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSetupExit"
+            style="@style/Widget.EverShelf.Button.Ghost"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="✕ Esci"
-            android:textSize="13sp"
-            android:textColor="#64748b"
-            android:textAllCaps="false"
-            style="@style/Widget.MaterialComponents.Button.TextButton" />
+            android:text="@string/setup_exit_btn" />
     </LinearLayout>
 
-    <!-- Thin divider -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#1e293b" />
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/border" />
 
-    <!-- ── Scrollable step content ── -->
-    <ScrollView
-        android:id="@+id/setupScrollView"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
-
-        <LinearLayout
+        android:background="@drawable/hero_glow">
+        <ScrollView
+            android:id="@+id/setupScrollView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center_horizontal"
-            android:paddingStart="28dp"
-            android:paddingEnd="28dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="24dp">
-
-            <!-- ════════════════════════════════════════════
-                 STEP 0 — Language selection
-                 ════════════════════════════════════════════ -->
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:overScrollMode="never">
             <LinearLayout
-                android:id="@+id/stepLanguage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:gravity="center_horizontal"
-                android:visibility="visible">
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="32dp">
 
-                <ImageView
-                    android:layout_width="160dp"
-                    android:layout_height="wrap_content"
-                    android:src="@drawable/ic_logo"
-                    android:adjustViewBounds="true"
-                    android:scaleType="fitCenter"
-                    android:layout_marginBottom="24dp"
-                    android:contentDescription="EverShelf" />
-
-                <!-- Title shown in all 5 languages so it's always readable -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Scegli la lingua · Choose your language\nSprache wählen · Elige el idioma\nChoisissez votre langue"
-                    android:textColor="#f1f5f9"
-                    android:textSize="22sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="40dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLangIt"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:text="🇮🇹   Italiano"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#7c3aed"
-                    android:layout_marginBottom="16dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLangEn"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:text="🇬🇧   English"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#1e40af"
-                    android:layout_marginBottom="16dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLangDe"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:text="🇩🇪   Deutsch"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#b91c1c"
-                    android:layout_marginBottom="16dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLangEs"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:text="🇪🇸   Español"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#c2410c"
-                    android:layout_marginBottom="16dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLangFr"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:text="🇫🇷   Français"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#1d4ed8" />
-
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 1 — Welcome / Intro / Privacy
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepWelcome"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="visible">
-
-                <!-- App logo -->
-                <ImageView
-                    android:layout_width="200dp"
-                    android:layout_height="wrap_content"
-                    android:src="@drawable/ic_logo"
-                    android:adjustViewBounds="true"
-                    android:scaleType="fitCenter"
-                    android:layout_marginBottom="10dp"
-                    android:contentDescription="EverShelf" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="EverShelf Kiosk"
-                    android:textColor="#f1f5f9"
-                    android:textSize="28sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:layout_marginBottom="4dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="La tua dispensa smart in cucina"
-                    android:textColor="#7c3aed"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- What is EverShelf -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Trasforma il tuo tablet in un pannello da cucina sempre attivo. Gestisci la dispensa, scansiona i prodotti, ricevi suggerimenti intelligenti — tutto dal tuo server di casa."
-                    android:textColor="#94a3b8"
-                    android:textSize="14sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="3dp"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Privacy card (highlighted) -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🔒  Privacy e dati"
-                        android:textColor="#f1f5f9"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="12dp" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="top"
-                        android:layout_marginBottom="10dp">
-
-                        <TextView
-                            android:layout_width="22dp"
-                            android:layout_height="wrap_content"
-                            android:text="💻"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Funziona completamente offline — i tuoi dati restano sul tuo server, dentro casa tua."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="top"
-                        android:layout_marginBottom="10dp">
-
-                        <TextView
-                            android:layout_width="22dp"
-                            android:layout_height="wrap_content"
-                            android:text="🤖"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Solo l'assistente AI (opzionale) comunica con i server Google Gemini. Puoi usare EverShelf senza AI in modo totalmente offline."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="top">
-
-                        <TextView
-                            android:layout_width="22dp"
-                            android:layout_height="wrap_content"
-                            android:text="🚫"
-                            android:textSize="14sp" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Nessun account richiesto. Nessun abbonamento. Nessun tracciamento."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
+                <LinearLayout android:id="@+id/stepLanguage" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:visibility="visible">
+                    <ImageView android:layout_width="140dp" android:layout_height="wrap_content" android:src="@drawable/ic_logo" android:adjustViewBounds="true" android:layout_marginBottom="20dp" android:contentDescription="@string/app_name" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_lang_title" android:textAppearance="@style/Text.EverShelf.Title" android:gravity="center" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_lang_subtitle" android:textAppearance="@style/Text.EverShelf.Body" android:gravity="center" android:layout_marginBottom="28dp" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLangIt" style="@style/Widget.EverShelf.Button.Lang" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🇮🇹   Italiano" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLangEn" style="@style/Widget.EverShelf.Button.Lang" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🇬🇧   English" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLangDe" style="@style/Widget.EverShelf.Button.Lang" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🇩🇪   Deutsch" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLangEs" style="@style/Widget.EverShelf.Button.Lang" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🇪🇸   Español" />
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLangFr" style="@style/Widget.EverShelf.Button.Lang" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🇫🇷   Français" />
                 </LinearLayout>
 
-                <!-- Feature highlights -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/tip_background"
-                android:padding="14dp"
-                android:layout_marginBottom="16dp">
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📺  Schermo sempre acceso, modalità kiosk"
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="📷  Scansione barcode dal browser"
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="⚖️  Bilancia BLE integrata (nessuna app esterna)"
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🔄  Aggiornamenti automatici"
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp"
-                        android:paddingTop="4dp"
-                        android:paddingBottom="4dp" />
+                <LinearLayout android:id="@+id/stepWelcome" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:visibility="gone">
+                    <ImageView android:layout_width="180dp" android:layout_height="wrap_content" android:src="@drawable/ic_logo" android:adjustViewBounds="true" android:layout_marginBottom="12dp" android:contentDescription="@string/app_name" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/app_name" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="4dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/setup_welcome_tagline" android:textAppearance="@style/Text.EverShelf.Subtitle" android:layout_marginBottom="16dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_welcome_body" android:textAppearance="@style/Text.EverShelf.Body" android:gravity="center" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_accent" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_welcome_privacy_title" android:textAppearance="@style/Text.EverShelf.Subtitle" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/setup_welcome_privacy_body" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="20dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_welcome_what_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_welcome_what_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnWelcomeStart" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_welcome_start" />
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnWelcomeStart"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:text="Inizia la configurazione  →"
-                    android:textSize="16sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#7c3aed" />
-
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 1 — Permissions rationale
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepPermissions"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🔐"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Permessi necessari"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="EverShelf Kiosk ha bisogno di questi permessi per funzionare. Ecco perché:"
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="28dp" />
-
-                <!-- Camera permission card -->
+                <LinearLayout android:id="@+id/stepPermissions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_body" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_camera_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/setup_perms_camera_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_mic_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/setup_perms_mic_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_ble_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/setup_perms_ble_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/permsGrantedCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="12dp" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_granted" android:textColor="@color/success" android:textStyle="bold" />
+                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnGrantPerms" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_perms_grant" android:layout_marginBottom="8dp" />
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="top"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="wrap_content"
-                        android:text="📷"
-                        android:textSize="24sp"
-                        android:gravity="center" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Fotocamera"
-                            android:textColor="#f1f5f9"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="4dp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Per scansionare i codici a barre dei prodotti e fotografare ciò che aggiungi alla dispensa."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Microphone permission card -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="top"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="wrap_content"
-                        android:text="🎤"
-                        android:textSize="24sp"
-                        android:gravity="center" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Microfono"
-                            android:textColor="#f1f5f9"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="4dp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Per l'assistente vocale integrato: legge le scadenze e risponde ai comandi vocali."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Install packages permission card -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="top"
-                    android:layout_marginBottom="28dp">
-
-                    <TextView
-                        android:layout_width="44dp"
-                        android:layout_height="wrap_content"
-                        android:text="📦"
-                        android:textSize="24sp"
-                        android:gravity="center" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Installa applicazioni"
-                            android:textColor="#f1f5f9"
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="4dp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="Per installare gli aggiornamenti automatici dell'app kiosk e dell'app Scale Gateway direttamente da GitHub."
-                            android:textColor="#94a3b8"
-                            android:textSize="14sp"
-                            android:lineSpacingExtra="2dp" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Permissions granted confirmation (hidden until granted) -->
-                <LinearLayout
-                    android:id="@+id/permsGrantedCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="20dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="✅"
-                        android:textSize="20sp"
-                        android:layout_marginEnd="10dp" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Permessi concessi! Puoi procedere."
-                        android:textColor="#34d399"
-                        android:textSize="14sp" />
-                </LinearLayout>
-
-                <!-- Grant button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnGrantPerms"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="🔓  Concedi i permessi"
-                    android:textSize="15sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#7c3aed"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- Navigation -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
+                    android:layout_marginTop="20dp">
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnPermsBack"
+                        style="@style/Widget.EverShelf.Button.Ghost"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="← Indietro"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="10dp" />
-
+                        android:text="@string/setup_step_back" />
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnPermsNext"
+                        style="@style/Widget.EverShelf.Button"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="2"
-                        android:text="Avanti →"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#7c3aed"
-                        android:textColor="#a78bfa" />
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.4"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/setup_step_next" />
                 </LinearLayout>
-            </LinearLayout>
+                </LinearLayout>
 
-            <!-- ════════════════════════════════════════════
-                 STEP 2 — Server URL + auto-discovery
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepServer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🌐"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Trova il server"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="EverShelf gira sul tuo server di casa (Raspberry Pi, NAS, PC...). Cerca automaticamente nella rete locale o inserisci l'indirizzo manualmente."
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="28dp" />
-
-                <!-- Auto-discover button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDiscover"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:text="🔍  Cerca nella rete locale"
-                    android:textSize="15sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#0f4c8c"
-                    android:layout_marginBottom="8dp" />
-
-                <!-- Discover status text -->
-                <TextView
-                    android:id="@+id/discoverStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textSize="13sp"
-                    android:visibility="gone"
-                    android:lineSpacingExtra="2dp"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Divider with OR -->
+                <LinearLayout android:id="@+id/stepServer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_server_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_server_body" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_server_url_label" android:textAppearance="@style/Text.EverShelf.Section" android:layout_marginBottom="8dp" />
+                        <EditText android:id="@+id/setupUrlEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textUri" android:hint="@string/setup_server_url_hint" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" android:background="@drawable/input_background" android:padding="14dp" android:textSize="15sp" android:singleLine="true" android:layout_marginBottom="10dp" />
+                        <TextView android:id="@+id/setupUrlStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Hint" android:visibility="gone" android:layout_marginBottom="10dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnSetupTestUrl" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_server_test" android:layout_marginBottom="8dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnDiscover" style="@style/Widget.EverShelf.Button.Secondary" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_discover_btn" />
+                        <TextView android:id="@+id/discoverStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Hint" android:visibility="gone" android:layout_marginTop="10dp" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="8dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_server_tip" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1"
-                        android:background="#334155" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="  oppure inserisci manualmente  "
-                        android:textColor="#475569"
-                        android:textSize="12sp" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1"
-                        android:background="#334155" />
-                </LinearLayout>
-
-                <!-- URL input label -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="URL del server"
-                    android:textColor="#cbd5e1"
-                    android:textSize="13sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp" />
-
-                <EditText
-                    android:id="@+id/setupUrlEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="http://192.168.1.100/dispensa/"
-                    android:inputType="textUri"
-                    android:textColor="#f1f5f9"
-                    android:textColorHint="#475569"
-                    android:background="@drawable/input_background"
-                    android:padding="16dp"
-                    android:textSize="15sp"
-                    android:singleLine="true"
-                    android:layout_marginBottom="10dp" />
-
-                <!-- Test connection button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSetupTestUrl"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:text="🔗  Testa connessione"
-                    android:textSize="14sp"
-                    android:textAllCaps="false"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:strokeColor="#334155"
-                    android:textColor="#94a3b8"
-                    android:layout_marginBottom="8dp" />
-
-                <!-- URL status -->
-                <TextView
-                    android:id="@+id/setupUrlStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text=""
-                    android:textSize="13sp"
-                    android:visibility="gone"
-                    android:lineSpacingExtra="2dp"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- Tip -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="💡 Suggerimento: copia l'URL esatto dal browser (es. http://192.168.1.50/dispensa/ ) incluso il percorso finale."
-                    android:textColor="#64748b"
-                    android:textSize="12sp"
-                    android:background="@drawable/tip_background"
-                    android:padding="12dp"
-                    android:lineSpacingExtra="2dp"
-                    android:layout_marginBottom="28dp" />
-
-                <!-- Navigation -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
+                    android:layout_marginTop="20dp">
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnServerBack"
+                        style="@style/Widget.EverShelf.Button.Ghost"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="← Indietro"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="10dp" />
-
+                        android:text="@string/setup_step_back" />
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnServerNext"
+                        style="@style/Widget.EverShelf.Button"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="2"
-                        android:text="Avanti →"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 3 — Smart scale
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepScale"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚖️"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Bilancia smart"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="EverShelf può integrarsi con le bilance da cucina Bluetooth per pesare automaticamente gli ingredienti."
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="24dp" />
-
-                <!-- Question card -->
-                <LinearLayout
-                    android:id="@+id/scaleQuestionCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/card_background"
-                    android:padding="20dp"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Hai una bilancia Bluetooth compatibile?"
-                        android:textColor="#f1f5f9"
-                        android:textSize="17sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="20dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScaleYes"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:text="✓  Sì, ho una bilancia"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#059669"
-                        android:layout_marginBottom="10dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScaleNo"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:text="→  No, salta questo passaggio"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b" />
+                        android:layout_weight="1.4"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/setup_step_next" />
+                </LinearLayout>
                 </LinearLayout>
 
-                <!-- Power-on instruction card (shown after YES, before scan) -->
-                <LinearLayout
-                    android:id="@+id/scalePowerOnCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/card_background"
-                    android:padding="20dp"
-                    android:layout_marginBottom="16dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="🔋"
-                        android:textSize="40sp"
-                        android:layout_gravity="center_horizontal"
-                        android:layout_marginBottom="12dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Accendi la bilancia"
-                        android:textColor="#f1f5f9"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="10dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Assicurati che la bilancia sia accesa e vicina al tablet, poi avvia la scansione."
-                        android:textColor="#94a3b8"
-                        android:textSize="14sp"
-                        android:gravity="center"
-                        android:lineSpacingExtra="3dp"
-                        android:layout_marginBottom="20dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPowerOnReady"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
-                        android:text="✅  Bilancia accesa — Cerca"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#059669" />
-
-                </LinearLayout>
-
-                <!-- BLE scan card (shown after YES) -->
-                <LinearLayout
-                    android:id="@+id/bleSetupCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/card_background"
-                    android:padding="20dp"
-                    android:layout_marginBottom="16dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:id="@+id/tvScanStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Cerca la tua bilancia Bluetooth nelle vicinanze e selezionala dall'elenco."
-                        android:textColor="#94a3b8"
-                        android:textSize="14sp"
-                        android:gravity="center"
-                        android:layout_marginBottom="16dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScanBle"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="🔍  Cerca bilancia"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed"
-                        android:layout_marginBottom="12dp" />
-
-                    <TextView
-                        android:id="@+id/tvSelectedScale"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="#34d399"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="8dp"
-                        android:visibility="gone" />
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/rvScaleDevices"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false" />
-
-                </LinearLayout>
-
-                <!-- Scale test card (shown after device is selected) -->
-                <LinearLayout
-                    android:id="@+id/scaleTestCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@drawable/card_background"
-                    android:padding="20dp"
-                    android:layout_marginBottom="16dp"
-                    android:visibility="gone">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🔗  Test connessione"
-                        android:textColor="#f1f5f9"
-                        android:textSize="17sp"
-                        android:textStyle="bold"
-                        android:gravity="center"
-                        android:layout_marginBottom="12dp" />
-
-                    <TextView
-                        android:id="@+id/tvTestStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Connessione in corso…"
-                        android:textColor="#94a3b8"
-                        android:textSize="14sp"
-                        android:gravity="center"
-                        android:layout_marginBottom="16dp" />
-
-                    <!-- Weight display -->
-                    <LinearLayout
-                        android:id="@+id/testWeightBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:background="#1a7c3aed"
-                        android:padding="16dp"
-                        android:layout_marginBottom="16dp"
-                        android:visibility="gone">
-
-                        <TextView
-                            android:id="@+id/tvTestWeight"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="— g"
-                            android:textColor="#f1f5f9"
-                            android:textSize="36sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="4dp" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Il peso che vedi coincide con quello sulla bilancia?"
-                            android:textColor="#94a3b8"
-                            android:textSize="13sp"
-                            android:gravity="center" />
-
+                <LinearLayout android:id="@+id/stepScale" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_description" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:id="@+id/scaleQuestionCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_question" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" android:layout_marginBottom="8dp" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_scale_explain" android:textAppearance="@style/Text.EverShelf.Hint" android:layout_marginBottom="16dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnScaleYes" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_yes" android:layout_marginBottom="8dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnScaleNo" style="@style/Widget.EverShelf.Button.Secondary" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/wizard_step3_no" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/scalePowerOnCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_accent" android:padding="18dp" android:layout_marginBottom="12dp" android:visibility="gone">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_scale_power_title" android:textAppearance="@style/Text.EverShelf.Subtitle" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_scale_power_body" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPowerOnReady" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="@string/setup_scale_power_ready" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/bleSetupCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp" android:visibility="gone">
+                        <TextView android:id="@+id/tvScanStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ble_scanning" android:textAppearance="@style/Text.EverShelf.Hint" android:layout_marginBottom="10dp" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnScanBle" style="@style/Widget.EverShelf.Button.Secondary" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ble_scan_again" android:layout_marginBottom="10dp" />
+                        <androidx.recyclerview.widget.RecyclerView android:id="@+id/rvScaleDevices" android:layout_width="match_parent" android:layout_height="wrap_content" android:nestedScrollingEnabled="false" />
+                        <TextView android:id="@+id/tvSelectedScale" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Subtitle" android:visibility="gone" android:layout_marginTop="10dp" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/scaleTestCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_accent" android:padding="18dp" android:layout_marginBottom="12dp" android:visibility="gone">
+                        <TextView android:id="@+id/tvTestStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="12dp" />
+                        <LinearLayout android:id="@+id/testWeightBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:visibility="gone" android:layout_marginBottom="12dp">
+                            <TextView android:id="@+id/tvTestWeight" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="— g" android:textSize="36sp" android:textStyle="bold" android:textColor="@color/accent" />
+                        </LinearLayout>
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnTestConfirm" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_confirm" android:layout_marginBottom="8dp" android:enabled="false" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnTestRetry" style="@style/Widget.EverShelf.Button.Secondary" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/install_btn_retry" android:layout_marginBottom="8dp" android:enabled="false" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnTestSkip" style="@style/Widget.EverShelf.Button.Ghost" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_skip_later" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/step3NextButtons" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:visibility="gone" android:layout_marginTop="8dp">
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnScaleBack" style="@style/Widget.EverShelf.Button.Ghost" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/setup_step_back" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnScaleNext" style="@style/Widget.EverShelf.Button" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1.4" android:layout_marginStart="8dp" android:text="@string/setup_step_next" android:enabled="false" />
+                    </LinearLayout>
+                </LinearLayout>
 
+                <LinearLayout android:id="@+id/stepScreensaver" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_features_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_features_desc" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="16dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:layout_marginBottom="12dp">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="10dp">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnTestRetry"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:text="❌  No, riprova"
-                            android:textSize="13sp"
-                            android:textAllCaps="false"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:strokeColor="#ef4444"
-                            android:textColor="#ef4444"
-                            android:enabled="false"
-                            android:layout_marginEnd="8dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnTestConfirm"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:text="✅  Sì, coincide"
-                            android:textSize="13sp"
-                            android:textAllCaps="false"
-                            android:backgroundTint="#059669"
-                            android:enabled="false" />
-
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnTestSkip"
-                        android:layout_width="match_parent"
-                        android:layout_height="40dp"
-                        android:text="Salta il test"
-                        android:textSize="13sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
-                        android:textColor="#475569" />
-
-                </LinearLayout>
-
-                <!-- Step 4 navigation (shown after YES) -->
-                <LinearLayout
-                    android:id="@+id/step3NextButtons"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:visibility="gone">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScaleBack"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="← Indietro"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="10dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScaleNext"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="2"
-                        android:text="Avanti →"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 5 — Features
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepScreensaver"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚡"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_features_title"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_features_desc"
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="20dp" />
-
-                <!-- Toggle: Screensaver -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="10dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
+                        android:gravity="center_vertical">
                         <TextView
-                            android:layout_width="match_parent"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:text="@string/setup_screensaver_toggle_label"
-                            android:textColor="#f1f5f9"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="3dp" />
-                        <TextView
-                            android:layout_width="match_parent"
+                            android:textAppearance="@style/Text.EverShelf.Subtitle"
+                            android:textColor="@color/text_primary" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/setupSwitchScreensaver"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/setup_screensaver_toggle_hint"
-                            android:textColor="#64748b"
-                            android:textSize="12sp" />
+                            android:checked="false" />
                     </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/setupSwitchScreensaver"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <!-- Toggle: Prezzi lista spesa -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="10dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_prices_toggle_label"
-                            android:textColor="#f1f5f9"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="3dp" />
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_prices_toggle_hint"
-                            android:textColor="#64748b"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/setupSwitchPrices"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <!-- Toggle: Piano pasti -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="10dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_mealplan_toggle_label"
-                            android:textColor="#f1f5f9"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="3dp" />
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_mealplan_toggle_hint"
-                            android:textColor="#64748b"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/setupSwitchMealPlan"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <!-- Toggle: Suggerimenti zero-waste -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="16dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="24dp">
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_zerowaste_toggle_label"
-                            android:textColor="#f1f5f9"
-                            android:textSize="15sp"
-                            android:textStyle="bold"
-                            android:layout_marginBottom="3dp" />
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/setup_zerowaste_toggle_hint"
-                            android:textColor="#64748b"
-                            android:textSize="12sp" />
-                    </LinearLayout>
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/setupSwitchZeroWaste"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <!-- Navigation -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScreensaverBack"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_step_back"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="10dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnScreensaverNext"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="2"
-                        android:text="@string/setup_step_next"
-                        android:textSize="15sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 6 — Gemini AI key
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepGemini"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🤖"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_gemini_title"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_gemini_desc"
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- How-to card -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@drawable/card_background"
-                    android:padding="14dp"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="💡"
-                        android:textSize="20sp"
-                        android:layout_marginEnd="10dp" />
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/setup_gemini_how"
-                        android:textColor="#7dd3fc"
-                        android:textSize="13sp"
-                        android:lineSpacingExtra="3dp" />
+                        android:layout_marginTop="8dp"
+                        android:text="@string/setup_screensaver_toggle_hint"
+                        android:textAppearance="@style/Text.EverShelf.Hint" />
                 </LinearLayout>
-
-                <EditText
-                    android:id="@+id/setupGeminiKeyEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/setup_gemini_hint"
-                    android:textColor="#f1f5f9"
-                    android:textColorHint="#475569"
-                    android:backgroundTint="#334155"
-                    android:inputType="textVisiblePassword"
-                    android:textSize="14sp"
-                    android:fontFamily="monospace"
-                    android:layout_marginBottom="20dp" />
-
-                <!-- Navigation -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGeminiBack"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_step_back"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="8dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGeminiSkip"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_skip_later"
-                        android:textSize="13sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#475569"
-                        android:textColor="#94a3b8"
-                        android:layout_marginEnd="8dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGeminiNext"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_confirm"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#7c3aed" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 7 — Bring! credentials
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepBring"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🛒"
-                    android:textSize="52sp"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_bring_title"
-                    android:textColor="#f1f5f9"
-                    android:textSize="24sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_bring_desc"
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="16dp" />
-
-                <EditText
-                    android:id="@+id/setupBringEmailEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/setup_bring_email_hint"
-                    android:textColor="#f1f5f9"
-                    android:textColorHint="#475569"
-                    android:backgroundTint="#334155"
-                    android:inputType="textEmailAddress"
-                    android:textSize="15sp"
-                    android:layout_marginBottom="10dp" />
-
-                <EditText
-                    android:id="@+id/setupBringPasswordEdit"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/setup_bring_pass_hint"
-                    android:textColor="#f1f5f9"
-                    android:textColorHint="#475569"
-                    android:backgroundTint="#334155"
-                    android:inputType="textPassword"
-                    android:textSize="15sp"
-                    android:layout_marginBottom="20dp" />
-
-                <!-- Navigation -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnBringBack"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_step_back"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#334155"
-                        android:textColor="#64748b"
-                        android:layout_marginEnd="8dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnBringSkip"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_skip_later"
-                        android:textSize="13sp"
-                        android:textAllCaps="false"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:strokeColor="#475569"
-                        android:textColor="#94a3b8"
-                        android:layout_marginEnd="8dp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnBringNext"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:text="@string/setup_confirm"
-                        android:textSize="14sp"
-                        android:textAllCaps="false"
-                        android:backgroundTint="#059669" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- ════════════════════════════════════════════
-                 STEP 8 — Done
-                 ════════════════════════════════════════════ -->
-            <LinearLayout
-                android:id="@+id/stepDone"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🎉"
-                    android:textSize="64sp"
-                    android:layout_marginBottom="16dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_done_title"
-                    android:textColor="#f1f5f9"
-                    android:textSize="28sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/setup_done_desc"
-                    android:textColor="#94a3b8"
-                    android:textSize="15sp"
-                    android:gravity="center"
-                    android:lineSpacingExtra="4dp"
-                    android:layout_marginBottom="28dp" />
-
-                <!-- Configuration summary -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:background="@drawable/card_background"
-                    android:padding="20dp"
-                    android:layout_marginBottom="32dp">
-
+                    android:padding="16dp"
+                    android:layout_marginBottom="12dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/setup_prices_toggle_label"
+                            android:textAppearance="@style/Text.EverShelf.Subtitle"
+                            android:textColor="@color/text_primary" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/setupSwitchPrices"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false" />
+                    </LinearLayout>
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/setup_done_summary_label"
-                        android:textColor="#94a3b8"
-                        android:textSize="13sp"
-                        android:textAllCaps="false"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="12dp" />
-
-                    <TextView
-                        android:id="@+id/setupSummaryText"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/setup_prices_toggle_hint"
+                        android:textAppearance="@style/Text.EverShelf.Hint" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:layout_marginBottom="12dp">
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="#cbd5e1"
-                        android:textSize="14sp"
-                        android:lineSpacingExtra="4dp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/setup_mealplan_toggle_label"
+                            android:textAppearance="@style/Text.EverShelf.Subtitle"
+                            android:textColor="@color/text_primary" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/setupSwitchMealPlan"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/setup_mealplan_toggle_hint"
+                        android:textAppearance="@style/Text.EverShelf.Hint" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:layout_marginBottom="12dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/setup_zerowaste_toggle_label"
+                            android:textAppearance="@style/Text.EverShelf.Subtitle"
+                            android:textColor="@color/text_primary" />
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/setupSwitchZeroWaste"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false" />
+                    </LinearLayout>
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/setup_zerowaste_toggle_hint"
+                        android:textAppearance="@style/Text.EverShelf.Hint" />
+                </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="8dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_features_server_note" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScreensaverBack"
+                        style="@style/Widget.EverShelf.Button.Ghost"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/setup_step_back" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScreensaverNext"
+                        style="@style/Widget.EverShelf.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.4"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/setup_step_next" />
+                </LinearLayout>
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnLaunch"
+                <LinearLayout android:id="@+id/stepGemini" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_gemini_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_gemini_desc" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="12dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_gemini_what_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_gemini_what_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/tip_background" android:padding="14dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_gemini_how" android:textAppearance="@style/Text.EverShelf.Hint" android:textColor="@color/text_secondary" />
+                    </LinearLayout>
+                    <EditText android:id="@+id/setupGeminiKeyEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textVisiblePassword" android:hint="@string/setup_gemini_hint" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" android:background="@drawable/input_background" android:padding="14dp" android:layout_marginBottom="8dp" />
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="60dp"
-                    android:text="@string/btn_launch"
-                    android:textSize="18sp"
-                    android:textAllCaps="false"
-                    android:backgroundTint="#059669" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiBack"
+                        style="@style/Widget.EverShelf.Button.Ghost"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/setup_step_back" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiSkip"
+                        style="@style/Widget.EverShelf.Button.Ghost"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/setup_skip_later" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGeminiNext"
+                        style="@style/Widget.EverShelf.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.4"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/setup_step_next" />
+                </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/stepBring" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_bring_title" android:textAppearance="@style/Text.EverShelf.Title" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_bring_desc" android:textAppearance="@style/Text.EverShelf.Body" android:layout_marginBottom="12dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="16dp" android:layout_marginBottom="12dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_bring_what_title" android:textAppearance="@style/Text.EverShelf.Subtitle" android:textColor="@color/text_primary" />
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/setup_bring_what_body" android:textAppearance="@style/Text.EverShelf.Hint" />
+                    </LinearLayout>
+                    <EditText android:id="@+id/setupBringEmailEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textEmailAddress" android:hint="@string/setup_bring_email_hint" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" android:background="@drawable/input_background" android:padding="14dp" android:layout_marginBottom="10dp" />
+                    <EditText android:id="@+id/setupBringPasswordEdit" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textPassword" android:hint="@string/setup_bring_password_hint" android:textColor="@color/text_primary" android:textColorHint="@color/text_muted" android:background="@drawable/input_background" android:padding="14dp" android:layout_marginBottom="8dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp">
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringBack"
+                        style="@style/Widget.EverShelf.Button.Ghost"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/setup_step_back" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringSkip"
+                        style="@style/Widget.EverShelf.Button.Ghost"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/setup_skip_later" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnBringNext"
+                        style="@style/Widget.EverShelf.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.4"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/setup_step_next" />
+                </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/stepDone" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_done_title" android:textAppearance="@style/Text.EverShelf.Title" android:gravity="center" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_done_body" android:textAppearance="@style/Text.EverShelf.Body" android:gravity="center" android:layout_marginBottom="16dp" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/card_background" android:padding="18dp" android:layout_marginBottom="20dp">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/setup_done_summary_label" android:textAppearance="@style/Text.EverShelf.Section" android:layout_marginBottom="10dp" />
+                        <TextView android:id="@+id/setupSummaryText" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/Text.EverShelf.Body" android:lineSpacingExtra="4dp" />
+                    </LinearLayout>
+                    <com.google.android.material.button.MaterialButton android:id="@+id/btnLaunch" style="@style/Widget.EverShelf.Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/btn_launch" />
+                </LinearLayout>
+
             </LinearLayout>
-
-        </LinearLayout>
-    </ScrollView>
-
-    <!-- ── Credits Footer ── -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:background="#0a1120"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Creato da Stimpfl Daniel  •  Open Source"
-            android:textColor="#475569"
-            android:textSize="11sp"
-            android:gravity="center" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="github.com/dadaloop82/EverShelf"
-            android:textColor="#334155"
-            android:textSize="10sp"
-            android:gravity="center"
-            android:layout_marginTop="2dp" />
-
-    </LinearLayout>
-
+        </ScrollView>
+    </FrameLayout>
 </LinearLayout>

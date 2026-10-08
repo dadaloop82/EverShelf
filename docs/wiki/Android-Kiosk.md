@@ -6,9 +6,14 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 
 ## Download
 
-**[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/latest/download/evershelf-kiosk.apk)**
+**[⬇ Download latest APK](https://github.com/dadaloop82/EverShelf/releases/download/kiosk-latest/evershelf-kiosk.apk)**
 
-> Current version: **v1.7.20** (versionCode 21) — requires Android 7.0+
+> Current version: **v1.7.23** (versionCode 24) — requires Android 7.0+
+>
+> Use the `kiosk-latest` tag (not GitHub’s “Latest” release — that tracks the web app and has no APK).
+> On a phone already on the EverShelf LAN, Settings → EverShelf Kiosk → **Scarica APK da questo server** serves `releases/evershelf-kiosk.apk` from your instance.
+>
+> Native UI matches the EverShelf **emerald Corporate UI** (wizard, settings, splash; EN/IT/DE/FR/ES).
 
 ---
 
@@ -26,23 +31,25 @@ The EverShelf Kiosk app turns any Android tablet into a dedicated, locked-down k
 ## Setup Wizard (9 steps)
 
 The wizard runs automatically on first launch. Steps already configured (the Gemini key,
-the Bring! account) are skipped, and the progress dots at the top show where you are.
+the Bring! account) are skipped. Progress dots use the emerald brand palette; each step
+fades in. Copy is localised (EN/IT/DE/FR/ES).
 
 | # | Step | What it asks |
 |---|------|--------------|
 | 0 | **Language** | App and web-interface language: Italiano, English, Deutsch, Español, Français |
-| 1 | **Welcome** | Overview of what the wizard will configure |
-| 2 | **Permissions** | Runtime permissions needed by the web app: camera + microphone (storage/media on older Androids) |
-| 3 | **Server URL** | Your EverShelf URL, or LAN auto-discovery |
-| 4 | **Smart Scale** | Optional Bluetooth LE scale |
-| 5 | **Features** | Four toggles: screensaver, price tracking, meal-plan and zero-waste mode |
-| 6 | **Gemini AI** | Optional AI key, so scan/recipe features work out of the box |
-| 7 | **Bring!** | Optional Bring! shopping-list account |
-| 8 | **Done** | Launch the kiosk |
+| 1 | **Welcome** | Brand intro, privacy (“data stays at home”), and what the wizard configures |
+| 2 | **Permissions** | Camera, microphone, Bluetooth — each with a short rationale card |
+| 3 | **Server URL** | EverShelf URL, LAN auto-discovery, connection test (`ping`), optional pairing + keep/reset of server settings |
+| 4 | **Smart Scale** | Optional Bluetooth LE scale (power-on tip → scan → confirm a weight reading) |
+| 5 | **Features** | Four explained toggles: screensaver, prices, meal-plan, zero-waste (written to the server) |
+| 6 | **Gemini AI** | Optional AI key, with a “what Gemini unlocks” card |
+| 7 | **Bring!** | Optional Bring! account, with a “what Bring! does” card |
+| 8 | **Done** | Summary and launch the kiosk |
 
 ### Step 2 — Permissions
 
-The button transforms from **"Grant permissions"** to **"✅ Permissions granted — Continue →"** (green) once all permissions are granted.
+The button transforms from **"Grant permissions"** to **"✅ Permissions granted"** once all
+permissions are granted. BLE is skipped automatically if you do not use a scale.
 
 ### Step 3 — Server URL
 
@@ -53,25 +60,32 @@ Enter your EverShelf server URL (e.g. `https://192.168.1.100/dispensa`).
 - Only scans your actual Wi-Fi/Ethernet subnet (VPN and cellular interfaces ignored)
 - Real-time feedback as hosts are tested
 
+**Test connection** uses the public `ping` action (same as discovery — no API token required).
+If the server needs pairing, enter the code from **Settings → System → Security** on a
+device that is already paired (or from the server log). After pairing, the wizard can
+**keep** or **reset** the settings already stored on the server.
+
 ### Step 4 — Smart Scale
 
 If you have a Bluetooth LE smart scale, configure it here:
-1. Tap **"Yes, I have a scale"** — the app scans for nearby BLE devices
-2. Tap your scale in the list (devices most likely to be scales are marked with ⭐)
-3. On selection, the app automatically writes `scale_enabled=true` and `scale_gateway_url=ws://127.0.0.1:8765` to your EverShelf server
+1. Tap **"Yes, I have a scale"** — turn the scale on, then continue
+2. The app scans for nearby BLE devices (connect retries up to 3×)
+3. Tap your scale in the list (devices most likely to be scales are marked with ⭐)
+4. Confirm a live weight reading when asked
+5. On finish, the app writes `scale_enabled=true` and `scale_gateway_url=ws://127.0.0.1:8765` to the server
 
 The BLE gateway runs as a built-in foreground service — **no external APK needed**.
 
 ### Step 5 — Features
 
-Four toggles that are pushed to the web app: **screensaver** (screen goes dark after
-inactivity, the web app draws the clock overlay), **price tracking**, **meal-plan** and
-**zero-waste mode**.
+Four toggles with short explanations, pushed to the EverShelf server so every device sees
+the same choices: **screensaver** (clock overlay after inactivity), **price tracking**,
+**meal-plan** and **zero-waste tips**.
 
 ### Steps 6–7 — Gemini AI and Bring! (optional)
 
 Both can be skipped and configured later in the web app; the wizard writes what you enter
-straight into the server settings.
+straight into the server settings (`gemini_key` + API token on save).
 
 ### Step 8 — Summary
 

@@ -231,15 +231,16 @@ there.
 
 If you set `API_TOKEN` in `.env`, EverShelf protects every API action with it. The token
 is never handed to an anonymous request, so the first time you open the UI it asks for a
-one-time **pairing code** printed in the server log:
+one-time **pairing code**. On a device that is already paired, the live code is under
+**Settings → System → Security** (and Info). It is also printed in the server log:
 
 ```bash
 grep -i "pairing code" logs/evershelf_*.log | tail -1           # bare metal
 docker logs evershelf 2>&1 | grep -i "pairing code" | tail -1   # Docker
 ```
 
-Enter it in the dialog and you are in. The code is valid for 30 minutes, is consumed by
-the first successful pairing, and you pair once per browser/device.
+Enter it in the dialog and you are in. The code is valid for 30 minutes (refreshed on a
+paired device), and you pair once per browser/device.
 
 - Hard-refresh (`Ctrl+Shift+R`) if the dialog does not appear — an older service worker
   can still serve a stale `app.js`.

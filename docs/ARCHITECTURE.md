@@ -61,10 +61,12 @@ dispensa/
 
 - **`API_TOKEN`** (or legacy **`SETTINGS_TOKEN`**): when set, every API action requires `X-API-Token` header or `?api_token=` (Home Assistant).
 - **Token bootstrap requires pairing.** `app_bootstrap` never returns `API_TOKEN` to an
-  anonymous request: the UI shows a dialog and the user types the one-time **pairing code**
-  printed in the server log (`grep -i "pairing code" logs/evershelf_*.log`, 30 min TTL,
-  50 attempts/IP, then the code is burned). `API_BOOTSTRAP_OPEN=true` re-exposes the token
-  to any request that looks same-origin — trusted LANs only. See `SECURITY.md`.
+  anonymous request: the UI shows a dialog and the user types the one-time **pairing code**.
+  An already-paired device shows the live code under **Settings → System → Security**
+  (and Info); it is also printed in the server log
+  (`grep -i "pairing code" logs/evershelf_*.log`, 30 min TTL, 50 attempts/IP, then the
+  code is burned). `API_BOOTSTRAP_OPEN=true` re-exposes the token to any request that
+  looks same-origin — trusted LANs only. See `SECURITY.md`.
 - **No authorisation decision comes from a client-controlled header.** `Origin`,
   `Referer` and `Sec-Fetch-Site` are forgeable, so the old same-origin bypass is gone from
   every action, including those that run `docker` or rewrite `.env`.
