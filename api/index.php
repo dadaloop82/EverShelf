@@ -10722,6 +10722,66 @@ function recipePostProcessGenerated(PDO $db, array &$recipe, array $pantryItems)
     return $removed;
 }
 
+/** Meal slots that share at most one archived recipe per calendar day. */
+function recipeScheduledMealSlots(): array {
+    return ['colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo'];
+}
+
+function recipeIsScheduledMealSlot(string $meal): bool {
+    return in_array($meal, recipeScheduledMealSlots(), true);
+}
+
+function recipeTitleLooksPlaceholder(string $title): bool {
+    $t = mb_strtolower(trim($title), 'UTF-8');
+    if ($t === '') {
+        return true;
+    }
+    static $bad = ['libero', 'ricetta', 'recipe', 'untitled', 'senza titolo'];
+    return in_array($t, $bad, true);
+}
+
+/** First non-empty line before an "Ingredienti" section — typical chat recipe layout. */
+function recipeGuessTitleFromText(string $text): string {
+    $chunk = $text;
+    if (preg_match('/^(.*?)(?=^\s*ingredienti\b)/ims', $text, $m)) {
+        $chunk = $m[1];
+    }
+    foreach (preg_split('/\R/u', $chunk) as $line) {
+        $line = trim($line);
+        $line = preg_replace('/^#+\s*/u', '', $line) ?? $line;
+        $line = preg_replace('/^[\*\-\d\.\)]+\s*/u', '', $line) ?? $line;
+        $line = trim($line);
+        if ($line === '' || preg_match('/^ingredienti$/iu', $line)) {
+            continue;
+        }
+        if (mb_strlen($line) > 140) {
+            continue;
+        }
+        return $line;
+    }
+    return '';
+}
+
+/** Ensure archive rows have a real title and no misleading meal=libero in JSON. */
+function recipeNormalizeArchiveMetadata(array &$recipe, ?string $sourceText = null): void {
+    if (recipeTitleLooksPlaceholder((string)($recipe['title'] ?? ''))) {
+        $guess = ($sourceText !== null && $sourceText !== '') ? recipeGuessTitleFromText($sourceText) : '';
+        if ($guess === '' && !empty($recipe['ingredients'][0]['name'])) {
+            $main = trim((string)$recipe['ingredients'][0]['name']);
+            if ($main !== '') {
+                $guess = $main;
+            }
+        }
+        if ($guess !== '') {
+            $recipe['title'] = $guess;
+        }
+    }
+    $mealInJson = trim((string)($recipe['meal'] ?? ''));
+    if ($mealInJson === '' || $mealInJson === 'libero' || !recipeIsScheduledMealSlot($mealInJson)) {
+        unset($recipe['meal']);
+    }
+}
+
 function recipeNormalizeName(string $name): string {
     $n = mb_strtolower(trim($name), 'UTF-8');
     return preg_replace('/\s+/u', ' ', $n) ?? $n;
@@ -11704,7 +11764,7 @@ PANTRY PRODUCTS (exact names — prefer these when the text matches them):
 {$pantryList}
 
 Fields:
-- title: string
+- title: short descriptive dish name in the same language as the recipe text (NEVER "libero", "ricetta", "recipe", or other placeholders)
 - meal: null  (do NOT categorize — leave as null always)
 - persons: integer
 - prep_time: string or null
@@ -11743,6 +11803,7 @@ PROMPT;
     }
 
     recipePostProcessGenerated($db, $recipe, $items);
+    recipeNormalizeArchiveMetadata($recipe, $replyText);
 
     echo json_encode(['success' => true, 'recipe' => $recipe]);
 }
@@ -18466,51 +18527,108 @@ function recipesSave(PDO $db): void {
     $date = $input['date'] ?? date('Y-m-d');
     $meal = trim($input['meal'] ?? '') ?: 'libero';
     $recipe = $input['recipe'] ?? null;
+    $id = intval($input['id'] ?? 0);
 
     if (!$recipe) {
         echo json_encode(['error' => 'Missing recipe']);
         return;
     }
 
-    $id = recipesArchiveUpsert($db, $recipe, $meal, $date);
+    $id = recipesArchiveUpsert($db, $recipe, $meal, $date, $id);
     echo json_encode(['success' => true, 'id' => $id]);
 }
 
 /**
- * Persist a recipe into the EverShelf archive (one slot per meal per day).
- * Same storage as the app "Ricette" tab.
+ * Persist a recipe into the EverShelf archive.
+ * Deduplicates by content_hash (same title/ingredients/steps → same row).
+ * Scheduled meal slots still replace the day's slot when the body is new.
  *
  * @param array|object $recipe
  */
-function recipesArchiveUpsert(PDO $db, $recipe, string $meal = '', string $date = ''): int {
+function recipesArchiveUpsert(PDO $db, $recipe, string $meal = '', string $date = '', int $id = 0): int {
     if (!is_array($recipe)) {
         $recipe = (array)$recipe;
     }
+    recipeNormalizeArchiveMetadata($recipe);
+
     $date = $date !== '' ? $date : date('Y-m-d');
     if (trim($meal) === '') {
         $meal = trim((string)($recipe['meal'] ?? ''));
     }
-    if ($meal === '') {
-        $meal = 'libero';
-    }
-    // Normalize meal slots used by HA / UI
-    $allowed = ['colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo', 'libero'];
-    if (!in_array($meal, $allowed, true)) {
+    $scheduled = recipeIsScheduledMealSlot($meal);
+    if (!$scheduled) {
         $meal = 'libero';
     }
 
-    $stmt = $db->prepare("INSERT INTO recipes (date, meal, recipe_json, created_at) VALUES (?, ?, ?, datetime('now'))
-                          ON CONFLICT(date, meal) DO UPDATE SET recipe_json = excluded.recipe_json, created_at = excluded.created_at");
-    $stmt->execute([$date, $meal, json_encode($recipe, JSON_UNESCAPED_UNICODE)]);
+    $hash = recipeArchiveContentHash($recipe);
+    $json = json_encode($recipe, JSON_UNESCAPED_UNICODE);
 
-    // lastInsertId is 0 on UPDATE — resolve id
-    $id = (int)$db->lastInsertId();
-    if ($id <= 0) {
-        $q = $db->prepare("SELECT id FROM recipes WHERE date = ? AND meal = ? LIMIT 1");
+    // 1) Explicit archive id (e.g. marking ingredients used on an open recipe)
+    if ($id > 0) {
+        $exists = $db->prepare('SELECT id FROM recipes WHERE id = ? LIMIT 1');
+        $exists->execute([$id]);
+        if ((int)$exists->fetchColumn() > 0) {
+            // If another row already owns this hash, merge into that row and drop the stale id
+            $byHash = $db->prepare('SELECT id FROM recipes WHERE content_hash = ? AND id != ? LIMIT 1');
+            $byHash->execute([$hash, $id]);
+            $hashId = (int)$byHash->fetchColumn();
+            if ($hashId > 0) {
+                $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
+                    ->execute([$date, $meal, $json, $hash, $hashId]);
+                $db->prepare('DELETE FROM recipes WHERE id = ?')->execute([$id]);
+                return $hashId;
+            }
+            $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
+                ->execute([$date, $meal, $json, $hash, $id]);
+            return $id;
+        }
+    }
+
+    // 2) Same body already archived → update in place (never clone)
+    $qHash = $db->prepare('SELECT id FROM recipes WHERE content_hash = ? LIMIT 1');
+    $qHash->execute([$hash]);
+    $hashId = (int)$qHash->fetchColumn();
+    if ($hashId > 0) {
+        $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
+            ->execute([$date, $meal, $json, $hash, $hashId]);
+        return $hashId;
+    }
+
+    // 2b) Uncategorized: same title as an existing libero recipe → update (chat clones with rewritten steps)
+    if (!$scheduled) {
+        $titleKey = recipeArchiveTitleKey($recipe);
+        if ($titleKey !== '') {
+            $cands = $db->query("SELECT id, recipe_json FROM recipes WHERE meal = 'libero'")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($cands as $cand) {
+                $existing = json_decode((string)$cand['recipe_json'], true);
+                if (!is_array($existing)) {
+                    continue;
+                }
+                if (recipeArchiveTitleKey($existing) === $titleKey) {
+                    $cid = (int)$cand['id'];
+                    $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
+                        ->execute([$date, $meal, $json, $hash, $cid]);
+                    return $cid;
+                }
+            }
+        }
+    }
+
+    // 3) Scheduled slot for the day (different body) → replace that slot
+    if ($scheduled) {
+        $q = $db->prepare('SELECT id FROM recipes WHERE date = ? AND meal = ? LIMIT 1');
         $q->execute([$date, $meal]);
-        $id = (int)$q->fetchColumn();
+        $existingId = (int)$q->fetchColumn();
+        if ($existingId > 0) {
+            $db->prepare("UPDATE recipes SET recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
+                ->execute([$json, $hash, $existingId]);
+            return $existingId;
+        }
     }
-    return $id;
+
+    $db->prepare("INSERT INTO recipes (date, meal, recipe_json, content_hash, created_at) VALUES (?, ?, ?, ?, datetime('now'))")
+        ->execute([$date, $meal, $json, $hash]);
+    return (int)$db->lastInsertId();
 }
 
 function recipesDelete(PDO $db): void {

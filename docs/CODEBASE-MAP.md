@@ -121,7 +121,9 @@ transactions(id PK, product_id FK, type CHECK IN('in','out','waste'),
              quantity, location, notes, undone INT, created_at)
 barcode_cache, shopping_templates, shopping_list(id, name UNIQUE lower, raw_name,
              specification, added_at, sort_order), app_settings(key PK, value),
-recipes(id, date, meal, recipe_json, UNIQUE(date,meal), is_favorite),
+recipes(id, date, meal, recipe_json, content_hash, is_favorite;
+        partial UNIQUE(date,meal) for scheduled slots only;
+        UNIQUE(content_hash) so chat/use re-saves never clone),
 chat_messages(id, role, text, created_at), health_daily, ...
 ```
 

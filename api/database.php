@@ -296,7 +296,7 @@ function migrateDB(PDO $db): void {
         ");
     }
 
-    // recipes: one per meal per day (last wins)
+    // recipes archive: multiple uncategorized (libero) per day; one row per scheduled meal slot per day
     $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='recipes'")->fetchAll();
     if (empty($tables)) {
         $db->exec("
@@ -306,7 +306,7 @@ function migrateDB(PDO $db): void {
                 meal TEXT NOT NULL,
                 recipe_json TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, meal)
+                is_favorite INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX idx_recipes_date ON recipes(date);
         ");
@@ -409,6 +409,39 @@ function migrateDB(PDO $db): void {
         try { $db->exec("ALTER TABLE recipes ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
+
+    // Allow many chat/archive imports per day (meal=libero); keep one row per scheduled slot (pranzo/cena/…)
+    $recSql = (string)$db->query("SELECT sql FROM sqlite_master WHERE type='table' AND name='recipes'")->fetchColumn();
+    if ($recSql !== '' && str_contains($recSql, 'UNIQUE(date, meal)')) {
+        // SQLite commits DDL implicitly — do not wrap in an explicit transaction.
+        $db->exec("
+            CREATE TABLE recipes_archive_mig (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                meal TEXT NOT NULL,
+                recipe_json TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_favorite INTEGER NOT NULL DEFAULT 0
+            )
+        ");
+        $db->exec("
+            INSERT INTO recipes_archive_mig (id, date, meal, recipe_json, created_at, is_favorite)
+            SELECT id, date, meal, recipe_json, created_at, COALESCE(is_favorite, 0) FROM recipes
+        ");
+        $db->exec('DROP TABLE recipes');
+        $db->exec('ALTER TABLE recipes_archive_mig RENAME TO recipes');
+        $db->exec('CREATE INDEX IF NOT EXISTS idx_recipes_date ON recipes(date)');
+    }
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_date_meal_slot ON recipes(date, meal) WHERE meal IN ('colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo')");
+
+    // Content hash: one archived recipe body = one row (chat re-saves / ingredient "used" flags must not clone)
+    $recColsHash = array_column($db->query("PRAGMA table_info(recipes)")->fetchAll(), 'name');
+    if (!in_array('content_hash', $recColsHash, true)) {
+        try { $db->exec("ALTER TABLE recipes ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+    recipesBackfillAndDedupByHash($db);
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_content_hash ON recipes(content_hash) WHERE content_hash != ''");
 
     // Pin favourite products at top of inventory (#98)
     $prodFavCols = array_column($db->query("PRAGMA table_info(products)")->fetchAll(), 'name');
@@ -878,4 +911,118 @@ function repairPieceProductInventory(PDO $db, int $productId, float $gramsPerPie
         $db->prepare('UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
             ->execute([$pz, $row['id']]);
     }
+}
+
+
+/**
+ * Stable fingerprint of a recipe body for archive deduplication.
+ * Title + ingredient names + steps — ignores quantities, used flags, persons (those change on scale/use).
+ */
+function recipeArchiveContentHash(array $recipe): string {
+    $ings = [];
+    foreach ($recipe['ingredients'] ?? [] as $ing) {
+        if (!is_array($ing)) {
+            continue;
+        }
+        $n = mb_strtolower(trim((string)($ing['name'] ?? '')), 'UTF-8');
+        if ($n !== '') {
+            $ings[] = $n;
+        }
+    }
+    sort($ings, SORT_STRING);
+    $steps = [];
+    foreach ($recipe['steps'] ?? [] as $step) {
+        $s = mb_strtolower(trim((string)$step), 'UTF-8');
+        $s = preg_replace('/\s+/u', ' ', $s) ?? $s;
+        if ($s !== '') {
+            $steps[] = $s;
+        }
+    }
+    $canon = [
+        't' => mb_strtolower(trim((string)($recipe['title'] ?? '')), 'UTF-8'),
+        'i' => $ings,
+        's' => $steps,
+    ];
+    return hash('sha256', json_encode($canon, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+}
+
+/** Soft key for near-duplicates that share a title (chat clones with rewritten steps). */
+function recipeArchiveTitleKey(array $recipe): string {
+    return mb_strtolower(trim((string)($recipe['title'] ?? '')), 'UTF-8');
+}
+
+/**
+ * Backfill content_hash and delete duplicate archive rows (keep favourite, else newest).
+ * Also collapses same-title libero clones left over from chat re-saves.
+ */
+function recipesBackfillAndDedupByHash(PDO $db): void {
+    $flagKey = 'migration_recipes_content_hash_v2';
+    $flag = $db->query("SELECT value FROM app_settings WHERE key = '{$flagKey}'")->fetchColumn();
+
+    // Drop unique index while rewriting hashes (collisions exist until duplicates are removed).
+    $db->exec('DROP INDEX IF EXISTS idx_recipes_content_hash');
+
+    $rows = $db->query('SELECT id, meal, recipe_json, is_favorite, created_at FROM recipes')->fetchAll(PDO::FETCH_ASSOC);
+    $upd = $db->prepare('UPDATE recipes SET content_hash = ? WHERE id = ?');
+    $byHash = [];
+    foreach ($rows as $row) {
+        $recipe = json_decode((string)$row['recipe_json'], true);
+        if (!is_array($recipe)) {
+            continue;
+        }
+        $hash = recipeArchiveContentHash($recipe);
+        $upd->execute([$hash, (int)$row['id']]);
+        $row['_hash'] = $hash;
+        $byHash[$hash][] = $row;
+    }
+
+    $del = $db->prepare('DELETE FROM recipes WHERE id = ?');
+    $removed = 0;
+
+    $collapse = static function (array $groups) use (&$removed, $del): void {
+        foreach ($groups as $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+            usort($group, static function ($a, $b) {
+                $fa = (int)($a['is_favorite'] ?? 0);
+                $fb = (int)($b['is_favorite'] ?? 0);
+                if ($fa !== $fb) {
+                    return $fb <=> $fa;
+                }
+                return ((int)$b['id']) <=> ((int)$a['id']);
+            });
+            array_shift($group);
+            foreach ($group as $dup) {
+                $del->execute([(int)$dup['id']]);
+                $removed++;
+            }
+        }
+    };
+
+    if (!$flag) {
+        $collapse($byHash);
+
+        // Same-title libero leftovers (steps reworded → different hash) → keep one
+        $rowsLeft = $db->query("SELECT id, meal, recipe_json, is_favorite FROM recipes WHERE meal = 'libero'")->fetchAll(PDO::FETCH_ASSOC);
+        $byTitle = [];
+        foreach ($rowsLeft as $row) {
+            $recipe = json_decode((string)$row['recipe_json'], true);
+            if (!is_array($recipe)) {
+                continue;
+            }
+            $tk = recipeArchiveTitleKey($recipe);
+            if ($tk === '') {
+                continue;
+            }
+            $byTitle[$tk][] = $row;
+        }
+        $collapse($byTitle);
+
+        $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+                      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+            ->execute([$flagKey, (string)$removed]);
+    }
+
+    $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_content_hash ON recipes(content_hash) WHERE content_hash != ''");
 }

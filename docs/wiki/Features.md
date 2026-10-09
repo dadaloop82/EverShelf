@@ -80,6 +80,15 @@ Tap **🍳 Recipes** → **Generate Recipe** to get a recipe using:
 
 Recipes stream live via Server-Sent Events so results appear as they are generated.
 
+Imported and generated recipes land in the **archive**. Free-slot (`libero`) recipes
+can coexist on the same day; each body has a content hash so re-importing from chat
+or marking ingredients used **updates** the same row instead of cloning it. Scheduled
+meal slots (lunch/dinner/…) still keep one recipe per day.
+
+When you tap **Use** on a pantry-linked ingredient, the needed amount is shown large.
+With a connected kitchen scale the modal shows live **weighed / needed** (e.g. `85 / 120 g`)
+and progress toward the recipe target.
+
 Every recipe also answers "what do I still have to buy?". The 🛒 panel under the
 ingredients compares the recipe against the pantry *at the moment you open it* and
 lists only the gaps — 500 g of pasta with 200 g left asks for 300 g, and stock held
@@ -98,7 +107,9 @@ Open **💬 Chat** to ask questions like:
 - "How long does cooked ham last once opened in the fridge?"
 - "Suggest a quick snack"
 
-The assistant knows your current inventory.
+The assistant knows your current inventory. Replies that look like a full recipe offer
+**Import to recipes** — the dish is archived under a real title (never a placeholder
+like “libero”) and will not duplicate if you import the same dish again.
 
 ### Shopping Suggestions with Tips
 

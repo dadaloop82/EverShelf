@@ -11022,4 +11022,190 @@ body.offline-mode #smart-shopping {
     filter: grayscale(0.6);
 }
 
+/* ===== RECIPE USE MODAL (ingredient → Usa) ===== */
+.ruse-modal {
+    padding: 0 16px 18px;
+}
+.ruse-product-name {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.3;
+}
+.ruse-target-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 14px 18px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    background: linear-gradient(160deg,
+        color-mix(in srgb, var(--primary) 14%, var(--bg-card)),
+        color-mix(in srgb, var(--primary-light) 8%, var(--bg-card)));
+    border: 1.5px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+    text-align: center;
+}
+.ruse-target-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--primary-dark, var(--primary));
+    opacity: 0.85;
+}
+.ruse-target-value {
+    font-size: clamp(2rem, 8vw, 2.75rem);
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--primary-dark, var(--primary));
+    font-variant-numeric: tabular-nums;
+}
+.ruse-target-unit {
+    font-size: 0.55em;
+    font-weight: 700;
+    margin-left: 0.2em;
+    opacity: 0.85;
+}
+.ruse-stock-line {
+    margin: 0 0 14px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.ruse-scale-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 14px 12px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1.5px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+    box-shadow: var(--es-shadow-card, 0 2px 10px rgba(0,0,0,0.04));
+}
+.ruse-scale-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ruse-scale-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+.ruse-scale-ratio {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15em 0.25em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    min-width: 0;
+}
+.ruse-scale-now {
+    font-size: clamp(1.85rem, 7vw, 2.4rem);
+    font-weight: 800;
+    color: var(--primary);
+}
+.ruse-scale-sep {
+    font-size: clamp(1.2rem, 5vw, 1.6rem);
+    font-weight: 600;
+    color: var(--text-muted);
+    margin: 0 0.05em;
+}
+.ruse-scale-need {
+    font-size: clamp(1.35rem, 5.5vw, 1.85rem);
+    font-weight: 700;
+    color: var(--text);
+}
+.ruse-scale-unit {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-left: 0.15em;
+}
+.ruse-scale-status {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+.ruse-scale-target-track,
+.ruse-scale-stability-track,
+.ruse-scale-confirm-track {
+    height: 8px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.ruse-scale-target-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: var(--primary);
+    transition: width 0.12s linear, background-color 0.2s ease;
+}
+.ruse-scale-box.is-near .ruse-scale-target-bar {
+    background: #16a34a;
+}
+.ruse-scale-box.is-over .ruse-scale-target-bar {
+    background: #ea580c;
+}
+.ruse-scale-box.is-near .ruse-scale-now {
+    color: #16a34a;
+}
+.ruse-scale-box.is-over .ruse-scale-now {
+    color: #ea580c;
+}
+.ruse-scale-stability-track {
+    height: 4px;
+}
+.ruse-scale-stability-bar {
+    height: 100%;
+    width: 0%;
+    background: color-mix(in srgb, var(--primary) 70%, #94a3b8);
+    border-radius: 999px;
+}
+.ruse-scale-confirm-track {
+    height: 4px;
+}
+.ruse-scale-confirm-bar {
+    height: 100%;
+    width: 100%;
+    background: #22c55e;
+    border-radius: 999px;
+}
+.ruse-scale-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+}
+.ruse-scale-hint {
+    display: none;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--primary);
+    font-weight: 600;
+}
+.ruse-qty-block .qty-control-with-unit {
+    margin-top: 6px;
+}
+.ruse-qty-block .qty-input {
+    font-size: 1.45rem;
+    font-weight: 700;
+    min-height: 48px;
+}
+.ruse-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+
 /* Corporate UI: see assets/css/corporate.css */
