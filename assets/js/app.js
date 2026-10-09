@@ -651,6 +651,59 @@ function _scaleAutoFillUse(msg) {
     // Same value + timer running → do nothing (already counting down)
 }
 
+/** Format a recipe-use quantity for big on-screen numbers. */
+function _fmtRecipeUseQty(n) {
+    if (!isFinite(n)) return '—';
+    if (Math.abs(n - Math.round(n)) < 0.05) return String(Math.round(n));
+    return String(Math.round(n * 10) / 10);
+}
+
+/**
+ * Update the big "X / Y unit" compare block in the recipe-use modal.
+ * @param {number|null} currentVal  weighed amount in target unit, or null to reset
+ */
+function _updateRecipeUseScaleCompare(currentVal) {
+    const box = document.getElementById('ruse-scale-live-box');
+    const nowEl = document.getElementById('ruse-scale-now');
+    const needEl = document.getElementById('ruse-scale-need');
+    const unitEl = document.getElementById('ruse-scale-unit');
+    const bar = document.getElementById('ruse-scale-target-bar');
+    const label = document.getElementById('ruse-scale-live-label');
+    if (!box || !nowEl) return;
+
+    const target = Number(_recipeUseContext?.targetQty);
+    const unit = _recipeUseContext?.targetUnit || 'g';
+    if (needEl) needEl.textContent = isFinite(target) && target > 0 ? _fmtRecipeUseQty(target) : '—';
+    if (unitEl) unitEl.textContent = unit;
+
+    if (currentVal == null || !isFinite(currentVal) || currentVal < 0) {
+        nowEl.textContent = '—';
+        box.classList.remove('is-near', 'is-over');
+        if (bar) bar.style.width = '0%';
+        return;
+    }
+
+    nowEl.textContent = _fmtRecipeUseQty(currentVal);
+    if (isFinite(target) && target > 0) {
+        const pct = Math.min(100, (currentVal / target) * 100);
+        if (bar) bar.style.width = pct + '%';
+        const remain = target - currentVal;
+        const tol = Math.max(2, target * 0.03); // ~3% or 2g/ml
+        box.classList.remove('is-near', 'is-over');
+        if (remain < -tol) {
+            box.classList.add('is-over');
+            if (label) label.textContent = t('recipes.scale_too_much', { over: _fmtRecipeUseQty(Math.abs(remain)), unit });
+        } else if (Math.abs(remain) <= tol) {
+            box.classList.add('is-near');
+            if (label) label.textContent = t('recipes.scale_target_ok');
+        } else {
+            if (label) label.textContent = t('recipes.scale_add_more', { remain: _fmtRecipeUseQty(remain), unit });
+        }
+    } else if (bar) {
+        bar.style.width = '0%';
+    }
+}
+
 /**
  * Auto-fill ruse-quantity input from a stable scale reading (recipe-use modal).
  */
@@ -697,22 +750,18 @@ function _scaleAutoFillRecipeUse(msg) {
         }
     }
 
-    // Update live box in modal — show the already-converted value in the target unit
-    const livVal   = document.getElementById('ruse-scale-live-val');
     const livLabel = document.getElementById('ruse-scale-live-label');
     const livStatus = document.getElementById('ruse-scale-live-status');
-    if (livVal) {
-        // val is already converted to target unit (g or ml); show it directly
-        if (val >= 10) {
-            livVal.textContent = `${val} ${unit}`;
-        } else {
-            // val not usable yet — show raw reading
-            livVal.textContent = `${msg.value} ${msg.unit || 'kg'}`;
-        }
-    }
     if (livStatus) livStatus.textContent = msg.stable ? t('scale.stable') : '…';
 
-    // Update live hint in modal with the raw scale reading always
+    // Big X / Y compare — prefer converted value; fall back to raw if still tiny
+    if (val >= 1) {
+        _updateRecipeUseScaleCompare(val);
+    } else {
+        _updateRecipeUseScaleCompare(null);
+        if (livLabel) livLabel.textContent = `${msg.value} ${msg.unit || 'kg'}`;
+    }
+
     const hint = document.getElementById('ruse-scale-hint');
     if (hint) {
         hint.textContent = t('scale.reading', { value: msg.value, unit: msg.unit || 'kg' }) + (msg.stable ? ' ✓' : ' …');
@@ -738,26 +787,27 @@ function _scaleAutoFillRecipeUse(msg) {
         _scaleStabilityVal = val;
         _scaleUserDismissed = false;
         _cancelScaleTimersOnly();
-        if (livLabel) livLabel.textContent = t('scale.weight_detected');
-        // Hide confirm bar when new value arrives
+        if (livLabel && !document.getElementById('ruse-scale-live-box')?.classList.contains('is-near')
+            && !document.getElementById('ruse-scale-live-box')?.classList.contains('is-over')) {
+            livLabel.textContent = t('scale.weight_detected');
+        }
         const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
         if (confirmWrap) confirmWrap.style.display = 'none';
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
+            _updateRecipeUseScaleCompare(val);
             if (hint) {
                 hint.textContent = t('scale.weight_value', { value: val, unit }) + hintExtra;
                 hint.style.display = '';
             }
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
-            if (livVal) livVal.style.color = '#22c55e';
             const confirmWrap2 = document.getElementById('ruse-scale-confirm-wrap');
             if (confirmWrap2) { confirmWrap2.style.display = ''; }
             const confirmBar = document.getElementById('ruse-scale-confirm-bar');
             if (confirmBar) confirmBar.style.width = '100%';
             _startScaleAutoConfirm(() => {
                 _scaleLastConfirmedGrams = grams;
-                if (livVal) livVal.style.color = '';
                 submitRecipeUse(false);
             }, 'btn-ruse-submit');
         });
@@ -767,15 +817,14 @@ function _scaleAutoFillRecipeUse(msg) {
         _startScaleStabilityWait(() => {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
+            _updateRecipeUseScaleCompare(val);
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
-            if (livVal) livVal.style.color = '#22c55e';
             const confirmWrap3 = document.getElementById('ruse-scale-confirm-wrap');
             if (confirmWrap3) confirmWrap3.style.display = '';
             const confirmBar2 = document.getElementById('ruse-scale-confirm-bar');
             if (confirmBar2) confirmBar2.style.width = '100%';
             _startScaleAutoConfirm(() => {
                 _scaleLastConfirmedGrams = grams;
-                if (livVal) livVal.style.color = '';
                 submitRecipeUse(false);
             }, 'btn-ruse-submit');
         });
@@ -800,15 +849,13 @@ function _cancelScaleTimersOnly() {
     const ruseBtn = document.getElementById('btn-ruse-submit');
     if (useBtn)  useBtn.style.background = '';
     if (ruseBtn) ruseBtn.style.background = '';
-    // Reset modal confirm bar and live val colour
+    // Reset modal confirm bar
     const confirmBar = document.getElementById('ruse-scale-confirm-bar');
-    const livVal     = document.getElementById('ruse-scale-live-val');
     const confirmWrap = document.getElementById('ruse-scale-confirm-wrap');
     if (confirmBar) { confirmBar.style.width = '100%'; }
     if (confirmWrap) confirmWrap.style.display = 'none';
-    if (livVal) livVal.style.color = '';
     const livLabel = document.getElementById('ruse-scale-live-label');
-    if (livLabel && livLabel.textContent.startsWith('✅')) {
+    if (livLabel && (livLabel.textContent.startsWith('✅') || /auto/i.test(livLabel.textContent))) {
         livLabel.textContent = t('scale.cancelled_replace');
     }
     document.removeEventListener('pointerdown', _cancelScaleAutoConfirmOnTouch, true);
@@ -1157,7 +1204,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261008a'; // bump when translations change
+const _I18N_VERSION = '20261009d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10557,7 +10604,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261008a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261009d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10567,7 +10614,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261008a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261009d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19909,14 +19956,29 @@ async function getRecipeArchive() {
     return [];
 }
 
-async function saveRecipeToArchive(recipe) {
+async function saveRecipeToArchive(recipe, archiveId = null) {
     const today = new Date().toISOString().slice(0, 10);
+    const mealSlot = _normalizeMealId(recipe.meal || '');
+    const scheduledMeals = ['colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo'];
+    const meal = scheduledMeals.includes(mealSlot) ? mealSlot : '';
+    const payload = { ...recipe };
+    if (payload.meal === 'libero' || !scheduledMeals.includes(_normalizeMealId(payload.meal || ''))) {
+        delete payload.meal;
+    }
+    const id = archiveId || recipe.id || null;
     try {
-        await api('recipes_save', {}, 'POST', { date: today, meal: recipe.meal, recipe });
-        // Invalidate cache and refresh the archive list
+        const body = { date: today, meal, recipe: payload };
+        if (id) body.id = id;
+        const res = await api('recipes_save', {}, 'POST', body);
         _recipeArchiveCache = null;
         loadRecipeArchive();
-    } catch(e) { console.error('Failed to save recipe:', e); }
+        if (res && res.success && res.id && _cachedRecipe && _cachedRecipe.recipe === recipe) {
+            _cachedRecipe.id = res.id;
+        } else if (res && res.success && res.id && !_cachedRecipe) {
+            // caller may assign _cachedRecipe next; id is returned for that
+        }
+        return res && res.success ? res.id : null;
+    } catch(e) { console.error('Failed to save recipe:', e); return null; }
 }
 
 async function getTodayRecipeTitles() {
@@ -19966,7 +20028,8 @@ async function loadRecipeArchive() {
         
         for (const entry of entries) {
             const r = entry.recipe;
-            const mealIcon = _mealLabel(r.meal || entry.meal);
+            const entryMeal = _normalizeMealId(r.meal || entry.meal || '');
+            const mealIcon = (entryMeal && entryMeal !== 'libero') ? _mealLabel(entryMeal) : '';
             const tags = (r.tags || []).slice(0, 3).join(', ');
             // Find this entry's index in the flat archive array
             const archiveIdx = archive.indexOf(entry);
@@ -20834,27 +20897,31 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             return `<button type="button" class="loc-btn ${loc === defaultLoc ? 'active' : ''}${openedBadge ? ' loc-btn-opened' : ''}" onclick="selectRecipeUseLoc(this, '${loc}')">${locInfo.icon} ${locInfo.label}${openedBadge}<br><small>${qtyLabel}</small></button>`;
         }).join('');
         
-        // Build quantity controls
+        // Build quantity controls + target unit for the big "need" card / scale compare
         let qtySection = '';
         let defaultQtyValue = Math.round(qtyNumber * 10) / 10;
-        
+        let targetUnit = unit;
+        let targetQty = defaultQtyValue;
+
         if (isConf) {
             const totalConf = items.reduce((s, i) => s + parseFloat(i.quantity), 0);
             const totalSub = totalConf * pkgSize;
             const unitLabels = { 'ml': 'ml', 'g': 'g', 'pz': 'pz' };
             const subLabel = unitLabels[pkgUnit] || pkgUnit;
             _recipeUseConfMode = { packageSize: pkgSize, packageUnit: pkgUnit, totalSub, totalConf, subLabel, _activeUnit: 'sub' };
-            
+
             // qtyNumber from recipe is in sub-units (g, ml)
             const step = getSubUnitStep(pkgUnit);
             defaultQtyValue = (pkgUnit === 'g' || pkgUnit === 'ml') ? Math.round(qtyNumber) : Math.round(qtyNumber * 10) / 10;
-            
+            targetUnit = subLabel;
+            targetQty = defaultQtyValue;
+
             qtySection = `
                 <div class="use-unit-switch" style="display:flex;margin-bottom:8px">
                     <button type="button" class="use-unit-btn active" id="ruse-unit-sub" onclick="switchRecipeUseUnit('sub')">${subLabel}</button>
                     <button type="button" class="use-unit-btn" id="ruse-unit-conf" onclick="switchRecipeUseUnit('conf')">${t('recipes.packs_label')}</button>
                 </div>
-                <p id="ruse-hint" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.quantity_in_total').replace('{unit}', subLabel).replace('{total}', Math.round(totalSub) + subLabel)}</p>
+                <p id="ruse-hint" class="form-hint">${t('recipes.quantity_in_total').replace('{unit}', subLabel).replace('{total}', Math.round(totalSub) + subLabel)}</p>
                 <div class="qty-control-with-unit">
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
@@ -20868,9 +20935,10 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
             _recipeUseNormalUnit = unit;
             const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml' };
             const unitLabel = unitLabels[unit] || unit;
+            targetUnit = unitLabel;
+            targetQty = defaultQtyValue;
             const inputMin = '0.1';
             qtySection = `
-                <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">${t('recipes.amount_label')}:</p>
                 <div class="qty-control-with-unit">
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
@@ -20881,8 +20949,13 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     <span class="qty-unit-badge" id="ruse-quantity-unit" aria-live="polite">${escapeHtml(unitLabel)}</span>
                 </div>`;
         }
-        
-        // Scale live UI: show only when scale is connected and unit is g or ml
+
+        _recipeUseContext.targetQty = targetQty;
+        _recipeUseContext.targetUnit = targetUnit;
+        _recipeUseContext.targetLabel = recipeQty
+            ? String(recipeQty)
+            : `${_fmtRecipeUseQty(targetQty)} ${targetUnit}`;
+
         const availInfo = items.map(i => {
             const loc = LOCATIONS[i.location] || { icon: '📦', label: i.location };
             return `${loc.icon} ${formatQuantity(i.quantity, i.unit, i.default_quantity, i.package_unit)}`;
@@ -20891,19 +20964,27 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         const showScaleLive = _scaleConnected && (unit === 'g' || unit === 'ml' ||
             (_recipeUseConfMode && ((_recipeUseConfMode.packageUnit || '').toLowerCase() === 'g' || (_recipeUseConfMode.packageUnit || '').toLowerCase() === 'ml')));
         const scaleLiveSection = showScaleLive ? `
-            <div id="ruse-scale-live-box" class="scale-live-box" style="flex-direction:column;align-items:stretch;border-color:var(--color-accent,#7c3aed)">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                    <span class="scale-live-icon">⚖️</span>
-                    <span id="ruse-scale-live-val" class="scale-live-val" style="color:var(--color-accent,#7c3aed)">— —</span>
-                    <span id="ruse-scale-live-status" style="font-size:0.75rem;color:var(--text-muted);margin-left:auto"></span>
+            <div id="ruse-scale-live-box" class="ruse-scale-box" role="status" aria-live="polite">
+                <div class="ruse-scale-top">
+                    <span class="ruse-scale-icon" aria-hidden="true">⚖️</span>
+                    <div class="ruse-scale-ratio" id="ruse-scale-ratio">
+                        <span id="ruse-scale-now" class="ruse-scale-now">—</span>
+                        <span class="ruse-scale-sep">/</span>
+                        <span id="ruse-scale-need" class="ruse-scale-need">${escapeHtml(_fmtRecipeUseQty(targetQty))}</span>
+                        <span id="ruse-scale-unit" class="ruse-scale-unit">${escapeHtml(targetUnit)}</span>
+                    </div>
+                    <span id="ruse-scale-live-status" class="ruse-scale-status"></span>
                 </div>
-                <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px">
-                    <div id="ruse-scale-progress-bar" style="height:100%;width:0%;background:var(--color-accent,#7c3aed);transition:none;border-radius:2px"></div>
+                <div class="ruse-scale-target-track" title="${escapeHtml(t('recipes.need_for_recipe'))}">
+                    <div id="ruse-scale-target-bar" class="ruse-scale-target-bar"></div>
                 </div>
-                <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:none" id="ruse-scale-confirm-wrap">
-                    <div id="ruse-scale-confirm-bar" style="height:100%;width:100%;background:#22c55e;transition:none;border-radius:2px"></div>
+                <div class="ruse-scale-stability-track">
+                    <div id="ruse-scale-progress-bar" class="ruse-scale-stability-bar"></div>
                 </div>
-                <div id="ruse-scale-live-label" class="scale-live-label" style="margin-top:3px">${t('recipes.scale_wait_stable')}</div>
+                <div class="ruse-scale-confirm-track" id="ruse-scale-confirm-wrap" style="display:none">
+                    <div id="ruse-scale-confirm-bar" class="ruse-scale-confirm-bar"></div>
+                </div>
+                <div id="ruse-scale-live-label" class="ruse-scale-label">${escapeHtml(t('recipes.scale_wait_stable'))}</div>
             </div>` : '';
 
         document.getElementById('modal-content').innerHTML = `
@@ -20911,32 +20992,38 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                 <h3>📤 ${t('recipes.use_ingredient_title')}</h3>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
-            <div style="padding:0 16px 16px">
-                <p style="margin-bottom:4px;font-weight:600">${escapeHtml(items[0].name)}</p>
-                ${recipeQty ? `<p style="margin-bottom:8px;background:var(--bg-elevated,rgba(124,58,237,0.12));border-left:3px solid var(--color-accent,#7c3aed);border-radius:6px;padding:6px 10px;font-size:0.9rem">📋 ${t('recipes.recipe_qty_label')}: <strong>${escapeHtml(recipeQty)}</strong></p>` : ''}
-                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">${availInfo}</p>
+            <div class="ruse-modal">
+                <p class="ruse-product-name">${escapeHtml(items[0].name)}</p>
+                <div class="ruse-target-card">
+                    <span class="ruse-target-label">${escapeHtml(t('recipes.need_for_recipe'))}</span>
+                    <div class="ruse-target-value">${escapeHtml(_fmtRecipeUseQty(targetQty))}<span class="ruse-target-unit">${escapeHtml(targetUnit)}</span></div>
+                </div>
+                <p class="ruse-stock-line">${escapeHtml(t('recipes.stock_available'))}: ${availInfo}</p>
                 ${scaleLiveSection}
                 <div class="form-group">
                     <label>📍 ${t('recipes.from_where_label')}</label>
                     <div class="location-selector">${locButtons}</div>
                     <input type="hidden" id="ruse-location" value="${defaultLoc}">
                 </div>
-                <div class="form-group">
+                <div class="form-group ruse-qty-block">
                     <label>${t('recipes.amount_label')}?</label>
                     ${qtySection}
-                    <small id="ruse-scale-hint" style="display:none; color: var(--color-accent, #7c3aed); margin-top:4px"></small>
+                    <small id="ruse-scale-hint" class="ruse-scale-hint"></small>
                 </div>
-                <button type="button" id="btn-ruse-submit" class="btn btn-large btn-danger full-width move-countdown-btn" onclick="submitRecipeUse(false)" style="margin-top:8px">
-                    📤 ${t('recipes.use_amount_btn')}
-                </button>
-                <button type="button" class="btn btn-large btn-secondary full-width" style="margin-top:8px" onclick="submitRecipeUse(true)">
-                    🗑️ ${t('recipes.use_all_btn')}
-                </button>
+                <div class="ruse-actions">
+                    <button type="button" id="btn-ruse-submit" class="btn btn-large btn-danger full-width move-countdown-btn" onclick="submitRecipeUse(false)">
+                        📤 ${t('recipes.use_amount_btn')}
+                    </button>
+                    <button type="button" class="btn btn-large btn-secondary full-width" onclick="submitRecipeUse(true)">
+                        🗑️ ${t('recipes.use_all_btn')}
+                    </button>
+                </div>
             </div>
         `;
         document.getElementById('modal-overlay').style.display = 'flex';
         syncRecipeUseQtyUnitBadge();
-        
+        if (showScaleLive) _updateRecipeUseScaleCompare(null);
+
     } catch (err) {
         console.error('useRecipeIngredient error:', err);
         showToast(t('recipes.load_error'), 'error');
@@ -20961,10 +21048,15 @@ function switchRecipeUseUnit(mode) {
         confBtn.classList.remove('active');
         _recipeUseConfMode._activeUnit = 'sub';
         const step = getSubUnitStep(_recipeUseConfMode.packageUnit);
-        qtyInput.value = _recipeUseContext.qtyNumber || step;
+        const subQty = _recipeUseContext.qtyNumber || step;
+        qtyInput.value = subQty;
         qtyInput.step = step;
         qtyInput.min = step;
-        hint.textContent = t('recipes.quantity_in_total').replace('{unit}', _recipeUseConfMode.subLabel).replace('{total}', Math.round(_recipeUseConfMode.totalSub) + _recipeUseConfMode.subLabel);
+        if (hint) hint.textContent = t('recipes.quantity_in_total').replace('{unit}', _recipeUseConfMode.subLabel).replace('{total}', Math.round(_recipeUseConfMode.totalSub) + _recipeUseConfMode.subLabel);
+        if (_recipeUseContext) {
+            _recipeUseContext.targetQty = subQty;
+            _recipeUseContext.targetUnit = _recipeUseConfMode.subLabel;
+        }
     } else {
         confBtn.classList.add('active');
         subBtn.classList.remove('active');
@@ -20972,9 +21064,19 @@ function switchRecipeUseUnit(mode) {
         qtyInput.value = 1;
         qtyInput.step = 0.5;
         qtyInput.min = 0.5;
-        hint.textContent = t('recipes.packs_of_have').replace('{size}', `${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel}`).replace('{count}', _recipeUseConfMode.totalConf.toFixed(1));
+        if (hint) hint.textContent = t('recipes.packs_of_have').replace('{size}', `${_recipeUseConfMode.packageSize}${_recipeUseConfMode.subLabel}`).replace('{count}', _recipeUseConfMode.totalConf.toFixed(1));
+        // Packs mode: hide live scale target (scale reads g/ml, not packs)
+        if (_recipeUseContext) {
+            _recipeUseContext.targetQty = 1;
+            _recipeUseContext.targetUnit = t('recipes.packs_label');
+        }
     }
     syncRecipeUseQtyUnitBadge();
+    const targetEl = document.querySelector('.ruse-target-value');
+    if (targetEl && _recipeUseContext) {
+        targetEl.innerHTML = `${escapeHtml(_fmtRecipeUseQty(_recipeUseContext.targetQty))}<span class="ruse-target-unit">${escapeHtml(_recipeUseContext.targetUnit)}</span>`;
+    }
+    _updateRecipeUseScaleCompare(null);
 }
 
 function adjustRecipeUseQty(direction) {
@@ -21064,7 +21166,7 @@ async function submitRecipeUse(useAll) {
             
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
                 _cachedRecipe.recipe.ingredients[idx].used = true;
-                saveRecipeToArchive(_cachedRecipe.recipe);
+                saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
             }
             
             showToast(t('recipes.ingredient_scaled_toast'), 'success');
@@ -21628,7 +21730,8 @@ async function renderRecipe(r) {
 
     // Meta tags + star (#124) + persons rescaler (#123)
     html += '<div class="recipe-meta">';
-    if (r.meal) html += `<span class="recipe-tag">${_mealLabel(r.meal)}</span>`;
+    const displayMeal = _normalizeMealId(r.meal || '');
+    if (displayMeal && displayMeal !== 'libero') html += `<span class="recipe-tag">${_mealLabel(displayMeal)}</span>`;
     html += `<span class="recipe-tag recipe-persons-ctrl">
         <button class="btn-persons-adj" onclick="scaleRecipePersons(-1)">−</button>
         <span id="recipe-persons-display">👥 ${r.persons} ${t('recipes.persons_short')}</span>
@@ -23950,7 +24053,7 @@ function doRegenerateReplace() {
 
 async function doRegenerateSave() {
     if (_cachedRecipe && _cachedRecipe.recipe) {
-        await saveRecipeToArchive(_cachedRecipe.recipe);
+        await saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
     }
     cancelRegenChoice();
     _doRegenerate();
@@ -24384,8 +24487,8 @@ async function generateRecipe() {
         if (recipe) {
             await renderRecipe(recipe);
             if (recipe.title) _generatedTodayTitles.push(recipe.title);
-            await saveRecipeToArchive(recipe);
-            _cachedRecipe = { meal, recipe };
+            const archiveId = await saveRecipeToArchive(recipe);
+            _cachedRecipe = { meal, recipe, id: archiveId || undefined };
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-result').style.display = '';
         } else {
@@ -24484,8 +24587,8 @@ async function chatTransferToRecipes(btn, replyText) {
         // renderRecipe expects `persons`; Gemini might return `servings`
         if (!recipe.persons && recipe.servings) recipe.persons = recipe.servings;
         if (!recipe.persons) recipe.persons = 2;
-        await saveRecipeToArchive(recipe);
-        _cachedRecipe = { meal: recipe.meal || '', recipe };
+        const archiveId = await saveRecipeToArchive(recipe);
+        _cachedRecipe = { meal: recipe.meal || '', recipe, id: archiveId || undefined };
         await renderRecipe(recipe);
         // Transform the transfer button into "Apri la ricetta"
         btn.disabled = false;
@@ -24558,8 +24661,8 @@ async function generateRecipeForIngredient(ingredientName) {
         const recipe = result.recipe;
         if (!recipe.persons && recipe.servings) recipe.persons = recipe.servings;
         if (!recipe.persons) recipe.persons = 2;
-        await saveRecipeToArchive(recipe);
-        _cachedRecipe = { meal: recipe.meal || '', recipe };
+        const archiveId = await saveRecipeToArchive(recipe);
+        _cachedRecipe = { meal: recipe.meal || '', recipe, id: archiveId || undefined };
         await renderRecipe(recipe);
         document.getElementById('recipe-loading').style.display = 'none';
         document.getElementById('recipe-result').style.display = '';

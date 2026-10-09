@@ -163,6 +163,7 @@ php scripts/test-product-number.php     # singular title in the catalog, plural 
 php scripts/test-product-rename.php     # a scanned title/brand can be corrected, and a rescan cannot undo it
 php scripts/test-auto-favorite.php      # used-often products become favourites; a manual unstar always wins
 php scripts/test-preloader-stages.php   # splash boot rail: stages ↔ health checks ↔ locales, no icon left blinking
+php scripts/test-recipe-archive.php     # archive: content_hash dedup, many libero/day, scheduled slots still unique
 
 # Translation files must be valid JSON
 python3 -c "import json; json.load(open('translations/it.json'))"
@@ -199,6 +200,7 @@ npm run build
 | DB schema & migrations | `api/database.php` (`initializeDB`, `migrateDB`) |
 | AI providers (Gemini/OpenAI/Llama) | `api/lib/ai_provider.php`, `callGemini()` (~8302) |
 | Shopping logic | `smartShopping()` (~16000), `shopping_guards.php`, `shopping_sync.php` (shared Bring!/internal sync), `bring_*` fns |
+| Recipe archive (chat / generate) | `recipesArchiveUpsert()` + `recipeArchiveContentHash()` in `api/index.php` / `api/database.php`; `recipes.content_hash` prevents clones; `useRecipeIngredient()` / scale X÷Y UI in `app.js` — guard test `scripts/test-recipe-archive.php` |
 | Genre in the article title | `api/lib/product_kind.php` + `mergeIncomingProductFields()` (the single title choke point) + `products.kind`; dictionary shared with `computeShoppingName()` — guard test `scripts/test-product-kind-prefix.php` |
 | Singular title ↔ plural pantry | `productKindSingularizeName()` (stored title), `productNameForPieces()` + `display_name` in `listInventory()`, `productKindUnitCountsPieces()` — guard test `scripts/test-product-number.php` |
 | Automatic favourites | `api/lib/auto_favorite.php` (`maybeAutoFavorite()` on every `inventory_use`), `products.favorite_user_override`, maintenance action `products_apply_auto_rules` — guard test `scripts/test-auto-favorite.php` |

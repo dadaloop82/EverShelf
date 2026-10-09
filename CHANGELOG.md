@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.10] - 2026-10-09
+
+### Recipes archive
+- Chat / free-slot imports no longer overwrite each other: many `libero` recipes per day are allowed; scheduled slots (pranzo/cena/…) still replace one row per day.
+- Every archive row has a **`content_hash`** (title + ingredient names + steps). Re-saving the same recipe (chat import again, marking ingredients used, quantity drift) **updates** the existing row instead of cloning it. Same-title `libero` near-duplicates are collapsed on migrate.
+- Migration drops the old `UNIQUE(date, meal)` constraint, backfills hashes, and deletes duplicate rows (keeps favourite, else newest). Guard: `scripts/test-recipe-archive.php`.
+- Chat → recipe titles: never leave placeholder `"libero"`; derive a real dish name from the chat text / first ingredient when the AI returns an empty or placeholder title.
+
+### Recipe “Usa ingrediente” UI
+- Needed amount is shown large (“Serve per la ricetta”).
+- With a connected scale: live **X / Y unit** compare, progress toward the recipe target, and clear under/ok/over feedback (i18n in all six locales).
+
 ## [1.11.9] - 2026-10-08
 
 - **Kiosk pairing UX:** dedicated wizard step explains where to find the code (Settings → Security / server log) and collects it on its own screen (no AlertDialog).
