@@ -274,6 +274,7 @@
     "num_ocr_found": "找到条形码：{code}",
     "num_ocr_not_found": "图像中未找到条形码",
     "barcode_placeholder": "输入条形码…",
+    "barcode_camera_hint": "将摄像头对准条形码",
     "quick_name_divider": "或输入名称",
     "quick_name_placeholder": "例如：苹果、西葫芦、面包…",
     "manual_entry": "✏️ 手动输入",
@@ -307,7 +308,7 @@
     "ai_overlay_label": "Gemini Vision",
     "ai_overlay_msg": "Gemini Vision 正在分析商品…",
     "ai_retry_btn": "使用 AI 重试",
-    "ai_manual_btn": "🤖 使用 AI 识别",
+    "ai_manual_btn": "AI识别",
     "ai_not_recognized": "AI 无法识别该商品。请重试或手动添加。",
     "ai_match_title": "AI 已识别商品",
     "ai_match_subtitle": "请选择库存中的现有商品，或添加检测到的商品。",
@@ -336,7 +337,13 @@
     "spesa_session_brand": "品牌",
     "spesa_session_qty": "数量",
     "spesa_session_saved": "已更新商品",
-    "spesa_session_save_error": "无法更新商品"
+    "spesa_session_save_error": "无法更新商品",
+    "favorites_label": "收藏",
+    "search_btn": "搜索",
+    "manual_entry_short": "手动",
+    "ai_tip_show_product": "展示完整产品或正面标签",
+    "ai_tip_show_barcode": "如有条形码，请保持清晰稳定",
+    "ai_working": "正在分析图像…"
   },
   "action": {
     "title": "请选择操作",

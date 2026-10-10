@@ -1204,7 +1204,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261009d'; // bump when translations change
+const _I18N_VERSION = '20261010g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2601,19 +2601,43 @@ const _SCAN_FORMATS = ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e
 let _barcodeEnginesPreloadStarted = false;
 let _pendingBarcodeSave = null;
 
-// Apply fixed 2x zoom (hardware if available, CSS fallback)
+// Apply fixed 2x zoom (hardware if available, CSS fallback) + continuous focus
 async function _applyFixedZoom() {
     if (!scannerStream) return;
     const track = scannerStream.getVideoTracks()[0];
     if (!track) return;
     const caps = track.getCapabilities ? track.getCapabilities() : {};
+    const advanced = [];
     if (caps.zoom && caps.zoom.max >= 2) {
-        const z = Math.min(caps.zoom.max, caps.zoom.min * 2);
-        try { await track.applyConstraints({ advanced: [{ zoom: z }] }); scanLog(`HW zoom: ${z}`); } catch(e) {}
+        const z = Math.min(caps.zoom.max, Math.max(caps.zoom.min, caps.zoom.min * 2));
+        advanced.push({ zoom: z });
+        scanLog(`HW zoom: ${z}`);
     } else {
         const video = document.getElementById('scanner-video');
         if (video) video.style.transform = 'scale(2)';
         scanLog('SW zoom: scale(2)');
+    }
+    // Continuous autofocus + point-of-interest on the guide frame center (when the
+    // driver exposes it) — most "can't read barcode" misses are focus, not decode.
+    if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+        advanced.push({ focusMode: 'continuous' });
+    }
+    if (Array.isArray(caps.pointsOfInterest)) {
+        advanced.push({ pointsOfInterest: [{ x: 0.5, y: 0.48 }] });
+    }
+    if (advanced.length) {
+        try {
+            await track.applyConstraints({ advanced });
+            scanLog(`Camera boost: ${advanced.map(a => Object.keys(a).join('+')).join(', ')}`);
+        } catch (e) {
+            // Some Android WebViews reject mixed advanced bags — retry zoom alone.
+            if (caps.zoom && caps.zoom.max >= 2) {
+                try {
+                    const z = Math.min(caps.zoom.max, Math.max(caps.zoom.min, caps.zoom.min * 2));
+                    await track.applyConstraints({ advanced: [{ zoom: z }] });
+                } catch (_) { /* ignore */ }
+            }
+        }
     }
 }
 
@@ -2652,24 +2676,355 @@ async function flipCamera() {
     setTimeout(() => initScanner(), 150);
 }
 
-// ===== SCAN TAB SWITCHING =====
-function switchScanTab(tab) {
-    ['barcode','name','ai'].forEach(id => {
-        const btn = document.getElementById(`scan-tab-${id}`);
-        const content = document.getElementById(`scan-tabcontent-${id}`);
-        const active = id === tab;
-        if (btn) btn.classList.toggle('active', active);
-        if (content) content.style.display = active ? '' : 'none';
-    });
-    // Spesa: no manual barcode field — never focus that input
-    if (tab === 'barcode') {
-        if (_spesaMode) return;
-        const el = document.getElementById('manual-barcode-input');
-        if (el) setTimeout(() => el.focus(), 80);
-    } else if (tab === 'name') {
-        const el = document.getElementById('quick-product-name');
-        if (el) setTimeout(() => el.focus(), 80);
+/** Blur any focused text field so Android does not reopen the soft keyboard. */
+function _blurActiveTextInput() {
+    const active = document.activeElement;
+    if (!active) return;
+    const tag = (active.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || active.isContentEditable) {
+        try { active.blur(); } catch (_) { /* ignore */ }
     }
+}
+
+/** Legacy tab API — tabs removed; kept as no-ops for any leftover callers. */
+function switchScanTab(_tab) { _blurActiveTextInput(); }
+function switchScanTabName() { openScanNameSearch(); }
+
+/** HUD state on #scanner-viewport: idle|scanning|partial|confirming|lookup|ai|found */
+function _setScanHudState(state) {
+    const vp = document.getElementById('scanner-viewport');
+    if (vp) vp.dataset.hud = state || 'idle';
+    if (state === 'confirming' || state === 'found') {
+        _flashScanLockBox();
+    }
+    if (state === 'idle' && !scannerStream) {
+        _hideScanLockBox();
+        _stopScanCloud();
+    }
+}
+
+/* ── AI-like particle cloud + lock box over the barcode ─────────────────── */
+let _scanCloudParticles = null;
+let _scanCloudRaf = 0;
+let _scanCloudTarget = null; // {x,y,w,h} in viewport CSS px, or null
+let _scanCloudMode = 'seek'; // seek | lock | roam
+let _scanLockFlashTimer = null;
+let _scanScoutCanvas = null;
+let _scanScoutLastAt = 0;
+let _scanDetectorHitUntil = 0; // don't let the scout override a fresh detector box
+
+/** Map a DetectedBarcode boundingBox (video pixels) → viewport CSS rect. */
+function _barcodeBoxToViewport(videoEl, box) {
+    const vp = document.getElementById('scanner-viewport');
+    if (!vp || !videoEl || !box) return null;
+    const vw = videoEl.videoWidth || 0;
+    const vh = videoEl.videoHeight || 0;
+    if (!vw || !vh) return null;
+    const ew = vp.clientWidth;
+    const eh = vp.clientHeight;
+    // object-fit: cover
+    const scale = Math.max(ew / vw, eh / vh);
+    const ox = (ew - vw * scale) / 2;
+    const oy = (eh - vh * scale) / 2;
+    const x = Number(box.x ?? box.left ?? 0);
+    const y = Number(box.y ?? box.top ?? 0);
+    const w = Number(box.width ?? 0);
+    const h = Number(box.height ?? 0);
+    if (w < 4 || h < 4) return null;
+    // Pad a bit so the lock box breathes around the bars
+    const pad = 10;
+    return {
+        x: ox + x * scale - pad,
+        y: oy + y * scale - pad,
+        w: w * scale + pad * 2,
+        h: h * scale + pad * 2,
+    };
+}
+
+/**
+ * Find the most barcode-like region in the live frame (dense vertical edges).
+ * Returns a viewport rect so the particle cloud can chase the pack even before
+ * BarcodeDetector confirms a code — barcodes are often off-center.
+ */
+function _scoutBarcodeRegion(videoEl) {
+    const vw = videoEl?.videoWidth || 0;
+    const vh = videoEl?.videoHeight || 0;
+    if (!vw || !vh) return null;
+    const aw = 160;
+    const ah = Math.max(48, Math.round(160 * vh / vw));
+    if (!_scanScoutCanvas) _scanScoutCanvas = document.createElement('canvas');
+    if (_scanScoutCanvas.width !== aw || _scanScoutCanvas.height !== ah) {
+        _scanScoutCanvas.width = aw;
+        _scanScoutCanvas.height = ah;
+    }
+    const ctx = _scanScoutCanvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    try {
+        ctx.drawImage(videoEl, 0, 0, aw, ah);
+    } catch (_) {
+        return null;
+    }
+    let img;
+    try {
+        img = ctx.getImageData(0, 0, aw, ah);
+    } catch (_) {
+        return null;
+    }
+    const data = img.data;
+    const cols = 8;
+    const rows = 6;
+    const cw = Math.floor(aw / cols);
+    const ch = Math.floor(ah / rows);
+    let bestScore = 0;
+    let bestCol = 3;
+    let bestRow = 2;
+
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const x0 = col * cw;
+            const y0 = row * ch;
+            let edge = 0;
+            let n = 0;
+            // Horizontal luminance gradient → vertical edges (barcode signature)
+            for (let y = y0 + 1; y < y0 + ch - 1; y += 2) {
+                for (let x = x0 + 2; x < x0 + cw - 1; x += 2) {
+                    const i = (y * aw + x) * 4;
+                    const iL = (y * aw + (x - 2)) * 4;
+                    const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                    const lumL = 0.299 * data[iL] + 0.587 * data[iL + 1] + 0.114 * data[iL + 2];
+                    edge += Math.abs(lum - lumL);
+                    n++;
+                }
+            }
+            const score = n ? edge / n : 0;
+            if (score > bestScore) {
+                bestScore = score;
+                bestCol = col;
+                bestRow = row;
+            }
+        }
+    }
+    // Flat wall / empty fridge → no signal, keep roaming
+    if (bestScore < 10) return null;
+
+    const cellW = (cw / aw) * vw;
+    const cellH = (ch / ah) * vh;
+    // Barcodes are wide and short — stretch the hunt box horizontally
+    const boxW = Math.min(vw * 0.72, cellW * 2.6);
+    const boxH = Math.min(vh * 0.28, cellH * 1.8);
+    const cx = ((bestCol + 0.5) * cw / aw) * vw;
+    const cy = ((bestRow + 0.5) * ch / ah) * vh;
+    return _barcodeBoxToViewport(videoEl, {
+        x: Math.max(0, cx - boxW / 2),
+        y: Math.max(0, cy - boxH / 2),
+        width: boxW,
+        height: boxH,
+    });
+}
+
+/** Periodic hunt: move the cloud toward the densest barcode-like patch. */
+function _updateScanCloudScout(videoEl) {
+    if (!videoEl || _scanCloudMode === 'lock') return;
+    if (Date.now() < _scanDetectorHitUntil) return;
+    const now = Date.now();
+    if (now - _scanScoutLastAt < 180) return;
+    _scanScoutLastAt = now;
+    const rect = _scoutBarcodeRegion(videoEl);
+    if (rect) {
+        _setScanTrackTarget(rect, 'seek');
+    } else if (_scanCloudMode !== 'seek') {
+        _setScanTrackTarget(null, 'roam');
+    }
+}
+
+function _setScanTrackTarget(rect, mode) {
+    _scanCloudTarget = rect;
+    _scanCloudMode = mode || (rect ? 'seek' : 'roam');
+    // Box only after a real confirm — scout/seek must not draw a rectangle
+    // (it looked like a false "found" while still hunting).
+    if (mode === 'lock' && rect) {
+        _showScanLockBox(rect, true);
+    } else {
+        _hideScanLockBox();
+    }
+}
+
+function _showScanLockBox(rect, locked) {
+    const box = document.getElementById('scan-lock-box');
+    if (!box || !rect) return;
+    box.hidden = false;
+    box.style.left = `${Math.round(rect.x)}px`;
+    box.style.top = `${Math.round(rect.y)}px`;
+    box.style.width = `${Math.round(rect.w)}px`;
+    box.style.height = `${Math.round(rect.h)}px`;
+    box.classList.add('is-visible');
+    box.classList.toggle('is-locked', !!locked);
+}
+
+function _hideScanLockBox() {
+    const box = document.getElementById('scan-lock-box');
+    if (!box) return;
+    box.classList.remove('is-visible', 'is-locked');
+    box.hidden = true;
+}
+
+function _flashScanLockBox() {
+    const box = document.getElementById('scan-lock-box');
+    if (!box || box.hidden) return;
+    box.classList.add('is-locked');
+    clearTimeout(_scanLockFlashTimer);
+    _scanLockFlashTimer = setTimeout(() => box.classList.remove('is-locked'), 500);
+}
+
+function _ensureScanCloud() {
+    const canvas = document.getElementById('scan-ai-cloud');
+    const vp = document.getElementById('scanner-viewport');
+    if (!canvas || !vp) return null;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = vp.clientWidth;
+    const h = vp.clientHeight;
+    if (!w || !h) return null;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        canvas.style.width = `${w}px`;
+        canvas.style.height = `${h}px`;
+        _scanCloudParticles = null;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!_scanCloudParticles || _scanCloudParticles.length === 0) {
+        const n = 48;
+        _scanCloudParticles = Array.from({ length: n }, () => ({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: (Math.random() - 0.5) * 1.4,
+            vy: (Math.random() - 0.5) * 1.4,
+            r: 1.2 + Math.random() * 2.2,
+            a: 0.35 + Math.random() * 0.55,
+            phase: Math.random() * Math.PI * 2,
+        }));
+    }
+    return { canvas, ctx, w, h };
+}
+
+function _tickScanCloud() {
+    const pack = _ensureScanCloud();
+    if (!pack || !_scanCloudParticles) {
+        _scanCloudRaf = 0;
+        return;
+    }
+    const { ctx, w, h } = pack;
+    ctx.clearRect(0, 0, w, h);
+
+    const t = performance.now() / 1000;
+    // Default: Lissajous sweep across the whole frame (not stuck at center) —
+    // the barcode is often off to a side / near the bottom of the pack.
+    let tx = w * (0.5 + 0.32 * Math.sin(t * 0.85));
+    let ty = h * (0.45 + 0.28 * Math.sin(t * 0.55 + 1.1));
+    let pull = 0.018;
+    let spread = 0.022;
+    if (_scanCloudTarget) {
+        tx = _scanCloudTarget.x + _scanCloudTarget.w / 2;
+        ty = _scanCloudTarget.y + _scanCloudTarget.h / 2;
+        // Spread particles along the box width so they hug the bars, not a point
+        pull = _scanCloudMode === 'lock' ? 0.09 : 0.055;
+        spread = _scanCloudMode === 'lock' ? 0.003 : 0.012;
+    }
+    for (const p of _scanCloudParticles) {
+        // When we have a box, fan particles across its width (looks like they
+        // coat the barcode); otherwise chase the sweeping seek point.
+        let aimX = tx;
+        let aimY = ty;
+        if (_scanCloudTarget) {
+            const u = (Math.sin(t * 2.2 + p.phase) + 1) / 2;
+            aimX = _scanCloudTarget.x + _scanCloudTarget.w * (0.12 + 0.76 * u);
+            aimY = _scanCloudTarget.y + _scanCloudTarget.h * (0.35 + 0.3 * Math.sin(t * 1.4 + p.phase));
+        }
+        p.vx += (aimX - p.x) * pull + (Math.random() - 0.5) * spread;
+        p.vy += (aimY - p.y) * pull + (Math.random() - 0.5) * spread;
+        p.vx += Math.sin(t * 1.7 + p.phase) * 0.015;
+        p.vy += Math.cos(t * 1.3 + p.phase) * 0.015;
+        p.vx *= 0.92;
+        p.vy *= 0.92;
+        p.x += p.vx;
+        p.y += p.vy;
+        // Keep in frame
+        if (p.x < -8) p.x = w + 8;
+        if (p.x > w + 8) p.x = -8;
+        if (p.y < -8) p.y = h + 8;
+        if (p.y > h + 8) p.y = -8;
+
+        const locked = _scanCloudMode === 'lock';
+        const g = locked ? 222 : 200;
+        const b = locked ? 128 : 255;
+        const alpha = locked ? Math.min(1, p.a + 0.25) : p.a * (0.7 + 0.3 * Math.sin(t * 3 + p.phase));
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(120, ${g}, ${b}, ${alpha})`;
+        ctx.arc(p.x, p.y, p.r * (locked ? 1.15 : 1), 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Soft links between close particles (sparse — keeps it light)
+    ctx.strokeStyle = _scanCloudMode === 'lock'
+        ? 'rgba(74,222,128,0.18)'
+        : 'rgba(180,220,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < _scanCloudParticles.length; i += 3) {
+        const a = _scanCloudParticles[i];
+        const b = _scanCloudParticles[(i + 7) % _scanCloudParticles.length];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        if (dx * dx + dy * dy < 55 * 55) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+        }
+    }
+
+    _scanCloudRaf = requestAnimationFrame(_tickScanCloud);
+}
+
+function _startScanCloud() {
+    if (_scanCloudRaf) return;
+    _scanCloudMode = 'roam';
+    _scanCloudTarget = null;
+    _scanCloudRaf = requestAnimationFrame(_tickScanCloud);
+}
+
+function _stopScanCloud() {
+    if (_scanCloudRaf) {
+        cancelAnimationFrame(_scanCloudRaf);
+        _scanCloudRaf = 0;
+    }
+    _scanCloudParticles = null;
+    _scanCloudTarget = null;
+    const canvas = document.getElementById('scan-ai-cloud');
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+function openScanNameSearch() {
+    const sheet = document.getElementById('scan-search-sheet');
+    if (!sheet) return;
+    sheet.hidden = false;
+    sheet.style.display = '';
+    const el = document.getElementById('quick-product-name');
+    if (el) setTimeout(() => el.focus(), 80);
+}
+
+function closeScanNameSearch() {
+    const sheet = document.getElementById('scan-search-sheet');
+    if (sheet) {
+        sheet.hidden = true;
+        sheet.style.display = 'none';
+    }
+    clearQuickNameResults();
+    _blurActiveTextInput();
 }
 
 // ===== SCAN HISTORY (server-synced via app_settings key "scan_history") =====
@@ -2684,27 +3039,105 @@ function addToScanRecents(product) {
     _saveToServer('scan_history', list);
 }
 
+function _scanChipHtml(r, chipClass) {
+    const icon = CATEGORY_ICONS[mapToLocalCategory(r.category, r.name)] || '📦';
+    const label = escapeHtml(r.name) + (r.brand ? ` <span style="color:var(--text-muted);font-weight:400">${escapeHtml(r.brand)}</span>` : '');
+    return `<button type="button" class="${chipClass}" onclick="_selectRecentProduct(${Number(r.id)})" title="${escapeAttr(r.name)}">
+        <span class="scan-recent-chip-icon">${icon}</span>${label}
+    </button>`;
+}
+
 async function updateScanRecents() {
-    let list = (_scanHistoryCache || []).slice(0, 6);
-    if (_spesaMode && list.length > 0) {
-        try {
-            const data = await api('inventory_list');
-            const stocked = new Set((data.inventory || []).filter(i => parseFloat(i.quantity) > 0).map(i => i.product_id));
-            list = list.filter(r => stocked.has(r.id));
-        } catch (_) { /* keep list on error */ }
+    return updateScanQuickRail();
+}
+
+/** Favourites + recent chips above the camera stream. */
+async function updateScanQuickRail() {
+    const rail = document.getElementById('scan-quick-rail');
+    const favSec = document.getElementById('scan-fav-section');
+    const favChips = document.getElementById('scan-fav-chips');
+    const recSec = document.getElementById('scan-recents');
+    const recChips = document.getElementById('scan-recents-chips');
+    if (!rail) return;
+
+    let inventory = [];
+    try {
+        const data = await api('inventory_list');
+        inventory = data.inventory || [];
+    } catch (_) { /* keep empty */ }
+
+    const stocked = new Set(inventory.filter(i => parseFloat(i.quantity) > 0).map(i => i.product_id));
+
+    // Favourites: unique products marked favorite (with stock in spesa mode)
+    const favMap = new Map();
+    for (const row of inventory) {
+        if (!Number(row.is_favorite)) continue;
+        if (_spesaMode && !stocked.has(row.product_id)) continue;
+        if (favMap.has(row.product_id)) continue;
+        favMap.set(row.product_id, {
+            id: row.product_id,
+            name: row.name || row.product_name || '',
+            brand: row.brand || '',
+            category: row.category || '',
+        });
     }
-    const wrap = document.getElementById('scan-recents');
-    const chips = document.getElementById('scan-recents-chips');
-    if (!wrap || !chips) return;
-    if (list.length === 0) { wrap.style.display = 'none'; return; }
-    wrap.style.display = 'flex';
-    chips.innerHTML = list.map(r => {
-        const icon = CATEGORY_ICONS[mapToLocalCategory(r.category, r.name)] || '📦';
-        const label = escapeHtml(r.name) + (r.brand ? ` <span style="color:var(--text-muted);font-weight:400">${escapeHtml(r.brand)}</span>` : '');
-        return `<button class="scan-recent-chip" onclick="_selectRecentProduct(${Number(r.id)})" title="${escapeAttr(r.name)}">
-            <span class="scan-recent-chip-icon">${icon}</span>${label}
-        </button>`;
-    }).join('');
+    const favs = [...favMap.values()].slice(0, 8);
+    if (favSec && favChips) {
+        if (favs.length === 0) {
+            favSec.style.display = 'none';
+            favChips.innerHTML = '';
+        } else {
+            favSec.style.display = 'flex';
+            favChips.innerHTML = favs.map(r => _scanChipHtml(r, 'scan-fav-chip')).join('');
+        }
+    }
+
+    let recents = (_scanHistoryCache || []).slice(0, 8);
+    if (_spesaMode && recents.length > 0) {
+        recents = recents.filter(r => stocked.has(r.id));
+    }
+    // Don't repeat favourites in the recent row
+    const favIds = new Set(favs.map(f => f.id));
+    recents = recents.filter(r => !favIds.has(r.id));
+    if (recSec && recChips) {
+        if (recents.length === 0) {
+            recSec.style.display = 'none';
+            recChips.innerHTML = '';
+        } else {
+            recSec.style.display = 'flex';
+            recChips.innerHTML = recents.map(r => _scanChipHtml(r, 'scan-recent-chip')).join('');
+        }
+    }
+
+    const hasAny = favs.length > 0 || recents.length > 0;
+    rail.style.display = hasAny && !_spesaMode ? 'flex' : 'none';
+}
+
+/** Warm offline product cache + barcode engines when opening scan. */
+function _warmScanCaches() {
+    try {
+        if (typeof _offlineProductsGet === 'function') {
+            Promise.resolve(_offlineProductsGet()).catch(() => {});
+        }
+    } catch (_) { /* ignore */ }
+    preloadBarcodeEngines();
+}
+
+let _speculativePrefetchTimer = null;
+let _speculativePrefetchCode = '';
+
+/** Speculative resolve while digits are still accumulating (≥8, stable ~300ms). */
+function _scheduleSpeculativeBarcodePrefetch(digits) {
+    const code = String(digits || '').replace(/\D/g, '');
+    if (code.length < 8) return;
+    if (code === _speculativePrefetchCode && _barcodeSessionCache.has(_barcodeCacheKey(code))) return;
+    clearTimeout(_speculativePrefetchTimer);
+    _speculativePrefetchCode = code;
+    _speculativePrefetchTimer = setTimeout(() => {
+        const key = _barcodeCacheKey(code);
+        if (_barcodeSessionCache.has(key)) return;
+        _resolveBarcodeLookup(code).catch(() => {});
+    }, 300);
 }
 
 async function _productHasLiveStock(productId) {
@@ -2764,8 +3197,12 @@ function _showScanConfirm(name) {
     const nameEl = document.getElementById('scan-confirm-name');
     if (!overlay) return;
     if (nameEl) nameEl.textContent = name || '';
+    _setScanHudState('found');
     overlay.style.display = 'flex';
-    setTimeout(() => { if (overlay) overlay.style.display = 'none'; }, 900);
+    setTimeout(() => {
+        if (overlay) overlay.style.display = 'none';
+        _setScanHudState('idle');
+    }, 550);
 }
 
 // ===== AI NUMBER OCR (Gemini reads printed barcode digits) =====
@@ -2831,11 +3268,14 @@ function _showScanAiOverlay(msg) {
     const el = document.getElementById('scan-ai-overlay');
     const msgEl = document.getElementById('scan-ai-overlay-msg');
     if (el) el.style.display = 'flex';
-    if (msgEl) msgEl.textContent = msg || '';
+    if (msgEl) msgEl.textContent = msg || t('scan.ai_working');
+    _setScanHudState('ai');
 }
 function _hideScanAiOverlay() {
     const el = document.getElementById('scan-ai-overlay');
     if (el) el.style.display = 'none';
+    const vp = document.getElementById('scanner-viewport');
+    if (vp?.dataset?.hud === 'ai') _setScanHudState('idle');
 }
 
 /** Invalidate in-flight AI responses when starting a new scan session. */
@@ -2845,14 +3285,15 @@ function _resetAiFallbackForNewScan() {
     _updateScanAiButton();
 }
 
-/** Manual AI button — shown only while scanner is active and Gemini is online. */
+/** Manual AI button in the action bar — enabled while scanner is active and Gemini is online. */
 function _updateScanAiButton() {
     const btn = document.getElementById('scan-ai-manual-btn');
     if (!btn) return;
-    btn.textContent = t('scan.ai_manual_btn');
-    const show = _currentPageId === 'scan' && !!scannerStream && _scannerAiAllowed() && !_aiBarcodeVisualRunning && !_numOcrRunning;
-    btn.style.display = show ? '' : 'none';
-    btn.disabled = !!(_aiBarcodeVisualRunning || _numOcrRunning || _aiDetectedProductDraft);
+    const label = btn.querySelector('.scan-action-label');
+    if (label) label.textContent = t('scan.ai_manual_btn');
+    const ready = _currentPageId === 'scan' && !!scannerStream && _scannerAiAllowed() && !_aiBarcodeVisualRunning && !_numOcrRunning && !_aiDetectedProductDraft;
+    btn.style.display = '';
+    btn.disabled = !ready;
 }
 
 function _clearAiMatchPanel() {
@@ -2860,11 +3301,20 @@ function _clearAiMatchPanel() {
     if (!result) return;
     result.style.display = 'none';
     result.innerHTML = '';
+    const page = document.getElementById('page-scan');
+    if (page) page.classList.remove('scan-match-open');
     _aiDetectedProductDraft = null;
     _aiInventoryCandidates = [];
     _aiFinishedCandidates = [];
     _aiCatalogCandidates = [];
     _updateScanAiButton();
+}
+
+/** Close the AI match sheet and keep scanning. */
+function _dismissAiMatchPanel() {
+    _clearAiMatchPanel();
+    if (_currentPageId === 'scan' && scannerStream) resumeScanner();
+    else if (_currentPageId === 'scan') initScanner();
 }
 function _renderAiCandidateThumb(item) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
@@ -2920,12 +3370,20 @@ function _showAiMatchChoices(aiProduct) {
     const hasMatches = inStock.length + finished.length + catalog.length > 0;
     const addLabel = t('scan.ai_match_add_btn').replace('{name}', aiName);
 
+    // Full-page sheet over the camera — do not squeeze the stream underneath
+    pauseScanner();
+    const page = document.getElementById('page-scan');
+    if (page) page.classList.add('scan-match-open');
+
     result.innerHTML = `
+        <div class="scan-result-sheet-head">
+            <span class="scan-result-sheet-title">${escapeHtml(t('scan.ai_match_title'))}</span>
+            <button type="button" class="scan-result-sheet-close" onclick="_dismissAiMatchPanel()" aria-label="${escapeAttr(t('btn.close') || 'Close')}">✕</button>
+        </div>
         <div class="scan-ai-match-box">
             <div class="scan-ai-hero">
                 <div class="scan-ai-hero-icon">${catIcon}</div>
                 <div class="scan-ai-hero-text">
-                    <div class="scan-ai-match-title">${t('scan.ai_match_title')}</div>
                     <div class="scan-ai-hero-name">
                         <button type="button" id="scan-ai-title-display" class="edit-title-tap" onclick="startEditScanAiTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(aiName)}</button>
                         <input type="text" id="scan-ai-product-name" class="form-input edit-title-input" value="${escapeHtml(aiName)}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
@@ -3231,7 +3689,7 @@ async function _tryGeminiVisualBarcode() {
     const myGen = _aiVisualGen;
     pauseScanner(); // keep camera stream alive — only pause decode while AI processes
     _setScanStatus(t('scan.status_ai_visual_searching'), 'retry', t('scan.method_ai_vision'));
-    _showScanAiOverlay(t('scan.ai_overlay_msg'));
+    _showScanAiOverlay(t('scan.ai_working'));
 
     try {
         const result = await api('gemini_barcode_visual', {}, 'POST', {
@@ -3268,7 +3726,7 @@ async function _tryGeminiVisualBarcode() {
             _aiFinishedCandidates = matchRes.finished || [];
             _aiCatalogCandidates = matchRes.catalog || [];
             _showAiMatchChoices(_aiDetectedProductDraft);
-            resumeScanner();
+            // Match sheet covers the page — keep decode paused until dismiss / next action
         } else {
             if (myGen !== _aiVisualGen) {
                 scanLog('AI visual: stale miss ignored');
@@ -3311,6 +3769,10 @@ function getCameraConstraints(extraVideo = {}) {
         height: { ideal: isFront ? 480 : 720 },
         ...extraVideo
     };
+    // Prefer continuous AF when the UA understands the ideal (ignored if unsupported)
+    if (!isFront && videoConstraints.focusMode === undefined) {
+        videoConstraints.focusMode = { ideal: 'continuous' };
+    }
     if (mode === 'environment' || mode === 'user') {
         videoConstraints.facingMode = mode;
     } else {
@@ -5903,10 +6365,22 @@ function showPage(pageId, param = null, options = {}) {
             }
             loadInventory();
             break;
-        case 'scan': preloadBarcodeEngines(); _dismissFamilySiblingPrompt(); _resetAiFallbackForNewScan(); initScanner(); clearQuickNameResults(); updateSpesaBanner(); updateScanRecents(); _applySpesaScanUI();
-            // Pre-warm the embedding model the first time user visits scan page
+        case 'scan':
+            closeScanNameSearch();
+            _warmScanCaches();
+            _dismissFamilySiblingPrompt();
+            _resetAiFallbackForNewScan();
+            // Black cover until the stream actually plays (avoids grey ▶ poster)
+            document.getElementById('scanner-viewport')?.classList.add('scanner-off');
+            initScanner();
+            clearQuickNameResults();
+            updateSpesaBanner();
+            updateScanQuickRail();
+            _applySpesaScanUI();
+            _setScanHudState('idle');
+            _blurActiveTextInput();
             if (typeof window._getCategoryPipeline === 'function' && !window._categoryPipelineReady) {
-                window._getCategoryPipeline(); // fire-and-forget
+                window._getCategoryPipeline();
             }
             break;
         case 'products': loadAllProducts(); break;
@@ -10531,8 +11005,12 @@ async function initScanner() {
         scanLog(`Resolution: ${caps.width||'?'}x${caps.height||'?'}, facing: ${caps.facingMode||'N/A'}`);
         
         scannerStream = stream;
+        video.muted = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
         video.srcObject = stream;
-        await video.play();
+        await video.play().catch(() => {});
+        if (viewport) viewport.classList.remove('scanner-off');
         scanLog(`Video playing — videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`);
 
         // Apply fixed 2x zoom
@@ -10556,11 +11034,19 @@ async function initScanner() {
     } catch (err) {
         scanLog(`CAMERA ERROR: ${err.name}: ${err.message}`);
         console.error('Camera error:', err);
-        document.getElementById('scan-result').style.display = 'block';
-        document.getElementById('scan-result').innerHTML = `
-            <p style="color: var(--danger)">${t('error.camera')}</p>
-            <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${t('scanner.camera_error_hint')}</p>
-        `;
+        if (viewport) viewport.classList.add('scanner-off');
+        const result = document.getElementById('scan-result');
+        if (result) {
+            result.innerHTML = `
+                <div class="scan-result-sheet-head">
+                    <span class="scan-result-sheet-title">${escapeHtml(t('error.camera'))}</span>
+                    <button type="button" class="scan-result-sheet-close" onclick="_dismissAiMatchPanel()" aria-label="${escapeAttr(t('btn.close') || 'Close')}">✕</button>
+                </div>
+                <p style="color: var(--danger)">${escapeHtml(t('error.camera'))}</p>
+                <p style="font-size:0.85rem; color: var(--text-light); margin-top:8px">${escapeHtml(t('scanner.camera_error_hint'))}</p>
+            `;
+            result.style.display = 'block';
+        }
     }
 }
 
@@ -10588,6 +11074,23 @@ function _setScanStatus(msg, state, method) {
         msgEl.className = 'scan-status-msg' + (state ? ' state-' + state : '');
     }
     if (methodEl && method !== undefined) methodEl.textContent = method || '';
+    // Map status → HUD animation (do not clobber active AI/lookup unless explicit)
+    if (state === 'partial') _setScanHudState('partial');
+    else if (state === 'confirmed') _setScanHudState('confirming');
+    else if (state === 'invalid') _setScanHudState('idle');
+    else if (!state && msg === t('scan.status_scanning')) {
+        const vp = document.getElementById('scanner-viewport');
+        const hud = vp?.dataset?.hud;
+        if (hud !== 'ai' && hud !== 'lookup' && hud !== 'found' && hud !== 'confirming' && hud !== 'partial') {
+            _setScanHudState('scanning');
+        }
+    } else if (!state && msg === t('scan.status_ready')) {
+        const vp = document.getElementById('scanner-viewport');
+        const hud = vp?.dataset?.hud;
+        if (hud !== 'ai' && hud !== 'lookup' && hud !== 'found' && hud !== 'confirming') {
+            _setScanHudState(scannerStream ? 'scanning' : 'idle');
+        }
+    }
 }
 
 // ===== BARCODE ENGINE INIT (Native + ZBar WASM) =====
@@ -10604,7 +11107,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261009d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261010b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -10614,7 +11117,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261009d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261010b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -10714,11 +11217,19 @@ function _finalizeBarcode(code, method) {
     if (scannerLine) scannerLine.classList.remove('scanning', 'detecting');
     scanLog(`CONFIRMED: ${code} via ${method}`);
     _hideScanLiveCode();
+    _scanCloudMode = 'lock';
+    _setScanHudState('confirming');
     _setScanStatus(t('scan.status_confirmed'), 'confirmed', method);
     onBarcodeDetected(code);
 }
 
-function _tryConfirmBarcode(code, format, method) {
+/**
+ * @param {string} code
+ * @param {string} format
+ * @param {string} method
+ * @param {{boundingBox?: DOMRectReadOnly|object, videoEl?: HTMLVideoElement}|null} [geo]
+ */
+function _tryConfirmBarcode(code, format, method, geo = null) {
     let digits = String(code || '').replace(/\D/g, '');
     if (!digits || digits.length < 8) return false;
 
@@ -10726,6 +11237,15 @@ function _tryConfirmBarcode(code, format, method) {
     // candidate list agree on one canonical form.
     if (digits.length === 12 && validateEANChecksum('0' + digits)) {
         digits = '0' + digits;
+    }
+
+    // Paint the lock cloud / box as soon as we have a geometry from the detector
+    if (geo?.boundingBox && geo?.videoEl) {
+        const rect = _barcodeBoxToViewport(geo.videoEl, geo.boundingBox);
+        if (rect) {
+            _scanDetectorHitUntil = Date.now() + 900;
+            _setScanTrackTarget(rect, 'seek');
+        }
     }
 
     const isEan = _isEanFormat(format) || digits.length === 13 || digits.length === 8;
@@ -10738,6 +11258,14 @@ function _tryConfirmBarcode(code, format, method) {
             _scanConsecCount = 0;
             return false;
         }
+        // Valid EAN checksum → confirm on first hit (native/ZBar/OCR)
+        if (geo?.boundingBox && geo?.videoEl) {
+            const rect = _barcodeBoxToViewport(geo.videoEl, geo.boundingBox);
+            if (rect) {
+                _scanDetectorHitUntil = Date.now() + 1500;
+                _setScanTrackTarget(rect, 'lock');
+            }
+        }
         _finalizeBarcode(digits, method);
         return true;
     }
@@ -10746,7 +11274,17 @@ function _tryConfirmBarcode(code, format, method) {
     else { _scanLastCode = digits; _scanConsecCount = 1; }
     _showScanLiveCode(digits);
     _setScanStatus(t('scan.status_partial').replace('{code}', digits), 'partial', method);
-    if (_scanConsecCount >= 2) {
+    _scheduleSpeculativeBarcodePrefetch(digits);
+    // Non-EAN (Code128/39): one hit from native is enough; ZBar still wants 2
+    const need = (method === 'Native') ? 1 : 2;
+    if (_scanConsecCount >= need) {
+        if (geo?.boundingBox && geo?.videoEl) {
+            const rect = _barcodeBoxToViewport(geo.videoEl, geo.boundingBox);
+            if (rect) {
+                _scanDetectorHitUntil = Date.now() + 1500;
+                _setScanTrackTarget(rect, 'lock');
+            }
+        }
         _finalizeBarcode(digits, method);
         return true;
     }
@@ -10812,12 +11350,34 @@ function _captureDigitStrip(videoEl) {
     if (!vw || !vh) return null;
     const canvas = document.getElementById('scanner-canvas');
     const ctx = canvas.getContext('2d');
-    const cropW = Math.round(vw * 0.9);
-    const cropH = Math.round(vh * 0.5);
-    const sx = Math.round((vw - cropW) / 2);
-    const sy = Math.round(vh * 0.2);
-    const scale = 2;
-    const sized = _capScanCanvasSize(cropW * scale, cropH * scale);
+    // Narrow band under the bars (digits) — full-frame OCR was slow and noisy.
+    // Prefer last lock target mapped back to video space when we have one.
+    let sx, sy, cropW, cropH;
+    if (_scanCloudTarget && videoEl) {
+        const vp = document.getElementById('scanner-viewport');
+        const ew = vp?.clientWidth || 1;
+        const eh = vp?.clientHeight || 1;
+        const scale = Math.max(ew / vw, eh / vh);
+        const ox = (ew - vw * scale) / 2;
+        const oy = (eh - vh * scale) / 2;
+        const vx = (_scanCloudTarget.x - ox) / scale;
+        const vy = (_scanCloudTarget.y - oy) / scale;
+        const vbW = _scanCloudTarget.w / scale;
+        const vbH = _scanCloudTarget.h / scale;
+        cropW = Math.min(vw, Math.round(vbW * 1.15));
+        cropH = Math.min(vh, Math.round(Math.max(vbH * 0.7, vh * 0.12)));
+        sx = Math.max(0, Math.round(vx + vbW * 0.5 - cropW / 2));
+        sy = Math.max(0, Math.round(vy + vbH * 0.55));
+        if (sx + cropW > vw) sx = vw - cropW;
+        if (sy + cropH > vh) sy = vh - cropH;
+    } else {
+        cropW = Math.round(vw * 0.82);
+        cropH = Math.round(vh * 0.22);
+        sx = Math.round((vw - cropW) / 2);
+        sy = Math.round(vh * 0.42);
+    }
+    const scaleUp = 2.5;
+    const sized = _capScanCanvasSize(cropW * scaleUp, cropH * scaleUp);
     canvas.width = sized.width;
     canvas.height = sized.height;
     ctx.imageSmoothingEnabled = false;
@@ -10893,14 +11453,27 @@ function startUnifiedScanner(videoEl) {
     let frameCount = 0;
     let digitOcrBusy = false;
     let lastDigitOcrAt = 0;
+    let missFrames = 0;
     const scannerLine = document.querySelector('.scanner-line');
 
     scanLog('Unified scanner started');
+    _startScanCloud();
+    _setScanHudState('scanning');
 
     function feedback(state) {
         if (!scannerLine) return;
         scannerLine.classList.remove('scanning', 'detecting');
         if (state) scannerLine.classList.add(state);
+    }
+
+    function handleCodes(codes, method) {
+        if (!codes || !codes.length) return false;
+        feedback('detecting');
+        const hit = codes[0];
+        const geo = hit.boundingBox
+            ? { boundingBox: hit.boundingBox, videoEl }
+            : null;
+        return _tryConfirmBarcode(hit.rawValue, hit.format, method, geo);
     }
 
     async function loop() {
@@ -10920,13 +11493,24 @@ function startUnifiedScanner(videoEl) {
             _setScanStatus(t('scan.status_scanning'), '', _detectorNative ? 'Native+ZBar' : 'ZBar');
         }
 
+        let foundThisFrame = false;
+
         // 1) Native BarcodeDetector — every frame (fastest when available)
         if (_detectorNative) {
             try {
                 const codes = await _detectorNative.detect(videoEl);
                 if (codes && codes.length > 0) {
-                    feedback('detecting');
-                    if (_tryConfirmBarcode(codes[0].rawValue, codes[0].format, 'Native')) return;
+                    foundThisFrame = true;
+                    // Soft seek: move the cloud even before confirm, so the user
+                    // sees the "AI" lock onto the bars — wherever they are in frame.
+                    if (codes[0].boundingBox) {
+                        const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
+                        if (rect) {
+                            _scanDetectorHitUntil = Date.now() + 900;
+                            _setScanTrackTarget(rect, 'seek');
+                        }
+                    }
+                    if (handleCodes(codes, 'Native')) return;
                 }
             } catch (e) {
                 if (frameCount === 1) scanLog(`Native detect error: ${e.message}`);
@@ -10940,8 +11524,15 @@ function startUnifiedScanner(videoEl) {
             try {
                 const codes = await _detectorZbar.detect(videoEl);
                 if (codes && codes.length > 0) {
-                    feedback('detecting');
-                    if (_tryConfirmBarcode(codes[0].rawValue, codes[0].format, 'ZBar')) return;
+                    foundThisFrame = true;
+                    if (codes[0].boundingBox) {
+                        const rect = _barcodeBoxToViewport(videoEl, codes[0].boundingBox);
+                        if (rect) {
+                            _scanDetectorHitUntil = Date.now() + 900;
+                            _setScanTrackTarget(rect, 'seek');
+                        }
+                    }
+                    if (handleCodes(codes, 'ZBar')) return;
                 }
             } catch (e) {
                 if (frameCount <= 2) scanLog(`ZBar video detect error: ${e.message}`);
@@ -10955,8 +11546,8 @@ function startUnifiedScanner(videoEl) {
                 try {
                     const codes = await _detectorZbar.detect(crop);
                     if (codes && codes.length > 0) {
-                        feedback('detecting');
-                        if (_tryConfirmBarcode(codes[0].rawValue, codes[0].format, 'ZBar+')) return;
+                        foundThisFrame = true;
+                        if (handleCodes(codes, 'ZBar+')) return;
                     }
                 } catch (_) {}
             }
@@ -10968,6 +11559,19 @@ function startUnifiedScanner(videoEl) {
             lastDigitOcrAt = Date.now();
             digitOcrBusy = true;
             _tryLocalEanDigitOcr(videoEl).finally(() => { digitOcrBusy = false; });
+        }
+
+        if (!foundThisFrame) {
+            missFrames++;
+            // No decoder hit: hunt the most barcode-like patch in the frame so the
+            // cloud follows the pack even when it's off-center.
+            if (missFrames >= 2) {
+                _updateScanCloudScout(videoEl);
+                const hud = document.getElementById('scanner-viewport')?.dataset?.hud;
+                if (hud === 'partial' && missFrames > 18) _setScanHudState('scanning');
+            }
+        } else {
+            missFrames = 0;
         }
 
         feedback('scanning');
@@ -11129,6 +11733,7 @@ function startQuaggaScanner(videoEl, isPrimary = true) {
                     }
                     _showScanLiveCode(code);
                     _setScanStatus(t('scan.status_partial').replace('{code}', code), 'partial');
+                    _scheduleSpeculativeBarcodePrefetch(code);
                 } else {
                     updateScannerFeedback('scanning');
                 }
@@ -11188,20 +11793,30 @@ function stopScanner() {
     quaggaRunning = false;
     _scanZoomLevel = 2; // always 2x on next start
     _torchActive = false;
-    const aiBtn = document.getElementById('scan-ai-manual-btn');
-    if (aiBtn) aiBtn.style.display = 'none';
     if (scannerStream) {
         scannerStream.getTracks().forEach(t => t.stop());
         scannerStream = null;
     }
+    const vp = document.getElementById('scanner-viewport');
+    if (vp) vp.classList.add('scanner-off');
     const video = document.getElementById('scanner-video');
-    if (video) { video.srcObject = null; video.style.transform = ''; }
+    if (video) {
+        try { video.pause(); } catch (_) { /* ignore */ }
+        video.srcObject = null;
+        video.removeAttribute('src');
+        video.style.transform = '';
+        try { video.load(); } catch (_) { /* ignore */ }
+    }
     // Reset torch button
     const tb = document.getElementById('scan-torch-btn');
     if (tb) tb.classList.remove('torch-on');
-    // Hide live code
+    // Hide live code / HUD cloud
     _hideScanLiveCode();
+    _hideScanLockBox();
+    _stopScanCloud();
     _clearAiMatchPanel();
+    _setScanHudState('idle');
+    _updateScanAiButton();
     // Also stop AI camera
     if (aiStream) {
         aiStream.getTracks().forEach(t => t.stop());
@@ -11474,51 +12089,60 @@ async function onBarcodeDetected(barcode) {
     }
     const fastPath = _spesaMode || _shoppingBoughtFlow;
 
-    if (!fastPath) showLoading(true);
-    else _setScanStatus(t('scan.status_lookup'), '', '');
+    // Prefer in-viewport lookup HUD over full-screen spinner (keeps stream visible)
+    _setScanHudState('lookup');
+    _setScanStatus(t('scan.status_lookup'), 'retry', '');
+    if (!fastPath && !_barcodeSessionCache.has(_barcodeCacheKey(barcode))) {
+        // only use page spinner if we have no speculative cache hit yet
+        showLoading(true);
+    }
 
     if (navigator.vibrate) navigator.vibrate(100);
 
     try {
         const code = _barcodeCacheKey(barcode);
         const result = await _resolveBarcodeLookup(code);
-        if (await _handleBarcodeResolve(result, code)) return;
-
         showLoading(false);
+        if (await _handleBarcodeResolve(result, code)) {
+            return;
+        }
+
         showToast(t('error.not_found_manual'), 'error');
+        _setScanHudState('idle');
         _setScanStatus(t('scan.status_scanning'), '', '');
         resumeScanner();
     } catch (err) {
         showLoading(false);
         console.error('Barcode lookup error:', err);
         showToast(t('error.search'), 'error');
+        _setScanHudState('idle');
         resumeScanner();
     }
 }
 
+/** Manual barcode typing was removed from the scan page (soft keyboard covers the camera on Android). */
 function submitManualBarcode() {
-    const input = document.getElementById('manual-barcode-input');
-    autoSubmitEAN(input, true);
+    showToast(t('scan.barcode_camera_hint'), 'info');
 }
 
-// Auto-submit when user finishes typing a valid EAN-13 or EAN-8
+/** Auto-submit helper kept for any leftover callers that still feed a numeric input. */
 function autoSubmitEAN(inputEl, force = false) {
+    if (!inputEl) return;
     const raw = (inputEl.value || '').replace(/\D/g, '');
-    inputEl.value = raw; // strip non-digits live
+    inputEl.value = raw;
     if (!raw) return;
     const isComplete = raw.length === 13 || raw.length === 8;
     const isValid = isComplete && validateEANChecksum(raw);
     if (isValid) {
-        // Auto-submit on valid EAN
         stopScanner();
         onBarcodeDetected(raw);
         return;
     }
     if (force) {
-        if (!raw) { showToast(t('error.barcode_empty'), 'error'); inputEl.focus(); return; }
-        if (!/^\d{4,14}$/.test(raw)) { showToast(t('error.barcode_format'), 'error'); inputEl.focus(); return; }
+        if (!raw) { showToast(t('error.barcode_empty'), 'error'); return; }
+        if (!/^\d{4,14}$/.test(raw)) { showToast(t('error.barcode_format'), 'error'); return; }
         if (isComplete && !isValid) {
-            showToast(t('error.barcode_checksum'), 'error'); inputEl.focus(); return;
+            showToast(t('error.barcode_checksum'), 'error'); return;
         }
         stopScanner();
         onBarcodeDetected(raw);
@@ -11561,16 +12185,23 @@ async function submitQuickName() {
 }
 
 function showQuickNameResults(searchName, products) {
-    const container = document.querySelector('.quick-name-entry');
-    
-    // Remove any previous results
-    const oldResults = container.querySelector('.quick-name-results');
-    if (oldResults) oldResults.remove();
-    
-    const resultsDiv = document.createElement('div');
-    resultsDiv.className = 'quick-name-results';
-    
-    // Existing products
+    const host = document.getElementById('quick-name-results')
+        || document.querySelector('.scan-search-sheet')
+        || document.querySelector('.quick-name-entry');
+    if (!host) return;
+
+    let resultsDiv = document.getElementById('quick-name-results');
+    if (resultsDiv && resultsDiv.id === 'quick-name-results') {
+        resultsDiv.innerHTML = '';
+    } else {
+        const oldResults = host.querySelector('.quick-name-results');
+        if (oldResults) oldResults.remove();
+        resultsDiv = document.createElement('div');
+        resultsDiv.className = 'quick-name-results';
+        resultsDiv.id = 'quick-name-results';
+        host.appendChild(resultsDiv);
+    }
+
     products.forEach(p => {
         const catIcon = CATEGORY_ICONS[mapToLocalCategory(p.category, p.name)] || '📦';
         const item = document.createElement('div');
@@ -11582,11 +12213,10 @@ function showQuickNameResults(searchName, products) {
                 <div class="qnr-detail">${p.brand ? escapeHtml(p.brand) + ' · ' : ''}${p.barcode ? '📊 ' + p.barcode : t('product.no_barcode')}</div>
             </div>
         `;
-        item.onclick = () => selectQuickProduct(p);
+        item.onclick = () => { closeScanNameSearch(); selectQuickProduct(p); };
         resultsDiv.appendChild(item);
     });
-    
-    // "Create new" button
+
     const newItem = document.createElement('div');
     newItem.className = 'quick-name-result-item qnr-new';
     newItem.innerHTML = `
@@ -11596,10 +12226,8 @@ function showQuickNameResults(searchName, products) {
             <div class="qnr-detail">${t('scan.new_without_barcode')}</div>
         </div>
     `;
-    newItem.onclick = () => createQuickProduct(searchName);
+    newItem.onclick = () => { closeScanNameSearch(); createQuickProduct(searchName); };
     resultsDiv.appendChild(newItem);
-    
-    container.appendChild(resultsDiv);
 }
 
 function selectQuickProduct(product) {
@@ -11686,10 +12314,13 @@ async function createQuickProduct(name) {
 }
 
 function clearQuickNameResults() {
+    const results = document.getElementById('quick-name-results');
+    if (results) results.innerHTML = '';
     const container = document.querySelector('.quick-name-entry');
     if (container) {
-        const results = container.querySelector('.quick-name-results');
-        if (results) results.remove();
+        container.querySelectorAll('.quick-name-results').forEach(el => {
+            if (el.id !== 'quick-name-results') el.remove();
+        });
     }
     const input = document.getElementById('quick-product-name');
     if (input) input.value = '';
@@ -12132,9 +12763,7 @@ function showProductAction() {
         </div>
     `;
     editInfoEl.style.display = isUnknown ? 'block' : 'none';
-    if (isUnknown) {
-        setTimeout(() => document.getElementById('edit-action-name')?.focus(), 100);
-    }
+    // Do not autofocus edit-action-name for unknown products — soft keyboard would cover the action buttons.
     
     // Show extra product info section below preview
     let extraInfoEl = document.getElementById('action-product-details');
@@ -15549,10 +16178,16 @@ async function submitUse(e) {
 }
 
 // ===== AI IDENTIFICATION =====
+/** Primary path: identify in-place on the scan stream (legacy #page-ai remains for deep links). */
 async function captureForAI() {
     if (!_requireGemini()) return;
-    stopScanner();
-    showPage('ai');
+    if (_currentPageId !== 'scan') {
+        showPage('scan');
+        // Let the scanner init, then trigger AI
+        setTimeout(() => _triggerManualAiScan(), 400);
+        return;
+    }
+    await _triggerManualAiScan();
 }
 
 async function initAICamera() {
@@ -24537,11 +25172,8 @@ function initChat() {
     }).catch(() => { _chatSavedCount = 0; });
     // Always reload fresh inventory context
     loadChatContext();
-    // Focus input
-    setTimeout(() => {
-        const input = document.getElementById('chat-input');
-        if (input) input.focus();
-    }, 300);
+    // Do not autofocus the chat input — on Android the soft keyboard covers half the screen.
+    _blurActiveTextInput();
 }
 
 async function loadChatContext() {
@@ -26187,7 +26819,7 @@ function updateSpesaBanner() {
     _renderSpesaSessionList();
 }
 
-/** Spesa mode: keep tabs + normal camera size — only hide manual barcode input. */
+/** Spesa mode: hide quick-rail; keep AI action + session list. */
 function _applySpesaScanUI() {
     const page = document.getElementById('page-scan');
     if (page) page.classList.toggle('spesa-scan-layout', _spesaMode);
@@ -26195,22 +26827,17 @@ function _applySpesaScanUI() {
     const spesaBtn = document.getElementById('scan-spesa-btn');
     if (spesaBtn) spesaBtn.style.display = _spesaMode ? 'none' : '';
 
-    const barcodeContent = document.getElementById('scan-tabcontent-barcode');
-    let hint = document.getElementById('spesa-scan-barcode-hint');
-
+    closeScanNameSearch();
     if (_spesaMode) {
-        // Hint is optional now — input panel is fully hidden in CSS
-        if (hint) hint.style.display = 'none';
-        const active = document.activeElement;
-        if (active && active.id === 'manual-barcode-input') active.blur();
+        _blurActiveTextInput();
         _renderSpesaSessionList();
+        _updateScanAiButton();
         return;
     }
 
-    if (hint) hint.style.display = 'none';
     const sessionList = document.getElementById('spesa-session-list');
     if (sessionList) sessionList.style.display = 'none';
-    if (_currentPageId === 'scan') switchScanTab('barcode');
+    updateScanQuickRail();
     _updateScanAiButton();
 }
 

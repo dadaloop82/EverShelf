@@ -274,6 +274,7 @@
     "num_ocr_found": "Code found: {code}",
     "num_ocr_not_found": "No barcode found in image",
     "barcode_placeholder": "Enter barcode...",
+    "barcode_camera_hint": "Point the camera at the barcode",
     "quick_name_divider": "or type the name",
     "quick_name_placeholder": "E.g.: Apples, Zucchini, Bread...",
     "manual_entry": "✏️ Manual Entry",
@@ -307,7 +308,7 @@
     "ai_overlay_label": "Gemini Vision",
     "ai_overlay_msg": "Gemini Vision is analyzing the product...",
     "ai_retry_btn": "Retry with AI",
-    "ai_manual_btn": "🤖 Identify with AI",
+    "ai_manual_btn": "Identify AI",
     "ai_not_recognized": "AI could not recognize the product. Try again or add manually.",
     "ai_match_title": "Product recognized by AI",
     "ai_match_subtitle": "Choose an existing pantry item or add the detected one.",
@@ -336,7 +337,13 @@
     "spesa_session_brand": "Brand",
     "spesa_session_qty": "Quantity",
     "spesa_session_saved": "Product updated",
-    "spesa_session_save_error": "Could not update the product"
+    "spesa_session_save_error": "Could not update the product",
+    "favorites_label": "Favorites",
+    "search_btn": "Search",
+    "manual_entry_short": "Manual",
+    "ai_tip_show_product": "Show the whole product or the front label",
+    "ai_tip_show_barcode": "If there is a barcode, keep it readable and steady",
+    "ai_working": "Analyzing the image…"
   },
   "action": {
     "title": "What do you want to do?",

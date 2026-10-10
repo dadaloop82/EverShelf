@@ -6596,9 +6596,10 @@ function mergeProducts(PDO $db, int $keepId, int $dropId): void {
     if ($keepId === $dropId) {
         return;
     }
+    // SQLite PDO::rowCount() is unreliable on SELECT — count fetched rows.
     $check = $db->prepare("SELECT id FROM products WHERE id IN (?, ?)");
     $check->execute([$keepId, $dropId]);
-    if ($check->rowCount() < 2) {
+    if (count($check->fetchAll(PDO::FETCH_COLUMN)) < 2) {
         throw new RuntimeException('One or both products not found');
     }
 
@@ -19472,20 +19473,23 @@ function geminiBarcodeVisual(): void {
         return;
     }
 
+    $lang = productKindNormalizeLang($lang);
     $langNote = match($lang) {
-        'de'    => 'Use the German product name if known.',
-        'fr'    => 'Use the French product name if known.',
-        'es'    => 'Use the Spanish product name if known.',
-        default => 'Use the Italian product name if known.',
+        'de'    => 'Write the product name in German.',
+        'fr'    => 'Write the product name in French.',
+        'es'    => 'Write the product name in Spanish.',
+        'en'    => 'Write the product name in English.',
+        default => 'Write the product name in Italian.',
     };
 
     $payload = [
         'contents' => [[
             'parts' => [
-                ['text' => "Identify the product shown in this image. {$langNote}\n" .
+                ['text' => "Identify the grocery product shown in this image. {$langNote}\n" .
                            "Respond with ONLY valid JSON (no markdown, no backticks):\n" .
                            "{\"name\":\"...\",\"brand\":\"...\",\"category\":\"...\"}\n" .
-                           "- name: the product name (as specific as possible, not just the brand)\n" .
+                           "- name: the product name as printed on the pack (specific, NOT a category tab like " .
+                           "\"Snacks & sweets\" / \"Vegetables\" / \"Dairy\" / \"Meat\")\n" .
                            "- brand: the brand/manufacturer, or empty string if not visible\n" .
                            "- category: one of: latticini, pasta, bevande, snack, carne, pesce, " .
                            "frutta, verdura, surgelati, condimenti, conserve, cereali, pane, " .

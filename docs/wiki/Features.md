@@ -71,6 +71,17 @@ When adding a new product, a background Gemini call suggests:
 
 Shown as an inline AI badge next to the expiry estimate. Does not block the form.
 
+### Product scan
+
+The **Scan** page is camera-first: a tall live viewport sits in the middle, with
+favourite and recent product chips above it. Point at a barcode — animated HUD
+feedback shows when digits are detected and when lookup is running. Prefetch
+starts as soon as a partial code is stable so the product card opens faster.
+
+Below the stream: **Identify with AI** (keeps the live view visible with tips to
+show the whole product or a readable label), **Search** by name (opens only when
+you ask — no soft keyboard on page open), and **Manual** entry.
+
 ### Recipe Generation
 
 Tap **🍳 Recipes** → **Generate Recipe** to get a recipe using:

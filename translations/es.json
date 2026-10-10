@@ -274,6 +274,7 @@
     "num_ocr_found": "Código encontrado: {code}",
     "num_ocr_not_found": "No se encontró código de barras en la imagen",
     "barcode_placeholder": "Introduce el código de barras...",
+    "barcode_camera_hint": "Enfoca el código con la cámara",
     "quick_name_divider": "o escribe el nombre",
     "quick_name_placeholder": "Ej.: Manzanas, Calabacín, Pan...",
     "manual_entry": "✏️ Entrada manual",
@@ -306,7 +307,7 @@
     "ai_overlay_label": "Gemini Vision",
     "ai_overlay_msg": "Gemini Vision está analizando el producto...",
     "ai_retry_btn": "Reintentar con IA",
-    "ai_manual_btn": "🤖 Identificar con IA",
+    "ai_manual_btn": "Identificar IA",
     "ai_not_recognized": "IA: producto no reconocido. Reintenta o añádelo manualmente.",
     "ai_match_title": "Producto reconocido por IA",
     "ai_match_subtitle": "Elige un producto ya en despensa o agrega el detectado.",
@@ -336,7 +337,13 @@
     "spesa_session_brand": "Marca",
     "spesa_session_qty": "Cantidad",
     "spesa_session_saved": "Producto actualizado",
-    "spesa_session_save_error": "No se pudo actualizar el producto"
+    "spesa_session_save_error": "No se pudo actualizar el producto",
+    "favorites_label": "Favoritos",
+    "search_btn": "Buscar",
+    "manual_entry_short": "Manual",
+    "ai_tip_show_product": "Muestra el producto entero o la etiqueta frontal",
+    "ai_tip_show_barcode": "Si hay código de barras, manténlo legible y firme",
+    "ai_working": "Analizando la imagen…"
   },
   "action": {
     "title": "¿Qué quieres hacer?",
