@@ -11,12 +11,12 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261009d">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261009d">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261009d">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261010h">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261010h">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261010h">
     <!-- Core modules (auth, DOM helpers) -->
-    <script src="assets/js/core/dom.js?v=20261009d"></script>
-    <script src="assets/js/core/auth.js?v=20261009d"></script>
+    <script src="assets/js/core/dom.js?v=20261010h"></script>
+    <script src="assets/js/core/auth.js?v=20261010h"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -24,7 +24,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261009d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261010h';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -33,13 +33,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261009d';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261010h';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261009d"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261010h"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -104,7 +104,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.10</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.11.11</span>
             </span>
         </div>
 
@@ -162,7 +162,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.10</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.11.11</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -338,8 +338,22 @@
             <button class="btn btn-small" onclick="endSpesaMode()" data-i18n="scan.mode_shopping_end">✅ Fine</button>
         </div>
         <div class="scan-container">
-            <!-- Camera viewport -->
-            <div class="scanner-viewport" id="scanner-viewport">
+            <!-- Quick access: favourites + recent scans -->
+            <div class="scan-quick-rail" id="scan-quick-rail" style="display:none">
+                <div class="scan-quick-section" id="scan-fav-section" style="display:none">
+                    <span class="scan-quick-label" data-i18n="scan.favorites_label">Preferiti</span>
+                    <div class="scan-quick-chips" id="scan-fav-chips"></div>
+                </div>
+                <div class="scan-quick-section" id="scan-recents" style="display:none">
+                    <span class="scan-quick-label scan-recents-label" data-i18n="scan.recents_label">Recenti</span>
+                    <div class="scan-quick-chips scan-recents-chips" id="scan-recents-chips"></div>
+                </div>
+            </div>
+
+            <!-- Camera viewport (hero) -->
+            <div class="scanner-viewport" id="scanner-viewport" data-hud="idle">
+                <video id="scanner-video" autoplay playsinline muted webkit-playsinline></video>
+                <canvas id="scanner-canvas" style="display:none"></canvas>
                 <!-- Guide corners -->
                 <div class="scan-guide-frame">
                     <div class="sgf-corner sgf-tl"></div>
@@ -350,19 +364,31 @@
                 <div class="scanner-overlay">
                     <div class="scanner-line"></div>
                 </div>
+                <!-- Tracking feedback: AI-like particle cloud + lock box on barcode -->
+                <div class="scan-tracking-layer" id="scan-tracking-layer" aria-hidden="true">
+                    <canvas id="scan-ai-cloud" class="scan-ai-cloud" aria-hidden="true"></canvas>
+                    <div class="scan-lock-box" id="scan-lock-box" hidden></div>
+                    <div class="scan-tracking-pulse"></div>
+                    <div class="scan-tracking-dots" id="scan-tracking-dots"></div>
+                    <div class="scan-lookup-ring" id="scan-lookup-ring"></div>
+                </div>
                 <!-- Live partial code preview -->
                 <div class="scan-live-code" id="scan-live-code" style="display:none"></div>
-                <!-- Scan status bar -->
+                <!-- Compact status chip -->
                 <div class="scan-status-bar" id="scan-status-bar">
                     <span id="scan-status-method" class="scan-status-method"></span>
                     <span id="scan-status-msg" class="scan-status-msg" data-i18n="scan.status_ready"></span>
                 </div>
-                <!-- AI processing overlay (shown when Gemini Vision is analyzing) -->
+                <!-- AI glass panel (stream stays visible) -->
                 <div class="scan-ai-overlay" id="scan-ai-overlay" style="display:none">
                     <div class="scan-ai-overlay-inner">
-                        <div class="loading-spinner"></div>
+                        <div class="scan-ai-spinner"></div>
                         <span class="scan-ai-overlay-label" data-i18n="scan.ai_overlay_label">Gemini Vision</span>
                         <span class="scan-ai-overlay-msg" id="scan-ai-overlay-msg"></span>
+                        <ul class="scan-ai-tips">
+                            <li data-i18n="scan.ai_tip_show_product">Mostra il prodotto intero o l'etichetta frontale</li>
+                            <li data-i18n="scan.ai_tip_show_barcode">Se c'è un barcode, tienilo leggibile e fermo</li>
+                        </ul>
                     </div>
                 </div>
                 <!-- Success flash overlay -->
@@ -370,7 +396,7 @@
                     <div class="scan-confirm-check">✓</div>
                     <div class="scan-confirm-name" id="scan-confirm-name"></div>
                 </div>
-                <!-- Viewport inline controls (torch / zoom badge / flip) -->
+                <!-- Viewport inline controls -->
                 <div class="scan-viewport-controls">
                     <div class="scan-viewport-left">
                         <button class="scan-ctrl-btn" id="scan-torch-btn" onclick="toggleTorch()" data-i18n-title="scan.torch_hint" title="Torcia">🔦</button>
@@ -382,70 +408,50 @@
                     <span class="scan-zoom-badge">2×</span>
                     <button class="scan-ctrl-btn" id="scan-flip-btn" onclick="flipCamera()" data-i18n-title="scan.flip_hint" title="Cambia fotocamera">🔄</button>
                 </div>
-                <video id="scanner-video" autoplay playsinline></video>
-                <canvas id="scanner-canvas" style="display:none"></canvas>
             </div>
 
-            <!-- Scan errors -->
-            <div class="scan-result" id="scan-result" style="display:none"></div>
+            <!-- Action bar under stream -->
+            <div class="scan-action-bar" id="scan-action-bar">
+                <button type="button" class="scan-action-btn scan-action-ai" id="scan-ai-manual-btn" onclick="_triggerManualAiScan()">
+                    <span class="scan-action-icon" aria-hidden="true">🤖</span>
+                    <span class="scan-action-label" data-i18n="scan.ai_manual_btn">Identifica AI</span>
+                </button>
+                <button type="button" class="scan-action-btn" id="scan-search-btn" onclick="openScanNameSearch()">
+                    <span class="scan-action-icon" aria-hidden="true">🔍</span>
+                    <span class="scan-action-label" data-i18n="scan.search_btn">Cerca</span>
+                </button>
+                <button type="button" class="scan-action-btn" id="scan-manual-btn" onclick="startManualEntry()">
+                    <span class="scan-action-icon" aria-hidden="true">✏️</span>
+                    <span class="scan-action-label" data-i18n="scan.manual_entry_short">Manuale</span>
+                </button>
+            </div>
 
-            <!-- Manual AI identification (only when user taps — never automatic) -->
-            <button class="btn btn-accent scan-ai-manual-btn" id="scan-ai-manual-btn" type="button" style="display:none" onclick="_triggerManualAiScan()" data-i18n="scan.ai_manual_btn">🤖 Identifica con AI</button>
+            <!-- Name search sheet (opened on demand — no autofocus on page open) -->
+            <div class="scan-search-sheet" id="scan-search-sheet" style="display:none" hidden>
+                <div class="scan-search-sheet-head">
+                    <span data-i18n="scan.tab_name">Nome</span>
+                    <button type="button" class="scan-search-close" onclick="closeScanNameSearch()" aria-label="Close">✕</button>
+                </div>
+                <div class="barcode-input-row quick-name-entry">
+                    <input type="text" id="quick-product-name" class="form-input"
+                           autocomplete="off"
+                           onkeydown="if(event.key==='Enter')submitQuickName()"
+                           data-i18n-placeholder="scan.quick_name_placeholder"
+                           placeholder="Es: Mele, Zucchine, Pane...">
+                    <button type="button" class="btn btn-accent" onclick="submitQuickName()">✅</button>
+                </div>
+                <div id="quick-name-results" class="quick-name-results"></div>
+            </div>
+
+            <!-- Scan errors / AI match panel -->
+            <div class="scan-result" id="scan-result" style="display:none"></div>
 
             <!-- Spesa session: products scanned/added this trip (editable) -->
             <div class="spesa-session-list" id="spesa-session-list" style="display:none" aria-live="polite"></div>
 
-            <!-- Recent scans -->
-            <div class="scan-recents" id="scan-recents" style="display:none">
-                <span class="scan-recents-label" data-i18n="scan.recents_label">Recenti</span>
-                <div class="scan-recents-chips" id="scan-recents-chips"></div>
-            </div>
+            <!-- Hidden: keep id for legacy OCR button refs -->
+            <button type="button" class="btn scan-num-ocr-btn" id="scan-num-ocr-btn" style="display:none" onclick="_tryGeminiNumberOCR()" data-i18n="scan.num_ocr_btn">🔢 Leggi numeri con AI</button>
 
-            <!-- Input panel with tabs -->
-            <div class="scan-input-panel">
-                <div class="scan-input-tabs">
-                    <button class="scan-input-tab active" id="scan-tab-barcode" onclick="switchScanTab('barcode')">
-                        <span>📊</span><span data-i18n="scan.tab_barcode">Barcode</span>
-                    </button>
-                    <button class="scan-input-tab" id="scan-tab-name" onclick="switchScanTab('name')">
-                        <span>✏️</span><span data-i18n="scan.tab_name">Nome</span>
-                    </button>
-                    <button class="scan-input-tab" id="scan-tab-ai" onclick="switchScanTab('ai')">
-                        <span>🤖</span><span data-i18n="scan.tab_ai">AI</span>
-                    </button>
-                </div>
-                <!-- Tab: Barcode manuale -->
-                <div class="scan-tab-content" id="scan-tabcontent-barcode">
-                    <div class="barcode-input-row">
-                        <input type="text" id="manual-barcode-input" class="form-input"
-                               inputmode="numeric" pattern="[0-9]*" maxlength="14"
-                               oninput="autoSubmitEAN(this)"
-                               onkeydown="if(event.key==='Enter')submitManualBarcode()"
-                               data-i18n-placeholder="scan.barcode_placeholder"
-                               placeholder="Inserisci codice a barre...">
-                        <button class="btn btn-primary" onclick="submitManualBarcode()">🔍</button>
-                    </div>
-                </div>
-                <!-- Tab: Cerca per nome -->
-                <div class="scan-tab-content quick-name-entry" id="scan-tabcontent-name" style="display:none">
-                    <div class="barcode-input-row">
-                        <input type="text" id="quick-product-name" class="form-input"
-                               autocomplete="off"
-                               onkeydown="if(event.key==='Enter')submitQuickName()"
-                               data-i18n-placeholder="scan.quick_name_placeholder"
-                               placeholder="Es: Mele, Zucchine, Pane...">
-                        <button class="btn btn-accent" onclick="submitQuickName()">✅</button>
-                    </div>
-                </div>
-                <!-- Tab: AI e Manuale -->
-                <div class="scan-tab-content" id="scan-tabcontent-ai" style="display:none">
-                    <div class="scan-ai-tab-btns">
-                        <button class="btn btn-accent" onclick="captureForAI()" data-i18n="scan.ai_identify">🤖 Identifica con AI</button>
-                        <button class="btn btn-secondary" onclick="startManualEntry()" data-i18n="scan.manual_entry">✏️ Inserimento Manuale</button>
-                    </div>
-                    <button class="btn scan-num-ocr-btn" id="scan-num-ocr-btn" style="display:none" onclick="_tryGeminiNumberOCR()" data-i18n="scan.num_ocr_btn">🔢 Leggi numeri con AI</button>
-                </div>
-            </div>
             <!-- Hidden debug log (accessible via Settings) -->
             <div id="scan-debug-log" style="display:none;margin-top:12px;padding:10px;background:#1a1a2e;color:#0f0;font-family:monospace;font-size:0.7rem;max-height:200px;overflow-y:auto;border-radius:8px;white-space:pre-wrap"></div>
         </div>
@@ -2756,6 +2762,6 @@
     </div>
 </div>
 
-<script src="assets/js/app.js?v=20261009d"></script>
+<script src="assets/js/app.js?v=20261010h"></script>
 </body>
 </html>

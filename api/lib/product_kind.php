@@ -925,17 +925,111 @@ function productKindFromAi(string $name, string $brand, string $category): strin
         return '';
     }
     $kind = _geminiClassifyProduct($name, $brand, $category);
-    return is_string($kind) ? trim($kind) : '';
+    $kind = is_string($kind) ? trim($kind) : '';
+    return productKindIsPlausibleGenre($kind) ? $kind : '';
 }
 
-/** Localized app category as a last resort ("latticini" → "Latticini"/"Milchprodukte"). */
-function productKindFromCategory(string $category, string $lang): string {
-    $category = strtolower(trim($category));
-    if ($category === '' || $category === 'altro' || !function_exists('evershelfTr')) {
-        return '';
+/**
+ * Leading UI-tab / OFF labels that poisoned titles when used as genres
+ * ("Snacks & sweets frollini…", "Vegetables basilico", "Dairy trentingrana…").
+ * Stripped on apply so a maintenance pass can heal the pantry.
+ *
+ * @return list<string>
+ */
+function productKindUmbrellaCategoryLabels(): array {
+    return [
+        // Multi-word tab labels (never a genre — every locale that ships with &)
+        'snacks & sweets', 'snack & dolci', 'snacks and sweets', 'snacks & süßwaren',
+        'cereals & legumes', 'cereali & legumi', 'cereals and legumes', 'getreide & hülsenfrüchte',
+        // English tab nouns (APP_LANG defaulted to en → these got prefixed onto Italian titles)
+        'vegetables', 'condiments', 'dairy', 'meat', 'fruit', 'fruits',
+        'gemüse', 'milchprodukte', 'fleisch', 'obst',
+        // OFF taxonomy dumps mistaken for a name
+        'fruits-based-foods', 'fruits based foods', 'plant-based-foods',
+        'plant-based-foods-and-beverages', 'sponge cake',
+        // Do NOT list Italian genres here (Verdura, Frutta, Carne, Condimenti, Latticini):
+        // those are legitimate title leaders ("Frutta secca Noci", "Verdura peperone").
+    ];
+}
+
+/** True when $kind is a usable article genre (not a UI-tab / OFF taxonomy dump). */
+function productKindIsPlausibleGenre(string $kind): bool {
+    $kind = trim($kind);
+    if ($kind === '' || mb_strlen($kind) < 2 || mb_strlen($kind) > 40) {
+        return false;
     }
-    $label = trim(evershelfTr('categories.' . $category, $lang));
-    return ($label === '' || $label === 'categories.' . $category) ? '' : $label;
+    // Umbrella tabs and OFF slugs: "Snacks & Sweets", "fruits-based-foods"
+    if (str_contains($kind, '&') || str_contains($kind, ',') || str_contains($kind, ':')) {
+        return false;
+    }
+    if (preg_match('/\d/', $kind)) {
+        return false;
+    }
+    $norm = mb_strtolower(trim((string)preg_replace('/[^\p{L}\s]+/u', ' ', $kind)));
+    $norm = trim(preg_replace('/\s+/u', ' ', $norm) ?? $norm);
+    if ($norm === '') {
+        return false;
+    }
+    // Exact English (or OFF) tab nouns — never a genre for an article title.
+    // Italian singles like "Verdura"/"Carne" stay allowed when the AI/dictionary says so.
+    static $englishTabs = [
+        'vegetables' => true, 'condiments' => true, 'dairy' => true, 'meat' => true,
+        'fruit' => true, 'fruits' => true, 'snacks' => true, 'cereals' => true,
+        'legumes' => true, 'beverages' => true, 'bakery' => true, 'seafood' => true,
+        'fruitsbasedfoods' => true, 'plantbasedfoods' => true, 'spongecake' => true,
+    ];
+    $compact = str_replace(' ', '', $norm);
+    if (isset($englishTabs[$norm]) || isset($englishTabs[$compact])) {
+        return false;
+    }
+    // More than three words is a phrase dump, not a genre ("Sponge cake roll")
+    if (count(preg_split('/\s+/u', $norm, -1, PREG_SPLIT_NO_EMPTY) ?: []) > 3) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Strip a leading umbrella category tab from a title
+ * ("Snacks & sweets frollini…" → "frollini…") so a re-apply can heal it.
+ */
+function productKindStripUmbrellaCategoryPrefix(string $name): string {
+    $name = trim($name);
+    if ($name === '') {
+        return $name;
+    }
+    $lower = mb_strtolower($name);
+    $prefixes = productKindUmbrellaCategoryLabels();
+    // Longest first so "snacks & sweets" wins over "snacks"
+    usort($prefixes, static fn($a, $b) => mb_strlen($b) <=> mb_strlen($a));
+    foreach ($prefixes as $bad) {
+        if ($lower === $bad) {
+            return '';
+        }
+        if (str_starts_with($lower, $bad . ' ')) {
+            return trim(mb_substr($name, mb_strlen($bad) + 1));
+        }
+        // OFF-style "Fruits-based-foods, dried fruits"
+        if (str_starts_with($lower, $bad . ',') || str_starts_with($lower, $bad . '-')) {
+            $rest = trim((string)preg_replace('/^[^,]+,\s*/u', '', $name));
+            return $rest !== '' ? $rest : trim(mb_substr($name, mb_strlen($bad)));
+        }
+    }
+    return $name;
+}
+
+/**
+ * Localized app category as a last resort.
+ *
+ * Deliberately returns empty: the UI category tabs ("Snacks & Sweets", "Vegetables",
+ * "Dairy", "Verdura"…) are pantry filters, not article genres. Using them as a
+ * title prefix produced "Snacks & sweets frollini…" / "Meat sovracoscia…" and left
+ * stock on barcode-less rows the scanner could not find. Dictionary → cache → one
+ * AI word are enough; a miss leaves the title untouched.
+ */
+function productKindFromCategory(string $category, string $lang): string {
+    unset($category, $lang);
+    return '';
 }
 
 /**
@@ -961,7 +1055,7 @@ function resolveProductKind(string $name, string $brand = '', string $category =
     $signature = productKindSignature($name, $brand);
     $cache     = productKindCacheLoad();
     $cached    = productKindCacheLookup($cache, $signature);
-    if ($cached !== null) {
+    if ($cached !== null && productKindIsPlausibleGenre((string)($cached['v'] ?? ''))) {
         return ['kind' => $cached['v'], 'source' => 'cache:' . $cached['src']];
     }
 
@@ -1353,6 +1447,18 @@ function productKindNormalizeLang($lang): string {
  */
 function productKindApply(string $name, string $brand = '', string $category = '', string $lang = 'en', bool $allowAi = true, string $knownKind = ''): array {
     $name = trim($name);
+    // Heal titles already poisoned by a UI-tab genre ("Snacks & sweets frollini…").
+    $stripped = productKindStripUmbrellaCategoryPrefix($name);
+    if ($stripped !== $name) {
+        $name = $stripped;
+        // The stored kind was the umbrella — drop it so we re-resolve.
+        if ($knownKind !== '' && !productKindIsPlausibleGenre($knownKind)) {
+            $knownKind = '';
+        }
+    }
+    if ($knownKind !== '' && !productKindIsPlausibleGenre($knownKind)) {
+        $knownKind = '';
+    }
     // ONE exit for every branch: the title rules — the singular number and the capital
     // letter — must not depend on which branch happened to answer, so nobody can forget
     // them when adding a new one.
@@ -1360,7 +1466,7 @@ function productKindApply(string $name, string $brand = '', string $category = '
         // The stored title is the SINGULAR of the article ("Uova medie" → "Uovo medio"):
         // the pantry list derives the plural of what is really there on the fly
         // (productNameForPieces).
-        if ($kind !== '') {
+        if ($kind !== '' && productKindIsPlausibleGenre($kind)) {
             $title = productKindSingularizeName($title, $kind);
             // The genre is stored in its singular form only when it is the genre OF THIS
             // TITLE — the one the title leads with. A genre the dictionary merely suggested
@@ -1371,6 +1477,8 @@ function productKindApply(string $name, string $brand = '', string $category = '
             if (productKindStartsWithWord($title, $kind) || productKindStartsWithWord($title, productKindSingularForm($kind))) {
                 $kind = productKindSingularForm($kind);
             }
+        } else {
+            $kind = '';
         }
         return ['name' => productTitleCapitalize($title), 'kind' => $kind, 'source' => $source];
     };

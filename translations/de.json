@@ -274,6 +274,7 @@
     "num_ocr_found": "Code gefunden: {code}",
     "num_ocr_not_found": "Kein Barcode im Bild gefunden",
     "barcode_placeholder": "Barcode eingeben...",
+    "barcode_camera_hint": "Richte die Kamera auf den Barcode",
     "quick_name_divider": "oder Name eingeben",
     "quick_name_placeholder": "z.B.: Äpfel, Zucchini, Brot...",
     "manual_entry": "✏️ Manuelle Eingabe",
@@ -307,7 +308,7 @@
     "ai_overlay_label": "Gemini Vision",
     "ai_overlay_msg": "Gemini Vision analysiert das Produkt...",
     "ai_retry_btn": "Mit KI erneut versuchen",
-    "ai_manual_btn": "🤖 Mit KI erkennen",
+    "ai_manual_btn": "KI erkennen",
     "ai_not_recognized": "KI: Produkt nicht erkannt. Erneut versuchen oder manuell eingeben.",
     "ai_match_title": "Produkt von KI erkannt",
     "ai_match_subtitle": "Waehle ein vorhandenes Produkt oder fuege das erkannte hinzu.",
@@ -336,7 +337,13 @@
     "spesa_session_brand": "Marke",
     "spesa_session_qty": "Menge",
     "spesa_session_saved": "Produkt aktualisiert",
-    "spesa_session_save_error": "Produkt konnte nicht aktualisiert werden"
+    "spesa_session_save_error": "Produkt konnte nicht aktualisiert werden",
+    "favorites_label": "Favoriten",
+    "search_btn": "Suche",
+    "manual_entry_short": "Manuell",
+    "ai_tip_show_product": "Zeige das ganze Produkt oder das Vorderetikett",
+    "ai_tip_show_barcode": "Wenn ein Barcode da ist, halte ihn lesbar und ruhig",
+    "ai_working": "Bild wird analysiert…"
   },
   "action": {
     "title": "Was möchtest du tun?",

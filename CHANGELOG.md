@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Heavy items** — Receipt OCR, voice commands, geofencing, AGP 9 / SDK 37 (separate projects).
 - **CI INDEX drift job** — `regen-code-index` in `.github/workflows/ci.yml` needs a `workflow`-scoped PAT to push; until then run `bash scripts/gen-code-index.sh` locally (see `todo/CI-INDEX-NOTE.md`).
 
+## [1.11.11] - 2026-10-10
+
+### Scan screen redesign
+- Hero camera viewport with favourites + recent chips **above** the stream; layout fills the viewport so action buttons stay visible without scrolling.
+- Removed Barcode / Nome / AI tabs; compact action bar: **Identifica AI**, **Cerca**, **Manuale** (larger tap targets).
+- Recognition HUD: seeking particle cloud that follows barcode-like regions; green lock box only after a confirmed code; AI match opens as a full-page sheet over the camera.
+- Continuous autofocus + center focus point; valid EAN confirms on first hit; digit OCR on a narrow strip.
+- Speculative `resolve_barcode` while digits accumulate + warm offline product cache on scan open.
+- Camera idle shows solid black (no grey ▶ poster); video muted / absolute fill.
+
+### Product titles
+- UI-tab labels (`Snacks & Sweets`, `Vegetables`, `Dairy`…) are no longer used as title genres (they orphaned stock from barcode scans).
+- Maintenance helper `scripts/fix-mangled-kind-titles.php` strips poisoned prefixes and merges barcode-less stock onto the barcode twin.
+
 ## [1.11.10] - 2026-10-09
 
 ### Recipes archive

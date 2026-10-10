@@ -101,6 +101,22 @@ assert_same('Pasta Penne rigate', applyProductKindPrefix('Penne rigate', 'Pasta'
 assert_true(!productKindNameAlreadyHasKind('Bucce salumi vari', 'Sale'), 'guard: a mere look-alike further along does not count as the genre');
 assert_true(productKindNameAlreadyHasKind('Soia drink', 'Latte di soia'), 'guard: the genre phrase is recognised word by word');
 
+// UI-tab labels must never become a title genre (APP_LANG=en used to prefix "Snacks & Sweets")
+assert_true(!productKindIsPlausibleGenre('Snacks & Sweets'), 'guard: English tab "Snacks & Sweets" is not a genre');
+assert_true(!productKindIsPlausibleGenre('Vegetables'), 'guard: English tab "Vegetables" is not a genre');
+assert_true(!productKindIsPlausibleGenre('Dairy'), 'guard: English tab "Dairy" is not a genre');
+assert_true(productKindIsPlausibleGenre('Biscotti'), 'guard: a real genre stays plausible');
+assert_same('frollini con grano saraceno', productKindStripUmbrellaCategoryPrefix('Snacks & sweets frollini con grano saraceno'),
+    'heal: English tab prefix is stripped from the title');
+assert_same('basilico', productKindStripUmbrellaCategoryPrefix('Vegetables basilico'),
+    'heal: "Vegetables …" is stripped');
+assert_same('Frutta secca Noci', productKindStripUmbrellaCategoryPrefix('Frutta secca Noci'),
+    'heal: Italian "Frutta secca" is a real genre leader — left alone');
+assert_same('', productKindFromCategory('snack', 'en'), 'category: pantry tabs are never used as genres');
+$healed = productKindApply('Snacks & sweets frollini con grano saraceno', 'Primia', 'snack', 'it', false, 'Snacks & Sweets');
+assert_true(!str_starts_with(mb_strtolower($healed['name']), 'snacks'), 'pipeline: poisoned title is healed on re-apply');
+assert_true($healed['kind'] === '' || productKindIsPlausibleGenre($healed['kind']), 'pipeline: healed kind is plausible or empty');
+
 // Every canonical genre must be recognised in front of a title (no double prefix)
 $vocab = evershelfProductKindVocabulary();
 assert_true(count($vocab) > 40, 'vocabulary: the curated dictionaries expose their genres (' . count($vocab) . ')');
