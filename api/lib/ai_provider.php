@@ -177,6 +177,11 @@ function aiOpenAiTokenLimitFallback(string $param, string $message): ?string {
     };
 }
 
+function aiOpenAiRequiresDefaultTemperature(string $message): bool {
+    return stripos($message, 'temperature') !== false
+        && stripos($message, 'only the default (1) value is supported') !== false;
+}
+
 function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array {
     $base = aiOpenAiBaseUrl();
     if ($base === '') {
@@ -209,7 +214,8 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
     }
 
     $t0 = microtime(true);
-    $retried = false;
+    $tokenFallbackUsed = false;
+    $temperatureFallbackUsed = false;
     do {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -229,16 +235,24 @@ function aiOpenAiChatCompletions(array $geminiPayload, int $timeout = 60): array
             $code = $code ?: 500;
         }
         $data = json_decode($raw, true);
-        $fallbackParam = !$retried && $tokenLimitParam !== null && $code !== 200 && is_array($data)
-            ? aiOpenAiTokenLimitFallback($tokenLimitParam, (string)($data['error']['message'] ?? ''))
+        $errorMessage = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
+        $fallbackParam = !$tokenFallbackUsed && $tokenLimitParam !== null && $code !== 200 && is_array($data)
+            ? aiOpenAiTokenLimitFallback($tokenLimitParam, $errorMessage)
             : null;
+        $retry = false;
         if ($fallbackParam !== null) {
             unset($body[$tokenLimitParam]);
             $body[$fallbackParam] = (int)$gen['maxOutputTokens'];
             $tokenLimitParam = $fallbackParam;
-            $retried = true;
+            $tokenFallbackUsed = true;
+            $retry = true;
+        } elseif (!$temperatureFallbackUsed && $code !== 200 && (float)$body['temperature'] !== 1.0
+            && aiOpenAiRequiresDefaultTemperature($errorMessage)) {
+            $body['temperature'] = 1;
+            $temperatureFallbackUsed = true;
+            $retry = true;
         }
-    } while ($fallbackParam !== null);
+    } while ($retry);
 
     $elapsed = microtime(true) - $t0;
     $label = aiProvider();

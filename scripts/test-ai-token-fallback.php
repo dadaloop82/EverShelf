@@ -18,11 +18,27 @@ $cases = [
     ['max_tokens', 'Invalid request', null],
 ];
 
+$temperatureCases = [
+    [
+        "Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported.",
+        true,
+    ],
+    ["Unsupported parameter: 'temperature' is not supported.", false],
+    ['Invalid request', false],
+];
+
 $failures = 0;
 foreach ($cases as [$param, $message, $expected]) {
     $actual = aiOpenAiTokenLimitFallback($param, $message);
     if ($actual !== $expected) {
         echo "FAIL: {$param}: expected " . var_export($expected, true) . ', got ' . var_export($actual, true) . "\n";
+        $failures++;
+    }
+}
+foreach ($temperatureCases as [$message, $expected]) {
+    $actual = aiOpenAiRequiresDefaultTemperature($message);
+    if ($actual !== $expected) {
+        echo 'FAIL: temperature fallback: expected ' . var_export($expected, true) . ', got ' . var_export($actual, true) . "\n";
         $failures++;
     }
 }
