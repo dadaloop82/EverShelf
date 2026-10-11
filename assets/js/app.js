@@ -193,10 +193,21 @@ function _requireGemini() {
     return false;
 }
 
-// Update Gemini button visual state to signal no key configured
+// Update configured AI label in the central navigation button.
+function _updateAiNavLabel() {
+    const label = document.querySelector('#nav-gemini-btn .nav-label');
+    if (!label) return;
+    const settings = getSettings();
+    const provider = settings.ai_provider || 'gemini';
+    label.textContent = provider === 'openai' ? 'OpenAI'
+        : provider === 'llama' ? 'Llama' : 'Gemini';
+}
+
+// Update AI button availability and configured provider label.
 function _updateGeminiButtonState() {
     const btn = document.getElementById('nav-gemini-btn');
     if (!btn) return;
+    _updateAiNavLabel();
     if (_geminiAvailable) {
         btn.classList.remove('nav-btn-no-ai');
         btn.setAttribute('title', t('gemini.chat_title'));
@@ -3826,6 +3837,7 @@ function getSettings() {
 
 function saveSettingsToStorage(settings) {
     _settingsCache = settings;
+    _updateAiNavLabel();
     // Cache dark_mode in localStorage ONLY as a hint for the pre-render _earlyTheme() IIFE
     // (prevents flash before server fetch). Authoritative value is in server .env.
     try { localStorage.setItem('evershelf_dark_mode', settings.dark_mode || 'auto'); } catch(_) {}
@@ -3991,6 +4003,7 @@ function _applySyncedSettings(serverSettings) {
         _settingsCache = s;
         _applyKioskTtsOverrides(s);
         mergeCustomLocations(s.custom_locations || []);
+        _updateAiNavLabel();
         // Update localStorage hint for _earlyTheme() IIFE on next load
         try { localStorage.setItem('evershelf_dark_mode', s.dark_mode || 'auto'); } catch(_) {}
     }
