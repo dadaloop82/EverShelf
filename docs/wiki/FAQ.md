@@ -24,6 +24,15 @@ chmod 755 data/
 chown -R www-data:www-data data/
 ```
 
+### Docker bind mount: "Critical error — Data directory / Disk write test / Database connection"
+
+When you replace the named volume evershelf_data with a host path (./data:/var/www/html/data), Docker creates the host directory as root if it doesn't exist, and the image's build-time chown www-data is shadowed. Fix on the host:
+
+```bash
+mkdir -p ./data  
+sudo chown -R 33:33 ./data   # 33 = www-data UID in the container   
+```
+
 ### Docker container exits immediately
 
 ```bash
