@@ -1700,7 +1700,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261030j'; // bump when translations change
+const _I18N_VERSION = '20261030m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13779,8 +13779,8 @@ function _itemDetailExpiryChip(item) {
     if (isExpired) expiryText = t('expiry.badge_expired_ago').replace('{n}', Math.abs(days));
     else if (days === 0) expiryText = t('expiry.badge_today');
     else if (days === 1) expiryText = t('expiry.badge_tomorrow');
-    else if (days <= 7) expiryText = t('expiry.badge_days').replace('{n}', days);
-    else expiryText = formatDate(item.expiry_date);
+    // Relative everywhere (never a bare calendar date) — same grammar as the pantry list.
+    else expiryText = t('inventory.detail_expires_in', { n: days });
     const cls = isExpired ? 'item-detail-chip--danger' : isExpiring ? 'item-detail-chip--warn' : 'item-detail-chip--muted';
     return `<span class="item-detail-chip ${cls}">${escapeHtml(expiryText)}</span>`;
 }
@@ -13860,8 +13860,8 @@ function showItemDetail(inventoryId, productId, presetQty) {
                 <div class="item-detail-stepper item-detail-stepper--input">
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(-1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
                     <div class="item-detail-qty-field">
-                        <input type="number" id="item-detail-qty-input" class="item-detail-qty-input qty-input"
-                               value="${_itemDetailQtyNumber()}" min="0.01" step="any" inputmode="decimal"
+                        <input type="text" id="item-detail-qty-input" class="item-detail-qty-input qty-input"
+                               value="${_itemDetailQtyNumber()}" inputmode="decimal" autocomplete="off"
                                oninput="_itemDetailOnQtyInput()">
                         <span class="item-detail-qty-unit" id="item-detail-qty-unit">${escapeHtml(_itemDetailUnitLabel())}</span>
                     </div>
@@ -13872,11 +13872,16 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <span class="item-detail-action-icon" aria-hidden="true">✓</span>
                     <span id="item-detail-primary-label"></span>
                 </button>
-                <button type="button" class="item-detail-finish-link" id="item-detail-finish-btn"
-                    onclick="itemDetailUseAll(${item.product_id}, '${locEsc}')">
-                    <span aria-hidden="true">🏁</span>
-                    <span id="item-detail-finish-label"></span>
-                </button>
+                <div class="item-detail-finish-wrap">
+                    <button type="button" class="item-detail-finish-link" id="item-detail-finish-btn"
+                        onclick="itemDetailUseAll(${item.product_id}, '${locEsc}')">
+                        <svg class="item-detail-finish-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M5 21V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M5 4h11l-2.2 3.6L16 11H5V4z" fill="currentColor"/>
+                        </svg>
+                        <span id="item-detail-finish-label"></span>
+                    </button>
+                </div>
             </div>` : ''}
             <div class="item-detail-support${isMed ? '' : ' item-detail-support--row4'}">
                 ${isMed
@@ -14047,13 +14052,31 @@ function _itemDetailUnitLabel() {
     return q.unit;
 }
 
+/** Locale decimal for the product sheet (it → 101,5 · en → 101.5). */
+function _itemDetailFmtQty(n) {
+    const r = Math.round(Number(n) * 100) / 100;
+    if (!Number.isFinite(r)) return '0';
+    return r.toLocaleString(_collationLocale(), { maximumFractionDigits: 2 });
+}
+
+/** Parse stepper/scale text that may use a comma or a period. */
+function _itemDetailParseQty(raw) {
+    if (raw == null) return NaN;
+    const s = String(raw).trim().replace(/\s/g, '').replace(',', '.');
+    return parseFloat(s);
+}
+
 function _itemDetailQtyNumber() {
-    const n = Math.round((_itemDetailQty.value || 0) * 100) / 100;
-    return String(n);
+    return _itemDetailFmtQty(_itemDetailQty.value || 0);
 }
 
 function _itemDetailQtyLabel() {
     return `${_itemDetailQtyNumber()} ${_itemDetailUnitLabel()}`;
+}
+
+/** Scale strip: always "101,5 g" (space + locale decimal), never "101.5g". */
+function _itemDetailScaleWeightText(grams, unit) {
+    return `${_itemDetailFmtQty(grams)} ${unit}`;
 }
 
 /** Medicine insert-time facts shown above the consume controls (not food vacuum / recipe). */
@@ -14186,7 +14209,7 @@ function _updateItemDetailScaleCompare(msg) {
     const q = _itemDetailQty;
     const baseUnit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
     if (valEl) {
-        valEl.textContent = `${Math.round(grams * 10) / 10}${baseUnit}`;
+        valEl.textContent = _itemDetailScaleWeightText(Math.round(grams * 10) / 10, baseUnit);
         valEl.hidden = false;
     }
     // Settling = soft pulse on the pill; stable = mint glow.
@@ -14223,7 +14246,7 @@ function _scaleApplyToItemDetail(msg, opts = {}) {
     _itemDetailSyncQtyUi();
     const valEl = document.getElementById('idetail-scale-val');
     if (valEl) {
-        valEl.textContent = `${Math.round(grams * 10) / 10}${unit}`;
+        valEl.textContent = _itemDetailScaleWeightText(Math.round(grams * 10) / 10, unit);
         valEl.hidden = false;
     }
     const box = document.getElementById('idetail-scale-live-box');
@@ -14249,12 +14272,6 @@ function _scaleAutoFillItemDetail(msg) {
  * @param {object} item the inventory row (for a packaged product's own size)
  * @returns {Array<{value:number,label:string}>}
  */
-function _itemDetailFmtQty(n) {
-    const r = Math.round(Number(n) * 100) / 100;
-    if (!Number.isFinite(r)) return '0';
-    return Math.abs(r - Math.round(r)) < 1e-6 ? String(Math.round(r)) : String(r);
-}
-
 function _itemDetailAtMax() {
     const q = _itemDetailQty;
     return q.max > 0 && q.value >= q.max - 1e-6;
@@ -14269,7 +14286,8 @@ function _itemDetailPrimaryLabelText() {
     if (_itemDetailAtMax()) {
         return t('inventory.detail_finished_primary', { qty, unit });
     }
-    return t('inventory.detail_used', { qty, unit, name: q.name || '' });
+    // Name lives in the sheet header — keep the green button to qty + unit only.
+    return t('inventory.detail_used', { qty, unit });
 }
 
 /** Discreet 🏁 finish-all line under the primary (hidden when primary already means finish). */
@@ -14375,11 +14393,11 @@ function _itemDetailSyncQtyUi() {
     _itemDetailSyncActionLabels();
 }
 
-/** Household typed a number (2.5 etc.): pause scale auto-fill and clamp to stock. */
+/** Household typed a number (2,5 / 2.5): pause scale auto-fill and clamp to stock. */
 function _itemDetailOnQtyInput() {
     _itemDetailScalePaused = true;
     const input = document.getElementById('item-detail-qty-input');
-    const raw = parseFloat(input && input.value);
+    const raw = _itemDetailParseQty(input && input.value);
     if (!(raw > 0)) return;
     _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
     document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
@@ -14393,7 +14411,7 @@ function _itemDetailOnQtyInput() {
 function _itemDetailReadInput() {
     const input = document.getElementById('item-detail-qty-input');
     if (!input) return;
-    const raw = parseFloat(input.value);
+    const raw = _itemDetailParseQty(input.value);
     if (raw > 0) _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
 }
 
@@ -16023,34 +16041,58 @@ async function quickThrowFromInv(productId, location, invId) {
     showThrowForm();
 }
 
-const WASTE_REASON_KEYS = ['expired', 'spoiled', 'wrong_location', 'kept_too_long', 'bought_too_much', 'forgotten', 'bad_quality', 'other'];
+/** Four macro-reasons shown in the unified waste sheet (legacy keys still accepted by the API). */
+const WASTE_REASON_KEYS = ['spoiled', 'forgotten', 'bought_too_much', 'bad_quality'];
 
 function _wasteNotesForReason(reason) {
-    return 'Buttato|' + reason;
+    const key = String(reason || 'other').replace(/[^a-z_]/g, '') || 'other';
+    return 'Buttato|' + key;
 }
 
-function _showWasteReasonModal(productLabel, onPick) {
-    const buttons = WASTE_REASON_KEYS.map(r =>
-        `<button type="button" class="btn btn-large full-width" style="margin-bottom:8px;text-align:left" data-waste-reason="${r}">${escapeHtml(t('waste.reason_' + r))}</button>`
+/** Compact 2×2 reason grid + skip link (also used when qty was already chosen elsewhere). */
+function _wasteReasonGridHtml() {
+    // Bare t() so scripts/i18n-audit.py sees every key the grid can emit.
+    t('waste.reason_spoiled');
+    t('waste.reason_forgotten');
+    t('waste.reason_bought_too_much');
+    t('waste.reason_bad_quality');
+    t('waste.reason_skip');
+    const cells = WASTE_REASON_KEYS.map(r =>
+        `<button type="button" class="waste-reason-btn" data-waste-reason="${r}">
+            <span class="waste-reason-btn-label">${escapeHtml(t('waste.reason_' + r))}</span>
+        </button>`
     ).join('');
+    return `<div class="waste-reason-grid">${cells}</div>
+        <button type="button" class="waste-reason-skip" data-waste-reason="other">${escapeHtml(t('waste.reason_skip'))}</button>`;
+}
+
+function _bindWasteReasonPicks(onPick) {
+    document.querySelectorAll('[data-waste-reason]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const reason = btn.getAttribute('data-waste-reason') || 'other';
+            onPick(reason);
+        });
+    });
+}
+
+/** Reason-only sheet (throw form already chose the quantity). */
+function _showWasteReasonModal(productLabel, onPick) {
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('waste.reason_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(productLabel)}</p>
-        <p style="color:var(--text-muted);margin:0 0 12px;font-size:0.9rem">${t('waste.reason_subtitle')}</p>
-        <div style="display:flex;flex-direction:column;gap:0">${buttons}
-            <button type="button" class="btn btn-secondary full-width" style="margin-top:8px" onclick="closeModal()">${t('confirm.cancel')}</button>
+        <div class="waste-modal">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('waste.reason_title'))}</h3>
+                <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            ${productLabel ? `<p class="waste-modal-product">${escapeHtml(productLabel)}</p>` : ''}
+            <p class="waste-modal-section-label">${escapeHtml(t('waste.reason_subtitle'))}</p>
+            ${_wasteReasonGridHtml()}
+            <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
-    document.querySelectorAll('[data-waste-reason]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const reason = btn.getAttribute('data-waste-reason');
-            closeModal();
-            onPick(reason);
-        });
+    _bindWasteReasonPicks((reason) => {
+        closeModal();
+        onPick(reason);
     });
 }
 
@@ -16070,26 +16112,100 @@ function _inventoryWaste(payload, productLabel) {
     });
 }
 
+/**
+ * Single-sheet food waste: qty chips + 4 reasons. Two taps finish the action.
+ * Medicine keeps a short confirm (no learning / no waste questionnaire).
+ */
+function _showWasteRecordModal(item) {
+    if (!item) return;
+    const unit = item.unit || 'pz';
+    const qty = parseFloat(item.quantity) || 0;
+    const qtyDisplay = stripHtml(formatQuantity(qty, unit, item.default_quantity, item.package_unit));
+    const canOne = (unit === 'pz' || unit === 'conf') && qty > 1;
+    const oneLabel = unit === 'conf'
+        ? t('waste.qty_one_pack')
+        : t('waste.qty_one_piece');
+    const allLabel = t('waste.qty_all', { qty: qtyDisplay });
+    const qtyBlock = canOne
+        ? `<div class="waste-qty-row" role="group" aria-label="${escapeAttr(t('waste.qty_section'))}">
+                <button type="button" class="waste-qty-btn" data-waste-qty="one">${escapeHtml(oneLabel)}</button>
+                <button type="button" class="waste-qty-btn is-on" data-waste-qty="all">${escapeHtml(allLabel)}</button>
+           </div>`
+        : `<div class="waste-qty-row" role="group" aria-label="${escapeAttr(t('waste.qty_section'))}">
+                <button type="button" class="waste-qty-btn is-on" data-waste-qty="all">${escapeHtml(allLabel)}</button>
+           </div>`;
+
+    document.getElementById('modal-content').innerHTML = `
+        <div class="waste-modal" data-waste-inv="${item.id}">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('waste.record_title'))}</h3>
+                <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <p class="waste-modal-product">${escapeHtml(item.display_name || item.name)}</p>
+            <p class="waste-modal-section-label">${escapeHtml(t('waste.qty_section'))}</p>
+            ${qtyBlock}
+            <p class="waste-modal-section-label">${escapeHtml(t('waste.reason_section'))}</p>
+            ${_wasteReasonGridHtml()}
+            <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+
+    document.querySelectorAll('.waste-qty-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.waste-qty-btn').forEach(b => b.classList.remove('is-on'));
+            btn.classList.add('is-on');
+        });
+    });
+    _bindWasteReasonPicks((reason) => {
+        const mode = document.querySelector('.waste-qty-btn.is-on')?.getAttribute('data-waste-qty') || 'all';
+        closeModal();
+        _submitWasteRecord(item.id, reason, mode);
+    });
+}
+
+async function _submitWasteRecord(inventoryId, reason, mode) {
+    const item = currentInventory.find(i => i.id == inventoryId);
+    if (!item) return;
+    const useOne = mode === 'one'
+        && (item.unit === 'pz' || item.unit === 'conf')
+        && (parseFloat(item.quantity) || 0) > 1;
+    try {
+        showLoading(true);
+        const payload = useOne
+            ? { product_id: item.product_id, quantity: 1, location: item.location, notes: _wasteNotesForReason(reason) }
+            : { product_id: item.product_id, use_all: true, location: item.location, notes: _wasteNotesForReason(reason) };
+        await api('inventory_use', {}, 'POST', payload);
+        if (useOne) {
+            showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
+        } else {
+            showToast(t('toast.thrown_away', { name: item.name }), 'success');
+        }
+        _dashboardLiveRefresh(inventoryId);
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 async function deleteInventoryItem(id) {
     const item = currentInventory.find(i => i.id == id);
-    const unit = item ? (item.unit || 'pz') : 'pz';
-    const qty  = item ? (parseFloat(item.quantity) || 0) : 0;
-    const isMed = item ? _isMedicalRow(item) : false;
-    const canDiscardOne = item && (unit === 'pz' || unit === 'conf') && qty > 1;
+    if (!item) return;
+    const isMed = _isMedicalRow(item);
 
-    if (!canDiscardOne) {
-        // Soft-delete with undo toast (24h transaction undo on the server).
-        // Food waste confirm explains the monthly discarded-food counter (red/🗑️ is waste only).
-        if (!confirm(isMed ? t('medical.discard_confirm') : t('inventory.throw_waste_confirm'))) return;
-        const snapshot = item ? { ...item } : null;
+    if (isMed) {
+        // Medicines: short confirm, no food-waste questionnaire / learning.
+        if (!confirm(t('medical.discard_confirm'))) return;
+        const snapshot = { ...item };
         try {
             await api('inventory_delete', {}, 'POST', { id });
             closeModal();
             _dashboardLiveRefresh(id);
             showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
                 try {
-                    // Best-effort: re-add from snapshot if we still have it.
-                    if (snapshot && snapshot.product_id) {
+                    if (snapshot.product_id) {
                         await api('inventory_add', {}, 'POST', {
                             product_id: snapshot.product_id,
                             quantity: snapshot.quantity,
@@ -16108,64 +16224,21 @@ async function deleteInventoryItem(id) {
         return;
     }
 
-    // Show a choice modal: 1 piece vs everything (medicine = smaltimento, not food waste).
-    const qtyDisplay = formatQuantity(qty, unit, item.default_quantity, item.package_unit);
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${isMed ? t('medical.discard_title') : t('use.throw_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
-        ${isMed
-            ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>`
-            : `<p class="settings-hint">${escapeHtml(t('inventory.throw_waste_confirm'))}</p>`}
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
-                ${isMed ? t('medical.discard_one') : t('confirm.discard_one')}
-            </button>
-            <button class="btn btn-large btn-danger full-width" onclick="_discardAllFromModal(${id})">
-                ${isMed ? t('medical.discard_all', { qty: qtyDisplay }) : t('use.throw_all', { qty: qtyDisplay })}
-            </button>
-            <button class="btn btn-secondary full-width" onclick="closeModal()">
-                ${t('confirm.cancel')}
-            </button>
-        </div>
-    `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showWasteRecordModal(item);
 }
 
+/** @deprecated kept for any leftover inline handlers — routes through the unified sheet. */
 async function _discardOnePiece(inventoryId) {
     const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            quantity: 1,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away_partial', { qty: 1, unit: item.unit || 'pz', name: item.name }), 'success');
-        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
-        showToast(t('error.connection'), 'error');
-    }
+    _showWasteRecordModal(item);
 }
 
+/** @deprecated kept for any leftover inline handlers — routes through the unified sheet. */
 async function _discardAllFromModal(inventoryId) {
     const item = currentInventory.find(i => i.id == inventoryId);
     if (!item) { closeModal(); return; }
-    closeModal();
-    try {
-        await _inventoryWaste({
-            product_id: item.product_id,
-            use_all: true,
-            location: item.location,
-        }, item.name);
-        showToast(t('toast.thrown_away', { name: item.name }), 'success');
-        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-    } catch(e) {
-        showToast(t('error.connection'), 'error');
-    }
+    _showWasteRecordModal(item);
 }
 
 /** Track manual expiry edits — auto-recalc on location/vacuum must not overwrite user dates. */
@@ -21839,7 +21912,7 @@ function showThrowForm() {
                         <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz'))}</span>
                     </div>
                 </div>
-                <button class="btn btn-large btn-warning full-width" onclick="throwPartial()">
+                <button class="btn btn-large waste-partial-btn full-width" onclick="throwPartial()">
                     ${isMed ? t('medical.discard_partial_btn') : t('use.throw_partial_btn')}
                 </button>
             </div>
@@ -27866,6 +27939,7 @@ function _localizeSmartReason(reason) {
         case 'only_two_pieces':    return tr('shopping.reason_only_two_pieces', 'Only 2 pieces left');
         case 'minimal_stock':      return tr('shopping.reason_minimal_stock', 'Minimal stock ({qty})').replace('{qty}', args[0] || '');
         case 'past_waste':         return tr('shopping.reason_past_waste', 'Past waste: store in {loc}').replace('{loc}', args.join(':'));
+        case 'buy_less_hint':      return tr('shopping.reason_buy_less', 'Last time you bought too much — consider a smaller amount');
     }
     return r;
 }
@@ -27927,11 +28001,14 @@ function _shoppingPrimaryReason(smartData) {
     t('shopping.reason_minimal_stock');
     t('shopping.reason_frequent_use');
     t('shopping.reason_opened_soon');
+    t('shopping.reason_past_waste');
+    t('shopping.reason_buy_less');
+    t('shopping.anti_waste_shelf');
     const preferred = [
         'out_of_stock', 'near_empty', 'ends_in', 'stock_insufficient', 'ends_in_cycle',
         'low_stock', 'expired', 'expires_in', 'expires_rebuy', 'only_one_pack',
         'only_one_piece', 'only_two_packs', 'only_two_pieces', 'minimal_stock',
-        'frequent_use', 'opened_soon',
+        'frequent_use', 'opened_soon', 'buy_less_hint', 'past_waste',
     ];
     for (const code of preferred) {
         const hit = reasons.find(r => String(r).split(':')[0] === code);

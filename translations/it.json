@@ -384,7 +384,7 @@
     "over_one_year": "Oltre 1 anno ({date})",
     "detail_weigh": "Pesa",
     "detail_stock_label": "Giacenza attuale:",
-    "detail_used": "Ho usato {qty} {unit} di {name}",
+    "detail_used": "Ho usato {qty} {unit}",
     "detail_finished_primary": "Ho finito tutto ({qty} {unit})",
     "detail_finish_pieces": "Ho finito tutti i pezzi ({n} {unit})",
     "detail_finish_packs": "Ho finito tutte le confezioni ({n} {unit})",
@@ -397,7 +397,8 @@
     "detail_scale_label": "Bilancia:",
     "detail_scale_detected": "rilevati",
     "detail_scale_copy": "Copia nel consumo",
-    "detail_chip_all_stock": "Tutta la scorta ({n} {unit})"
+    "detail_chip_all_stock": "Tutto ({n}{unit})",
+    "detail_expires_in": "⏳ Scade tra {n} gg"
   },
   "scan": {
     "title": "Scansiona",
@@ -611,15 +612,22 @@
     "throw_all_safety_ack": "Ho capito — butto TUTTO lo stock rimasto"
   },
   "waste": {
+    "record_title": "🗑️ Registra cibo gettato",
+    "qty_section": "Quanto ne butti?",
+    "reason_section": "Perché lo butti? (Ci aiuta a prevenire gli sprechi)",
     "reason_title": "Perché lo butti?",
     "reason_subtitle": "Ci aiuta a evitare sprechi simili in futuro.",
-    "reason_expired": "⏰ Scaduto",
-    "reason_spoiled": "🦠 Andato a male / deperito",
-    "reason_wrong_location": "📍 Posto sbagliato (frigo/freezer/dispensa)",
-    "reason_kept_too_long": "⏳ Tenuto troppo a lungo",
+    "reason_spoiled": "🦠 Andato a male",
+    "reason_forgotten": "⏰ Scaduto / Dimenticato",
     "reason_bought_too_much": "🛒 Comprato troppo",
-    "reason_forgotten": "😴 Dimenticato / non usato in tempo",
-    "reason_bad_quality": "👎 Qualità scadente all'acquisto",
+    "reason_bad_quality": "👎 Difetto d'acquisto",
+    "reason_skip": "Altro / Salta motivo",
+    "qty_one_piece": "1 pezzo",
+    "qty_one_pack": "1 confezione",
+    "qty_all": "Tutto il prodotto ({qty})",
+    "reason_expired": "⏰ Scaduto",
+    "reason_wrong_location": "📍 Posto sbagliato",
+    "reason_kept_too_long": "⏳ Tenuto troppo a lungo",
     "reason_other": "❓ Altro"
   },
   "product": {
@@ -1037,7 +1045,8 @@
     "pantry_hint": "Hai gia {qty} in dispensa",
     "bring_names_migrated": "🔄 {n} nomi generalizzati in Bring!",
     "buy_at_least": "Almeno: ",
-    "buy_qty": "Compra: "
+    "buy_qty": "Compra: ",
+    "reason_buy_less": "L'ultima volta ne hai comprato troppo: riduci la quantità?"
   },
   "ai": {
     "title": "🤖 Identificazione AI",

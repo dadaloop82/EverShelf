@@ -384,7 +384,7 @@
     "throw_waste_confirm": "Mark as wasted? It will count toward discarded food this month.",
     "detail_weigh": "Weigh",
     "detail_stock_label": "Current stock:",
-    "detail_used": "I used {qty} {unit} of {name}",
+    "detail_used": "I used {qty} {unit}",
     "detail_finished_primary": "I finished it all ({qty} {unit})",
     "detail_finish_pieces": "I finished every piece ({n} {unit})",
     "detail_finish_packs": "I finished every pack ({n} {unit})",
@@ -397,7 +397,8 @@
     "detail_scale_label": "Scale:",
     "detail_scale_detected": "detected",
     "detail_scale_copy": "Copy to use",
-    "detail_chip_all_stock": "All stock ({n} {unit})"
+    "detail_chip_all_stock": "All ({n}{unit})",
+    "detail_expires_in": "⏳ Expires in {n} d"
   },
   "scan": {
     "title": "Scan",
@@ -611,15 +612,22 @@
     "throw_all_safety_ack": "I understand — discard ALL remaining stock"
   },
   "waste": {
+    "record_title": "🗑️ Record discarded food",
+    "qty_section": "How much are you discarding?",
+    "reason_section": "Why? (helps us prevent future waste)",
     "reason_title": "Why are you discarding it?",
     "reason_subtitle": "This helps us prevent similar waste next time.",
-    "reason_expired": "⏰ Expired",
     "reason_spoiled": "🦠 Spoiled / gone bad",
-    "reason_wrong_location": "📍 Wrong storage (fridge/freezer/pantry)",
-    "reason_kept_too_long": "⏳ Kept too long",
+    "reason_forgotten": "⏰ Expired / forgotten",
     "reason_bought_too_much": "🛒 Bought too much",
-    "reason_forgotten": "😴 Forgotten / not used in time",
-    "reason_bad_quality": "👎 Poor quality when bought",
+    "reason_bad_quality": "👎 Poor quality at purchase",
+    "reason_skip": "Other / Skip reason",
+    "qty_one_piece": "1 piece",
+    "qty_one_pack": "1 pack",
+    "qty_all": "All of it ({qty})",
+    "reason_expired": "⏰ Expired",
+    "reason_wrong_location": "📍 Wrong place",
+    "reason_kept_too_long": "⏳ Kept too long",
     "reason_other": "❓ Other"
   },
   "product": {
@@ -1037,7 +1045,8 @@
     "pantry_hint": "Already at home: {qty}",
     "bring_names_migrated": "🔄 {n} names generalized in Bring!",
     "buy_at_least": "At least: ",
-    "buy_qty": "Buy: "
+    "buy_qty": "Buy: ",
+    "reason_buy_less": "Last time you bought too much — consider a smaller amount"
   },
   "ai": {
     "title": "🤖 AI Identification",

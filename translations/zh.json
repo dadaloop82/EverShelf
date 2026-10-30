@@ -384,7 +384,7 @@
     "throw_waste_confirm": "标记为浪费？将计入本月丢弃的食物。",
     "detail_weigh": "称重",
     "detail_stock_label": "当前库存：",
-    "detail_used": "我用了 {qty} {unit} {name}",
+    "detail_used": "我用了 {qty} {unit}",
     "detail_finished_primary": "全部用完 ({qty} {unit})",
     "detail_finish_pieces": "用完所有件数 ({n} {unit})",
     "detail_finish_packs": "用完所有包装 ({n} {unit})",
@@ -397,7 +397,8 @@
     "detail_scale_label": "秤：",
     "detail_scale_detected": "已测到",
     "detail_scale_copy": "填入用量",
-    "detail_chip_all_stock": "全部库存 ({n} {unit})"
+    "detail_chip_all_stock": "全部 ({n}{unit})",
+    "detail_expires_in": "⏳ {n} 天后到期"
   },
   "scan": {
     "title": "扫描",
@@ -611,15 +612,22 @@
     "throw_all_safety_ack": "我已了解——丢弃所有剩余库存"
   },
   "waste": {
-    "reason_title": "为什么要丢弃？",
-    "reason_subtitle": "这些信息有助于下次避免类似浪费。",
-    "reason_expired": "⏰ 已过期",
-    "reason_spoiled": "🦠 已变质",
-    "reason_wrong_location": "📍 存放位置不当（冰箱、冷冻柜或食品柜）",
-    "reason_kept_too_long": "⏳ 存放时间过长",
-    "reason_bought_too_much": "🛒 购买过多",
-    "reason_forgotten": "😴 忘记使用 / 未及时使用",
-    "reason_bad_quality": "👎 购买时品质不佳",
+    "record_title": "🗑️ 记录丢弃的食物",
+    "qty_section": "丢弃多少？",
+    "reason_section": "为什么？（帮助减少浪费）",
+    "reason_title": "为什么丢弃？",
+    "reason_subtitle": "帮助我们避免类似浪费。",
+    "reason_spoiled": "🦠 变质 / 坏了",
+    "reason_forgotten": "⏰ 过期 / 忘记食用",
+    "reason_bought_too_much": "🛒 买太多了",
+    "reason_bad_quality": "👎 买时质量差",
+    "reason_skip": "其他 / 跳过",
+    "qty_one_piece": "1 件",
+    "qty_one_pack": "1 包",
+    "qty_all": "全部 ({qty})",
+    "reason_expired": "⏰ 过期",
+    "reason_wrong_location": "📍 存放位置不对",
+    "reason_kept_too_long": "⏳ 存放过久",
     "reason_other": "❓ 其他"
   },
   "product": {
@@ -1037,7 +1045,8 @@
     "pantry_hint": "家中已有：{qty}",
     "bring_names_migrated": "🔄 已在 Bring! 中规范化 {n} 个名称",
     "buy_at_least": "至少：",
-    "buy_qty": "购买："
+    "buy_qty": "购买：",
+    "reason_buy_less": "上次买多了——要减少数量吗？"
   },
   "ai": {
     "title": "🤖 AI 识别",

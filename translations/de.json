@@ -384,7 +384,7 @@
     "throw_waste_confirm": "Als verschwendet markieren? Zählt zu den weggeworfenen Lebensmitteln diesen Monat.",
     "detail_weigh": "Wiegen",
     "detail_stock_label": "Aktueller Bestand:",
-    "detail_used": "Ich habe {qty} {unit} {name} verwendet",
+    "detail_used": "Ich habe {qty} {unit} verwendet",
     "detail_finished_primary": "Alles aufgebraucht ({qty} {unit})",
     "detail_finish_pieces": "Alle Stücke aufgebraucht ({n} {unit})",
     "detail_finish_packs": "Alle Packungen aufgebraucht ({n} {unit})",
@@ -397,7 +397,8 @@
     "detail_scale_label": "Waage:",
     "detail_scale_detected": "erfasst",
     "detail_scale_copy": "In Verbrauch kopieren",
-    "detail_chip_all_stock": "Gesamter Vorrat ({n} {unit})"
+    "detail_chip_all_stock": "Alles ({n}{unit})",
+    "detail_expires_in": "⏳ Läuft in {n} T. ab"
   },
   "scan": {
     "title": "Scannen",
@@ -611,15 +612,22 @@
     "throw_all_safety_ack": "Verstanden — gesamten Restbestand entsorgen"
   },
   "waste": {
+    "record_title": "🗑️ Weggeworfenes Essen erfassen",
+    "qty_section": "Wie viel wirfst du weg?",
+    "reason_section": "Warum? (hilft, künftige Abfälle zu vermeiden)",
     "reason_title": "Warum wirfst du es weg?",
-    "reason_subtitle": "Das hilft uns, ähnliche Verschwendung zu vermeiden.",
-    "reason_expired": "⏰ Abgelaufen",
+    "reason_subtitle": "Hilft uns, ähnlichen Abfall zu vermeiden.",
     "reason_spoiled": "🦠 Verdorben",
-    "reason_wrong_location": "📍 Falscher Lagerort",
-    "reason_kept_too_long": "⏳ Zu lange aufbewahrt",
+    "reason_forgotten": "⏰ Abgelaufen / vergessen",
     "reason_bought_too_much": "🛒 Zu viel gekauft",
-    "reason_forgotten": "😴 Vergessen / nicht rechtzeitig genutzt",
     "reason_bad_quality": "👎 Schlechte Qualität beim Kauf",
+    "reason_skip": "Sonstiges / Überspringen",
+    "qty_one_piece": "1 Stück",
+    "qty_one_pack": "1 Packung",
+    "qty_all": "Alles ({qty})",
+    "reason_expired": "⏰ Abgelaufen",
+    "reason_wrong_location": "📍 Falscher Ort",
+    "reason_kept_too_long": "⏳ Zu lange aufbewahrt",
     "reason_other": "❓ Sonstiges"
   },
   "product": {
@@ -1037,7 +1045,8 @@
     "pantry_hint": "Bereits zuhause: {qty}",
     "bring_names_migrated": "🔄 {n} Namen in Bring! verallgemeinert",
     "buy_at_least": "Mindestens: ",
-    "buy_qty": "Kaufen: "
+    "buy_qty": "Kaufen: ",
+    "reason_buy_less": "Letztes Mal zu viel gekauft — kleinere Menge?"
   },
   "ai": {
     "title": "🤖 KI-Identifikation",

@@ -384,7 +384,7 @@
     "throw_waste_confirm": "¿Marcar como desperdiciado? Contará en los alimentos tirados este mes.",
     "detail_weigh": "Pesar",
     "detail_stock_label": "Existencias actuales:",
-    "detail_used": "He usado {qty} {unit} de {name}",
+    "detail_used": "He usado {qty} {unit}",
     "detail_finished_primary": "Lo he terminado todo ({qty} {unit})",
     "detail_finish_pieces": "He terminado todas las piezas ({n} {unit})",
     "detail_finish_packs": "He terminado todos los envases ({n} {unit})",
@@ -397,7 +397,8 @@
     "detail_scale_label": "Báscula:",
     "detail_scale_detected": "detectados",
     "detail_scale_copy": "Copiar al consumo",
-    "detail_chip_all_stock": "Toda la reserva ({n} {unit})"
+    "detail_chip_all_stock": "Todo ({n}{unit})",
+    "detail_expires_in": "⏳ Caduca en {n} d"
   },
   "scan": {
     "title": "Escáner",
@@ -611,15 +612,22 @@
     "throw_all_safety_ack": "Entiendo — tirar TODO el stock restante"
   },
   "waste": {
+    "record_title": "🗑️ Registrar comida tirada",
+    "qty_section": "¿Cuánto tiras?",
+    "reason_section": "¿Por qué? (ayuda a prevenir desperdicios)",
     "reason_title": "¿Por qué lo tiras?",
     "reason_subtitle": "Nos ayuda a evitar desperdicios similares.",
-    "reason_expired": "⏰ Caducado",
     "reason_spoiled": "🦠 Estropeado",
-    "reason_wrong_location": "📍 Lugar de guardado incorrecto",
-    "reason_kept_too_long": "⏳ Guardado demasiado tiempo",
+    "reason_forgotten": "⏰ Caducado / olvidado",
     "reason_bought_too_much": "🛒 Comprado de más",
-    "reason_forgotten": "😴 Olvidado / no usado a tiempo",
     "reason_bad_quality": "👎 Mala calidad al comprar",
+    "reason_skip": "Otro / Omitir",
+    "qty_one_piece": "1 pieza",
+    "qty_one_pack": "1 envase",
+    "qty_all": "Todo el producto ({qty})",
+    "reason_expired": "⏰ Caducado",
+    "reason_wrong_location": "📍 Lugar equivocado",
+    "reason_kept_too_long": "⏳ Guardado demasiado",
     "reason_other": "❓ Otro"
   },
   "product": {
@@ -1037,7 +1045,8 @@
     "plan_days_reset": "Auto (30d)",
     "plan_days_aria": "Días de planificación",
     "buy_at_least": "Al menos: ",
-    "buy_qty": "Comprar: "
+    "buy_qty": "Comprar: ",
+    "reason_buy_less": "La última vez compraste de más: ¿reducir la cantidad?"
   },
   "ai": {
     "title": "🤖 Identificación IA",

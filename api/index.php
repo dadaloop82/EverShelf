@@ -5675,8 +5675,17 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
     $data[$pid]['count_' . $reason] = (int)($data[$pid]['count_' . $reason] ?? 0) + 1;
 
     switch ($reason) {
-        case 'expired':
         case 'spoiled':
+            // Spoiled before the printed date → shelf estimate was too optimistic.
+            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 2);
+            if (!empty($data[$pid]['shelf_avg_days'])) {
+                $data[$pid]['shelf_avg_days'] = max(1, (int)round((int)$data[$pid]['shelf_avg_days'] * 0.7));
+            }
+            break;
+        case 'expired':
+        case 'forgotten':
+        case 'kept_too_long':
+            // Duration was fine; the household missed it → nudge alerts earlier.
             $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
             break;
         case 'wrong_location':
@@ -5685,19 +5694,14 @@ function _applyWasteLearning(PDO $db, int $productId, string $reason, string $lo
                 $data[$pid]['preferred_location'] = $preferred;
             }
             break;
-        case 'kept_too_long':
-        case 'forgotten':
-            $data[$pid]['buy_smaller'] = true;
-            $data[$pid]['max_suggested_pz'] = 2;
-            $data[$pid]['alert_days_sooner'] = min(7, (int)($data[$pid]['alert_days_sooner'] ?? 0) + 1);
-            break;
         case 'bought_too_much':
+            // Cap the next shopping suggestion for this article.
             $data[$pid]['buy_less'] = true;
             $data[$pid]['max_suggested_conf'] = 1;
             $data[$pid]['max_suggested_pz'] = 2;
             break;
         case 'bad_quality':
-            $data[$pid]['buy_less'] = true;
+            // Lot defect — record only; do not shrink shelf life or buy qty.
             break;
     }
     _saveWasteLearning($db, $data);
@@ -5764,7 +5768,9 @@ function ensureShelfLifeLearningBackfilled(PDO $db): void {
         $wasteAgg[$pid]['last_reason'] = $reason;
         $wasteAgg[$pid]['last_at'] = strtotime((string)$wr['created_at']) ?: time();
         $wasteAgg[$pid]['count_' . $reason] = (int)($wasteAgg[$pid]['count_' . $reason] ?? 0) + 1;
-        if ($reason === 'expired' || $reason === 'spoiled' || $reason === 'kept_too_long' || $reason === 'forgotten') {
+        if ($reason === 'spoiled') {
+            $wasteAgg[$pid]['alert_days_sooner'] = min(7, (int)$wasteAgg[$pid]['alert_days_sooner'] + 2);
+        } elseif ($reason === 'expired' || $reason === 'kept_too_long' || $reason === 'forgotten') {
             $wasteAgg[$pid]['alert_days_sooner'] = min(7, (int)$wasteAgg[$pid]['alert_days_sooner'] + 1);
         }
         if ($reason === 'wrong_location') {
@@ -5776,13 +5782,9 @@ function ensureShelfLifeLearningBackfilled(PDO $db): void {
                 $wasteAgg[$pid]['preferred_location'] = $pref;
             }
         }
-        if ($reason === 'bought_too_much' || $reason === 'bad_quality') {
+        if ($reason === 'bought_too_much') {
             $wasteAgg[$pid]['buy_less'] = true;
             $wasteAgg[$pid]['max_suggested_conf'] = 1;
-            $wasteAgg[$pid]['max_suggested_pz'] = 2;
-        }
-        if ($reason === 'kept_too_long' || $reason === 'forgotten') {
-            $wasteAgg[$pid]['buy_smaller'] = true;
             $wasteAgg[$pid]['max_suggested_pz'] = 2;
         }
     }
@@ -19800,6 +19802,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         if (!empty($wHint['preferred_location'])) {
             $locLabel = $wHint['preferred_location'];
             $reasons[] = 'past_waste:' . $locLabel;
+        }
+        if (!empty($wHint['buy_less']) || !empty($wHint['buy_smaller'])) {
+            $reasons[] = 'buy_less_hint';
         }
         if ($shelfCapped) {
             $reasons[] = 'anti_waste_shelf:' . (int)$horizonMeta['shelf_days'];

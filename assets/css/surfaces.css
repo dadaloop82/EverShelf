@@ -1597,12 +1597,20 @@ body {
     cursor: pointer;
 }
 .item-detail-primary {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
     min-height: 44px;
+    padding: 12px 16px;
     border: none;
     background: var(--brand-primary);
     color: #fff;
 }
 .item-detail-primary:active { background: var(--brand-primary-hover); }
+.item-detail-primary .item-detail-action-icon {
+    flex-shrink: 0;
+}
 /* Legacy emerald outline (kept for any leftover markup). */
 .item-detail-secondary {
     min-height: 44px;
@@ -1612,34 +1620,58 @@ body {
     color: var(--brand-primary-hover);
 }
 .item-detail-secondary:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
-/* Legacy twin outline (unused — finish-all is now a discreet text link). */
+/* Legacy twin outline (unused — finish-all is a ghost pill under the primary). */
 .item-detail-use-all { display: none !important; }
-/* Discreet 🏁 finish-all under the speaking primary — gray text, not a second green slab. */
+/* Ghost/pill finish-all — clickable, finger-sized, never competes with the green CTA. */
+.item-detail-finish-wrap {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-top: 8px;
+}
 .item-detail-finish-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    width: 100%;
-    margin-top: 6px;
-    padding: 6px 8px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #64748b;
-    font-size: 0.84rem;
+    gap: 8px;
+    min-height: 36px;
+    max-width: 100%;
+    padding: 6px 18px;
+    border: 1px solid #E2E8F0;
+    border-radius: 9999px;
+    background: #F8FAFC;
+    color: #475569;
+    font-size: 13px;
     font-weight: 600;
+    line-height: 1.25;
     cursor: pointer;
     text-align: center;
-    line-height: 1.25;
+}
+.item-detail-finish-link:hover,
+.item-detail-finish-link:focus-visible {
+    background: #F1F5F9;
 }
 .item-detail-finish-link:active {
-    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
-    color: #475569;
+    background: #E2E8F0;
 }
 .item-detail-finish-link[hidden] { display: none !important; }
-[data-theme="dark"] .item-detail-finish-link { color: #94a3b8; }
+.item-detail-finish-ico {
+    flex-shrink: 0;
+    display: block;
+}
+[data-theme="dark"] .item-detail-finish-link {
+    background: color-mix(in srgb, var(--surface-bg) 80%, #64748b);
+    border-color: color-mix(in srgb, var(--surface-border) 80%, #64748b);
+    color: #cbd5e1;
+}
+[data-theme="dark"] .item-detail-finish-link:hover,
+[data-theme="dark"] .item-detail-finish-link:focus-visible,
+[data-theme="dark"] .item-detail-finish-link:active {
+    background: color-mix(in srgb, var(--surface-bg) 60%, #64748b);
+}
 .item-detail-primary #item-detail-primary-label {
+    flex: 1 1 auto;
+    min-width: 0;
     text-align: center;
     line-height: 1.25;
 }
@@ -3418,18 +3450,15 @@ button.scan-med-name-hit:focus-visible {
 .scan-med-hint[hidden] { display: none; }
 /* "Non è questo?": the codes one digit away, inside the form where the name they change is.
    A pill row on the card's own surface — never a panel over the camera. */
-/* Quarter / half / three-quarter shortcuts in the product modal: neutral chips (the emerald is
-   the Consume button), one row, wrapping on a phone. */
+/* Quick qty chips in the product sheet: fixed 4-col grid — never a horizontal scrollbar. */
 .item-detail-frac-row {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
     margin: 0 0 8px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
 }
 .item-detail-frac {
-    flex: 1 1 0;
     min-width: 0;
     padding: 6px 4px;
     border-radius: 8px;
@@ -3437,10 +3466,14 @@ button.scan-med-name-hit:focus-visible {
     background: var(--surface-bg);
     color: var(--text-main);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: 13px;
     font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
     cursor: pointer;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .item-detail-frac:hover,
 .item-detail-frac:focus-visible {
@@ -3624,4 +3657,108 @@ button.scan-med-name-hit:focus-visible {
 .credit-planned {
     font-weight: 600;
     color: var(--text-muted);
+}
+
+/* ── Unified waste sheet (qty + 4 reasons) ───────────────────────────────── */
+.waste-modal { padding-bottom: 4px; }
+.waste-modal-product {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+.waste-modal-section-label {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.waste-qty-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 14px;
+}
+.waste-qty-row:has(> :only-child) {
+    grid-template-columns: 1fr;
+}
+.waste-qty-btn {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #DC2626 28%, var(--surface-border));
+    background: var(--surface-bg);
+    color: #B91C1C;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.25;
+}
+.waste-qty-btn.is-on {
+    background: color-mix(in srgb, #DC2626 10%, var(--surface-bg));
+    border-color: #DC2626;
+    box-shadow: inset 0 0 0 1px #DC2626;
+}
+.waste-qty-btn:active { background: color-mix(in srgb, #DC2626 16%, var(--surface-bg)); }
+[data-theme="dark"] .waste-qty-btn {
+    color: #F87171;
+    border-color: color-mix(in srgb, #DC2626 40%, var(--surface-border));
+}
+[data-theme="dark"] .waste-qty-btn.is-on {
+    background: color-mix(in srgb, #DC2626 22%, var(--surface-bg));
+}
+.waste-reason-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 8px;
+}
+.waste-reason-btn {
+    min-height: 52px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    line-height: 1.25;
+}
+.waste-reason-btn:hover,
+.waste-reason-btn:focus-visible {
+    border-color: var(--brand-primary);
+}
+.waste-reason-btn:active {
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-bg));
+}
+.waste-reason-skip {
+    display: block;
+    width: 100%;
+    margin: 4px 0 12px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.waste-modal-cancel { margin-top: 4px; }
+.waste-partial-btn {
+    border: 1px solid color-mix(in srgb, #DC2626 28%, var(--surface-border)) !important;
+    background: var(--surface-bg) !important;
+    color: #B91C1C !important;
+}
+.waste-partial-btn:active {
+    background: color-mix(in srgb, #DC2626 12%, var(--surface-bg)) !important;
 }
