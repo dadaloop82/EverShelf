@@ -13794,10 +13794,26 @@ function showItemDetail(inventoryId, productId, presetQty) {
     _itemDetailScalePaused = false;
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const catKey = mapToLocalCategory(item.category, item.name);
+    const catIcon = CATEGORY_ICONS[catKey] || '📦';
+    const catLabel = isMed ? '' : categoryText(catKey);
+    let openedChip = '';
+    if (item.opened_at) {
+        if (isMed) {
+            openedChip = `<span class="item-detail-chip item-detail-chip--opened">${escapeHtml(t('medical.state_opened'))}</span>`;
+        } else {
+            const pao = _openedPao(item);
+            const daysOpen = (pao && pao.days_open != null)
+                ? Number(pao.days_open)
+                : Math.max(0, Math.floor((Date.now() - new Date(item.opened_at).getTime()) / 86400000));
+            openedChip = `<span class="item-detail-chip item-detail-chip--opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+        }
+    }
     const chips = [
         `<span class="item-detail-chip item-detail-chip--loc">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${escapeHtml(locInfo.label)}</span>`,
+        (!isMed && catLabel) ? `<span class="item-detail-chip">${catIcon} ${escapeHtml(catLabel)}</span>` : '',
+        openedChip,
         _itemDetailExpiryChip(item),
-        item.opened_at ? `<span class="item-detail-chip item-detail-chip--opened">${escapeHtml(isMed ? t('medical.state_opened') : t('inventory.opened_badge'))}</span>` : '',
         (!isMed && item.vacuum_sealed) ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
     ].filter(Boolean).join('');
 
@@ -13815,32 +13831,35 @@ function showItemDetail(inventoryId, productId, presetQty) {
     const useAllBtn = isMed ? t('medical.use_all') : t('inventory.detail_consume_all');
     const throwBtn = isMed ? t('medical.discard') : t('inventory.item_detail_throw_short');
     const locEsc = String(item.location || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const canFreeze = !isMed && storageKindOfLocation(item.location) !== 'freezer' && !!LOCATIONS[_freezerLocationKey()];
+    const canExtend = !isMed && _shouldOfferExtendExpiry(item);
+    const titleName = escapeHtml(item.display_name || item.name);
+    const brandInline = item.brand ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
 
     document.getElementById('modal-content').innerHTML = `
         <div class="item-detail-modal${isMed ? ' is-medical' : ''}">
             <div class="modal-header item-detail-header">
-                <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
+                <div class="item-detail-header-row">
+                    <div class="item-detail-image">
+                        ${_validProductImageUrl(item.image_url)
+                            ? `<img src="${escapeHtml(item.image_url)}" alt="">`
+                            : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`
+                        }
+                    </div>
+                    <div class="item-detail-header-text">
+                        <h3 class="item-detail-title">${titleName}${brandInline}</h3>
+                        <div class="item-detail-chips">${chips}</div>
+                    </div>
+                </div>
                 <div class="item-detail-header-actions">
                     <button type="button" class="btn-icon-round" title="${escapeHtml(t('inventory.item_detail_edit'))}" onclick="editInventoryItem(${inventoryId})">✏️</button>
                     <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>
-            <div class="item-detail-hero">
-                <div class="item-detail-image">
-                    ${_validProductImageUrl(item.image_url)
-                        ? `<img src="${escapeHtml(item.image_url)}" alt="">`
-                        : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`
-                    }
-                </div>
-                <div class="item-detail-hero-body">
-                    ${item.brand ? `<p class="item-detail-brand">${escapeHtml(item.brand)}</p>` : ''}
-                    <div class="item-detail-qty-pill">${qtyDisplay}</div>
-                    <div class="item-detail-chips">${chips}</div>
-                </div>
-            </div>
             ${isMed ? _itemDetailMedSummaryHtml(item) : ''}
             ${metaRows ? `<details class="item-detail-more"><summary>${t('inventory.detail_more')}</summary><div class="item-detail-meta">${metaRows}</div></details>` : ''}
             ${_itemDetailQty.max > 0 ? `<div class="item-detail-consume">
+                <p class="item-detail-avail">${escapeHtml(t('inventory.detail_available'))}: ${qtyDisplay}</p>
                 <p class="item-detail-section-label">${escapeHtml(consumeLabel)}</p>
                 ${_itemDetailScaleHtml(item)}
                 <div class="item-detail-stepper item-detail-stepper--input">
@@ -13865,19 +13884,22 @@ function showItemDetail(inventoryId, productId, presetQty) {
             </div>` : ''}
             <div class="item-detail-support${isMed ? '' : ' item-detail-support--row3'}">
                 <p class="item-detail-section-label">${t('inventory.detail_other_actions')}</p>
-                ${(!isMed && _shouldOfferExtendExpiry(item))
-                    ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('inventory.detail_extend_short'))}</span></button>`
-                    : (isMed && item.opened_at ? '' : (isMed
-                        ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`
-                        : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`))}
-                ${isMed ? '' : `<button type="button" class="item-detail-support-btn" data-name="${escapeHtml(item.name)}" onclick="startRecipeFromProduct(this.dataset.name)">
-                    <span class="item-detail-action-icon" aria-hidden="true">🍳</span>
-                    <span>${escapeHtml(t('inventory.item_detail_recipe_short'))}</span>
-                </button>`}
-                <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
-                    <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
-                    <span>${escapeHtml(throwBtn)}</span>
-                </button>
+                ${isMed
+                    ? `${(item.opened_at ? '' : `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`)}
+                       <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
+                           <span>${escapeHtml(throwBtn)}</span>
+                       </button>`
+                    : `<button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
+                           <span>${escapeHtml(throwBtn)}</span>
+                       </button>
+                       ${canFreeze
+                           ? `<button type="button" class="item-detail-support-btn" onclick="itemDetailFreeze(${inventoryId})"><span class="item-detail-action-icon" aria-hidden="true">❄️</span><span>${escapeHtml(t('inventory.detail_freeze_short'))}</span></button>`
+                           : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}
+                       ${canExtend
+                           ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('inventory.detail_extend_short'))}</span></button>`
+                           : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}`}
             </div>
         </div>
     `;
@@ -13889,6 +13911,13 @@ function showItemDetail(inventoryId, productId, presetQty) {
 
 function itemDetailThrow(inventoryId) {
     deleteInventoryItem(inventoryId);
+}
+
+async function itemDetailFreeze(inventoryId) {
+    const item = _findInventoryItem(inventoryId);
+    if (!item) return;
+    closeModal();
+    await freezeInventoryItem(item);
 }
 
 async function itemDetailUseAll(productId, location) {
@@ -15828,7 +15857,8 @@ async function deleteInventoryItem(id) {
 
     if (!canDiscardOne) {
         // Soft-delete with undo toast (24h transaction undo on the server).
-        if (!confirm(isMed ? t('medical.discard_confirm') : t('confirm.remove_item'))) return;
+        // Food waste confirm explains the monthly discarded-food counter (red/🗑️ is waste only).
+        if (!confirm(isMed ? t('medical.discard_confirm') : t('inventory.throw_waste_confirm'))) return;
         const snapshot = item ? { ...item } : null;
         try {
             await api('inventory_delete', {}, 'POST', { id });
@@ -15864,7 +15894,9 @@ async function deleteInventoryItem(id) {
             <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
         <p style="color:var(--text-muted);margin:8px 0 16px">${escapeHtml(item.name)} · ${qtyDisplay}</p>
-        ${isMed ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>` : ''}
+        ${isMed
+            ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>`
+            : `<p class="settings-hint">${escapeHtml(t('inventory.throw_waste_confirm'))}</p>`}
         <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn btn-large btn-warning full-width" onclick="_discardOnePiece(${id})">
                 ${isMed ? t('medical.discard_one') : t('confirm.discard_one')}
@@ -16080,10 +16112,10 @@ function editInventoryItem(id, _retried) {
                     </span>
                 </label>
             </div>
-            <button type="submit" class="btn btn-large btn-primary full-width">${t('btn.save')}</button>
-            <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
-                data-name="${escapeHtml(item.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe'))}</button>
+            <div class="edit-form-actions">
+                <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${t('btn.cancel')}</button>
+                <button type="submit" class="btn btn-large btn-primary">✓ ${t('btn.save')}</button>
+            </div>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -21444,13 +21476,10 @@ function editActionInventoryItem(inventoryId) {
                     </span>
                 </label>
             </div>
-            <div class="modal-actions" style="margin-top:12px">
-                <button type="submit" class="btn btn-large btn-primary flex-1">${t('btn.save')}</button>
-                <button type="button" class="btn btn-secondary" onclick="deleteActionInventoryItem(${inventoryId})" style="padding:12px">🗑️</button>
+            <div class="edit-form-actions">
+                <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${t('btn.cancel')}</button>
+                <button type="submit" class="btn btn-large btn-primary">✓ ${t('btn.save')}</button>
             </div>
-            <button type="button" class="btn btn-large btn-accent full-width mt-2 btn-recipe-from-ingredient"
-                data-name="${escapeHtml(item.name || currentProduct?.name || '')}"
-                onclick="startRecipeFromProduct(this.dataset.name)">🍳 ${escapeHtml(t('inventory.item_detail_recipe'))}</button>
         </form>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
@@ -30538,11 +30567,11 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     <small id="ruse-scale-hint" class="ruse-scale-hint"></small>
                 </div>
                 <div class="ruse-actions">
-                    <button type="button" id="btn-ruse-submit" class="btn btn-large btn-danger full-width move-countdown-btn" onclick="submitRecipeUse(false)">
-                        📤 ${t('recipes.use_amount_btn')}
+                    <button type="button" id="btn-ruse-submit" class="btn btn-large btn-primary full-width move-countdown-btn" onclick="submitRecipeUse(false)">
+                        ✓ ${t('recipes.use_amount_btn')}
                     </button>
-                    <button type="button" class="btn btn-large btn-secondary full-width" onclick="submitRecipeUse(true)">
-                        🗑️ ${t('recipes.use_all_btn')}
+                    <button type="button" class="btn btn-large use-all-btn full-width" onclick="submitRecipeUse(true)">
+                        ✓✓ ${t('recipes.use_all_btn')}
                     </button>
                 </div>
             </div>

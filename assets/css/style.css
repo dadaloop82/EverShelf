@@ -2079,12 +2079,22 @@ body.offline-mode .offline-banner-retry {
     gap: var(--es-space-sm);
 }
 
+.item-detail-header .item-detail-header-row {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .item-detail-title {
     font-size: 1.1rem;
     font-weight: 700;
     line-height: 1.3;
     flex: 1;
     margin: 0;
+}
+
+.item-detail-brand-inline {
+    font-weight: 550;
+    color: var(--text-light);
 }
 
 .item-detail-header-actions {
@@ -2450,12 +2460,12 @@ body.offline-mode .offline-banner-retry {
 }
 
 .btn-primary {
-    background: var(--primary);
+    background: var(--brand-primary, #059669);
     color: white;
 }
 
 .btn-primary:active {
-    background: var(--primary-dark);
+    background: var(--brand-primary-hover, #047857);
 }
 
 .btn-success {
@@ -2735,39 +2745,74 @@ body.offline-mode .offline-banner-retry {
     border-color: var(--primary);
 }
 
+/* Unit lives inside the number box: [ − ] [ 10 g ] [ + ] — never a floating filled circle. */
 .qty-control-with-unit {
-    display: flex;
+    display: grid;
+    grid-template-columns: 50px minmax(88px, 1fr) 50px;
+    grid-template-areas: "minus value plus";
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    max-width: 280px;
 }
 
 .qty-control-with-unit .qty-control {
-    flex: 0 0 auto;
+    display: contents;
 }
 
+.qty-control-with-unit .qty-btn:first-of-type { grid-area: minus; }
+.qty-control-with-unit .qty-input {
+    grid-area: value;
+    width: 100%;
+    padding-right: 2.4rem;
+}
+.qty-control-with-unit .qty-btn:last-of-type { grid-area: plus; }
+
 .qty-unit-badge {
+    grid-area: value;
+    justify-self: end;
+    align-self: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 52px;
-    height: 50px;
-    padding: 0 12px;
-    border-radius: var(--radius-sm);
-    background: var(--primary);
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 800;
+    min-width: 0;
+    height: auto;
+    padding: 0 12px 0 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.95rem;
+    font-weight: 700;
     letter-spacing: 0.02em;
     text-transform: lowercase;
     white-space: nowrap;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .qty-unit-badge.qty-unit-muted {
-    background: var(--bg-card);
-    color: var(--primary);
-    border: 2px solid var(--primary);
+    background: transparent;
+    color: var(--text-muted, #6b7280);
+    border: none;
+}
+
+/* Positive "finished the pack" — emerald tint, never danger red. */
+.use-all-btn,
+.btn.use-all-btn {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 12%, #fff);
+    color: var(--brand-primary-hover, #047857);
+    border: 1.5px solid color-mix(in srgb, var(--brand-primary, #059669) 45%, transparent);
+}
+.use-all-btn:active,
+.btn.use-all-btn:active {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 22%, #fff);
+}
+[data-theme="dark"] .use-all-btn,
+[data-theme="dark"] .btn.use-all-btn {
+    background: color-mix(in srgb, var(--brand-primary, #34D399) 18%, #1E293B);
+    color: var(--brand-primary, #34D399);
 }
 
 /* ===== USE OPTIONS ===== */
@@ -5790,10 +5835,22 @@ body:has(#page-scan.active) .app-content {
     border-radius: var(--radius) var(--radius) 0 0;
     width: 100%;
     max-width: 600px;
-    max-height: 80vh;
+    max-height: 92vh;
     overflow-y: auto;
-    padding: 20px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     animation: slideUp 0.3s ease;
+}
+.modal-content:has(.item-detail-modal) {
+    max-height: 92vh;
+    overflow-y: auto;
+}
+.edit-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+.edit-form-actions .btn {
+    flex: 1 1 0;
 }
 
 @keyframes slideUp {
@@ -9171,8 +9228,15 @@ body.cooking-mode-active .app-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     min-width: 0;
+}
+.inv-card-bottom .inv-time {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .inv-qty-pill {
     flex: 0 0 auto;
@@ -9214,13 +9278,14 @@ body.cooking-mode-active .app-header {
     min-height: 34px;
     padding: 0 12px;
     border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
-    background: color-mix(in srgb, var(--primary) 14%, var(--bg-card));
-    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 40%, var(--border));
+    background: color-mix(in srgb, var(--brand-primary, #059669) 14%, var(--bg-card));
+    color: var(--brand-primary-hover, #047857);
     font-size: 0.82rem;
     font-weight: 800;
     cursor: pointer;
     line-height: 1;
+    white-space: nowrap;
 }
 .inv-quick-use:active { transform: scale(0.96); }
 .inv-quick-use-label { font-weight: 750; }
