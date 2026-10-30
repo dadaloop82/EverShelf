@@ -264,6 +264,22 @@ body.is-booting.is-revealing .bottom-nav {
     z-index: 0;
     pointer-events: none;
 }
+/* Green fill that grows over the grey track as stages complete (no segment gaps). */
+.preloader-stages::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--preloader-dot) / 2);
+    left: calc(100% / 6);
+    width: calc((100% * 2 / 3) * var(--preloader-progress, 0));
+    height: 2px;
+    border-radius: 99px;
+    background: #059669;
+    box-shadow: 0 0 8px rgba(5, 150, 105, 0.35);
+    transform: translateY(-50%);
+    z-index: 0;
+    pointer-events: none;
+    transition: width 0.3s ease;
+}
 .preloader-stage {
     position: relative;
     z-index: 1;
@@ -1878,6 +1894,95 @@ body.offline-mode .offline-banner-retry {
     display: none !important;
 }
 
+/* ===== INVENTORY PAGE: sticky toolbar + scrollable list =====
+   Internal scroll (not body) so mobile WebViews cannot leave the list stuck
+   on the first screen after opening from Home → Cibo & Cucina. */
+#page-inventory.page.active {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - var(--header-height) - var(--nav-height));
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+#page-inventory .inv-toolbar {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    /* Free on the page canvas — no closed card/gabbia around filters. */
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding-bottom: 6px;
+}
+#page-inventory .location-tabs {
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border: 0;
+}
+#page-inventory .search-bar {
+    margin-bottom: 8px;
+}
+#page-inventory .search-bar input {
+    border-radius: 999px;
+    background: var(--bg-card, #fff);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.inv-view-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 10px;
+    margin-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.inv-view-chips::-webkit-scrollbar { display: none; }
+.inv-view-chip {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, var(--bg-card));
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 650;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.inv-view-chip.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 16%, var(--surface-bg, #fff));
+    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 50%, var(--border));
+    color: color-mix(in srgb, var(--brand-primary, #059669) 75%, var(--text));
+}
+#page-inventory .inv-page-header {
+    /* Compact context line — not a glass "Lista" card with admin icons. */
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 4px 2px 8px;
+    margin-bottom: 4px;
+}
+#page-inventory .inv-page-header h2 {
+    font-size: 1.05rem;
+    font-weight: 750;
+    line-height: 1.25;
+    -webkit-text-fill-color: unset;
+    background: none;
+    color: var(--text);
+}
+#page-inventory .inv-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    /* Keep the last rows clear of the bottom nav. */
+    padding-bottom: 88px;
+}
 /* ===== INVENTORY LIST ===== */
 .inventory-list {
     display: flex;
@@ -5976,35 +6081,45 @@ body:has(#page-scan.active) .app-content {
     font-size: 0.95rem;
 }
 
-/* ===== CATEGORY GROUP HEADERS ===== */
-.cat-group-header {
+/* ===== CATEGORY GROUP HEADERS (full-width section rules) ===== */
+.cat-group-header,
+.inv-section-header {
+    grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 4px 4px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--primary);
-    border-bottom: 1px solid var(--border);
-    margin-top: 8px;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 2px 8px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+    font-weight: 750;
+    color: #0f172a;
+    border-bottom: 0;
 }
-.cat-group-icon {
-    font-size: 1rem;
-    line-height: 1;
-}
-.cat-group-header:first-child {
-    margin-top: 0;
-}
-
+.cat-group-header:first-child,
+.inv-section-header:first-child { margin-top: 0; padding-top: 4px; }
+.cat-group-icon { font-size: 1.05rem; line-height: 1; display: inline-flex; }
+.cat-group-label { font-weight: 750; color: #0f172a; }
 .cat-group-count {
-    background: var(--primary);
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 1px 7px;
-    border-radius: 10px;
-    margin-left: auto;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.82rem;
+    font-weight: 650;
+    padding: 0;
+    border-radius: 0;
+    margin-left: 0;
 }
+.cat-group-rule {
+    flex: 1 1 auto;
+    min-width: 24px;
+    height: 1px;
+    background: #e2e8f0;
+    margin-left: 4px;
+}
+[data-theme="dark"] .cat-group-label,
+.dark .cat-group-label { color: var(--text); }
+[data-theme="dark"] .cat-group-rule,
+.dark .cat-group-rule { background: color-mix(in srgb, var(--border) 80%, transparent); }
 
 /* ===== EDIT UNKNOWN PRODUCT ===== */
 .edit-unknown-card {
@@ -8998,7 +9113,123 @@ body.cooking-mode-active .app-header {
     opacity: 0.85;
 }
 
-/* ===== STRUCTURED QUANTITY IN INVENTORY ===== */
+/* ===== INVENTORY CARD (Home-aligned hierarchy) ===== */
+.inv-row-content.inv-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+}
+.inv-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+}
+.inv-card-top .inv-info { flex: 1 1 auto; min-width: 0; }
+.inv-name-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+}
+.inv-name-row .inv-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.95rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.inv-brand-inline {
+    font-weight: 550;
+    color: var(--text-light);
+}
+.inv-meta-line {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+.inv-card-menu {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.inv-card-menu:active { background: color-mix(in srgb, var(--border) 55%, transparent); }
+.inv-card-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.inv-qty-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 12%, #fff);
+    color: #047857;
+    font-size: 0.8rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+.inv-qty-pill.is-low {
+    background: #fffbeb;
+    color: #b45309;
+}
+.inv-time {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 650;
+    color: #475569;
+    line-height: 1.3;
+}
+.inv-time-urgent { color: #b45309; }
+.inv-time-expired { color: #b91c1c; }
+.inv-time-soon { color: #a16207; }
+.inv-time-opened { color: #0f766e; }
+.inv-time-ok,
+.inv-time-far { color: #64748b; }
+.inv-quick-use {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+    background: color-mix(in srgb, var(--primary) 14%, var(--bg-card));
+    color: var(--primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    line-height: 1;
+}
+.inv-quick-use:active { transform: scale(0.96); }
+.inv-quick-use-label { font-weight: 750; }
+.btn-inv-fav {
+    align-self: flex-start;
+    font-size: 1.15rem;
+    padding: 2px 2px;
+}
+/* Legacy qty column kept for compact dash rows only. */
 .inv-qty-actions {
     display: flex;
     flex-direction: column;
@@ -9006,19 +9237,6 @@ body.cooking-mode-active .app-header {
     gap: 4px;
     flex-shrink: 0;
 }
-.inv-quick-use {
-    width: 32px;
-    height: 28px;
-    border-radius: 999px;
-    border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
-    background: color-mix(in srgb, var(--primary) 12%, var(--bg-card));
-    color: var(--primary);
-    font-size: 0.85rem;
-    font-weight: 800;
-    cursor: pointer;
-    line-height: 1;
-}
-.inv-quick-use:active { transform: scale(0.96); }
 .inv-qty-col {
     display: flex;
     flex-direction: column;
@@ -9029,22 +9247,6 @@ body.cooking-mode-active .app-header {
     border-radius: 14px;
     padding: 6px 12px;
 }
-.inv-qty-col--low {
-    background: #fffbeb;
-}
-.inv-qty-col--low .inv-qty-number {
-    color: #b45309;
-}
-.inv-qty-low-label {
-    margin-top: 2px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: #b45309;
-    text-align: center;
-    line-height: 1.15;
-    max-width: 4.8rem;
-}
-
 .inv-qty-number {
     font-size: 1.55rem;
     font-weight: 900;
@@ -9052,7 +9254,6 @@ body.cooking-mode-active .app-header {
     line-height: 1.1;
     letter-spacing: -0.5px;
 }
-
 .inv-qty-unit {
     font-size: 0.7rem;
     font-weight: 600;
@@ -9060,19 +9261,6 @@ body.cooking-mode-active .app-header {
     white-space: nowrap;
     line-height: 1.2;
     text-align: center;
-}
-
-.inv-qty-pkg {
-    font-weight: 500;
-    color: #6b7280;
-}
-
-.inv-qty-frac {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #9ca3af;
-    line-height: 1;
-    margin-top: 1px;
 }
 
 /* Package fraction indicators (used elsewhere) */

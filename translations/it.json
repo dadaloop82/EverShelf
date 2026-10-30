@@ -64,7 +64,8 @@
     "banner_sub_all": "Controllo rapido della dispensa ({n} prodotti da verificare)",
     "banner_cta": "Avvia controllo",
     "confirm_yes_qty": "Sì, confermo {qty}",
-    "verify_place": "Verifica {place}"
+    "verify_place": "Verifica {place}",
+    "banner_title_place": "Revisione {place}"
   },
   "product_tags": {
     "form_label": "Tag",
@@ -120,7 +121,7 @@
     "freezer": "Freezer",
     "food_kitchen": "Cibo & Cucina",
     "pharmacy": "Farmacia",
-    "food_all": "Tutte le locazioni cucina",
+    "food_all": "Tutte le locazioni",
     "create_new": "Crea nuova locazione…",
     "food_menu_aria": "Scegli una locazione cucina",
     "macro_aria": "Ambiente: cibo o farmacia"
@@ -192,7 +193,7 @@
     "banner_expired_days": "Scaduto da {days} giorni",
     "banner_expired_action_use": "Usa",
     "banner_expired_action_finished": "Finito",
-    "banner_expired_action_throw": "Buttato",
+    "banner_expired_action_throw": "Butta",
     "banner_expired_action_edit": "Data",
     "banner_expired_action_modify": "Modifica",
     "banner_opened_since": "Aperto da {days} gg in {location}",
@@ -304,7 +305,13 @@
     "banner_anomaly_edit_qty": "Modifica quantità",
     "banner_opened_menu_still_good": "Segna come ancora buono",
     "banner_opened_menu_finished": "Segna come terminato / finito",
-    "banner_opened_menu_edit": "Modifica quantità o data"
+    "banner_opened_menu_edit": "Modifica quantità o data",
+    "banner_opened_remaining": "{qty} rimanenti",
+    "banner_freeze": "Congela",
+    "freeze_done": "{name} → {location} · +{days} gg",
+    "freeze_already": "È già in freezer",
+    "freeze_no_freezer": "Nessun freezer configurato",
+    "freeze_not_food": "I farmaci non si congelano"
   },
   "inventory": {
     "title": "Lista",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "Ricetta",
     "item_detail_throw_short": "Butta",
     "quick_access_toggle": "⚡ Accesso rapido",
-    "stock_low": "Scorta bassa"
+    "stock_low": "Scorta bassa",
+    "title_food_all": "Tutto l'inventario cibo ({n})",
+    "title_place": "{place} ({n})",
+    "filter_fav": "★ Preferiti",
+    "filter_opened": "📦 Aperti",
+    "filter_expiring": "⚠️ In scadenza",
+    "opened_for_days": "Aperto da {n} giorni",
+    "expires_in_days": "Scade tra {n} giorni",
+    "still_months": "Ancora {n} mesi",
+    "over_one_year": "Oltre 1 anno ({date})"
   },
   "scan": {
     "title": "Scansiona",

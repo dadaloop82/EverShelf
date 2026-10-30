@@ -64,7 +64,8 @@
     "banner_sub_all": "快速检查库存（{n} 件待核对）",
     "banner_cta": "开始核对",
     "confirm_yes_qty": "确认 {qty}",
-    "verify_place": "核对 {place}"
+    "verify_place": "核对 {place}",
+    "banner_title_place": "盘点 {place}"
   },
   "product_tags": {
     "form_label": "标签",
@@ -120,7 +121,7 @@
     "freezer": "冷冻柜",
     "food_kitchen": "食品与厨房",
     "pharmacy": "药箱",
-    "food_all": "全部厨房位置",
+    "food_all": "全部位置",
     "create_new": "新建位置…",
     "food_menu_aria": "选择厨房位置",
     "macro_aria": "场景：食品或药箱"
@@ -304,7 +305,13 @@
     "banner_anomaly_edit_qty": "修改数量",
     "banner_opened_menu_still_good": "标记为仍然可用",
     "banner_opened_menu_finished": "标记为已用完",
-    "banner_opened_menu_edit": "修改数量或日期"
+    "banner_opened_menu_edit": "修改数量或日期",
+    "banner_opened_remaining": "剩余 {qty}",
+    "banner_freeze": "冷冻",
+    "freeze_done": "{name} → {location} · +{days} 天",
+    "freeze_already": "已在冷冻室",
+    "freeze_no_freezer": "未配置冷冻位置",
+    "freeze_not_food": "药品不可冷冻"
   },
   "inventory": {
     "title": "库存",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "食谱",
     "item_detail_throw_short": "丢弃",
     "quick_access_toggle": "⚡ 快捷入口",
-    "stock_low": "库存偏低"
+    "stock_low": "库存偏低",
+    "title_food_all": "全部食品库存（{n}）",
+    "title_place": "{place}（{n}）",
+    "filter_fav": "★ 收藏",
+    "filter_opened": "📦 已开封",
+    "filter_expiring": "⚠️ 临期",
+    "opened_for_days": "已开封 {n} 天",
+    "expires_in_days": "{n} 天后到期",
+    "still_months": "还有 {n} 个月",
+    "over_one_year": "超过 1 年（{date}）"
   },
   "scan": {
     "title": "扫描",

@@ -64,7 +64,8 @@
     "banner_sub_all": "Contrôle rapide du garde-manger ({n} produits)",
     "banner_cta": "Lancer le contrôle",
     "confirm_yes_qty": "Oui, je confirme {qty}",
-    "verify_place": "Vérifier {place}"
+    "verify_place": "Vérifier {place}",
+    "banner_title_place": "Contrôle {place}"
   },
   "product_tags": {
     "form_label": "Étiquettes",
@@ -120,7 +121,7 @@
     "freezer": "Congélateur",
     "food_kitchen": "Nourriture & Cuisine",
     "pharmacy": "Pharmacie",
-    "food_all": "Tous les lieux cuisine",
+    "food_all": "Tous les emplacements",
     "create_new": "Créer un nouvel emplacement…",
     "food_menu_aria": "Choisir un lieu cuisine",
     "macro_aria": "Contexte : nourriture ou pharmacie"
@@ -192,7 +193,7 @@
     "banner_expired_days": "Périmé il y a {days} jours",
     "banner_expired_action_use": "Utiliser",
     "banner_expired_action_finished": "Fini",
-    "banner_expired_action_throw": "Jeté",
+    "banner_expired_action_throw": "Jeter",
     "banner_expired_action_edit": "Date",
     "banner_no_expiry_title": "Date manquante : {name}",
     "banner_no_expiry_detail": "Ce produit n'a pas de date de péremption. Voulez-vous en ajouter une ou confirmer qu'il ne périme pas ?",
@@ -304,11 +305,17 @@
     "banner_anomaly_edit_qty": "Modifier la quantité",
     "banner_opened_menu_still_good": "Marquer comme encore bon",
     "banner_opened_menu_finished": "Marquer comme terminé",
-    "banner_opened_menu_edit": "Modifier quantité ou date"
+    "banner_opened_menu_edit": "Modifier quantité ou date",
+    "banner_opened_remaining": "{qty} restants",
+    "banner_freeze": "Congeler",
+    "freeze_done": "{name} → {location} · +{days} j",
+    "freeze_already": "Déjà au congélateur",
+    "freeze_no_freezer": "Aucun congélateur configuré",
+    "freeze_not_food": "Les médicaments ne se congèlent pas"
   },
   "inventory": {
     "title": "Liste",
-    "filter_all": "Tout",
+    "filter_all": "Tous",
     "search_placeholder": "🔍 Rechercher un produit...",
     "clear_search": "Effacer la recherche",
     "recent_title": "🕐 Utilisés récemment",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "Recette",
     "item_detail_throw_short": "Jeter",
     "quick_access_toggle": "⚡ Accès rapide",
-    "stock_low": "Stock bas"
+    "stock_low": "Stock bas",
+    "title_food_all": "Tout le stock alimentaire ({n})",
+    "title_place": "{place} ({n})",
+    "filter_fav": "★ Favoris",
+    "filter_opened": "📦 Ouverts",
+    "filter_expiring": "⚠️ Bientôt",
+    "opened_for_days": "Ouvert depuis {n} jours",
+    "expires_in_days": "Expire dans {n} jours",
+    "still_months": "Encore {n} mois",
+    "over_one_year": "Plus d’1 an ({date})"
   },
   "scan": {
     "title": "Scanner",

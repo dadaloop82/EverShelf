@@ -123,6 +123,10 @@ body {
 }
 
 .page.active { padding: 4px var(--es-shell-gutter) 32px; }
+#page-inventory.page.active {
+    /* Internal .inv-scroll owns the bottom breathing room (nav clearance). */
+    padding-bottom: 0;
+}
 
 /* ===== 3. HEADER =================================================== */
 .app-header {
@@ -156,6 +160,23 @@ body {
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: var(--primary);
+}
+
+/* Inventory context title: plain text, no glass card (import/export moved to Settings). */
+#page-inventory .inv-page-header {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 4px 2px 8px;
+    margin-bottom: 4px;
+}
+#page-inventory .inv-page-header h2 {
+    background-image: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    -webkit-text-fill-color: unset;
+    color: var(--text);
+    font-size: 1.05rem;
 }
 
 .back-btn,
@@ -599,6 +620,12 @@ textarea.form-input:focus {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: start;
         gap: 12px;
+    }
+    .inventory-list .cat-group-header,
+    .inventory-list .inv-section-header,
+    .products-list .cat-group-header,
+    .smart-items .cat-group-header {
+        grid-column: 1 / -1;
     }
 }
 

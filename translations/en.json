@@ -64,7 +64,8 @@
     "banner_sub_all": "Quick pantry check ({n} products to verify)",
     "banner_cta": "Start check",
     "confirm_yes_qty": "Yes, confirm {qty}",
-    "verify_place": "Check {place}"
+    "verify_place": "Check {place}",
+    "banner_title_place": "{place} stocktake"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -120,7 +121,7 @@
     "freezer": "Freezer",
     "food_kitchen": "Food & Kitchen",
     "pharmacy": "Pharmacy",
-    "food_all": "All kitchen locations",
+    "food_all": "All locations",
     "create_new": "Create new location…",
     "food_menu_aria": "Choose a kitchen location",
     "macro_aria": "Context: food or pharmacy"
@@ -192,7 +193,7 @@
     "banner_expired_days": "Expired {days} days ago",
     "banner_expired_action_use": "Use",
     "banner_expired_action_finished": "Done",
-    "banner_expired_action_throw": "Bin",
+    "banner_expired_action_throw": "Throw away",
     "banner_expired_action_edit": "Date",
     "banner_expired_action_modify": "Edit",
     "banner_opened_since": "Open for {days} days in {location}",
@@ -304,7 +305,13 @@
     "banner_anomaly_edit_qty": "Edit quantity",
     "banner_opened_menu_still_good": "Mark as still good",
     "banner_opened_menu_finished": "Mark as finished",
-    "banner_opened_menu_edit": "Edit quantity or date"
+    "banner_opened_menu_edit": "Edit quantity or date",
+    "banner_opened_remaining": "{qty} left",
+    "banner_freeze": "Freeze",
+    "freeze_done": "{name} → {location} · +{days} days",
+    "freeze_already": "Already in the freezer",
+    "freeze_no_freezer": "No freezer location configured",
+    "freeze_not_food": "Medicines cannot be frozen"
   },
   "inventory": {
     "title": "List",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "Recipe",
     "item_detail_throw_short": "Bin",
     "quick_access_toggle": "⚡ Quick access",
-    "stock_low": "Low stock"
+    "stock_low": "Low stock",
+    "title_food_all": "All food inventory ({n})",
+    "title_place": "{place} ({n})",
+    "filter_fav": "★ Favourites",
+    "filter_opened": "📦 Opened",
+    "filter_expiring": "⚠️ Expiring",
+    "opened_for_days": "Open for {n} days",
+    "expires_in_days": "Expires in {n} days",
+    "still_months": "Still {n} months",
+    "over_one_year": "Over 1 year ({date})"
   },
   "scan": {
     "title": "Scan",

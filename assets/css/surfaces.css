@@ -329,20 +329,26 @@ body {
     width: 100%;
     flex-wrap: wrap;
 }
-.loc-macro-food {
+/* Level 1: the two worlds (Food | Pharmacy) — fixed tabs, no caret. */
+.loc-macro-level1 {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* Level 2: the only room filter — hidden while Pharmacy is the active world. */
+.loc-macro-level2 {
     position: relative;
     display: flex;
     align-items: stretch;
-    gap: 6px;
-    flex: 1 1 220px;
+    flex: 0 1 auto;
+    margin-left: auto;
     min-width: 0;
-    padding: 4px;
-    border-radius: 14px;
-    border: 1px solid var(--surface-border);
-    background: var(--surface-bg);
 }
-.loc-macro-food.is-active {
-    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 45%, var(--surface-border));
+.loc-macro-level2.is-hidden,
+.loc-macro-level2[hidden] {
+    display: none !important;
 }
 .loc-macro-tab {
     position: relative;
@@ -350,10 +356,10 @@ body {
     align-items: center;
     gap: 6px;
     min-height: 40px;
-    padding: 6px 10px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    background: transparent;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
     color: var(--text);
     font: inherit;
     font-size: 0.82rem;
@@ -361,15 +367,14 @@ body {
     cursor: pointer;
     white-space: nowrap;
 }
-.loc-macro-tab.is-active {
-    background: color-mix(in srgb, var(--brand-primary, #10b981) 14%, transparent);
+.loc-macro-tab.loc-macro-food-tab.is-active {
+    background: color-mix(in srgb, var(--brand-primary, #10b981) 18%, var(--surface-bg));
+    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 55%, var(--surface-border));
+    color: color-mix(in srgb, var(--brand-primary, #059669) 70%, var(--text));
 }
 .loc-macro-tab.loc-macro-med {
-    flex: 0 1 auto;
-    border: 1px solid #6366f1;
-    background: rgba(99, 102, 241, 0.10);
-    border-radius: 14px;
-    padding: 8px 12px;
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.08);
 }
 .loc-macro-tab.loc-macro-med.is-active {
     background: rgba(99, 102, 241, 0.20);
@@ -413,8 +418,8 @@ body {
     gap: 6px;
     min-height: 40px;
     min-width: 0;
-    margin-left: auto;
-    padding: 6px 10px;
+    max-width: 100%;
+    padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid var(--surface-border);
     background: var(--bg-app, var(--bg-card));
@@ -496,7 +501,7 @@ body {
 }
 
 .location-tabs .loc-macro { width: 100%; }
-.location-tabs .loc-macro-food { flex: 1 1 180px; }
+.location-tabs .loc-macro-level1 { flex: 1 1 180px; }
 
 .inv-med-chips {
     display: flex;

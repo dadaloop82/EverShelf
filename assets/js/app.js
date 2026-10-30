@@ -1697,7 +1697,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261029r'; // bump when translations change
+const _I18N_VERSION = '20261029z'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2389,25 +2389,30 @@ function _syncLocationFilterUi() {
 }
 
 /**
- * The pantry header says WHICH PLACE you are looking at.
- *
- * The page is called "Dispensa" whatever it shows, so opening the fridge left "Dispensa" above
- * a list of milk: the only thing the household had just chosen was the one thing not written
- * on screen. With "Tutti" the page name comes back, `data-i18n` and all, so a later language
- * pass cannot leave a stale place name in the header.
+ * Context title for the inventory page: what perimeter is on screen, with a count.
+ * "Frigo (29 prodotti)" / "Tutto l'inventario cibo (126)" / "Farmacia (13)".
  */
 function _syncInventoryTitle(locKey) {
     const title = document.getElementById('inventory-title');
     if (!title) return;
-    const meta = locKey ? LOCATIONS[locKey] : null;
-    if (!meta) {
-        if (!title.hasAttribute('data-i18n')) title.setAttribute('data-i18n', 'inventory.title');
-        title.textContent = t('inventory.title');
+    title.removeAttribute('data-i18n');
+    if (_locationDomain === 'medical') {
+        const cab = _locCabinetKey();
+        const meta = cab ? LOCATIONS[cab] : null;
+        const n = cab ? (_locCounts[cab] || 0) : 0;
+        const place = meta ? `${meta.icon} ${meta.label}` : t('locations.pharmacy');
+        title.textContent = t('inventory.title_place', { place, n });
         return;
     }
-    // The icon comes from the one location list, the label is plain (never icon + label).
-    title.removeAttribute('data-i18n');
-    title.textContent = `${meta.icon} ${meta.label}`;
+    const meta = locKey ? LOCATIONS[locKey] : null;
+    if (meta) {
+        const n = _locCounts[locKey] || 0;
+        title.textContent = t('inventory.title_place', { place: `${meta.icon} ${meta.label}`, n });
+        return;
+    }
+    const foodKeys = _locFoodKeys();
+    const n = foodKeys.reduce((sum, k) => sum + (_locCounts[k] || 0), 0);
+    title.textContent = t('inventory.title_food_all', { n });
 }
 
 /**
@@ -2516,6 +2521,9 @@ function _locRefreshCountsFromCache() {
 
 /**
  * Shared markup for the macro place bar (dashboard rail + pantry strip).
+ *
+ * Level 1 — two world pills (Food & Kitchen | Pharmacy), no caret on Food.
+ * Level 2 — the only room filter ▾, shown only while Food is active.
  * `surface`: 'dashboard' navigates into inventory; 'inventory' only filters.
  */
 function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }) {
@@ -2528,7 +2536,7 @@ function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }
     const foodActive = !medicalActive;
     const activeMeta = activeFoodKey && LOCATIONS[activeFoodKey]
         ? LOCATIONS[activeFoodKey]
-        : { icon: '🏠', label: t('locations.food_all') };
+        : { icon: '📍', label: t('locations.food_all') };
     const activeCount = activeFoodKey
         ? (_locCounts[activeFoodKey] || 0)
         : foodTotal;
@@ -2539,7 +2547,7 @@ function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }
     const menuRows = [
         {
             key: '',
-            icon: '🏠',
+            icon: '📍',
             label: t('locations.food_all'),
             count: foodTotal,
             alerts: foodAlerts,
@@ -2573,14 +2581,25 @@ function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }
         + `</button>`;
 
     return `<div class="loc-macro" role="group" aria-label="${escapeAttr(t('locations.macro_aria'))}">`
-        + `<div class="loc-macro-food${foodActive ? ' is-active' : ''}">`
-        + `<button type="button" class="loc-macro-tab${foodActive ? ' is-active' : ''}"`
+        + `<div class="loc-macro-level1" role="group">`
+        + `<button type="button" class="loc-macro-tab loc-macro-food-tab${foodActive ? ' is-active' : ''}"`
+        + ` aria-pressed="${foodActive ? 'true' : 'false'}"`
         + ` onclick="_locMacroGoFood('${escapeAttr(surface)}')">`
         + `<span class="loc-macro-icon" aria-hidden="true">🥫</span>`
         + `<span class="loc-macro-label">${escapeHtml(t('locations.food_kitchen'))}</span>`
         + `<span class="loc-macro-count">${foodTotal}</span>`
         + (foodAlerts ? `<span class="loc-macro-dot" aria-hidden="true"></span>` : '')
         + `</button>`
+        + `<button type="button" class="loc-macro-tab loc-macro-med${medicalActive ? ' is-active' : ''}${!cabinetKey ? ' is-disabled' : ''}"`
+        + ` aria-pressed="${medicalActive ? 'true' : 'false'}"`
+        + ` ${cabinetKey ? `onclick="_locMacroGoMed('${escapeAttr(cabinetKey)}', '${escapeAttr(surface)}')"` : 'disabled'}>`
+        + `<span class="loc-macro-icon" aria-hidden="true">${_medIconMarkup()}</span>`
+        + `<span class="loc-macro-label">${escapeHtml(t('locations.pharmacy'))}</span>`
+        + `<span class="loc-macro-count">${medTotal}</span>`
+        + (medAlerts ? `<span class="loc-macro-dot" aria-hidden="true"></span>` : '')
+        + `</button>`
+        + `</div>`
+        + `<div class="loc-macro-level2${foodActive ? '' : ' is-hidden'}" ${foodActive ? '' : 'hidden'}>`
         + `<button type="button" class="loc-food-trigger" id="${triggerId}"`
         + ` aria-haspopup="menu" aria-expanded="false" aria-controls="${menuId}"`
         + ` aria-label="${escapeAttr(t('locations.food_menu_aria'))}"`
@@ -2593,13 +2612,6 @@ function _locMacroBarHtml({ surface, activeFoodKey = '', medicalActive = false }
         + `</button>`
         + `<div class="loc-food-menu" id="${menuId}" role="menu" hidden>${menuHtml}</div>`
         + `</div>`
-        + `<button type="button" class="loc-macro-tab loc-macro-med${medicalActive ? ' is-active' : ''}${!cabinetKey ? ' is-disabled' : ''}"`
-        + ` ${cabinetKey ? `onclick="_locMacroGoMed('${escapeAttr(cabinetKey)}', '${escapeAttr(surface)}')"` : 'disabled'}>`
-        + `<span class="loc-macro-icon" aria-hidden="true">${_medIconMarkup()}</span>`
-        + `<span class="loc-macro-label">${escapeHtml(t('locations.pharmacy'))}</span>`
-        + `<span class="loc-macro-count">${medTotal}</span>`
-        + (medAlerts ? `<span class="loc-macro-dot" aria-hidden="true"></span>` : '')
-        + `</button>`
         + `</div>`;
 }
 
@@ -2642,16 +2654,17 @@ function _locFoodPick(key, surface) {
 }
 
 function _locMacroGoFood(surface) {
+    // Level-1 pill only: switch world. Never open the room menu here — that is Level 2.
+    // From Home this is a deliberate shortcut into Lista (nav tab lights up via showPage) —
+    // filtering the dashboard in place would hide food alerts without a place to browse stock.
     _locationDomain = 'food';
-    if (surface === 'inventory' && !isMedicalLocation(currentLocation || '')) {
-        _locFoodMenuToggle(null, 'inventory');
-        return;
-    }
+    _locFoodMenuClose();
     if (surface === 'dashboard') {
         showPage('inventory', '');
         return;
     }
-    filterLocation('');
+    if (isMedicalLocation(currentLocation || '')) filterLocation('');
+    else _syncLocationFilterUi();
 }
 
 function _locMacroGoMed(cabinetKey, surface) {
@@ -2659,6 +2672,7 @@ function _locMacroGoMed(cabinetKey, surface) {
     _locationDomain = 'medical';
     _locFoodMenuClose();
     if (surface === 'dashboard') {
+        // Same shortcut grammar as Food: Home → Lista on the pharmacy cabinet.
         showPage('inventory', cabinetKey);
         return;
     }
@@ -2667,7 +2681,7 @@ function _locMacroGoMed(cabinetKey, surface) {
 
 // Close the food place menu on outside tap / Escape (one listener for both surfaces).
 document.addEventListener('click', (ev) => {
-    if (ev.target.closest && ev.target.closest('.loc-macro-food')) return;
+    if (ev.target.closest && ev.target.closest('.loc-macro-level2')) return;
     _locFoodMenuClose();
 });
 document.addEventListener('keydown', (ev) => {
@@ -6986,8 +7000,8 @@ function _applyProductRuleSettingsUI(s) {
     const auditBatchEl = document.getElementById('setting-audit-batch-size');
     if (auditBatchEl) auditBatchEl.value = s.audit_mode_batch_size || 5;
     if (typeof _auditSetBatchSize === 'function') _auditSetBatchSize(s.audit_mode_batch_size);
-    const stocktakeBtn = document.getElementById('inventory-stocktake-btn');
-    if (stocktakeBtn) stocktakeBtn.hidden = s.audit_mode_enabled === false;
+    // Visibility also depends on the selected place — `_syncInventoryAuditBanner` owns it.
+    if (typeof _syncInventoryAuditBanner === 'function') _syncInventoryAuditBanner();
     const minUsesEl = document.getElementById('setting-auto-favorite-min-uses');
     if (minUsesEl) minUsesEl.value = s.auto_favorite_min_uses !== undefined ? s.auto_favorite_min_uses : 3;
 }
@@ -8033,6 +8047,10 @@ function showPage(pageId, param = null, options = {}) {
                 filterLocation(param);
             }
             loadInventory();
+            // Fresh entry from Home / nav: start at the top of the scrollable list.
+            requestAnimationFrame(() => {
+                document.querySelector('#page-inventory .inv-scroll')?.scrollTo(0, 0);
+            });
             break;
         case 'scan':
             closeScanNameSearch();
@@ -10499,22 +10517,15 @@ async function loadDashboard() {
             expiredList.innerHTML = expiredShown.map(item => {
                 const days = Math.abs(daysUntilExpiry(item.expiry_date));
                 const daysText = _relativeDaysAgo(days);
-                const safety = getExpiredSafety(item, days);
-                // "👀 Controlla" repeats what the red "N gg fa" badge already says — keep only
-                // the verdicts that change the decision (Non mangiare / Non bere / Buttalo).
-                const verdictHtml = (safety.level === 'warning')
-                    ? ''
-                    : `<span class="alert-item-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</span>`;
+                // No Controlla / Va bene pill here: the red "N gg fa" badge already carries
+                // the urgency. Match the airy Expiring rows (photo · text · time · Usa · ⋮).
                 return `
                 <div class="alert-item expired-item alert-item-clickable${_isMedicalRow(item) ? ' is-medical' : ''}" data-alert-inv-id="${item.id}" data-alert-product-id="${item.product_id}">
                     <div class="alert-item-info">
                         ${_productThumbHtml(item)}
                         <div class="alert-item-main">
                             ${_alertItemHead(item)}
-                            <div class="alert-item-meta-row">
-                                ${_alertItemMeta(item)}
-                                ${verdictHtml}
-                            </div>
+                            ${_alertItemMeta(item)}
                         </div>
                     </div>
                     <div class="alert-item-badges">
@@ -11420,28 +11431,33 @@ function renderBannerItem() {
 
     if (entry.type === 'opened') {
         // ── "Opened too long": the post-opening clock, not the printed date ────────────
-        // The message names the limit it crossed ("aperto da 16 gg · consigliato 4–10 gg"),
-        // the rail says how bad it is (amber / red), and the strip answers the only two
-        // questions that matter: throw it, or use it up in a recipe. Finishing, correcting
-        // and "it is still good" live one tap away in the ⋮ — nothing is hidden, the two
-        // decisions that need to be fast are simply not behind a menu.
+        // Photo left (same 44×44 as the lists), one clean fact line, Throw + Recipe + ⋮.
+        // The yellow "Controlla" pill is gone — "still good" lives in the ⋮.
         const item = entry.data;
         const pao = _openedPao(item) || { state: 'warn', days_open: 0, warn: 0, critical: 0, score: 0 };
         const critical = pao.state === 'critical';
         banner.className = `alert-banner banner-opened ${critical ? 'is-critical' : 'is-warn'}`;
-        _bannerIconSet(iconEl, item, critical ? '🗑️' : '👀');
+        if (iconEl) {
+            iconEl.innerHTML = _productThumbHtml(item);
+            iconEl.classList.add('has-thumb');
+        }
         titleEl.innerHTML = `${escapeHtml(item.name)}${item.brand ? ` <span class="banner-brand">(${escapeHtml(item.brand)})</span>` : ''}`;
         const locMeta = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location || '' };
         const limitText = Number(pao.critical) >= 9999
             ? t('dashboard.banner_opened_limit_none')
             : t('dashboard.banner_opened_limit', { warn: pao.warn, critical: pao.critical });
+        const qtyPlain = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '')
+            ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
+            : '';
+        const qtyBit = qtyPlain
+            ? ' · ' + escapeHtml(t('dashboard.banner_opened_remaining', { qty: qtyPlain }))
+            : '';
         detailEl.innerHTML = `
-            <div class="banner-fact">${escapeHtml(t('dashboard.banner_opened_since', { days: pao.days_open, location: locMeta.label || item.location || '' }))}${limitText ? ' · ' + escapeHtml(limitText) : ''}</div>
-            ${_alertItemMeta(item)}
-            <div class="banner-verdict safety-pill safety-pill-${critical ? 'danger' : 'warning'}">${critical ? '🗑️' : '👀'} ${escapeHtml(t(critical ? 'dashboard.banner_opened_verdict_critical' : 'dashboard.banner_opened_verdict_warn'))}</div>`;
+            <div class="banner-fact">${escapeHtml(t('dashboard.banner_opened_since', { days: pao.days_open, location: locMeta.label || item.location || '' }))}${limitText ? ' · ' + escapeHtml(limitText) : ''}${qtyBit}</div>`;
         const itemId = Number(item.id) || 0;
         const productId = Number(item.product_id) || 0;
         const moreLabel = escapeAttr(t('dashboard.banner_opened_more_actions'));
+        const canFreeze = !_isMedicalRow(item) && storageKindOfLocation(item.location) !== 'freezer';
         actionsEl.innerHTML =
             `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`
             + `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`
@@ -11451,6 +11467,12 @@ function renderBannerItem() {
             +     `<span class="alert-banner-menu-icon" aria-hidden="true">✓</span>`
             +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_still_good'))}</span>`
             +   `</button>`
+            +   (canFreeze
+                ? `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerFreezeItem()">`
+                +     `<span class="alert-banner-menu-icon" aria-hidden="true">❄️</span>`
+                +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_freeze'))}</span>`
+                +   `</button>`
+                : '')
             +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerFinishAll()">`
             +     `<span class="alert-banner-menu-icon" aria-hidden="true">🏁</span>`
             +     `<span class="alert-banner-menu-label">${escapeHtml(t('dashboard.banner_opened_menu_finished'))}</span>`
@@ -11483,27 +11505,27 @@ function renderBannerItem() {
 
         if (safety.level === 'danger') {
             banner.className = 'alert-banner banner-expired banner-expired-danger';
-            _bannerIconSet(iconEl, item, '🚫');
         } else if (safety.level === 'warning') {
             banner.className = 'alert-banner banner-expired banner-expired-warning';
-            _bannerIconSet(iconEl, item, '👀');
         } else {
             banner.className = 'alert-banner banner-expired banner-expired-ok';
-            _bannerIconSet(iconEl, item, '✅');
         }
-        // Title: product + brand. The stock situation and the verdict go in the
-        // detail as separate, plain-language lines instead of one long sentence.
+        if (iconEl) {
+            iconEl.innerHTML = _productThumbHtml(item);
+            iconEl.classList.add('has-thumb');
+        }
+        // Title + fact line. Controlla / Va bene pills stay off the strip — danger tip
+        // rides on the throw action; Freeze is the one-tap save when food is still edible.
         titleEl.innerHTML = `${escapeHtml(item.name)}${item.brand ? ` <span class="banner-brand">(${escapeHtml(item.brand)})</span>` : ''}`;
         detailEl.innerHTML = `
             <div class="banner-fact">${escapeHtml(whenText)}${dateText ? ' · ' + escapeHtml(dateText) : ''}</div>
-            ${_alertItemMeta(item)}
-            <div class="banner-verdict safety-pill safety-pill-${safety.level}" title="${escapeAttr(safety.tip || '')}">${safety.icon} ${escapeHtml(safety.label)}</div>`;
-        // Four actions, all visible, and "Modifica" is always one of them. Extend, vacuum
-        // and "ignore" left the strip: the first two live in the product sheet and the
-        // edit form, the third is the ✕ in the corner.
+            ${_alertItemMeta(item)}`;
         let btns = '';
         if (!isOpenedExpiry && safety.level !== 'danger') {
             btns += `<button class="btn-banner btn-banner-use" onclick="bannerQuickUse()">${t('dashboard.banner_expired_action_use')}</button>`;
+        }
+        if (!_isMedicalRow(item) && storageKindOfLocation(item.location) !== 'freezer') {
+            btns += `<button type="button" class="btn-banner btn-banner-freeze" onclick="bannerFreezeItem()">❄️ ${escapeHtml(t('dashboard.banner_freeze'))}</button>`;
         }
         btns += `<button class="btn-banner btn-banner-finish" onclick="bannerFinishAll()">${t('dashboard.banner_expired_action_finished')}</button>`;
         btns += `<button class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">${t('dashboard.banner_expired_action_throw')}</button>`;
@@ -11978,6 +12000,98 @@ function _computeExtendedExpiryDate(item, days) {
     return next.toISOString().slice(0, 10);
 }
 
+/**
+ * Shelf-life gain when moving a product into the freezer (mirrors getExpiredSafety).
+ * @returns {number} days to add from today
+ */
+function _freezeBonusDays(item) {
+    const cat = mapToLocalCategory((item && item.category) || '', (item && item.name) || '');
+    if (['carne', 'pesce'].includes(cat)) return 90;
+    if (['verdura', 'frutta'].includes(cat)) return 180;
+    if (['latticini', 'pane'].includes(cat)) return 60;
+    return 120;
+}
+
+/** First place whose storage kind is freezer, or the builtin key. */
+function _freezerLocationKey() {
+    const found = Object.keys(LOCATIONS).find(k => storageKindOfLocation(k) === 'freezer');
+    return found || 'freezer';
+}
+
+/**
+ * One-tap anti-waste: move the row to the freezer and stretch the operative expiry.
+ */
+async function freezeInventoryItem(item) {
+    if (!item || !item.id) return false;
+    if (_isMedicalRow(item)) {
+        showToast(t('dashboard.freeze_not_food'), 'warning');
+        return false;
+    }
+    if (storageKindOfLocation(item.location) === 'freezer') {
+        showToast(t('dashboard.freeze_already'), 'info');
+        return false;
+    }
+    const freezerKey = _freezerLocationKey();
+    if (!LOCATIONS[freezerKey]) {
+        showToast(t('dashboard.freeze_no_freezer'), 'warning');
+        return false;
+    }
+    const bonus = _freezeBonusDays(item);
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    let base = today;
+    if (item.expiry_date) {
+        const cur = new Date(String(item.expiry_date).slice(0, 10) + 'T12:00:00');
+        if (!Number.isNaN(cur.getTime()) && cur > today) base = cur;
+    }
+    const next = new Date(base.getTime());
+    next.setDate(next.getDate() + bonus);
+    const newExpiry = next.toISOString().slice(0, 10);
+    try {
+        const res = await api('inventory_update', {}, 'POST', {
+            id: item.id,
+            location: freezerKey,
+            expiry_date: newExpiry,
+            expiry_user_set: 1,
+        });
+        if (res.success || res.ok) {
+            item.location = freezerKey;
+            item.expiry_date = newExpiry;
+            item.expiry_user_set = 1;
+            const daysLeft = Math.round((next - today) / 86400000);
+            item.days_to_expiry = daysLeft;
+            item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
+            item.is_edible = daysLeft >= 0;
+            _dashboardLiveRefresh(item.id);
+            showToast(
+                t('dashboard.freeze_done', {
+                    name: item.name || '',
+                    days: bonus,
+                    location: (LOCATIONS[freezerKey] || {}).label || freezerKey,
+                }),
+                'success'
+            );
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+            return true;
+        }
+        showToast(res.error || t('error.generic'), 'error');
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+    return false;
+}
+
+async function bannerFreezeItem() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || !entry.data) return;
+    const ok = await freezeInventoryItem(entry.data);
+    if (ok) {
+        setReviewConfirmed('exp_' + entry.data.id);
+        dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+    }
+}
+
 async function extendInventoryExpiry(inventoryId, itemHint = null) {
     let item = itemHint;
     if (!item || !item.id) {
@@ -12320,7 +12434,13 @@ function renderGroupedByCategory(items, compact = false) {
         const isMedGroup = cat === MED_GROUP;
         const label = isMedGroup ? t('medical.row_tag') : (categoryText(cat) || cat);
         const icon = isMedGroup ? _medIconMarkup() : (CATEGORY_ICONS[cat] || '📦');
-        html += `<div class="cat-group-header${isMedGroup ? ' is-medical' : ''}"><span class="cat-group-icon">${icon}</span> ${escapeHtml(label)} <span class="cat-group-count">${catItems.length}</span></div>`;
+        // Full-width section rule (must span both grid columns on wide layouts).
+        html += `<div class="cat-group-header${isMedGroup ? ' is-medical' : ''}" role="heading" aria-level="3">`
+            + `<span class="cat-group-icon" aria-hidden="true">${icon}</span>`
+            + `<span class="cat-group-label">${escapeHtml(label)}</span>`
+            + `<span class="cat-group-count">${catItems.length}</span>`
+            + `<span class="cat-group-rule" aria-hidden="true"></span>`
+            + `</div>`;
         // Rows under a category header: show photo or blank tile (no repeat food emoji)
         html += catItems.map(item => compact ? renderDashItem(item, { hideCatIcon: true }) : renderInventoryItem(item, { hideCatIcon: true })).join('');
     }
@@ -12765,25 +12885,37 @@ async function loadInventory() {
         }
         _syncLocationFilterUi();
         _syncInventoryAuditBanner();
-        loadQuickAccess();
     } catch (err) {
         console.error('Inventory load error:', err);
     }
 }
 
-/** Action banner for Inventario veloce: place + how many rows to check. */
+/**
+ * Stocktake banner: only when a single place is open.
+ * "All locations" / whole-house views hide it — checking 126 products at once is not a real session.
+ */
 function _syncInventoryAuditBanner() {
+    const banner = document.getElementById('inventory-stocktake-btn');
     const sub = document.getElementById('inventory-audit-banner-sub');
-    if (!sub) return;
-    const n = (_inventoryVisibleItems(currentInventory) || []).length;
+    const titleEl = banner ? banner.querySelector('.inv-audit-banner-title') : null;
+    if (!banner) return;
+    const enabled = (typeof getSettings === 'function' ? getSettings() : {}).audit_mode_enabled !== false;
     const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
     const meta = key ? LOCATIONS[key] : null;
-    if (meta) {
+    if (!enabled || !meta) {
+        banner.hidden = true;
+        return;
+    }
+    banner.hidden = false;
+    const n = (_inventoryVisibleItems(currentInventory) || []).length;
+    if (titleEl) {
+        titleEl.removeAttribute('data-i18n');
+        titleEl.textContent = t('audit.banner_title_place', { place: meta.label });
+    }
+    if (sub) {
         sub.textContent = t('audit.banner_sub_place')
             .replace('{place}', `${meta.icon} ${meta.label}`)
             .replace('{n}', String(n));
-    } else {
-        sub.textContent = t('audit.banner_sub_all').replace('{n}', String(n));
     }
 }
 
@@ -12799,110 +12931,116 @@ function _medCategoryBadgesHtml(item) {
     }).join('');
 }
 
+/**
+ * Relative time badge for list cards (not absolute calendar dates).
+ * Opened packs lead with "Aperto da N gg"; sealed packs use Scade tra / Ancora N mesi / Oltre 1 anno.
+ */
+function _inventoryExpiryBadgeHtml(item) {
+    if (!item) return '';
+    const medRow = _isMedicalRow(item);
+    if (!medRow && item.opened_at) {
+        const pao = _openedPao(item);
+        let daysOpen = pao && Number.isFinite(Number(pao.days_open)) ? Number(pao.days_open) : NaN;
+        if (!Number.isFinite(daysOpen)) {
+            const openedTs = new Date(item.opened_at).getTime();
+            if (Number.isFinite(openedTs)) {
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                daysOpen = Math.max(0, Math.round((today.getTime() - openedTs) / 86400000));
+            }
+        }
+        if (Number.isFinite(daysOpen)) {
+            return `<span class="inv-time inv-time-opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+        }
+    }
+    if (!item.expiry_date) return '';
+    const days = daysUntilExpiry(item.expiry_date);
+    if (!Number.isFinite(days)) return '';
+    if (medRow) {
+        const when = formatDate(item.expiry_date);
+        if (days < 0) {
+            return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(when)} · ${escapeHtml(t('expiry.badge_expired_ago').replace('{n}', Math.abs(days)))}</span>`;
+        }
+        if (days <= 7) {
+            return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(when)} · ${escapeHtml(t('inventory.expires_in_days', { n: Math.max(days, 0) }))}</span>`;
+        }
+        return `<span class="inv-time inv-time-far">📅 ${escapeHtml(when)}</span>`;
+    }
+    if (days < 0) {
+        return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(t('expiry.badge_expired_ago').replace('{n}', Math.abs(days)))}</span>`;
+    }
+    if (days === 0) {
+        return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(t('expiry.badge_today'))}</span>`;
+    }
+    if (days <= 7) {
+        return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(t('inventory.expires_in_days', { n: days }))}</span>`;
+    }
+    if (days <= 30) {
+        return `<span class="inv-time inv-time-soon">⏳ ${escapeHtml(t('inventory.expires_in_days', { n: days }))}</span>`;
+    }
+    if (days < 365) {
+        const months = Math.max(1, Math.round(days / 30));
+        return `<span class="inv-time inv-time-ok">📅 ${escapeHtml(t('inventory.still_months', { n: months }))}</span>`;
+    }
+    return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('inventory.over_one_year', { date: formatDate(item.expiry_date) }))}</span>`;
+}
+
 function renderInventoryItem(item, opts = {}) {
     const catKey = mapToLocalCategory(item.category, item.name);
     const catIcon = CATEGORY_ICONS[catKey] || '📦';
-    // A medicine is not a food category: the closed medical taxonomy is what matters, never the
-    // food "altro → guess a category" repair. Location and the "Farmaco" tag are omitted in the
-    // cabinet list — the place is already the cabinet, and every row there is a medicine.
     const medRow = _isMedicalRow(item);
-    const catBadge = medRow
-        ? _medCategoryBadgesHtml(item)
-        : `<span class="inv-badge badge-category" data-cat="${catKey}" data-itemname="${escapeHtml(item.name)}">${escapeHtml(categoryText(catKey))}</span>`;
-    // Family (#284): the child is what you have, the umbrella is how much of it. Medicines do not
-    // use the food family umbrella.
-    const familyBadge = (!medRow && item.parent_name && Number(item.family_count) > 1)
-        ? `<span class="inv-badge badge-family">${escapeHtml(t('product_family.card')
-            .replace('{name}', String(item.parent_name))
-            .replace('{qty}', stripHtml(formatQuantity(item.family_qty, item.unit, item.default_quantity, item.package_unit)))
-            .replace('{count}', String(item.family_count)))}</span>`
-        : '';
-    // Custom tags: small pills, and tapping one filters the pantry by it (food only).
-    const tagPills = (!medRow && Array.isArray(item.tags) && item.tags.length)
-        ? `<span class="inv-tag-list">${item.tags.map(tg => `<button type="button" class="inv-tag-pill" onclick="toggleInventoryTagFilter('${escapeHtml(String(tg)).replace(/'/g, '&#39;')}')">${escapeHtml(String(tg))}</button>`).join('')}</span>`
-        : '';
+    const catLabel = medRow ? '' : escapeHtml(categoryText(catKey));
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
-    const days = daysUntilExpiry(item.expiry_date);
-    const isExpired = days < 0;
-    const isExpiring = !isExpired && days <= 7;
     const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
     const openedClass = _inventoryOpenedRowClass(item);
     const qtyTone = _inventoryQtyTone(item);
-    
-    let expiryBadge = '';
-    if (item.expiry_date) {
-        let expiryText;
-        if (medRow) {
-            // Medicines: the printed date is the answer; a relative hint rides next to it when close.
-            const when = formatDate(item.expiry_date);
-            if (isExpired) expiryText = `${when} · ${t('expiry.badge_expired_ago').replace('{n}', Math.abs(days))}`;
-            else if (days === 0) expiryText = `${when} · ${t('expiry.badge_today')}`;
-            else if (days === 1) expiryText = `${when} · ${t('expiry.badge_tomorrow')}`;
-            else if (days <= 7) expiryText = `${when} · ${t('expiry.badge_days').replace('{n}', days)}`;
-            else expiryText = when;
-        } else if (isExpired) {
-            expiryText = t('expiry.badge_expired_ago').replace('{n}', Math.abs(days));
-        } else if (days === 0) {
-            expiryText = t('expiry.badge_today');
-        } else if (days === 1) {
-            expiryText = t('expiry.badge_tomorrow');
-        } else if (days <= 7) {
-            expiryText = t('expiry.badge_days').replace('{n}', days);
-        } else {
-            expiryText = formatDate(item.expiry_date);
-        }
-        const expiryCls = isExpired ? 'badge-expired' : isExpiring ? 'badge-expiry' : (medRow ? 'badge-expiry-ok' : '');
-        expiryBadge = `<span class="inv-badge ${expiryCls}">${escapeHtml(expiryText)}</span>`;
+    const qtyPlain = [parts.mainQty, parts.unitLabel].filter(Boolean).join(' ')
+        + (parts.packageDetail ? ` ${parts.packageDetail}` : '');
+    const metaBits = [];
+    if (!medRow && locInfo.label) metaBits.push(`${locInfo.icon || '📍'} ${escapeHtml(locInfo.label)}`);
+    if (catLabel) metaBits.push(catLabel);
+    if (medRow) {
+        const medCats = _medCategoryBadgesHtml(item);
+        if (medCats) metaBits.push(medCats);
+        metaBits.push(item.opened_at ? escapeHtml(t('medical.state_opened')) : escapeHtml(t('medical.state_new')));
     }
-    
-    const vacuumBadge = (!medRow && item.vacuum_sealed) ? `<span class="vacuum-badge">${t('inventory.vacuum_badge')}</span>` : '';
-    // Medicines always say sealed vs opened; food keeps the old "opened only when opened".
-    const openedBadge = medRow
-        ? (item.opened_at
-            ? `<span class="opened-badge">${escapeHtml(t('medical.state_opened'))}</span>`
-            : `<span class="inv-badge badge-sealed">${escapeHtml(t('medical.state_new'))}</span>`)
-        : (item.opened_at ? `<span class="opened-badge">${t('inventory.opened_badge')}</span>` : '');
-    const locBadge = medRow
-        ? ''
-        : `<span class="inv-badge badge-location">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${locInfo.label}</span>`;
+    if (!medRow && item.vacuum_sealed) metaBits.push(escapeHtml(t('inventory.vacuum_badge')));
     const isFav = !!Number(item.is_favorite);
     const favTitle = isFav ? t('inventory.unfavorite') : t('inventory.favorite');
     const thumb = medRow
         ? _productThumbHtml(item)
         : (opts.hideCatIcon
-            ? (_validProductImageUrl(item.image_url) ? _invImageHtml(item.image_url, '') : '')
+            ? (_validProductImageUrl(item.image_url)
+                ? _invImageHtml(item.image_url, '')
+                : _invImageHtml('', catIcon))
             : _invImageHtml(item.image_url, catIcon));
     const useKey = t('inventory.item_detail_use');
+    const menuKey = t('dashboard.row_actions');
     const locJs = String(item.location || 'dispensa').replace(/'/g, "\\'");
-    
+    const title = escapeHtml(item.display_name || item.name);
+    const brand = item.brand ? ` <span class="inv-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
+
     return `
     <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
-        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
-        <div class="inv-row-content">
-            <div class="inv-image">
-                ${thumb}
-            </div>
-            <div class="inv-info">
-                <div class="inv-name">${escapeHtml(item.display_name || item.name)}</div>
-                ${item.brand ? `<div class="inv-brand">${escapeHtml(item.brand)}</div>` : ''}
-                <div class="inv-meta">
-                    ${locBadge}
-                    ${catBadge}${tagPills}${familyBadge}
-                    ${expiryBadge}
-                    ${openedBadge}
-                    ${vacuumBadge}
+        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>
+        <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
+        <div class="inv-row-content inv-card">
+            <div class="inv-card-top">
+                <div class="inv-image">${thumb}</div>
+                <div class="inv-info">
+                    <div class="inv-name-row">
+                        <div class="inv-name">${title}${brand}</div>
+                        <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
+                        <button type="button" class="inv-card-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}"
+                            onclick="event.stopPropagation(); showItemDetail(${item.id}, ${item.product_id})">⋮</button>
+                    </div>
+                    ${metaBits.length ? `<div class="inv-meta-line">${metaBits.join(' · ')}</div>` : ''}
                 </div>
             </div>
-            <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
-            <div class="inv-qty-actions">
+            <div class="inv-card-bottom">
+                <span class="inv-qty-pill${qtyTone === 'low' ? ' is-low' : ''}">${escapeHtml(qtyPlain)}</span>
+                ${_inventoryExpiryBadgeHtml(item)}
                 <button type="button" class="inv-quick-use" title="${escapeAttr(useKey)}" aria-label="${escapeAttr(useKey)}"
-                    onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}')">✓</button>
-                <div class="inv-qty-col inv-qty-col--${qtyTone}">
-                    <span class="inv-qty-number">${parts.mainQty}</span>
-                    <span class="inv-qty-unit">${parts.unitLabel}${parts.packageDetail ? ` <span class="inv-qty-pkg">${parts.packageDetail}</span>` : ''}</span>
-                    ${parts.fraction ? `<span class="inv-qty-frac">${parts.fraction}</span>` : ''}
-                    ${qtyTone === 'low' ? `<span class="inv-qty-low-label">${escapeHtml(t('inventory.stock_low'))}</span>` : ''}
-                </div>
+                    onclick="event.stopPropagation(); quickUse(${item.product_id}, '${locJs}')">✓ <span class="inv-quick-use-label">${escapeHtml(useKey)}</span></button>
             </div>
         </div>
     </div>`;
@@ -13268,36 +13406,49 @@ function _medCabinetEmptyManual() {
     }, 400);
 }
 
+let _inventoryViewFilter = 'all'; // all | fav | opened | expiring
+
+function setInventoryViewFilter(filter) {
+    const next = ['all', 'fav', 'opened', 'expiring'].includes(filter) ? filter : 'all';
+    _inventoryViewFilter = next;
+    document.querySelectorAll('#inventory-view-chips .inv-view-chip').forEach(btn => {
+        const on = btn.dataset.invFilter === next;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    filterInventory();
+}
+
+function _inventoryApplyViewFilter(items) {
+    const list = items || [];
+    if (_inventoryViewFilter === 'fav') return list.filter(i => Number(i.is_favorite));
+    if (_inventoryViewFilter === 'opened') return list.filter(i => !!i.opened_at);
+    if (_inventoryViewFilter === 'expiring') {
+        return list.filter(i => {
+            const d = daysUntilExpiry(i.expiry_date);
+            return Number.isFinite(d) && d <= 7;
+        });
+    }
+    return list;
+}
+
 function renderInventory(items, options = {}) {
     if (!_knownTags.length) { _loadKnownTags(); _loadFamilies(); }
     _renderInventoryTagFilter();
     _syncInventoryMedChips();
     const container = document.getElementById('inventory-list');
-    const visible = _inventoryVisibleItems(items);
+    const visible = _inventoryApplyViewFilter(_inventoryVisibleItems(items));
     if (visible.length === 0) {
         container.innerHTML = _inventoryIsMedicalContext()
             ? _medCabinetEmptyHtml()
             : `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         return;
     }
-    if (options.flat) {
+    // Filtered views stay flat; "all" keeps category sections.
+    if (options.flat || _inventoryViewFilter !== 'all') {
         container.innerHTML = _sortOpenedFirst(visible).map(item => renderInventoryItem(item)).join('');
     } else {
-        const favs = _sortOpenedFirst(visible.filter(i => Number(i.is_favorite)));
-        const rest = visible.filter(i => !Number(i.is_favorite));
-        const openedRest = _sortOpenedFirst(rest.filter(i => i.opened_at));
-        const sealedRest = rest.filter(i => !i.opened_at);
-        let html = '';
-        if (favs.length) {
-            html += `<div class="inv-section-header inv-fav-section">★ ${escapeHtml(t('inventory.favorites_section'))}</div>`;
-            html += favs.map(item => renderInventoryItem(item)).join('');
-        }
-        if (openedRest.length) {
-            html += `<div class="inv-section-header inv-opened-section">${escapeHtml(t('inventory.opened_section'))}</div>`;
-            html += openedRest.map(item => renderInventoryItem(item)).join('');
-        }
-        html += sealedRest.length ? renderGroupedByCategory(sealedRest, false) : '';
-        container.innerHTML = html;
+        container.innerHTML = renderGroupedByCategory(visible, false);
     }
     _refineCategoryBadgesAsync();
     _initInventoryRowSwipe(container);
@@ -13445,13 +13596,10 @@ function filterLocation(loc) {
 function filterInventory() {
     _rememberInventorySearchFromInput();
     const q = (_inventorySearchQuery || '').toLowerCase().trim();
-    const qas = document.getElementById('quick-access-section');
     if (!q) {
-        if (qas) qas.style.display = '';
         renderInventory(currentInventory);
         return;
     }
-    if (qas) qas.style.display = 'none';
 
     // Search INSIDE the place on screen: `currentInventory` is already the selected
     // location's rows (the whole pantry when nothing is selected). Searching the whole house
@@ -37347,6 +37495,7 @@ function _preloaderStage(stage, state) {
     if (state === 'active' || state === 'done' || state === 'warn' || state === 'error') {
         _preloaderStageSince = Date.now();
     }
+    _preloaderUpdateRailProgress();
     if (state === 'pending') return;
     const caption = document.getElementById('preloader-stage-caption');
     const key     = _PRELOADER_STAGE_KEYS[stage];
@@ -37354,6 +37503,25 @@ function _preloaderStage(stage, state) {
     const name = t(key);
     // t() echoes the key when the locale has none: keep the previous name then.
     if (name && name !== key) caption.textContent = name;
+}
+
+/** Grow the green fill on the continuous grey track (0 → 1 as stages complete). */
+function _preloaderUpdateRailProgress() {
+    const root = document.getElementById('preloader-stages');
+    if (!root) return;
+    const stages = root.querySelectorAll('.preloader-stage');
+    const n = stages.length;
+    if (n < 2) {
+        root.style.setProperty('--preloader-progress', '0');
+        return;
+    }
+    let done = 0;
+    stages.forEach(el => {
+        if (el.classList.contains('is-done') || el.classList.contains('is-warn') || el.classList.contains('is-error')) {
+            done += 1;
+        }
+    });
+    root.style.setProperty('--preloader-progress', String(Math.min(1, done / (n - 1))));
 }
 
 /** Wait out the dwell so a fast health_check cannot strobe the three icons. */

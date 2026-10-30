@@ -64,7 +64,8 @@
     "banner_sub_all": "Schnellcheck Vorrat ({n} Produkte prüfen)",
     "banner_cta": "Prüfung starten",
     "confirm_yes_qty": "Ja, {qty} bestätigen",
-    "verify_place": "Prüfe {place}"
+    "verify_place": "Prüfe {place}",
+    "banner_title_place": "Kontrolle {place}"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -120,7 +121,7 @@
     "freezer": "Gefrierschrank",
     "food_kitchen": "Essen & Küche",
     "pharmacy": "Apotheke",
-    "food_all": "Alle Küchenorte",
+    "food_all": "Alle Orte",
     "create_new": "Neuen Ort anlegen…",
     "food_menu_aria": "Küchenort wählen",
     "macro_aria": "Kontext: Essen oder Apotheke"
@@ -192,7 +193,7 @@
     "banner_expired_days": "Seit {days} Tagen abgelaufen",
     "banner_expired_action_use": "Nutzen",
     "banner_expired_action_finished": "Leer",
-    "banner_expired_action_throw": "Weg",
+    "banner_expired_action_throw": "Wegwerfen",
     "banner_expired_action_edit": "Datum",
     "banner_expired_action_modify": "Ändern",
     "banner_opened_since": "Seit {days} Tagen offen im {location}",
@@ -304,7 +305,13 @@
     "banner_anomaly_edit_qty": "Menge bearbeiten",
     "banner_opened_menu_still_good": "Als noch gut markieren",
     "banner_opened_menu_finished": "Als aufgebraucht markieren",
-    "banner_opened_menu_edit": "Menge oder Datum ändern"
+    "banner_opened_menu_edit": "Menge oder Datum ändern",
+    "banner_opened_remaining": "noch {qty}",
+    "banner_freeze": "Einfrieren",
+    "freeze_done": "{name} → {location} · +{days} Tage",
+    "freeze_already": "Bereits im Gefrierfach",
+    "freeze_no_freezer": "Kein Gefrierfach konfiguriert",
+    "freeze_not_food": "Medikamente nicht einfrieren"
   },
   "inventory": {
     "title": "Liste",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "Rezept",
     "item_detail_throw_short": "Weg",
     "quick_access_toggle": "⚡ Schnellzugriff",
-    "stock_low": "Niedriger Bestand"
+    "stock_low": "Niedriger Bestand",
+    "title_food_all": "Gesamtes Essens-Inventar ({n})",
+    "title_place": "{place} ({n})",
+    "filter_fav": "★ Favoriten",
+    "filter_opened": "📦 Geöffnet",
+    "filter_expiring": "⚠️ Bald ab",
+    "opened_for_days": "Seit {n} Tagen geöffnet",
+    "expires_in_days": "Läuft in {n} Tagen ab",
+    "still_months": "Noch {n} Monate",
+    "over_one_year": "Über 1 Jahr ({date})"
   },
   "scan": {
     "title": "Scannen",

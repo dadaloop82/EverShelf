@@ -64,7 +64,8 @@
     "banner_sub_all": "Control rápido de la despensa ({n} productos)",
     "banner_cta": "Iniciar control",
     "confirm_yes_qty": "Sí, confirmo {qty}",
-    "verify_place": "Verificar {place}"
+    "verify_place": "Verificar {place}",
+    "banner_title_place": "Revisión {place}"
   },
   "product_tags": {
     "form_label": "Etiquetas",
@@ -120,7 +121,7 @@
     "freezer": "Congelador",
     "food_kitchen": "Comida y cocina",
     "pharmacy": "Farmacia",
-    "food_all": "Todos los lugares de cocina",
+    "food_all": "Todas las ubicaciones",
     "create_new": "Crear ubicación nueva…",
     "food_menu_aria": "Elegir un lugar de cocina",
     "macro_aria": "Contexto: comida o farmacia"
@@ -192,7 +193,7 @@
     "banner_expired_days": "Caducado hace {days} días",
     "banner_expired_action_use": "Usar",
     "banner_expired_action_finished": "Acabado",
-    "banner_expired_action_throw": "Tirado",
+    "banner_expired_action_throw": "Tirar",
     "banner_expired_action_edit": "Fecha",
     "banner_no_expiry_title": "Caducidad faltante: {name}",
     "banner_no_expiry_detail": "Este producto no tiene fecha de caducidad. ¿Quieres añadir una o confirmar que no caduca?",
@@ -304,11 +305,17 @@
     "banner_anomaly_edit_qty": "Editar cantidad",
     "banner_opened_menu_still_good": "Marcar como aún bueno",
     "banner_opened_menu_finished": "Marcar como terminado",
-    "banner_opened_menu_edit": "Editar cantidad o fecha"
+    "banner_opened_menu_edit": "Editar cantidad o fecha",
+    "banner_opened_remaining": "{qty} restantes",
+    "banner_freeze": "Congelar",
+    "freeze_done": "{name} → {location} · +{days} días",
+    "freeze_already": "Ya está en el congelador",
+    "freeze_no_freezer": "No hay congelador configurado",
+    "freeze_not_food": "Los medicamentos no se congelan"
   },
   "inventory": {
     "title": "Lista",
-    "filter_all": "Todo",
+    "filter_all": "Todos",
     "search_placeholder": "🔍 Buscar producto...",
     "clear_search": "Borrar búsqueda",
     "recent_title": "🕐 Usados recientemente",
@@ -362,7 +369,16 @@
     "item_detail_recipe_short": "Receta",
     "item_detail_throw_short": "Tirar",
     "quick_access_toggle": "⚡ Acceso rápido",
-    "stock_low": "Stock bajo"
+    "stock_low": "Stock bajo",
+    "title_food_all": "Todo el inventario de comida ({n})",
+    "title_place": "{place} ({n})",
+    "filter_fav": "★ Favoritos",
+    "filter_opened": "📦 Abiertos",
+    "filter_expiring": "⚠️ Por caducar",
+    "opened_for_days": "Abierto hace {n} días",
+    "expires_in_days": "Caduca en {n} días",
+    "still_months": "Quedan {n} meses",
+    "over_one_year": "Más de 1 año ({date})"
   },
   "scan": {
     "title": "Escáner",
