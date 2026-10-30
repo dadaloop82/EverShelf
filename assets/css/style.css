@@ -2071,7 +2071,10 @@ body.offline-mode .offline-banner-retry {
 .item-detail-modal {
     display: flex;
     flex-direction: column;
-    gap: var(--es-space-md);
+    gap: 8px;
+}
+.item-detail-modal .modal-header {
+    margin-bottom: 0;
 }
 
 .item-detail-header {
@@ -5841,8 +5844,9 @@ body:has(#page-scan.active) .app-content {
     animation: slideUp 0.3s ease;
 }
 .modal-content:has(.item-detail-modal) {
-    max-height: 92vh;
-    overflow-y: auto;
+    max-height: min(500px, 92vh);
+    overflow: hidden;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .edit-form-actions {
     display: flex;

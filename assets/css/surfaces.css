@@ -1295,46 +1295,53 @@ body {
    frequent action had no quantity; barcode and timestamps sat in the middle of the
    card. Hierarchy now: emerald primary → emerald outline secondary → grey support. */
 .item-detail-section-label {
-    margin: 0 0 6px;
-    font-size: 12px;
+    margin: 0 0 4px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
 }
 .item-detail-consume {
-    padding: 12px 0 4px;
-    border-top: 1px solid var(--surface-border);
+    padding: 4px 0 0;
+    border-top: none;
+}
+.item-detail-consume-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 2px;
 }
 .item-detail-stepper {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    margin: 6px 0 12px;
+    gap: 10px;
+    margin: 2px 0 6px;
 }
 .item-detail-step {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: 1px solid var(--surface-border);
     background: var(--surface-bg);
     color: var(--text-main);
-    font-size: 1.4rem;
+    font-size: 1.25rem;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
 }
 .item-detail-step:active { background: var(--brand-surface); color: var(--brand-primary); }
 .item-detail-step-value {
-    min-width: 120px;
+    min-width: 100px;
     text-align: center;
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
 .item-detail-stepper--input {
-    gap: 10px;
+    gap: 8px;
 }
 .item-detail-qty-field {
     display: inline-flex;
@@ -1342,24 +1349,24 @@ body {
     gap: 2px;
     min-width: 0;
     border: 1px solid var(--surface-border);
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--surface-bg);
-    padding-right: 12px;
+    padding-right: 10px;
 }
 .item-detail-qty-field:focus-within {
     outline: 2px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
     border-color: var(--brand-primary);
 }
 .item-detail-qty-input {
-    width: 5rem;
-    min-width: 4rem;
+    width: 4.25rem;
+    min-width: 3.5rem;
     text-align: center;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     border: none;
-    border-radius: 12px;
-    padding: 10px 4px 10px 10px;
+    border-radius: 10px;
+    padding: 8px 2px 8px 8px;
     background: transparent;
     color: var(--text-main);
 }
@@ -1367,16 +1374,53 @@ body {
     outline: none;
 }
 .item-detail-qty-unit {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--text-muted);
     white-space: nowrap;
 }
 .item-detail-avail {
-    margin: 0 0 4px;
-    font-size: 0.92rem;
+    margin: 0;
+    font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-main);
+}
+.item-detail-stock {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    width: 100%;
+    margin: 0 0 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid #E2E8F0;
+    background: #F0FDF4;
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+[data-theme="dark"] .item-detail-stock {
+    background: color-mix(in srgb, var(--brand-primary) 12%, #1E293B);
+    border-color: color-mix(in srgb, var(--surface-border) 80%, var(--brand-primary));
+}
+.item-detail-stock-icon { flex: 0 0 auto; font-size: 1rem; line-height: 1; }
+.item-detail-stock-label {
+    flex: 0 1 auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.item-detail-stock-qty {
+    flex: 1 1 auto;
+    font-size: 0.98rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+    text-align: right;
+}
+.item-detail-stock-qty .conf-size-info {
+    font-weight: 600;
+    color: var(--text-muted);
 }
 .item-detail-header-row {
     display: flex;
@@ -1412,44 +1456,109 @@ body {
     font-size: 0.82rem;
     color: var(--text-muted);
 }
-.item-detail-header-text .item-detail-chips { margin: 0; }
-.item-detail-scale-box {
-    margin: 0 0 12px;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--surface-border);
-    background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface-bg));
+.item-detail-header-text .item-detail-loc-line {
+    margin: 3px 0 0;
+    font-size: 0.82rem;
+    font-weight: 550;
+    color: var(--text-muted);
+    line-height: 1.45;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
 }
-.item-detail-scale-top {
+.item-detail-header-text .item-detail-loc-line .item-detail-chip {
+    margin: 0;
+    vertical-align: middle;
+}
+/* Live scale strip (g/ml only): hidden until streaming, then soft bounce-in. */
+.item-detail-scale-slot {
+    width: 100%;
+    margin: 0 0 8px;
+    transform-origin: center;
+}
+.item-detail-scale-slot[hidden] { display: none !important; }
+.item-detail-scale-slot.is-pop {
+    animation: itemDetailScalePop 0.48s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+@keyframes itemDetailScalePop {
+    0%   { opacity: 0; transform: scale(0.96) translateY(4px); }
+    55%  { opacity: 1; transform: scale(1.02) translateY(0); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .item-detail-scale-slot.is-pop,
+    .item-detail-scale-pill.is-settling .item-detail-scale-pill-ico,
+    .item-detail-scale-pill.is-stable { animation: none !important; }
+}
+.item-detail-scale-pill {
     display: flex;
     align-items: center;
     gap: 10px;
-}
-.item-detail-scale-icon { font-size: 1.25rem; }
-.item-detail-scale-val {
-    font-size: 1.35rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 35%, #E2E8F0);
+    background: #F0FDF4;
     color: var(--text-main);
 }
-.item-detail-scale-track {
-    margin-top: 8px;
-    height: 6px;
+[data-theme="dark"] .item-detail-scale-pill {
+    background: color-mix(in srgb, var(--brand-primary) 14%, #1E293B);
+    border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--surface-border));
+}
+.item-detail-scale-pill-ico {
+    flex: 0 0 auto;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+.item-detail-scale-pill.is-settling .item-detail-scale-pill-ico {
+    animation: itemDetailScalePulse 1.1s ease-in-out infinite;
+}
+.item-detail-scale-pill.is-stable {
+    border-color: var(--brand-primary, #059669);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+.item-detail-scale-pill-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    font-size: 0.86rem;
+}
+.item-detail-scale-pill-label { font-weight: 650; color: var(--text-muted); }
+#idetail-scale-val {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--brand-primary-hover, #047857);
+}
+.item-detail-scale-pill-hint { color: var(--text-muted); font-size: 0.8rem; }
+.item-detail-scale-copy {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 12px;
     border-radius: 999px;
-    background: var(--surface-border);
-    overflow: hidden;
-}
-.item-detail-scale-bar {
-    height: 100%;
-    width: 0%;
-    background: var(--brand-primary);
-    transition: width 0.2s ease;
-}
-.item-detail-scale-label {
-    margin-top: 6px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
+    background: var(--brand-primary, #059669);
+    color: #fff;
     font-size: 0.8rem;
-    color: var(--text-muted);
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
 }
+.item-detail-scale-copy:active { filter: brightness(0.94); }
+@keyframes itemDetailScalePulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.12); opacity: 0.75; }
+}
+/* Legacy round chip / tall box (unused). */
+.item-detail-scale-btn,
+.item-detail-scale-box,
+.item-detail-scale-read,
+.item-detail-scale-icon-btn,
+.item-detail-scale-slot--block { display: none !important; }
 .item-detail-med-summary {
     margin: 10px 0 4px;
     padding: 10px 12px;
@@ -1488,7 +1597,7 @@ body {
     cursor: pointer;
 }
 .item-detail-primary {
-    min-height: 50px;
+    min-height: 44px;
     border: none;
     background: var(--brand-primary);
     color: #fff;
@@ -1496,93 +1605,117 @@ body {
 .item-detail-primary:active { background: var(--brand-primary-hover); }
 /* Legacy emerald outline (kept for any leftover markup). */
 .item-detail-secondary {
-    min-height: 50px;
-    margin-top: 8px;
+    min-height: 44px;
+    margin-top: 6px;
     border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
     background: var(--brand-surface);
     color: var(--brand-primary-hover);
 }
 .item-detail-secondary:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
-/* "Confezione terminata": positive consume — pastel emerald, never danger/red (red = waste only). */
-.item-detail-use-all {
-    min-height: 50px;
-    margin-top: 8px;
-    border: 1px solid color-mix(in srgb, var(--brand-primary) 45%, transparent);
-    background: var(--brand-surface, #ecfdf5);
-    color: var(--brand-primary-hover, #047857);
+/* Legacy twin outline (unused — finish-all is now a discreet text link). */
+.item-detail-use-all { display: none !important; }
+/* Discreet 🏁 finish-all under the speaking primary — gray text, not a second green slab. */
+.item-detail-finish-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.25;
 }
-.item-detail-use-all:active { background: color-mix(in srgb, var(--brand-primary) 18%, transparent); }
+.item-detail-finish-link:active {
+    background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+    color: #475569;
+}
+.item-detail-finish-link[hidden] { display: none !important; }
+[data-theme="dark"] .item-detail-finish-link { color: #94a3b8; }
+.item-detail-primary #item-detail-primary-label {
+    text-align: center;
+    line-height: 1.25;
+}
 .item-detail-support-btn--throw {
-    color: #b91c1c;
-    border-color: color-mix(in srgb, #dc2626 28%, var(--surface-border));
+    color: #DC2626;
+    border-color: color-mix(in srgb, #DC2626 28%, var(--surface-border));
+}
+.item-detail-support-btn--throw .item-detail-action-icon {
+    color: #DC2626;
 }
 [data-theme="dark"] .item-detail-support-btn--throw {
-    color: #fca5a5;
-    border-color: color-mix(in srgb, #dc2626 40%, var(--surface-border));
+    color: #F87171;
+    border-color: color-mix(in srgb, #DC2626 40%, var(--surface-border));
 }
 
 .item-detail-support {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--surface-border);
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: none;
 }
-.item-detail-support .item-detail-section-label { width: 100%; }
+.item-detail-support .item-detail-section-label { display: none; }
 .item-detail-support-btn {
-    flex: 1 1 45%;
-    min-height: 44px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 4px;
+    padding: 6px 4px;
     border: 1px solid var(--surface-border);
-    border-radius: 12px;
+    border-radius: 10px;
     background: #F1F5F9;
     color: #334155;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
 }
 .item-detail-support-btn:active { background: color-mix(in srgb, var(--surface-border) 70%, transparent); }
+.item-detail-support-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
 [data-theme="dark"] .item-detail-support-btn { background: #1E293B; color: #CBD5E1; }
-/* One row, three equal columns: Butta | Congela | Scadenza (shorter modal on phones). */
-.item-detail-support--row3 {
+/* One row: Butta | Congela | Scadenza (legacy 3) or + Sottovuoto (4). */
+.item-detail-support--row3,
+.item-detail-support--row4 {
     flex-wrap: nowrap;
     align-items: stretch;
 }
-.item-detail-support--row3 .item-detail-section-label { flex: 0 0 100%; }
 .item-detail-support--row3 .item-detail-support-btn,
-.item-detail-support--row3 .item-detail-support-spacer {
+.item-detail-support--row3 .item-detail-support-spacer,
+.item-detail-support--row4 .item-detail-support-btn,
+.item-detail-support--row4 .item-detail-support-spacer {
     flex: 1 1 0;
     min-width: 0;
-    padding: 8px 6px;
-    font-size: 0.82rem;
-    gap: 4px;
 }
-.item-detail-support--row3 .item-detail-support-btn span:not(.item-detail-action-icon) {
+.item-detail-support--row4 .item-detail-support-btn {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 2px;
+    font-size: 0.72rem;
+}
+.item-detail-support--row3 .item-detail-support-btn span:not(.item-detail-action-icon),
+.item-detail-support--row4 .item-detail-support-btn span:not(.item-detail-action-icon) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
 }
 
-/* Barcode, timestamps and status live here, one tap away. */
-.item-detail-more {
-    margin-top: 12px;
-    padding-top: 8px;
-    border-top: 1px solid var(--surface-border);
-}
-.item-detail-more > summary {
-    cursor: pointer;
-    list-style: none;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-.item-detail-more > summary::-webkit-details-marker { display: none; }
+/* Legacy "DETTAGLI" accordion — product sheet no longer emits it. */
+.item-detail-more { display: none !important; }
 
 /* Row's frequent action: consumption. Same pill shape as the old extend, emerald. */
 .row-use-btn {
@@ -3289,22 +3422,25 @@ button.scan-med-name-hit:focus-visible {
    the Consume button), one row, wrapping on a phone. */
 .item-detail-frac-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 8px 0 2px;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin: 0 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 .item-detail-frac {
-    flex: 1 1 auto;
-    min-width: 46px;
-    padding: 9px 8px;
-    border-radius: 10px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 4px;
+    border-radius: 8px;
     border: 1px solid var(--surface-border);
     background: var(--surface-bg);
     color: var(--text-main);
     font: inherit;
-    font-size: 0.86rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
 }
 .item-detail-frac:hover,
 .item-detail-frac:focus-visible {

@@ -1380,6 +1380,8 @@ function _scaleRenderPill() {
         if (showBat) bEl.title = t('scale.battery', { n: _scaleBattery });
     }
     pill.classList.toggle('is-live', !!reading);
+    // Product sheet: scale CTAs appear/disappear with the live stream (pop-in when it wakes).
+    try { _itemDetailSyncScaleUi(); } catch (e) { /* sheet closed */ }
 }
 
 /** The popover under the pill: device, battery, the big reading, tare and connection. */
@@ -1606,6 +1608,7 @@ function updateScaleReadButtons() {
     if (btnUseMedGuard && document.getElementById('page-use')?.classList.contains('is-medical-use')) {
         btnUseMedGuard.style.display = 'none';
     }
+    try { _itemDetailSyncScaleUi(); } catch (e) { /* product sheet closed */ }
 }
 
 function onScaleEnabledChange() {
@@ -1697,7 +1700,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261029z'; // bump when translations change
+const _I18N_VERSION = '20261030j'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13300,8 +13303,9 @@ function _initInventoryRowSwipe(container) {
             editInventoryItem(invId);
             return;
         }
-        // Mouse short click → Use. Touch: swipe only (no long-press — swipe already covers Use).
-        if (!ctx.isTouch && ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
+        // Short tap → product sheet (mouse AND touch). Android tablets used to do nothing
+        // on tap because only swipe was wired; swipe left/right still own chooser / edit.
+        if (ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
             markSwipeDone();
             quickUse(productId, location);
         }
@@ -13794,47 +13798,33 @@ function showItemDetail(inventoryId, productId, presetQty) {
     _itemDetailScalePaused = false;
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
     const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
-    const catKey = mapToLocalCategory(item.category, item.name);
-    const catIcon = CATEGORY_ICONS[catKey] || '📦';
-    const catLabel = isMed ? '' : categoryText(catKey);
-    let openedChip = '';
+    // Header meta: place as light text (📍), never a pill; category stays out of the consume sheet.
+    const locPin = isMed ? '💊' : '📍';
+    const statusBits = [];
     if (item.opened_at) {
         if (isMed) {
-            openedChip = `<span class="item-detail-chip item-detail-chip--opened">${escapeHtml(t('medical.state_opened'))}</span>`;
+            statusBits.push(escapeHtml(t('medical.state_opened')));
         } else {
             const pao = _openedPao(item);
             const daysOpen = (pao && pao.days_open != null)
                 ? Number(pao.days_open)
                 : Math.max(0, Math.floor((Date.now() - new Date(item.opened_at).getTime()) / 86400000));
-            openedChip = `<span class="item-detail-chip item-detail-chip--opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+            statusBits.push(escapeHtml(t('inventory.opened_for_days', { n: daysOpen })));
         }
     }
-    const chips = [
-        `<span class="item-detail-chip item-detail-chip--loc">${_locIconMarkup(normalizeLocationKey(item.location), locInfo)} ${escapeHtml(locInfo.label)}</span>`,
-        (!isMed && catLabel) ? `<span class="item-detail-chip">${catIcon} ${escapeHtml(catLabel)}</span>` : '',
-        openedChip,
-        _itemDetailExpiryChip(item),
-        (!isMed && item.vacuum_sealed) ? `<span class="item-detail-chip item-detail-chip--vacuum">${t('inventory.vacuum_badge')}</span>` : '',
-    ].filter(Boolean).join('');
-
-    const metaRows = isMed
-        ? _itemDetailMedMetaRows(item)
-        : [
-            item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('product.brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
-            `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
-            item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_status')}</span><span>${t('inventory.opened_since').replace('{date}', formatDateTime(item.opened_at))}</span></div>` : '',
-            item.barcode ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">Barcode</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>` : '',
-        ].filter(Boolean).join('');
+    if (!isMed && item.vacuum_sealed) statusBits.push(escapeHtml(t('inventory.vacuum_badge')));
+    // Coloured pill only for the expiry verdict — location/category no longer compete with it.
+    const expiryChip = _itemDetailExpiryChip(item);
 
     const consumeLabel = isMed ? t('medical.use_qty_label') : t('inventory.detail_qty_label');
-    const consumeBtn = isMed ? t('medical.use_confirm') : t('inventory.detail_consume');
-    const useAllBtn = isMed ? t('medical.use_all') : t('inventory.detail_consume_all');
     const throwBtn = isMed ? t('medical.discard') : t('inventory.item_detail_throw_short');
     const locEsc = String(item.location || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const canFreeze = !isMed && storageKindOfLocation(item.location) !== 'freezer' && !!LOCATIONS[_freezerLocationKey()];
     const canExtend = !isMed && _shouldOfferExtendExpiry(item);
     const titleName = escapeHtml(item.display_name || item.name);
     const brandInline = item.brand ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
+    // Mount the slots whenever this row *could* be weighed; visibility follows a live stream.
+    const scaleCapable = _itemDetailScaleCapable(item);
 
     document.getElementById('modal-content').innerHTML = `
         <div class="item-detail-modal${isMed ? ' is-medical' : ''}">
@@ -13848,7 +13838,9 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     </div>
                     <div class="item-detail-header-text">
                         <h3 class="item-detail-title">${titleName}${brandInline}</h3>
-                        <div class="item-detail-chips">${chips}</div>
+                        <p class="item-detail-loc-line">
+                            <span aria-hidden="true">${locPin}</span> ${escapeHtml(locInfo.label)}${statusBits.length ? ` · ${statusBits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}
+                        </p>
                     </div>
                 </div>
                 <div class="item-detail-header-actions">
@@ -13857,11 +13849,14 @@ function showItemDetail(inventoryId, productId, presetQty) {
                 </div>
             </div>
             ${isMed ? _itemDetailMedSummaryHtml(item) : ''}
-            ${metaRows ? `<details class="item-detail-more"><summary>${t('inventory.detail_more')}</summary><div class="item-detail-meta">${metaRows}</div></details>` : ''}
             ${_itemDetailQty.max > 0 ? `<div class="item-detail-consume">
-                <p class="item-detail-avail">${escapeHtml(t('inventory.detail_available'))}: ${qtyDisplay}</p>
+                <div class="item-detail-stock" role="status">
+                    <span class="item-detail-stock-icon" aria-hidden="true">📦</span>
+                    <span class="item-detail-stock-label">${escapeHtml(t('inventory.detail_stock_label'))}</span>
+                    <strong class="item-detail-stock-qty">${qtyDisplay}</strong>
+                </div>
                 <p class="item-detail-section-label">${escapeHtml(consumeLabel)}</p>
-                ${_itemDetailScaleHtml(item)}
+                ${scaleCapable ? _itemDetailScalePillHtml() : ''}
                 <div class="item-detail-stepper item-detail-stepper--input">
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(-1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
                     <div class="item-detail-qty-field">
@@ -13873,17 +13868,17 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
                 </div>
                 ${_itemDetailFractionsHtml(item)}
-                <button type="button" class="item-detail-primary" onclick="_itemDetailConsume()">
+                <button type="button" class="item-detail-primary" id="item-detail-primary-btn" onclick="_itemDetailConsume()">
                     <span class="item-detail-action-icon" aria-hidden="true">✓</span>
-                    <span>${escapeHtml(consumeBtn)}</span>
+                    <span id="item-detail-primary-label"></span>
                 </button>
-                <button type="button" class="item-detail-use-all" onclick="itemDetailUseAll(${item.product_id}, '${locEsc}')">
-                    <span class="item-detail-action-icon" aria-hidden="true">✓✓</span>
-                    <span>${escapeHtml(useAllBtn)}</span>
+                <button type="button" class="item-detail-finish-link" id="item-detail-finish-btn"
+                    onclick="itemDetailUseAll(${item.product_id}, '${locEsc}')">
+                    <span aria-hidden="true">🏁</span>
+                    <span id="item-detail-finish-label"></span>
                 </button>
             </div>` : ''}
-            <div class="item-detail-support${isMed ? '' : ' item-detail-support--row3'}">
-                <p class="item-detail-section-label">${t('inventory.detail_other_actions')}</p>
+            <div class="item-detail-support${isMed ? '' : ' item-detail-support--row4'}">
                 ${isMed
                     ? `${(item.opened_at ? '' : `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`)}
                        <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
@@ -13894,19 +13889,24 @@ function showItemDetail(inventoryId, productId, presetQty) {
                            <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
                            <span>${escapeHtml(throwBtn)}</span>
                        </button>
-                       ${canFreeze
-                           ? `<button type="button" class="item-detail-support-btn" onclick="itemDetailFreeze(${inventoryId})"><span class="item-detail-action-icon" aria-hidden="true">❄️</span><span>${escapeHtml(t('inventory.detail_freeze_short'))}</span></button>`
-                           : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}
-                       ${canExtend
-                           ? `<button type="button" class="item-detail-support-btn" onclick="closeModal();extendInventoryExpiry(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📅</span><span>${escapeHtml(t('inventory.detail_extend_short'))}</span></button>`
-                           : `<span class="item-detail-support-spacer" aria-hidden="true"></span>`}`}
+                       <button type="button" class="item-detail-support-btn" ${canFreeze ? '' : 'disabled'} onclick="itemDetailFreeze(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">❄️</span>
+                           <span>${escapeHtml(t('inventory.detail_freeze_short'))}</span>
+                       </button>
+                       <button type="button" class="item-detail-support-btn" onclick="itemDetailToggleVacuum(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">${item.vacuum_sealed ? '✂️' : '🗜️'}</span>
+                           <span>${escapeHtml(item.vacuum_sealed ? t('inventory.detail_vacuum_open') : t('inventory.detail_vacuum_seal'))}</span>
+                       </button>
+                       <button type="button" class="item-detail-support-btn" ${canExtend ? '' : 'disabled'} onclick="closeModal();extendInventoryExpiry(${item.id})">
+                           <span class="item-detail-action-icon" aria-hidden="true">📅</span>
+                           <span>${escapeHtml(t('inventory.detail_extend_short'))}</span>
+                       </button>`}
             </div>
         </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
-    if (_itemDetailScaleEligible(item) && _scaleLatestWeight) {
-        try { _updateItemDetailScaleCompare(_scaleLatestWeight); } catch (e) { /* */ }
-    }
+    _itemDetailSyncActionLabels();
+    _itemDetailSyncScaleUi({ preferPop: false });
 }
 
 function itemDetailThrow(inventoryId) {
@@ -13918,6 +13918,60 @@ async function itemDetailFreeze(inventoryId) {
     if (!item) return;
     closeModal();
     await freezeInventoryItem(item);
+}
+
+/** Seal under vacuum (extend expiry) or open the seal (start opened clock). */
+async function itemDetailToggleVacuum(inventoryId) {
+    const item = _findInventoryItem(inventoryId);
+    if (!item || _isMedicalRow(item)) return;
+    const sealing = !item.vacuum_sealed;
+    const body = { id: item.id, vacuum_sealed: sealing ? 1 : 0, expiry_user_set: 1 };
+    try {
+        if (sealing) {
+            // Same rule as the banner: opened shelf life × 1.5 from opened_at (or today).
+            const openedRef = item.opened_at || new Date().toISOString();
+            const baseDays = estimateOpenedExpiryDays(
+                { name: item.name, category: item.category || '' },
+                item.location
+            );
+            const vacuumDays = Math.max(1, Math.round(baseDays * 1.5));
+            const d = new Date(String(openedRef).slice(0, 10) + 'T12:00:00');
+            if (!Number.isNaN(d.getTime())) {
+                d.setDate(d.getDate() + vacuumDays);
+                body.expiry_date = d.toISOString().slice(0, 10);
+            }
+        } else {
+            // Open the bag: clear vacuum, stamp opened today, resume normal opened shelf life.
+            const now = new Date();
+            body.opened_at = now.toISOString().slice(0, 19).replace('T', ' ');
+            const baseDays = estimateOpenedExpiryDays(
+                { name: item.name, category: item.category || '' },
+                item.location
+            );
+            const d = new Date(now);
+            d.setHours(12, 0, 0, 0);
+            d.setDate(d.getDate() + Math.max(1, baseDays));
+            body.expiry_date = d.toISOString().slice(0, 10);
+        }
+        const res = await api('inventory_update', {}, 'POST', body);
+        if (!(res.success || res.ok)) {
+            showToast(res.error || t('error.generic'), 'error');
+            return;
+        }
+        item.vacuum_sealed = sealing ? 1 : 0;
+        if (body.expiry_date) item.expiry_date = body.expiry_date;
+        if (body.opened_at) item.opened_at = body.opened_at;
+        showToast(
+            sealing
+                ? t('toast.vacuum_sealed', { name: item.name })
+                : t('inventory.detail_vacuum_opened_toast', { name: item.name }),
+            'success'
+        );
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        showItemDetail(inventoryId, item.product_id);
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
 }
 
 async function itemDetailUseAll(productId, location) {
@@ -13951,13 +14005,26 @@ let _itemDetailScalePaused = false;
 function _itemDetailQtyInit(item, presetQty) {
     const unit = String(item.unit || 'pz');
     const qty = parseFloat(item.quantity) || 0;
-    const step = (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l')
-        ? (qty >= 100 ? 50 : (qty >= 20 ? 10 : 1))
+    const isWeight = unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l';
+    const step = isWeight
+        ? (qty >= 100 ? 10 : (qty >= 20 ? 5 : 1))
         : (unit === 'pz' || unit === 'conf' ? 0.25 : 1);
-    // A dictated quantity ("ho usato 300 g di fusilli") arrives here already converted:
-    // the sheet opens with the number in the field, so the tap is the confirmation.
+    // Dictated qty (voice) wins. Otherwise open on a typical dose — never already at
+    // "Ho finito tutto", which made a distracted tap wipe the whole pack.
     const preset = Number(presetQty);
-    const value = preset > 0 ? Math.min(qty, preset) : (Math.max(Math.min(step, qty), Math.min(qty, 1)) || qty);
+    let value;
+    if (preset > 0) {
+        value = Math.min(qty, preset);
+    } else if (isWeight) {
+        const typical = qty >= 100 ? 25 : (qty >= 40 ? 25 : (qty >= 20 ? 10 : Math.min(step, qty)));
+        value = Math.min(qty, typical);
+    } else if (unit === 'pz' || unit === 'conf') {
+        value = Math.min(qty, 1);
+    } else {
+        value = Math.min(qty, step) || qty;
+    }
+    if (!(value > 0)) value = qty;
+    if (qty > step && value >= qty - 1e-6) value = Math.min(qty, isWeight ? 25 : 1);
     _itemDetailQty = {
         value,
         max: qty,
@@ -14020,70 +14087,156 @@ function _itemDetailMedSummaryHtml(item) {
     return `<div class="item-detail-med-summary">${rows.join('')}</div>`;
 }
 
-function _itemDetailMedMetaRows(item) {
-    return [
-        item.brand ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('medical.form_brand_label')}</span><span>${escapeHtml(item.brand)}</span></div>` : '',
-        `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_added')}</span><span>${formatDateTime(item.added_at)}</span></div>`,
-        item.opened_at ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('medical.opened_on')}</span><span>${formatDateTime(item.opened_at)}</span></div>` : '',
-        item.expiry_date ? `<div class="item-detail-meta-row"><span class="item-detail-meta-label">${t('inventory.label_expiry')}</span><span>${formatDate(item.expiry_date)}</span></div>` : '',
-    ].filter(Boolean).join('');
-}
-
-function _itemDetailScaleEligible(item) {
-    if (_isMedicalRow(item)) return false;
+/** Row can be weighed if settings allow a scale — visibility still needs a live stream. */
+function _itemDetailScaleCapable(item) {
+    // Only mass/volume units: never show the chip for pz/conf (not weighed on the plate).
+    if (!item || _isMedicalRow(item)) return false;
     const s = getSettings();
-    if (!(s.scale_enabled && s.scale_gateway_url && _scaleConnected)) return false;
+    if (!(s.scale_enabled && s.scale_gateway_url)) return false;
     const unit = String(item.unit || '').toLowerCase();
-    const pkg = String(item.package_unit || '').toLowerCase();
-    return unit === 'g' || unit === 'ml' || (unit === 'conf' && (pkg === 'g' || pkg === 'ml'));
+    return unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l';
 }
 
-function _itemDetailScaleHtml(item) {
-    if (!_itemDetailScaleEligible(item)) return '';
+/** @deprecated use _itemDetailScaleCapable + _itemDetailSyncScaleUi / _scaleIsLive */
+function _itemDetailScaleEligible(item) {
+    return _itemDetailScaleCapable(item) && _scaleIsLive();
+}
+
+/**
+ * Full-width live scale strip above the stepper (g/ml only).
+ * Settling = soft pulse; stable = mint glow; [Copia nel consumo] writes into the field.
+ */
+function _itemDetailScalePillHtml() {
     return `
-        <div id="idetail-scale-live-box" class="item-detail-scale-box" role="status" aria-live="polite">
-            <div class="item-detail-scale-top">
-                <span class="item-detail-scale-icon" aria-hidden="true">⚖️</span>
-                <div class="item-detail-scale-val" id="idetail-scale-val">—</div>
+        <div class="item-detail-scale-slot" id="idetail-scale-icon-slot" hidden>
+            <div id="idetail-scale-live-box" class="item-detail-scale-pill" role="status" aria-live="polite">
+                <span class="item-detail-scale-pill-ico" aria-hidden="true">⚖️</span>
+                <div class="item-detail-scale-pill-text">
+                    <span class="item-detail-scale-pill-label">${escapeHtml(t('inventory.detail_scale_label'))}</span>
+                    <strong id="idetail-scale-val">—</strong>
+                    <span class="item-detail-scale-pill-hint">${escapeHtml(t('inventory.detail_scale_detected'))}</span>
+                </div>
+                <button type="button" class="item-detail-scale-copy" onclick="_itemDetailApplyScaleReading()">
+                    ${escapeHtml(t('inventory.detail_scale_copy'))}
+                </button>
             </div>
-            <div class="item-detail-scale-track"><div id="idetail-scale-progress-bar" class="item-detail-scale-bar"></div></div>
-            <div id="idetail-scale-label" class="item-detail-scale-label">${escapeHtml(t('scale.place_on_scale'))}</div>
         </div>`;
+}
+
+/**
+ * Show/hide product-sheet scale CTAs from the live stream.
+ * When the scale wakes up while the sheet is open, slots pop in with a soft bounce.
+ */
+function _itemDetailSyncScaleUi(opts = {}) {
+    const slots = document.querySelectorAll('#modal-content .item-detail-scale-slot');
+    if (!slots.length) return;
+    const live = _scaleIsLive();
+    const preferPop = opts.preferPop !== false;
+    slots.forEach((slot) => {
+        const wasHidden = !!slot.hidden;
+        if (live) {
+            slot.hidden = false;
+            if (wasHidden && preferPop) {
+                slot.classList.remove('is-pop');
+                // Force a reflow so the bounce runs every time the stream comes back.
+                void slot.offsetWidth;
+                slot.classList.add('is-pop');
+            } else if (!wasHidden) {
+                slot.classList.add('is-on');
+            }
+        } else {
+            slot.classList.remove('is-pop', 'is-on');
+            slot.hidden = true;
+        }
+    });
+    if (live && _scaleLatestWeight) {
+        try { _updateItemDetailScaleCompare(_scaleLatestWeight); } catch (e) { /* */ }
+    }
+}
+
+/**
+ * Tap the round scale chip → copy the current reading into the quantity field.
+ * Explicit tap always wins over auto-fill pause / live-window flicker.
+ */
+function _itemDetailApplyScaleReading() {
+    const msg = _scaleLatestWeight;
+    if (!msg) {
+        showToast(t('scale.place_on_scale'), 'info');
+        _itemDetailSyncScaleUi();
+        return;
+    }
+    const ok = _scaleApplyToItemDetail(msg, { force: true, pauseAfter: true });
+    if (!ok) {
+        showToast(t('scale.place_on_scale'), 'info');
+        _itemDetailSyncScaleUi();
+    }
 }
 
 function _updateItemDetailScaleCompare(msg) {
     const box = document.getElementById('idetail-scale-live-box');
     if (!box) return;
     const valEl = document.getElementById('idetail-scale-val');
-    const labelEl = document.getElementById('idetail-scale-label');
-    const grams = _scaleMsgToGrams(msg);
+    let grams = _scaleMsgToGrams(msg);
     if (grams === null) {
         if (valEl) valEl.textContent = '—';
+        box.classList.remove('is-settling', 'is-stable');
         return;
     }
-    const unit = (_itemDetailQty.unit === 'ml' || _itemDetailQty.packageUnit === 'ml') ? 'ml' : 'g';
-    if (valEl) valEl.textContent = `${Math.round(grams * 10) / 10} ${unit}`;
-    if (labelEl && !_itemDetailScalePaused) labelEl.textContent = t('scale.place_on_scale');
+    grams = Math.max(0, grams - (_scaleTareOffsetG || 0));
+    const q = _itemDetailQty;
+    const baseUnit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
+    if (valEl) {
+        valEl.textContent = `${Math.round(grams * 10) / 10}${baseUnit}`;
+        valEl.hidden = false;
+    }
+    // Settling = soft pulse on the pill; stable = mint glow.
+    const stable = !!(msg && msg.stable);
+    box.classList.toggle('is-settling', !stable);
+    if (stable) {
+        box.classList.remove('is-settling');
+        box.classList.add('is-stable');
+    } else {
+        box.classList.remove('is-stable');
+    }
 }
 
-function _scaleAutoFillItemDetail(msg) {
-    if (_itemDetailScalePaused) return;
-    if (!document.getElementById('item-detail-qty-input')) return;
-    const grams = _scaleMsgToGrams(msg);
-    if (grams === null || grams < 1) return;
+/** Write a scale message into the product-sheet quantity (g/ml, or conf fraction of pack). */
+function _scaleApplyToItemDetail(msg, opts = {}) {
+    if (!opts.force && _itemDetailScalePaused) return false;
+    const input = document.getElementById('item-detail-qty-input');
+    if (!input) return false;
+    let grams = _scaleMsgToGrams(msg);
+    if (grams === null) return false;
+    grams = Math.max(0, grams - (_scaleTareOffsetG || 0));
+    if (grams < 0.5) return false;
     const q = _itemDetailQty;
     const unit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
-    // conf stored as packs: convert sub-unit reading into packs when possible
     let value = grams;
     if (q.unit === 'conf' && q.packSize > 0) {
         value = Math.round((grams / q.packSize) * 100) / 100;
-    } else if (q.unit !== 'g' && q.unit !== 'ml' && unit === 'g') {
-        return;
+    } else if (q.unit !== 'g' && q.unit !== 'ml') {
+        return false;
     }
     q.value = Math.min(q.max, Math.max(0.01, Math.round(value * 100) / 100));
+    // Force the field even if it still has focus (tap must always land).
+    input.value = _itemDetailQtyNumber();
     _itemDetailSyncQtyUi();
-    const labelEl = document.getElementById('idetail-scale-label');
-    if (labelEl) labelEl.textContent = t('scale.stable');
+    const valEl = document.getElementById('idetail-scale-val');
+    if (valEl) {
+        valEl.textContent = `${Math.round(grams * 10) / 10}${unit}`;
+        valEl.hidden = false;
+    }
+    const box = document.getElementById('idetail-scale-live-box');
+    if (box) {
+        box.classList.remove('is-settling');
+        box.classList.add('is-stable');
+    }
+    if (opts.pauseAfter) _itemDetailScalePaused = true;
+    return true;
+}
+
+function _scaleAutoFillItemDetail(msg) {
+    _scaleApplyToItemDetail(msg, { force: false });
 }
 
 /**
@@ -14096,6 +14249,65 @@ function _scaleAutoFillItemDetail(msg) {
  * @param {object} item the inventory row (for a packaged product's own size)
  * @returns {Array<{value:number,label:string}>}
  */
+function _itemDetailFmtQty(n) {
+    const r = Math.round(Number(n) * 100) / 100;
+    if (!Number.isFinite(r)) return '0';
+    return Math.abs(r - Math.round(r)) < 1e-6 ? String(Math.round(r)) : String(r);
+}
+
+function _itemDetailAtMax() {
+    const q = _itemDetailQty;
+    return q.max > 0 && q.value >= q.max - 1e-6;
+}
+
+/** Primary CTA copy: follows the stepper, absorbs "finish all" when at max stock. */
+function _itemDetailPrimaryLabelText() {
+    const q = _itemDetailQty;
+    const qty = _itemDetailFmtQty(q.value);
+    const unit = _itemDetailUnitLabel();
+    if (q.isMedical) return t('medical.use_confirm');
+    if (_itemDetailAtMax()) {
+        return t('inventory.detail_finished_primary', { qty, unit });
+    }
+    return t('inventory.detail_used', { qty, unit, name: q.name || '' });
+}
+
+/** Discreet 🏁 finish-all line under the primary (hidden when primary already means finish). */
+function _itemDetailFinishLabelText() {
+    const q = _itemDetailQty;
+    if (q.isMedical) return t('medical.use_all');
+    const n = _itemDetailFmtQty(q.max);
+    const unit = _itemDetailUnitLabel();
+    if (q.unit === 'pz') {
+        if (q.max <= 1 + 1e-6) return '';
+        return t('inventory.detail_finish_pieces', { n, unit });
+    }
+    if (q.unit === 'conf') {
+        if (q.max <= 1 + 1e-6) return t('inventory.detail_finish_one_pack');
+        return t('inventory.detail_finish_packs', { n, unit });
+    }
+    if (q.unit === 'g' || q.unit === 'ml' || q.unit === 'kg' || q.unit === 'l') {
+        return t('inventory.detail_finish_weight');
+    }
+    return t('inventory.detail_finish_weight');
+}
+
+function _itemDetailSyncActionLabels() {
+    const primary = document.getElementById('item-detail-primary-label');
+    if (primary) primary.textContent = _itemDetailPrimaryLabelText();
+    const finishBtn = document.getElementById('item-detail-finish-btn');
+    const finishLbl = document.getElementById('item-detail-finish-label');
+    if (!finishBtn) return;
+    // At max the green button already means "finished everything" — hide the twin.
+    const finishText = _itemDetailAtMax() ? '' : _itemDetailFinishLabelText();
+    if (!finishText) {
+        finishBtn.hidden = true;
+        return;
+    }
+    finishBtn.hidden = false;
+    if (finishLbl) finishLbl.textContent = finishText;
+}
+
 function _itemDetailFractionOptions(item) {
     const q = _itemDetailQty;
     const opts = [];
@@ -14106,20 +14318,28 @@ function _itemDetailFractionOptions(item) {
         seen[v] = true;
         opts.push({ value: v, label: label });
     };
-    if (q.unit === 'pz' || q.unit === 'conf') {
-        add(0.25, '¼');
+    if (q.unit === 'pz') {
+        // Practical piece chips — not microscopic quarters.
         add(0.5, '½');
-        add(0.75, '¾');
-        add(1, q.unit === 'conf' ? `1 ${t('units.conf')}` : t('use.one_whole'));
-        if (q.max >= 2) add(2, q.unit === 'conf' ? `2 ${t('units.conf')}` : '2');
+        add(1, '1');
+        add(2, '2');
+        add(3, '3');
+        if (q.max > 0) add(q.max, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(q.max) }));
+    } else if (q.unit === 'conf') {
+        add(0.5, '½');
+        if (q.max > 1) add(1, `1 ${t('units.conf')}`);
+        if (q.max >= 2) add(2, `2 ${t('units.conf')}`);
+        if (q.max > 2) add(q.max, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(q.max) }));
     } else if (q.unit === 'g' || q.unit === 'ml' || q.unit === 'kg' || q.unit === 'l') {
-        // A weight is used in fractions of the PACK when the pack size is known.
-        const pack = parseFloat(item && item.default_quantity);
-        if (pack > 0) {
-            add(pack * 0.25, '¼');
-            add(pack * 0.5, '½');
-            add(pack * 0.75, '¾');
-            add(pack, t('use.one_whole'));
+        const u = _itemDetailUnitLabel();
+        add(10, `10 ${u}`);
+        add(25, `25 ${u}`);
+        add(50, `50 ${u}`);
+        if (q.max > 0) {
+            add(q.max, t('inventory.detail_chip_all_stock', {
+                n: _itemDetailFmtQty(q.max),
+                unit: u,
+            }));
         }
     }
     return opts;
@@ -14136,7 +14356,7 @@ function _itemDetailFractionsHtml(item) {
     }).join('') + `</div>`;
 }
 
-/** Keep the typed field, unit badge and fraction chips in sync with `_itemDetailQty`. */
+/** Keep the typed field, unit badge, chips and speaking CTAs in sync with `_itemDetailQty`. */
 function _itemDetailSyncQtyUi() {
     const q = _itemDetailQty;
     const input = document.getElementById('item-detail-qty-input');
@@ -14152,6 +14372,7 @@ function _itemDetailSyncQtyUi() {
         const f = parseFloat(b.dataset.frac);
         b.classList.toggle('is-on', Math.abs(f - q.value) < 0.005);
     });
+    _itemDetailSyncActionLabels();
 }
 
 /** Household typed a number (2.5 etc.): pause scale auto-fill and clamp to stock. */
@@ -14165,6 +14386,7 @@ function _itemDetailOnQtyInput() {
         const f = parseFloat(b.dataset.frac);
         b.classList.toggle('is-on', Math.abs(f - _itemDetailQty.value) < 0.005);
     });
+    _itemDetailSyncActionLabels();
 }
 
 /** Read the live input into state (typed value wins over a stale stepper). */

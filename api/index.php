@@ -6540,6 +6540,11 @@ function updateInventory(PDO $db): void {
     if (array_key_exists('expiry_user_set', $input)) { $fields[] = "expiry_user_set = ?"; $params[] = (int)$input['expiry_user_set']; }
     if (isset($input['vacuum_sealed'])) { $fields[] = "vacuum_sealed = ?"; $params[] = (int)$input['vacuum_sealed']; }
     if (isset($input['opened_at_clear']) && $input['opened_at_clear']) { $fields[] = "opened_at = NULL"; }
+    // Explicit open stamp (e.g. product sheet "Apri sottovuoto") — never invent a date here.
+    if (array_key_exists('opened_at', $input) && $input['opened_at'] !== null && $input['opened_at'] !== '') {
+        $fields[] = "opened_at = ?";
+        $params[] = (string)$input['opened_at'];
+    }
     $fields[] = "updated_at = CURRENT_TIMESTAMP";
     $params[] = $id;
 
