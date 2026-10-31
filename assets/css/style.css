@@ -5718,6 +5718,9 @@ body:has(#page-scan.active) .app-content {
     flex: 1 1 auto;
     min-width: 0;
 }
+/* `display:flex` above would otherwise defeat the HTML hidden attribute
+   (pharmacy mode hides the Recipes tab). */
+.nav-btn[hidden] { display: none !important; }
 
 .nav-btn.active {
     color: var(--primary);
