@@ -2846,7 +2846,7 @@
     "listening": "SHELFY 在听…",
     "unsupported": "此浏览器不支持语音识别：请在下面输入（SHELFY 同样能理解）。",
     "mic_denied": "麦克风未获允许：请检查浏览器权限，并通过 HTTPS 打开应用。也可以在下面输入。",
-    "not_understood": "SHELFY 没听懂：试试「我用了一个苹果」。",
+    "not_understood": "SHELFY 没听懂：试试「我吃一个苹果」或「我头疼」。",
     "placeholder": "例如：我用了一个橙子",
     "run": "执行",
     "example_use": "我用了一个橙子",
@@ -2877,7 +2877,13 @@
     "what_can_i_say": "可以怎么说？",
     "still_listening": "SHELFY 还在听…",
     "use_all_hint": "明白：{name} 已用完。用「已全部用完」确认。",
-    "qty_hint": "{qty} {unit} {name}：10 秒内不碰屏幕我就确认。"
+    "qty_hint": "{qty} {unit} {name}：10 秒内不碰屏幕我就确认。",
+    "intent_symptom": "症状 / 药品",
+    "symptom_med_off": "药品模块已关闭：请在设置中启用 EverShelf Med。",
+    "example_symptom": "我头疼",
+    "example_med_use": "我吃了退烧药",
+    "example_eat": "我吃一个苹果",
+    "examples_med": "药品"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
@@ -3220,5 +3226,9 @@
     "october": "十月",
     "november": "十一月",
     "december": "十二月"
+  },
+  "ai_cost": {
+    "pill_title": "本月 AI 费用",
+    "pill_title_detail": "本月 AI：{cost} · {tokens} token · {calls} 次调用。点按查看详情。"
   }
 }

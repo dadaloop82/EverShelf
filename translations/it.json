@@ -2846,7 +2846,7 @@
     "listening": "SHELFY ti ascolta…",
     "unsupported": "Questo browser non ha il riconoscimento vocale: scrivi qui sotto (SHELFY capisce lo stesso).",
     "mic_denied": "Microfono non consentito: controlla i permessi del browser e apri l'app in HTTPS. Puoi scrivere qui sotto.",
-    "not_understood": "SHELFY non ha capito: prova con «ho usato 1 mela».",
+    "not_understood": "SHELFY non ha capito: prova con «mangio una mela» o «ho mal di testa».",
     "placeholder": "Es: ho usato un'arancia",
     "run": "Esegui",
     "example_use": "Ho usato 1 arancia",
@@ -2877,7 +2877,13 @@
     "what_can_i_say": "Cosa posso dire?",
     "still_listening": "SHELFY ti ascolta ancora…",
     "use_all_hint": "Ho capito: hai finito {name}. Conferma con «Ho consumato tutto».",
-    "qty_hint": "{qty} {unit} di {name}: confermo fra 10 secondi se non tocchi."
+    "qty_hint": "{qty} {unit} di {name}: confermo fra 10 secondi se non tocchi.",
+    "intent_symptom": "Sintomo / farmaco",
+    "symptom_med_off": "Il modulo farmaci è spento: attiva EverShelf Med nelle impostazioni.",
+    "example_symptom": "Ho mal di testa",
+    "example_med_use": "Ho preso la Tachipirina",
+    "example_eat": "Mangio una mela",
+    "examples_med": "Farmaci"
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."
@@ -3220,5 +3226,9 @@
     "october": "Ottobre",
     "november": "Novembre",
     "december": "Dicembre"
+  },
+  "ai_cost": {
+    "pill_title": "Costo AI di questo mese",
+    "pill_title_detail": "AI questo mese: {cost} · {tokens} token · {calls} chiamate. Tocca per i dettagli."
   }
 }

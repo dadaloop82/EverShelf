@@ -406,10 +406,11 @@ select.form-input:focus {
 
 /* ── Modals ──────────────────────────────────────────────────── */
 .modal-overlay,
-#recipe-overlay {
+#recipe-overlay,
+#chat-overlay {
     background: color-mix(in srgb, #0f172a 58%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .modal-content,

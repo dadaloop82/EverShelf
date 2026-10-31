@@ -2846,7 +2846,7 @@
     "listening": "SHELFY hört zu…",
     "unsupported": "Dieser Browser hat keine Spracherkennung: tippe unten (SHELFY versteht trotzdem).",
     "mic_denied": "Mikrofon nicht erlaubt: prüfe die Browser-Berechtigungen und öffne die App über HTTPS. Du kannst unten tippen.",
-    "not_understood": "SHELFY hat es nicht verstanden: versuche „ich habe 1 Apfel verbraucht“.",
+    "not_understood": "SHELFY hat es nicht verstanden: versuch „Ich esse einen Apfel“ oder „Ich habe Kopfschmerzen“.",
     "placeholder": "z. B. Ich habe eine Orange verbraucht",
     "run": "Ausführen",
     "example_use": "Ich habe 1 Orange verbraucht",
@@ -2877,7 +2877,13 @@
     "what_can_i_say": "Was kann ich sagen?",
     "still_listening": "SHELFY hört noch zu…",
     "use_all_hint": "Verstanden: {name} ist aufgebraucht. Bestätige mit „Alles verbraucht“.",
-    "qty_hint": "{qty} {unit} {name}: ich bestätige in 10 Sekunden, wenn du nichts berührst."
+    "qty_hint": "{qty} {unit} {name}: ich bestätige in 10 Sekunden, wenn du nichts berührst.",
+    "intent_symptom": "Symptom / Medikament",
+    "symptom_med_off": "Das Medikamenten-Modul ist aus: aktiviere EverShelf Med in den Einstellungen.",
+    "example_symptom": "Ich habe Kopfschmerzen",
+    "example_med_use": "Ich habe das Fiebermittel genommen",
+    "example_eat": "Ich esse einen Apfel",
+    "examples_med": "Medikamente"
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."
@@ -3220,5 +3226,9 @@
     "october": "Oktober",
     "november": "November",
     "december": "Dezember"
+  },
+  "ai_cost": {
+    "pill_title": "KI-Kosten diesen Monat",
+    "pill_title_detail": "KI diesen Monat: {cost} · {tokens} Token · {calls} Aufrufe. Tippen für Details."
   }
 }

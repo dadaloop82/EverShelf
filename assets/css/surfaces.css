@@ -2158,6 +2158,44 @@ body {
     animation: scaleStatusPulse 1.4s infinite;
 }
 
+/* AI month-cost pill (header): appears after an AI call, hides after 5 minutes. */
+.ai-cost-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, #6366f1 35%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 10%, var(--surface-bg));
+    color: #4338ca;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.35s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.ai-cost-pill[hidden] { display: none !important; }
+.ai-cost-pill.is-fading { opacity: 0; }
+.ai-cost-pill-icon { font-size: 13px; line-height: 1; opacity: 0.9; }
+.ai-cost-pill-cost { font-variant-numeric: tabular-nums; }
+.ai-cost-pill-tokens {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    opacity: 0.75;
+    font-size: 11px;
+}
+.ai-cost-pill-tokens[hidden] { display: none; }
+.ai-cost-pill:hover,
+.ai-cost-pill:focus-visible {
+    background: color-mix(in srgb, #6366f1 18%, var(--surface-bg));
+    outline: none;
+}
+[data-theme="dark"] .ai-cost-pill {
+    color: #c7d2fe;
+    border-color: color-mix(in srgb, #818cf8 40%, var(--surface-border));
+    background: color-mix(in srgb, #6366f1 22%, var(--surface-bg));
+}
+
 /* Anchored under the header, never at the bottom over the buttons. */
 .scale-popover {
     position: fixed;

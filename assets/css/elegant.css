@@ -582,7 +582,8 @@ textarea.form-input:focus {
 /* Tablets / desktop: the bottom sheet becomes a centred dialog card */
 @media (min-width: 640px) {
     .modal-overlay,
-    #recipe-overlay {
+    #recipe-overlay,
+    #chat-overlay {
         align-items: center;
         padding: 16px;
     }

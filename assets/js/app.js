@@ -425,7 +425,37 @@ function _updateGeminiButtonState() {
 }
 
 function _openGeminiChat() {
-    if (_requireGemini()) showPage('chat');
+    if (_requireGemini()) _openChatSheet();
+}
+
+/** Open SHELFY as a sheet over the current page (blur behind — do not swap pages). */
+function _openChatSheet() {
+    if (!_requireGemini()) return;
+    const ov = document.getElementById('chat-overlay');
+    if (!ov) return;
+    ov.style.display = 'flex';
+    try { initChat(); } catch (e) { /* chat init best-effort */ }
+    setTimeout(() => {
+        const input = document.getElementById('chat-input');
+        // Soft focus on desktop only — on phones the keyboard covers the sheet.
+        if (input && window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+            try { input.focus(); } catch (_) { /* */ }
+        }
+    }, 80);
+}
+
+/** Close the SHELFY sheet; the page underneath stays where it was. */
+function _closeChatSheet() {
+    const ov = document.getElementById('chat-overlay');
+    if (ov) ov.style.display = 'none';
+    _chatPharmacyMode = false;
+    _chatPharmacyMedicines = null;
+    _blurActiveTextInput();
+}
+
+function _chatSheetIsOpen() {
+    const ov = document.getElementById('chat-overlay');
+    return !!(ov && ov.style.display !== 'none' && ov.style.display !== '');
 }
 
 function _applyDemoModeUI() {
@@ -8069,7 +8099,149 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
             if (localized !== data.error_key && !/\{\w+\}/.test(localized)) data.error = localized;
         }
     }
+    // Any billed AI call → refresh the month-cost pill (Gemini / OpenAI / Llama share ai_usage.json).
+    if (data && data.success !== false && !_aiCostIsMeterAction(action) && _aiCostIsBillableAction(action)) {
+        _aiCostNoteUsage();
+    }
     return data || { success: false, error: 'invalid_response' };
+}
+
+// ── AI month-cost header pill ────────────────────────────────────────────────
+// Same grammar as the scale pill: quiet until needed, then a live figure for a
+// short window. Usage is written server-side into data/ai_usage.json after each
+// provider call; we re-read gemini_usage and show cost + tokens for THIS month.
+const _AI_COST_VISIBLE_MS = 5 * 60 * 1000;
+const _AI_COST_BILLABLE = new Set([
+    'gemini_chat', 'gemini_identify', 'gemini_expiry', 'gemini_product_hint',
+    'gemini_shopping_enrich', 'gemini_suggest_shopping', 'gemini_number_ocr',
+    'gemini_barcode_visual', 'gemini_readExpiry', 'chat_to_recipe',
+    'recipe_from_ingredient', 'generate_recipe', 'generate_recipe_stream',
+    'ha_suggest_recipe', 'ha_generate_recipe', 'parse_receipt', 'ai_product_suggest',
+    'ai_test',
+]);
+let _aiCostHideTimer = null;
+let _aiCostFadeTimer = null;
+let _aiCostFetchTimer = null;
+let _aiCostLast = null;
+
+function _aiCostIsBillableAction(action) {
+    const a = String(action || '');
+    if (!a) return false;
+    if (_AI_COST_BILLABLE.has(a)) return true;
+    return a.indexOf('gemini_') === 0;
+}
+function _aiCostIsMeterAction(action) {
+    return action === 'gemini_usage';
+}
+
+/** After any AI call: show/refresh the pill (debounced so a burst of calls = one fetch). */
+function _aiCostNoteUsage() {
+    if (!_geminiAvailable) return;
+    if (_aiCostFetchTimer) clearTimeout(_aiCostFetchTimer);
+    // Server writes ai_usage.json just before answering — a short delay is enough.
+    _aiCostFetchTimer = setTimeout(() => {
+        _aiCostFetchTimer = null;
+        _aiCostPillRefresh(true);
+    }, 280);
+}
+
+function _aiCostFmtTokens(n) {
+    const v = Number(n) || 0;
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(v >= 10_000_000 ? 1 : 2) + 'M';
+    if (v >= 1_000) return (Math.round(v / 100) / 10) + 'k';
+    return String(Math.round(v));
+}
+
+function _aiCostFmtMoney(usd) {
+    const amount = Number(usd) || 0;
+    const s = (typeof getSettings === 'function' ? getSettings() : {}) || {};
+    const c = s.price_currency || 'EUR';
+    let v = amount;
+    let sym = '$';
+    if (c === 'EUR') { v = amount * 0.92; sym = '€'; }
+    else if (c === 'GBP') { v = amount * 0.79; sym = '£'; }
+    else if (c === 'CHF') { v = amount * 0.90; sym = 'CHF '; }
+    else if (c === 'CAD') { v = amount * 1.36; sym = 'CA$'; }
+    else if (c === 'AUD') { v = amount * 1.54; sym = 'A$'; }
+    else if (c === 'BRL') { v = amount * 5.20; sym = 'R$'; }
+    else if (c === 'JPY') { v = amount * 155;  sym = '¥'; }
+    else if (c === 'SEK') { v = amount * 10.4; sym = 'kr '; }
+    else if (c === 'NOK') { v = amount * 10.6; sym = 'kr '; }
+    else if (c === 'DKK') { v = amount * 6.85; sym = 'kr '; }
+    else if (c === 'PLN') { v = amount * 3.98; sym = 'zł '; }
+    const decimals = (c === 'JPY') ? 1 : (v < 0.01 && v > 0 ? 4 : 2);
+    return '~' + sym + v.toFixed(decimals);
+}
+
+function _aiCostPillPaint(stats) {
+    const pill = document.getElementById('ai-cost-pill');
+    const costEl = document.getElementById('ai-cost-pill-cost');
+    const tokEl = document.getElementById('ai-cost-pill-tokens');
+    if (!pill || !costEl) return;
+    const ms = stats || {};
+    const tokens = (Number(ms.input_tokens) || 0) + (Number(ms.output_tokens) || 0);
+    const costLbl = _aiCostFmtMoney(ms.cost_usd);
+    costEl.textContent = costLbl;
+    if (tokEl) {
+        if (tokens > 0) {
+            tokEl.hidden = false;
+            tokEl.textContent = _aiCostFmtTokens(tokens);
+        } else {
+            tokEl.hidden = true;
+            tokEl.textContent = '';
+        }
+    }
+    const title = t('ai_cost.pill_title_detail', {
+        cost: costLbl,
+        tokens: _aiCostFmtTokens(tokens),
+        calls: String(ms.calls || 0),
+    });
+    pill.title = title;
+    pill.setAttribute('aria-label', title);
+    pill.classList.remove('is-fading');
+    pill.hidden = false;
+    if (_aiCostHideTimer) clearTimeout(_aiCostHideTimer);
+    if (_aiCostFadeTimer) clearTimeout(_aiCostFadeTimer);
+    _aiCostHideTimer = setTimeout(() => {
+        pill.classList.add('is-fading');
+        _aiCostFadeTimer = setTimeout(() => {
+            pill.hidden = true;
+            pill.classList.remove('is-fading');
+        }, 380);
+    }, _AI_COST_VISIBLE_MS);
+}
+
+async function _aiCostPillRefresh(forceShow) {
+    if (!_geminiAvailable) {
+        const pill = document.getElementById('ai-cost-pill');
+        if (pill) pill.hidden = true;
+        return;
+    }
+    try {
+        const d = await api('gemini_usage');
+        const ms = (d && d.month_stats) || {};
+        _aiCostLast = ms;
+        if (forceShow || (Number(ms.calls) || 0) > 0) _aiCostPillPaint(ms);
+    } catch (e) { /* meter is optional */ }
+}
+
+/** Tap → Settings → Info (full AI usage card). */
+function _aiCostPillOpenInfo() {
+    try {
+        showPage('settings');
+        setTimeout(() => {
+            if (typeof switchSettingsGroup === 'function') switchSettingsGroup('system');
+            const tabBtn = document.querySelector('.settings-tab[data-tab="tab-info"]');
+            if (tabBtn && typeof switchSettingsTab === 'function') {
+                switchSettingsTab(tabBtn, 'tab-info');
+            } else if (tabBtn) {
+                tabBtn.click();
+            }
+            if (typeof _loadInfoTab === 'function') _loadInfoTab();
+            const card = document.getElementById('info-ai-content');
+            if (card && typeof _openSettingsCardFor === 'function') _openSettingsCardFor(card);
+        }, 220);
+    } catch (e) { /* settings absent */ }
 }
 
 // ===== PAGE NAVIGATION =====
@@ -8165,6 +8337,13 @@ function showPage(pageId, param = null, options = {}) {
     }
     if (pageId !== 'add') clearAddFormIdleCountdown();
     if (pageId !== 'use') clearUseFormIdleCountdown();
+    // Chat is a sheet overlay now — never a page. Opening it must not wipe the page under it.
+    if (pageId === 'chat') {
+        _openChatSheet();
+        return;
+    }
+    // Navigating elsewhere closes SHELFY (and drops the pharmacy persona).
+    if (_chatSheetIsOpen()) _closeChatSheet();
     const skipHistory = !!options.skipHistory;
     if (!skipHistory) {
         const last = _pageHistory[_pageHistory.length - 1];
@@ -8177,11 +8356,6 @@ function showPage(pageId, param = null, options = {}) {
 
     _currentPageId = pageId;
     _currentPageParam = param;
-    // Leaving SHELFY drops the pharmacy persona (next open from nav is kitchen again).
-    if (pageId !== 'chat') {
-        _chatPharmacyMode = false;
-        _chatPharmacyMedicines = null;
-    }
     // Hide all pages
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     // Show target page
@@ -8251,7 +8425,6 @@ function showPage(pageId, param = null, options = {}) {
         case 'log': loadLog(); break;
         case 'ai': initAICamera(); break;
         case 'settings': loadSettingsUI(); break;
-        case 'chat': if (_requireGemini()) initChat(); break;
     }
 
     // Auto-refresh banner notifications while on dashboard (every 5 min)
@@ -9690,7 +9863,13 @@ function _captureShowTranscript(text, isFinal) {
 function _captureShowUnderstood(parsed) {
     const el = document.getElementById('capture-understood');
     if (!el) return;
-    const intentKey = { consume: 'capture.intent_consume', add: 'capture.intent_add', recipe: 'capture.intent_recipe', throw: 'capture.intent_throw' }[parsed.intent];
+    const intentKey = {
+        consume: 'capture.intent_consume',
+        add: 'capture.intent_add',
+        recipe: 'capture.intent_recipe',
+        throw: 'capture.intent_throw',
+        symptom: 'capture.intent_symptom',
+    }[parsed.intent];
     const bits = [];
     bits.push(`<span class="cu-chip cu-intent">${escapeHtml(intentKey ? t(intentKey) : t('capture.intent_unknown'))}</span>`);
     if (parsed.product) bits.push(`<span class="cu-chip">${escapeHtml(parsed.product)}</span>`);
@@ -9766,10 +9945,14 @@ let _captureMeterStarted = false;
 function _captureExamples() {
     return [
         { group: 'capture.examples_use', items: [
-            'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams', 'capture.example_all',
+            'capture.example_eat', 'capture.example_use', 'capture.example_use_half',
+            'capture.example_use_grams', 'capture.example_all',
         ] },
         { group: 'capture.examples_stock', items: ['capture.example_add', 'capture.example_throw'] },
         { group: 'capture.examples_ask', items: ['capture.example_recipe'] },
+        { group: 'capture.examples_med', items: [
+            'capture.example_symptom', 'capture.example_med_use',
+        ] },
     ];
 }
 
@@ -9811,8 +9994,9 @@ function _shelfyMarkIntroSeen() {
 
 /** The phrases SHELFY understands, as the sheet and the intro both list them. */
 const _SHELFY_EXAMPLES = [
-    'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams',
+    'capture.example_eat', 'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams',
     'capture.example_all', 'capture.example_add', 'capture.example_throw', 'capture.example_recipe',
+    'capture.example_symptom', 'capture.example_med_use',
 ];
 
 function _shelfyOpenIntro() {
@@ -10353,6 +10537,18 @@ let _captureChoicesCache = [];
 /** Last parsed sentence: the choice buttons reuse its quantity and "use it all". */
 let _capturePending = { qty: 0, unit: '', unit_factor: 1, use_all: false, intent: '', product: '' };
 
+/** Same lemma / plural twin via the vocabulary engine (mela ↔ mele, uovo ↔ uova). */
+function _captureSameWord(a, b) {
+    const x = String(a || '').toLowerCase().trim();
+    const y = String(b || '').toLowerCase().trim();
+    if (!x || !y) return false;
+    if (x === y) return true;
+    if (typeof vocabSameLemmaWord === 'function' && vocabSameLemmaWord(x, y)) return true;
+    // Cheap fallback when the curated forms miss a pair (stem of length ≥ 4).
+    const n = Math.min(x.length, y.length);
+    return n >= 4 && x.slice(0, n - 1) === y.slice(0, n - 1);
+}
+
 /**
  * 0..1 similarity between a spoken product and a pantry name.
  *
@@ -10361,35 +10557,66 @@ let _capturePending = { qty: 0, unit: '', unit_factor: 1, use_all: false, intent
  * match. The fruit and a juice made of it are two different articles: when the spoken
  * word is NOT the head of the name, the candidate stays in the list but below the
  * confident threshold, so SHELFY asks which one instead of guessing.
+ *
+ * Number (singular/plural) is equated through vocabSameLemmaWord — "una mela" finds "Mele".
  */
 function _captureScoreName(needle, name) {
     const a = String(name || '').toLowerCase().trim();
     const b = String(needle || '').toLowerCase().trim();
     if (!a || !b) return 0;
     if (a === b) return 1;
-    const aWords = a.split(/\s+/);
-    const bWords = b.split(/\s+/);
+    if (typeof vocabSameLemma === 'function' && vocabSameLemma(a, b)) return 0.96;
+    const aWords = a.split(/\s+/).filter(Boolean);
+    const bWords = b.split(/\s+/).filter(Boolean);
     const head = aWords[0] || '';
     const headOfNeedle = bWords[0] || '';
     // The spoken word (or its plural/singular twin) opens the name: that IS the product.
-    const stem = (x, y) => {
-        const n = Math.min(x.length, y.length);
-        return n >= 4 && x.slice(0, n - 1) === y.slice(0, n - 1);
-    };
-    if (head === headOfNeedle || stem(head, headOfNeedle)) return 0.92;
+    if (_captureSameWord(head, headOfNeedle)) return 0.92;
     if (a.startsWith(b + ' ') || a === b) return 0.9;
+    // Single spoken token equals any title token at lemma level.
+    if (bWords.length === 1) {
+        for (let i = 0; i < aWords.length; i++) {
+            if (_captureSameWord(aWords[i], bWords[0])) {
+                return i === 0 ? 0.92 : 0.55;
+            }
+        }
+    }
+    // Multi-word needle: every spoken token must find a lemma twin in the title.
+    if (bWords.length > 1) {
+        let hits = 0;
+        for (const bw of bWords) {
+            if (aWords.some((aw) => _captureSameWord(aw, bw))) hits++;
+        }
+        if (hits === bWords.length) return 0.88;
+        if (hits > 0) return (hits / bWords.length) * 0.6;
+    }
     // The word sits inside a longer name: a derived article (juice, passata, jam).
     if (_captureWordRe(b, 'i').test(a)) return 0.55;
-    // Same stem anywhere: still a derived article.
-    if (stem(a, b)) return 0.5;
-    const at = new Set(aWords);
-    const bt = new Set(bWords);
-    let shared = 0;
-    for (const token of bt) if (at.has(token)) shared++;
-    return (shared / Math.max(at.size, bt.size)) * 0.6;
+    return 0;
 }
 
-/** Pantry rows matching a spoken name, best first (rows with stock only). */
+/** Best score of a spoken needle against every label a row may wear. */
+function _captureItemMatchScore(needle, item) {
+    if (!item) return 0;
+    const labels = [
+        item.name,
+        item.display_name,
+        item.shopping_name,
+        item.kind,
+    ];
+    if (typeof _isMedicalRow === 'function' && _isMedicalRow(item)) {
+        labels.push(typeof _medCommercialName === 'function' ? _medCommercialName(item) : '');
+        labels.push(item.med_ingredient);
+    }
+    let best = 0;
+    for (const label of labels) {
+        const s = _captureScoreName(needle, label);
+        if (s > best) best = s;
+    }
+    return best;
+}
+
+/** Pantry + cabinet rows matching a spoken name, best first (rows with stock only). */
 async function _captureFindProducts(name) {
     const needle = String(name || '').toLowerCase().trim();
     if (!needle) return [];
@@ -10405,7 +10632,7 @@ async function _captureFindProducts(name) {
     }
     return list
         .filter(i => !isInventoryDepleted(i))
-        .map((item, index) => ({ item, index, score: _captureScoreName(needle, item.name) }))
+        .map((item, index) => ({ item, index, score: _captureItemMatchScore(needle, item) }))
         .filter(row => row.score >= 0.45)
         .sort((a, b) => b.score - a.score)
         .slice(0, 4);
@@ -10455,6 +10682,7 @@ function _captureChoose(index) {
 function _captureIsActionable(parsed) {
     if (!parsed) return false;
     if (parsed.intent === 'recipe') return true;          // "cosa cucino?" is a real request
+    if (parsed.intent === 'symptom') return true;         // "ho mal di testa" → cabinet filter / ask
     return String(parsed.product || '').trim() !== '';
 }
 
@@ -10486,13 +10714,23 @@ async function _captureSubmit(raw, opts) {
 
     if (parsed.intent === 'recipe') {
         go(() => {
-            showPage('chat');
+            _openChatSheet();
             setTimeout(() => {
                 const input = document.getElementById('chat-input');
                 if (input) input.value = text;
                 sendChatMessage();
             }, 350);
         });
+        return;
+    }
+    // Pharmacy / symptom ask — local map only (no AI, no dosage). Reuses the same
+    // dual path as the symptom chips: AI on → SHELFY pharmacy; AI off → grid filter.
+    if (parsed.intent === 'symptom') {
+        if (!_medOn()) {
+            _captureNotUnderstood('capture.symptom_med_off');
+            return;
+        }
+        go(() => _medOpenSearch(text));
         return;
     }
     if (parsed.intent === 'add') {
@@ -10885,7 +11123,7 @@ function openedFraction(item) {
 function quickRecipeSuggestion() {
     if (!_requireGemini()) return;
     // Navigate to chat and auto-send a prompt about expiring products
-    showPage('chat');
+    _openChatSheet();
     setTimeout(() => {
         document.getElementById('chat-input').value = t('chat.quick_recipe_prompt');
         sendChatMessage();
@@ -13805,7 +14043,7 @@ function _medAskShelfySymptom(slug) {
     const ask = t('medical.shelfy_ask', { symptom: label });
     _chatPharmacyMode = true;
     _chatPharmacyMedicines = _medCabinetContextPayload();
-    showPage('chat');
+    _openChatSheet();
     // Let initChat paint, then send as if the household typed it.
     setTimeout(() => {
         const input = document.getElementById('chat-input');
@@ -16302,7 +16540,7 @@ function _medOpenSearch(prefill) {
             : t('medical.shelfy_ask_generic');
         _chatPharmacyMode = true;
         _chatPharmacyMedicines = _medCabinetContextPayload();
-        showPage('chat');
+        _openChatSheet();
         setTimeout(() => {
             const input = document.getElementById('chat-input');
             if (!input) return;
@@ -16386,6 +16624,7 @@ const _OVERLAY_CLOSERS = {
     'shelfy-intro':  () => _shelfyCloseIntro(),
     'support-modal': () => closeSupportModal(),
     'recipe-overlay': () => closeRecipeDialog(),
+    'chat-overlay': () => _closeChatSheet(),
     // EverShelf Med dialogs: Esc must clean up, not just hide the box.
     'med-setup-overlay': () => _medCloseSetup(),
     // A country the scanner cannot read: the dialog says so, Esc closes it and the camera
@@ -35158,6 +35397,7 @@ async function generateRecipe() {
             _cachedRecipe = { meal, recipe, id: archiveId || undefined };
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-result').style.display = '';
+            try { _aiCostNoteUsage(); } catch (_) { /* pill optional */ }
         } else {
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-ask').style.display = '';
@@ -35192,9 +35432,9 @@ let chatInventoryContext = null;
 let _chatSavedCount = 0; // track how many messages already saved to DB
 
 function initChat() {
-    // Load chat history from DB
-    api('chat_list').then(res => {
-        if (res.success && res.messages && res.messages.length > 0) {
+    // Inventory first so restored replies can attach "Usa" buttons to named products.
+    loadChatContext().then(() => api('chat_list')).then(res => {
+        if (res && res.success && res.messages && res.messages.length > 0) {
             chatHistory = res.messages.map(m => ({ role: m.role, text: m.text }));
             _chatSavedCount = chatHistory.length;
             renderChatHistory();
@@ -35202,8 +35442,6 @@ function initChat() {
             _chatSavedCount = 0;
         }
     }).catch(() => { _chatSavedCount = 0; });
-    // Always reload fresh inventory context
-    loadChatContext();
     // Opening chat from the nav (not a pharmacy chip) drops the pharmacy persona.
     if (!_chatPharmacyMode) _chatPharmacyMedicines = null;
     // Do not autofocus the chat input — on Android the soft keyboard covers half the screen.
@@ -35439,6 +35677,104 @@ function appendChatBubble(role, html, isRaw = false) {
     return bubble;
 }
 
+/**
+ * Inventory rows SHELFY can offer a one-tap "Usa" for (pantry + cabinet).
+ * Prefer the chat snapshot; fall back to the live list.
+ */
+function _chatInventoryForMatching() {
+    const rows = (Array.isArray(chatInventoryContext) && chatInventoryContext.length)
+        ? chatInventoryContext
+        : (_allInventoryCache || currentInventory || []);
+    return (rows || []).filter((i) => {
+        if (!i) return false;
+        if (typeof isInventoryDepleted === 'function' && isInventoryDepleted(i)) return false;
+        return parseFloat(i.quantity) > 0;
+    });
+}
+
+/** Match needles for one inventory row (longest first — commercial name before full label). */
+function _chatProductNeedles(item) {
+    const out = [];
+    const push = (raw) => {
+        const s = String(raw || '').trim();
+        if (s.length < 4) return;
+        if (!out.some((x) => x.toLowerCase() === s.toLowerCase())) out.push(s);
+    };
+    if (_isMedicalRow(item)) {
+        push(_medCommercialName(item));
+        const ing = String(item.med_ingredient || '').trim();
+        // Active ingredient only when distinctive (avoids matching "gel"/"acqua").
+        if (ing.length >= 6) push(ing);
+    }
+    push(item.name);
+    push(item.display_name);
+    // Leading token of the title ("Tachipirina 1000 mg…" → "Tachipirina").
+    const head = String(item.name || '').trim().split(/\s+/)[0] || '';
+    if (head.length >= 5 && !/^\d/.test(head)) push(head);
+    return out.sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Products from the household inventory that the reply actually names.
+ * Longest needle wins; one button per product_id.
+ */
+function _chatMatchProductsInText(text) {
+    const hay = String(text || '');
+    if (!hay) return [];
+    const hayLower = hay.toLowerCase();
+    const byPid = new Map();
+    const candidates = [];
+    for (const item of _chatInventoryForMatching()) {
+        const pid = Number(item.product_id || item.id || 0);
+        if (!pid) continue;
+        for (const needle of _chatProductNeedles(item)) {
+            candidates.push({ item, pid, needle, nlen: needle.length });
+        }
+    }
+    candidates.sort((a, b) => b.nlen - a.nlen);
+    for (const c of candidates) {
+        if (byPid.has(c.pid)) continue;
+        const n = c.needle.toLowerCase();
+        let from = 0;
+        let hit = false;
+        while (from <= hayLower.length - n.length) {
+            const idx = hayLower.indexOf(n, from);
+            if (idx < 0) break;
+            const before = idx === 0 ? '' : hayLower[idx - 1];
+            const after = hayLower[idx + n.length] || '';
+            // Letter/digit on either side → embedded in a longer word (skip).
+            const boundaryOk = !/[a-zà-öø-ÿ0-9]/i.test(before) && !/[a-zà-öø-ÿ0-9]/i.test(after);
+            if (boundaryOk) { hit = true; break; }
+            from = idx + 1;
+        }
+        if (hit) byPid.set(c.pid, c.item);
+    }
+    return Array.from(byPid.values());
+}
+
+/** Action strip: one emerald "Usa" per product named in the reply. */
+function _chatUseActionsHtml(text) {
+    const matches = _chatMatchProductsInText(text);
+    if (!matches.length) return '';
+    const useLbl = t('btn.use') || 'Usa';
+    return `<div class="chat-use-actions" role="group" aria-label="${escapeAttr(useLbl)}">`
+        + matches.map((item) => {
+            const pid = Number(item.product_id || item.id || 0);
+            // Same pattern as inventory row "Usa": slug-safe location, no quotes in the handler.
+            const loc = String(item.location || 'dispensa').replace(/[^a-zA-Z0-9_\-]/g, '') || 'dispensa';
+            const label = _isMedicalRow(item)
+                ? (_medCommercialName(item) || item.name || '')
+                : (item.name || '');
+            const short = label.length > 28 ? (label.slice(0, 26) + '…') : label;
+            return `<button type="button" class="chat-use-btn"`
+                + ` onclick="event.stopPropagation();quickUse(${pid}, '${loc}')">`
+                + `✓ ${escapeHtml(useLbl)}`
+                + (short ? ` <span class="chat-use-name">${escapeHtml(short)}</span>` : '')
+                + `</button>`;
+        }).join('')
+        + `</div>`;
+}
+
 function formatChatReply(text) {
     // Convert markdown-like formatting
     let html = escapeHtml(text);
@@ -35455,17 +35791,22 @@ function formatChatReply(text) {
     html = html.replace(/\n/g, '<br>');
     // Clean up consecutive ul tags
     html = html.replace(/<\/ul>\s*<br>\s*<ul>/g, '');
+    // Named pantry / cabinet products → one-tap Usa (opens the product sheet).
+    html += _chatUseActionsHtml(text);
     return html;
 }
 
 function renderChatHistory() {
     const container = document.getElementById('chat-messages');
-    if (chatHistory.length === 0) return;
-    
-    // Hide welcome
+    if (!container) return;
+    // Drop previous bubbles (re-opening the sheet must not duplicate the thread).
+    container.querySelectorAll('.chat-bubble, .btn-chat-use-recipe').forEach((el) => el.remove());
     const welcome = container.querySelector('.chat-welcome');
+    if (chatHistory.length === 0) {
+        if (welcome) welcome.style.display = '';
+        return;
+    }
     if (welcome) welcome.style.display = 'none';
-    
     chatHistory.forEach(msg => {
         if (msg.role === 'user') {
             appendChatBubble('user', msg.text);

@@ -2846,7 +2846,7 @@
     "listening": "SHELFY escucha…",
     "unsupported": "Este navegador no tiene reconocimiento de voz: escribe abajo (SHELFY lo entiende igual).",
     "mic_denied": "Micrófono no permitido: revisa los permisos del navegador y abre la app en HTTPS. Puedes escribir abajo.",
-    "not_understood": "SHELFY no lo ha entendido: prueba «he usado 1 manzana».",
+    "not_understood": "SHELFY no lo entendió: prueba «como una manzana» o «tengo dolor de cabeza».",
     "placeholder": "Ej.: he usado una naranja",
     "run": "Ejecutar",
     "example_use": "He usado 1 naranja",
@@ -2877,7 +2877,13 @@
     "what_can_i_say": "¿Qué puedo decir?",
     "still_listening": "SHELFY sigue escuchando…",
     "use_all_hint": "Entendido: {name} está terminado. Confirma con «Lo he usado todo».",
-    "qty_hint": "{qty} {unit} de {name}: confirmo en 10 segundos si no tocas nada."
+    "qty_hint": "{qty} {unit} de {name}: confirmo en 10 segundos si no tocas nada.",
+    "intent_symptom": "Síntoma / medicamento",
+    "symptom_med_off": "El módulo de medicamentos está apagado: actívalo en Ajustes (EverShelf Med).",
+    "example_symptom": "Tengo dolor de cabeza",
+    "example_med_use": "He tomado el paracetamol",
+    "example_eat": "Como una manzana",
+    "examples_med": "Medicamentos"
   },
   "location_altro": {
     "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."
@@ -3220,5 +3226,9 @@
     "october": "Octubre",
     "november": "Noviembre",
     "december": "Diciembre"
+  },
+  "ai_cost": {
+    "pill_title": "Coste de IA este mes",
+    "pill_title_detail": "IA este mes: {cost} · {tokens} tokens · {calls} llamadas. Toca para ver detalles."
   }
 }

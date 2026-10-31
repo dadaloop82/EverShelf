@@ -1055,7 +1055,17 @@
         "probieren",
         "geleert",
         "leeren",
-        "fertig"
+        "fertig",
+        "isst",
+        "trinkt",
+        "nehme",
+        "nimmt",
+        "genommen",
+        "schlucke",
+        "geschluckt",
+        "habe gegessen",
+        "habe getrunken",
+        "habe genommen"
       ],
       "add": [
         "hinzufügen",
@@ -1068,6 +1078,32 @@
         "einlagern",
         "eingelagert",
         "lege"
+      ],
+      "symptom": [
+        "kopfschmerzen",
+        "halsschmerzen",
+        "magenschmerzen",
+        "rückenschmerzen",
+        "ich habe fieber",
+        "fieber",
+        "husten",
+        "erkältung",
+        "grippe",
+        "allergie",
+        "übelkeit",
+        "durchfall",
+        "verstopfung",
+        "sodbrennen",
+        "was habe ich für",
+        "etwas gegen",
+        "gegen husten",
+        "gegen fieber",
+        "symptom",
+        "symptome",
+        "hausapotheke",
+        "medizin",
+        "medikament",
+        "arznei"
       ]
     },
     "numbers": {

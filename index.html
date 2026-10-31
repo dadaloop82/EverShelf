@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261031v">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031v">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031v">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261031z">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031z">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031z">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031v">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031v">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031z">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031z">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261031v"></script>
-    <script src="assets/js/core/auth.js?v=20261031v"></script>
-    <script src="assets/js/core/med.js?v=20261031v"></script>
+    <script src="assets/js/core/dom.js?v=20261031z"></script>
+    <script src="assets/js/core/auth.js?v=20261031z"></script>
+    <script src="assets/js/core/med.js?v=20261031z"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261031v"></script>
+    <script src="assets/js/med/italy.js?v=20261031z"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261031v"></script>
+    <script src="assets/js/core/support.js?v=20261031z"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031v';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261031z';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031v';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031z';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261031v"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261031z"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -189,6 +189,14 @@
                 <span class="scale-pill-weight" id="scale-pill-weight" hidden></span>
                 <span class="scale-pill-battery" id="scale-pill-battery" hidden></span>
                 <span class="scale-status-dot" aria-hidden="true"></span>
+            </button>
+            <!-- AI month cost: hidden until an AI call runs; stays 5 min then fades. -->
+            <button type="button" id="ai-cost-pill" class="ai-cost-pill" hidden
+                    data-i18n-title="ai_cost.pill_title" title="AI cost this month"
+                    onclick="_aiCostPillOpenInfo()">
+                <span class="ai-cost-pill-icon" aria-hidden="true">✦</span>
+                <span class="ai-cost-pill-cost" id="ai-cost-pill-cost">—</span>
+                <span class="ai-cost-pill-tokens" id="ai-cost-pill-tokens" hidden></span>
             </button>
             <button class="header-btn header-spesa-btn" id="btn-header-spesa"
                     onclick="toggleSpesaMode()"
@@ -3005,39 +3013,42 @@
 
     </section>
 
-    <!-- ===== GEMINI CHAT ===== -->
-    <section class="page" id="page-chat">
-        <div class="chat-container">
-            <div class="chat-header-bar">
-                <div class="chat-header-info">
-                    <svg class="gemini-icon-sm" viewBox="0 0 24 24" width="22" height="22" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
-                    <span class="chat-title" data-i18n="chat.title">SHELFY</span>
-                </div>
-                <button class="btn-chat-clear" onclick="clearChat()" title="Nuova conversazione" data-i18n-title="chat.clear">🗑️</button>
+</main>
+
+<!-- SHELFY chat: sheet over the current page (blur behind), not a full-page swap. -->
+<div class="modal-overlay chat-overlay" id="chat-overlay" style="display:none" role="dialog"
+     aria-modal="true" aria-labelledby="chat-overlay-title" onclick="_closeChatSheet()">
+    <div class="chat-sheet" onclick="event.stopPropagation()">
+        <div class="chat-header-bar">
+            <button type="button" class="chat-back-btn" onclick="_closeChatSheet()"
+                    data-i18n-aria="btn.back" aria-label="← Indietro">←</button>
+            <div class="chat-header-info">
+                <svg class="gemini-icon-sm" viewBox="0 0 24 24" width="22" height="22" fill="#6366f1" aria-hidden="true"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+                <span class="chat-title" id="chat-overlay-title" data-i18n="chat.title">SHELFY</span>
             </div>
-            <div class="chat-messages" id="chat-messages">
-                <div class="chat-welcome">
-                    <svg class="gemini-icon-lg" viewBox="0 0 24 24" width="48" height="48" fill="#6366f1"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
-                    <h3 data-i18n="chat.welcome">Ciao! Sono il tuo assistente cucina</h3>
-                    <p data-i18n="chat.welcome_desc">Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!</p>
-                    <div class="chat-suggestions">
-                        <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa posso preparare per uno spuntino veloce?')" data-i18n="chat.suggestion_snack">🍿 Spuntino veloce</button>
-                        <button class="chat-suggestion" onclick="sendChatSuggestion('Fammi un succo o frullato con quello che ho')" data-i18n="chat.suggestion_juice">🥤 Succo/Frullato</button>
-                        <button class="chat-suggestion" onclick="sendChatSuggestion('Ho fame ma voglio qualcosa di leggero')" data-i18n="chat.suggestion_light">🥗 Qualcosa di leggero</button>
-                        <button class="chat-suggestion" onclick="sendChatSuggestion('Cosa sta per scadere e come posso usarlo?')" data-i18n="chat.suggestion_expiry">⏰ Usa le scadenze</button>
-                    </div>
+            <button type="button" class="btn-chat-clear" onclick="clearChat()" title="Nuova conversazione" data-i18n-title="chat.clear">🗑️</button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-welcome">
+                <svg class="gemini-icon-lg" viewBox="0 0 24 24" width="48" height="48" fill="#6366f1" aria-hidden="true"><path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"/></svg>
+                <h3 data-i18n="chat.welcome">Ciao! Sono il tuo assistente cucina</h3>
+                <p data-i18n="chat.welcome_desc">Chiedimi di prepararti un succo, uno spuntino, un piatto veloce... Conosco la tua dispensa, i tuoi elettrodomestici e le tue preferenze!</p>
+                <div class="chat-suggestions">
+                    <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_snack_text'))" data-i18n="chat.suggestion_snack">🍿 Spuntino veloce</button>
+                    <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_juice_text'))" data-i18n="chat.suggestion_juice">🥤 Succo/Frullato</button>
+                    <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_light_text'))" data-i18n="chat.suggestion_light">🥗 Qualcosa di leggero</button>
+                    <button class="chat-suggestion" onclick="sendChatSuggestion(t('chat.suggestion_expiry_text'))" data-i18n="chat.suggestion_expiry">⏰ Usa le scadenze</button>
                 </div>
-            </div>
-            <div class="chat-input-bar">
-                <input type="text" id="chat-input" class="chat-input" placeholder="Chiedi qualcosa..." onkeydown="if(event.key==='Enter')sendChatMessage()" data-i18n-placeholder="chat.placeholder">
-                <button class="btn-chat-send" id="btn-chat-send" onclick="sendChatMessage()">
-                    <svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
             </div>
         </div>
-    </section>
-
-</main>
+        <div class="chat-input-bar">
+            <input type="text" id="chat-input" class="chat-input" placeholder="Chiedi qualcosa..." onkeydown="if(event.key==='Enter')sendChatMessage()" data-i18n-placeholder="chat.placeholder">
+            <button type="button" class="btn-chat-send" id="btn-chat-send" onclick="sendChatMessage()" aria-label="Send">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="white" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- Bottom Navigation -->
 <nav class="bottom-nav">
@@ -3403,17 +3414,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261031v"></script>
-<script src="assets/js/food_facts.generated.js?v=20261031v"></script>
-<script src="assets/js/free_apis.generated.js?v=20261031v"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261031v"></script>
-<script src="assets/js/off_categories.generated.js?v=20261031v"></script>
-<script src="assets/js/core/vocab.js?v=20261031v"></script>
-<script src="assets/js/app.js?v=20261031v"></script>
-<script src="assets/js/audit.js?v=20261031v"></script>
-<script src="assets/js/receipt.js?v=20261031v"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261031v"></script>
-<script src="assets/js/settings_search.js?v=20261031v"></script>
+<script src="assets/js/vocab.generated.js?v=20261031z"></script>
+<script src="assets/js/food_facts.generated.js?v=20261031z"></script>
+<script src="assets/js/free_apis.generated.js?v=20261031z"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261031z"></script>
+<script src="assets/js/off_categories.generated.js?v=20261031z"></script>
+<script src="assets/js/core/vocab.js?v=20261031z"></script>
+<script src="assets/js/app.js?v=20261031z"></script>
+<script src="assets/js/audit.js?v=20261031z"></script>
+<script src="assets/js/receipt.js?v=20261031z"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261031z"></script>
+<script src="assets/js/settings_search.js?v=20261031z"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

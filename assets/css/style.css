@@ -9965,30 +9965,63 @@ body.cooking-mode-active .app-header {
     max-width: 100%;
 }
 
-/* ===== GEMINI CHAT ===== */
-.chat-container {
+/* ===== GEMINI CHAT (sheet over the current page) ===== */
+#chat-overlay.chat-overlay {
+    align-items: stretch;
+    justify-content: center;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    /* Above page content; below #modal-overlay (250) so "Usa" product sheets still open on top. */
+    z-index: 180;
+}
+.chat-sheet {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--header-height) - var(--nav-height) - 24px);
-    background: var(--bg);
-    border-radius: var(--radius);
+    width: min(640px, 100%);
+    height: min(780px, calc(100dvh - 20px - env(safe-area-inset-bottom, 0px)));
+    max-height: calc(100dvh - 20px);
+    margin: auto;
+    background: var(--bg, #f8fafc);
+    border-radius: 18px;
     overflow: hidden;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28);
+    border: 1px solid var(--border, #e2e8f0);
 }
 
 .chat-header-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px;
+    gap: 8px;
+    padding: 10px 12px;
     background: white;
     border-bottom: 1px solid var(--border);
-    border-radius: var(--radius) var(--radius) 0 0;
+    flex-shrink: 0;
+}
+
+.chat-back-btn {
+    flex-shrink: 0;
+    min-width: 40px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg, #f8fafc);
+    color: var(--text, #0f172a);
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.chat-back-btn:active {
+    transform: scale(0.97);
 }
 
 .chat-header-info {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1;
+    min-width: 0;
 }
 
 .chat-title {
@@ -10020,6 +10053,7 @@ body.cooking-mode-active .app-header {
     flex-direction: column;
     gap: 10px;
     -webkit-overflow-scrolling: touch;
+    min-height: 0;
 }
 
 .chat-welcome {
@@ -10202,6 +10236,47 @@ body.cooking-mode-active .app-header {
 .btn-chat-use-recipe:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+/* Products named in a SHELFY reply → one-tap Usa (opens the item sheet). */
+.chat-use-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--surface-border, #e2e8f0) 80%, transparent);
+}
+.chat-use-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: none;
+    background: var(--brand-primary, #10b981);
+    color: #fff;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.08);
+}
+.chat-use-btn:hover,
+.chat-use-btn:focus-visible {
+    filter: brightness(1.05);
+    outline: none;
+}
+.chat-use-btn:active {
+    transform: scale(0.98);
+}
+.chat-use-name {
+    font-weight: 600;
+    opacity: 0.95;
+}
+[data-theme="dark"] .chat-use-actions {
+    border-top-color: rgba(148, 163, 184, 0.25);
 }
 
 /* ====== Recipe Archive ====== */
@@ -11944,7 +12019,9 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .btn-review-edit:active { background: #140d36; }
 
 /* ── Chat UI ── */
+[data-theme="dark"] .chat-sheet          { background: var(--bg-card); border-color: var(--border); }
 [data-theme="dark"] .chat-header-bar    { background: var(--bg-card); border-color: var(--border); }
+[data-theme="dark"] .chat-back-btn      { background: var(--bg); border-color: var(--border); color: var(--text); }
 [data-theme="dark"] .chat-title         { color: #818cf8; }
 [data-theme="dark"] .chat-suggestion    { background: #1a1040; border-color: #3730a3; color: #a5b4fc; }
 [data-theme="dark"] .chat-suggestion:active { background: #2e1a4a; }

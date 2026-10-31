@@ -335,7 +335,7 @@ function vocabLanguages() {
 /**
  * Every capture word we ship, merged.
  *
- *   intents     { recipe: [...], throw: [...], consume: [...], add: [...] }
+ *   intents     { recipe, symptom, throw, consume, add: [...] }
  *   numbers     { "due": 2 }                             spelled quantities
  *   units       { "etti": { unit: 'g', factor: 100 } }   spoken unit → canonical + multiplier
  *   fractions   [["mezza", 0.5]]                         "half an apple"
@@ -344,13 +344,14 @@ function vocabLanguages() {
  *
  * A collision keeps the current language: the first language that declares a key owns
  * it. A file that omits a section simply contributes nothing — the data never invents.
+ * Insertion order matters for matching: recipe → symptom → throw → consume → add.
  */
 function vocabCaptureLexicon() {
     const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
     if (vocabCaptureLexicon._lang === lang && vocabCaptureLexicon._value) return vocabCaptureLexicon._value;
     const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
     const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
-    const intents = { recipe: [], throw: [], consume: [], add: [] };
+    const intents = { recipe: [], symptom: [], throw: [], consume: [], add: [] };
     const out = { intents: intents, numbers: {}, units: {}, fractions: [], all_words: [], stop_words: [] };
     const seenFractions = new Set();
     const seenAll = new Set();

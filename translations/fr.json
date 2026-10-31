@@ -2846,7 +2846,7 @@
     "listening": "SHELFY t'écoute…",
     "unsupported": "Ce navigateur n'a pas la reconnaissance vocale : écris ci-dessous (SHELFY comprend quand même).",
     "mic_denied": "Micro non autorisé : vérifie les permissions du navigateur et ouvre l'app en HTTPS. Tu peux écrire ci-dessous.",
-    "not_understood": "SHELFY n'a pas compris : essaie « j'ai utilisé 1 pomme ».",
+    "not_understood": "SHELFY n’a pas compris : essaie « je mange une pomme » ou « j’ai mal à la tête ».",
     "placeholder": "Ex. : j'ai utilisé une orange",
     "run": "Exécuter",
     "example_use": "J'ai utilisé 1 orange",
@@ -2877,7 +2877,13 @@
     "what_can_i_say": "Que puis-je dire ?",
     "still_listening": "SHELFY t'écoute encore…",
     "use_all_hint": "Compris : {name} est fini. Confirme avec « J'ai tout utilisé ».",
-    "qty_hint": "{qty} {unit} de {name} : je valide dans 10 secondes si tu ne touches à rien."
+    "qty_hint": "{qty} {unit} de {name} : je valide dans 10 secondes si tu ne touches à rien.",
+    "intent_symptom": "Symptôme / médicament",
+    "symptom_med_off": "Le module médicaments est désactivé : active EverShelf Med dans les réglages.",
+    "example_symptom": "J'ai mal à la tête",
+    "example_med_use": "J'ai pris du paracétamol",
+    "example_eat": "Je mange une pomme",
+    "examples_med": "Médicaments"
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."
@@ -3220,5 +3226,9 @@
     "october": "Octobre",
     "november": "Novembre",
     "december": "Décembre"
+  },
+  "ai_cost": {
+    "pill_title": "Coût IA ce mois-ci",
+    "pill_title_detail": "IA ce mois-ci : {cost} · {tokens} jetons · {calls} appels. Toucher pour les détails."
   }
 }
