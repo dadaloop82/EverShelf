@@ -1735,7 +1735,7 @@ function _scaleShowReadingModal(targetInputId, unit) {
             <p class="settings-hint" style="margin-top:12px">${t('scale.waiting_stable')}</p>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 /**
@@ -2150,7 +2150,7 @@ function _showExportModal() {
             </button>
         </div>`;
     document.getElementById('modal-content').innerHTML = html;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 // ===== IMPORT INVENTORY (CSV) =====
@@ -2225,7 +2225,7 @@ function _showImportModal() {
             <div id="import-actions" style="display:none;flex-direction:column;gap:8px"></div>
         </div>`;
     document.getElementById('modal-content').innerHTML = html;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 async function _onImportFileSelected(event) {
@@ -5915,7 +5915,7 @@ function reportBugManual() {
             <div id="bug-form-status" style="display:none;margin-top:10px;text-align:center;font-size:0.88rem;padding:8px;border-radius:6px"></div>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 
     // Pill click: switch type, show/hide steps field
     mc.querySelectorAll('.bug-type-pill').forEach(pill => {
@@ -12595,7 +12595,7 @@ function _showExpiryEditModal(item, opts = {}) {
             </button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 
     document.querySelectorAll('[data-expiry-add]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -13795,7 +13795,8 @@ function _initInventoryRowSwipe(container) {
 
     const onStart = (e) => {
         if (e.type.startsWith('pointer') && e.button !== 0) return;
-        if (e.target.closest('.btn-inv-fav')) return;
+        // Row buttons own the click — do not start a swipe/tap that would double-fire.
+        if (e.target.closest('.btn-inv-fav, .inv-quick-use, .inv-card-menu')) return;
         const row = e.target.closest('.inventory-item');
         if (!row) return;
         const content = row.querySelector('.inv-row-content');
@@ -13813,7 +13814,9 @@ function _initInventoryRowSwipe(container) {
             isTouch,
             swipeLocked: false,
             captured: false,
-            abandoned: false,
+            // Vertical scroll intent: stop the swipe visual, but KEEP context so a
+            // short tap (fat-finger jitter on tablets) can still open the sheet.
+            scrollIntent: false,
         };
         row.dataset.invSwipeDone = '';
         content.style.transition = 'none';
@@ -13821,7 +13824,7 @@ function _initInventoryRowSwipe(container) {
     };
 
     const onMove = (e) => {
-        if (!swipeCtx || swipeCtx.abandoned) return;
+        if (!swipeCtx || swipeCtx.scrollIntent) return;
         if (swipeCtx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== swipeCtx.pointerId) return;
         const pt = pointFromEvent(e, false);
         const dx = pt.x - swipeCtx.startX;
@@ -13829,11 +13832,10 @@ function _initInventoryRowSwipe(container) {
         swipeCtx.maxDx = Math.max(swipeCtx.maxDx, Math.abs(dx));
         swipeCtx.maxDy = Math.max(swipeCtx.maxDy, dy);
 
-        // Vertical intent → drop handlers so the list can scroll freely
-        if (!swipeCtx.swipeLocked && swipeCtx.maxDy > 10 && swipeCtx.maxDy >= swipeCtx.maxDx) {
+        // Vertical intent → release the row so the list scrolls; keep ctx for tap-on-end.
+        if (!swipeCtx.swipeLocked && swipeCtx.maxDy > 14 && swipeCtx.maxDy >= swipeCtx.maxDx) {
             resetRowVisual(swipeCtx.row, swipeCtx.content);
-            swipeCtx.abandoned = true;
-            swipeCtx = null;
+            swipeCtx.scrollIntent = true;
             return;
         }
 
@@ -13859,7 +13861,7 @@ function _initInventoryRowSwipe(container) {
     const onEnd = (e) => {
         const ctx = swipeCtx;
         swipeCtx = null;
-        if (!ctx || ctx.abandoned) return;
+        if (!ctx) return;
         if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
 
         const { row, content } = ctx;
@@ -13879,20 +13881,21 @@ function _initInventoryRowSwipe(container) {
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
         };
 
-        // Swipe left → Use / Discard chooser; swipe right → Edit
-        if (dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
+        // Swipe left → Use / Discard chooser; swipe right → Edit (not while scrolling)
+        if (!ctx.scrollIntent && dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
             markSwipeDone();
             showInvActionChooser(productId, location, invId);
             return;
         }
-        if (dx >= 60 && !isNaN(invId)) {
+        if (!ctx.scrollIntent && dx >= 60 && !isNaN(invId)) {
             markSwipeDone();
             editInventoryItem(invId);
             return;
         }
-        // Short tap → product sheet (mouse AND touch). Android tablets used to do nothing
-        // on tap because only swipe was wired; swipe left/right still own chooser / edit.
-        if (ctx.maxDx < 18 && ctx.maxDy < 18 && !isNaN(productId)) {
+        // Short tap → product sheet (mouse AND touch). Slop is generous for Android
+        // tablets: the old maxDy>10 abandon wiped the context, so taps with 11–17 px
+        // of jitter (common with fat fingers / g-ml mid-list rows) did nothing.
+        if (ctx.maxDx < 28 && ctx.maxDy < 28 && !isNaN(productId)) {
             markSwipeDone();
             quickUse(productId, location);
         }
@@ -14462,7 +14465,7 @@ async function _showExhaustedProductModal(productId) {
             <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('confirm.cancel')}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 function quickAccessSelect(productId) {
@@ -14641,7 +14644,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
             </div>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     _itemDetailSyncActionLabels();
     _itemDetailSyncScaleUi({ preferPop: false });
 }
@@ -16691,6 +16694,28 @@ document.addEventListener('keydown', (ev) => {
     else if (!ev.shiftKey && active === last) { ev.preventDefault(); first.focus(); }
 }, true);
 
+/**
+ * Show #modal-overlay and arm the backdrop against the synthetic click that
+ * Android (especially tablets) fires after the pointerup that opened the sheet.
+ * Without this, tap → open → ghost click on the dimmed backdrop → instant close,
+ * which felt like "g/ml rows do nothing" (taller weight sheets + mid-list taps).
+ */
+let _modalOpenedAt = 0;
+const _MODAL_BACKDROP_GUARD_MS = 500;
+
+function _showModalOverlay() {
+    _modalOpenedAt = Date.now();
+    const el = document.getElementById('modal-overlay');
+    if (el) el.style.display = 'flex';
+}
+
+/** Backdrop click only — ignores the ghost click from the opening tap. */
+function closeModalBackdrop(ev) {
+    if (Date.now() - _modalOpenedAt < _MODAL_BACKDROP_GUARD_MS) return;
+    if (ev && ev.target !== ev.currentTarget) return;
+    closeModal();
+}
+
 function closeModal() {
     // Spesa spend prompt: only start/resume the camera AFTER the popup is gone
     // (starting under the dialog race-starts barcode decode and causes chaos).
@@ -16827,7 +16852,7 @@ function showInvActionChooser(productId, location, invId) {
             <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('btn.cancel')}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     document.getElementById('inv-chooser-use')?.addEventListener('click', () => {
         closeModal();
         quickUse(productId, location);
@@ -16910,7 +16935,7 @@ function _showWasteReasonModal(productLabel, onPick) {
             <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     _bindWasteReasonPicks((reason) => {
         closeModal();
         onPick(reason);
@@ -16970,7 +16995,7 @@ function _showWasteRecordModal(item) {
             <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 
     document.querySelectorAll('.waste-qty-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -17283,7 +17308,7 @@ function editInventoryItem(id, _retried) {
             </form>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     _initExpiryManualTracking('edit-expiry', item);
     // The kind this row's place belongs to: picking another pantry keeps the date it has.
     _editExpiryKind.set('edit-expiry', storageKindOfLocation(item.location));
@@ -17481,7 +17506,7 @@ function _editMedicalInventoryItem(item) {
             <button type="submit" class="btn btn-large btn-primary full-width mt-2">${t('btn.save')}</button>
         </form>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     const monthEl = document.getElementById('edit-med-expiry-month');
     if (monthEl) {
         monthEl.innerHTML = _medExpiryMonthOptionsHtml();
@@ -22632,7 +22657,7 @@ function openInventoryEdit() {
             }).join('')}
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 function editActionInventoryItem(inventoryId) {
@@ -22779,7 +22804,7 @@ function showThrowForm() {
                 </button>
             </div>
         `;
-        document.getElementById('modal-overlay').style.display = 'flex';
+        _showModalOverlay();
     });
 }
 
@@ -25282,7 +25307,7 @@ function showLowStockBringPrompt(result, afterCallback) {
             </button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 async function addLowStockToBring() {
@@ -25644,7 +25669,7 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
             <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0});">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     startMoveModalCountdown('btn-move-stay', () => { _saveVacuumAndStay(openedId || 0); });
 }
 
@@ -25982,7 +26007,7 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
         </button>
         <button type="button" class="btn btn-secondary full-width" style="margin-top:10px" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 async function _submitUseOneConf(location) {
@@ -26517,7 +26542,7 @@ async function captureForAIFormFill() {
             </div>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 
     try {
         _pfAiStream = await navigator.mediaDevices.getUserMedia(getCameraConstraints());
@@ -29629,7 +29654,7 @@ async function openShoppingTemplates() {
         <div id="templates-list-body"></div>
     `;
     _renderTemplatesListBody();
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 function _renderTemplatesListBody() {
@@ -30018,7 +30043,7 @@ async function scanExpiryWithAI() {
             </div>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     
     // Start camera
     try {
@@ -31785,7 +31810,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                 </div>
             </div>
         `;
-        document.getElementById('modal-overlay').style.display = 'flex';
+        _showModalOverlay();
         syncRecipeUseQtyUnitBadge();
         if (showScaleLive) _updateRecipeUseScaleCompare(null);
 
@@ -31903,7 +31928,7 @@ async function submitRecipeUse(useAll) {
                     <button type="button" class="btn btn-large btn-danger full-width" id="ruse-stock-confirm">${escapeHtml(t('recipes.use_all_stock_confirm_btn'))}</button>
                     <button type="button" class="btn btn-secondary full-width" id="ruse-stock-cancel">${escapeHtml(t('confirm.cancel'))}</button>
                 </div>`;
-            document.getElementById('modal-overlay').style.display = 'flex';
+            _showModalOverlay();
             document.getElementById('ruse-stock-confirm').onclick = () => { closeModal(); resolve(true); };
             document.getElementById('ruse-stock-cancel').onclick = () => { closeModal(); resolve(false); };
         });
@@ -32009,7 +32034,7 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
             <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0})">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
         </div>
     `;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
     startMoveModalCountdown('btn-move-stay', () => { _recipeMoveCancelStay(productId, fromLoc, openedId || 0); });
 }
 
@@ -37132,7 +37157,7 @@ function _spesaFinishPrompt(count) {
                 <button type="button" class="btn btn-accent" onclick="_spesaFinishSave()">${escapeHtml(t('shopping.spesa_done_save'))}</button>
             </div>
         </div>`;
-    document.getElementById('modal-overlay').style.display = 'flex';
+    _showModalOverlay();
 }
 
 /** One tap of the keypad: digits and a decimal comma, ⌫ deletes. */

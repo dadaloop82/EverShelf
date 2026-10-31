@@ -5901,8 +5901,11 @@ body:has(#page-scan.active) .app-content {
     animation: slideUp 0.3s ease;
 }
 .modal-content:has(.item-detail-modal) {
-    max-height: min(500px, 92vh);
-    overflow: hidden;
+    /* Weight sheets (g/ml chips + scale + finish) run taller than piece sheets —
+       clip+hidden made the tablet look like the row "did not open". */
+    max-height: min(640px, 92vh);
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .edit-form-actions {

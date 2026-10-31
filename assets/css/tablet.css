@@ -1,0 +1,223 @@
+/* ============================================================================
+ * EverShelf — tablet type + list density (layer 3.5)
+ *
+ * Loaded after surfaces.css and BEFORE mobile.css. Phone (≤640) is untouched:
+ * mobile.css stays geometry-only and last. This file only activates at ≥768px
+ * (same shell breakpoint as elegant.css).
+ *
+ * Goals:
+ *   1. Readable at arm's length (kiosk / kitchen tablet)
+ *   2. Shorter list rows — use width for a single line, not two stacked bands
+ * ========================================================================= */
+
+@media (min-width: 768px) {
+    /* ── Global type scale ──────────────────────────────────────────────── */
+    :root {
+        --es-text-title: 1.22rem;
+        --es-text-body: 1.02rem;
+        --es-text-small: 0.9rem;
+        --es-text-micro: 0.8rem;
+    }
+
+    /* Bumps every rem in the app ~6% without rewriting hundreds of rules. */
+    html {
+        font-size: 17px;
+    }
+
+    /* ── Inventory: one horizontal band ─────────────────────────────────── */
+    .inv-row-content.inv-card {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+    }
+
+    .inv-card-top {
+        flex: 1 1 auto;
+        min-width: 0;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .inv-card-bottom {
+        flex: 0 1 auto;
+        margin-left: auto;
+        gap: 8px;
+        max-width: 48%;
+    }
+
+    .inv-image {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        font-size: 1.2rem;
+    }
+
+    .inv-name-row .inv-name,
+    .inventory-item.is-medical-row .inv-name {
+        font-size: var(--es-text-body);
+        font-weight: 700;
+        -webkit-line-clamp: 1;
+        line-height: 1.25;
+    }
+
+    .inv-meta-line {
+        margin-top: 2px;
+        font-size: var(--es-text-micro);
+        line-height: 1.25;
+    }
+
+    .inv-med-sub {
+        font-size: var(--es-text-micro);
+    }
+
+    .inv-qty-pill {
+        min-height: 30px;
+        padding: 4px 11px;
+        font-size: var(--es-text-small);
+    }
+
+    .inv-time {
+        font-size: var(--es-text-small);
+    }
+
+    .inv-quick-use {
+        min-height: 40px;
+        min-width: 44px;
+        padding: 0 14px;
+        font-size: var(--es-text-small);
+    }
+
+    .inv-card-menu {
+        width: 36px;
+        height: 36px;
+        font-size: 1.2rem;
+    }
+
+    .inventory-list {
+        gap: 8px;
+    }
+
+    /* ── Dashboard alert rows ───────────────────────────────────────────── */
+    .alert-item {
+        padding: 8px 10px;
+        margin-bottom: 4px;
+        font-size: var(--es-text-body);
+        gap: 10px;
+    }
+
+    .alert-item-name,
+    .alert-item-head .alert-item-name {
+        font-size: var(--es-text-body);
+        font-weight: 650;
+    }
+
+    .alert-item-brand,
+    .alert-item-head .alert-item-brand {
+        font-size: var(--es-text-small);
+    }
+
+    .alert-item-qty,
+    .alert-item-meta,
+    .alert-item-verdict {
+        font-size: var(--es-text-small);
+    }
+
+    .alert-item-badge,
+    .safety-pill {
+        font-size: var(--es-text-micro);
+        padding: 3px 10px;
+    }
+
+    .alert-item-badges .btn-banner,
+    .alert-item-badges .btn-alert-extend {
+        font-size: var(--es-text-small);
+        min-height: 40px;
+        padding: 0 12px;
+    }
+
+    .alert-section h3,
+    .alert-danger h3,
+    .alert-opened h3,
+    .alert-stale h3 {
+        font-size: var(--es-text-small);
+    }
+
+    /* ── Shopping list ──────────────────────────────────────────────────── */
+    .shop-row-content {
+        padding: 10px 12px;
+        min-height: 0;
+    }
+
+    .shop-row-visual {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+    }
+
+    .shop-row-title-name {
+        font-size: var(--es-text-body);
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .shop-row-qty {
+        font-size: 1.2rem;
+    }
+
+    .shop-row-sub,
+    .shop-row-reason {
+        font-size: var(--es-text-small);
+        margin-top: 2px;
+        line-height: 1.3;
+    }
+
+    .shop-row-urgency-badge {
+        font-size: var(--es-text-micro);
+        padding: 3px 8px;
+    }
+
+    .shop-section-body {
+        gap: 8px;
+    }
+
+    /* ── Products catalogue + history ───────────────────────────────────── */
+    .product-item {
+        padding: 10px 12px;
+        gap: 10px;
+    }
+
+    .product-item .inv-name,
+    .product-item .product-name {
+        font-size: var(--es-text-body);
+    }
+
+    .log-entry {
+        padding: 7px 10px;
+        gap: 10px;
+        font-size: var(--es-text-body);
+    }
+
+    .log-undone-badge {
+        font-size: var(--es-text-micro);
+    }
+
+    /* ── Shared list chrome ─────────────────────────────────────────────── */
+    .suggestion-item,
+    .smart-item {
+        font-size: var(--es-text-body);
+    }
+
+    .page-header h2 {
+        font-size: var(--es-text-title);
+    }
+
+    .btn {
+        font-size: var(--es-text-body);
+    }
+
+    /* Compact dashboard tiles still inherit the taller type. */
+    .compact-item .inv-name {
+        font-size: var(--es-text-body);
+    }
+}
