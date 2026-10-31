@@ -175,6 +175,122 @@ function _medIconMarkup(extraClass = '') {
 }
 
 /**
+ * Short company for list cards: drop S.P.A./S.R.L. and the bureaucratic run
+ * ("AZIENDE CHIMICHE RIUNITE …") so the household reads "Angelini", not a tax name.
+ */
+function _medShortCompany(raw) {
+    let s = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    s = s.replace(/[,(].*$/, '').trim();
+    s = s.replace(/\b(S\.?\s*P\.?\s*A\.?|S\.?\s*R\.?\s*L\.?|S\.?\s*A\.?S\.?|GMBH|A\.?G\.?|LTD\.?|LLC\.?|INC\.?|N\.?\s*V\.?|B\.?\s*V\.?)\.?/gi, ' ');
+    s = s.replace(/\b([A-Z]\.){2,}\b/g, ' '); // A.C.R.A.F.
+    s = s.replace(/\s+/g, ' ').trim();
+    const GENERIC = new Set([
+        'aziende', 'chimiche', 'riunite', 'laboratorio', 'chimico', 'farmaceutico',
+        'farmaceutica', 'farmaceutiche', 'industrie', 'industria', 'francesco',
+        'societa', 'società', 'della', 'delle', 'dei', 'del', 'spa', 'srl',
+        'group', 'groupe', 'holding', 'pharma', 'pharmaceutical', 'pharmaceuticals',
+        'laboratoires', 'laboratorio', 'laboratories', 'company', 'co',
+    ]);
+    const tokens = s.split(/\s+/).filter((tok) => {
+        const bare = tok.replace(/\./g, '');
+        if (!bare || bare.length < 2) return false;
+        if (/^[A-Z]$/i.test(bare)) return false;
+        return !GENERIC.has(tok.toLowerCase());
+    });
+    if (!tokens.length) return s.slice(0, 28);
+    const brandish = tokens.filter((t) => t.replace(/\./g, '').length >= 4);
+    const pick = (brandish.length === 1)
+        ? brandish[0]
+        : (brandish.sort((a, b) => b.length - a.length)[0] || tokens[0]);
+    // Title-case ALL-CAPS tokens; keep mixed brands (e.g. "Bayer") as typed.
+    if (pick === pick.toUpperCase() && /[A-ZÀ-Ÿ]/.test(pick)) {
+        return pick.toLowerCase().replace(/(^|[\s\-/'`])(\S)/g, (_, a, b) => a + b.toUpperCase());
+    }
+    return pick;
+}
+
+/**
+ * Commercial name for a medicine card: strip a trailing "(S.P.A. …)" / company run
+ * that some catalogue rows glue onto the title.
+ */
+function _medCommercialName(item) {
+    let name = String((item && (item.display_name || item.name)) || '').trim();
+    if (!name) return '';
+    name = name.replace(/\s*\((?:[^)]*(?:S\.?\s*P\.?\s*A|S\.?\s*R\.?\s*L|GMBH|LTD|INC|SPA|SRL)[^)]*)\)\s*$/i, '').trim();
+    name = name.replace(/\s+[-–—]\s+(?:AZIENDE|LABORATORIO|INDUSTRIE|LABORATOIRES)\b.*$/i, '').trim();
+    // If brand was accidentally duplicated into the title in ALL CAPS after the drug name.
+    const brand = String((item && item.brand) || '').trim();
+    if (brand && brand.length > 12 && name.toUpperCase().endsWith(brand.toUpperCase())) {
+        name = name.slice(0, -brand.length).replace(/[\s\-–—]+$/, '').trim();
+    }
+    return name;
+}
+
+/** Subtitle line: "Ibuprofene · Angelini" (empty when neither is known). */
+function _medCardSubtitleHtml(item) {
+    const bits = [];
+    const ing = String((item && item.med_ingredient) || '').trim();
+    if (ing) bits.push(ing);
+    const co = _medShortCompany(item && item.brand);
+    if (co) bits.push(co);
+    if (!bits.length) return '';
+    return `<div class="inv-med-sub">${escapeHtml(bits.join(' · '))}</div>`;
+}
+
+/**
+ * Form-aware emoji for a medicine without a box photo.
+ * ml → drops/syrup, g → cream/gel, spray → spray, else tablets/sachets.
+ */
+function _medFormIconEmoji(item) {
+    const unit = String((item && (item.unit || item.package_unit)) || '').toLowerCase();
+    const blob = [
+        item && item.name,
+        item && item.display_name,
+        item && item.notes,
+        item && item.med_ingredient,
+    ].map((x) => String(x || '').toLowerCase()).join(' ');
+    if (/\bspray\b|nasale|aerosol|nebuli|inalatore|throat\s*spray|nasal\s*spray/.test(blob)) return '💨';
+    if (unit === 'ml' || unit === 'l'
+        || /\bgocce\b|\bsciroppo\b|\bdrops?\b|\bsyrup\b|\bsolution\b|\bsoluzione\b/.test(blob)) {
+        return '🧴';
+    }
+    if (unit === 'g' || unit === 'kg'
+        || /\bgel\b|\bcrema\b|\bpomata\b|\bunguento\b|\bcream\b|\bointment\b|\bunguent\b|\bpaste\b/.test(blob)) {
+        return '🩹';
+    }
+    return '💊';
+}
+
+/** Markup for the medicine form emoji (list thumbs, detail hero). */
+function _medFormIconMarkup(item, extraClass = '') {
+    return `<span class="med-form-emoji${extraClass ? ' ' + extraClass : ''}" aria-hidden="true">${_medFormIconEmoji(item)}</span>`;
+}
+
+/** Days since a medicine pack was opened (null when sealed / unknown). */
+function _medDaysOpen(item) {
+    if (!item || !item.opened_at) return null;
+    const openedTs = new Date(item.opened_at).getTime();
+    if (!Number.isFinite(openedTs)) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.round((today.getTime() - openedTs) / 86400000));
+}
+
+/**
+ * Hide the Recipes tab while the pharmacy perimeter is active — cooking has
+ * nothing to do with the medicine cabinet (and "Prescrizioni" is not built yet).
+ */
+function _syncPharmacyNav() {
+    const btn = document.querySelector('.bottom-nav [data-page="recipe"]');
+    if (!btn) return;
+    const hide = _locationDomain === 'medical';
+    btn.hidden = !!hide;
+    btn.setAttribute('aria-hidden', hide ? 'true' : 'false');
+    if (hide) btn.classList.remove('active');
+}
+
+/**
  * The icon of a PLACE, as markup: the cabinet wears the drawn medicine mark, every other place
  * its emoji (🗄️ / 🧊 / ❄️ / 📦).
  *
@@ -211,7 +327,7 @@ function _invImageHtml(imageUrl, catIcon) {
  * @returns {string} markup: an <img> for a medicine, the escaped category emoji otherwise
  */
 function _productCatIconHtml(item, extraClass = 'med-icon-lg') {
-    if (_isMedicalRow(item)) return _medIconMarkup(extraClass);
+    if (_isMedicalRow(item)) return _medFormIconMarkup(item, extraClass);
     return escapeHtml(CATEGORY_ICONS[mapToLocalCategory(item && item.category, item && item.name)] || '📦');
 }
 
@@ -235,8 +351,9 @@ function _productThumbHtml(item, opts = {}) {
     const url = _validProductImageUrl(it.image_url) ? String(it.image_url).trim() : '';
     if (!url && opts.icon === false) return '';
     const medical = _isMedicalRow(it);
+    // Medicines without a box photo wear a form emoji (🧴/🩹/💊/💨), not one purple pill for every row.
     const icon = medical
-        ? _medIconMarkup('med-icon-lg')
+        ? _medFormIconMarkup(it, 'med-icon-lg')
         : escapeHtml(CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦');
     const extra = opts.className ? ' ' + String(opts.className) : '';
     return `<span class="product-thumb${url ? '' : ' is-icon'}${medical ? ' is-medical' : ''}${extra}" aria-hidden="true">`
@@ -2409,6 +2526,7 @@ function _syncInventoryTitle(locKey) {
     const title = document.getElementById('inventory-title');
     if (!title) return;
     title.removeAttribute('data-i18n');
+    _syncPharmacyNav();
     if (_locationDomain === 'medical') {
         const cab = _locCabinetKey();
         const meta = cab ? LOCATIONS[cab] : null;
@@ -8063,6 +8181,7 @@ function showPage(pageId, param = null, options = {}) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     const navBtn = document.querySelector(`.nav-btn[data-page="${pageId}"]`);
     if (navBtn) navBtn.classList.add('active');
+    _syncPharmacyNav();
     
     // Page-specific init
     switch(pageId) {
@@ -13086,11 +13205,38 @@ function _medCategoryBadgesHtml(item) {
 /**
  * Relative time badge for list cards (not absolute calendar dates).
  * Opened packs lead with "Aperto da N gg"; sealed packs use Scade tra / Ancora N mesi / Oltre 1 anno.
+ * Medicines: once opened, the PAO (med_pao_days) owns the badge — never the far pack year.
  */
 function _inventoryExpiryBadgeHtml(item) {
     if (!item) return '';
     const medRow = _isMedicalRow(item);
-    if (!medRow && item.opened_at) {
+    if (medRow) {
+        const daysOpen = _medDaysOpen(item);
+        if (daysOpen != null) {
+            const max = Number(item.med_pao_days) || 0;
+            if (max > 0) {
+                const over = daysOpen >= max;
+                const key = over ? 'medical.pao_opened_over' : 'medical.pao_opened';
+                const cls = over ? 'inv-time-expired' : (daysOpen >= Math.max(1, max - 7) ? 'inv-time-urgent' : 'inv-time-opened');
+                return `<span class="inv-time ${cls}">⚠️ ${escapeHtml(t(key, { n: daysOpen, max }))}</span>`;
+            }
+            return `<span class="inv-time inv-time-opened">📦 ${escapeHtml(t('inventory.opened_for_days', { n: daysOpen }))}</span>`;
+        }
+        if (!item.expiry_date) {
+            return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.state_new'))}</span>`;
+        }
+        const days = daysUntilExpiry(item.expiry_date);
+        if (!Number.isFinite(days)) return '';
+        if (days < 0) {
+            return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(t('medical.sealed_expired', { n: Math.abs(days) }))}</span>`;
+        }
+        if (days <= 60) {
+            return `<span class="inv-time inv-time-urgent">🛡️ ${escapeHtml(t('medical.sealed_expires_in', { n: days }))}</span>`;
+        }
+        const year = String(item.expiry_date).slice(0, 4);
+        return `<span class="inv-time inv-time-far">🛡️ ${escapeHtml(t('medical.sealed_expires_year', { year }))}</span>`;
+    }
+    if (item.opened_at) {
         const pao = _openedPao(item);
         let daysOpen = pao && Number.isFinite(Number(pao.days_open)) ? Number(pao.days_open) : NaN;
         if (!Number.isFinite(daysOpen)) {
@@ -13107,16 +13253,6 @@ function _inventoryExpiryBadgeHtml(item) {
     if (!item.expiry_date) return '';
     const days = daysUntilExpiry(item.expiry_date);
     if (!Number.isFinite(days)) return '';
-    if (medRow) {
-        const when = formatDate(item.expiry_date);
-        if (days < 0) {
-            return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(when)} · ${escapeHtml(t('expiry.badge_expired_ago').replace('{n}', Math.abs(days)))}</span>`;
-        }
-        if (days <= 7) {
-            return `<span class="inv-time inv-time-urgent">⚠️ ${escapeHtml(when)} · ${escapeHtml(t('inventory.expires_in_days', { n: Math.max(days, 0) }))}</span>`;
-        }
-        return `<span class="inv-time inv-time-far">📅 ${escapeHtml(when)}</span>`;
-    }
     if (days < 0) {
         return `<span class="inv-time inv-time-expired">⚠️ ${escapeHtml(t('expiry.badge_expired_ago').replace('{n}', Math.abs(days)))}</span>`;
     }
@@ -13153,7 +13289,7 @@ function renderInventoryItem(item, opts = {}) {
     if (medRow) {
         const medCats = _medCategoryBadgesHtml(item);
         if (medCats) metaBits.push(medCats);
-        metaBits.push(item.opened_at ? escapeHtml(t('medical.state_opened')) : escapeHtml(t('medical.state_new')));
+        // Opened/sealed state lives on the PAO / expiry badge — not repeated here.
     }
     if (!medRow && item.vacuum_sealed) metaBits.push(escapeHtml(t('inventory.vacuum_badge')));
     const isFav = !!Number(item.is_favorite);
@@ -13168,8 +13304,10 @@ function renderInventoryItem(item, opts = {}) {
     const useKey = t('inventory.item_detail_use');
     const menuKey = t('dashboard.row_actions');
     const locJs = String(item.location || 'dispensa').replace(/'/g, "\\'");
-    const title = escapeHtml(item.display_name || item.name);
-    const brand = item.brand ? ` <span class="inv-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
+    // Medicines: commercial name bold + ingredient · short company under it — never the legal SPA/SRL run.
+    const nameBlock = medRow
+        ? `<div class="inv-name">${escapeHtml(_medCommercialName(item))}</div>${_medCardSubtitleHtml(item)}`
+        : `<div class="inv-name">${escapeHtml(item.display_name || item.name)}${item.brand ? ` <span class="inv-brand-inline">(${escapeHtml(item.brand)})</span>` : ''}</div>`;
 
     return `
     <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
@@ -13180,7 +13318,7 @@ function renderInventoryItem(item, opts = {}) {
                 <div class="inv-image">${thumb}</div>
                 <div class="inv-info">
                     <div class="inv-name-row">
-                        <div class="inv-name">${title}${brand}</div>
+                        <div class="inv-name-block">${nameBlock}</div>
                         <button type="button" class="btn-inv-fav${isFav ? ' active' : ''}" onclick="toggleInventoryFavorite(event, ${item.product_id})" title="${escapeHtml(favTitle)}" aria-label="${escapeHtml(favTitle)}">${isFav ? '★' : '☆'}</button>
                         <button type="button" class="inv-card-menu" title="${escapeAttr(menuKey)}" aria-label="${escapeAttr(menuKey)}"
                             onclick="event.stopPropagation(); showItemDetail(${item.id}, ${item.product_id})">⋮</button>
@@ -13597,8 +13735,9 @@ function renderInventory(items, options = {}) {
             : `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
         return;
     }
-    // Filtered views stay flat; "all" keeps category sections.
-    if (options.flat || _inventoryViewFilter !== 'all') {
+    // Pharmacy cabinet: flat list (the page title already says "Farmacia (N)" —
+    // a second "💊 Farmaco N" group header is noise). Food "all" keeps category sections.
+    if (options.flat || _inventoryViewFilter !== 'all' || _inventoryIsMedicalContext()) {
         container.innerHTML = _sortOpenedFirst(visible).map(item => renderInventoryItem(item)).join('');
     } else {
         container.innerHTML = renderGroupedByCategory(visible, false);
@@ -19221,7 +19360,8 @@ function _medFillFromCatalogue(row, options = {}) {
         el.dispatchEvent(new Event('input', { bubbles: true }));
     };
     set('pf-name', _medDisplayName(row.name), 'name');
-    if (row.company) set('pf-brand', String(row.company), 'brand');
+    // Store the short house name (Angelini), never the full legal SPA/SRL string.
+    if (row.company) set('pf-brand', _medShortCompany(row.company) || String(row.company), 'brand');
     // The active ingredient has its own field: it used to live only inside the notes.
     if (row.ingredient) set('pf-med-ingredient', String(row.ingredient), 'ingredient');
     const details = [

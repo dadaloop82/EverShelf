@@ -3191,7 +3191,12 @@
     "discard_all": "Smaltisci tutto ({qty})",
     "discard_qty_hint": "Oppure indica quanta quantità smaltire:",
     "discard_qty_label": "Quanto smaltisci?",
-    "discard_partial_btn": "Smaltisci questa quantità"
+    "discard_partial_btn": "Smaltisci questa quantità",
+    "pao_opened": "Aperto da {n} gg · consigliato max {max} gg",
+    "pao_opened_over": "Aperto da {n} gg · oltre i {max} consigliati",
+    "sealed_expires_year": "Sigillato · Scade nel {year}",
+    "sealed_expires_in": "Sigillato · Scade tra {n} gg",
+    "sealed_expired": "Sigillato · Scaduto da {n} gg"
   },
   "months": {
     "january": "Gennaio",

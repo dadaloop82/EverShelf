@@ -3191,7 +3191,12 @@
     "discard_all": "Eliminar todo ({qty})",
     "discard_qty_hint": "O indica cuánto eliminar:",
     "discard_qty_label": "¿Cuánto eliminas?",
-    "discard_partial_btn": "Eliminar esta cantidad"
+    "discard_partial_btn": "Eliminar esta cantidad",
+    "pao_opened": "Abierto hace {n} d · aconsejado máx. {max} d",
+    "pao_opened_over": "Abierto hace {n} d · más de {max} d aconsejados",
+    "sealed_expires_year": "Sellado · Caduca en {year}",
+    "sealed_expires_in": "Sellado · Caduca en {n} d",
+    "sealed_expired": "Sellado · Caducado hace {n} d"
   },
   "months": {
     "january": "Enero",

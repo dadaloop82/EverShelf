@@ -9274,6 +9274,10 @@ body.cooking-mode-active .app-header {
     gap: 4px;
     min-width: 0;
 }
+.inv-name-row .inv-name-block {
+    flex: 1 1 auto;
+    min-width: 0;
+}
 .inv-name-row .inv-name {
     flex: 1 1 auto;
     min-width: 0;
@@ -9284,6 +9288,29 @@ body.cooking-mode-active .app-header {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
+.inventory-item.is-medical-row .inv-name {
+    font-size: 0.94rem;
+    font-weight: 700;
+    -webkit-line-clamp: 2;
+}
+.inv-med-sub {
+    margin-top: 1px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.med-form-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+.med-form-emoji.med-icon-lg { font-size: 1.55rem; }
 .inv-brand-inline {
     font-weight: 550;
     color: var(--text-light);

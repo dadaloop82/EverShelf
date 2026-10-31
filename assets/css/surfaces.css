@@ -512,19 +512,30 @@ body {
 .inv-med-chip {
     display: inline-flex;
     align-items: center;
-    min-height: 34px;
-    padding: 6px 12px;
+    min-height: 36px;
+    padding: 7px 14px;
     border-radius: 999px;
-    border: 1px solid #c7d2fe;
-    background: rgba(99, 102, 241, 0.08);
-    color: #4338ca;
+    border: 1px solid #CBD5E1;
+    background: #F1F5F9;
+    color: #334155;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
-.inv-med-chip:active { transform: scale(0.98); }
+.inv-med-chip:hover,
+.inv-med-chip:focus-visible {
+    background: #E2E8F0;
+    border-color: #94A3B8;
+    outline: none;
+}
+.inv-med-chip:active {
+    transform: scale(0.98);
+    background: #E2E8F0;
+}
 
 .empty-state-med {
     padding: 28px 18px 36px;

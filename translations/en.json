@@ -3191,7 +3191,12 @@
     "discard_all": "Dispose of all ({qty})",
     "discard_qty_hint": "Or enter how much to dispose of:",
     "discard_qty_label": "How much are you disposing?",
-    "discard_partial_btn": "Dispose of this amount"
+    "discard_partial_btn": "Dispose of this amount",
+    "pao_opened": "Open for {n} d · advised max {max} d",
+    "pao_opened_over": "Open for {n} d · past the {max} d advice",
+    "sealed_expires_year": "Sealed · Expires in {year}",
+    "sealed_expires_in": "Sealed · Expires in {n} d",
+    "sealed_expired": "Sealed · Expired {n} d ago"
   },
   "months": {
     "january": "January",

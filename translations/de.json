@@ -3191,7 +3191,12 @@
     "discard_all": "Alles entsorgen ({qty})",
     "discard_qty_hint": "Oder gib an, wie viel du entsorgst:",
     "discard_qty_label": "Wie viel entsorgst du?",
-    "discard_partial_btn": "Diese Menge entsorgen"
+    "discard_partial_btn": "Diese Menge entsorgen",
+    "pao_opened": "Seit {n} T. offen · empfohlen max. {max} T.",
+    "pao_opened_over": "Seit {n} T. offen · über {max} T. empfohlen",
+    "sealed_expires_year": "Versiegelt · Haltbar bis {year}",
+    "sealed_expires_in": "Versiegelt · Noch {n} T.",
+    "sealed_expired": "Versiegelt · Seit {n} T. abgelaufen"
   },
   "months": {
     "january": "Januar",

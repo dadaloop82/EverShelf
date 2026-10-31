@@ -3191,7 +3191,12 @@
     "discard_all": "Éliminer tout ({qty})",
     "discard_qty_hint": "Ou indique la quantité à éliminer :",
     "discard_qty_label": "Quelle quantité élimines-tu ?",
-    "discard_partial_btn": "Éliminer cette quantité"
+    "discard_partial_btn": "Éliminer cette quantité",
+    "pao_opened": "Ouvert depuis {n} j · conseillé max {max} j",
+    "pao_opened_over": "Ouvert depuis {n} j · au-delà des {max} j conseillés",
+    "sealed_expires_year": "Scellé · Expire en {year}",
+    "sealed_expires_in": "Scellé · Expire dans {n} j",
+    "sealed_expired": "Scellé · Expiré depuis {n} j"
   },
   "months": {
     "january": "Janvier",
