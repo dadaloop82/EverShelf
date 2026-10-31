@@ -235,6 +235,61 @@ body.is-booting.is-revealing .bottom-nav {
     max-width: 22rem;
     line-height: 1.35;
 }
+/* ── SHELFY at the foot of the splash ─────────────────────────────────────
+   The assistant introduces itself later, in its own sheet; here it only waits,
+   small, under the open-data line. Same drawing, same breathing halo as the
+   button in the bottom nav, so the face is already familiar when the app opens.
+   The avatar is a transparent PNG: the soft ring and the drop shadow follow its
+   alpha, never a rectangular box. */
+.preloader-shelfy {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 68px;
+    /* The inner flex already spaces its children: pull it back under the line. */
+    margin-top: -8px;
+    animation: preloader-shelfy-in 0.55s ease-out 0.15s both;
+}
+.preloader-shelfy-ring {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 2px solid rgba(5, 150, 105, 0.3);
+    animation: preloader-shelfy-ring 3s ease-out infinite;
+    pointer-events: none;
+}
+.preloader-shelfy-avatar {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 12px rgba(5, 150, 105, 0.22));
+    animation: preloader-shelfy-float 3.4s ease-in-out infinite;
+}
+@keyframes preloader-shelfy-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes preloader-shelfy-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+}
+@keyframes preloader-shelfy-ring {
+    0%   { transform: scale(0.86); opacity: 0.55; }
+    70%  { transform: scale(1.18); opacity: 0; }
+    100% { transform: scale(1.18); opacity: 0; }
+}
+/* Short viewports (a phone in landscape): the avatar gives way to the stages. */
+@media (max-height: 620px) {
+    .preloader-shelfy { width: 54px; height: 54px; margin-top: -4px; }
+    .preloader-shelfy-avatar { width: 44px; height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .preloader-shelfy { animation: none; }
+    .preloader-shelfy-avatar,
+    .preloader-shelfy-ring { animation: none; }
+}
 /* ── Boot rail: three steps + ONE continuous connector behind the dots ──
    Do not use per-item ::after segments (they gap/misalign). A single
    `.preloader-stages::before` draws the track; each icon shares the splash

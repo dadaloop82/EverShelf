@@ -74,7 +74,8 @@ runtime/binary files — if a task truly needs one, ask first.
   prints the remaining seconds in `.shelfy-arm-count`, so every countdown is visible.
 - **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
   PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
-  the intro hero and the confirm card. Never swap it for a food emoji.
+  the intro hero, the confirm card and the foot of the splash (under the open-data
+  line). Never swap it for a food emoji.
 - **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
   / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
   a desktop monitor keeps the base styles.

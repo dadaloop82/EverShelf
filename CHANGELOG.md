@@ -5,6 +5,14 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.6] - 2026-10-31
+
+### Added
+- **SHELFY greets from the splash.** The preloader now closes with the assistant's avatar
+  under the open-data line: a small transparent PNG floating on a soft emerald ring that
+  breathes (the same face as the bottom nav and the capture sheet). It stays still with
+  `prefers-reduced-motion` and shrinks on a short viewport, so the boot rail always fits.
+
 ## [1.29.5] - 2026-10-31
 
 ### Changed

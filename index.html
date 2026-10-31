@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261031ae">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031ae">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031af">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031af">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261031ae">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031af">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261031ae"></script>
-    <script src="assets/js/core/auth.js?v=20261031ae"></script>
-    <script src="assets/js/core/med.js?v=20261031ae"></script>
+    <script src="assets/js/core/dom.js?v=20261031af"></script>
+    <script src="assets/js/core/auth.js?v=20261031af"></script>
+    <script src="assets/js/core/med.js?v=20261031af"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261031ae"></script>
+    <script src="assets/js/med/italy.js?v=20261031af"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261031ae"></script>
+    <script src="assets/js/core/support.js?v=20261031af"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031ae';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261031af';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031ae';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031af';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261031ae"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261031af"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.5</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.6</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -159,6 +159,13 @@
         <button id="preloader-retry-btn" class="preloader-retry-btn" style="display:none" onclick="_startupRetry()">🔄 <span data-i18n="startup.retry">Riprova</span></button>
         <!-- Credits logos live in Settings → Crediti; the splash only keeps a quiet line. -->
         <p class="preloader-powered" data-i18n="startup.powered_by_open_data">Powered by Open Food Facts &amp; Open Data</p>
+        <!-- SHELFY waits at the bottom of the splash: the assistant the household is about
+             to meet, drawn with the same avatar as its sheet. It floats on a soft emerald
+             ring — quiet on purpose, it must never compete with the boot rail. -->
+        <div class="preloader-shelfy" aria-hidden="true">
+            <span class="preloader-shelfy-ring"></span>
+            <img src="assets/img/shelfy/shelfy-avatar-96.png" alt="" class="preloader-shelfy-avatar" decoding="async" />
+        </div>
     </div>
 </div>
 
@@ -171,7 +178,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.5</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.6</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -3412,17 +3419,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261031ae"></script>
-<script src="assets/js/food_facts.generated.js?v=20261031ae"></script>
-<script src="assets/js/free_apis.generated.js?v=20261031ae"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261031ae"></script>
-<script src="assets/js/off_categories.generated.js?v=20261031ae"></script>
-<script src="assets/js/core/vocab.js?v=20261031ae"></script>
-<script src="assets/js/app.js?v=20261031ae"></script>
-<script src="assets/js/audit.js?v=20261031ae"></script>
-<script src="assets/js/receipt.js?v=20261031ae"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261031ae"></script>
-<script src="assets/js/settings_search.js?v=20261031ae"></script>
+<script src="assets/js/vocab.generated.js?v=20261031af"></script>
+<script src="assets/js/food_facts.generated.js?v=20261031af"></script>
+<script src="assets/js/free_apis.generated.js?v=20261031af"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261031af"></script>
+<script src="assets/js/off_categories.generated.js?v=20261031af"></script>
+<script src="assets/js/core/vocab.js?v=20261031af"></script>
+<script src="assets/js/app.js?v=20261031af"></script>
+<script src="assets/js/audit.js?v=20261031af"></script>
+<script src="assets/js/receipt.js?v=20261031af"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261031af"></script>
+<script src="assets/js/settings_search.js?v=20261031af"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>
