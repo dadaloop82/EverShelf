@@ -87,7 +87,10 @@ sed -i -E "s/(\?v=)[0-9]{8}[a-z]+/\1${STAMP}/g" "$INDEX"
 sed -i -E "s/(\"version\"[[:space:]]*:[[:space:]]*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\1${VERSION}\2/" "$MANIFEST"
 
 # ── sw.js: cache name (version + stamp letter) ──────────────────────────────
-sed -i -E "s/(const CACHE = 'evershelf-v)[0-9]+\.[0-9]+\.[0-9]+[a-z]?(')/\1${VERSION}${STAMP_LETTER}\2/" "$SW"
+# The stamp can grow past one letter (…20261014z → …20261014za, see next_stamp_suffix),
+# so the suffix is matched with `[a-z]*`: `[a-z]?` silently skipped the whole sed and
+# left the CACHE on the previous version (stale sw.js pinned clients to old assets).
+sed -i -E "s/(const CACHE = 'evershelf-v)[0-9]+\.[0-9]+\.[0-9]+[a-z]*(')/\1${VERSION}${STAMP_LETTER}\2/" "$SW"
 
 # ── app.js: i18n cache buster + asset query strings ─────────────────────────
 sed -i -E "s/(_I18N_VERSION = ')[0-9]{8}[a-z]+(')/\1${STAMP}\2/" "$APPJS"

@@ -365,7 +365,7 @@
     "detail_consume_all": "Confezione terminata",
     "detail_other_actions": "Altre operazioni",
     "detail_more": "Dettagli",
-    "detail_consumed": "✓ Registrati {qty} di {name}",
+    "detail_consumed": "✓ Registrato {qty} di {name}",
     "detail_available": "Disponibile",
     "detail_freeze_short": "In freezer",
     "throw_waste_confirm": "Segnare come sprecato? Finirà nel conteggio dei cibi buttati questo mese.",
@@ -2851,7 +2851,7 @@
     "run": "Esegui",
     "example_use": "Ho usato 1 arancia",
     "example_add": "Aggiungi il latte",
-    "example_recipe": "Cosa cucino con le uova?",
+    "example_recipe": "Cosa posso cucinare oggi?",
     "open_chat": "Apri la chat completa",
     "no_product": "Non ho capito: {name} non è in dispensa. Riprova con il nome esatto.",
     "use_hint": "Apro {name}: conferma la quantità.",
@@ -2867,7 +2867,7 @@
     "mic_prompt": "Consenti il microfono in alto, poi parla.",
     "example_use_half": "Ho usato mezza mela",
     "example_use_grams": "Ho usato 300 g di fusilli",
-    "example_all": "Ho finito tutti i fusilli",
+    "example_all": "Ho finito il latte",
     "example_throw": "Butta il pane",
     "examples_use": "Consumare",
     "examples_stock": "Dispensa",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "Il modulo farmaci è spento: attiva EverShelf Med nelle impostazioni.",
     "example_symptom": "Ho mal di testa",
     "example_med_use": "Ho preso la Tachipirina",
-    "example_eat": "Mangio una mela",
-    "examples_med": "Farmaci"
+    "example_eat": "Ho mangiato 1 mela",
+    "examples_med": "Farmaci",
+    "intent_shop": "Spesa",
+    "example_shop": "Aggiungi le uova alla spesa",
+    "shop_done": "{name} è nella lista della spesa"
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."
@@ -2899,7 +2902,11 @@
     "intro_start": "Iniziamo",
     "intro_reopen": "Cos'è SHELFY?",
     "pick_title": "Quale intendevi?",
-    "pick_auto": "Se non scegli, prendo {name}"
+    "pick_auto": "Se non scegli, prendo {name}",
+    "confirm_title": "Registro {qty} di {name}",
+    "confirm_in": "Confermo tra {s} s se non tocchi",
+    "edit": "Modifica",
+    "cancelled": "Non ho registrato niente"
   },
   "credits": {
     "title": "Grazie a queste API gratuite",

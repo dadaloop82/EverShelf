@@ -55,6 +55,29 @@ runtime/binary files — if a task truly needs one, ask first.
 - **Product titles** (`products.name`/`kind`) go exclusively through
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
+- **A title carries no HTML entities.** `productTitleDecodeEntities()` (inside
+  `productTitleCapitalize()`, the one title choke point) decodes *repeatedly*
+  (`&amp;quot;` → `&quot;` → `"`), the client's `decodeHtmlEntities()` does the same,
+  and `migrateDB` repairs rows already stored escaped
+  (`migration_decode_title_entities_v1`) — so neither the pantry, the history nor a
+  toast can print `&quot;`.
+- **Red is only for losing stock.** `_showDestructiveConfirm(title, msg, fn, label,
+  { tone: 'positive' })` paints an emerald confirm and **no countdown** when the
+  action puts stock back (undoing a consumption); red + countdown stays for
+  throw / finish / take-stock-away.
+- **SHELFY acts where the user stands.** A captured sentence never navigates to the
+  legacy `#page-use`: `_shelfyRunConsume()` closes the sheet and shows the floating
+  `.shelfy-confirm` card (avatar, “Registro {qty} di {name}”, a 10 s emerald bar
+  draining right→left, Modifica / ✕ Annulla). The empty bar writes `inventory_use`;
+  Modifica opens the compact product sheet (`showItemDetail(invId, productId, qty)`);
+  “ho finito …” opens that same sheet with its slide-to-confirm. `_shelfyArmButton()`
+  prints the remaining seconds in `.shelfy-arm-count`, so every countdown is visible.
+- **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
+  PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
+  the intro hero and the confirm card. Never swap it for a food emoji.
+- **Tablet/kiosk CSS is opt-in**: `assets/css/tablet.css` activates on `html.is-kiosk`
+  / `html.is-touch-tablet` (set by `_markDeviceChrome()`), never on `min-width` alone —
+  a desktop monitor keeps the base styles.
 - **DB schema/migrations**: `api/database.php` (`initializeDB`, `migrateDB`).
 - **Style**: follow the surrounding code, 4-space indent, docblock + comment
   style already in use; keep comments explanatory, not decorative.

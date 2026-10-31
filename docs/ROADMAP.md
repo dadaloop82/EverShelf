@@ -41,6 +41,7 @@ far), `feature` / `enhancement` / `bug` / `i18n` / `docs`.
 | A scanned tomato is never the pantry's jar of passata (duplicates, AI name→category, AI unit/quantity, pantry floor) | — | 1.13.0 |
 | The vocabulary is **data** (`api/vocab/<lang>.json`) — genres, brands, plurals; no product names in the code | — | 1.13.0 |
 | Optional support layer — **donations only**, no advertising | — | 1.12.0 |
+| SHELFY acts on the page you are on (floating 10 s confirmation, compact sheet, avatar) + “…alla spesa” intent | — | 1.29.5 |
 
 ## 🔜 Next (agreed, waiting for hands)
 

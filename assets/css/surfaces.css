@@ -868,7 +868,14 @@ body {
     animation: capture-breathe 4.2s ease-in-out infinite;
     position: relative;
 }
-.nav-capture-icon { width: clamp(24px, 6.4vw, 32px); height: clamp(24px, 6.4vw, 32px); }
+/* SHELFY's face fills the circle: the centre of the nav is the assistant itself. */
+.nav-capture-avatar {
+    width: clamp(40px, 10.6vw, 54px);
+    height: clamp(40px, 10.6vw, 54px);
+    object-fit: contain;
+    border-radius: 50%;
+    pointer-events: none;
+}
 
 /* A slow halo, one step behind the breathing, so the button looks alive without
    turning into a blinking light on a kiosk. */
@@ -2647,7 +2654,10 @@ a.free-api:hover { border-color: var(--brand-primary); }
     text-align: center;
 }
 
-/* The armed control drains from full to empty: the confirmation is the timer. */
+/* The armed control drains from full to empty: the confirmation is the timer.
+   A sentence that promises "10 seconds" with nothing moving reads as a frozen app,
+   so the fill IS the clock (a mint bar running out from right to left) and the
+   remaining seconds are printed on the control by _shelfyArmButton(). */
 .shelfy-armed {
     position: relative;
     overflow: hidden;
@@ -2658,11 +2668,30 @@ a.free-api:hover { border-color: var(--brand-primary); }
     inset: 0;
     z-index: 0;
     transform-origin: left center;
-    background: color-mix(in srgb, currentColor 22%, transparent);
+    background: rgba(5, 150, 105, 0.25);
     animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;
     pointer-events: none;
 }
 .shelfy-armed > * { position: relative; z-index: 1; }
+/* The seconds, on the control itself (never a second timer elsewhere on screen). */
+.shelfy-arm-count {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    min-width: 26px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #047857;
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 16px;
+    text-align: center;
+    pointer-events: none;
+}
 @keyframes shelfy-drain {
     from { transform: scaleX(1); }
     to   { transform: scaleX(0); }
@@ -2671,10 +2700,97 @@ a.free-api:hover { border-color: var(--brand-primary); }
     .shelfy-armed::after { animation: none; opacity: 0.35; }
 }
 
+/* ── SHELFY's floating confirmation (the voice path) ───────────────────────
+   "Ho mangiato una mela" must not change page: the assistant closes its sheet and
+   shows what it is about to register, with the same draining bar as its other
+   countdowns. Nothing is written until the bar is empty (or the user confirms), and
+   a tap on Modifica / Annulla stops it for good. */
+.shelfy-confirm {
+    position: fixed;
+    left: 50%;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 1200;
+    width: min(94vw, 460px);
+    padding: 10px 12px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.28);
+    animation: shelfy-confirm-in 0.18s ease-out;
+}
+@keyframes shelfy-confirm-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.shelfy-confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.shelfy-confirm-thumb {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--brand-surface);
+}
+.shelfy-confirm-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.shelfy-confirm-body { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.shelfy-confirm-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.shelfy-confirm-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+.shelfy-confirm-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.shelfy-confirm-actions .btn {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+/* The bar: mint, right to left, exactly the length of the countdown. */
+.shelfy-confirm-bar {
+    display: block;
+    height: 4px;
+    margin-top: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface-border) 70%, transparent);
+}
+.shelfy-confirm-bar > span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: var(--brand-primary);
+    transform-origin: left center;
+    animation: shelfy-drain var(--shelfy-ms, 10s) linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+    .shelfy-confirm { animation: none; }
+    .shelfy-confirm-bar > span { animation-duration: var(--shelfy-ms, 10s); }
+}
+@media (max-width: 380px) {
+    .shelfy-confirm-title { font-size: 13px; }
+    .shelfy-confirm-actions .btn { padding: 6px 8px; }
+}
+
 /* ── SHELFY's presentation has a face ──────────────────────────────────────
-   It was a wall of text: no image, no movement, nothing that says "hello". The
-   avatar floats, the hand waves and a ring breathes behind them — soft, 3 s, and
-   still with prefers-reduced-motion. */
+   It was a wall of text, then a jar emoji. The assistant now wears its own
+   avatar (assets/img/shelfy/, transparent PNG so it sits on any theme), which
+   floats while the ring breathes behind it — soft, 3 s, and still with
+   prefers-reduced-motion. */
 .shelfy-hero {
     position: relative;
     display: flex;
@@ -2692,30 +2808,15 @@ a.free-api:hover { border-color: var(--brand-primary); }
     animation: shelfy-ring 3.2s ease-out infinite;
 }
 .shelfy-hero-avatar {
-    font-size: 3.4rem;
-    line-height: 1;
+    width: 104px;
+    height: 104px;
+    object-fit: contain;
     animation: shelfy-float 3.6s ease-in-out infinite;
     filter: drop-shadow(0 6px 10px color-mix(in srgb, var(--brand-primary) 25%, transparent));
-}
-.shelfy-hero-wave {
-    position: absolute;
-    right: calc(50% - 62px);
-    top: 22px;
-    font-size: 1.9rem;
-    transform-origin: 70% 80%;
-    animation: shelfy-wave 2.2s ease-in-out infinite;
 }
 @keyframes shelfy-float {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-6px); }
-}
-@keyframes shelfy-wave {
-    0%, 60%, 100% { transform: rotate(0deg); }
-    10%           { transform: rotate(18deg); }
-    20%           { transform: rotate(-8deg); }
-    30%           { transform: rotate(16deg); }
-    40%           { transform: rotate(-6deg); }
-    50%           { transform: rotate(10deg); }
 }
 @keyframes shelfy-ring {
     0%   { transform: scale(0.82); opacity: 0.55; }
@@ -2724,8 +2825,15 @@ a.free-api:hover { border-color: var(--brand-primary); }
 }
 @media (prefers-reduced-motion: reduce) {
     .shelfy-hero-ring,
-    .shelfy-hero-avatar,
-    .shelfy-hero-wave { animation: none; }
+    .shelfy-hero-avatar { animation: none; }
+}
+/* The sheet's head carries the same face, small: the dialogue has a speaker. */
+.capture-head-avatar {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    margin-right: 6px;
+    flex: 0 0 auto;
 }
 
 /* ── EverShelf Med (opt-in) ──────────────────────────────────────────────────

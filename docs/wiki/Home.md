@@ -18,6 +18,7 @@ Welcome to the **EverShelf** project wiki — your complete reference for instal
 | [Installation](Installation) | Docker, manual setup, HTTPS, web server config |
 | [Configuration](Configuration) | `.env` reference — all options explained |
 | [Features](Features) | Complete feature documentation |
+| [SHELFY](SHELFY) | The voice assistant: what it understands, the 10 s confirmation, adding words |
 | [API Reference](API-Reference) | All REST endpoints, parameters, and responses |
 | [Health Bridge & Fuel Mode](Health) | Phone activity sync and bio-driven recipes |
 | [Home Assistant](Home-Assistant) | HACS integration, sensors, services |

@@ -2851,7 +2851,7 @@
     "run": "Run",
     "example_use": "I used 1 orange",
     "example_add": "Add the milk",
-    "example_recipe": "What can I cook with eggs?",
+    "example_recipe": "What can I cook today?",
     "open_chat": "Open the full chat",
     "no_product": "I did not understand: {name} is not in the pantry. Try the exact name.",
     "use_hint": "Opening {name}: confirm the quantity.",
@@ -2867,7 +2867,7 @@
     "mic_prompt": "Allow the microphone above, then speak.",
     "example_use_half": "I used half an apple",
     "example_use_grams": "I used 300 g of fusilli",
-    "example_all": "I finished all the fusilli",
+    "example_all": "I finished the milk",
     "example_throw": "Throw away the bread",
     "examples_use": "Consume",
     "examples_stock": "Pantry",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "The medicines module is off: turn on EverShelf Med in Settings.",
     "example_symptom": "I have a headache",
     "example_med_use": "I took the paracetamol",
-    "example_eat": "I eat an apple",
-    "examples_med": "Medicines"
+    "example_eat": "I ate an apple",
+    "examples_med": "Medicines",
+    "intent_shop": "Shopping",
+    "example_shop": "Add eggs to the shopping list",
+    "shop_done": "{name} is on the shopping list"
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."
@@ -2899,7 +2902,11 @@
     "intro_start": "Let's start",
     "intro_reopen": "What is SHELFY?",
     "pick_title": "Which one did you mean?",
-    "pick_auto": "If you don't choose, I take {name}"
+    "pick_auto": "If you don't choose, I take {name}",
+    "confirm_title": "Recording {qty} of {name}",
+    "confirm_in": "I confirm in {s}s if you do not touch anything",
+    "edit": "Edit",
+    "cancelled": "Nothing was recorded"
   },
   "credits": {
     "title": "Thanks to these free APIs",

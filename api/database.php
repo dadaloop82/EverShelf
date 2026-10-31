@@ -242,6 +242,50 @@ function migrateDB(PDO $db): void {
     // Empty barcode strings break UNIQUE (only one '' allowed); normalize to NULL.
     $db->exec("UPDATE products SET barcode = NULL WHERE barcode IS NOT NULL AND TRIM(barcode) = ''");
 
+    // Migration: titles stored with HTML entities ("Marmellata di &quot;Limone…&quot;").
+    // A catalogue escaped the name once, an old import escaped it twice, and the literal
+    // entity then showed in the pantry, in the history log and in every toast. Every new
+    // write is decoded at the single title choke point (mergeIncomingProductFields →
+    // productTitleDecodeEntities); this pass repairs the rows already in the database, so
+    // the household does not have to rename a product to clean it.
+    $titlesDecoded = $db->query("SELECT value FROM app_settings WHERE key = 'migration_decode_title_entities_v1'")->fetchColumn();
+    if (!$titlesDecoded) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $rows = $db->query("SELECT id, name, brand FROM products WHERE name LIKE '%&%' OR brand LIKE '%&%'")
+                   ->fetchAll(PDO::FETCH_ASSOC);
+        $updProduct = $db->prepare('UPDATE products SET name = ?, brand = ? WHERE id = ?');
+        $fixedProducts = 0;
+        foreach ($rows as $row) {
+            $name = productTitleDecodeEntities((string)$row['name']);
+            $brand = productTitleDecodeEntities((string)$row['brand']);
+            if ($name !== (string)$row['name'] || $brand !== (string)$row['brand']) {
+                $updProduct->execute([$name, $brand, (int)$row['id']]);
+                $fixedProducts++;
+            }
+        }
+        // The history joins products for the name, but its own notes carry recipe titles.
+        $txRows = $db->query("SELECT id, notes FROM transactions WHERE notes LIKE '%&%'")
+                     ->fetchAll(PDO::FETCH_ASSOC);
+        $updNotes = $db->prepare('UPDATE transactions SET notes = ? WHERE id = ?');
+        $fixedNotes = 0;
+        foreach ($txRows as $row) {
+            $notes = productTitleDecodeEntities((string)$row['notes']);
+            if ($notes !== (string)$row['notes']) {
+                $updNotes->execute([$notes, (int)$row['id']]);
+                $fixedNotes++;
+            }
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_decode_title_entities_v1', '1')");
+        if (($fixedProducts + $fixedNotes) > 0 && class_exists('EverLog')) {
+            EverLog::info('Decoded HTML entities stored in titles', [
+                'event' => 'titles_entities_decoded',
+                'products' => $fixedProducts,
+                'transactions' => $fixedNotes,
+            ]);
+        }
+    }
+
     $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
     $invColNames = array_column($invCols, 'name');
     if (!in_array('expiry_user_set', $invColNames)) {

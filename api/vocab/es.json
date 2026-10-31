@@ -1066,6 +1066,15 @@
         "trago",
         "tragado"
       ],
+      "shop": [
+        "a la lista",
+        "a la lista de la compra",
+        "lista de la compra",
+        "a la compra",
+        "la compra",
+        "compra",
+        "para comprar"
+      ],
       "add": [
         "añadir",
         "añadido",
@@ -1077,7 +1086,10 @@
         "comprado",
         "comprada",
         "guardar",
-        "meter"
+        "meter",
+        "añade",
+        "agrega",
+        "mete"
       ],
       "symptom": [
         "dolor de cabeza",

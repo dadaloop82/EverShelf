@@ -9,11 +9,20 @@
  */
 function decodeHtmlEntities(str) {
     if (str == null) return '';
-    const s = String(str);
+    let s = String(str);
     if (!s.includes('&')) return s;
     const ta = document.createElement('textarea');
-    ta.innerHTML = s;
-    return ta.value;
+    // A catalogue hands the title escaped once, an old import escaped it again
+    // ("Marmellata di &amp;quot;Limone…&amp;quot;"): one pass leaves a visible &quot;,
+    // so decode until the string stops changing. Bounded — never a loop on a
+    // pathological value.
+    for (let i = 0; i < 4 && s.includes('&'); i++) {
+        ta.innerHTML = s;
+        const next = ta.value;
+        if (next === s) break;
+        s = next;
+    }
+    return s;
 }
 
 function escapeHtml(str) {

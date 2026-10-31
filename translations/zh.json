@@ -2851,7 +2851,7 @@
     "run": "执行",
     "example_use": "我用了一个橙子",
     "example_add": "添加牛奶",
-    "example_recipe": "鸡蛋能做什么？",
+    "example_recipe": "今天能做什么菜？",
     "open_chat": "打开完整对话",
     "no_product": "没听懂：{name} 不在储藏室里。试试准确的名称。",
     "use_hint": "正在打开 {name}：请确认数量。",
@@ -2867,7 +2867,7 @@
     "mic_prompt": "请先在上方允许麦克风，然后说话。",
     "example_use_half": "我用了一半苹果",
     "example_use_grams": "我用了 300 克螺旋面",
-    "example_all": "螺旋面都用完了",
+    "example_all": "牛奶喝完了",
     "example_throw": "把面包扔了",
     "examples_use": "消耗",
     "examples_stock": "储物",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "药品模块已关闭：请在设置中启用 EverShelf Med。",
     "example_symptom": "我头疼",
     "example_med_use": "我吃了退烧药",
-    "example_eat": "我吃一个苹果",
-    "examples_med": "药品"
+    "example_eat": "我吃了一个苹果",
+    "examples_med": "药品",
+    "intent_shop": "购物",
+    "example_shop": "把鸡蛋加到购物清单",
+    "shop_done": "{name} 已加入购物清单"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"
@@ -2899,7 +2902,11 @@
     "intro_start": "开始吧",
     "intro_reopen": "SHELFY 是什么？",
     "pick_title": "你指的是哪一个？",
-    "pick_auto": "如果你不选，我就用 {name}"
+    "pick_auto": "如果你不选，我就用 {name}",
+    "confirm_title": "记录 {name} {qty}",
+    "confirm_in": "{s} 秒内不碰屏幕我就确认",
+    "edit": "修改",
+    "cancelled": "没有记录任何内容"
   },
   "credits": {
     "title": "感谢这些免费的 API",

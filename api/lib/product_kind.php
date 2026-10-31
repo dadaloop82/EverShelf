@@ -1040,18 +1040,24 @@ function productTitleRestoreAcronyms(string $original, string $lowered): string 
  * Catalog / OCR / import sometimes hand us titles with HTML entities already in
  * them ("Marmellata di &quot;Limone…&quot;"). Those must become real quotes before
  * we store or capitalise — otherwise every escapeHtml() on the client prints the
- * literal `&quot;` on screen.
+ * literal `&quot;` on screen, and the history log shows the raw entity.
+ *
+ * Decoding repeats while the string still changes: an old import escaped a title
+ * that was already escaped ("&amp;quot;"), and one pass then leaves a visible
+ * `&quot;`. Bounded to 4 passes so a pathological value can never loop here.
  */
 function productTitleDecodeEntities(string $name): string {
     if ($name === '' || strpos($name, '&') === false) {
         return $name;
     }
-    $decoded = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    // A second pass catches double-encoded forms (&amp;quot; → &quot; → ").
-    if (strpos($decoded, '&') !== false) {
-        $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    for ($i = 0; $i < 4 && strpos($name, '&') !== false; $i++) {
+        $decoded = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($decoded === $name) {
+            break;
+        }
+        $name = $decoded;
     }
-    return $decoded;
+    return $name;
 }
 
 function productTitleCapitalize(string $name): string {

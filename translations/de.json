@@ -2851,7 +2851,7 @@
     "run": "Ausführen",
     "example_use": "Ich habe 1 Orange verbraucht",
     "example_add": "Milch hinzufügen",
-    "example_recipe": "Was kann ich mit Eiern kochen?",
+    "example_recipe": "Was kann ich heute kochen?",
     "open_chat": "Vollständigen Chat öffnen",
     "no_product": "Ich habe es nicht verstanden: {name} ist nicht im Vorrat. Versuche den genauen Namen.",
     "use_hint": "Öffne {name}: bestätige die Menge.",
@@ -2867,7 +2867,7 @@
     "mic_prompt": "Erlaube oben das Mikrofon und sprich dann.",
     "example_use_half": "Ich habe einen halben Apfel verwendet",
     "example_use_grams": "Ich habe 300 g Fusilli verwendet",
-    "example_all": "Ich habe alle Fusilli aufgebraucht",
+    "example_all": "Ich habe die Milch aufgebraucht",
     "example_throw": "Wirf das Brot weg",
     "examples_use": "Verbrauchen",
     "examples_stock": "Vorrat",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "Das Medikamenten-Modul ist aus: aktiviere EverShelf Med in den Einstellungen.",
     "example_symptom": "Ich habe Kopfschmerzen",
     "example_med_use": "Ich habe das Fiebermittel genommen",
-    "example_eat": "Ich esse einen Apfel",
-    "examples_med": "Medikamente"
+    "example_eat": "Ich habe einen Apfel gegessen",
+    "examples_med": "Medikamente",
+    "intent_shop": "Einkauf",
+    "example_shop": "Eier auf die Einkaufsliste",
+    "shop_done": "{name} steht auf der Einkaufsliste"
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."
@@ -2899,7 +2902,11 @@
     "intro_start": "Los geht’s",
     "intro_reopen": "Was ist SHELFY?",
     "pick_title": "Welches meinst du?",
-    "pick_auto": "Wenn du nichts wählst, nehme ich {name}"
+    "pick_auto": "Wenn du nichts wählst, nehme ich {name}",
+    "confirm_title": "{qty} {name} wird erfasst",
+    "confirm_in": "Ich bestätige in {s} s, wenn du nichts berührst",
+    "edit": "Ändern",
+    "cancelled": "Nichts wurde erfasst"
   },
   "credits": {
     "title": "Danke an diese freien APIs",

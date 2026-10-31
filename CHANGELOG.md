@@ -5,6 +5,38 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.5] - 2026-10-31
+
+### Changed
+- **SHELFY acts where you are.** “Ho mangiato una mela” no longer navigates to the legacy
+  full-page *Usa / Consuma* (← Indietro, the purple recipe button, “Tutte una parte”): the
+  sheet closes, a floating card shows what will be registered with a 10 s bar draining
+  right→left, **Modifica** stops the clock and opens the compact product sheet at that
+  quantity, **✕ Annulla** writes nothing. Emptying a row still keeps its slide-to-confirm,
+  on that same sheet.
+- **Countdowns show their seconds.** Every SHELFY countdown prints the remaining time on
+  the control (`.shelfy-arm-count`) and the fill is the clock (mint, right→left).
+- **A face for the assistant.** The centre of the bottom nav, the capture sheet, the intro
+  and the confirmation card show SHELFY's avatar (`assets/img/shelfy/`, transparent PNG,
+  in the service-worker shell).
+- **“…alla spesa” is a shopping line.** A new `shop` intent in the vocabulary data:
+  *Aggiungi le uova alla spesa* adds to the list, *Aggiungi il latte* still stocks the pantry.
+- **Natural example chips** in the capture sheet and the intro, in all six locales.
+- **Tablet / kiosk CSS** (`tablet.css`) activates on `html.is-kiosk` / `html.is-touch-tablet`
+  instead of a bare `min-width`, so desktop monitors keep the base layout.
+
+### Fixed
+- **`&quot;` in titles.** `productTitleDecodeEntities()` and the client's
+  `decodeHtmlEntities()` decode repeatedly (double-escaped `&amp;quot;` included), and a
+  migration repairs rows already stored escaped (`migration_decode_title_entities_v1`),
+  so the pantry and the history stop printing the raw entity.
+- **History: the ↩ confirm is emerald for a restock.** Undoing a consumption puts stock
+  back — it is no longer painted danger-red, and it no longer fires on a countdown.
+- **`1/pz` in a toast.** `showToast()` normalises a stray slash between a number and its unit.
+- **`scripts/bump-version.sh`** now rewrites the `sw.js` CACHE when the stamp suffix grew
+  past one letter (`[a-z]*`) — it silently skipped the line before, leaving clients on the
+  previous cache.
+
 ## [1.29.4] - 2026-10-29
 
 ### Changed

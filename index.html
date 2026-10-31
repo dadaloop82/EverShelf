@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261031ab">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031ab">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031ab">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031ae">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031ab">
-    <!-- Tablet type + denser lists (≥768). Before mobile.css (phone geometry, last). -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261031ab">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031ab">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031ae">
+    <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261031ae">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031ae">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261031ab"></script>
-    <script src="assets/js/core/auth.js?v=20261031ab"></script>
-    <script src="assets/js/core/med.js?v=20261031ab"></script>
+    <script src="assets/js/core/dom.js?v=20261031ae"></script>
+    <script src="assets/js/core/auth.js?v=20261031ae"></script>
+    <script src="assets/js/core/med.js?v=20261031ae"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261031ab"></script>
+    <script src="assets/js/med/italy.js?v=20261031ae"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261031ab"></script>
+    <script src="assets/js/core/support.js?v=20261031ae"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031ab';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261031ae';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031ab';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031ae';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261031ab"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261031ae"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.4</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.5</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -171,7 +171,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.4</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.5</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -3069,18 +3069,13 @@
         <span class="nav-icon" aria-hidden="true">🍳</span>
         <span class="nav-label" data-i18n="nav.recipes">Ricette</span>
     </button>
-    <!-- Capture button: the centre of the nav is an action, not a brand. No text
-         label (the microphone is the label), always breathing so it reads as the
-         primary control, and a plain mic glyph — nothing that looks like a logo. -->
+    <!-- Capture button: the centre of the nav is SHELFY, and the assistant has a face —
+         the avatar that introduces itself in its sheet. No text label, always breathing
+         so it reads as the primary control. -->
     <button class="nav-btn nav-capture-btn" id="nav-capture-btn" onclick="_openCaptureSheet()" data-page="capture"
             title="Cosa vuoi fare?" data-i18n-title="capture.title" aria-label="Cosa vuoi fare?" data-i18n-aria="capture.title">
         <span class="nav-capture-icon-wrap" aria-hidden="true">
-            <svg class="nav-capture-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="2.5" width="6" height="11.5" rx="3"/>
-                <path d="M5.5 11a6.5 6.5 0 0 0 13 0"/>
-                <path d="M12 17.5V21"/>
-                <path d="M8.5 21h7"/>
-            </svg>
+            <img class="nav-capture-avatar" src="assets/img/shelfy/shelfy-avatar-96.png" alt="" decoding="async">
         </span>
     </button>
     <button class="nav-btn" onclick="showPage('shopping')" data-page="shopping" aria-label="Spesa" data-i18n-aria="nav.shopping">
@@ -3238,6 +3233,8 @@
 <div class="modal-overlay" id="capture-sheet" style="display:none" role="dialog" aria-modal="true" aria-labelledby="capture-title">
     <div class="modal-content capture-sheet" onclick="event.stopPropagation()">
         <div class="capture-head">
+            <!-- SHELFY's face: the dialogue has a speaker. -->
+            <img class="capture-head-avatar" src="assets/img/shelfy/shelfy-avatar-96.png" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <h3 id="capture-title" data-i18n="capture.title">SHELFY</h3>
             <button type="button" class="capture-head-btn" id="shelfy-help-btn" onclick="_shelfyOpenIntro()" aria-label="SHELFY" data-i18n-aria="shelfy.intro_reopen">?</button>
             <button type="button" class="modal-close" onclick="_closeCaptureSheet()" aria-label="Chiudi" data-i18n-aria="btn.close">✕</button>
@@ -3266,11 +3263,11 @@
             <button type="button" class="btn btn-accent" onclick="_captureSubmit(document.getElementById('capture-input').value)" data-i18n="capture.run">Esegui</button>
         </div>
         <div class="capture-hints">
-            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_use">Ho usato 1 arancia</button>
-            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_use_half">Ho usato mezza mela</button>
-            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_all">Ho finito tutti i fusilli</button>
-            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_add">Aggiungi il latte</button>
-            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_recipe">Cosa cucino con le uova?</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_eat">Ho mangiato 1 mela</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_all">Ho finito il latte</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_use_grams">Ho usato 300 g di fusilli</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_shop">Aggiungi le uova alla spesa</button>
+            <button type="button" class="capture-hint" onclick="_captureSubmit(this.textContent)" data-i18n="capture.example_recipe">Cosa posso cucinare oggi?</button>
         </div>
         <!-- The whole lexicon, listed and tappable: what you can say is discoverable. -->
         <button type="button" class="capture-examples-btn" id="capture-examples-btn" onclick="_captureToggleExamples()" aria-expanded="false" aria-controls="capture-examples" data-i18n="capture.what_can_i_say">Cosa posso dire?</button>
@@ -3290,8 +3287,7 @@
              waves and a ring that breathes. A wall of text is not a greeting. -->
         <div class="shelfy-hero" aria-hidden="true">
             <span class="shelfy-hero-ring"></span>
-            <span class="shelfy-hero-avatar">🫙</span>
-            <span class="shelfy-hero-wave">👋</span>
+            <img class="shelfy-hero-avatar" src="assets/img/shelfy/shelfy-avatar-192.png" alt="" loading="lazy" decoding="async">
         </div>
         <p class="shelfy-lead" data-i18n="shelfy.intro_lead">Sono l'assistente della tua dispensa: ascolto, capisco e ti mostro cosa sto per fare prima di farlo.</p>
         <div class="shelfy-how">
@@ -3416,17 +3412,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261031ab"></script>
-<script src="assets/js/food_facts.generated.js?v=20261031ab"></script>
-<script src="assets/js/free_apis.generated.js?v=20261031ab"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261031ab"></script>
-<script src="assets/js/off_categories.generated.js?v=20261031ab"></script>
-<script src="assets/js/core/vocab.js?v=20261031ab"></script>
-<script src="assets/js/app.js?v=20261031ab"></script>
-<script src="assets/js/audit.js?v=20261031ab"></script>
-<script src="assets/js/receipt.js?v=20261031ab"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261031ab"></script>
-<script src="assets/js/settings_search.js?v=20261031ab"></script>
+<script src="assets/js/vocab.generated.js?v=20261031ae"></script>
+<script src="assets/js/food_facts.generated.js?v=20261031ae"></script>
+<script src="assets/js/free_apis.generated.js?v=20261031ae"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261031ae"></script>
+<script src="assets/js/off_categories.generated.js?v=20261031ae"></script>
+<script src="assets/js/core/vocab.js?v=20261031ae"></script>
+<script src="assets/js/app.js?v=20261031ae"></script>
+<script src="assets/js/audit.js?v=20261031ae"></script>
+<script src="assets/js/receipt.js?v=20261031ae"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261031ae"></script>
+<script src="assets/js/settings_search.js?v=20261031ae"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

@@ -1,223 +1,285 @@
 /* ============================================================================
- * EverShelf — tablet type + list density (layer 3.5)
+ * EverShelf — tablet / kiosk type + list density
  *
- * Loaded after surfaces.css and BEFORE mobile.css. Phone (≤640) is untouched:
- * mobile.css stays geometry-only and last. This file only activates at ≥768px
- * (same shell breakpoint as elegant.css).
+ * NOT keyed on min-width alone: a desktop monitor is ≥768px and was getting
+ * bold truncated 2-column rows, while many Android kiosk WebViews report a CSS
+ * width under 768 and saw no change at all.
  *
- * Goals:
- *   1. Readable at arm's length (kiosk / kitchen tablet)
- *   2. Shorter list rows — use width for a single line, not two stacked bands
+ * Activated by classes set in app.js / the kiosk bridge:
+ *   html.is-kiosk         — Android kiosk WebView (_kioskBridge)
+ *   html.is-touch-tablet  — coarse pointer + hover:none + width ≥ 600
+ *
+ * Desktop (mouse) and phones stay on the base styles. mobile.css stays last.
  * ========================================================================= */
 
-@media (min-width: 768px) {
-    /* ── Global type scale ──────────────────────────────────────────────── */
-    :root {
-        --es-text-title: 1.22rem;
-        --es-text-body: 1.02rem;
-        --es-text-small: 0.9rem;
-        --es-text-micro: 0.8rem;
-    }
+html.is-kiosk,
+html.is-touch-tablet {
+    /* Modest bump — no html{font-size} (that made every rem scream on desktop). */
+    --es-text-title: 1.18rem;
+    --es-text-body: 1rem;
+    --es-text-small: 0.88rem;
+    --es-text-micro: 0.78rem;
+}
 
-    /* Bumps every rem in the app ~6% without rewriting hundreds of rules. */
-    html {
-        font-size: 17px;
-    }
+/* ── Inventory: one horizontal band (width to spare on a tablet) ─────────── */
+html.is-kiosk .inv-row-content.inv-card,
+html.is-touch-tablet .inv-row-content.inv-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+}
 
-    /* ── Inventory: one horizontal band ─────────────────────────────────── */
-    .inv-row-content.inv-card {
-        flex-direction: row;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 10px;
-    }
+html.is-kiosk .inv-card-top,
+html.is-touch-tablet .inv-card-top {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+}
 
-    .inv-card-top {
-        flex: 1 1 auto;
-        min-width: 0;
-        align-items: center;
-        gap: 10px;
-    }
+html.is-kiosk .inv-card-bottom,
+html.is-touch-tablet .inv-card-bottom {
+    flex: 0 1 auto;
+    margin-left: auto;
+    gap: 8px;
+    /* Never clamp to half the card — that truncated qty + expiry on wide tablets. */
+    max-width: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
 
-    .inv-card-bottom {
-        flex: 0 1 auto;
-        margin-left: auto;
-        gap: 8px;
-        max-width: 48%;
-    }
+html.is-kiosk .inv-image,
+html.is-touch-tablet .inv-image {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 1.2rem;
+}
 
-    .inv-image {
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
-        font-size: 1.2rem;
-    }
+html.is-kiosk .inv-name-row .inv-name,
+html.is-kiosk .inventory-item.is-medical-row .inv-name,
+html.is-touch-tablet .inv-name-row .inv-name,
+html.is-touch-tablet .inventory-item.is-medical-row .inv-name {
+    font-size: var(--es-text-body);
+    font-weight: 650;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-line-clamp: 4; /* absurd titles only — never a hard 1–2 line cut */
+    line-height: 1.3;
+}
 
-    .inv-name-row .inv-name,
-    .inventory-item.is-medical-row .inv-name {
-        font-size: var(--es-text-body);
-        font-weight: 700;
-        -webkit-line-clamp: 1;
-        line-height: 1.25;
-    }
+html.is-kiosk .shop-row-title-name,
+html.is-touch-tablet .shop-row-title-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 
-    .inv-meta-line {
-        margin-top: 2px;
-        font-size: var(--es-text-micro);
-        line-height: 1.25;
-    }
+html.is-kiosk .inv-meta-line,
+html.is-touch-tablet .inv-meta-line {
+    margin-top: 2px;
+    font-size: var(--es-text-micro);
+    line-height: 1.25;
+}
 
-    .inv-med-sub {
-        font-size: var(--es-text-micro);
-    }
+html.is-kiosk .inv-med-sub,
+html.is-touch-tablet .inv-med-sub {
+    font-size: var(--es-text-micro);
+}
 
-    .inv-qty-pill {
-        min-height: 30px;
-        padding: 4px 11px;
-        font-size: var(--es-text-small);
-    }
+html.is-kiosk .inv-qty-pill,
+html.is-touch-tablet .inv-qty-pill {
+    min-height: 30px;
+    padding: 4px 11px;
+    font-size: var(--es-text-small);
+}
 
-    .inv-time {
-        font-size: var(--es-text-small);
-    }
+html.is-kiosk .inv-time,
+html.is-touch-tablet .inv-time {
+    font-size: var(--es-text-small);
+}
 
-    .inv-quick-use {
-        min-height: 40px;
-        min-width: 44px;
-        padding: 0 14px;
-        font-size: var(--es-text-small);
-    }
+html.is-kiosk .inv-quick-use,
+html.is-touch-tablet .inv-quick-use {
+    min-height: 40px;
+    min-width: 44px;
+    padding: 0 14px;
+    font-size: var(--es-text-small);
+}
 
-    .inv-card-menu {
-        width: 36px;
-        height: 36px;
-        font-size: 1.2rem;
-    }
+html.is-kiosk .inv-card-menu,
+html.is-touch-tablet .inv-card-menu {
+    width: 36px;
+    height: 36px;
+    font-size: 1.2rem;
+}
 
-    .inventory-list {
-        gap: 8px;
-    }
+html.is-kiosk .inventory-list,
+html.is-touch-tablet .inventory-list {
+    gap: 8px;
+}
 
-    /* ── Dashboard alert rows ───────────────────────────────────────────── */
-    .alert-item {
-        padding: 8px 10px;
-        margin-bottom: 4px;
-        font-size: var(--es-text-body);
-        gap: 10px;
-    }
+/* ── Dashboard alert rows ───────────────────────────────────────────────── */
+html.is-kiosk .alert-item,
+html.is-touch-tablet .alert-item {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    font-size: var(--es-text-body);
+    gap: 10px;
+}
 
-    .alert-item-name,
-    .alert-item-head .alert-item-name {
-        font-size: var(--es-text-body);
-        font-weight: 650;
-    }
+html.is-kiosk .alert-item-name,
+html.is-kiosk .alert-item-head .alert-item-name,
+html.is-touch-tablet .alert-item-name,
+html.is-touch-tablet .alert-item-head .alert-item-name {
+    font-size: var(--es-text-body);
+    font-weight: 600;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
 
-    .alert-item-brand,
-    .alert-item-head .alert-item-brand {
-        font-size: var(--es-text-small);
-    }
+html.is-kiosk .alert-item-brand,
+html.is-kiosk .alert-item-head .alert-item-brand,
+html.is-kiosk .alert-item-qty,
+html.is-kiosk .alert-item-meta,
+html.is-kiosk .alert-item-verdict,
+html.is-touch-tablet .alert-item-brand,
+html.is-touch-tablet .alert-item-head .alert-item-brand,
+html.is-touch-tablet .alert-item-qty,
+html.is-touch-tablet .alert-item-meta,
+html.is-touch-tablet .alert-item-verdict {
+    font-size: var(--es-text-small);
+}
 
-    .alert-item-qty,
-    .alert-item-meta,
-    .alert-item-verdict {
-        font-size: var(--es-text-small);
-    }
+html.is-kiosk .alert-item-badge,
+html.is-kiosk .safety-pill,
+html.is-touch-tablet .alert-item-badge,
+html.is-touch-tablet .safety-pill {
+    font-size: var(--es-text-micro);
+    padding: 3px 10px;
+}
 
-    .alert-item-badge,
-    .safety-pill {
-        font-size: var(--es-text-micro);
-        padding: 3px 10px;
-    }
+html.is-kiosk .alert-item-badges .btn-banner,
+html.is-kiosk .alert-item-badges .btn-alert-extend,
+html.is-touch-tablet .alert-item-badges .btn-banner,
+html.is-touch-tablet .alert-item-badges .btn-alert-extend {
+    font-size: var(--es-text-small);
+    min-height: 40px;
+    padding: 0 12px;
+}
 
-    .alert-item-badges .btn-banner,
-    .alert-item-badges .btn-alert-extend {
-        font-size: var(--es-text-small);
-        min-height: 40px;
-        padding: 0 12px;
-    }
+html.is-kiosk .alert-section h3,
+html.is-kiosk .alert-danger h3,
+html.is-kiosk .alert-opened h3,
+html.is-kiosk .alert-stale h3,
+html.is-touch-tablet .alert-section h3,
+html.is-touch-tablet .alert-danger h3,
+html.is-touch-tablet .alert-opened h3,
+html.is-touch-tablet .alert-stale h3 {
+    font-size: var(--es-text-small);
+}
 
-    .alert-section h3,
-    .alert-danger h3,
-    .alert-opened h3,
-    .alert-stale h3 {
-        font-size: var(--es-text-small);
-    }
+/* ── Shopping list ──────────────────────────────────────────────────────── */
+html.is-kiosk .shop-row-content,
+html.is-touch-tablet .shop-row-content {
+    padding: 10px 12px;
+    min-height: 0;
+}
 
-    /* ── Shopping list ──────────────────────────────────────────────────── */
-    .shop-row-content {
-        padding: 10px 12px;
-        min-height: 0;
-    }
+html.is-kiosk .shop-row-visual,
+html.is-touch-tablet .shop-row-visual {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+}
 
-    .shop-row-visual {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-    }
+html.is-kiosk .shop-row-title-name,
+html.is-touch-tablet .shop-row-title-name {
+    font-size: var(--es-text-body);
+    font-weight: 650;
+    line-height: 1.3;
+}
 
-    .shop-row-title-name {
-        font-size: var(--es-text-body);
-        font-weight: 700;
-        line-height: 1.25;
-    }
+html.is-kiosk .shop-row-qty,
+html.is-touch-tablet .shop-row-qty {
+    font-size: 1.15rem;
+}
 
-    .shop-row-qty {
-        font-size: 1.2rem;
-    }
+html.is-kiosk .shop-row-sub,
+html.is-kiosk .shop-row-reason,
+html.is-touch-tablet .shop-row-sub,
+html.is-touch-tablet .shop-row-reason {
+    font-size: var(--es-text-small);
+    margin-top: 2px;
+    line-height: 1.3;
+}
 
-    .shop-row-sub,
-    .shop-row-reason {
-        font-size: var(--es-text-small);
-        margin-top: 2px;
-        line-height: 1.3;
-    }
+html.is-kiosk .shop-row-urgency-badge,
+html.is-touch-tablet .shop-row-urgency-badge {
+    font-size: var(--es-text-micro);
+    padding: 3px 8px;
+}
 
-    .shop-row-urgency-badge {
-        font-size: var(--es-text-micro);
-        padding: 3px 8px;
-    }
+html.is-kiosk .shop-section-body,
+html.is-touch-tablet .shop-section-body {
+    gap: 8px;
+}
 
-    .shop-section-body {
-        gap: 8px;
-    }
+/* ── Products + history ─────────────────────────────────────────────────── */
+html.is-kiosk .product-item,
+html.is-touch-tablet .product-item {
+    padding: 10px 12px;
+    gap: 10px;
+}
 
-    /* ── Products catalogue + history ───────────────────────────────────── */
-    .product-item {
-        padding: 10px 12px;
-        gap: 10px;
-    }
+html.is-kiosk .product-item .inv-name,
+html.is-kiosk .product-item .product-name,
+html.is-touch-tablet .product-item .inv-name,
+html.is-touch-tablet .product-item .product-name {
+    font-size: var(--es-text-body);
+}
 
-    .product-item .inv-name,
-    .product-item .product-name {
-        font-size: var(--es-text-body);
-    }
+html.is-kiosk .log-entry,
+html.is-touch-tablet .log-entry {
+    padding: 7px 10px;
+    gap: 10px;
+    font-size: var(--es-text-body);
+}
 
-    .log-entry {
-        padding: 7px 10px;
-        gap: 10px;
-        font-size: var(--es-text-body);
-    }
+html.is-kiosk .page-header h2,
+html.is-touch-tablet .page-header h2 {
+    font-size: var(--es-text-title);
+}
 
-    .log-undone-badge {
-        font-size: var(--es-text-micro);
-    }
+html.is-kiosk .compact-item .inv-name,
+html.is-touch-tablet .compact-item .inv-name {
+    font-size: var(--es-text-body);
+}
 
-    /* ── Shared list chrome ─────────────────────────────────────────────── */
-    .suggestion-item,
-    .smart-item {
-        font-size: var(--es-text-body);
-    }
+/*
+ * Modals: elegant.css centres them only at min-width 640px. Many kiosk
+ * WebViews report a narrower CSS width, so sheets stayed glued to the bottom
+ * while the same page on a PC floated in the middle. Match the desktop tablet
+ * dialog on kiosk / touch-tablet.
+ */
+html.is-kiosk .modal-overlay,
+html.is-kiosk #recipe-overlay,
+html.is-kiosk #chat-overlay,
+html.is-touch-tablet .modal-overlay,
+html.is-touch-tablet #recipe-overlay,
+html.is-touch-tablet #chat-overlay {
+    align-items: center;
+    padding: 16px;
+}
 
-    .page-header h2 {
-        font-size: var(--es-text-title);
-    }
-
-    .btn {
-        font-size: var(--es-text-body);
-    }
-
-    /* Compact dashboard tiles still inherit the taller type. */
-    .compact-item .inv-name {
-        font-size: var(--es-text-body);
-    }
+html.is-kiosk .modal-content,
+html.is-kiosk .recipe-dialog,
+html.is-kiosk .chat-sheet,
+html.is-touch-tablet .modal-content,
+html.is-touch-tablet .recipe-dialog,
+html.is-touch-tablet .chat-sheet {
+    border-radius: var(--radius, 16px);
+    max-height: 86vh;
 }

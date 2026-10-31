@@ -1035,7 +1035,10 @@
         "entsorgen",
         "entsorgt",
         "fortwerfen",
-        "wirf weg"
+        "wirf weg",
+        "wirf",
+        "schmeiß",
+        "schmeiss"
       ],
       "consume": [
         "verwendet",
@@ -1066,6 +1069,13 @@
         "habe gegessen",
         "habe getrunken",
         "habe genommen"
+      ],
+      "shop": [
+        "einkaufsliste",
+        "auf die einkaufsliste",
+        "auf die liste",
+        "einkauf",
+        "zu kaufen"
       ],
       "add": [
         "hinzufügen",
@@ -1333,7 +1343,8 @@
       "habe",
       "hab",
       "hat",
-      "einige"
+      "einige",
+      "weg"
     ]
   },
   "locale": {

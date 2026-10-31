@@ -351,7 +351,7 @@ function vocabCaptureLexicon() {
     if (vocabCaptureLexicon._lang === lang && vocabCaptureLexicon._value) return vocabCaptureLexicon._value;
     const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
     const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
-    const intents = { recipe: [], symptom: [], throw: [], consume: [], add: [] };
+    const intents = { recipe: [], symptom: [], throw: [], consume: [], shop: [], add: [] };
     const out = { intents: intents, numbers: {}, units: {}, fractions: [], all_words: [], stop_words: [] };
     const seenFractions = new Set();
     const seenAll = new Set();

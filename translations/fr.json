@@ -365,7 +365,7 @@
     "detail_consume_all": "Emballage terminé",
     "detail_other_actions": "Autres actions",
     "detail_more": "Détails",
-    "detail_consumed": "✓ {qty} de {name} enregistrés",
+    "detail_consumed": "✓ {qty} de {name} enregistré",
     "location_filter": "Filtrer par emplacement",
     "detail_extend_short": "Péremption",
     "item_detail_recipe_short": "Recette",
@@ -2851,7 +2851,7 @@
     "run": "Exécuter",
     "example_use": "J'ai utilisé 1 orange",
     "example_add": "Ajouter le lait",
-    "example_recipe": "Que cuisiner avec des œufs ?",
+    "example_recipe": "Que cuisiner aujourd'hui ?",
     "open_chat": "Ouvrir la discussion complète",
     "no_product": "Je n'ai pas compris : {name} n'est pas dans le garde-manger. Essaie le nom exact.",
     "use_hint": "J'ouvre {name} : confirme la quantité.",
@@ -2865,9 +2865,9 @@
     "which_one": "Lequel voulais-tu ?",
     "throw_hint": "J'ouvre {name} : tu peux le jeter depuis là.",
     "mic_prompt": "Autorise le micro en haut, puis parle.",
-    "example_use_half": "J'ai utilisé une demi-pomme",
+    "example_use_half": "J'ai mangé une demi-pomme",
     "example_use_grams": "J'ai utilisé 300 g de fusilli",
-    "example_all": "J'ai fini tous les fusilli",
+    "example_all": "J'ai fini le lait",
     "example_throw": "Jette le pain",
     "examples_use": "Consommer",
     "examples_stock": "Garde-manger",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "Le module médicaments est désactivé : active EverShelf Med dans les réglages.",
     "example_symptom": "J'ai mal à la tête",
     "example_med_use": "J'ai pris du paracétamol",
-    "example_eat": "Je mange une pomme",
-    "examples_med": "Médicaments"
+    "example_eat": "J'ai mangé une pomme",
+    "examples_med": "Médicaments",
+    "intent_shop": "Courses",
+    "example_shop": "Ajouter des œufs à la liste de courses",
+    "shop_done": "{name} est sur la liste de courses"
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."
@@ -2899,7 +2902,11 @@
     "intro_start": "C'est parti",
     "intro_reopen": "C'est quoi SHELFY ?",
     "pick_title": "Lequel voulais-tu ?",
-    "pick_auto": "Si tu ne choisis pas, je prends {name}"
+    "pick_auto": "Si tu ne choisis pas, je prends {name}",
+    "confirm_title": "J'enregistre {qty} de {name}",
+    "confirm_in": "Je valide dans {s} s si tu ne touches à rien",
+    "edit": "Modifier",
+    "cancelled": "Rien n'a été enregistré"
   },
   "credits": {
     "title": "Merci à ces API gratuites",

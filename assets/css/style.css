@@ -1649,9 +1649,9 @@ body.offline-mode .offline-banner-retry {
 
 .alert-item-name {
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
 }
 
 .alert-item-brand {
@@ -1705,7 +1705,7 @@ body.offline-mode .offline-banner-retry {
     max-width: 64%;
 }
 
-/* Name + brand share one line when they fit (saves a lot of vertical space). */
+/* Name wraps; brand follows on the same flow when it fits. */
 .alert-item-head {
     display: flex;
     align-items: baseline;
@@ -1713,13 +1713,17 @@ body.offline-mode .offline-banner-retry {
     gap: 2px 6px;
     min-width: 0;
 }
-.alert-item-head .alert-item-name,
+.alert-item-head .alert-item-name {
+    flex: 1 1 12rem;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 .alert-item-head .alert-item-brand {
     flex: 0 1 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* Action buttons inside a dashboard row: tappable, 2-3 per line, never a stack. */
@@ -2322,9 +2326,10 @@ body.offline-mode .offline-banner-retry {
 .inv-name {
     font-weight: 700;
     font-size: 1rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Titles wrap to the row width — never a one-line ellipsis on a normal name. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
 }
 
 .inv-brand {
@@ -4757,6 +4762,7 @@ body:has(#page-scan.active) .app-content {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 12px;
     font-weight: 650;
     font-size: 1.15rem;
@@ -4780,7 +4786,10 @@ body:has(#page-scan.active) .app-content {
 .shop-row-title-name {
     flex: 1;
     min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
     word-break: break-word;
+    line-height: 1.3;
 }
 .shop-row-qty {
     flex-shrink: 0;
@@ -9280,7 +9289,7 @@ body.cooking-mode-active .app-header {
 .inv-card-top .inv-info { flex: 1 1 auto; min-width: 0; }
 .inv-name-row {
     display: flex;
-    align-items: flex-start;
+    align-items: flex-start; /* fav/menu stay top while the title wraps */
     gap: 4px;
     min-width: 0;
 }
@@ -9293,15 +9302,18 @@ body.cooking-mode-active .app-header {
     min-width: 0;
     font-size: 0.95rem;
     white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+    /* Safety only for absurd titles (full ingredient/legal runs) — normal names wrap fully. */
     display: -webkit-box;
-    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
     overflow: hidden;
 }
 .inventory-item.is-medical-row .inv-name {
     font-size: 0.94rem;
     font-weight: 700;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
 }
 .inv-med-sub {
     margin-top: 1px;
@@ -9309,9 +9321,8 @@ body.cooking-mode-active .app-header {
     font-weight: 500;
     line-height: 1.3;
     color: #64748b;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 .med-form-emoji {
     display: inline-flex;

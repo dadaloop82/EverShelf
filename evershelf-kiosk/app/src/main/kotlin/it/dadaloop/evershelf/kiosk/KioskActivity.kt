@@ -643,7 +643,9 @@ class KioskActivity : AppCompatActivity() {
         if (token.isEmpty()) return
         val quoted = JSONObject.quote(token)
         webView.evaluateJavascript(
-            "(function(){try{localStorage.setItem('evershelf_api_token',$quoted);" +
+            "(function(){try{" +
+                "document.documentElement.classList.add('is-kiosk');" +
+                "localStorage.setItem('evershelf_api_token',$quoted);" +
                 "if(window._pairingRequired!==undefined)window._pairingRequired=false;" +
                 "var o=document.getElementById('api-pairing-overlay');if(o)o.remove();" +
                 "}catch(e){}})();",
@@ -656,6 +658,7 @@ class KioskActivity : AppCompatActivity() {
     private fun injectKioskOverlay() {
         val js = """
         (function() {
+            try { document.documentElement.classList.add('is-kiosk'); } catch (e) {}
             if (document.getElementById('_kiosk_overlay')) return;
             var wrap = document.createElement('div');
             wrap.id = '_kiosk_overlay';

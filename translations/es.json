@@ -365,7 +365,7 @@
     "detail_consume_all": "Envase terminado",
     "detail_other_actions": "Otras operaciones",
     "detail_more": "Detalles",
-    "detail_consumed": "✓ Registrados {qty} de {name}",
+    "detail_consumed": "✓ Registrado {qty} de {name}",
     "location_filter": "Filtrar por lugar",
     "detail_extend_short": "Caducidad",
     "item_detail_recipe_short": "Receta",
@@ -2851,7 +2851,7 @@
     "run": "Ejecutar",
     "example_use": "He usado 1 naranja",
     "example_add": "Añade la leche",
-    "example_recipe": "¿Qué cocino con huevos?",
+    "example_recipe": "¿Qué puedo cocinar hoy?",
     "open_chat": "Abrir el chat completo",
     "no_product": "No lo he entendido: {name} no está en la despensa. Prueba con el nombre exacto.",
     "use_hint": "Abro {name}: confirma la cantidad.",
@@ -2867,7 +2867,7 @@
     "mic_prompt": "Permite el micrófono arriba y luego habla.",
     "example_use_half": "He usado media manzana",
     "example_use_grams": "He usado 300 g de fusilli",
-    "example_all": "He terminado todos los fusilli",
+    "example_all": "He terminado la leche",
     "example_throw": "Tira el pan",
     "examples_use": "Consumir",
     "examples_stock": "Despensa",
@@ -2882,8 +2882,11 @@
     "symptom_med_off": "El módulo de medicamentos está apagado: actívalo en Ajustes (EverShelf Med).",
     "example_symptom": "Tengo dolor de cabeza",
     "example_med_use": "He tomado el paracetamol",
-    "example_eat": "Como una manzana",
-    "examples_med": "Medicamentos"
+    "example_eat": "He comido una manzana",
+    "examples_med": "Medicamentos",
+    "intent_shop": "Compra",
+    "example_shop": "Añade huevos a la lista de la compra",
+    "shop_done": "{name} está en la lista de la compra"
   },
   "location_altro": {
     "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."
@@ -2899,7 +2902,11 @@
     "intro_start": "Empecemos",
     "intro_reopen": "¿Qué es SHELFY?",
     "pick_title": "¿Cuál querías?",
-    "pick_auto": "Si no eliges, tomo {name}"
+    "pick_auto": "Si no eliges, tomo {name}",
+    "confirm_title": "Registro {qty} de {name}",
+    "confirm_in": "Confirmo en {s} s si no tocas nada",
+    "edit": "Editar",
+    "cancelled": "No he registrado nada"
   },
   "credits": {
     "title": "Gracias a estas API gratuitas",

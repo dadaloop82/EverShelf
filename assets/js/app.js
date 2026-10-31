@@ -7,6 +7,26 @@
  * @license MIT
  */
 
+/**
+ * Mark the document for tablet.css (kiosk / real touch tablets).
+ * Desktop mouse must NOT get these classes — that is what made PC lists bold
+ * and truncated while the kiosk (narrow CSS width) saw no change at all.
+ */
+function _markDeviceChrome() {
+    try {
+        const root = document.documentElement;
+        if (typeof _kioskBridge !== 'undefined') root.classList.add('is-kiosk');
+        const touch = window.matchMedia
+            && window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        const wideEnough = Math.max(window.innerWidth || 0, screen.width || 0) >= 600;
+        root.classList.toggle('is-touch-tablet', !!(touch && wideEnough));
+    } catch (_) { /* old WebView */ }
+}
+_markDeviceChrome();
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', () => { try { _markDeviceChrome(); } catch (_) {} }, { passive: true });
+}
+
 // ===== REMOTE LOGGING + ERROR REPORTING =====
 // Two-tier system:
 //  1. remoteLog() — batched INFO/WARN/ERROR → existing client_log endpoint (debug tail)
@@ -1870,7 +1890,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261031f'; // bump when translations change
+const _I18N_VERSION = '20261031ae'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -6934,6 +6954,7 @@ function _kioskInstallUpdate() {
 function _injectKioskOverlay() {
     if (typeof _kioskBridge === 'undefined') return;
 
+    try { document.documentElement.classList.add('is-kiosk'); } catch (_) {}
     // Always mark header as kiosk-mode (idempotent).
     const appHeader = document.querySelector('.app-header');
     if (appHeader) appHeader.classList.add('kiosk-mode');
@@ -9655,6 +9676,8 @@ let _captureRec = null;
 function _openCaptureSheet() {
     const sheet = document.getElementById('capture-sheet');
     if (!sheet) return;
+    // A new sentence replaces a pending confirmation: never two writable actions at once.
+    _shelfyClearConfirm();
     // First run: SHELFY introduces itself before it starts listening.
     if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }
     sheet.style.display = '';
@@ -9866,6 +9889,7 @@ function _captureShowUnderstood(parsed) {
     const intentKey = {
         consume: 'capture.intent_consume',
         add: 'capture.intent_add',
+        shop: 'capture.intent_shop',
         recipe: 'capture.intent_recipe',
         throw: 'capture.intent_throw',
         symptom: 'capture.intent_symptom',
@@ -9948,7 +9972,7 @@ function _captureExamples() {
             'capture.example_eat', 'capture.example_use', 'capture.example_use_half',
             'capture.example_use_grams', 'capture.example_all',
         ] },
-        { group: 'capture.examples_stock', items: ['capture.example_add', 'capture.example_throw'] },
+        { group: 'capture.examples_stock', items: ['capture.example_add', 'capture.example_shop', 'capture.example_throw'] },
         { group: 'capture.examples_ask', items: ['capture.example_recipe'] },
         { group: 'capture.examples_med', items: [
             'capture.example_symptom', 'capture.example_med_use',
@@ -9995,8 +10019,8 @@ function _shelfyMarkIntroSeen() {
 /** The phrases SHELFY understands, as the sheet and the intro both list them. */
 const _SHELFY_EXAMPLES = [
     'capture.example_eat', 'capture.example_use', 'capture.example_use_half', 'capture.example_use_grams',
-    'capture.example_all', 'capture.example_add', 'capture.example_throw', 'capture.example_recipe',
-    'capture.example_symptom', 'capture.example_med_use',
+    'capture.example_all', 'capture.example_add', 'capture.example_shop', 'capture.example_throw',
+    'capture.example_recipe', 'capture.example_symptom', 'capture.example_med_use',
 ];
 
 function _shelfyOpenIntro() {
@@ -10028,6 +10052,7 @@ function _shelfyDisarm() {
     document.querySelectorAll('.shelfy-armed').forEach(el => {
         el.classList.remove('shelfy-armed');
         el.style.removeProperty('--shelfy-ms');
+        el.querySelectorAll('.shelfy-arm-count').forEach(n => n.remove());
     });
 }
 
@@ -10037,15 +10062,31 @@ function _shelfyDisarm() {
  * The drain is the reverse of a scrollbar filling up: it shows how long is left and it
  * is the confirmation itself. A pointerdown or a key press anywhere stops it — the user
  * is in control — and pressing the armed control simply runs its own handler.
+ *
+ * The remaining seconds are printed on the control (`.shelfy-arm-count`): a sentence
+ * that promises ten seconds while nothing moves reads as a frozen app.
  */
 function _shelfyArmButton(el, ms, fire) {
     _shelfyDisarm();
     if (!el) { try { fire(); } catch (e) { /* no element, run anyway */ } return; }
+    const total = Math.max(1000, Number(ms) || 10000);
     el.classList.add('shelfy-armed');
-    el.style.setProperty('--shelfy-ms', `${ms}ms`);
-    _shelfyTimer = setTimeout(() => { _shelfyDisarm(); try { fire(); } catch (e) { /* silent */ } }, ms);
+    el.style.setProperty('--shelfy-ms', `${total}ms`);
+    const chip = document.createElement('span');
+    chip.className = 'shelfy-arm-count';
+    chip.setAttribute('aria-hidden', 'true');
+    el.appendChild(chip);
+    const started = Date.now();
+    const paint = () => {
+        const left = Math.max(0, Math.ceil((total - (Date.now() - started)) / 1000));
+        chip.textContent = `${left}s`;
+    };
+    paint();
+    const tick = setInterval(paint, 250);
+    _shelfyTimer = setTimeout(() => { _shelfyDisarm(); try { fire(); } catch (e) { /* silent */ } }, total);
     const stop = () => _shelfyDisarm();
     _shelfyUnbind = () => {
+        clearInterval(tick);
         document.removeEventListener('pointerdown', stop, true);
         document.removeEventListener('keydown', stop, true);
     };
@@ -10057,41 +10098,192 @@ function _shelfyArmButton(el, ms, fire) {
     }, 0);
 }
 
+/* ── SHELFY's floating confirmation ───────────────────────────────────────
+ * The voice path ends on the page the household is already on. "Ho mangiato una
+ * mela" used to navigate to the legacy full-page "Usa / Consuma" (a ← Indietro
+ * header, the purple recipe button, "Tutte una parte"), which for a kiosk with wet
+ * hands is three taps too many. Now the sheet closes and a card says what is about
+ * to be registered: the bar drains for 10 s, then the quantity is written. Modifica
+ * opens the compact product sheet with the quantity already set (a tap stops the
+ * clock) and Annulla writes nothing at all.
+ */
+let _shelfyConfirmTimer = null;
+let _shelfyConfirmTick = null;
+let _shelfyConfirmKey = null;
+
+/** Drop the pending confirmation (never applies it). */
+function _shelfyClearConfirm() {
+    if (_shelfyConfirmTimer) { clearTimeout(_shelfyConfirmTimer); _shelfyConfirmTimer = null; }
+    if (_shelfyConfirmTick) { clearInterval(_shelfyConfirmTick); _shelfyConfirmTick = null; }
+    if (_shelfyConfirmKey) {
+        document.removeEventListener('keydown', _shelfyConfirmKey, true);
+        _shelfyConfirmKey = null;
+    }
+    const el = document.getElementById('shelfy-confirm');
+    if (el) el.remove();
+}
+
+/** The sentence on the card, in the row's own unit ("1 pz", "300 g"). */
+function _shelfyQtyLabel(ticket) {
+    const item = (ticket && ticket.item) || {};
+    return _formatQtyPlain(ticket && ticket.quantity, ticket && ticket.unit,
+        item.default_quantity, item.package_unit);
+}
+
+/** Write the confirmed consume — the same call the compact product sheet makes. */
+async function _shelfyApplyConsume(ticket) {
+    if (!ticket || !ticket.productId || !(Number(ticket.quantity) > 0)) return;
+    const label = _shelfyQtyLabel(ticket);
+    const name = _plainUiText((ticket.item && ticket.item.name) || '');
+    try {
+        const res = await api('inventory_use', {}, 'POST', {
+            product_id: ticket.productId,
+            quantity: Number(ticket.quantity),
+            location: ticket.location,
+        });
+        if (res && res.success) {
+            showToast(t('inventory.detail_consumed', { qty: label, name }), 'success');
+            _dashboardLiveRefresh(ticket.inventoryId);
+            try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
+        } else if (res && res.duplicate) {
+            showToast(t('use.duplicate_recent'), 'info');
+        } else {
+            showToast(_apiErrorText(res) || t('error.generic'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/** Show the draining card and, when the bar is empty, apply the consume. */
+function _shelfyOfferConsume(ticket) {
+    _shelfyClearConfirm();
+    const item = (ticket && ticket.item) || {};
+    const ms = 10000;
+    const label = _shelfyQtyLabel(ticket);
+    const name = _plainUiText(item.name || '');
+    const el = document.createElement('div');
+    el.className = 'shelfy-confirm';
+    el.id = 'shelfy-confirm';
+    el.style.setProperty('--shelfy-ms', `${ms}ms`);
+    el.innerHTML = `
+        <div class="shelfy-confirm-row">
+            <span class="shelfy-confirm-thumb" aria-hidden="true"><img src="assets/img/shelfy/shelfy-avatar-96.png" alt=""></span>
+            <span class="shelfy-confirm-body">
+                <span class="shelfy-confirm-title" role="status">${escapeHtml(t('shelfy.confirm_title', { qty: label, name }))}</span>
+                <span class="shelfy-confirm-sub" id="shelfy-confirm-sub" aria-hidden="true"></span>
+            </span>
+            <span class="shelfy-confirm-actions">
+                <button type="button" class="btn btn-secondary" id="shelfy-confirm-edit">${escapeHtml(t('shelfy.edit'))}</button>
+                <button type="button" class="btn btn-secondary" id="shelfy-confirm-cancel">${escapeHtml(t('btn.cancel'))}</button>
+            </span>
+        </div>
+        <span class="shelfy-confirm-bar" aria-hidden="true"><span></span></span>`;
+    document.body.appendChild(el);
+
+    const sub = el.querySelector('#shelfy-confirm-sub');
+    const started = Date.now();
+    const paint = () => {
+        const left = Math.max(0, Math.ceil((ms - (Date.now() - started)) / 1000));
+        if (sub) sub.textContent = t('shelfy.confirm_in', { s: left });
+    };
+    paint();
+    _shelfyConfirmTick = setInterval(paint, 250);
+    _shelfyConfirmTimer = setTimeout(() => {
+        _shelfyClearConfirm();
+        _shelfyApplyConsume(ticket);
+    }, ms);
+
+    const cancel = el.querySelector('#shelfy-confirm-cancel');
+    if (cancel) cancel.addEventListener('click', () => {
+        _shelfyClearConfirm();
+        showToast(t('shelfy.cancelled'), 'info', 2500);
+    });
+    const edit = el.querySelector('#shelfy-confirm-edit');
+    if (edit) edit.addEventListener('click', () => {
+        _shelfyClearConfirm();
+        if (ticket.inventoryId) showItemDetail(ticket.inventoryId, ticket.productId, ticket.quantity);
+        else if (typeof quickUse === 'function') quickUse(ticket.productId, ticket.location);
+    });
+
+    // Esc cancels it like every other dialog of the app, and nothing is written.
+    _shelfyConfirmKey = (ev) => {
+        if (ev.key !== 'Escape') return;
+        _shelfyClearConfirm();
+        showToast(t('shelfy.cancelled'), 'info', 2500);
+    };
+    document.addEventListener('keydown', _shelfyConfirmKey, true);
+}
+
 /**
- * "Ho usato …" → the USE panel of that row, quantity already set, and the confirm armed
- * for 10 s (the button's background drains; any touch stops it and leaves the decision to
- * the user). "Ho finito …" opens the same panel without arming: using the whole row is
- * destructive, so `submitUseAll()` keeps its slide-to-confirm.
+ * "Ho usato …" / "Ho mangiato …" → the floating confirmation of that row, quantity
+ * already in it (the bar drains; Modifica/Annulla decide for the user).
+ *
+ * "Ho finito …" stays a two-step on purpose: it empties a row, so it opens the compact
+ * product sheet — the same surface a tap on the row opens — where "Usa tutto" keeps its
+ * slide-to-confirm. This function never empties anything by itself, and it never
+ * navigates to the legacy full-page USE form.
  */
 async function _shelfyRunConsume(row, parsed) {
     if (!row || !row.item) return;
     const item = row.item;
     const useAll = !!(parsed && parsed.use_all);
-    const qty = useAll ? 0 : _captureQtyFor(parsed || {}, item);
     _closeCaptureSheet();
-    await _openUsePage(item.product_id, item.location);
-    if (useAll) {
-        // Nothing is applied by the sentence: "Ho consumato tutto" is one tap away and the
-        // tap is the user's (that flow always asks for a slide).
+    const rowId = Number(item.inventory_id || item.id) || 0;
+    const inventoryId = rowId > 0 ? rowId : _inventoryIdFor(item.product_id, item.location);
+
+    if (useAll || !(inventoryId > 0)) {
+        if (inventoryId > 0) showItemDetail(inventoryId, item.product_id);
         showToast(t('capture.use_all_hint', { name: item.name }), 'info', 6000);
         return;
     }
-    const qtyEl = document.getElementById('use-quantity');
-    if (qtyEl && qty > 0) {
-        qtyEl.value = qty;
-        qtyEl.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const unit = item.unit || '';
-    showToast(t('capture.qty_hint', { qty: qty > 0 ? qty : '1', unit, name: item.name }), 'info', 6000);
-    // One countdown only on that button: the page's own 15 s idle confirm would race with
-    // SHELFY's 10 s drain (and paint a second progress bar on top of it).
-    clearUseFormIdleCountdown();
-    // The confirmation is the draining background: 10 s, then it acts — unless the user
-    // touches anything (pointerdown / key cancels it, see _shelfyArmButton). The button must
-    // exist: arming nothing would run the action immediately.
-    const confirmBtn = document.getElementById('btn-use-submit');
-    if (confirmBtn) {
-        _shelfyArmButton(confirmBtn, 10000, () => submitUse({ preventDefault() {} }));
+
+    // The dictated amount in the row's own unit; a unit that cannot be compared with the
+    // row (grams against "2 confezioni") falls back to one piece of that row, and the
+    // amount never exceeds what is on the shelf (the API would refuse it).
+    let qty = _captureQtyFor(parsed || {}, item) || 1;
+    const stock = Number(item.quantity);
+    if (stock > 0 && qty > stock) qty = stock;
+
+    _shelfyOfferConsume({
+        inventoryId,
+        productId: item.product_id,
+        location: item.location,
+        quantity: qty,
+        unit: item.unit || 'pz',
+        item,
+    });
+}
+
+/**
+ * "Aggiungi … alla spesa" → the shopping list (never the pantry).
+ *
+ * Routed by the `shop` intent of the vocabulary data, which is listed before `add`, so
+ * "aggiungi le uova alla spesa" is a shopping line while "aggiungi il latte" is still a
+ * pantry add. The list resolves the generic name server-side (shopping_add), so the
+ * spoken words are enough.
+ */
+async function _shelfyAddShopping(parsed) {
+    const raw = String((parsed && parsed.product) || '').trim();
+    if (!raw) { _captureNotUnderstood('capture.not_understood'); return; }
+    const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+    _closeCaptureSheet();
+    try {
+        const res = await api('shopping_add', {}, 'POST', {
+            items: [{ name }],
+            listUUID: (typeof shoppingListUUID !== 'undefined' && shoppingListUUID) ? shoppingListUUID : '',
+        });
+        if (res && res.success === false) {
+            showToast(_apiErrorText(res) || t('error.generic'), 'error');
+            return;
+        }
+        showToast(t('capture.shop_done', { name }), 'success');
+        if (_currentPageId === 'shopping') {
+            if (typeof loadSmartShopping === 'function') loadSmartShopping(true);
+            else if (typeof loadShoppingList === 'function') loadShoppingList();
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
     }
 }
 
@@ -10731,6 +10923,10 @@ async function _captureSubmit(raw, opts) {
             return;
         }
         go(() => _medOpenSearch(text));
+        return;
+    }
+    if (parsed.intent === 'shop') {
+        _shelfyAddShopping(parsed);
         return;
     }
     if (parsed.intent === 'add') {
@@ -17985,7 +18181,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261029r';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031ae';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -17995,7 +18191,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261029r';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261031ae';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -22822,8 +23018,17 @@ function selectThrowLocation(btn, loc) {
  * @param {Function} onConfirm — Called when confirmed (by user or countdown)
  * @param {string}   [confirmLabel] — Override confirm button label
  */
-function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
+/**
+ * The one confirmation dialog for an action that changes stock.
+ *
+ * `opts.tone === 'positive'` is for the answers that PUT something back — undoing a
+ * consumption restocks the row — and those are not red: red is reserved for what
+ * destroys stock (throw away, finish). A positive confirmation also never fires by
+ * itself: with no countdown, the answer is the user's tap and nothing else.
+ */
+function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel, opts) {
     const DURATION = 5000;
+    const positive = !!(opts && opts.tone === 'positive');
     const btnLabel = confirmLabel || t('confirm.proceed');
     const cancelLabel = t('confirm.cancel');
     let rafHandle = null;
@@ -22834,18 +23039,20 @@ function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
     const contentEl = document.getElementById('modal-content');
     const confirmBtnId = '_destConfirmBtn_' + Date.now();
     const barId       = '_destConfirmBar_' + Date.now();
+    const confirmClass = positive ? 'btn btn-primary' : 'btn btn-danger';
+    const barColor = positive ? 'var(--brand-primary)' : 'var(--danger)';
 
     contentEl.innerHTML = `
         <div class="modal-header">
             <h3>${escapeHtml(title)}</h3>
         </div>
         <p style="margin:12px 0 18px;color:var(--text-muted);font-size:0.95rem">${escapeHtml(msg)}</p>
-        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px">
-            <div id="${barId}" style="height:100%;width:100%;background:var(--danger);transition:none"></div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:16px;${positive ? 'display:none' : ''}">
+            <div id="${barId}" style="height:100%;width:100%;background:${barColor};transition:none"></div>
         </div>
         <div style="display:flex;gap:10px">
             <button class="btn btn-secondary" style="flex:1" id="_destCancelBtn">${escapeHtml(cancelLabel)}</button>
-            <button class="btn btn-danger" style="flex:1" id="${confirmBtnId}">${escapeHtml(btnLabel)}</button>
+            <button class="${confirmClass}" style="flex:1" id="${confirmBtnId}">${escapeHtml(btnLabel)}</button>
         </div>
     `;
     overlayEl.style.display = 'flex';
@@ -22872,7 +23079,8 @@ function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel) {
     document.getElementById(confirmBtnId).addEventListener('click', doConfirm);
     document.getElementById('_destCancelBtn').addEventListener('click', doCancel);
 
-    // Countdown animation
+    // Countdown animation — only where the countdown is the safety net.
+    if (positive) return;
     const barEl = document.getElementById(barId);
     const start = performance.now();
     function tick() {
@@ -24818,9 +25026,9 @@ async function loadUseInventoryInfo() {
                 fracDiv.innerHTML = `
                     <p class="form-hint">${t('use.partial_piece_hint')}</p>
                     <div class="fraction-btn-row">
-                        <button type="button" class="frac-btn" data-frac="0.25" onclick="setPzFraction(0.25)">¼ ${t('use.piece')}</button>
-                        <button type="button" class="frac-btn" data-frac="0.5" onclick="setPzFraction(0.5)">½ ${t('use.piece')}</button>
-                        <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾ ${t('use.piece')}</button>
+                        <button type="button" class="frac-btn" data-frac="0.25" onclick="setPzFraction(0.25)">¼</button>
+                        <button type="button" class="frac-btn" data-frac="0.5" onclick="setPzFraction(0.5)">½</button>
+                        <button type="button" class="frac-btn" data-frac="0.75" onclick="setPzFraction(0.75)">¾</button>
                         <button type="button" class="frac-btn active" data-frac="1" onclick="setPzFraction(1)">${t('use.one_whole')}</button>
                     </div>`;
                 document.querySelector('#page-use .use-partial').appendChild(fracDiv);
@@ -30208,6 +30416,10 @@ function showToast(message, type = '', duration = 3000) {
     if (!toast) return;
     // Never surface raw backend keys (duplicate_recent, error.foo, …).
     let text = _plainUiText(message);
+    // A stray slash between a number and its unit ("1/pz") reached a toast once. No
+    // sentence of the app means it, and it reads as a broken quantity, so it is cleaned
+    // here — the one place every message goes through.
+    text = text.replace(/(\d)\s*\/\s*(pz|pcs|Stk|conf|pkg|g|ml|kg|l)\b/gi, '$1 $2');
     if (text === 'duplicate_recent' || text === 'use.duplicate_recent') {
         text = t('use.duplicate_recent');
     } else if (/^[a-z][a-z0-9_.]*$/i.test(text) && (text.includes('_') || text.includes('.'))) {
@@ -30350,10 +30562,15 @@ async function loadLog(more = false) {
 async function undoTransactionEntry(id, type, name) {
     const action = type === 'in' ? t('log.undo_action_remove') : t('log.undo_action_restore');
     const msg = t('log.undo_confirm').replace('{action}', action).replace('{name}', name);
+    // Undoing an addition TAKES stock away (red). Undoing a consumption PUTS IT BACK:
+    // a restock is not a danger, so its confirm is the brand's emerald and it waits for
+    // the tap instead of firing on a countdown.
     _showDestructiveConfirm(
         t('log.undo_title'),
         msg,
-        () => _doUndoTransaction(id, type, name)
+        () => _doUndoTransaction(id, type, name),
+        null,
+        { tone: type === 'in' ? 'destructive' : 'positive' }
     );
 }
 

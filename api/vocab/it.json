@@ -1747,6 +1747,15 @@
         "sto mangiando",
         "sto bevendo"
       ],
+      "shop": [
+        "lista della spesa",
+        "alla spesa",
+        "sulla spesa",
+        "in spesa",
+        "lista spesa",
+        "spesa",
+        "da comprare"
+      ],
       "add": [
         "aggiungi",
         "aggiungere",

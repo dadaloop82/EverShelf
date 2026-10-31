@@ -1080,6 +1080,15 @@
         "j ai bu",
         "j ai pris"
       ],
+      "shop": [
+        "à la liste",
+        "à la liste de courses",
+        "liste de courses",
+        "sur la liste",
+        "aux courses",
+        "courses",
+        "à acheter"
+      ],
       "add": [
         "ajouter",
         "ajouté",
