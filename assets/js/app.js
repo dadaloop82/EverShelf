@@ -8177,6 +8177,11 @@ function showPage(pageId, param = null, options = {}) {
 
     _currentPageId = pageId;
     _currentPageParam = param;
+    // Leaving SHELFY drops the pharmacy persona (next open from nav is kitchen again).
+    if (pageId !== 'chat') {
+        _chatPharmacyMode = false;
+        _chatPharmacyMedicines = null;
+    }
     // Hide all pages
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     // Show target page
@@ -13702,6 +13707,9 @@ function _inventoryIsMedicalContext() {
     return _locationDomain === 'medical' || (!!key && isMedicalLocation(key));
 }
 
+/** Active symptom-slug filter on the pharmacy grid (null = show all). */
+let _inventoryMedSymptomFilter = null;
+
 /** Symptom chips under the pantry search — only in the pharmacy context. */
 function _syncInventoryMedChips() {
     const host = document.getElementById('inventory-med-chips');
@@ -13710,6 +13718,7 @@ function _syncInventoryMedChips() {
     host.hidden = !on;
     if (!on) {
         host.innerHTML = '';
+        _inventoryMedSymptomFilter = null;
         return;
     }
     const featured = ['pain', 'stomach', 'cold', 'firstaid'];
@@ -13717,18 +13726,96 @@ function _syncInventoryMedChips() {
     host.innerHTML = featured.map(slug => {
         const cat = cats.find(c => c && c.slug === slug);
         const label = cat && cat.label_key ? t(cat.label_key) : slug;
-        return `<button type="button" class="inv-med-chip" data-slug="${escapeAttr(slug)}"`
+        const active = _inventoryMedSymptomFilter === slug;
+        return `<button type="button" class="inv-med-chip${active ? ' is-on' : ''}" data-slug="${escapeAttr(slug)}"`
+            + ` aria-pressed="${active ? 'true' : 'false'}"`
             + ` onclick="_medInventoryChip('${escapeAttr(slug)}')">${escapeHtml(label)}</button>`;
     }).join('');
 }
 
-/** Chip → symptom search (teaches the cabinet query even when empty). */
+/**
+ * Symptom chip: AI on → open SHELFY with a pharmacy ask; AI off → filter the grid.
+ * Never opens the old "Cosa ho in casa" modal (double disclaimer + nested list).
+ */
 function _medInventoryChip(slug) {
-    const seed = t('medical.chip_query_' + slug);
-    _medOpenSearch(seed && seed !== ('medical.chip_query_' + slug) ? seed : '');
+    const s = String(slug || '').trim();
+    if (!s) return;
+    if (_geminiAvailable) {
+        _medAskShelfySymptom(s);
+        return;
+    }
+    _inventoryMedSymptomFilter = (_inventoryMedSymptomFilter === s) ? null : s;
+    _syncInventoryMedChips();
+    renderInventory(_allInventoryCache || currentInventory);
 }
 
-/** Empty cabinet: scan / type AIC — not the generic food empty state. */
+/** True when a medicine row belongs to the active symptom chip (med_tags). */
+function _medItemMatchesSymptom(item, slug) {
+    if (!slug || !item) return true;
+    const tags = String(item.med_tags || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (tags.includes(slug)) return true;
+    // ATC prefix fallback from the closed category table (same idea as med_symptom_search).
+    const cats = (_medStatus && _medStatus.categories) || [];
+    const cat = cats.find((c) => c && c.slug === slug);
+    const atc = String(item.med_atc || '').toUpperCase();
+    if (!cat || !atc || !Array.isArray(cat.atc)) return false;
+    return cat.atc.some((want) => {
+        const w = String(want || '').toUpperCase();
+        return w && (atc.indexOf(w) === 0 || w.indexOf(atc) === 0);
+    });
+}
+
+/** Structured medicine list for the pharmacy SHELFY prompt (no food). */
+function _medCabinetContextPayload() {
+    const rows = (_allInventoryCache || currentInventory || [])
+        .filter((i) => _isMedicalRow(i) && !isInventoryDepleted(i));
+    return rows.map((item) => {
+        const unit = String(item.unit || 'pz').toLowerCase();
+        let form = 'tablets';
+        if (_medFormIconEmoji(item) === '💨') form = 'spray';
+        else if (unit === 'ml' || unit === 'l') form = 'drops_syrup';
+        else if (unit === 'g' || unit === 'kg') form = 'cream_gel';
+        const daysOpen = _medDaysOpen(item);
+        return {
+            name: _medCommercialName(item) || item.name || '',
+            active_ingredient: String(item.med_ingredient || '').trim(),
+            form,
+            stock: stripHtml(formatQuantityForItem(item)),
+            opened: !!item.opened_at,
+            days_open: item.opened_at && daysOpen != null ? daysOpen : null,
+            expiry: item.expiry_date || null,
+            tags: String(item.med_tags || '').split(',').map((x) => x.trim()).filter(Boolean),
+        };
+    });
+}
+
+/** Chat session started from the pharmacy chips — kitchen prompt must not win. */
+let _chatPharmacyMode = false;
+let _chatPharmacyMedicines = null;
+
+/**
+ * Open SHELFY and send «Ho {symptom}: cosa ho nell'armadietto…?» with the
+ * medicine inventory injected server-side (mode=pharmacy).
+ */
+function _medAskShelfySymptom(slug) {
+    if (!_requireGemini()) return;
+    const cats = (_medStatus && _medStatus.categories) || [];
+    const cat = cats.find((c) => c && c.slug === slug);
+    const label = cat && cat.label_key ? t(cat.label_key) : slug;
+    const ask = t('medical.shelfy_ask', { symptom: label });
+    _chatPharmacyMode = true;
+    _chatPharmacyMedicines = _medCabinetContextPayload();
+    showPage('chat');
+    // Let initChat paint, then send as if the household typed it.
+    setTimeout(() => {
+        const input = document.getElementById('chat-input');
+        if (!input) return;
+        input.value = ask;
+        try { sendChatMessage(); } catch (e) { /* chat not ready */ }
+    }, 280);
+}
+
+/** Empty cabinet: scan / type AIC — only when the MAIN list is empty, never a filter. */
 function _medCabinetEmptyHtml() {
     return `<div class="empty-state empty-state-med">`
         + `<div class="empty-state-icon" aria-hidden="true">💊</div>`
@@ -13738,6 +13825,38 @@ function _medCabinetEmptyHtml() {
         + `<button type="button" class="btn btn-primary" onclick="_medCabinetEmptyScan()">${escapeHtml(t('medical.empty_scan'))}</button>`
         + `<button type="button" class="btn btn-secondary" onclick="_medCabinetEmptyManual()">${escapeHtml(t('medical.empty_manual'))}</button>`
         + `</div></div>`;
+}
+
+/**
+ * Empty state for the inventory list.
+ * Scan/add copy only when the unfiltered place is empty; a filter with no hits
+ * (favourites / opened / expiring) gets a situation-specific sentence instead.
+ */
+function _inventoryEmptyHtml(baseVisible) {
+    const isMed = _inventoryIsMedicalContext();
+    const mainEmpty = !(baseVisible && baseVisible.length);
+    if (mainEmpty) {
+        return isMed
+            ? _medCabinetEmptyHtml()
+            : `<div class="empty-state"><div class="empty-state-icon" aria-hidden="true">📭</div><p>${t('inventory.empty_text')}</p></div>`;
+    }
+    const filter = _inventoryViewFilter;
+    const keyMap = isMed
+        ? { fav: 'medical.empty_fav', opened: 'medical.empty_opened', expiring: 'medical.empty_expiring' }
+        : { fav: 'inventory.empty_fav', opened: 'inventory.empty_opened', expiring: 'inventory.empty_expiring' };
+    let titleKey = keyMap[filter] || (isMed ? 'medical.empty_title' : 'inventory.empty_text');
+    let icon = filter === 'fav' ? '☆' : (filter === 'opened' ? '📦' : (filter === 'expiring' ? '⚠️' : '📭'));
+    let clearFn = "setInventoryViewFilter('all')";
+    if (isMed && _inventoryMedSymptomFilter) {
+        titleKey = 'medical.empty_symptom';
+        icon = '🔎';
+        clearFn = "_inventoryMedSymptomFilter=null;_syncInventoryMedChips();renderInventory(_allInventoryCache||currentInventory)";
+    }
+    return `<div class="empty-state empty-state-filter">`
+        + `<div class="empty-state-icon" aria-hidden="true">${icon}</div>`
+        + `<p class="empty-state-title">${escapeHtml(t(titleKey))}</p>`
+        + `<button type="button" class="btn btn-secondary" onclick="${clearFn}">${escapeHtml(t('inventory.filter_all'))}</button>`
+        + `</div>`;
 }
 
 function _medCabinetEmptyScan() {
@@ -13767,15 +13886,26 @@ function setInventoryViewFilter(filter) {
     filterInventory();
 }
 
+/** Clear pharmacy symptom chip when leaving the cabinet. */
+function _clearMedSymptomFilter() {
+    if (!_inventoryMedSymptomFilter) return;
+    _inventoryMedSymptomFilter = null;
+    try { _syncInventoryMedChips(); } catch (e) { /* chips absent */ }
+}
+
 function _inventoryApplyViewFilter(items) {
-    const list = items || [];
-    if (_inventoryViewFilter === 'fav') return list.filter(i => Number(i.is_favorite));
-    if (_inventoryViewFilter === 'opened') return list.filter(i => !!i.opened_at);
-    if (_inventoryViewFilter === 'expiring') {
-        return list.filter(i => {
+    let list = items || [];
+    if (_inventoryViewFilter === 'fav') list = list.filter(i => Number(i.is_favorite));
+    else if (_inventoryViewFilter === 'opened') list = list.filter(i => !!i.opened_at);
+    else if (_inventoryViewFilter === 'expiring') {
+        list = list.filter(i => {
             const d = daysUntilExpiry(i.expiry_date);
             return Number.isFinite(d) && d <= 7;
         });
+    }
+    // Pharmacy symptom chip (AI off): keep only boxes tagged for that category.
+    if (_inventoryMedSymptomFilter && _inventoryIsMedicalContext()) {
+        list = list.filter((i) => _medItemMatchesSymptom(i, _inventoryMedSymptomFilter));
     }
     return list;
 }
@@ -13785,11 +13915,10 @@ function renderInventory(items, options = {}) {
     _renderInventoryTagFilter();
     _syncInventoryMedChips();
     const container = document.getElementById('inventory-list');
-    const visible = _inventoryApplyViewFilter(_inventoryVisibleItems(items));
+    const baseVisible = _inventoryVisibleItems(items);
+    const visible = _inventoryApplyViewFilter(baseVisible);
     if (visible.length === 0) {
-        container.innerHTML = _inventoryIsMedicalContext()
-            ? _medCabinetEmptyHtml()
-            : `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${t('inventory.empty_text')}</p></div>`;
+        container.innerHTML = _inventoryEmptyHtml(baseVisible);
         return;
     }
     // Pharmacy cabinet: flat list (the page title already says "Farmacia (N)" —
@@ -13938,6 +14067,7 @@ function filterLocation(loc) {
     if (searchEl) searchEl.value = '';
     _syncSearchClearBtn('inventory-search', 'inventory-search-clear');
     _inventoryTagFilter = [];
+    if (_locationDomain !== 'medical') _clearMedSymptomFilter();
     _syncLocationFilterUi();
     loadInventory();
 }
@@ -16155,87 +16285,57 @@ async function onMedEnabledChange() {
 }
 
 
-/** Open the symptom search (also called by SHELFY when the sentence is a symptom). */
+/**
+ * Symptom ask without the old modal.
+ * AI on → SHELFY pharmacy mode; AI off → filter the cabinet by the best matching category.
+ * Prefill comes from voice/SHELFY capture or Settings.
+ */
 function _medOpenSearch(prefill) {
     if (!_medOn()) {
         showToast(t('medical.enable_first'), 'error');
         return;
     }
-    const ov = document.getElementById('med-search-overlay');
-    if (!ov) return;
-    ov.style.display = 'flex';
-    const input = document.getElementById('med-search-input');
-    if (input) {
-        input.value = typeof prefill === 'string' ? prefill : '';
-        try { input.focus(); } catch (e) {}
-    }
-    _medSearchInput();
-}
-
-function _medCloseSearch() {
-    const ov = document.getElementById('med-search-overlay');
-    if (ov) ov.style.display = 'none';
-}
-
-let _medSearchTimer = null;
-function _medSearchInput() {
-    const input = document.getElementById('med-search-input');
-    const host = document.getElementById('med-search-results');
-    if (!input || !host) return;
-    const q = input.value.trim();
-    if (_medSearchTimer) clearTimeout(_medSearchTimer);
-    if (q.length < 3) {
-        host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.search_prompt'))}</p>`;
+    const q = String(prefill || '').trim();
+    if (_geminiAvailable) {
+        const ask = q
+            ? t('medical.shelfy_ask', { symptom: q })
+            : t('medical.shelfy_ask_generic');
+        _chatPharmacyMode = true;
+        _chatPharmacyMedicines = _medCabinetContextPayload();
+        showPage('chat');
+        setTimeout(() => {
+            const input = document.getElementById('chat-input');
+            if (!input) return;
+            input.value = ask;
+            try { sendChatMessage(); } catch (e) { /* */ }
+        }, 280);
         return;
     }
-    host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.searching'))}</p>`;
-    _medSearchTimer = setTimeout(async () => {
-        let r = null;
-        try { r = await api('med_symptom_search', { q }); } catch (e) { r = null; }
-        if (!r || !r.success) {
-            host.innerHTML = `<p class="med-search-empty">${escapeHtml(t('medical.search_error'))}</p>`;
+    // Offline / no AI: resolve the sentence to a category slug and filter the grid.
+    if (!_inventoryIsMedicalContext()) {
+        const cab = _locCabinetKey();
+        if (cab) showPage('inventory', cab);
+    }
+    if (!q) {
+        showToast(t('medical.search_prompt'), 'info');
+        return;
+    }
+    api('med_symptom_search', { q }).then((r) => {
+        const slug = Array.isArray(r?.matches) && r.matches[0] ? r.matches[0].slug : '';
+        if (!slug) {
+            showToast(t('medical.search_unknown').replace('{q}', q), 'info');
             return;
         }
-        _medRenderResults(q, r);
-    }, 250);
+        _inventoryMedSymptomFilter = slug;
+        _syncInventoryMedChips();
+        renderInventory(_allInventoryCache || currentInventory);
+    }).catch(() => showToast(t('medical.search_error'), 'error'));
 }
 
-function _medRenderResults(q, r) {
-    const host = document.getElementById('med-search-results');
-    if (!host) return;
-    const items = Array.isArray(r.items) ? r.items : [];
-    const matches = Array.isArray(r.matches) ? r.matches : [];
-    const head = `<p class="med-disclaimer">${escapeHtml(t(r.disclaimer_key || 'medical.disclaimer'))}</p>`;
-    if (!matches.length) {
-        host.innerHTML = head + `<p class="med-search-empty">${escapeHtml(t('medical.search_unknown').replace('{q}', q))}</p>`;
-        return;
-    }
-    const labels = matches.map(m => t(m.label_key)).filter(Boolean).join(' · ');
-    if (!items.length) {
-        host.innerHTML = head +
-            `<p class="med-search-groups">${escapeHtml(labels)}</p>` +
-            `<p class="med-search-empty">${escapeHtml(t('medical.search_none'))}</p>`;
-        return;
-    }
-    host.innerHTML = head +
-        `<p class="med-search-groups">${escapeHtml(labels)}</p>` +
-        items.map(item => {
-            const exp = item.expiry_date ? formatDate(item.expiry_date) : '';
-            const qty = stripHtml(formatQuantityForItem(item));
-            return `
-            <button type="button" class="med-search-item" onclick="_medOpenItem(${Number(item.inventory_id) || 0})">
-                <span class="med-search-icon" aria-hidden="true">${_medFormIconEmoji(item)}</span>
-                <span class="med-search-main">
-                    <span class="med-search-name">${escapeHtml(_medCommercialName(item) || item.name || '')}</span>
-                    <span class="med-search-meta">${escapeHtml([item.ingredient || item.med_ingredient, qty, exp].filter(Boolean).join(' · '))}</span>
-                </span>
-            </button>`;
-        }).join('') +
-        `<p class="med-search-empty">${escapeHtml(t('medical.no_dosage'))}</p>`;
-}
+/** Legacy no-op: the "Cosa ho in casa" modal was removed (chips → filter / SHELFY). */
+function _medCloseSearch() { /* overlay gone */ }
 
 function _medOpenItem(invId) {
-    _medCloseSearch();
     if (invId > 0 && typeof showItemDetail === 'function') {
         try { showItemDetail(invId); } catch (e) {}
     }
@@ -16287,7 +16387,6 @@ const _OVERLAY_CLOSERS = {
     'support-modal': () => closeSupportModal(),
     'recipe-overlay': () => closeRecipeDialog(),
     // EverShelf Med dialogs: Esc must clean up, not just hide the box.
-    'med-search-overlay': () => _medCloseSearch(),
     'med-setup-overlay': () => _medCloseSetup(),
     // A country the scanner cannot read: the dialog says so, Esc closes it and the camera
     // resumes (the household is still standing in front of the cabinet).
@@ -35105,6 +35204,8 @@ function initChat() {
     }).catch(() => { _chatSavedCount = 0; });
     // Always reload fresh inventory context
     loadChatContext();
+    // Opening chat from the nav (not a pharmacy chip) drops the pharmacy persona.
+    if (!_chatPharmacyMode) _chatPharmacyMedicines = null;
     // Do not autofocus the chat input — on Android the soft keyboard covers half the screen.
     _blurActiveTextInput();
 }
@@ -35275,13 +35376,21 @@ async function sendChatMessage() {
     
     try {
         const settings = getSettings();
-        const result = await api('gemini_chat', {}, 'POST', {
+        const body = {
             message: text,
             history: chatHistory.slice(0, -1).slice(-20), // last 20 messages for context
             appliances: settings.appliances || [],
             dietary_restrictions: settings.dietary_restrictions || '',
-            lang: _currentLang
-        });
+            lang: _currentLang,
+        };
+        // Pharmacy chip / armadietto ask: SHELFY wears the careful companion role, not the chef.
+        if (_chatPharmacyMode) {
+            body.mode = 'pharmacy';
+            body.medicines = Array.isArray(_chatPharmacyMedicines)
+                ? _chatPharmacyMedicines
+                : _medCabinetContextPayload();
+        }
+        const result = await api('gemini_chat', {}, 'POST', body);
         
         // Remove typing indicator
         typingEl.remove();

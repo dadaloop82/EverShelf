@@ -536,10 +536,33 @@ body {
     transform: scale(0.98);
     background: #E2E8F0;
 }
+.inv-med-chip.is-on {
+    background: #EEF2FF;
+    border-color: #6366F1;
+    color: #4338CA;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+[data-theme="dark"] .inv-med-chip {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(165, 180, 252, 0.35);
+    color: #E0E7FF;
+}
+[data-theme="dark"] .inv-med-chip.is-on {
+    background: rgba(99, 102, 241, 0.28);
+    border-color: #818CF8;
+    color: #C7D2FE;
+}
 
-.empty-state-med {
+.empty-state-med,
+.empty-state-filter {
     padding: 28px 18px 36px;
     text-align: center;
+}
+.empty-state-filter .empty-state-title {
+    margin: 0 0 14px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
 }
 .empty-state-med .empty-state-icon {
     font-size: 2.4rem;

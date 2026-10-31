@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "Modifica anagrafica e posizione",
     "loc_expiry_delta_plus": "+{n} gg",
     "loc_expiry_delta_minus": "−{n} gg",
-    "loc_expiry_delta_hint": "Giorni di conservazione stimati rispetto alla posizione attuale"
+    "loc_expiry_delta_hint": "Giorni di conservazione stimati rispetto alla posizione attuale",
+    "empty_fav": "Nessun prodotto nei preferiti",
+    "empty_opened": "Nessun prodotto aperto",
+    "empty_expiring": "Nessun prodotto in scadenza"
   },
   "scan": {
     "title": "Scansiona",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "Aperto da {n} gg · oltre i {max} consigliati",
     "sealed_expires_year": "Sigillato · Scade nel {year}",
     "sealed_expires_in": "Sigillato · Scade tra {n} gg",
-    "sealed_expired": "Sigillato · Scaduto da {n} gg"
+    "sealed_expired": "Sigillato · Scaduto da {n} gg",
+    "empty_fav": "Nessun farmaco presente nei preferiti",
+    "empty_opened": "Nessun farmaco aperto",
+    "empty_expiring": "Nessun farmaco in scadenza",
+    "shelfy_ask": "Ho {symptom}: cosa ho nel mio armadietto farmaci che potrebbe essere utile?",
+    "shelfy_ask_generic": "Cosa ho nel mio armadietto farmaci che potrebbe essere utile per come mi sento?",
+    "empty_symptom": "Nessun farmaco in casa per questo sintomo"
   },
   "months": {
     "january": "Gennaio",

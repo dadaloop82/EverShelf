@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "Editar ficha y ubicación",
     "loc_expiry_delta_plus": "+{n} d",
     "loc_expiry_delta_minus": "−{n} d",
-    "loc_expiry_delta_hint": "Caducidad estimada respecto al lugar actual"
+    "loc_expiry_delta_hint": "Caducidad estimada respecto al lugar actual",
+    "empty_fav": "Ningún producto en favoritos",
+    "empty_opened": "Ningún producto abierto",
+    "empty_expiring": "Nada a punto de caducar"
   },
   "scan": {
     "title": "Escáner",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "Abierto hace {n} d · más de {max} d aconsejados",
     "sealed_expires_year": "Sellado · Caduca en {year}",
     "sealed_expires_in": "Sellado · Caduca en {n} d",
-    "sealed_expired": "Sellado · Caducado hace {n} d"
+    "sealed_expired": "Sellado · Caducado hace {n} d",
+    "empty_fav": "Ningún medicamento en favoritos",
+    "empty_opened": "Ningún medicamento abierto",
+    "empty_expiring": "Ningún medicamento a punto de caducar",
+    "shelfy_ask": "Tengo {symptom}: ¿qué tengo ya en el botiquín que pueda servir?",
+    "shelfy_ask_generic": "¿Qué tengo ya en el botiquín que pueda ayudarme con cómo me siento?",
+    "empty_symptom": "Ningún medicamento en casa para este síntoma"
   },
   "months": {
     "january": "Enero",

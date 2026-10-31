@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "Angaben und Ort bearbeiten",
     "loc_expiry_delta_plus": "+{n} T",
     "loc_expiry_delta_minus": "−{n} T",
-    "loc_expiry_delta_hint": "Geschätzte Haltbarkeit gegenüber dem aktuellen Ort"
+    "loc_expiry_delta_hint": "Geschätzte Haltbarkeit gegenüber dem aktuellen Ort",
+    "empty_fav": "Keine Favoriten",
+    "empty_opened": "Keine geöffneten Produkte",
+    "empty_expiring": "Nichts bald ablaufend"
   },
   "scan": {
     "title": "Scannen",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "Seit {n} T. offen · über {max} T. empfohlen",
     "sealed_expires_year": "Versiegelt · Haltbar bis {year}",
     "sealed_expires_in": "Versiegelt · Noch {n} T.",
-    "sealed_expired": "Versiegelt · Seit {n} T. abgelaufen"
+    "sealed_expired": "Versiegelt · Seit {n} T. abgelaufen",
+    "empty_fav": "Keine Medikamente in den Favoriten",
+    "empty_opened": "Keine geöffneten Medikamente",
+    "empty_expiring": "Keine bald ablaufenden Medikamente",
+    "shelfy_ask": "Ich habe {symptom}: was habe ich schon im Hausapothekenschrank, das helfen könnte?",
+    "shelfy_ask_generic": "Was habe ich schon im Hausapothekenschrank, das bei meinem Befinden helfen könnte?",
+    "empty_symptom": "Keine Medikamente zu Hause für dieses Symptom"
   },
   "months": {
     "january": "Januar",

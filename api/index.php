@@ -11598,6 +11598,59 @@ function geminiReadExpiry(): void {
 }
 
 // ===== GEMINI CHAT =====
+/**
+ * Structured medicine rows for SHELFY pharmacy mode (food excluded).
+ * Shape matches the client `_medCabinetContextPayload()` so either source works.
+ *
+ * @return list<array<string,mixed>>
+ */
+function geminiChatPharmacyMedicines(PDO $db): array {
+    $medLocs = medicalLocationSlugs(_medicalSettingsMap($db));
+    try {
+        $rows = $db->query(
+            "SELECT i.id, i.quantity, i.expiry_date, i.opened_at, i.location,
+                    p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+                    p.is_medical, p.med_atc, p.med_tags, p.med_ingredient, p.med_pao_days
+             FROM inventory i JOIN products p ON p.id = i.product_id
+             WHERE i.quantity > 0.001"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        EverLog::warn('geminiChat pharmacy medicines', ['event' => 'gemini_chat_pharmacy_meds', 'error' => $e->getMessage()]);
+        return [];
+    }
+    $out = [];
+    foreach ($rows as $row) {
+        if (!medicalIsMedicalRow($row, $medLocs)) continue;
+        if (function_exists('isInventoryDepleted') && isInventoryDepleted($row)) continue;
+        $unit = strtolower(trim((string)($row['unit'] ?? 'pz')));
+        $qty = (float)($row['quantity'] ?? 0);
+        $stock = trim(rtrim(rtrim(sprintf('%.3f', $qty), '0'), '.')) . ' ' . $unit;
+        $openedAt = trim((string)($row['opened_at'] ?? ''));
+        $daysOpen = null;
+        if ($openedAt !== '') {
+            try {
+                $daysOpen = (int)floor((time() - strtotime($openedAt)) / 86400);
+                if ($daysOpen < 0) $daysOpen = 0;
+            } catch (Throwable $e) {
+                $daysOpen = null;
+            }
+        }
+        $tags = medicalTagsOf($row);
+        $out[] = [
+            'name' => (string)($row['name'] ?? ''),
+            'active_ingredient' => trim((string)($row['med_ingredient'] ?? '')),
+            'form' => $unit,
+            'stock' => $stock,
+            'opened' => $openedAt !== '',
+            'days_open' => $daysOpen,
+            'expiry' => ($row['expiry_date'] ?? null) ?: null,
+            'tags' => $tags,
+            'pao_days' => (int)($row['med_pao_days'] ?? 0) ?: null,
+        ];
+    }
+    return $out;
+}
+
 function geminiChat(PDO $db): void {
     $apiKey = aiCredential();
     if (empty($apiKey)) {
@@ -11613,48 +11666,78 @@ function geminiChat(PDO $db): void {
     $dietaryRestrictions = $input['dietary_restrictions'] ?? '';
     $lang = recipeNormalizeLang($input['lang'] ?? 'en');
     $langName = recipeLangName($lang);
+    $mode = strtolower(trim((string)($input['mode'] ?? 'kitchen')));
 
     if (empty($message)) {
         echo json_encode(['success' => false, 'error' => 'Empty message']);
         return;
     }
 
-    // Fetch cookable inventory context for the chat assistant
-    $items = recipeFetchPantryItems($db);
-
-    $ingredientLines = [];
-    foreach ($items as $item) {
-        $line = "- {$item['name']}";
-        if ($item['brand']) $line .= " ({$item['brand']})";
-        $line .= ": {$item['quantity']} {$item['unit']}";
-        if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
-            $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
+    if ($mode === 'pharmacy') {
+        // Medicine-cabinet companion: never invent boxes, never prescribe doses.
+        // Prefer the live cabinet from SQLite; the client list is only a fallback.
+        $medicines = geminiChatPharmacyMedicines($db);
+        if (!$medicines) {
+            $clientMeds = $input['medicines'] ?? [];
+            $medicines = is_array($clientMeds) ? array_values($clientMeds) : [];
         }
-        $isOpen = !empty($item['opened_at']) ||
-                  (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
-        if ($isOpen) $line .= ' [APERTO]';
-        $loc = mb_strtolower(trim((string)($item['location'] ?? '')));
-        $inFreezer = ($loc === 'freezer' || $loc === 'surgelati');
-        if ($item['expiry_date'] && !$inFreezer) {
-            $daysLeft = (int)$item['days_left'];
-            $line .= recipeFormatExpiryLabel($daysLeft, (string)$item['expiry_date']);
-        } elseif ($item['expiry_date'] && $inFreezer) {
-            $line .= ' [freezer — scadenza lunga, non urgente]';
+        $medicinesJson = json_encode($medicines, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($medicinesJson === false) $medicinesJson = '[]';
+        $systemPrompt = <<<PROMPT
+You are SHELFY, a careful, empathetic household companion. Right now you are in the medicine cabinet ("Armadietto Farmaci" / pharmacy) section — NOT the kitchen.
+You are NOT a doctor and NOT a pharmacist. Your only job is to help the household take stock of medicines they already own at home.
+
+IMPORTANT: Always reply in {$langName}, in a warm, plain, reassuring tone.
+
+CONTEXT — MEDICINES CURRENTLY IN THE HOUSEHOLD CABINET (JSON; cite ONLY these boxes):
+{$medicinesJson}
+
+MANDATORY RULES:
+1. Always reply in {$langName}.
+2. Open with a clear medical disclaimer: you are not a doctor/pharmacist; for diagnosis, dosage, interactions or suitability they must ask their doctor or pharmacist and read the package leaflet (bugiardino).
+3. List only medicines that appear in the JSON above and that plausibly match the symptom or question. Name the commercial product, the active ingredient when known, and whether the pack is sealed or already opened (and days open / PAO when provided).
+4. NEVER give dosages, schedules, or "take N tablets every X hours". Always redirect to the leaflet / a professional.
+5. You may suggest gentle non-drug comfort tips (rest, hydration, dark room for headache, warm/cold compress). If a kitchen pantry tip helps (e.g. herbal tea), keep it optional and secondary.
+6. If nothing in the cabinet fits, say so honestly — do not invent products.
+7. Remember the previous conversation turns.
+8. Stay concise; no scare tactics and no clinical jargon wall.
+PROMPT;
+    } else {
+        // Fetch cookable inventory context for the chat assistant
+        $items = recipeFetchPantryItems($db);
+
+        $ingredientLines = [];
+        foreach ($items as $item) {
+            $line = "- {$item['name']}";
+            if ($item['brand']) $line .= " ({$item['brand']})";
+            $line .= ": {$item['quantity']} {$item['unit']}";
+            if ($item['unit'] === 'conf' && !empty($item['package_unit']) && $item['default_quantity'] > 0) {
+                $line .= " (da {$item['default_quantity']} {$item['package_unit']} ciascuna)";
+            }
+            $isOpen = !empty($item['opened_at']) ||
+                      (floatval($item['quantity']) > 0 && floatval($item['quantity']) < 1 && $item['unit'] === 'conf');
+            if ($isOpen) $line .= ' [APERTO]';
+            $loc = mb_strtolower(trim((string)($item['location'] ?? '')));
+            $inFreezer = ($loc === 'freezer' || $loc === 'surgelati');
+            if ($item['expiry_date'] && !$inFreezer) {
+                $daysLeft = (int)$item['days_left'];
+                $line .= recipeFormatExpiryLabel($daysLeft, (string)$item['expiry_date']);
+            } elseif ($item['expiry_date'] && $inFreezer) {
+                $line .= ' [freezer — scadenza lunga, non urgente]';
+            }
+            $line .= " (in {$item['location']})";
+            $ingredientLines[] = $line;
         }
-        $line .= " (in {$item['location']})";
-        $ingredientLines[] = $line;
-    }
-    $ingredientsText = implode("\n", $ingredientLines);
+        $ingredientsText = implode("\n", $ingredientLines);
 
-    $appliancesText = _buildAppliancesPrompt($appliances, compact: true);
+        $appliancesText = _buildAppliancesPrompt($appliances, compact: true);
 
-    $dietaryText = '';
-    if (!empty($dietaryRestrictions)) {
-        $dietaryText = "\nUser dietary restrictions: {$dietaryRestrictions}. Always respect these restrictions.";
-    }
+        $dietaryText = '';
+        if (!empty($dietaryRestrictions)) {
+            $dietaryText = "\nUser dietary restrictions: {$dietaryRestrictions}. Always respect these restrictions.";
+        }
 
-    $langName = recipeLangName($lang);
-    $systemPrompt = <<<PROMPT
+        $systemPrompt = <<<PROMPT
 You are an expert kitchen assistant, friendly and concise. The user has a pantry and asks you for advice on what to prepare.
 IMPORTANT: Always respond in {$langName}, using a colloquial and friendly tone.
 
@@ -11674,6 +11757,7 @@ RULES:
 9. Remember the context of the previous conversation
 10. If the user explicitly asks for a recipe for a specific appliance (e.g. bread machine, Cookeo, air fryer), provide the recipe ONLY for that appliance, with device-specific instructions (programs, ingredient order, times, temperatures)
 PROMPT;
+    }
 
     // Build conversation for Gemini
     // systemInstruction is passed separately in the payload; contents only contains the actual chat turns.

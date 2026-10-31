@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "Edit details and location",
     "loc_expiry_delta_plus": "+{n} d",
     "loc_expiry_delta_minus": "−{n} d",
-    "loc_expiry_delta_hint": "Estimated shelf-life change vs the current place"
+    "loc_expiry_delta_hint": "Estimated shelf-life change vs the current place",
+    "empty_fav": "No favourites yet",
+    "empty_opened": "No opened products",
+    "empty_expiring": "Nothing expiring soon"
   },
   "scan": {
     "title": "Scan",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "Open for {n} d · past the {max} d advice",
     "sealed_expires_year": "Sealed · Expires in {year}",
     "sealed_expires_in": "Sealed · Expires in {n} d",
-    "sealed_expired": "Sealed · Expired {n} d ago"
+    "sealed_expired": "Sealed · Expired {n} d ago",
+    "empty_fav": "No medicines in favourites",
+    "empty_opened": "No opened medicines",
+    "empty_expiring": "No medicines expiring soon",
+    "shelfy_ask": "I have {symptom}: what do I already have in my medicine cabinet that might help?",
+    "shelfy_ask_generic": "What do I already have in my medicine cabinet that might help with how I feel?",
+    "empty_symptom": "No medicines at home for this symptom"
   },
   "months": {
     "january": "January",

@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "Modifier fiche et emplacement",
     "loc_expiry_delta_plus": "+{n} j",
     "loc_expiry_delta_minus": "−{n} j",
-    "loc_expiry_delta_hint": "Durée de conservation estimée vs l’emplacement actuel"
+    "loc_expiry_delta_hint": "Durée de conservation estimée vs l’emplacement actuel",
+    "empty_fav": "Aucun produit dans les favoris",
+    "empty_opened": "Aucun produit ouvert",
+    "empty_expiring": "Rien n’expire bientôt"
   },
   "scan": {
     "title": "Scanner",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "Ouvert depuis {n} j · au-delà des {max} j conseillés",
     "sealed_expires_year": "Scellé · Expire en {year}",
     "sealed_expires_in": "Scellé · Expire dans {n} j",
-    "sealed_expired": "Scellé · Expiré depuis {n} j"
+    "sealed_expired": "Scellé · Expiré depuis {n} j",
+    "empty_fav": "Aucun médicament dans les favoris",
+    "empty_opened": "Aucun médicament ouvert",
+    "empty_expiring": "Aucun médicament bientôt périmé",
+    "shelfy_ask": "J’ai {symptom} : qu’est-ce que j’ai déjà dans mon armoire à pharmacie qui pourrait aider ?",
+    "shelfy_ask_generic": "Qu’est-ce que j’ai déjà dans mon armoire à pharmacie qui pourrait m’aider ?",
+    "empty_symptom": "Aucun médicament à la maison pour ce symptôme"
   },
   "months": {
     "january": "Janvier",

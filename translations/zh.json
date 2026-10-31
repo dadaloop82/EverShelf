@@ -409,7 +409,10 @@
     "edit_sheet_subtitle": "编辑资料与位置",
     "loc_expiry_delta_plus": "+{n}天",
     "loc_expiry_delta_minus": "−{n}天",
-    "loc_expiry_delta_hint": "相对当前位置的预计保质期变化"
+    "loc_expiry_delta_hint": "相对当前位置的预计保质期变化",
+    "empty_fav": "收藏中没有商品",
+    "empty_opened": "没有已开封的商品",
+    "empty_expiring": "没有即将过期的商品"
   },
   "scan": {
     "title": "扫描",
@@ -3196,7 +3199,13 @@
     "pao_opened_over": "已开封 {n} 天 · 已超过建议的 {max} 天",
     "sealed_expires_year": "未开封 · {year} 年到期",
     "sealed_expires_in": "未开封 · {n} 天后到期",
-    "sealed_expired": "未开封 · 已过期 {n} 天"
+    "sealed_expired": "未开封 · 已过期 {n} 天",
+    "empty_fav": "收藏中没有药品",
+    "empty_opened": "没有已开封的药品",
+    "empty_expiring": "没有即将过期的药品",
+    "shelfy_ask": "我有{symptom}：家里药箱里有什么可能有用？",
+    "shelfy_ask_generic": "家里药箱里有什么可能对我现在的不适有用？",
+    "empty_symptom": "家里没有针对该症状的药品"
   },
   "months": {
     "january": "一月",
