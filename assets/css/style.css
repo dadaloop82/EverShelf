@@ -8,9 +8,10 @@
 
 /* ===== CSS VARIABLES & RESET ===== */
 :root {
-    --primary: #2d5016;
-    --primary-light: #4a7c28;
-    --primary-dark: #1a3009;
+    /* Brand emerald — same as --brand-primary in surfaces.css (no olive/military green). */
+    --primary: #059669;
+    --primary-light: #10b981;
+    --primary-dark: #047857;
     --success: #16a34a;
     --success-light: #22c55e;
     --danger: #dc2626;
@@ -2601,40 +2602,48 @@ body.offline-mode .offline-banner-retry {
     margin-top: 16px;
 }
 
-/* ===== FORMS ===== */
+/* ===== FORMS =====
+   Dense by default: every transactional form (add / use / product / edit sheet)
+   shares one vertical rhythm — tight label→input gap, modest field padding,
+   side-by-side pairs (expiry|vacuum, brand|category) via .form-pair / .form-row. */
 .form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
 }
 
 .form-group {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    margin: 0;
 }
 
 /* A group with nothing to choose (e.g. the location of a medicine, which can only live in
    its cabinet) is removed from the form: `display:flex` would otherwise defeat [hidden]. */
 .form-group[hidden] { display: none; }
 
-.form-group label {
+.form-group label,
+.form-group > .edit-section-label {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    line-height: 1.25;
     color: var(--text);
+    margin: 0;
 }
 
 .form-input {
     width: 100%;
-    padding: 14px 16px;
+    padding: 9px 12px;
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
-    font-size: 1rem;
+    font-size: 0.95rem;
     background: var(--bg-card);
     outline: none;
     transition: border-color 0.2s;
     -webkit-appearance: none;
     appearance: none;
+    box-sizing: border-box;
 }
 
 .form-input:focus {
@@ -2643,7 +2652,39 @@ body.offline-mode .offline-banner-retry {
 
 .form-row {
     display: flex;
-    gap: 12px;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+/* Two fields on one row (expiry + vacuum, brand + category, …). When the
+   second cell is hidden the first stretches full width. */
+.form-pair {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    align-items: flex-end;
+}
+.form-pair > .form-group,
+.form-pair > .form-pair-cell {
+    margin: 0;
+    min-width: 0;
+}
+.form-pair > .form-pair-grow,
+.form-pair > .form-group:first-child {
+    flex: 1 1 12rem;
+}
+.form-pair > .form-pair-aside,
+.form-pair > .form-group.form-pair-aside {
+    flex: 0 1 auto;
+    min-width: 8.5rem;
+}
+@media (max-width: 380px) {
+    .form-pair { align-items: stretch; }
+    .form-pair > .form-pair-aside,
+    .form-pair > .form-group.form-pair-aside {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
 }
 
 .flex-1 {
@@ -2654,15 +2695,15 @@ body.offline-mode .offline-banner-retry {
 .location-selector {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 6px;
 }
 
 .loc-btn {
     background: var(--bg-card);
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 14px;
-    font-size: 1rem;
+    padding: 10px 8px;
+    font-size: 0.92rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -2710,12 +2751,12 @@ body.offline-mode .offline-banner-retry {
 }
 
 .qty-btn {
-    width: 50px;
-    height: 50px;
+    width: 44px;
+    height: 44px;
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: var(--primary);
     cursor: pointer;
@@ -2733,9 +2774,9 @@ body.offline-mode .offline-banner-retry {
 
 .qty-input {
     width: 80px;
-    height: 50px;
+    height: 44px;
     text-align: center;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     font-weight: 700;
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
@@ -2751,7 +2792,7 @@ body.offline-mode .offline-banner-retry {
 /* Unit lives inside the number box: [ − ] [ 10 g ] [ + ] — never a floating filled circle. */
 .qty-control-with-unit {
     display: grid;
-    grid-template-columns: 50px minmax(88px, 1fr) 50px;
+    grid-template-columns: 44px minmax(88px, 1fr) 44px;
     grid-template-areas: "minus value plus";
     align-items: center;
     gap: 8px;
@@ -5466,12 +5507,12 @@ body:has(#page-scan.active) .app-content {
 .product-preview, .product-preview-small {
     background: var(--bg-card);
     border-radius: var(--radius);
-    padding: 16px;
+    padding: 10px 12px;
     box-shadow: var(--shadow);
-    margin-bottom: 16px;
+    margin-bottom: 10px;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
 }
 
 /* Action and Use page hero card */
@@ -6345,16 +6386,16 @@ body:has(#page-scan.active) .app-content {
 .purchase-type-selector {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin: 8px 0 12px;
+    gap: 6px;
+    margin: 4px 0 8px;
 }
 
 .purchase-type-btn {
-    padding: 12px 8px;
+    padding: 8px 8px;
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -6369,30 +6410,58 @@ body:has(#page-scan.active) .app-content {
 
 /* ===== EXPIRY DETAIL ===== */
 .expiry-detail {
-    margin-top: 8px;
-    padding: 12px;
+    margin-top: 4px;
+    padding: 8px 10px;
     background: #f8faf5;
     border-radius: var(--radius-sm);
     border: 1px solid rgba(45, 80, 22, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .expiry-estimate {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 0;
-    margin-bottom: 8px;
+    padding: 0;
+    margin: 0;
+    gap: 8px;
 }
 
 .expiry-estimate-label {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: var(--text-light);
 }
 
 .expiry-estimate-date {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: var(--primary);
     font-weight: 600;
+}
+
+/* Date + vacuum on one line inside the add form */
+.expiry-date-vacuum {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.expiry-date-vacuum .expiry-input-row {
+    flex: 1 1 11rem;
+    min-width: 0;
+}
+.expiry-date-vacuum #add-vacuum-group {
+    flex: 0 1 auto;
+    margin: 0;
+    min-width: 0;
+}
+.expiry-date-vacuum .toggle-row,
+.expiry-date-vacuum .edit-vacuum-row {
+    gap: 8px;
+    padding: 6px 10px;
+    min-height: 40px;
+    box-sizing: border-box;
 }
 
 .history-badge {
@@ -6407,9 +6476,10 @@ body:has(#page-scan.active) .app-content {
 }
 
 .form-hint {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
-    margin-top: 4px;
+    margin: 0;
+    line-height: 1.35;
 }
 
 /* ===== TOGGLE SWITCH ===== */
@@ -6485,11 +6555,11 @@ body:has(#page-scan.active) .app-content {
 }
 
 .remaining-btn {
-    padding: 10px 4px;
+    padding: 8px 4px;
     border: 2px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     text-align: center;
     transition: all 0.2s;

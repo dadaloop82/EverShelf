@@ -100,24 +100,36 @@ function vocabTokens(string $text): array {
     return $tokens;
 }
 
-/** Does an already tokenized name satisfy one term of the vocabulary? */
-function vocabMatchesTerm(array $tokens, string $term): bool {
+/**
+ * Best match of one term against tokens: [startIndex, wordCount] or null.
+ * "+" terms (all words, any order) score by the earliest matched part and the
+ * number of required parts — still no product word in the algorithm.
+ *
+ * @return array{0:int,1:int}|null
+ */
+function vocabTermMatchScore(array $tokens, string $term): ?array {
     $term = trim($term);
     if ($term === '' || $tokens === []) {
-        return false;
+        return null;
     }
     if (str_contains($term, '+')) {
-        foreach (explode('+', $term) as $part) {
-            if (!vocabMatchesTerm($tokens, $part)) {
-                return false;
+        $parts = explode('+', $term);
+        $earliest = null;
+        foreach ($parts as $part) {
+            $score = vocabTermMatchScore($tokens, $part);
+            if ($score === null) {
+                return null;
+            }
+            if ($earliest === null || $score[0] < $earliest) {
+                $earliest = $score[0];
             }
         }
-        return true;
+        return [$earliest, count($parts)];
     }
     $isStem = str_ends_with($term, '*');
     $words  = vocabTokens(rtrim($term, '*'));
     if ($words === []) {
-        return false;
+        return null;
     }
     $count = count($words);
     $last  = $count - 1;
@@ -133,10 +145,15 @@ function vocabMatchesTerm(array $tokens, string $term): bool {
             }
         }
         if ($ok) {
-            return true;
+            return [$i, $count];
         }
     }
-    return false;
+    return null;
+}
+
+/** Does an already tokenized name satisfy one term of the vocabulary? */
+function vocabMatchesTerm(array $tokens, string $term): bool {
+    return vocabTermMatchScore($tokens, $term) !== null;
 }
 
 /** Does the token list satisfy ANY of these terms? */
@@ -155,8 +172,40 @@ function vocabNameHasAnyTerm(string $name, array $terms): bool {
 }
 
 /**
- * The local category of a product name, from the ordered vocabulary: brands first, then
- * the generic terms. Unknown stays 'altro' — never a guess outside the data.
+ * Best (cat, pos, len) among the terms of one rule, or null when nothing hits.
+ *
+ * @return array{cat:string,pos:int,len:int}|null
+ */
+function vocabBestTermInRule(array $tokens, array $rule): ?array {
+    $cat = (string)($rule['cat'] ?? '');
+    if ($cat === '') {
+        return null;
+    }
+    $best = null;
+    foreach ((array)($rule['terms'] ?? []) as $term) {
+        $score = vocabTermMatchScore($tokens, (string)$term);
+        if ($score === null) {
+            continue;
+        }
+        [$pos, $len] = $score;
+        if ($best === null
+            || $len > $best['len']
+            || ($len === $best['len'] && $pos < $best['pos'])) {
+            $best = ['cat' => $cat, 'pos' => $pos, 'len' => $len];
+        }
+    }
+    return $best;
+}
+
+/**
+ * Local category of a product title.
+ *
+ * Language-neutral ranking (no product word, no Italian rule):
+ *   1. among category-term hits: longer phrase wins, then the earliest word in
+ *      the title (the genre leads the name — "Biscotti Zuppalatte" is snack, not
+ *      a drink just because a later token also sits in bevande),
+ *   2. brand → category only when the title itself named no genre
+ *      ("Baiocchi" alone → snack; "Passata La Molisana" → conserve).
  */
 function vocabCategoryOfName(string $name, string $brand = ''): string {
     $vocab  = evershelfVocab();
@@ -164,17 +213,81 @@ function vocabCategoryOfName(string $name, string $brand = ''): string {
     if ($tokens === []) {
         return 'altro';
     }
+    $best = null;
+    foreach ((array)($vocab['categories'] ?? []) as $rule) {
+        $hit = vocabBestTermInRule($tokens, (array)$rule);
+        if ($hit === null) {
+            continue;
+        }
+        if ($best === null
+            || $hit['len'] > $best['len']
+            || ($hit['len'] === $best['len'] && $hit['pos'] < $best['pos'])) {
+            $best = $hit;
+        }
+    }
+    if ($best !== null) {
+        return $best['cat'];
+    }
     foreach ((array)($vocab['brands'] ?? []) as $rule) {
         if (vocabMatchesTermsTokens($tokens, (array)($rule['terms'] ?? []))) {
             return (string)($rule['cat'] ?? 'altro');
         }
     }
-    foreach ((array)($vocab['categories'] ?? []) as $rule) {
-        if (vocabMatchesTermsTokens($tokens, (array)($rule['terms'] ?? []))) {
-            return (string)($rule['cat'] ?? 'altro');
+    return 'altro';
+}
+
+/**
+ * Open Food Facts slug → local category map (data/off_categories.json).
+ * Language-neutral: OFF tags are English. A null entry means catch-all.
+ *
+ * @return array<string, string|null>
+ */
+function evershelfOffCategoryMap(): array {
+    static $map = null;
+    if ($map !== null) {
+        return $map;
+    }
+    $path = dirname(__DIR__, 2) . '/data/off_categories.json';
+    $data = is_file($path) ? json_decode((string)file_get_contents($path), true) : null;
+    $by   = is_array($data['by_slug'] ?? null) ? $data['by_slug'] : [];
+    $out  = [];
+    foreach ($by as $slug => $cat) {
+        if (!is_string($slug) || $slug === '') {
+            continue;
+        }
+        $key = strtolower(trim($slug));
+        if ($cat === null || $cat === '') {
+            $out[$key] = null;
+            continue;
+        }
+        if (is_string($cat)) {
+            $out[$key] = strtolower(trim($cat));
         }
     }
-    return 'altro';
+    $map = $out;
+    return $map;
+}
+
+/**
+ * Map an OFF (or OFF-like) slug to a local category.
+ * Returns the local slug, or null when the tag is a catch-all / unknown
+ * (caller must guess from the product title via vocabCategoryOfName).
+ */
+function vocabMapOffSlug(string $slug): ?string {
+    $slug = strtolower(trim($slug));
+    if ($slug === '') {
+        return null;
+    }
+    // Strip a leading "en:" / "it:" / … if the caller forgot.
+    if (preg_match('/^[a-z]{2}:(.+)$/', $slug, $m)) {
+        $slug = $m[1];
+    }
+    $map = evershelfOffCategoryMap();
+    if (!array_key_exists($slug, $map)) {
+        return null;
+    }
+    $cat = $map[$slug];
+    return ($cat !== null && $cat !== '') ? $cat : null;
 }
 
 /** Does the title carry a pack size ("500 g", "1,5 l")? Format, not vocabulary. */

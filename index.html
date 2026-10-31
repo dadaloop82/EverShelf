@@ -12,27 +12,27 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261031f">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031f">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261031q">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031q">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031q">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031f">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031f">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031q">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031q">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261031f"></script>
-    <script src="assets/js/core/auth.js?v=20261031f"></script>
-    <script src="assets/js/core/med.js?v=20261031f"></script>
+    <script src="assets/js/core/dom.js?v=20261031q"></script>
+    <script src="assets/js/core/auth.js?v=20261031q"></script>
+    <script src="assets/js/core/med.js?v=20261031q"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261031f"></script>
+    <script src="assets/js/med/italy.js?v=20261031q"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261031f"></script>
+    <script src="assets/js/core/support.js?v=20261031q"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -40,7 +40,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261031q';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -49,13 +49,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031f';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031q';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261031f"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261031q"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -177,12 +177,10 @@
 
         <!-- Actions — fixed set of icon buttons, all same size -->
         <div class="header-actions">
-            <!-- Scale: HIDDEN unless a gateway is configured (nobody who only tracks
-                 expiry dates should see a dead icon). When enabled it is a real hardware
-                 indicator: a neutral pill with a crossed bluetooth while it searches, and a
-                 mint pill with the LIVE weight once connected. A tap opens a small popover
-                 (device, battery, big weight, tare, connect/disconnect) instead of a toast
-                 that covered the buttons at the bottom. -->
+            <!-- Scale: HIDDEN when the gateway is off/missing OR the scale is
+                 disconnected/errored. Shown only while searching or connected
+                 (neutral waiting / mint live weight). Tap → popover (device, battery,
+                 tare, connect/disconnect). -->
             <button id="scale-status-indicator" class="scale-pill scale-status-disconnected"
                     style="display:none" data-i18n-title="scale.status_disconnected" title="⚖️ Bilancia"
                     aria-haspopup="dialog" aria-expanded="false" aria-controls="scale-popover"
@@ -676,16 +674,8 @@
                 </div>
                 <div id="add-weight-info" class="form-hint" style="display:none"></div>
             </div>
-            <div class="form-group" id="add-vacuum-group">
-                <label class="toggle-row" onclick="toggleVacuumSealed()">
-                    <span data-i18n="add.vacuum_label">🫙 Sotto vuoto</span>
-                    <span class="toggle-switch" id="add-vacuum-toggle">
-                        <input type="checkbox" id="add-vacuum-sealed" onchange="onVacuumSealedChange()">
-                        <span class="toggle-slider"></span>
-                    </span>
-                </label>
-                <p class="form-hint" id="add-vacuum-hint" style="display:none" data-i18n="add.vacuum_hint">La scadenza verrà estesa automaticamente</p>
-            </div>
+            <!-- Vacuum lives next to the expiry date (painted into #add-expiry-section) so the
+                 add form does not spend a whole row on a single toggle. -->
             <!-- EverShelf Med: a medicine is a BOX, and its stock is counted in pieces (buste,
                  compresse, fiale). The two questions the pantry asks of food are not enough:
                  is this pack still sealed or already opened (which starts its own clock), and
@@ -865,67 +855,69 @@
                     <option value="Vino rosso">
                 </datalist>
             </div>
-            <div class="form-group">
-                <label id="pf-brand-label" data-i18n="product.brand_label">🏢 Marca</label>
-                <input type="text" id="pf-brand" class="form-input" placeholder="Es: Barilla, Granarolo, Mutti..."
-                    list="common-brands" autocomplete="off" data-i18n-placeholder="product.brand_placeholder">
-                <datalist id="common-brands">
-                    <option value="Barilla">
-                    <option value="De Cecco">
-                    <option value="Rummo">
-                    <option value="Voiello">
-                    <option value="Divella">
-                    <option value="Granarolo">
-                    <option value="Parmalat">
-                    <option value="Müller">
-                    <option value="Danone">
-                    <option value="Galbani">
-                    <option value="Ferrero">
-                    <option value="Lavazza">
-                    <option value="Illy">
-                    <option value="Mulino Bianco">
-                    <option value="Pan di Stelle">
-                    <option value="Mutti">
-                    <option value="Cirio">
-                    <option value="De Rica">
-                    <option value="Star">
-                    <option value="Knorr">
-                    <option value="Findus">
-                    <option value="4 Salti in Padella">
-                    <option value="Rio Mare">
-                    <option value="Valfrutta">
-                    <option value="Auricchio">
-                    <option value="Zanetti">
-                    <option value="Beretta">
-                    <option value="Rovagnati">
-                    <option value="Amadori">
-                    <option value="AIA">
-                    <option value="Esselunga">
-                    <option value="Conad">
-                    <option value="Coop">
-                </datalist>
-            </div>
-            <div class="form-group pf-food-only" id="pf-category-group">
-                <label data-i18n="product.category_label">📂 Categoria</label>
-                <select id="pf-category" class="form-input" onchange="onCategoryChange(false)">
-                    <option value="" data-i18n="form.select_placeholder">-- Seleziona --</option>
-                    <option value="latticini" data-i18n="categories.latticini">Latticini</option>
-                    <option value="carne" data-i18n="categories.carne">Carne</option>
-                    <option value="pesce" data-i18n="categories.pesce">Pesce</option>
-                    <option value="frutta" data-i18n="categories.frutta">Frutta</option>
-                    <option value="verdura" data-i18n="categories.verdura">Verdura</option>
-                    <option value="pasta" data-i18n="categories.pasta">Pasta & Riso</option>
-                    <option value="pane" data-i18n="categories.pane">Pane & Forno</option>
-                    <option value="surgelati" data-i18n="categories.surgelati">Surgelati</option>
-                    <option value="bevande" data-i18n="categories.bevande">Bevande</option>
-                    <option value="condimenti" data-i18n="categories.condimenti">Condimenti</option>
-                    <option value="snack" data-i18n="categories.snack">Snack & Dolci</option>
-                    <option value="conserve" data-i18n="categories.conserve">Conserve</option>
-                    <option value="cereali" data-i18n="categories.cereali">Cereali & Legumi</option>
-                    <option value="igiene" data-i18n="categories.igiene">Igiene</option>
-                    <option value="pulizia" data-i18n="categories.pulizia">Pulizia Casa</option>
-                    <option value="altro" data-i18n="categories.altro">Altro</option>
-                </select>
+            <div class="form-row" id="pf-brand-category-row">
+                <div class="form-group flex-1">
+                    <label id="pf-brand-label" data-i18n="product.brand_label">🏢 Marca</label>
+                    <input type="text" id="pf-brand" class="form-input" placeholder="Es: Barilla, Granarolo, Mutti..."
+                        list="common-brands" autocomplete="off" data-i18n-placeholder="product.brand_placeholder">
+                    <datalist id="common-brands">
+                        <option value="Barilla">
+                        <option value="De Cecco">
+                        <option value="Rummo">
+                        <option value="Voiello">
+                        <option value="Divella">
+                        <option value="Granarolo">
+                        <option value="Parmalat">
+                        <option value="Müller">
+                        <option value="Danone">
+                        <option value="Galbani">
+                        <option value="Ferrero">
+                        <option value="Lavazza">
+                        <option value="Illy">
+                        <option value="Mulino Bianco">
+                        <option value="Pan di Stelle">
+                        <option value="Mutti">
+                        <option value="Cirio">
+                        <option value="De Rica">
+                        <option value="Star">
+                        <option value="Knorr">
+                        <option value="Findus">
+                        <option value="4 Salti in Padella">
+                        <option value="Rio Mare">
+                        <option value="Valfrutta">
+                        <option value="Auricchio">
+                        <option value="Zanetti">
+                        <option value="Beretta">
+                        <option value="Rovagnati">
+                        <option value="Amadori">
+                        <option value="AIA">
+                        <option value="Esselunga">
+                        <option value="Conad">
+                        <option value="Coop">
+                    </datalist>
+                </div>
+                <div class="form-group flex-1 pf-food-only" id="pf-category-group">
+                    <label data-i18n="product.category_label">📂 Categoria</label>
+                    <select id="pf-category" class="form-input" onchange="onCategoryChange(false)">
+                        <option value="" data-i18n="form.select_placeholder">-- Seleziona --</option>
+                        <option value="latticini" data-i18n="categories.latticini">Latticini</option>
+                        <option value="carne" data-i18n="categories.carne">Carne</option>
+                        <option value="pesce" data-i18n="categories.pesce">Pesce</option>
+                        <option value="frutta" data-i18n="categories.frutta">Frutta</option>
+                        <option value="verdura" data-i18n="categories.verdura">Verdura</option>
+                        <option value="pasta" data-i18n="categories.pasta">Pasta & Riso</option>
+                        <option value="pane" data-i18n="categories.pane">Pane & Forno</option>
+                        <option value="surgelati" data-i18n="categories.surgelati">Surgelati</option>
+                        <option value="bevande" data-i18n="categories.bevande">Bevande</option>
+                        <option value="condimenti" data-i18n="categories.condimenti">Condimenti</option>
+                        <option value="snack" data-i18n="categories.snack">Snack & Dolci</option>
+                        <option value="conserve" data-i18n="categories.conserve">Conserve</option>
+                        <option value="cereali" data-i18n="categories.cereali">Cereali & Legumi</option>
+                        <option value="igiene" data-i18n="categories.igiene">Igiene</option>
+                        <option value="pulizia" data-i18n="categories.pulizia">Pulizia Casa</option>
+                        <option value="altro" data-i18n="categories.altro">Altro</option>
+                    </select>
+                </div>
             </div>
             <div class="form-row pf-food-only" id="pf-unit-group">
                 <div class="form-group flex-1">
@@ -3428,15 +3420,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261031f"></script>
-<script src="assets/js/food_facts.generated.js?v=20261031f"></script>
-<script src="assets/js/free_apis.generated.js?v=20261031f"></script>
-<script src="assets/js/core/vocab.js?v=20261031f"></script>
-<script src="assets/js/app.js?v=20261031f"></script>
-<script src="assets/js/audit.js?v=20261031f"></script>
-<script src="assets/js/receipt.js?v=20261031f"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261031f"></script>
-<script src="assets/js/settings_search.js?v=20261031f"></script>
+<script src="assets/js/vocab.generated.js?v=20261031q"></script>
+<script src="assets/js/food_facts.generated.js?v=20261031q"></script>
+<script src="assets/js/free_apis.generated.js?v=20261031q"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261031q"></script>
+<script src="assets/js/off_categories.generated.js?v=20261031q"></script>
+<script src="assets/js/core/vocab.js?v=20261031q"></script>
+<script src="assets/js/app.js?v=20261031q"></script>
+<script src="assets/js/audit.js?v=20261031q"></script>
+<script src="assets/js/receipt.js?v=20261031q"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261031q"></script>
+<script src="assets/js/settings_search.js?v=20261031q"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

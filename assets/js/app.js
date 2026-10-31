@@ -1278,10 +1278,20 @@ function _startScaleAutoConfirm(onConfirm, btnId) {
 
 /**
  * Update the scale status indicator icon/class.
+ * The header pill stays HIDDEN when the gateway is off/missing or the scale is
+ * disconnected/errored — a dead bluetooth icon next to the scan button is noise.
+ * It appears only while searching or connected (waiting / live weight).
  */
 function _scaleUpdateStatus(state) {
     const el = document.getElementById('scale-status-indicator');
     if (!el) return;
+    const s = typeof getSettings === 'function' ? getSettings() : {};
+    const configured = !!(s.scale_enabled && s.scale_gateway_url);
+    const show = configured && state !== 'disconnected' && state !== 'error';
+    el.style.display = show ? '' : 'none';
+    if (!show) {
+        try { _scaleClosePopover(); } catch (e) { /* popover absent */ }
+    }
     el.className = `scale-pill scale-status-${state}`;
     const labels = {
         connected:    `⚖️ ${t('scale.status_connected')}${_scaleDevice ? ': ' + _scaleDevice : ''}`,
@@ -1291,7 +1301,7 @@ function _scaleUpdateStatus(state) {
     };
     el.title = labels[state] || '';
     _scaleRenderPill();
-    if (!document.getElementById('scale-popover')?.hidden) _scaleRenderPopover();
+    if (show && !document.getElementById('scale-popover')?.hidden) _scaleRenderPopover();
     // Update settings live-diagnostic panel
     const diag = document.getElementById('scale-live-diag');
     if (!diag) return;
@@ -1524,8 +1534,8 @@ function readScaleForEdit() {
     if (!_scaleConnected) { showToast('⚖️ ' + t('scale.not_connected'), 'error'); return; }
     const section = document.getElementById('edit-scale-section');
     const btn = document.getElementById('btn-scale-edit');
-    if (section) section.style.display = '';
-    if (btn) btn.style.display = 'none';
+    if (section) section.hidden = false;
+    if (btn) btn.hidden = true;
 
     _scaleWeightCallback = (msg) => {
         const editQty = document.getElementById('edit-qty');
@@ -1554,8 +1564,8 @@ function readScaleForEdit() {
 
         editQty.value = val;
         editQty.dispatchEvent(new Event('input'));
-        if (section) section.style.display = 'none';
-        if (btn) btn.style.display = '';
+        if (section) section.hidden = true;
+        if (btn) btn.hidden = false;
         showToast(`⚖️ ${val} ${unit}`, 'success');
     };
 }
@@ -2889,6 +2899,43 @@ const CATEGORY_ICONS = {
     'cereali': '🌾', 'igiene': '🧴', 'pulizia': '🧹', 'altro': '📦'
 };
 
+/**
+ * Freeze / vacuum allowance for a category slug (data/storage_actions.json →
+ * assets/js/storage_actions.generated.js). Language-neutral: no AI, no network.
+ * Unknown slugs fall back to the table defaults.
+ */
+function _storageActionsForCategory(category, name, brand) {
+    const slug = mapToLocalCategory(category || '', name || '', brand || '') || 'altro';
+    const table = (typeof EVERSHELF_STORAGE_ACTIONS !== 'undefined' && EVERSHELF_STORAGE_ACTIONS)
+        ? EVERSHELF_STORAGE_ACTIONS
+        : null;
+    const defaults = (table && table.defaults) || { freeze: true, vacuum: true };
+    const row = (table && table.by_category && table.by_category[slug]) || defaults;
+    return {
+        slug,
+        freeze: row.freeze !== false,
+        vacuum: row.vacuum !== false
+    };
+}
+
+/** True when the product sheet / banner may show "Move to freezer". */
+function _itemAllowsFreeze(item) {
+    if (!item || _isMedicalRow(item)) return false;
+    if (storageKindOfLocation(item.location) === 'freezer') return false;
+    if (!LOCATIONS[_freezerLocationKey()]) return false;
+    return _storageActionsForCategory(item.category, item.name, item.brand).freeze;
+}
+
+/**
+ * True when the vacuum button may appear. An already-sealed row always shows
+ * "Open vacuum" even if the category normally forbids sealing.
+ */
+function _itemAllowsVacuumAction(item) {
+    if (!item || _isMedicalRow(item)) return false;
+    if (item.vacuum_sealed) return true;
+    return _storageActionsForCategory(item.category, item.name, item.brand).vacuum;
+}
+
 /** Strip a leading emoji (and ZWJ/VS16) so labels aren't 🥛 🥛 doubled. */
 function _stripLeadingEmoji(str) {
     return String(str || '').replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '').trim();
@@ -2971,59 +3018,32 @@ const URGENCY_BG = {
 };
 
 // Map Open Food Facts categories to local categories
+/**
+ * Resolve any stored category (local slug or Open Food Facts tag) to a local slug.
+ * OFF mapping is DATA (`data/off_categories.json`); title guessing is the active
+ * language vocabulary. No product word and no language-specific regex here.
+ */
 function mapToLocalCategory(ofCategory, productName, productBrand = '') {
     if (!ofCategory) {
         return guessCategoryFromName(productName || '', productBrand || '');
     }
-    const cat = ofCategory.toLowerCase();
+    const cat = String(ofCategory).toLowerCase().trim();
     // Direct match with our local keys — but NOT 'altro': fall through to name guess
-    for (const key of Object.keys(CATEGORY_ICONS)) {
-        if (cat === key && key !== 'altro') return key;
+    if (Object.prototype.hasOwnProperty.call(CATEGORY_ICONS, cat) && cat !== 'altro') {
+        return cat;
     }
-
-    // Handle specific Open Food Facts tags FIRST (before generic regex)
-    // "plant-based-foods-and-beverages" is a catch-all — use product name to decide
-    if (/plant-based-foods/.test(cat)) {
-        return guessCategoryFromName(productName || '', productBrand || '');
+    const slug = cat.replace(/^[a-z]{2}:/, '');
+    if (Object.prototype.hasOwnProperty.call(CATEGORY_ICONS, slug) && slug !== 'altro') {
+        return slug;
     }
-    // "beverages-and-beverages-preparations" = actual beverages
-    if (/^en:beverages/.test(cat)) return 'bevande';
-    // sweeteners = condimenti
-    if (/sweetener|dolcific/.test(cat)) return 'condimenti';
-    // food-additives, cooking-helpers, flavourings = condimenti
-    if (/food-additive|cooking-helper|aromi|flavour/.test(cat)) return 'condimenti';
-    // breakfasts = cereali
-    if (/breakfast/.test(cat)) return 'cereali';
-    // dried-products = conserve
-    if (/dried-product/.test(cat)) return 'conserve';
-
-    // Specific tag patterns
-    if (/dairi|dairy|lait|cheese|fromage|yoghurt|milk|latticin|latte\b|egg\b|uova\b|uovo\b|poultry-egg/.test(cat)) return 'latticini';
-    if (/meat|viande|carne|sausage|salum|prosciutt/.test(cat)) return 'carne';
-    if (/fish|poisson|pesce|seafood|tuna|tonno|salmone/.test(cat)) return 'pesce';
-    // Preserves/cans FIRST: an OFF tag such as "canned-tomatoes" also says "tomato",
-    // and the vegetable line below used to swallow it — a jar of passata was stored as
-    // fresh verdura.
-    if (/preserve|jam|marmellat|miele|honey|canned|pelati|passata/.test(cat)) return 'conserve';
-    if (/fruit|frutta|juice|succo|apple|banana/.test(cat)) return 'frutta';
-    if (/salad|insalat/.test(cat)) {
-        return _isPreparedSaladName(productName, productBrand) ? 'pasta' : 'verdura';
+    // DATA map (null / missing = catch-all → guess from the title)
+    if (typeof vocabMapOffSlug === 'function') {
+        const mapped = vocabMapOffSlug(slug);
+        if (mapped && Object.prototype.hasOwnProperty.call(CATEGORY_ICONS, mapped) && mapped !== 'altro') {
+            return mapped;
+        }
     }
-    if (/vegetable|verdur|legum|tomato|pomodor/.test(cat)) return 'verdura';
-    if (/pasta|rice|riso|noodle|spaghetti|penne|grain/.test(cat)) return 'pasta';
-    if (/bread|pane|forno|biscott|toast|cracker|grissini|fette/.test(cat)) return 'pane';
-    if (/frozen|surgelé|surgel|gelat/.test(cat)) return 'surgelati';
-    if (/sauce|condiment|oil|olio|vinegar|aceto|mayo|ketchup|spice|salt|sugar|zuccher/.test(cat)) return 'condimenti';
-    if (/snack|chip|crisp|chocolate|cioccolat|candy|biscuit|cookie|wafer|merendine|patatine/.test(cat)) return 'snack';
-    if (/cereal|muesli|granola|oat|fiocchi/.test(cat)) return 'cereali';
-    if (/hygiene|soap|shampoo|igien|dentifricio|deodorant/.test(cat)) return 'igiene';
-    if (/clean|detergent|pulizia|detersiv/.test(cat)) return 'pulizia';
-    // Beverage check LAST (to avoid false matches on compound tags)
-    if (/^(?!.*plant-based).*(beverage|drink|boisson|bevand|water|acqua|beer|birra|wine|vino|coffee|caffè|tea\b)/.test(cat)) return 'bevande';
-    // Last resort: try product name before giving up
-    const nameGuess = guessCategoryFromName(productName || '', productBrand || '');
-    if (nameGuess !== 'altro') return nameGuess;
-    return 'altro';
+    return guessCategoryFromName(productName || '', productBrand || '');
 }
 
 /** Prepared rice/pasta salads — not fresh leafy salad (verdura). */
@@ -11467,7 +11487,7 @@ function renderBannerItem() {
         const itemId = Number(item.id) || 0;
         const productId = Number(item.product_id) || 0;
         const moreLabel = escapeAttr(t('dashboard.banner_opened_more_actions'));
-        const canFreeze = !_isMedicalRow(item) && storageKindOfLocation(item.location) !== 'freezer';
+        const canFreeze = _itemAllowsFreeze(item);
         actionsEl.innerHTML =
             `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`
             + `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`
@@ -11989,25 +12009,35 @@ function _shouldOfferExtendExpiry(item) {
     return true;
 }
 
-/** Always extend by 1 week from today (or from current future expiry). */
-function intelligentExtendDays(_item) {
-    return 7;
-}
+/** Quick-add chips on the expiry editor — days only, never a fixed auto-extend. */
+const _EXPIRY_EDIT_DAY_CHIPS = [7, 14, 30];
 
-function _computeExtendedExpiryDate(item, days) {
+/**
+ * New expiry after adding `days`: from today, or from the current future date
+ * when it is still ahead (same base rule the chips use in the editor).
+ */
+function _computeExtendedExpiryDate(itemOrIso, days) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let base = today;
-    if (item?.expiry_date) {
-        const current = new Date(item.expiry_date + 'T12:00:00');
+    const raw = (itemOrIso && typeof itemOrIso === 'object')
+        ? itemOrIso.expiry_date
+        : itemOrIso;
+    if (raw) {
+        const current = new Date(String(raw).slice(0, 10) + 'T12:00:00');
         current.setHours(0, 0, 0, 0);
         if (!Number.isNaN(current.getTime()) && current > today) {
             base = current;
         }
     }
     const next = new Date(base);
-    next.setDate(next.getDate() + days);
+    next.setDate(next.getDate() + (Number(days) || 0));
     return next.toISOString().slice(0, 10);
+}
+
+/** @deprecated kept for any leftover caller — the sheet replaced the fixed +7. */
+function intelligentExtendDays(_item) {
+    return 7;
 }
 
 /**
@@ -12035,6 +12065,10 @@ async function freezeInventoryItem(item) {
     if (!item || !item.id) return false;
     if (_isMedicalRow(item)) {
         showToast(t('dashboard.freeze_not_food'), 'warning');
+        return false;
+    }
+    if (!_storageActionsForCategory(item.category, item.name, item.brand).freeze) {
+        showToast(t('dashboard.freeze_category_blocked'), 'warning');
         return false;
     }
     if (storageKindOfLocation(item.location) === 'freezer') {
@@ -12102,70 +12136,178 @@ async function bannerFreezeItem() {
     }
 }
 
-async function extendInventoryExpiry(inventoryId, itemHint = null) {
-    let item = itemHint;
-    if (!item || !item.id) {
-        try {
-            const data = await api('inventory_list', { include_depleted: 1 });
-            item = (data.inventory || []).find((row) => Number(row.id) === Number(inventoryId));
-        } catch (e) {
-            showToast(t('error.connection'), 'error');
-            return false;
+/**
+ * Open the expiry editor for a pantry row. The household picks the date
+ * (or nudges it with +7 / +14 / +30) — nothing is written until they save.
+ */
+function itemDetailEditExpiry(inventoryId) {
+    const item = _findInventoryItem(inventoryId);
+    if (!item || !_shouldOfferExtendExpiry(item)) return;
+    _showExpiryEditModal(item, { returnToDetail: true });
+}
+
+/** Banner / legacy entry: same sheet, then dismiss the alert on save. */
+function extendInventoryExpiry(inventoryId, itemHint = null) {
+    const open = (item) => {
+        if (!item) {
+            showToast(t('error.generic'), 'error');
+            return;
         }
+        _showExpiryEditModal(item, { fromBanner: true });
+    };
+    if (itemHint && itemHint.id) {
+        open(itemHint);
+        return;
     }
-    if (!item) {
+    const local = _findInventoryItem(inventoryId);
+    if (local) {
+        open(local);
+        return;
+    }
+    api('inventory_list', { include_depleted: 1 }).then((data) => {
+        const item = (data.inventory || []).find((row) => Number(row.id) === Number(inventoryId));
+        open(item);
+    }).catch(() => showToast(t('error.connection'), 'error'));
+}
+
+function bannerExtendExpiry() {
+    const entry = _bannerQueue[_bannerIndex];
+    if (!entry || (entry.type !== 'expired' && entry.type !== 'expiring')) return;
+    _showExpiryEditModal(entry.data, { fromBanner: true });
+}
+
+/** Add N days to the date field (from today if the field is empty or already past). */
+function _expiryEditAddDays(n) {
+    const el = document.getElementById('expiry-edit-date');
+    if (!el) return;
+    const days = Number(n) || 0;
+    if (days <= 0) return;
+    el.value = _computeExtendedExpiryDate(el.value || '', days);
+    el.dataset.manuallySet = 'true';
+}
+
+function _showExpiryEditModal(item, opts = {}) {
+    if (!item || !item.id) return;
+    const returnToDetail = !!opts.returnToDetail;
+    const fromBanner = !!opts.fromBanner;
+    const initial = (item.expiry_date && String(item.expiry_date).slice(0, 10)) || '';
+    const chips = _EXPIRY_EDIT_DAY_CHIPS.map((n) =>
+        `<button type="button" class="expiry-edit-chip" data-expiry-add="${n}">
+            ${escapeHtml(t('inventory.expiry_add_n', { n }))}
+        </button>`
+    ).join('');
+
+    document.getElementById('modal-content').innerHTML = `
+        <div class="expiry-edit-modal" data-expiry-inv="${item.id}"
+             data-return-detail="${returnToDetail ? '1' : '0'}"
+             data-from-banner="${fromBanner ? '1' : '0'}">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('inventory.expiry_edit_title'))}</h3>
+                <button type="button" class="modal-close" onclick="_expiryEditCancel()">✕</button>
+            </div>
+            <p class="expiry-edit-product">${escapeHtml(item.display_name || item.name || '')}</p>
+            <p class="expiry-edit-hint">${escapeHtml(t('inventory.expiry_edit_hint'))}</p>
+            <label class="expiry-edit-label" for="expiry-edit-date">${escapeHtml(t('inventory.expiry_date_label'))}</label>
+            <input type="date" id="expiry-edit-date" class="form-input expiry-edit-date" value="${escapeAttr(initial)}">
+            <div class="expiry-edit-chips" role="group" aria-label="${escapeAttr(t('inventory.expiry_edit_hint'))}">
+                ${chips}
+            </div>
+            <button type="button" class="btn btn-large btn-primary full-width expiry-edit-save" onclick="_expiryEditSave()">
+                ${escapeHtml(t('inventory.expiry_save'))}
+            </button>
+            <button type="button" class="btn btn-secondary full-width expiry-edit-cancel" onclick="_expiryEditCancel()">
+                ${escapeHtml(t('confirm.cancel'))}
+            </button>
+        </div>
+    `;
+    document.getElementById('modal-overlay').style.display = 'flex';
+
+    document.querySelectorAll('[data-expiry-add]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            _expiryEditAddDays(btn.getAttribute('data-expiry-add'));
+        });
+    });
+    const dateEl = document.getElementById('expiry-edit-date');
+    if (dateEl) {
+        dateEl.addEventListener('change', () => { dateEl.dataset.manuallySet = 'true'; });
+        try { dateEl.focus({ preventScroll: true }); } catch (_) { /* */ }
+    }
+}
+
+function _expiryEditCancel() {
+    const root = document.querySelector('.expiry-edit-modal');
+    const invId = Number(root?.getAttribute('data-expiry-inv') || 0);
+    const back = root?.getAttribute('data-return-detail') === '1';
+    if (back && invId) {
+        showItemDetail(invId);
+        return;
+    }
+    closeModal();
+}
+
+async function _expiryEditSave() {
+    const root = document.querySelector('.expiry-edit-modal');
+    if (!root) return;
+    const invId = Number(root.getAttribute('data-expiry-inv') || 0);
+    const fromBanner = root.getAttribute('data-from-banner') === '1';
+    const returnToDetail = root.getAttribute('data-return-detail') === '1';
+    const dateEl = document.getElementById('expiry-edit-date');
+    const newExpiry = String(dateEl?.value || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newExpiry)) {
         showToast(t('error.generic'), 'error');
-        return false;
+        return;
     }
+    const item = _findInventoryItem(invId)
+        || (_bannerQueue[_bannerIndex] && _bannerQueue[_bannerIndex].data)
+        || { id: invId };
+    const ok = await _applyInventoryExpiry(item, newExpiry);
+    if (!ok) return;
+    if (fromBanner) {
+        setReviewConfirmed('exp_' + invId);
+        closeModal();
+        if (typeof dismissBannerItem === 'function') dismissBannerItem();
+        if (typeof loadDashboard === 'function') loadDashboard();
+        else if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+        return;
+    }
+    if (returnToDetail) {
+        showItemDetail(invId, item.product_id);
+        return;
+    }
+    closeModal();
+}
 
-    const days = intelligentExtendDays(item);
-    const newExpiry = _computeExtendedExpiryDate(item, days);
-
+/** Persist a user-chosen expiry ISO date on the inventory row. */
+async function _applyInventoryExpiry(item, newExpiry) {
+    if (!item || !item.id || !newExpiry) return false;
     try {
         const res = await api('inventory_update', {}, 'POST', {
             id: item.id,
             expiry_date: newExpiry,
             expiry_user_set: 1,
         });
-        if (res.success || res.ok) {
-            // Keep local banner/dashboard state consistent immediately
-            item.expiry_date = newExpiry;
-            item.expiry_user_set = 1;
-            _dashboardLiveRefresh(item.id);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const expDay = new Date(newExpiry + 'T12:00:00');
-            const daysLeft = Math.round((expDay - today) / 86400000);
-            item.days_to_expiry = daysLeft;
-            item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
-            item.is_edible = daysLeft >= 0;
-            setReviewConfirmed('exp_' + item.id);
-            const msg = (t('toast.expiry_extended') || 'Expiry extended by {n} days → {date}')
-                .replace('{n}', String(days))
-                .replace('{date}', newExpiry)
-                .replace('{name}', item.name || '');
-            showToast(msg, 'success');
-            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-            return true;
+        if (!(res.success || res.ok)) {
+            showToast(res.error || t('error.generic'), 'error');
+            return false;
         }
-        showToast(res.error || t('error.generic'), 'error');
+        item.expiry_date = newExpiry;
+        item.expiry_user_set = 1;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const expDay = new Date(newExpiry + 'T12:00:00');
+        const daysLeft = Math.round((expDay - today) / 86400000);
+        item.days_to_expiry = daysLeft;
+        item.days_expired = daysLeft < 0 ? Math.abs(daysLeft) : 0;
+        item.is_edible = daysLeft >= 0;
+        setReviewConfirmed('exp_' + item.id);
+        _dashboardLiveRefresh(item.id);
+        const dateLabel = (typeof formatDate === 'function') ? formatDate(newExpiry) : newExpiry;
+        showToast(t('toast.expiry_saved', { date: dateLabel }), 'success');
+        if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+        return true;
     } catch (e) {
         showToast(t('error.connection'), 'error');
-    }
-    return false;
-}
-
-async function bannerExtendExpiry() {
-    const entry = _bannerQueue[_bannerIndex];
-    if (!entry || (entry.type !== 'expired' && entry.type !== 'expiring')) return;
-    const item = entry.data;
-    const ok = await extendInventoryExpiry(item.id, item);
-    if (ok) {
-        // Persist dismiss so reloadBannerAlerts won't re-queue until expiry approaches again
-        setReviewConfirmed('exp_' + item.id);
-        dismissBannerItem();
-        if (typeof loadDashboard === 'function') loadDashboard();
-        else if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
+        return false;
     }
 }
 
@@ -13826,12 +13968,52 @@ function showItemDetail(inventoryId, productId, presetQty) {
     const consumeLabel = isMed ? t('medical.use_qty_label') : t('inventory.detail_qty_label');
     const throwBtn = isMed ? t('medical.discard') : t('inventory.item_detail_throw_short');
     const locEsc = String(item.location || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const canFreeze = !isMed && storageKindOfLocation(item.location) !== 'freezer' && !!LOCATIONS[_freezerLocationKey()];
+    // Category table (data/storage_actions.json): hide Freeze / Vacuum when the genre
+    // cannot go in the freezer or under vacuum — never grey them out as a fake choice.
+    const canFreeze = _itemAllowsFreeze(item);
+    const canVacuum = _itemAllowsVacuumAction(item);
     const canExtend = !isMed && _shouldOfferExtendExpiry(item);
     const titleName = escapeHtml(item.display_name || item.name);
     const brandInline = item.brand ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
     // Mount the slots whenever this row *could* be weighed; visibility follows a live stream.
     const scaleCapable = _itemDetailScaleCapable(item);
+
+    let supportHtml;
+    let supportRowClass = '';
+    if (isMed) {
+        supportHtml = `${(item.opened_at ? '' : `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`)}
+                       <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
+                           <span>${escapeHtml(throwBtn)}</span>
+                       </button>`;
+    } else {
+        const supportBtns = [
+            `<button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
+                           <span>${escapeHtml(throwBtn)}</span>
+                       </button>`
+        ];
+        if (canFreeze) {
+            supportBtns.push(`<button type="button" class="item-detail-support-btn" onclick="itemDetailFreeze(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">❄️</span>
+                           <span>${escapeHtml(t('inventory.detail_freeze_short'))}</span>
+                       </button>`);
+        }
+        if (canVacuum) {
+            supportBtns.push(`<button type="button" class="item-detail-support-btn" onclick="itemDetailToggleVacuum(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">${item.vacuum_sealed ? '✂️' : '🗜️'}</span>
+                           <span>${escapeHtml(item.vacuum_sealed ? t('inventory.detail_vacuum_open') : t('inventory.detail_vacuum_seal'))}</span>
+                       </button>`);
+        }
+        supportBtns.push(`<button type="button" class="item-detail-support-btn" ${canExtend ? '' : 'disabled'} onclick="itemDetailEditExpiry(${inventoryId})">
+                           <span class="item-detail-action-icon" aria-hidden="true">📅</span>
+                           <span>${escapeHtml(t('inventory.detail_extend_short'))}</span>
+                       </button>`);
+        supportHtml = supportBtns.join('\n                       ');
+        const n = supportBtns.length;
+        if (n >= 4) supportRowClass = ' item-detail-support--row4';
+        else if (n === 3) supportRowClass = ' item-detail-support--row3';
+    }
 
     document.getElementById('modal-content').innerHTML = `
         <div class="item-detail-modal${isMed ? ' is-medical' : ''}">
@@ -13890,29 +14072,8 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     </button>
                 </div>
             </div>` : ''}
-            <div class="item-detail-support${isMed ? '' : ' item-detail-support--row4'}">
-                ${isMed
-                    ? `${(item.opened_at ? '' : `<button type="button" class="item-detail-support-btn" onclick="closeModal();_medMarkOpened(${item.id})"><span class="item-detail-action-icon" aria-hidden="true">📭</span><span>${escapeHtml(t('medical.mark_opened'))}</span></button>`)}
-                       <button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
-                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
-                           <span>${escapeHtml(throwBtn)}</span>
-                       </button>`
-                    : `<button type="button" class="item-detail-support-btn item-detail-support-btn--throw" onclick="itemDetailThrow(${inventoryId})">
-                           <span class="item-detail-action-icon" aria-hidden="true">🗑️</span>
-                           <span>${escapeHtml(throwBtn)}</span>
-                       </button>
-                       <button type="button" class="item-detail-support-btn" ${canFreeze ? '' : 'disabled'} onclick="itemDetailFreeze(${inventoryId})">
-                           <span class="item-detail-action-icon" aria-hidden="true">❄️</span>
-                           <span>${escapeHtml(t('inventory.detail_freeze_short'))}</span>
-                       </button>
-                       <button type="button" class="item-detail-support-btn" onclick="itemDetailToggleVacuum(${inventoryId})">
-                           <span class="item-detail-action-icon" aria-hidden="true">${item.vacuum_sealed ? '✂️' : '🗜️'}</span>
-                           <span>${escapeHtml(item.vacuum_sealed ? t('inventory.detail_vacuum_open') : t('inventory.detail_vacuum_seal'))}</span>
-                       </button>
-                       <button type="button" class="item-detail-support-btn" ${canExtend ? '' : 'disabled'} onclick="closeModal();extendInventoryExpiry(${item.id})">
-                           <span class="item-detail-action-icon" aria-hidden="true">📅</span>
-                           <span>${escapeHtml(t('inventory.detail_extend_short'))}</span>
-                       </button>`}
+            <div class="item-detail-support${supportRowClass}">
+                ${supportHtml}
             </div>
         </div>
     `;
@@ -13927,7 +14088,7 @@ function itemDetailThrow(inventoryId) {
 
 async function itemDetailFreeze(inventoryId) {
     const item = _findInventoryItem(inventoryId);
-    if (!item) return;
+    if (!item || !_itemAllowsFreeze(item)) return;
     closeModal();
     await freezeInventoryItem(item);
 }
@@ -13937,6 +14098,10 @@ async function itemDetailToggleVacuum(inventoryId) {
     const item = _findInventoryItem(inventoryId);
     if (!item || _isMedicalRow(item)) return;
     const sealing = !item.vacuum_sealed;
+    // Category table: sealing is refused when the genre cannot go under vacuum;
+    // opening an existing seal is always allowed (_itemAllowsVacuumAction).
+    if (sealing && !_storageActionsForCategory(item.category, item.name, item.brand).vacuum) return;
+    if (!sealing && !_itemAllowsVacuumAction(item)) return;
     const body = { id: item.id, vacuum_sealed: sealing ? 1 : 0, expiry_user_set: 1 };
     try {
         if (sealing) {
@@ -16449,9 +16614,11 @@ function editInventoryItem(id, _retried) {
     const scaleEditReady = s.scale_enabled && s.scale_gateway_url && _scaleConnected &&
         (effectiveUnit === 'g' || effectiveUnit === 'ml');
     
+    const currentCat = mapToLocalCategory(item.category || '', item.name || '', item.brand || '') || 'altro';
     window._editingProduct = {
         name: item.name,
-        category: item.category || '',
+        brand: item.brand || '',
+        category: currentCat,
         _isOpened: !!item.opened_at,
         _prevUnit: item.unit || 'pz',
         default_quantity: item.default_quantity,
@@ -16460,85 +16627,131 @@ function editInventoryItem(id, _retried) {
     
     // The places the edit may offer: a medicine only its cabinet, food never the cabinet.
     const editLocs = _locationsForEdit(_editDomainIsMedical(item), item.location);
-    // Rebuild modal content for editing (don't close and reopen - just replace content)
+    const showVacuum = !!(item.vacuum_sealed || _storageActionsForCategory(currentCat, item.name, item.brand).vacuum);
+    const unitOpts = ['pz', 'g', 'ml', 'conf'].map((u) => {
+        const label = u === 'pz' ? t('units.pz') : u === 'conf' ? t('units.conf') : u;
+        return `<option value="${u}" ${(item.unit || 'pz') === u ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
+    const catOpts = Object.keys(CATEGORY_ICONS).map((k) =>
+        `<option value="${escapeAttr(k)}" ${k === currentCat ? 'selected' : ''}>${escapeHtml(categoryText(k))}</option>`
+    ).join('');
+    const locChips = editLocs.map(([k, v]) => {
+        const deltaHtml = _editLocExpiryHintHtml(
+            window._editingProduct, item.location, k, !!item.opened_at, !!item.vacuum_sealed
+        );
+        return `
+        <button type="button" class="loc-chip ${item.location === k ? 'is-on' : ''}" data-loc="${escapeAttr(k)}"
+            onclick="_editPickLocation(this, 'edit-loc', 'edit-vacuum', 'edit-expiry')">
+            <span class="loc-chip-ico" aria-hidden="true">${v.icon || '📦'}</span>
+            <span class="loc-chip-label">${escapeHtml(v.label)}</span>
+            ${deltaHtml}
+        </button>`;
+    }).join('');
+    const titleName = escapeHtml(item.display_name || item.name || '');
+
+    // Same editorial language as the consume sheet (thumb + compact chips + brand emerald).
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header edit-modal-header">
-            <h3 class="edit-modal-heading">
-                <span class="edit-modal-prefix">${escapeHtml(t('btn.edit_item'))}</span>
-                <button type="button" id="edit-title-display" class="edit-title-tap" onclick="startEditProductTitle()" title="${escapeHtml(t('product.edit_name_brand') || '')}">${escapeHtml(item.name)}</button>
-                <input type="text" id="edit-product-name" class="form-input edit-title-input" value="${escapeHtml(item.name || '')}" autocomplete="off" style="display:none" aria-label="${escapeHtml(t('edit.label_name') || 'Name')}">
-            </h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <form class="form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
-            <div class="form-group" id="edit-qty-group">
-                <label>${iconLabel('📦', 'inventory.label_quantity')}</label>
-                <div class="qty-control-with-unit">
-                    <div class="qty-control">
-                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)">−</button>
-                        <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
-                        <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)">+</button>
+        <div class="edit-inventory-modal">
+            <div class="modal-header item-detail-header">
+                <div class="item-detail-header-row">
+                    <div class="item-detail-image edit-thumb">
+                        ${_validProductImageUrl(item.image_url)
+                            ? `<img src="${escapeHtml(item.image_url)}" alt="">`
+                            : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`}
                     </div>
-                    <span class="qty-unit-badge" id="edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
+                    <div class="item-detail-header-text">
+                        <h3 class="item-detail-title">
+                            <button type="button" id="edit-title-display" class="edit-title-tap"
+                                onclick="startEditProductTitle()"
+                                title="${escapeAttr(t('product.edit_name_brand') || '')}">${titleName}</button>
+                        </h3>
+                        <input type="text" id="edit-product-name" class="form-input edit-title-input"
+                            value="${escapeHtml(item.name || '')}" autocomplete="off"
+                            style="display:none" aria-label="${escapeAttr(t('edit.label_name') || 'Name')}">
+                        <p class="item-detail-loc-line">${escapeHtml(t('inventory.edit_sheet_subtitle'))}</p>
+                    </div>
                 </div>
-                ${scaleEditReady ? `
-                <div id="edit-scale-section" style="display:none;text-align:center;padding:10px;background:linear-gradient(135deg,#f3e8ff,#ede9fe);border-radius:10px;margin-top:8px">
-                    <div style="font-size:1.8rem;font-weight:bold;color:#5b21b6" id="edit-scale-reading">— — —</div>
-                    <div style="font-size:0.78rem;color:#7c6cb0;margin-top:2px">${t('scale.place_on_scale')}</div>
-                </div>
-                <button type="button" id="btn-scale-edit" class="btn btn-secondary scale-read-btn" style="margin-top:8px;width:100%"
-                    onclick="readScaleForEdit()">${t('scale.read_btn')}</button>
-                ` : ''}
-            </div>
-            <div class="form-group">
-                <label>${t('product.unit_label')}</label>
-                <select id="edit-unit" class="form-input" onchange="onEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
-                </select>
-            </div>
-            <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
-                <label>${t('product.conf_size_label')}</label>
-                <div class="conf-size-inputs">
-                    <input type="number" id="edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="${t('product.conf_size_placeholder')}">
-                    <select id="edit-conf-unit" class="form-input conf-size-unit">
-                        ${['g','ml'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u}</option>`).join('')}
-                    </select>
+                <div class="item-detail-header-actions">
+                    <button type="button" class="modal-close" onclick="closeModal()">✕</button>
                 </div>
             </div>
-            <div class="form-group" id="edit-loc-group"${editLocs.length > 1 ? '' : ' hidden'}>
-                <label>${t('inventory.label_position')}</label>
-                <div class="location-selector">
-                    ${editLocs.map(([k, v]) => `
-                        <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
-                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('edit-loc').value='${k}';recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry')">${v.icon} ${v.label}</button>
-                    `).join('')}
+            <form class="form edit-inventory-form" onsubmit="submitEditInventory(event, ${id}, ${item.product_id})">
+                <div class="edit-meta-grid">
+                    <div class="form-group edit-meta-brand">
+                        <label class="edit-section-label" for="edit-product-brand">${escapeHtml(t('product.brand_label'))}</label>
+                        <input type="text" id="edit-product-brand" class="form-input" value="${escapeHtml(item.brand || '')}"
+                            placeholder="${escapeAttr(t('product.brand_placeholder'))}" autocomplete="organization">
+                    </div>
+                    <div class="form-group edit-meta-cat">
+                        <label class="edit-section-label" for="edit-category">${escapeHtml(t('product.category_label'))}</label>
+                        <select id="edit-category" class="form-input edit-category-select" onchange="_editOnCategoryChange()">
+                            ${catOpts}
+                        </select>
+                    </div>
                 </div>
-                <input type="hidden" id="edit-loc" value="${item.location}">
-            </div>
-            <div class="form-group">
-                <label>${t('inventory.label_expiry')}</label>
-                <input type="date" id="edit-expiry" value="${item.expiry_date || ''}" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="toggle-row">
-                    ${t('add.vacuum_label')}
-                    <span class="toggle-switch">
-                        <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry', true)">
-                        <span class="toggle-slider"></span>
-                    </span>
-                </label>
-            </div>
-            <div class="edit-form-actions">
-                <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${t('btn.cancel')}</button>
-                <button type="submit" class="btn btn-large btn-primary">✓ ${t('btn.save')}</button>
-            </div>
-        </form>
+                <p class="edit-section-label">${escapeHtml(t('inventory.label_quantity'))}</p>
+                <div class="form-group edit-qty-group" id="edit-qty-group">
+                    <div class="edit-qty-row">
+                        <div class="qty-control edit-qty-stepper">
+                            <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', -1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
+                            <input type="number" id="edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input" inputmode="decimal">
+                            <button type="button" class="qty-btn" onclick="adjustQty('edit-qty', 1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
+                        </div>
+                        <select id="edit-unit" class="edit-unit-select" onchange="onEditUnitChange()" aria-label="${escapeAttr(t('product.unit_label'))}">
+                            ${unitOpts}
+                        </select>
+                        ${scaleEditReady
+                            ? `<button type="button" id="btn-scale-edit" class="edit-scale-pill" onclick="readScaleForEdit()">${escapeHtml(t('scale.read_btn_short'))}</button>`
+                            : ''}
+                    </div>
+                    <div id="edit-scale-section" class="edit-scale-live" hidden>
+                        <div class="edit-scale-live-value" id="edit-scale-reading">— — —</div>
+                        <div class="edit-scale-live-hint">${escapeHtml(t('scale.place_on_scale'))}</div>
+                    </div>
+                </div>
+                <div class="form-group" id="edit-conf-size-group" style="display:${isConf ? 'block' : 'none'}">
+                    <label class="edit-section-label">${escapeHtml(t('product.conf_size_label'))}</label>
+                    <div class="conf-size-inputs">
+                        <input type="number" id="edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="${escapeAttr(t('product.conf_size_placeholder'))}">
+                        <select id="edit-conf-unit" class="form-input conf-size-unit">
+                            ${['g', 'ml'].map((u) => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="edit-loc-group"${editLocs.length > 1 ? '' : ' hidden'}>
+                    <p class="edit-section-label">${escapeHtml(t('inventory.label_position'))}</p>
+                    <div class="location-chips" role="group" aria-label="${escapeAttr(t('inventory.label_position'))}">
+                        ${locChips}
+                    </div>
+                    <input type="hidden" id="edit-loc" value="${escapeAttr(item.location)}">
+                </div>
+                <div class="edit-expiry-vacuum">
+                    <div class="form-group">
+                        <p class="edit-section-label">${escapeHtml(t('inventory.label_expiry'))}</p>
+                        <input type="date" id="edit-expiry" value="${escapeAttr(item.expiry_date || '')}" class="form-input edit-expiry-input">
+                    </div>
+                    <div class="form-group edit-vacuum-group"${showVacuum ? '' : ' hidden'}>
+                        <label class="toggle-row edit-vacuum-row">
+                            <span>${escapeHtml(t('add.vacuum_label'))}</span>
+                            <span class="toggle-switch">
+                                <input type="checkbox" id="edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''}
+                                    onchange="recalcEditExpiry('edit-loc','edit-vacuum','edit-expiry', true);_editRefreshLocExpiryHints()">
+                                <span class="toggle-slider"></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="edit-form-actions">
+                    <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${escapeHtml(t('btn.cancel'))}</button>
+                    <button type="submit" class="btn btn-large btn-primary edit-save-btn">✓ ${escapeHtml(t('btn.save_changes'))}</button>
+                </div>
+            </form>
+        </div>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
     _initExpiryManualTracking('edit-expiry', item);
     // The kind this row's place belongs to: picking another pantry keeps the date it has.
     _editExpiryKind.set('edit-expiry', storageKindOfLocation(item.location));
-    setQtyInputUnitLabel('edit-qty', item.unit || 'pz');
     const titleInput = document.getElementById('edit-product-name');
     if (titleInput) {
         titleInput.addEventListener('keydown', (ev) => {
@@ -16552,6 +16765,87 @@ function editInventoryItem(id, _retried) {
         });
         titleInput.addEventListener('blur', () => finishEditProductTitle());
     }
+}
+
+/** Pick a location chip in the edit sheet (keeps expiry kind recalc in sync). */
+function _editPickLocation(btn, locInputId, vacuumId, expiryId) {
+    if (!btn) return;
+    const wrap = btn.parentElement;
+    if (wrap) wrap.querySelectorAll('.loc-chip').forEach((b) => b.classList.remove('is-on'));
+    btn.classList.add('is-on');
+    const key = btn.getAttribute('data-loc') || '';
+    const hidden = document.getElementById(locInputId);
+    if (hidden) hidden.value = key;
+    if (expiryId) recalcEditExpiry(locInputId, vacuumId, expiryId);
+    _editRefreshLocExpiryHints();
+}
+
+/**
+ * Shelf-life day delta when moving from one place to another (same estimate
+ * pipeline as recalcEditExpiry). Same storage kind → 0.
+ */
+function _editLocationExpiryDeltaDays(product, fromLoc, toLoc, isOpened, isVacuum) {
+    if (!product) return 0;
+    if (storageKindOfLocation(fromLoc) === storageKindOfLocation(toLoc)) return 0;
+    let fromDays = isOpened
+        ? estimateOpenedExpiryDays(product, fromLoc)
+        : estimateExpiryDays(product, fromLoc);
+    let toDays = isOpened
+        ? estimateOpenedExpiryDays(product, toLoc)
+        : estimateExpiryDays(product, toLoc);
+    if (isVacuum && typeof getVacuumExpiryDays === 'function') {
+        fromDays = getVacuumExpiryDays(fromDays);
+        toDays = getVacuumExpiryDays(toDays);
+    }
+    return (Number(toDays) || 0) - (Number(fromDays) || 0);
+}
+
+/** Compact +N/−N days hint for a location chip (empty when no change). */
+function _editLocExpiryHintHtml(product, fromLoc, toLoc, isOpened, isVacuum) {
+    const delta = _editLocationExpiryDeltaDays(product, fromLoc, toLoc, isOpened, isVacuum);
+    if (!delta) return '';
+    const key = delta > 0 ? 'inventory.loc_expiry_delta_plus' : 'inventory.loc_expiry_delta_minus';
+    const title = escapeAttr(t('inventory.loc_expiry_delta_hint'));
+    return `<span class="loc-chip-delta" title="${title}">${escapeHtml(t(key, { n: Math.abs(delta) }))}</span>`;
+}
+
+/** Rebuild +N/−N hints after vacuum / category / current place changes. */
+function _editRefreshLocExpiryHints() {
+    const wrap = document.querySelector('.edit-inventory-modal .location-chips');
+    if (!wrap) return;
+    const product = window._editingProduct;
+    if (!product) return;
+    const currentLoc = document.getElementById('edit-loc')?.value || '';
+    const isOpened = !!product._isOpened;
+    const isVacuum = !!document.getElementById('edit-vacuum')?.checked;
+    wrap.querySelectorAll('.loc-chip').forEach((btn) => {
+        const toLoc = btn.getAttribute('data-loc') || '';
+        const old = btn.querySelector('.loc-chip-delta');
+        if (old) old.remove();
+        const html = _editLocExpiryHintHtml(product, currentLoc, toLoc, isOpened, isVacuum);
+        if (html) btn.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+function _editOnCategoryChange() {
+    const product = window._editingProduct;
+    if (!product) return;
+    const cat = document.getElementById('edit-category')?.value || 'altro';
+    product.category = cat;
+    // Vacuum visibility follows the category table (same DATA as the consume sheet).
+    const vacGroup = document.querySelector('.edit-vacuum-group');
+    if (vacGroup) {
+        const allow = _storageActionsForCategory(cat, product.name, product.brand).vacuum
+            || !!document.getElementById('edit-vacuum')?.checked;
+        vacGroup.hidden = !allow;
+        if (!allow) {
+            const cb = document.getElementById('edit-vacuum');
+            if (cb) cb.checked = false;
+        }
+    }
+    _editRefreshLocExpiryHints();
+    // Location kind unchanged, but shelf-life rules read category — force expiry refresh.
+    recalcEditExpiry('edit-loc', 'edit-vacuum', 'edit-expiry', true);
 }
 
 /**
@@ -16748,7 +17042,14 @@ async function submitEditInventory(e, id, productId) {
             ? titleInput.value
             : (titleInput?.value || titleDisplay?.textContent)) || ''
     ).trim();
-    const brand = prev.brand || '';
+    const brandEl = document.getElementById('edit-product-brand');
+    const brand = brandEl
+        ? String(brandEl.value || '').trim()
+        : String(prev.brand || '').trim();
+    const catEl = document.getElementById('edit-category');
+    const category = catEl
+        ? String(catEl.value || '').trim() || 'altro'
+        : (mapToLocalCategory(prev.category || '', name, brand) || 'altro');
     const qty = parseFloat(document.getElementById('edit-qty').value);
     const loc = document.getElementById('edit-loc').value;
     // Medicine expiry is month+year → last day of month (same as insert).
@@ -16812,14 +17113,18 @@ async function submitEditInventory(e, id, productId) {
     }
     
     try {
-        // Persist renamed title on the product catalog (locked so barcode rescans keep it)
-        if (name !== (prev.name || '').trim()) {
+        // Persist title / brand / category on the catalog when the household changed them.
+        const prevCat = mapToLocalCategory(prev.category || '', prev.name || '', prev.brand || '') || 'altro';
+        const nameChanged = name !== (prev.name || '').trim();
+        const brandChanged = brand !== String(prev.brand || '').trim();
+        const catChanged = !isMedEdit && category !== prevCat;
+        if (nameChanged || brandChanged || catChanged) {
             const prodSave = await api('product_save', {}, 'POST', {
                 id: payload.product_id,
                 name,
                 brand,
-                name_user_set: 1,
-                category: prev.category || '',
+                name_user_set: nameChanged ? 1 : (prev.name_user_set ? 1 : 0),
+                category: isMedEdit ? (prev.category || 'altro') : category,
                 image_url: prev.image_url || '',
                 unit: unit || prev.unit || 'pz',
                 default_quantity: isMedEdit
@@ -16861,6 +17166,7 @@ async function submitEditInventory(e, id, productId) {
         const patch = {
             name,
             brand,
+            category: isMedEdit ? (prev.category || 'altro') : category,
             quantity: savedQty,
             location: loc,
             expiry_date: expiry,
@@ -16892,6 +17198,10 @@ async function submitEditInventory(e, id, productId) {
         patchAll(_allInventoryCache);
         closeModal();
         showToast(t('toast.updated'), 'success');
+        if (window._editReturnToAction) {
+            window._editReturnToAction = false;
+            if (typeof showProductAction === 'function') showProductAction();
+        }
         if (_bannerEditPending) {
             _bannerEditPending = false;
             const entry = _bannerQueue[_bannerIndex];
@@ -19688,7 +19998,9 @@ function _barcodePersistSet(key, result) {
  *  Never overwrite the product unit from produce-name heuristics. */
 function _applyLocalBarcodeProductFixes(product) {
     if (!product) return;
-    const cat = product.category || mapToLocalCategory(product.category || '', product.name || '', product.brand || '');
+    // Always map: a truthy OFF tag (`en:plant-based-…`) used to skip the guesser
+    // and leave the product looking "uncategorized" in the form.
+    const cat = mapToLocalCategory(product.category || '', product.name || '', product.brand || '');
     if (product.unit === 'pz' && product.default_quantity === 0 && product.notes) {
         const pesoMatch = product.notes.match(/Peso:\s*([^·]+)/);
         if (pesoMatch) {
@@ -20862,59 +21174,28 @@ function markQtyManuallySet() {
 }
 
 function autoDetectCategory() {
-    const name = document.getElementById('pf-name').value.toLowerCase();
+    const nameEl = document.getElementById('pf-name');
+    const brandEl = document.getElementById('pf-brand');
+    const name = String(nameEl?.value || '').trim();
     if (name.length < 3) return;
-    
+
     const catSelect = document.getElementById('pf-category');
     // Don't override if user already manually selected something
     if (catSelect.dataset.manuallySet === 'true') return;
-    
-    // Keywords → category mapping
-    const keyword2cat = {
-        'latte': 'latticini', 'yogurt': 'latticini', 'formaggio': 'latticini', 'mozzarella': 'latticini',
-        'burro': 'latticini', 'panna': 'latticini', 'ricotta': 'latticini', 'mascarpone': 'latticini',
-        'gorgonzola': 'latticini', 'parmigiano': 'latticini', 'grana': 'latticini', 'burrata': 'latticini',
-        'stracchino': 'latticini', 'uova': 'latticini',
-        'pollo': 'carne', 'manzo': 'carne', 'maiale': 'carne', 'vitello': 'carne', 'tacchino': 'carne',
-        'prosciutto': 'carne', 'salame': 'carne', 'bresaola': 'carne', 'mortadella': 'carne',
-        'wurstel': 'carne', 'macinato': 'carne', 'speck': 'carne',
-        'salmone': 'pesce', 'tonno': 'pesce', 'sgombro': 'pesce', 'pesce': 'pesce', 'merluzzo': 'pesce',
-        'mela': 'frutta', 'mele': 'frutta', 'banana': 'frutta', 'arancia': 'frutta', 'pera': 'frutta',
-        'fragola': 'frutta', 'uva': 'frutta', 'kiwi': 'frutta', 'limone': 'frutta',
-        'insalata': 'verdura', 'pomodor': 'verdura', 'zucchin': 'verdura', 'patat': 'verdura',
-        'cipoll': 'verdura', 'carota': 'verdura', 'spinaci': 'verdura', 'rucola': 'verdura',
-        'peperoni': 'verdura', 'melanzane': 'verdura', 'broccoli': 'verdura',
-        'pasta': 'pasta', 'spaghetti': 'pasta', 'penne': 'pasta', 'fusilli': 'pasta', 'riso': 'pasta',
-        'farina': 'pasta', 'rigatoni': 'pasta', 'farfalle': 'pasta',
-        'pane': 'pane', 'fette biscottate': 'pane', 'pancarrè': 'pane', 'pan carrè': 'pane',
-        'grissini': 'pane', 'crackers': 'pane', 'cracker': 'pane',
-        'surgelat': 'surgelati', 'findus': 'surgelati', 'gelato': 'surgelati',
-        'acqua': 'bevande', 'succo': 'bevande', 'birra': 'bevande', 'vino': 'bevande',
-        'coca cola': 'bevande', 'aranciata': 'bevande', 'tè': 'bevande', 'caffè': 'bevande',
-        'olio': 'condimenti', 'aceto': 'condimenti', 'sale': 'condimenti', 'pepe': 'condimenti',
-        'maionese': 'condimenti', 'ketchup': 'condimenti', 'senape': 'condimenti', 'zucchero': 'condimenti',
-        'biscott': 'snack', 'cioccolat': 'snack', 'nutella': 'snack', 'merendine': 'snack',
-        'patatine': 'snack', 'caramelle': 'snack',
-        'pelati': 'conserve', 'passata': 'conserve', 'legumi': 'conserve', 'ceci': 'conserve',
-        'fagioli': 'conserve', 'lenticchie': 'conserve', 'marmellata': 'conserve', 'miele': 'conserve',
-        'cereali': 'cereali', 'muesli': 'cereali', 'fiocchi': 'cereali',
-    };
-    
-    for (const [keyword, cat] of Object.entries(keyword2cat)) {
-        if (name.includes(keyword)) {
-            catSelect.value = cat;
-            onCategoryChange(true);
-            return;
-        }
+
+    // One vocabulary for every language — never a hardcoded keyword table.
+    const brand = String(brandEl?.value || '').trim();
+    const cat = guessCategoryFromName(name, brand);
+    if (cat && cat !== 'altro') {
+        catSelect.value = cat;
+        onCategoryChange(true);
+        return;
     }
 
-    // ── Embedding fallback: async, only when keywords didn't match ──────────
-    // Kick off model load (no-op if already loaded/loading) and update the
-    // select once the result is ready.  Only runs when pipeline is available.
+    // Embedding fallback: async, only when the vocabulary named no genre.
     if (typeof classifyCategoryByEmbedding === 'function') {
-        classifyCategoryByEmbedding(document.getElementById('pf-name').value).then(embCat => {
+        classifyCategoryByEmbedding(name).then(embCat => {
             if (!embCat) return;
-            // Re-check manuallySet — user might have picked something while awaiting
             const sel = document.getElementById('pf-category');
             if (!sel || sel.dataset.manuallySet === 'true') return;
             sel.value = embCat;
@@ -21819,90 +22100,12 @@ function openInventoryEdit() {
 function editActionInventoryItem(inventoryId) {
     const item = _actionInventoryItems.find(i => i.id === inventoryId);
     if (!item) return;
-
-    // Medicine edit is one dedicated sheet (no vacuum / food unit chrome).
-    if (_isMedicalRow(item) || _isMedicalRow(currentProduct)) {
-        if (!currentInventory.some(i => i.id == item.id)) {
-            currentInventory = [...(currentInventory || []), item];
-        }
-        editInventoryItem(item.id);
-        return;
+    // One sheet for every entry point — the modern edit modal (thumb + chips + emerald).
+    if (!currentInventory.some(i => i.id == item.id)) {
+        currentInventory = [...(currentInventory || []), item];
     }
-    
-    const isConf = (item.unit || 'pz') === 'conf';
-    const confSizeVal = (isConf && item.default_quantity > 0) ? item.default_quantity : '';
-    const confUnitVal = (isConf && item.package_unit) ? item.package_unit : 'g';
-    
-    window._editingProduct = { name: item.name || currentProduct.name, category: item.category || currentProduct.category || '' };
-    // Same rule as the main edit form: only the places this product may actually live in.
-    const editLocs = _locationsForEdit(_editDomainIsMedical(item), item.location);
-    
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('edit.title').replace('{name}', escapeHtml(item.name || currentProduct.name))}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <form class="form" onsubmit="submitActionEditInventory(event, ${inventoryId}, ${item.product_id})">
-            <div class="form-group">
-                <label>${t('add.quantity_label')}</label>
-                <div class="qty-control-with-unit">
-                    <div class="qty-control">
-                        <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', -1)">−</button>
-                        <input type="number" id="action-edit-qty" value="${item.quantity}" min="0" step="any" class="qty-input">
-                        <button type="button" class="qty-btn" onclick="adjustQty('action-edit-qty', 1)">+</button>
-                    </div>
-                    <span class="qty-unit-badge" id="action-edit-qty-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(item.unit || 'pz'))}</span>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>${t('product.unit_label')}</label>
-                <select id="action-edit-unit" class="form-input" onchange="onActionEditUnitChange()">
-                    ${['pz','g','ml','conf'].map(u => `<option value="${u}" ${(item.unit||'pz') === u ? 'selected' : ''}>${u === 'pz' ? t('units.pz') + ' (' + t('units.pieces') + ')' : u === 'g' ? 'g (' + t('units.grams') + ')' : u === 'ml' ? 'ml (' + t('units.millilitres') + ')' : u === 'conf' ? t('units.conf') + ' (' + t('units.boxes') + ')' : u}</option>`).join('')}
-                </select>
-            </div>
-            <div class="form-group" id="action-edit-conf-group" style="display:${isConf ? 'block' : 'none'}">
-                <label>${t('product.conf_size_label')}</label>
-                <div class="conf-size-inputs">
-                    <input type="number" id="action-edit-conf-size" class="form-input conf-size-input" min="1" step="any" value="${confSizeVal}" placeholder="${t('product.conf_size_placeholder')}">
-                    <select id="action-edit-conf-unit" class="form-input conf-size-unit">
-                        ${['g','ml'].map(u => `<option value="${u}" ${confUnitVal === u ? 'selected' : ''}>${u}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            <div class="form-group"${editLocs.length > 1 ? '' : ' hidden'}>
-                <label>${t('inventory.label_position')}</label>
-                <div class="location-selector">
-                    ${editLocs.map(([k, v]) => `
-                        <button type="button" class="loc-btn ${item.location === k ? 'active' : ''}" 
-                            onclick="this.parentElement.querySelectorAll('.loc-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('action-edit-loc').value='${k}';recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry')">${v.icon} ${v.label}</button>
-                    `).join('')}
-                </div>
-                <input type="hidden" id="action-edit-loc" value="${item.location}">
-            </div>
-            <div class="form-group">
-                <label>${t('inventory.label_expiry')}</label>
-                <input type="date" id="action-edit-expiry" value="${item.expiry_date || ''}" class="form-input">
-            </div>
-            <div class="form-group">
-                <label class="toggle-row">
-                    ${t('add.vacuum_label')}
-                    <span class="toggle-switch">
-                        <input type="checkbox" id="action-edit-vacuum" ${item.vacuum_sealed ? 'checked' : ''} onchange="recalcEditExpiry('action-edit-loc','action-edit-vacuum','action-edit-expiry', true)">
-                        <span class="toggle-slider"></span>
-                    </span>
-                </label>
-            </div>
-            <div class="edit-form-actions">
-                <button type="button" class="btn btn-large btn-secondary" onclick="closeModal()">${t('btn.cancel')}</button>
-                <button type="submit" class="btn btn-large btn-primary">✓ ${t('btn.save')}</button>
-            </div>
-        </form>
-    `;
-    document.getElementById('modal-overlay').style.display = 'flex';
-    _initExpiryManualTracking('action-edit-expiry', item);
-    // The kind this row's place belongs to: picking another pantry keeps the date it has.
-    _editExpiryKind.set('action-edit-expiry', storageKindOfLocation(item.location));
-    setQtyInputUnitLabel('action-edit-qty', item.unit || 'pz');
+    window._editReturnToAction = true;
+    editInventoryItem(item.id);
 }
 
 function onActionEditUnitChange() {
@@ -22557,6 +22760,46 @@ function _medAddExpiryHtml() {
         <div id="multi-batch-section" style="display:none"><div id="multi-batch-container"></div></div>`;
 }
 
+/**
+ * Vacuum toggle for the add form — painted next to the expiry date so it does not
+ * spend a whole row. Hidden when the category table says no (or the row is medical).
+ */
+function _addVacuumToggleHtml() {
+    const allow = currentProduct
+        && !_isMedicalRow(currentProduct)
+        && _storageActionsForCategory(
+            currentProduct.category,
+            currentProduct.name,
+            currentProduct.brand
+        ).vacuum;
+    const checked = !!document.getElementById('add-vacuum-sealed')?.checked;
+    const hintShow = checked ? 'block' : 'none';
+    return `
+        <div class="form-group" id="add-vacuum-group" style="display:${allow ? '' : 'none'}">
+            <label class="toggle-row edit-vacuum-row" onclick="toggleVacuumSealed()">
+                <span>${escapeHtml(t('add.vacuum_label'))}</span>
+                <span class="toggle-switch" id="add-vacuum-toggle">
+                    <input type="checkbox" id="add-vacuum-sealed"${checked ? ' checked' : ''} onchange="onVacuumSealedChange()">
+                    <span class="toggle-slider"></span>
+                </span>
+            </label>
+            <p class="form-hint" id="add-vacuum-hint" style="display:${hintShow}">${escapeHtml(t('add.vacuum_hint'))}</p>
+        </div>`;
+}
+
+/** Date input + scan + vacuum on one row (add form). */
+function _addExpiryDateVacuumRowHtml(dateValue) {
+    const val = dateValue == null ? '' : String(dateValue);
+    return `
+        <div class="expiry-date-vacuum">
+            <div class="expiry-input-row">
+                <input type="date" id="add-expiry" class="form-input" value="${escapeAttr(val)}">
+                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${escapeAttr(t('add.scan_expiry_title'))}">📷</button>
+            </div>
+            ${_addVacuumToggleHtml()}
+        </div>`;
+}
+
 function showAddForm() {
     _snapshotCatalogTitle();
     _renderAddProductPreview();
@@ -22657,10 +22900,8 @@ function showAddForm() {
     // "Dispensa cucina", because one label contains the other.
     markLocationButton('#page-add .loc-btn', autoLoc);
 
-    // A medicine box is not vacuum-sealed: the food-only option goes away.
-    const vacuumGroup = document.getElementById('add-vacuum-group');
-    if (vacuumGroup) vacuumGroup.style.display = _isMedicalRow(currentProduct) ? 'none' : '';
-    // …and it asks its own two questions instead (sealed/opened, pieces left).
+    // …and a medicine asks its own two questions instead (sealed/opened, pieces left).
+    // Vacuum is painted next to the expiry date inside #add-expiry-section (not a row of its own).
     _renderAddMedStock();
 
     // Show the purchase-type selector
@@ -22676,12 +22917,6 @@ function showAddForm() {
     
     let expirySuffix = autoLoc === 'freezer' ? ' (freezer)' : '';
     
-    // Reset vacuum sealed toggle
-    const vacuumCb = document.getElementById('add-vacuum-sealed');
-    if (vacuumCb) {
-        vacuumCb.checked = false;
-        document.getElementById('add-vacuum-hint').style.display = 'none';
-    }
     // Reset historical expiry for this product; will be fetched async
     window._historyExpiryDays = null;
     window._historyExpiryCount = 0;
@@ -22689,32 +22924,32 @@ function showAddForm() {
     window._addExtraBatches = [];
     // Store base expiry for vacuum recalculation
     window._addBaseExpiryDays = estimatedDays;
+    // Clear any leftover vacuum check before the expiry block (re)paints the toggle.
+    const prevVac = document.getElementById('add-vacuum-sealed');
+    if (prevVac) prevVac.checked = false;
     
     expirySection.innerHTML = medicalRow ? _medAddExpiryHtml() : `
-        <label>${t('add.purchase_type_label')}</label>
+        <label>${escapeHtml(t('add.purchase_type_label'))}</label>
         <div class="purchase-type-selector">
             <button type="button" class="purchase-type-btn active" onclick="selectPurchaseType(this, 'new')">
-                ${t('add.new_btn')}
+                ${escapeHtml(t('add.new_btn'))}
             </button>
             <button type="button" class="purchase-type-btn" onclick="selectPurchaseType(this, 'existing')">
-                ${t('add.existing_btn')}
+                ${escapeHtml(t('add.existing_btn'))}
             </button>
         </div>
         <div id="expiry-detail" class="expiry-detail">
             <div class="expiry-estimate">
-                <span class="expiry-estimate-label">${t('add.estimated_expiry')} <strong>${estimateLabel}${expirySuffix}</strong></span>
-                <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
+                <span class="expiry-estimate-label">${escapeHtml(t('add.estimated_expiry'))} <strong>${escapeHtml(estimateLabel)}${escapeHtml(expirySuffix)}</strong></span>
+                <span class="expiry-estimate-date">${escapeHtml(formatDate(estimatedDate))}</span>
             </div>
-            <div class="expiry-input-row">
-                <input type="date" id="add-expiry" class="form-input" value="${estimatedDate}">
-                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
-            </div>
-            <p class="form-hint">${t('add.hint_modify')}</p>
+            ${_addExpiryDateVacuumRowHtml(estimatedDate)}
+            <p class="form-hint">${escapeHtml(t('add.hint_modify'))}</p>
         </div>
         <div id="multi-batch-section" style="display:${unit === 'conf' ? 'block' : 'none'}">
             <div id="multi-batch-container"></div>
             <button type="button" class="btn btn-outline btn-small full-width" style="margin-top:8px" onclick="addExpiryBatch()">
-                📦 + Lotto con scadenza diversa
+                ${escapeHtml(t('product.add_batch'))}
             </button>
         </div>
     `;
@@ -23128,11 +23363,8 @@ function selectPurchaseType(btn, type) {
                 <span class="expiry-estimate-label">${t('add.estimated_expiry')} <strong>${estimateLabel}${suffix}</strong></span>
                 <span class="expiry-estimate-date">${formatDate(estimatedDate)}</span>
             </div>
-            <div class="expiry-input-row">
-                <input type="date" id="add-expiry" class="form-input" value="${estimatedDate}">
-                <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
-            </div>
-            <p class="form-hint">${t('add.hint_modify')}</p>
+            ${_addExpiryDateVacuumRowHtml(estimatedDate)}
+            <p class="form-hint">${escapeHtml(t('add.hint_modify'))}</p>
         `;
         // Restore quantity - switching purchase type should NOT change it
         document.getElementById('add-quantity').value = currentQty;
@@ -23143,12 +23375,9 @@ function selectPurchaseType(btn, type) {
     } else {
         detailDiv.innerHTML = `
             <div class="form-group">
-                <label>${t('inventory.label_expiry')}</label>
-                <div class="expiry-input-row">
-                    <input type="date" id="add-expiry" class="form-input" value="">
-                    <button type="button" class="btn btn-accent btn-scan-expiry" onclick="scanExpiryWithAI()" title="${t('add.scan_expiry_title')}">📷</button>
-                </div>
-                <p class="form-hint">${t('product.expiry_hint')}</p>
+                <label>${escapeHtml(t('inventory.label_expiry'))}</label>
+                ${_addExpiryDateVacuumRowHtml('')}
+                <p class="form-hint">${escapeHtml(t('product.expiry_hint'))}</p>
             </div>
             <div class="form-group">
                 <label>${t('add.remaining_label')}</label>
@@ -25628,19 +25857,21 @@ async function selectAIMatch(idx) {
             }
         }
 
-        // Fallback: save with basic info from match
+        // Fallback: save with basic info from match — map OFF tags to a local slug
+        // (never store `en:plant-based-foods-and-beverages` as the category).
+        const fallbackCat = mapToLocalCategory(match.category || '', match.name || '', match.brand || '');
         const saveResult = await api('product_save', {}, 'POST', {
             barcode: match.barcode,
             name: match.name,
             brand: match.brand || '',
-            category: match.category || '',
+            category: fallbackCat,
             image_url: match.image_url || '',
             unit: 'pz',
             default_quantity: 1,
         });
 
         if (saveResult.id) {
-            currentProduct = { id: saveResult.id, barcode: match.barcode, name: match.name, brand: match.brand || '', category: match.category || '', image_url: match.image_url || '', unit: 'pz', default_quantity: 1 };
+            currentProduct = { id: saveResult.id, barcode: match.barcode, name: match.name, brand: match.brand || '', category: fallbackCat, image_url: match.image_url || '', unit: 'pz', default_quantity: 1 };
             showLoading(false);
             showProductAction();
         } else {

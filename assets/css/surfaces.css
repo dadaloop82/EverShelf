@@ -1725,7 +1725,7 @@ body {
     cursor: not-allowed;
 }
 [data-theme="dark"] .item-detail-support-btn { background: #1E293B; color: #CBD5E1; }
-/* One row: Butta | Congela | Scadenza (legacy 3) or + Sottovuoto (4). */
+/* One row: Butta | In freezer | Scadenza (legacy 3) or + Sottovuoto (4). */
 .item-detail-support--row3,
 .item-detail-support--row4 {
     flex-wrap: nowrap;
@@ -3456,16 +3456,22 @@ button.scan-med-name-hit:focus-visible {
 .scan-med-hint[hidden] { display: none; }
 /* "Non è questo?": the codes one digit away, inside the form where the name they change is.
    A pill row on the card's own surface — never a panel over the camera. */
-/* Quick qty chips in the product sheet: fixed 4-col grid — never a horizontal scrollbar. */
+/* Quick qty chips: same slot width as a full 4-chip row, centered as a group when
+   fewer than 4 so they sit over the primary button instead of hugging the left. */
 .item-detail-frac-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
     gap: 6px;
     margin: 0 0 8px;
     overflow-x: hidden;
 }
 .item-detail-frac {
+    flex: 0 1 calc((100% - 18px) / 4);
+    width: calc((100% - 18px) / 4);
+    max-width: calc((100% - 18px) / 4);
     min-width: 0;
+    box-sizing: border-box;
     padding: 6px 4px;
     border-radius: 8px;
     border: 1px solid var(--surface-border);
@@ -3664,6 +3670,333 @@ button.scan-med-name-hit:focus-visible {
     font-weight: 600;
     color: var(--text-muted);
 }
+
+/* ── Edit inventory sheet (aligned with the consume sheet) ─────────────── */
+.edit-inventory-modal {
+    padding-bottom: 4px;
+}
+.edit-inventory-modal .item-detail-header {
+    margin-bottom: 8px;
+}
+.edit-inventory-modal .edit-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+}
+.edit-inventory-modal .edit-title-tap {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    max-width: 100%;
+}
+.edit-inventory-modal .edit-title-tap:hover,
+.edit-inventory-modal .edit-title-tap:focus-visible {
+    color: var(--brand-primary, #059669);
+}
+.edit-inventory-modal .edit-title-input {
+    margin: 4px 0 0;
+    width: 100%;
+}
+.edit-section-label {
+    margin: 0 0 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.edit-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 0;
+}
+@media (max-width: 420px) {
+    .edit-meta-grid { grid-template-columns: 1fr; }
+}
+.edit-meta-grid .form-group { margin-bottom: 0; }
+.edit-category-select { min-height: 40px; }
+.loc-chip-delta {
+    margin-left: 2px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    opacity: 0.92;
+}
+.loc-chip.is-on .loc-chip-delta { opacity: 1; }
+.loc-chip:not(.is-on) .loc-chip-delta {
+    color: var(--brand-primary, #059669);
+}
+.edit-inventory-form {
+    gap: 8px;
+}
+.edit-inventory-form .form-group {
+    margin-bottom: 0;
+}
+.edit-inventory-form > .edit-section-label {
+    margin: 2px 0 0;
+}
+.edit-qty-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+}
+.edit-inventory-modal .edit-qty-stepper {
+    flex: 1 1 auto;
+    min-width: 140px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface-bg);
+}
+.edit-inventory-modal .edit-qty-stepper .qty-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--brand-primary, #059669);
+    font-size: 1.2rem;
+}
+.edit-inventory-modal .edit-qty-stepper .qty-btn:active {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 14%, transparent);
+    color: var(--brand-primary-hover, #047857);
+}
+.edit-inventory-modal .edit-qty-stepper .qty-input {
+    width: auto;
+    flex: 1 1 auto;
+    height: 40px;
+    min-height: 40px;
+    border: none;
+    font-size: 1.1rem;
+}
+.edit-unit-select {
+    flex: 0 0 auto;
+    min-width: 4.5rem;
+    height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: #F8FAFC;
+    color: var(--text-main, #0f172a);
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+[data-theme="dark"] .edit-unit-select {
+    background: #1E293B;
+    color: #E2E8F0;
+}
+.edit-scale-pill {
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 35%, var(--surface-border));
+    background: color-mix(in srgb, var(--brand-primary, #059669) 10%, var(--surface-bg));
+    color: var(--brand-primary-hover, #047857);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.edit-scale-pill:active {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 18%, var(--surface-bg));
+}
+.edit-scale-live {
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--brand-primary, #059669) 30%, var(--surface-border));
+    background: color-mix(in srgb, var(--brand-primary, #059669) 8%, var(--surface-bg));
+    text-align: center;
+}
+.edit-scale-live[hidden] { display: none !important; }
+.edit-scale-live-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--brand-primary, #059669);
+}
+.edit-scale-live-hint {
+    margin-top: 2px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.location-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.loc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: #F8FAFC;
+    color: #334155;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    line-height: 1;
+}
+.loc-chip-ico { font-size: 0.95rem; line-height: 1; }
+.loc-chip-label {
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.loc-chip.is-on {
+    background: var(--brand-primary, #059669);
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+.loc-chip:active:not(.is-on) {
+    background: color-mix(in srgb, var(--brand-primary, #059669) 10%, #F8FAFC);
+}
+[data-theme="dark"] .loc-chip {
+    background: #1E293B;
+    color: #CBD5E1;
+}
+[data-theme="dark"] .loc-chip.is-on {
+    background: var(--brand-primary, #34D399);
+    border-color: var(--brand-primary, #34D399);
+    color: #064E3B;
+}
+.edit-expiry-input {
+    min-height: 40px;
+}
+.edit-expiry-vacuum {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+}
+.edit-expiry-vacuum > .form-group:first-child {
+    flex: 1 1 11rem;
+    min-width: 0;
+    margin: 0;
+}
+.edit-expiry-vacuum > .edit-vacuum-group {
+    flex: 0 1 auto;
+    min-width: 8.5rem;
+    margin: 0;
+}
+.edit-expiry-vacuum > .edit-vacuum-group[hidden] {
+    display: none !important;
+}
+.edit-vacuum-row {
+    margin: 0;
+    padding: 6px 10px;
+    min-height: 40px;
+    box-sizing: border-box;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: var(--surface-bg);
+    gap: 8px;
+}
+.edit-inventory-modal .toggle-switch input:checked + .toggle-slider {
+    background: var(--brand-primary, #059669);
+}
+.edit-inventory-modal .edit-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 4px;
+}
+.edit-inventory-modal .edit-form-actions .btn {
+    margin: 0;
+    min-height: 44px;
+}
+.edit-inventory-modal .edit-save-btn,
+.edit-inventory-modal .btn-primary {
+    background: var(--brand-primary, #059669);
+    background-image: none;
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+.edit-inventory-modal .edit-save-btn:active,
+.edit-inventory-modal .btn-primary:active {
+    background: var(--brand-primary-hover, #047857);
+}
+
+/* ── Expiry editor (date + optional +7 / +14 / +30 — household decides) ─── */
+.expiry-edit-modal { padding-bottom: 4px; }
+.expiry-edit-product {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+}
+.expiry-edit-hint {
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+.expiry-edit-label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.expiry-edit-date {
+    width: 100%;
+    margin: 0 0 12px;
+    min-height: 44px;
+}
+.expiry-edit-chips {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+.expiry-edit-chip {
+    min-height: 44px;
+    padding: 10px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: #F1F5F9;
+    color: #334155;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+}
+.expiry-edit-chip:hover,
+.expiry-edit-chip:focus-visible {
+    border-color: var(--brand-primary);
+}
+.expiry-edit-chip:active {
+    background: color-mix(in srgb, var(--brand-primary) 12%, #F1F5F9);
+}
+[data-theme="dark"] .expiry-edit-chip {
+    background: #1E293B;
+    color: #CBD5E1;
+}
+[data-theme="dark"] .expiry-edit-chip:active {
+    background: color-mix(in srgb, var(--brand-primary) 18%, #1E293B);
+}
+.expiry-edit-save { margin-bottom: 8px; }
+.expiry-edit-cancel { margin-top: 0; }
 
 /* ── Unified waste sheet (qty + 4 reasons) ───────────────────────────────── */
 .waste-modal { padding-bottom: 4px; }

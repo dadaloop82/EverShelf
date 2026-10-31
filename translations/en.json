@@ -89,7 +89,7 @@
   },
   "btn": {
     "back": "← Back",
-    "save": "💾 Save",
+    "save": "Save",
     "cancel": "✕ Cancel",
     "close": "Close",
     "add": "✅ Add",
@@ -110,7 +110,8 @@
     "next": "Next →",
     "yes_short": "Yes",
     "no_short": "No",
-    "undo": "Undo"
+    "undo": "Undo",
+    "save_changes": "Save changes"
   },
   "form": {
     "select_placeholder": "-- Select --"
@@ -307,11 +308,12 @@
     "banner_opened_menu_finished": "Mark as finished",
     "banner_opened_menu_edit": "Edit quantity or date",
     "banner_opened_remaining": "{qty} left",
-    "banner_freeze": "Freeze",
+    "banner_freeze": "To freezer",
     "freeze_done": "{name} → {location} · +{days} days",
     "freeze_already": "Already in the freezer",
     "freeze_no_freezer": "No freezer location configured",
-    "freeze_not_food": "Medicines cannot be frozen"
+    "freeze_not_food": "Medicines cannot be frozen",
+    "freeze_category_blocked": "This category doesn't go in the freezer"
   },
   "inventory": {
     "title": "List",
@@ -380,7 +382,7 @@
     "still_months": "Still {n} months",
     "over_one_year": "Over 1 year ({date})",
     "detail_available": "Available",
-    "detail_freeze_short": "Freeze",
+    "detail_freeze_short": "To freezer",
     "throw_waste_confirm": "Mark as wasted? It will count toward discarded food this month.",
     "detail_weigh": "Weigh",
     "detail_stock_label": "Current stock:",
@@ -398,7 +400,16 @@
     "detail_scale_detected": "detected",
     "detail_scale_copy": "Copy to use",
     "detail_chip_all_stock": "All ({n}{unit})",
-    "detail_expires_in": "⏳ Expires in {n} d"
+    "detail_expires_in": "⏳ Expires in {n} d",
+    "expiry_edit_title": "Expiry",
+    "expiry_edit_hint": "Pick a new date or extend with the buttons.",
+    "expiry_date_label": "Expiry date",
+    "expiry_add_n": "+{n} days",
+    "expiry_save": "Save expiry",
+    "edit_sheet_subtitle": "Edit details and location",
+    "loc_expiry_delta_plus": "+{n} d",
+    "loc_expiry_delta_minus": "−{n} d",
+    "loc_expiry_delta_hint": "Estimated shelf-life change vs the current place"
   },
   "scan": {
     "title": "Scan",
@@ -2064,7 +2075,8 @@
     "item_added": "{name} added",
     "finished_to_shopping": "🛒 Product finished → added to shopping list",
     "finished_all_undo": "🏁 {name} cleared from inventory",
-    "undo_action": "↩️ Undo"
+    "undo_action": "↩️ Undo",
+    "expiry_saved": "Expiry updated → {date}"
   },
   "antiwaste": {
     "title": "🌱 Anti-Waste Report",
@@ -2261,7 +2273,8 @@
     "auto_confirm": "✅ {val} {unit} — auto-confirm in 5s (tap to cancel)",
     "cancelled_replace": "Cancelled — replace the ingredient on the scale to resume",
     "reading": "⚖️ Scale: {value} {unit}",
-    "weight_value": "⚖️ Scale weight: {value} {unit}"
+    "weight_value": "⚖️ Scale weight: {value} {unit}",
+    "read_btn_short": "⚖️ Scale"
   },
   "prediction": {
     "expected_qty": "Expected: {expected} {unit}",

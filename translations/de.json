@@ -89,7 +89,7 @@
   },
   "btn": {
     "back": "← Zurück",
-    "save": "💾 Speichern",
+    "save": "Speichern",
     "cancel": "✕ Abbrechen",
     "close": "Schließen",
     "add": "✅ Hinzufügen",
@@ -110,7 +110,8 @@
     "next": "Weiter →",
     "yes_short": "Ja",
     "no_short": "Nein",
-    "undo": "Rückgängig"
+    "undo": "Rückgängig",
+    "save_changes": "Änderungen speichern"
   },
   "form": {
     "select_placeholder": "-- Auswählen --"
@@ -307,11 +308,12 @@
     "banner_opened_menu_finished": "Als aufgebraucht markieren",
     "banner_opened_menu_edit": "Menge oder Datum ändern",
     "banner_opened_remaining": "noch {qty}",
-    "banner_freeze": "Einfrieren",
+    "banner_freeze": "Gefrierfach",
     "freeze_done": "{name} → {location} · +{days} Tage",
     "freeze_already": "Bereits im Gefrierfach",
     "freeze_no_freezer": "Kein Gefrierfach konfiguriert",
-    "freeze_not_food": "Medikamente nicht einfrieren"
+    "freeze_not_food": "Medikamente nicht einfrieren",
+    "freeze_category_blocked": "Diese Kategorie gehört nicht in den Gefrierschrank"
   },
   "inventory": {
     "title": "Liste",
@@ -380,7 +382,7 @@
     "still_months": "Noch {n} Monate",
     "over_one_year": "Über 1 Jahr ({date})",
     "detail_available": "Verfügbar",
-    "detail_freeze_short": "Einfrieren",
+    "detail_freeze_short": "Gefrierfach",
     "throw_waste_confirm": "Als verschwendet markieren? Zählt zu den weggeworfenen Lebensmitteln diesen Monat.",
     "detail_weigh": "Wiegen",
     "detail_stock_label": "Aktueller Bestand:",
@@ -398,7 +400,16 @@
     "detail_scale_detected": "erfasst",
     "detail_scale_copy": "In Verbrauch kopieren",
     "detail_chip_all_stock": "Alles ({n}{unit})",
-    "detail_expires_in": "⏳ Läuft in {n} T. ab"
+    "detail_expires_in": "⏳ Läuft in {n} T. ab",
+    "expiry_edit_title": "Haltbarkeit",
+    "expiry_edit_hint": "Neues Datum wählen oder mit den Tasten verlängern.",
+    "expiry_date_label": "Ablaufdatum",
+    "expiry_add_n": "+{n} Tage",
+    "expiry_save": "Haltbarkeit speichern",
+    "edit_sheet_subtitle": "Angaben und Ort bearbeiten",
+    "loc_expiry_delta_plus": "+{n} T",
+    "loc_expiry_delta_minus": "−{n} T",
+    "loc_expiry_delta_hint": "Geschätzte Haltbarkeit gegenüber dem aktuellen Ort"
   },
   "scan": {
     "title": "Scannen",
@@ -2064,7 +2075,8 @@
     "finished_to_shopping": "🛒 Produkt aufgebraucht → zur Einkaufsliste hinzugefügt",
     "expiry_extended": "Haltbarkeit um {n} Tage verlängert → {date}",
     "finished_all_undo": "🏁 {name} aus dem Bestand entfernt",
-    "undo_action": "↩️ Rückgängig"
+    "undo_action": "↩️ Rückgängig",
+    "expiry_saved": "Haltbarkeit aktualisiert → {date}"
   },
   "antiwaste": {
     "title": "🌱 Anti-Verschwendungs-Bericht",
@@ -2261,7 +2273,8 @@
     "auto_confirm": "✅ {val} {unit} — Auto-Bestätigung in 5s (tippen zum Abbrechen)",
     "cancelled_replace": "Abgebrochen — lege die Zutat wieder auf die Waage, um fortzufahren",
     "reading": "⚖️ Waage: {value} {unit}",
-    "weight_value": "⚖️ Waagengewicht: {value} {unit}"
+    "weight_value": "⚖️ Waagengewicht: {value} {unit}",
+    "read_btn_short": "⚖️ Waage"
   },
   "prediction": {
     "expected_qty": "Erwartet: {expected} {unit}",

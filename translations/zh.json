@@ -89,7 +89,7 @@
   },
   "btn": {
     "back": "← 返回",
-    "save": "💾 保存",
+    "save": "保存",
     "cancel": "✕ 取消",
     "close": "关闭",
     "add": "✅ 添加",
@@ -110,7 +110,8 @@
     "next": "下一步 →",
     "yes_short": "是",
     "no_short": "否",
-    "undo": "撤销"
+    "undo": "撤销",
+    "save_changes": "保存修改"
   },
   "form": {
     "select_placeholder": "-- 请选择 --"
@@ -307,11 +308,12 @@
     "banner_opened_menu_finished": "标记为已用完",
     "banner_opened_menu_edit": "修改数量或日期",
     "banner_opened_remaining": "剩余 {qty}",
-    "banner_freeze": "冷冻",
+    "banner_freeze": "放冷冻",
     "freeze_done": "{name} → {location} · +{days} 天",
     "freeze_already": "已在冷冻室",
     "freeze_no_freezer": "未配置冷冻位置",
-    "freeze_not_food": "药品不可冷冻"
+    "freeze_not_food": "药品不可冷冻",
+    "freeze_category_blocked": "此类商品不宜放入冷冻"
   },
   "inventory": {
     "title": "库存",
@@ -380,7 +382,7 @@
     "still_months": "还有 {n} 个月",
     "over_one_year": "超过 1 年（{date}）",
     "detail_available": "可用",
-    "detail_freeze_short": "冷冻",
+    "detail_freeze_short": "放冷冻",
     "throw_waste_confirm": "标记为浪费？将计入本月丢弃的食物。",
     "detail_weigh": "称重",
     "detail_stock_label": "当前库存：",
@@ -398,7 +400,16 @@
     "detail_scale_detected": "已测到",
     "detail_scale_copy": "填入用量",
     "detail_chip_all_stock": "全部 ({n}{unit})",
-    "detail_expires_in": "⏳ {n} 天后到期"
+    "detail_expires_in": "⏳ {n} 天后到期",
+    "expiry_edit_title": "保质期",
+    "expiry_edit_hint": "选择新日期，或用下方按钮延长。",
+    "expiry_date_label": "到期日",
+    "expiry_add_n": "+{n}天",
+    "expiry_save": "保存保质期",
+    "edit_sheet_subtitle": "编辑资料与位置",
+    "loc_expiry_delta_plus": "+{n}天",
+    "loc_expiry_delta_minus": "−{n}天",
+    "loc_expiry_delta_hint": "相对当前位置的预计保质期变化"
   },
   "scan": {
     "title": "扫描",
@@ -2064,7 +2075,8 @@
     "finished_to_shopping": "🛒 商品已用完 → 已添加到购物清单",
     "expiry_extended": "保质期延长 {n} 天 → {date}",
     "finished_all_undo": "🏁 {name} 已从库存移除",
-    "undo_action": "↩️ 撤销"
+    "undo_action": "↩️ 撤销",
+    "expiry_saved": "保质期已更新 → {date}"
   },
   "antiwaste": {
     "title": "🌱 减少浪费报告",
@@ -2261,7 +2273,8 @@
     "auto_confirm": "✅ {val} {unit}——5 秒后自动确认（点击可取消）",
     "cancelled_replace": "已取消——重新将食材放到智能秤上即可继续",
     "reading": "⚖️ 秤：{value} {unit}",
-    "weight_value": "⚖️ 秤重：{value} {unit}"
+    "weight_value": "⚖️ 秤重：{value} {unit}",
+    "read_btn_short": "⚖️ 秤"
   },
   "prediction": {
     "expected_qty": "预计数量：{expected} {unit}",

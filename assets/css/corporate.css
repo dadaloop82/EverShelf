@@ -209,6 +209,10 @@ select.form-input {
     border: 1.5px solid var(--es-border-subtle);
     background: var(--bg-card);
     font-size: var(--es-text-body);
+    /* Forms stay denser than primary CTAs (48px): 40px still hits the touch floor. */
+    min-height: 40px;
+}
+.search-bar input {
     min-height: var(--es-btn-height);
 }
 
@@ -237,7 +241,7 @@ select.form-input:focus {
 
 .loc-btn {
     border-radius: var(--es-radius-card);
-    min-height: var(--es-btn-height);
+    min-height: 40px;
     font-weight: 600;
     border: 1.5px solid color-mix(in srgb, var(--border) 45%, var(--text-muted) 55%);
     background: color-mix(in srgb, var(--bg) 55%, var(--bg-card) 45%);

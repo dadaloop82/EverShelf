@@ -89,7 +89,7 @@
   },
   "btn": {
     "back": "← Retour",
-    "save": "💾 Enregistrer",
+    "save": "Enregistrer",
     "cancel": "✕ Annuler",
     "close": "Fermer",
     "add": "✅ Ajouter",
@@ -110,7 +110,8 @@
     "next": "Suivant →",
     "yes_short": "Oui",
     "no_short": "Non",
-    "undo": "Annuler"
+    "undo": "Annuler",
+    "save_changes": "Enregistrer les modifications"
   },
   "form": {
     "select_placeholder": "-- Sélectionner --"
@@ -307,11 +308,12 @@
     "banner_opened_menu_finished": "Marquer comme terminé",
     "banner_opened_menu_edit": "Modifier quantité ou date",
     "banner_opened_remaining": "{qty} restants",
-    "banner_freeze": "Congeler",
+    "banner_freeze": "Congélateur",
     "freeze_done": "{name} → {location} · +{days} j",
     "freeze_already": "Déjà au congélateur",
     "freeze_no_freezer": "Aucun congélateur configuré",
-    "freeze_not_food": "Les médicaments ne se congèlent pas"
+    "freeze_not_food": "Les médicaments ne se congèlent pas",
+    "freeze_category_blocked": "Cette catégorie ne va pas au congélateur"
   },
   "inventory": {
     "title": "Liste",
@@ -380,7 +382,7 @@
     "still_months": "Encore {n} mois",
     "over_one_year": "Plus d’1 an ({date})",
     "detail_available": "Disponible",
-    "detail_freeze_short": "Congeler",
+    "detail_freeze_short": "Congélateur",
     "throw_waste_confirm": "Marquer comme gaspillé ? Cela comptera dans les aliments jetés ce mois-ci.",
     "detail_weigh": "Peser",
     "detail_stock_label": "Stock actuel :",
@@ -398,7 +400,16 @@
     "detail_scale_detected": "détectés",
     "detail_scale_copy": "Copier dans la conso",
     "detail_chip_all_stock": "Tout ({n}{unit})",
-    "detail_expires_in": "⏳ Expire dans {n} j"
+    "detail_expires_in": "⏳ Expire dans {n} j",
+    "expiry_edit_title": "Péremption",
+    "expiry_edit_hint": "Choisissez une date ou prolongez avec les boutons.",
+    "expiry_date_label": "Date de péremption",
+    "expiry_add_n": "+{n} j",
+    "expiry_save": "Enregistrer",
+    "edit_sheet_subtitle": "Modifier fiche et emplacement",
+    "loc_expiry_delta_plus": "+{n} j",
+    "loc_expiry_delta_minus": "−{n} j",
+    "loc_expiry_delta_hint": "Durée de conservation estimée vs l’emplacement actuel"
   },
   "scan": {
     "title": "Scanner",
@@ -2064,7 +2075,8 @@
     "finished_to_shopping": "🛒 Produit terminé → ajouté à la liste de courses",
     "expiry_extended": "Péremption prolongée de {n} jours → {date}",
     "finished_all_undo": "🏁 {name} retiré de l'inventaire",
-    "undo_action": "↩️ Annuler"
+    "undo_action": "↩️ Annuler",
+    "expiry_saved": "Péremption mise à jour → {date}"
   },
   "antiwaste": {
     "title": "🌱 Rapport anti-gaspi",
@@ -2261,7 +2273,8 @@
     "auto_confirm": "✅ {val} {unit} — confirmation automatique dans 5s (appuyez pour annuler)",
     "cancelled_replace": "Annulé — replacez l'ingrédient sur la balance pour reprendre",
     "reading": "⚖️ Balance : {value} {unit}",
-    "weight_value": "⚖️ Poids balance : {value} {unit}"
+    "weight_value": "⚖️ Poids balance : {value} {unit}",
+    "read_btn_short": "⚖️ Balance"
   },
   "prediction": {
     "expected_qty": "Attendu : {expected} {unit}",

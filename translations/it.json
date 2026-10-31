@@ -89,7 +89,7 @@
   },
   "btn": {
     "back": "← Indietro",
-    "save": "💾 Salva",
+    "save": "Salva",
     "cancel": "✕ Annulla",
     "close": "Chiudi",
     "add": "✅ Aggiungi",
@@ -110,7 +110,8 @@
     "next": "Avanti →",
     "yes_short": "Sì",
     "no_short": "No",
-    "undo": "Annulla"
+    "undo": "Annulla",
+    "save_changes": "Salva modifiche"
   },
   "form": {
     "select_placeholder": "-- Seleziona --"
@@ -307,11 +308,12 @@
     "banner_opened_menu_finished": "Segna come terminato / finito",
     "banner_opened_menu_edit": "Modifica quantità o data",
     "banner_opened_remaining": "{qty} rimanenti",
-    "banner_freeze": "Congela",
+    "banner_freeze": "In freezer",
     "freeze_done": "{name} → {location} · +{days} gg",
     "freeze_already": "È già in freezer",
     "freeze_no_freezer": "Nessun freezer configurato",
-    "freeze_not_food": "I farmaci non si congelano"
+    "freeze_not_food": "I farmaci non si congelano",
+    "freeze_category_blocked": "Questa categoria non va in freezer"
   },
   "inventory": {
     "title": "Lista",
@@ -365,7 +367,7 @@
     "detail_more": "Dettagli",
     "detail_consumed": "✓ Registrati {qty} di {name}",
     "detail_available": "Disponibile",
-    "detail_freeze_short": "Congela",
+    "detail_freeze_short": "In freezer",
     "throw_waste_confirm": "Segnare come sprecato? Finirà nel conteggio dei cibi buttati questo mese.",
     "location_filter": "Filtra per luogo",
     "detail_extend_short": "Scadenza",
@@ -398,7 +400,16 @@
     "detail_scale_detected": "rilevati",
     "detail_scale_copy": "Copia nel consumo",
     "detail_chip_all_stock": "Tutto ({n}{unit})",
-    "detail_expires_in": "⏳ Scade tra {n} gg"
+    "detail_expires_in": "⏳ Scade tra {n} gg",
+    "expiry_edit_title": "Scadenza",
+    "expiry_edit_hint": "Scegli la nuova data o allunga con i pulsanti.",
+    "expiry_date_label": "Data di scadenza",
+    "expiry_add_n": "+{n} gg",
+    "expiry_save": "Salva scadenza",
+    "edit_sheet_subtitle": "Modifica anagrafica e posizione",
+    "loc_expiry_delta_plus": "+{n} gg",
+    "loc_expiry_delta_minus": "−{n} gg",
+    "loc_expiry_delta_hint": "Giorni di conservazione stimati rispetto alla posizione attuale"
   },
   "scan": {
     "title": "Scansiona",
@@ -2064,7 +2075,8 @@
     "item_added": "{name} aggiunto",
     "finished_to_shopping": "🛒 Prodotto finito → aggiunto alla lista della spesa",
     "finished_all_undo": "🏁 {name} esaurito dall'inventario",
-    "undo_action": "↩️ Annulla"
+    "undo_action": "↩️ Annulla",
+    "expiry_saved": "Scadenza aggiornata → {date}"
   },
   "antiwaste": {
     "title": "🌱 Rapporto Anti-Spreco",
@@ -2261,7 +2273,8 @@
     "auto_confirm": "✅ {val} {unit} — conferma automatica tra 5s (tocca per annullare)",
     "cancelled_replace": "Annullato — rimetti l'ingrediente sulla bilancia per riprendere",
     "reading": "⚖️ Bilancia: {value} {unit}",
-    "weight_value": "⚖️ Peso bilancia: {value} {unit}"
+    "weight_value": "⚖️ Peso bilancia: {value} {unit}",
+    "read_btn_short": "⚖️ Bilancia"
   },
   "prediction": {
     "expected_qty": "Previsto: {expected} {unit}",

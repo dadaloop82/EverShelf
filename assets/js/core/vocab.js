@@ -63,16 +63,26 @@ function vocabTokens(text) {
     return tokens;
 }
 
-/** Does an already tokenized name satisfy one term? */
-function vocabMatchesTerm(tokens, term) {
+/**
+ * Best match of one term: {pos, len} or null.
+ * "+" terms score by the earliest part and the number of required parts.
+ */
+function vocabTermMatchScore(tokens, term) {
     const t = String(term || '').trim();
-    if (!t || !tokens.length) return false;
+    if (!t || !tokens.length) return null;
     if (t.includes('+')) {
-        return t.split('+').every(part => vocabMatchesTerm(tokens, part));
+        const parts = t.split('+');
+        let earliest = null;
+        for (const part of parts) {
+            const score = vocabTermMatchScore(tokens, part);
+            if (!score) return null;
+            if (earliest === null || score.pos < earliest) earliest = score.pos;
+        }
+        return { pos: earliest, len: parts.length };
     }
     const isStem = t.endsWith('*');
     const words = vocabTokens(isStem ? t.slice(0, -1) : t);
-    if (!words.length) return false;
+    if (!words.length) return null;
     for (let i = 0; i <= tokens.length - words.length; i++) {
         let ok = true;
         for (let j = 0; j < words.length; j++) {
@@ -80,9 +90,14 @@ function vocabMatchesTerm(tokens, term) {
             const hit = (isStem && j === words.length - 1) ? token.startsWith(words[j]) : token === words[j];
             if (!hit) { ok = false; break; }
         }
-        if (ok) return true;
+        if (ok) return { pos: i, len: words.length };
     }
-    return false;
+    return null;
+}
+
+/** Does an already tokenized name satisfy one term? */
+function vocabMatchesTerm(tokens, term) {
+    return vocabTermMatchScore(tokens, term) !== null;
 }
 
 function vocabMatchesTermsTokens(tokens, terms) {
@@ -93,18 +108,65 @@ function vocabNameHasAnyTerm(name, terms) {
     return vocabMatchesTermsTokens(vocabTokens(name), terms);
 }
 
-/** The local category of a product name: brands first, then the ordered generic terms. */
+/** Best {cat,pos,len} among the terms of one rule, or null. */
+function vocabBestTermInRule(tokens, rule) {
+    const cat = (rule && rule.cat) || '';
+    if (!cat) return null;
+    let best = null;
+    for (const term of (rule.terms || [])) {
+        const score = vocabTermMatchScore(tokens, term);
+        if (!score) continue;
+        if (!best || score.len > best.len || (score.len === best.len && score.pos < best.pos)) {
+            best = { cat, pos: score.pos, len: score.len };
+        }
+    }
+    return best;
+}
+
+/**
+ * Local category of a product title.
+ *
+ * Language-neutral ranking (mirrors api/lib/vocabulary.php):
+ *   1. among category hits: longer phrase, then earliest word in the title,
+ *   2. brand → category only when the title itself named no genre.
+ * No product word belongs here.
+ */
 function vocabCategoryOfName(name, brand = '') {
     const data = _vocabData();
     const tokens = vocabTokens(String(name || '') + ' ' + String(brand || ''));
     if (!tokens.length) return 'altro';
+    let best = null;
+    for (const rule of (data.categories || [])) {
+        const hit = vocabBestTermInRule(tokens, rule);
+        if (!hit) continue;
+        if (!best || hit.len > best.len || (hit.len === best.len && hit.pos < best.pos)) {
+            best = hit;
+        }
+    }
+    if (best) return best.cat;
     for (const rule of (data.brands || [])) {
         if (vocabMatchesTermsTokens(tokens, rule.terms)) return rule.cat || 'altro';
     }
-    for (const rule of (data.categories || [])) {
-        if (vocabMatchesTermsTokens(tokens, rule.terms)) return rule.cat || 'altro';
-    }
     return 'altro';
+}
+
+/**
+ * OFF slug → local category (data/off_categories.json → off_categories.generated.js).
+ * Returns the local slug, or null when the tag is a catch-all / unknown
+ * (caller guesses from the title via vocabCategoryOfName).
+ */
+function vocabMapOffSlug(slug) {
+    let s = String(slug || '').trim().toLowerCase();
+    if (!s) return null;
+    const m = s.match(/^[a-z]{2}:(.+)$/);
+    if (m) s = m[1];
+    const table = (typeof EVERSHELF_OFF_CATEGORIES !== 'undefined' && EVERSHELF_OFF_CATEGORIES)
+        ? EVERSHELF_OFF_CATEGORIES
+        : null;
+    const map = (table && table.by_slug) || {};
+    if (!Object.prototype.hasOwnProperty.call(map, s)) return null;
+    const cat = map[s];
+    return (cat != null && cat !== '') ? String(cat) : null;
 }
 
 /** Does the title carry a pack size ("500 g", "1,5 l")? Format, not vocabulary. */

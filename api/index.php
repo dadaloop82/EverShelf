@@ -5180,6 +5180,9 @@ function productToggleFavorite(PDO $db): void {
  *     latte") through the same dictionary → cache → one-word-AI pipeline used on save,
  *   * the titles are brought to the singular sentence case the rest of the list speaks
  *     ("Fette biscottate Integrali" → "Fetta biscottata integrale"),
+ *   * raw Open Food Facts tags left in `products.category` (`en:plant-based-…`, empty,
+ *     an image URL) are rewritten to a local slug via sanitizeProductCategory() — same
+ *     choke point as product_save, no AI,
  *   * the products consumed AUTO_FAVORITE_MIN_USES times are promoted to favourites.
  *
  * `products.shopping_name` — the buyable word of the list/Bring! — is left untouched:
@@ -5201,15 +5204,18 @@ function applyAutoProductRules(PDO $db): void {
     )->fetchAll(PDO::FETCH_ASSOC);
 
     $update  = $db->prepare(
-        'UPDATE products SET name = ?, kind = ?, shopping_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        'UPDATE products SET name = ?, kind = ?, shopping_name = ?, category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
     );
     $renamed = 0;
     $stored  = 0;
+    $recategorized = 0;
     $samples = [];
+    $catSamples = [];
 
     foreach ($rows as $row) {
         $oldName  = (string)$row['name'];
         $oldKind  = (string)$row['kind'];
+        $oldCat   = (string)$row['category'];
         $isMedical = !empty($row['is_medical']);
         if ($isMedical) {
             // Medicines are not food genres: strip a leading "Farmaco"/"Medicine" and clear
@@ -5218,14 +5224,21 @@ function applyAutoProductRules(PDO $db): void {
             $newName  = productTitleCapitalize($stripped !== '' ? $stripped : $oldName);
             $newKind  = productKindIsPlausibleGenre($oldKind) ? $oldKind : '';
             $source   = 'medical';
+            // Keep a medical row out of food genres; drop a leftover OFF tag.
+            $newCat   = in_array(mb_strtolower(trim($oldCat)), validProductCategories(), true)
+                ? mb_strtolower(trim($oldCat))
+                : 'altro';
         } else {
             $applied  = productKindApply($oldName, (string)$row['brand'], (string)$row['category'], $lang, true, $oldKind);
             $newName  = $applied['name'];
             $newKind  = $applied['kind'] !== '' ? $applied['kind'] : $oldKind;
             $source   = $applied['source'];
+            // OFF catch-alls (`en:plant-based-foods-and-beverages`) and empty/URL junk
+            // become a local slug from the title — same as product_save.
+            $newCat   = sanitizeProductCategory($oldCat, $newName, (string)$row['brand']);
         }
 
-        if ($newName === $oldName && $newKind === $oldKind) {
+        if ($newName === $oldName && $newKind === $oldKind && $newCat === $oldCat) {
             continue;
         }
         if ($newKind !== '') {
@@ -5235,6 +5248,17 @@ function applyAutoProductRules(PDO $db): void {
             $renamed++;
             if (count($samples) < 5) {
                 $samples[] = ['from' => $oldName, 'to' => $newName, 'source' => $source];
+            }
+        }
+        if ($newCat !== $oldCat) {
+            $recategorized++;
+            if (count($catSamples) < 8) {
+                $catSamples[] = [
+                    'id'   => (int)$row['id'],
+                    'name' => $newName,
+                    'from' => $oldCat !== '' ? $oldCat : '(empty)',
+                    'to'   => $newCat,
+                ];
             }
         }
         if (!$dryRun) {
@@ -5250,27 +5274,30 @@ function applyAutoProductRules(PDO $db): void {
                     $shopping = $newName;
                 }
             } elseif ($shopping === '') {
-                $shopping = computeShoppingName($newName, (string)$row['category'], (string)$row['brand'], false);
+                $shopping = computeShoppingName($newName, $newCat, (string)$row['brand'], false);
             }
             $update->execute([
                 $newName,
                 $newKind,
                 $shopping,
+                $newCat,
                 (int)$row['id'],
             ]);
         }
     }
 
     echo json_encode([
-        'success'     => true,
-        'dry_run'     => $dryRun,
-        'scanned'     => count($rows),
-        'renamed'     => $renamed,
-        'kinds'       => $stored,
-        'favorites'   => $dryRun ? autoFavoriteSweepPreview($db) : autoFavoriteSweep($db),
-        'min_uses'    => autoFavoriteMinUses(),
-        'window_days' => autoFavoriteWindowDays(),
-        'samples'     => $samples,
+        'success'        => true,
+        'dry_run'        => $dryRun,
+        'scanned'        => count($rows),
+        'renamed'        => $renamed,
+        'kinds'          => $stored,
+        'recategorized'  => $recategorized,
+        'category_samples' => $catSamples,
+        'favorites'      => $dryRun ? autoFavoriteSweepPreview($db) : autoFavoriteSweep($db),
+        'min_uses'       => autoFavoriteMinUses(),
+        'window_days'    => autoFavoriteWindowDays(),
+        'samples'        => $samples,
     ]);
 }
 
@@ -6861,10 +6888,22 @@ function sanitizeProductCategory(string $category, string $name, string $brand =
     if (in_array($cat, $valid, true) && $cat !== 'altro') {
         return $cat;
     }
-    if (isOffLikeCategory($cat)) {
+    // Strip en:/it: … and consult the OFF → local map (data/off_categories.json).
+    // A mapped slug wins; a catch-all / unknown falls through to the title vocabulary.
+    $slug = (string)preg_replace('/^[a-z]{2}:/', '', $cat);
+    if (in_array($slug, $valid, true) && $slug !== 'altro') {
+        return $slug;
+    }
+    if ($slug !== '' && function_exists('vocabMapOffSlug')) {
+        $mapped = vocabMapOffSlug($slug);
+        if ($mapped !== null && in_array($mapped, $valid, true) && $mapped !== 'altro') {
+            return $mapped;
+        }
+    }
+    if (isOffLikeCategory($cat) || $cat === '' || !in_array($cat, $valid, true)) {
         return guessCategoryFromNamePHP($name, $brand);
     }
-    return in_array($cat, $valid, true) ? $cat : guessCategoryFromNamePHP($name, $brand);
+    return $cat;
 }
 
 function pickBetterName(string $existing, string $incoming): string {
@@ -8591,76 +8630,21 @@ function getStats(PDO $db): void {
 // ===== MONTHLY STATS =====
 /**
  * Normalize a raw category string (may contain OpenFoodFacts "en:slug" format)
- * to one of the app's known Italian category slugs.
+ * to one of the app's known category slugs. Mapping lives in data/off_categories.json
+ * — no OFF slug and no product word is hardcoded here.
  */
 function _normalizeCat(string $raw): string {
-    static $known = [
-        'frutta','verdura','carne','pesce','latticini',
-        'pasta','pane','cereali','bevande','condimenti',
-        'surgelati','conserve','snack','altro',
-    ];
-    $raw = trim($raw);
-    if (in_array($raw, $known, true)) return $raw;
-
-    // Strip language prefix: "en:", "it:", "fr:", etc.
+    $raw = mb_strtolower(trim($raw));
+    $known = validProductCategories();
+    if (in_array($raw, $known, true)) {
+        return $raw;
+    }
     $slug = (string)preg_replace('/^[a-z]{2}:/', '', $raw);
-    if (in_array($slug, $known, true)) return $slug;
-
-    // Map common OpenFoodFacts slugs → app categories
-    static $map = [
-        // latticini
-        'dairies'=>'latticini','dairy'=>'latticini','milk'=>'latticini',
-        'fermented-milk-products'=>'latticini','cheeses'=>'latticini',
-        'yogurts'=>'latticini','plant-based-milks'=>'latticini',
-        'cream'=>'latticini','butter'=>'latticini','eggs'=>'latticini',
-        // frutta
-        'fruits'=>'frutta','fresh-fruits'=>'frutta','tropical-fruits'=>'frutta',
-        'dried-fruits'=>'frutta','berries'=>'frutta',
-        // verdura
-        'vegetables'=>'verdura','fresh-vegetables'=>'verdura',
-        'plant-based-foods'=>'verdura','legumes'=>'verdura',
-        'mushrooms'=>'verdura','herbs'=>'verdura',
-        // carne
-        'meats'=>'carne','beef'=>'carne','pork'=>'carne',
-        'poultry'=>'carne','chicken'=>'carne','processed-meat'=>'carne',
-        'sausages'=>'carne','charcuterie'=>'carne',
-        // pesce
-        'fish'=>'pesce','seafood'=>'pesce','fish-products'=>'pesce',
-        'canned-fish'=>'conserve',
-        // pasta
-        'pastas'=>'pasta','pasta'=>'pasta','pasta-based-dishes'=>'pasta',
-        'noodles'=>'pasta',
-        // pane
-        'breads'=>'pane','bread'=>'pane','baked-goods'=>'pane',
-        'pastries'=>'pane','cakes'=>'snack',
-        // cereali
-        'cereals'=>'cereali','breakfast-cereals'=>'cereali',
-        'rice'=>'cereali','grains'=>'cereali','flours'=>'cereali',
-        'seeds'=>'cereali',
-        // bevande
-        'beverages'=>'bevande','drinks'=>'bevande','waters'=>'bevande',
-        'juices'=>'bevande','fruit-juices'=>'bevande','sodas'=>'bevande',
-        'plant-based-foods-and-beverages'=>'bevande','coffee'=>'bevande',
-        'tea'=>'bevande','alcoholic-beverages'=>'bevande','wine'=>'bevande',
-        'beer'=>'bevande',
-        // condimenti
-        'sauces'=>'condimenti','condiments'=>'condimenti',
-        'spreads'=>'condimenti','oils'=>'condimenti',
-        'vinegars'=>'condimenti','dressings'=>'condimenti',
-        'sugar'=>'condimenti','salt'=>'condimenti','spices'=>'condimenti',
-        // surgelati
-        'frozen-foods'=>'surgelati','frozen-vegetables'=>'surgelati',
-        'frozen-fish'=>'surgelati','ice-cream'=>'surgelati',
-        // conserve
-        'preserved-foods'=>'conserve','canned-foods'=>'conserve',
-        'jams'=>'conserve','pickles'=>'conserve','tomato-sauces'=>'conserve',
-        // snack
-        'snacks'=>'snack','cookies'=>'snack','chips'=>'snack',
-        'chocolates'=>'snack','candies'=>'snack','sweets'=>'snack',
-        'crackers'=>'snack','biscuits'=>'snack','nuts'=>'snack',
-    ];
-
-    return $map[$slug] ?? $map[strtolower($slug)] ?? 'altro';
+    if (in_array($slug, $known, true)) {
+        return $slug;
+    }
+    $mapped = function_exists('vocabMapOffSlug') ? vocabMapOffSlug($slug) : null;
+    return ($mapped !== null && $mapped !== '') ? $mapped : 'altro';
 }
 
 function getMonthlyStats(PDO $db): void {
