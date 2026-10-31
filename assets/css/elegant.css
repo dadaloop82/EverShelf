@@ -535,10 +535,10 @@ textarea.form-input:focus {
 
 /* ===== 12. TOAST, EMPTY STATES, STICKY BARS ======================== */
 .toast {
-    border-radius: var(--es-radius-pill);
-    bottom: calc(var(--nav-height) + 24px);
-    box-shadow: var(--es-shadow-elevated);
-    padding: 13px 22px;
+    border-radius: 9999px;
+    bottom: 88px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.35);
+    padding: 12px 18px;
 }
 
 .empty-state {

@@ -1036,8 +1036,26 @@ function productTitleRestoreAcronyms(string $original, string $lowered): string 
  * *copy* of the name to compare two products: the stored title keeps the case this
  * function gives it.
  */
+/**
+ * Catalog / OCR / import sometimes hand us titles with HTML entities already in
+ * them ("Marmellata di &quot;Limone…&quot;"). Those must become real quotes before
+ * we store or capitalise — otherwise every escapeHtml() on the client prints the
+ * literal `&quot;` on screen.
+ */
+function productTitleDecodeEntities(string $name): string {
+    if ($name === '' || strpos($name, '&') === false) {
+        return $name;
+    }
+    $decoded = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // A second pass catches double-encoded forms (&amp;quot; → &quot; → ").
+    if (strpos($decoded, '&') !== false) {
+        $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    return $decoded;
+}
+
 function productTitleCapitalize(string $name): string {
-    $name = trim($name);
+    $name = productTitleDecodeEntities(trim($name));
     if ($name === '') {
         return '';
     }

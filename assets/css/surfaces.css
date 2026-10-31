@@ -1608,6 +1608,12 @@ body {
     color: #fff;
 }
 .item-detail-primary:active { background: var(--brand-primary-hover); }
+.item-detail-primary:disabled,
+.item-detail-primary.is-busy {
+    opacity: 0.72;
+    cursor: wait;
+    pointer-events: none;
+}
 .item-detail-primary .item-detail-action-icon {
     flex-shrink: 0;
 }
@@ -3761,4 +3767,21 @@ button.scan-med-name-hit:focus-visible {
 }
 .waste-partial-btn:active {
     background: color-mix(in srgb, #DC2626 12%, var(--surface-bg)) !important;
+}
+
+/* Soft-duplicate confirm (parked — consume flow no longer opens it). */
+.dup-confirm-overlay { display: none !important; }
+.dup-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.dup-confirm-actions .btn {
+    min-height: 44px;
+    height: auto;
+    border-radius: 12px !important;
+    white-space: normal;
+    font-weight: 700;
+    line-height: 1.25;
+    padding: 10px 12px;
 }

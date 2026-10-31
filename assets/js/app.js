@@ -1700,7 +1700,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261030m'; // bump when translations change
+const _I18N_VERSION = '20261031f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -7903,13 +7903,20 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
     if (data && data.error) {
         remoteLog('API_FAIL', `${action}: ${data.error}`);
     }
+    // Never leave a raw machine key in `error` — every toast/dialog prints it.
+    if (data && (data.error === 'duplicate_recent' || data.duplicate)) {
+        data.error = t('use.duplicate_recent');
+    }
     // `error_key` is the stable, translatable value PHP sends (rate limits, backups,
     // guards). Every caller prints `data.error`, so it is resolved here once instead
     // of in each one: a de/fr/es/zh user must never read the English prose. Keys that
     // carry placeholders are left to the caller, the only one that knows the arguments.
     if (data && typeof data.error_key === 'string' && data.error_key !== '') {
-        const localized = t(data.error_key);
-        if (localized !== data.error_key && !/\{\w+\}/.test(localized)) data.error = localized;
+        // Soft-duplicate uses a dedicated dialog — don't overwrite with a placeholder key.
+        if (data.error_key !== 'use.duplicate_confirm') {
+            const localized = t(data.error_key);
+            if (localized !== data.error_key && !/\{\w+\}/.test(localized)) data.error = localized;
+        }
     }
     return data || { success: false, error: 'invalid_response' };
 }
@@ -13979,22 +13986,63 @@ async function itemDetailToggleVacuum(inventoryId) {
     }
 }
 
+/**
+ * Finish this product from the sheet: close instantly, deplete, undo toast.
+ * No location disambiguation when the sheet already names the place; no red
+ * safety slider — a wrong tap is fixed with [Annulla] for 5 s.
+ */
 async function itemDetailUseAll(productId, location) {
-    // "Ho consumato tutto" from the modal stays IN the modal: the slide-to-confirm dialog
-    // opens over the sheet (same guard as before), and the user never lands on the legacy
-    // full-page USE form, which was the same decision drawn twice.
+    const q = _itemDetailQty || {};
+    const name = q.name || currentProduct?.name || '';
+    const loc = location || q.location || '';
     closeModal();
-    showLoading(true);
+    await _finishStockWithUndo({
+        productId,
+        location: loc || '__all__',
+        name,
+    });
+}
+
+/** Deplete stock instantly + 5 s undo toast. Never a duplicate dialog (partial ≠ finish). */
+async function _finishStockWithUndo({ productId, location, name, useAll = true, quantity = null }) {
+    if (!productId) return;
     try {
-        await _loadUseProduct(productId, location);
+        const body = {
+            product_id: productId,
+            location: location || '__all__',
+            // Finish is never a "duplicate" of a prior spoonful — always proceed.
+            confirm_duplicate: 1,
+        };
+        if (useAll) body.use_all = true;
+        else body.quantity = quantity;
+        const res = await api('inventory_use', {}, 'POST', body);
+        if (res && res.success) {
+            const ids = Array.isArray(res.transaction_ids) && res.transaction_ids.length
+                ? res.transaction_ids
+                : (res.transaction_id ? [res.transaction_id] : []);
+            const label = name || res.product_name || '';
+            showActionToast(
+                t('toast.finished_all_undo', { name: _plainUiText(label) }),
+                t('toast.undo_action'),
+                async () => {
+                    for (const id of ids.slice().reverse()) {
+                        try { await api('transaction_undo', {}, 'POST', { id }); } catch (_) { /* best effort */ }
+                    }
+                    if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+                },
+                5000
+            );
+            if (res.added_to_shopping || res.added_to_bring) {
+                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1600);
+            }
+            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+            return;
+        }
+        showToast(_apiErrorText(res) || t('error.generic'), 'error');
     } catch (err) {
-        console.error('[itemDetailUseAll]', err);
+        console.error('[_finishStockWithUndo]', err);
         showToast(t('error.connection'), 'error');
-        return;
-    } finally {
-        showLoading(false);
     }
-    await submitUseAll();
 }
 
 /**
@@ -14439,33 +14487,106 @@ function _itemDetailStep(dir) {
     _itemDetailSyncQtyUi();
 }
 
-/** Register the chosen quantity: the same endpoint the use form posts to. */
+/**
+ * Soft-duplicate dialog (never window.confirm — broken / ugly on kiosk WebViews).
+ * Resolves true when the household taps "Registra altri …".
+ */
+function _askDuplicateUseConfirm(qtyLabel, name) {
+    t('use.duplicate_confirm_msg');
+    t('use.duplicate_confirm_yes');
+    t('use.duplicate_cancelled');
+    return new Promise((resolve) => {
+        const existing = document.getElementById('dup-confirm-overlay');
+        if (existing) existing.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'dup-confirm-overlay';
+        overlay.className = 'dup-confirm-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        const title = t('use.duplicate_confirm_msg', { qty: qtyLabel, name: name || '' });
+        const yes = t('use.duplicate_confirm_yes', { qty: qtyLabel });
+        overlay.innerHTML = `
+            <div class="dup-confirm-card" onclick="event.stopPropagation()">
+                <p class="dup-confirm-text">${escapeHtml(title)}</p>
+                <div class="dup-confirm-actions">
+                    <button type="button" class="btn btn-secondary dup-confirm-no">${escapeHtml(t('confirm.cancel'))}</button>
+                    <button type="button" class="btn btn-primary dup-confirm-yes">${escapeHtml(yes)}</button>
+                </div>
+            </div>`;
+        const finish = (ok) => {
+            overlay.remove();
+            resolve(!!ok);
+        };
+        overlay.addEventListener('click', () => finish(false));
+        overlay.querySelector('.dup-confirm-no').addEventListener('click', (e) => {
+            e.stopPropagation();
+            finish(false);
+        });
+        overlay.querySelector('.dup-confirm-yes').addEventListener('click', (e) => {
+            e.stopPropagation();
+            finish(true);
+        });
+        document.body.appendChild(overlay);
+        overlay.querySelector('.dup-confirm-yes')?.focus();
+    });
+}
+
+/** @deprecated window.confirm path — routes to the real dialog. */
+function _confirmDuplicateUse(qtyLabel, name) {
+    return _askDuplicateUseConfirm(qtyLabel, name);
+}
+
+/**
+ * Register the chosen quantity.
+ * No soft-duplicate modal: only a 1.5 s disabled/spinner lock against double-tap.
+ * Repeating the same dose after reopening the sheet is allowed freely.
+ */
 async function _itemDetailConsume() {
     _itemDetailReadInput();
     const q = _itemDetailQty;
     if (!q.productId || !(q.value > 0)) return;
+    if (q._consuming) return; // hard client guard against double-tap
+    q._consuming = true;
     const label = _itemDetailQtyLabel();
-    closeModal();
+    const primaryBtn = document.getElementById('item-detail-primary-btn');
+    if (primaryBtn) {
+        primaryBtn.disabled = true;
+        primaryBtn.classList.add('is-busy');
+    }
+    const payload = {
+        product_id: q.productId,
+        quantity: q.value,
+        location: q.location,
+    };
     try {
-        const res = await api('inventory_use', {}, 'POST', {
-            product_id: q.productId,
-            quantity: q.value,
-            location: q.location,
-        });
+        const res = await api('inventory_use', {}, 'POST', payload);
         if (res && res.success) {
+            closeModal();
+            const pname = _plainUiText(q.name);
             showToast(
                 q.isMedical
-                    ? t('medical.use_done', { qty: label, name: q.name })
-                    : t('inventory.detail_consumed', { qty: label, name: q.name }),
+                    ? t('medical.use_done', { qty: label, name: pname })
+                    : t('inventory.detail_consumed', { qty: label, name: pname }),
                 'success'
             );
             _dashboardLiveRefresh(q.inventoryId);
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
+        } else if (res && res.duplicate) {
+            // Race double-submit only — never a raw key, never a blocking dialog.
+            showToast(t('use.duplicate_recent'), 'info');
         } else {
-            showToast((res && res.error) || t('error.generic'), 'error');
+            showToast(_apiErrorText(res) || t('error.generic'), 'error');
         }
     } catch (e) {
         showToast(t('error.connection'), 'error');
+    } finally {
+        setTimeout(() => {
+            q._consuming = false;
+            if (primaryBtn) {
+                primaryBtn.disabled = false;
+                primaryBtn.classList.remove('is-busy');
+            }
+        }, 1500);
     }
 }
 
@@ -16203,7 +16324,7 @@ async function deleteInventoryItem(id) {
             await api('inventory_delete', {}, 'POST', { id });
             closeModal();
             _dashboardLiveRefresh(id);
-            showActionToast(t('toast.product_removed'), t('btn.undo') || 'Undo', async () => {
+            showActionToast(t('toast.product_removed'), t('toast.undo_action'), async () => {
                 try {
                     if (snapshot.product_id) {
                         await api('inventory_add', {}, 'POST', {
@@ -23223,6 +23344,9 @@ async function _ensureAddProductRow() {
 /** Backend error → localized text. `error_key` is the stable value PHP sends. */
 function _apiErrorText(data) {
     const key = data?.error_key;
+    if (key === 'use.duplicate_confirm' || key === 'use.duplicate_recent' || data?.error === 'duplicate_recent') {
+        return t('use.duplicate_recent');
+    }
     if (key === 'error.product_id_required') return t('error.product_id_required');
     if (key === 'error.quantity_below_min') return t('error.quantity_below_min', data?.error_args || {});
     // Backup endpoints answer with a translated key: the English prose in
@@ -24835,17 +24959,24 @@ async function submitUseAll() {
     const unit = items0[0]?.unit || 'pz';
     const totalQty = _useAllTotalQty(items0);
     const isConfMulti = unit === 'conf' && totalQty > 1.001;
-
-    // Opened packages and/or conf disambiguation (one conf vs all)
+    const locs = [...new Set(items0.map(i => normalizeLocationKey(i.location) || i.location))];
     const allOpened = items0.filter(_isOpenedInventoryItem);
-    if (allOpened.length >= 1 || isConfMulti) {
+    // Only ask when there is a real choice (several places, or one pack vs all packs).
+    // A single jar in one place finishes instantly with an undo toast — no red slider.
+    if (locs.length > 1 || (isConfMulti && allOpened.length === 0)) {
+        _showUseAllDisambiguation(allOpened, items0, { showOneConf: isConfMulti });
+        return;
+    }
+    if (allOpened.length >= 1 && (locs.length > 1 || items0.length > allOpened.length)) {
         _showUseAllDisambiguation(allOpened, items0, { showOneConf: isConfMulti });
         return;
     }
 
-    // ALWAYS require slide-to-confirm (even for a single row — skipping was too easy to mis-tap)
-    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items0[0]?.default_quantity, items0[0]?.package_unit));
-    _showUseAllSlideConfirm(name, qtyStr, _doSubmitUseAll);
+    await _finishStockWithUndo({
+        productId: currentProduct.id,
+        location: locs.length === 1 ? (items0[0].location || '__all__') : '__all__',
+        name,
+    });
 }
 
 /**
@@ -25022,29 +25153,12 @@ function _showUseAllSlideConfirm(productName, qtyStr, onConfirm, opts = {}) {
 }
 
 async function _doSubmitUseAll() {
-    // Called only when there are no opened packages (submitUseAll already handles disambiguation)
-    showLoading(true);
-    try {
-        const result = await api('inventory_use', {}, 'POST', {
-            product_id: currentProduct.id,
-            use_all: true,
-            location: '__all__',
-        });
-        showLoading(false);
-        if (result.success) {
-            showToast(t('toast.finished_all', { name: currentProduct.name }), 'success');
-            if (result.added_to_shopping || result.added_to_bring) {
-                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
-            }
-            if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
-            showLowStockBringPrompt(result, () => showPage('dashboard'));
-        } else {
-            showToast(result.error || t('error.generic'), 'error');
-        }
-    } catch (err) {
-        showLoading(false);
-        showToast(t('error.connection'), 'error');
-    }
+    await _finishStockWithUndo({
+        productId: currentProduct.id,
+        location: '__all__',
+        name: currentProduct ? currentProduct.name : '',
+    });
+    showPage('dashboard');
 }
 
 /**
@@ -25062,11 +25176,11 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
     const locButtons = openedItems.map(item => {
         const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
         const qtyStr = stripHtml(formatQuantity(parseFloat(item.quantity), item.unit, item.default_quantity, item.package_unit));
-        return `<button class="btn btn-warning full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
-            onclick="closeModal(); _confirmThenSubmitUseAllAt('${item.location}', true)">
-            <span style="font-size:1.3rem">${locInfo.icon}</span>
-            <span><strong>${escapeHtml(locInfo.label)}</strong> — 🔓 ${t('use.opened_badge')}<br>
-            <small style="opacity:0.8">${escapeHtml(qtyStr)}</small></span>
+        const locEsc = String(item.location || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return `<button type="button" class="waste-qty-btn" style="width:100%;margin-bottom:8px;text-align:left"
+            onclick="closeModal(); _confirmThenSubmitUseAllAt('${locEsc}', true)">
+            <strong>${escapeHtml(locInfo.label)}</strong> — ${escapeHtml(t('use.opened_badge'))}
+            <br><small style="opacity:0.8">${escapeHtml(qtyStr)}</small>
         </button>`;
     }).join('');
 
@@ -25074,26 +25188,27 @@ function _showUseAllDisambiguation(openedItems, allItems, options = {}) {
     const unit = allItems[0]?.unit || 'pz';
     const totalStr = stripHtml(formatQuantity(totalQty, unit, allItems[0]?.default_quantity, allItems[0]?.package_unit));
     const oneStr = stripHtml(formatQuantity(1, unit, allItems[0]?.default_quantity, allItems[0]?.package_unit));
+    const preferEsc = String(preferLoc || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
     const oneConfBtn = showOneConf ? `
-        <button class="btn btn-primary full-width" style="justify-content:flex-start;gap:10px;text-align:left;margin-bottom:8px"
-            onclick="closeModal(); _submitUseOneConf('${preferLoc}')">
-            <span style="font-size:1.3rem">📦</span>
-            <span>${t('use.disambiguation_one_conf').replace('{qty}', escapeHtml(oneStr))}</span>
+        <button type="button" class="waste-qty-btn" style="width:100%;margin-bottom:8px;text-align:left"
+            onclick="closeModal(); _submitUseOneConf('${preferEsc}')">
+            ${escapeHtml(t('use.disambiguation_one_conf').replace('{qty}', oneStr))}
         </button>` : '';
 
     contentEl.innerHTML = `
         <div class="modal-header">
-            <h3>${t('use.use_all')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
+            <h3>${escapeHtml(t('use.use_all_confirm_title'))}</h3>
+            <button type="button" class="modal-close" onclick="closeModal()">✕</button>
         </div>
-        <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${t('use.disambiguation_hint')}</p>
+        <p style="font-size:0.9rem;color:var(--text-muted);margin:0 0 14px">${escapeHtml(t('use.disambiguation_hint'))}</p>
         ${locButtons}
         ${oneConfBtn}
-        <button class="btn btn-danger full-width" style="margin-top:4px"
+        <button type="button" class="waste-qty-btn is-on" style="width:100%;margin-top:4px"
             onclick="closeModal(); _confirmThenSubmitUseAllAt('__all__', false)">
-            ${iconLabel('🗑️', t('use.disambiguation_all').replace('{qty}', escapeHtml(totalStr)))}
+            ${escapeHtml(t('use.disambiguation_all').replace('{qty}', totalStr))}
         </button>
+        <button type="button" class="btn btn-secondary full-width" style="margin-top:10px" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
     `;
     document.getElementById('modal-overlay').style.display = 'flex';
 }
@@ -25119,8 +25234,10 @@ async function _submitUseOneConf(location) {
                 ? () => showMoveAfterUseModal(currentProduct, location, result.remaining, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
                 : () => showPage('dashboard');
             showLowStockBringPrompt(result, moveCallback);
-        } else if (!result.duplicate) {
-            showToast(result.error || t('error.generic'), 'error');
+        } else if (result.duplicate) {
+            showToast(t('use.duplicate_recent'), 'info');
+        } else {
+            showToast(_apiErrorText(result) || t('error.generic'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -25129,30 +25246,8 @@ async function _submitUseOneConf(location) {
 }
 
 function _confirmThenSubmitUseAllAt(location, isOpenedOnly) {
-    const name = currentProduct ? currentProduct.name : '';
-    const items = _useCurrentItems ? _useCurrentItems.filter(i => parseFloat(i.quantity) > 0) : [];
-    if (isOpenedOnly) {
-        // Finish only the opened package — still require an explicit confirm
-        const opened = items.filter(_isOpenedInventoryItem);
-        const row = opened.find(i => i.location === location) || opened[0] || items[0];
-        const qtyStr = stripHtml(formatQuantity(
-            parseFloat(row?.quantity || 0),
-            row?.unit || 'pz',
-            row?.default_quantity,
-            row?.package_unit
-        ));
-        _showUseAllSlideConfirm(
-            `${name} (${t('use.opened_badge')})`,
-            qtyStr,
-            () => _submitUseAllAt(location, true)
-        );
-        return;
-    }
-    // Finish everything — slide confirm (hard to mis-tap)
-    const totalQty = items.reduce((s, i) => s + parseFloat(i.quantity || 0), 0);
-    const unit = items[0]?.unit || 'pz';
-    const qtyStr = stripHtml(formatQuantity(totalQty, unit, items[0]?.default_quantity, items[0]?.package_unit));
-    _showUseAllSlideConfirm(name, qtyStr, () => _submitUseAllAt('__all__', false));
+    // No red slider — finish and offer undo.
+    _submitUseAllAt(location, !!isOpenedOnly);
 }
 
 async function _submitUseAllAt(location, isOpenedOnly) {
@@ -25162,19 +25257,28 @@ async function _submitUseAllAt(location, isOpenedOnly) {
             product_id: currentProduct.id,
             use_all: true,
             location,
+            confirm_duplicate: 1,
         });
         showLoading(false);
         if (result.success) {
+            const ids = Array.isArray(result.transaction_ids) && result.transaction_ids.length
+                ? result.transaction_ids
+                : (result.transaction_id ? [result.transaction_id] : []);
             const toastMsg = isOpenedOnly
-                ? iconLabel('🔓', t('use.toast_opened_finished').replace('{name}', currentProduct.name))
-                : iconLabel('📤', t('toast.finished_all', { name: currentProduct.name }));
-            showToast(toastMsg, 'success');
+                ? t('use.toast_opened_finished').replace('{name}', currentProduct.name)
+                : t('toast.finished_all_undo', { name: currentProduct.name });
+            showActionToast(toastMsg, t('toast.undo_action'), async () => {
+                for (const id of ids.slice().reverse()) {
+                    try { await api('transaction_undo', {}, 'POST', { id }); } catch (_) { /* */ }
+                }
+                if (typeof refreshAppDataAfterMutation === 'function') refreshAppDataAfterMutation();
+            }, 5000);
             if (result.added_to_shopping || result.added_to_bring) {
-                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1500);
+                setTimeout(() => showToast((t('use.toast_shopping') || t('use.toast_bring')), 'info'), 1600);
             }
             showLowStockBringPrompt(result, () => showPage('dashboard'));
         } else {
-            showToast(result.error || t('error.generic'), 'error');
+            showToast(_apiErrorText(result) || t('error.generic'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -25249,10 +25353,10 @@ async function submitUse(e) {
             // Check low stock → Bring! prompt, then move/vacuum modal
             showLowStockBringPrompt(result, moveCallback);
         } else if (result.duplicate) {
-            showToast(result.duplicate ? t('use.duplicate_recent') : (result.error || t('error.generic')), 'info');
+            showToast(t('use.duplicate_recent'), 'info');
             loadUseInventoryInfo();
         } else {
-            showToast(result.error || t('error.generic'), 'error');
+            showToast(_apiErrorText(result) || t('error.generic'), 'error');
         }
     } catch (err) {
         showLoading(false);
@@ -29290,28 +29394,60 @@ function showLoading(show) {
     document.getElementById('loading').style.display = show ? 'flex' : 'none';
 }
 
+/** Decode &quot; / &amp; so product titles never show raw HTML entities in toasts/UI. */
+function _plainUiText(s) {
+    const raw = String(s == null ? '' : s);
+    if (!raw) return '';
+    const decoded = (typeof decodeHtmlEntities === 'function')
+        ? decodeHtmlEntities(raw)
+        : raw;
+    return String(decoded).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function showToast(message, type = '', duration = 3000) {
     const toast = document.getElementById('toast');
     if (!toast) return;
-    toast.textContent = message;
-    toast.className = 'toast show ' + type;
-    setTimeout(() => {
+    // Never surface raw backend keys (duplicate_recent, error.foo, …).
+    let text = _plainUiText(message);
+    if (text === 'duplicate_recent' || text === 'use.duplicate_recent') {
+        text = t('use.duplicate_recent');
+    } else if (/^[a-z][a-z0-9_.]*$/i.test(text) && (text.includes('_') || text.includes('.'))) {
+        const localized = t(text);
+        text = (localized && localized !== text) ? localized : t('error.generic');
+    }
+    toast.textContent = text;
+    toast.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toast._hideTid);
+    toast._hideTid = setTimeout(() => {
         toast.className = 'toast';
+        toast.textContent = '';
     }, Math.max(1500, Number(duration) || 3000));
 }
 
 function showActionToast(message, actionLabel, onAction, duration = 5000) {
     const toast = document.getElementById('toast');
-    toast.innerHTML = `${escapeHtml(message)} <button type="button" class="toast-action">${escapeHtml(actionLabel)}</button>`;
+    if (!toast) return;
+    const msg = _plainUiText(message);
+    const act = _plainUiText(actionLabel) || t('toast.undo_action');
+    toast.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = 'toast-msg';
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = act;
+    toast.appendChild(span);
+    toast.appendChild(btn);
     toast.className = 'toast show action';
-    const btn = toast.querySelector('.toast-action');
-    const tid = setTimeout(() => {
+    clearTimeout(toast._hideTid);
+    toast._hideTid = setTimeout(() => {
         toast.className = 'toast';
         toast.textContent = '';
     }, duration);
     btn.onclick = (e) => {
         e.stopPropagation();
-        clearTimeout(tid);
+        clearTimeout(toast._hideTid);
         toast.className = 'toast';
         toast.textContent = '';
         onAction();

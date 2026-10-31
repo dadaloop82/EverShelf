@@ -5962,6 +5962,8 @@ function useFromInventory(PDO $db): void {
     $useAll = $input['use_all'] ?? false;
     $location = $input['location'] ?? 'dispensa';
     $notes = $input['notes'] ?? '';
+    // Household confirmed a soft duplicate (same dose again within ~30 s).
+    $confirmDuplicate = !empty($input['confirm_duplicate']);
     
     if (!$productId) {
         // Same contract as addToInventory: stable key, translated client-side.
@@ -5979,8 +5981,8 @@ function useFromInventory(PDO $db): void {
     }
 
     try {
-        dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes): void {
-            useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes);
+        dbWithRetry(function () use ($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate): void {
+            useFromInventoryCore($db, $productId, $quantity, $useAll, $location, $notes, $confirmDuplicate);
             // A product the household keeps consuming moves to the favourites on its
             // own (lib/auto_favorite.php: AUTO_FAVORITE_MIN_USES uses in 90 days).
             maybeAutoFavorite($db, (int)$productId);
@@ -6073,27 +6075,16 @@ function resolveInventoryUseTarget(PDO $db, int $productId, string $location): ?
     ];
 }
 
-function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes): void {
+function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location, $notes, bool $confirmDuplicate = false): void {
     $requestedLocation = $location;
     $locationFallback = false;
     $lastTransactionId = null;
-    // ── Server-side deduplication ─────────────────────────────────────────
-    // Guard against accidental double-consume triggers (scale jitter, double tap,
-    // delayed/offline replay burst). We only apply this stricter gate to manual
-    // uses with empty notes, so recipe uses (notes="Ricetta: ...") remain unaffected.
-    $dedupWindow = $useAll ? 60 : (($notes === '') ? 120 : 12);
-    if ($useAll) {
-        $dedup = $db->prepare(
-            "SELECT id, quantity, created_at FROM transactions
-             WHERE product_id = ?
-               AND type IN ('out','waste')
-               AND undone = 0
-               AND created_at >= datetime('now', '-' || ? || ' seconds')
-             ORDER BY id DESC
-             LIMIT 1"
-        );
-        $dedup->execute([$productId, $dedupWindow]);
-    } else {
+    // ── Server-side race guard (double-submit only) ───────────────────────
+    // "Usa tutto" is NEVER a duplicate of a prior partial spoonful — skip it.
+    // Partial uses: only block a true double-fire of the same dose within ~2 s
+    // (client already disables the button for 1.5 s). No soft-confirm dialog.
+    if (!$confirmDuplicate && !$useAll && $notes === '') {
+        $dedupWindow = 2;
         $dedup = $db->prepare(
             "SELECT id, quantity, created_at FROM transactions
              WHERE product_id = ?
@@ -6106,35 +6097,33 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
              LIMIT 1"
         );
         $dedup->execute([$productId, $location, $notes, $dedupWindow]);
-    }
-    $recent = $dedup->fetch();
-    if ($recent) {
-        $recentQty = (float)($recent['quantity'] ?? 0);
-        $reqQty = $useAll ? $recentQty : (float)$quantity;
-        // Block only true double-fires (same quantity within the window), not a new partial use.
-        $sameQty = $useAll || abs($recentQty - $reqQty) <= max(0.01, $reqQty * 0.02);
-        if (!$sameQty) {
-            $recent = false;
+        $recent = $dedup->fetch();
+        if ($recent) {
+            $recentQty = (float)($recent['quantity'] ?? 0);
+            $reqQty = (float)$quantity;
+            $sameQty = abs($recentQty - $reqQty) <= max(0.01, $reqQty * 0.02);
+            if ($sameQty) {
+                EverLog::info('useFromInventory race duplicate ignored', [
+                    'event' => 'api_inventory_use_race',
+                    'product_id' => $productId,
+                    'location' => $location,
+                    'window_s' => $dedupWindow,
+                    'recent_tx_id' => $recent['id'] ?? null,
+                    'recent_qty' => $recentQty,
+                    'requested_qty' => $reqQty,
+                ]);
+                echo json_encode([
+                    'success' => false,
+                    'duplicate' => true,
+                    'race' => true,
+                    'error_key' => 'use.duplicate_recent',
+                    'error' => 'duplicate_recent',
+                    'recent_qty' => $recentQty,
+                    'requested_qty' => $reqQty,
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
         }
-    }
-    if ($recent) {
-        EverLog::warn('useFromInventory duplicate blocked', [
-            'product_id' => $productId,
-            'location' => $location,
-            'use_all' => $useAll,
-            'window_s' => $dedupWindow,
-            'recent_tx_id' => $recent['id'] ?? null,
-            'recent_qty' => $recent['quantity'] ?? null,
-            'recent_created_at' => $recent['created_at'] ?? null,
-            'requested_qty' => $quantity,
-            'notes' => $notes,
-        ]);
-        echo json_encode([
-            'success' => false,
-            'error'   => 'duplicate_recent',
-            'duplicate' => true,
-        ]);
-        return;
     }
     // ─────────────────────────────────────────────────────────────────────
     
@@ -6169,11 +6158,13 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
         }
 
         $totalRemoved = 0;
+        $txIds = [];
         foreach ($allItems as $item) {
             $totalRemoved += $item['quantity'];
             $type = _isWasteNotes($notes) ? 'waste' : 'out';
             $stmt = $db->prepare("INSERT INTO transactions (product_id, type, quantity, location, notes) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$productId, $type, $item['quantity'], $item['location'], $notes]);
+            $txIds[] = (int)$db->lastInsertId();
 
             // User explicitly chose "use all/finished": do not keep qty=0 rows that
             // would trigger a redundant "are you sure it's finished" banner.
@@ -6206,6 +6197,8 @@ function useFromInventoryCore(PDO $db, $productId, $quantity, $useAll, $location
             'removed'            => $totalRemoved,
             'added_to_shopping'  => $addedToShopping,
             'added_to_bring'     => $addedToShopping, // legacy alias
+            'transaction_id'     => $txIds ? $txIds[count($txIds) - 1] : null,
+            'transaction_ids'    => $txIds,
         ], JSON_UNESCAPED_UNICODE);
         return;
     }

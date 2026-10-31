@@ -5714,69 +5714,78 @@ body:has(#page-scan.active) .app-content {
 
 
 /* ===== TOAST ===== */
+/* Floats above the bottom nav + SHELFY mic (never covers the centre slot). */
 .toast {
     position: fixed;
-    /* Clear the bottom nav + SHELFY mic (nav alone left the toast covering the centre slot). */
-    bottom: 85px;
+    bottom: 88px;
     left: 50%;
-    transform: translateX(-50%) translateY(100px);
-    background: var(--bg-dark);
-    color: white;
-    padding: 14px 24px;
-    border-radius: var(--radius);
-    font-size: 0.95rem;
+    transform: translateX(-50%) translateY(24px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    max-width: min(92vw, 420px);
+    padding: 12px 18px;
+    border-radius: 9999px;
+    background: #0F172A;
+    color: #F8FAFC;
+    font-size: 0.92rem;
     font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
     z-index: 1000;
     opacity: 0;
     pointer-events: none;
-    transition: all 0.3s;
-    max-width: 90vw;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.35);
 }
-
 .toast.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
-
 .toast.action {
-    display: flex;
-    align-items: center;
-    gap: 12px;
     text-align: left;
 }
-
+.toast-msg {
+    flex: 1 1 auto;
+    min-width: 0;
+}
 .toast-action {
     flex-shrink: 0;
-    background: rgba(255,255,255,0.2);
-    border: 1px solid rgba(255,255,255,0.35);
-    color: inherit;
-    border-radius: 8px;
+    background: transparent;
+    border: 1px solid rgba(248, 250, 252, 0.35);
+    color: #F8FAFC;
+    border-radius: 9999px;
     padding: 6px 12px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 700;
     cursor: pointer;
 }
-
+.toast-action:active {
+    background: rgba(248, 250, 252, 0.12);
+}
 .price-spark-wrap {
     display: inline-flex;
     vertical-align: middle;
     margin-left: 4px;
     opacity: 0.75;
 }
-
 .price-sparkline {
     display: block;
     color: var(--accent, #2d5016);
 }
-.toast.success {
-    background: var(--success);
+/* Same slate pill for every tone — colour lives in the wording, not a red slab. */
+.toast.success,
+.toast.error,
+.toast.info,
+.toast.action {
+    background: #0F172A;
+    color: #F8FAFC;
 }
-
-.toast.error {
-    background: var(--danger);
+.toast.action .toast-action {
+    border-color: color-mix(in srgb, #34d399 55%, #F8FAFC);
+    color: #6EE7B7;
 }
 
 /* ===== LOADING ===== */
