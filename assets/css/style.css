@@ -2905,6 +2905,10 @@ body.offline-mode .offline-banner-retry {
 #page-use.is-medical-use #btn-use-recipe {
     display: none !important;
 }
+/* Medicines are never weighed — no scale CTA on the add form either. */
+#page-add.is-medical-add #btn-scale-add {
+    display: none !important;
+}
 #page-use .use-med-summary {
     margin: 8px 0 12px;
     padding: 10px 12px;

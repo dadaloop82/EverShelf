@@ -740,6 +740,8 @@ function _scaleMsgToGrams(msg) {
  */
 function _scaleNavTargetForPage() {
     if (_currentPageId !== 'action') return null;
+    // Medicines are never weighed — do not arm Usa/Aggiungi from the scale.
+    if (_isMedicalRow(currentProduct)) return null;
     const useBtn = document.getElementById('btn-action-use');
     if (useBtn) {
         return {
@@ -855,6 +857,8 @@ function _scaleHandleChoiceScreenRise(msg) {
  */
 function _scaleAutoFillAdd(msg) {
     if (!msg || _currentPageId !== 'add') return;
+    // Medicines are never weighed (cream/syrup grams are approximate declarations).
+    if (_scaleBlockedForMedicine()) return;
     const unitEl = document.getElementById('add-unit');
     const inp = document.getElementById('add-quantity');
     if (!unitEl || !inp) return;
@@ -992,6 +996,7 @@ function _scaleUpdateLiveBox(msg) {
  */
 function _scaleAutoFillUse(msg) {
     if (!msg) return;
+    if (_scaleBlockedForMedicine()) return;
 
     // Determine target unit
     let unit;
@@ -1707,33 +1712,41 @@ function _scaleShowReadingModal(targetInputId, unit) {
  * Show/hide "⚖️ Leggi dalla bilancia" buttons based on current settings and unit.
  * Called after unit change or when navigating to the add/use form.
  */
+/** Medicines are never weighed — every scale CTA / live box must stay off. */
+function _scaleBlockedForMedicine() {
+    if (_isMedicalRow(currentProduct)) return true;
+    const pageUse = document.getElementById('page-use');
+    if (pageUse && pageUse.classList.contains('is-medical-use')) return true;
+    const pageAdd = document.getElementById('page-add');
+    if (pageAdd && pageAdd.classList.contains('is-medical-add')) return true;
+    const pagePf = document.getElementById('page-product-form');
+    if (pagePf && pagePf.classList.contains('is-medicine-form')) return true;
+    return false;
+}
+
 function updateScaleReadButtons() {
     const s = getSettings();
     const ready = s.scale_enabled && s.scale_gateway_url;
+    const medBlocked = _scaleBlockedForMedicine();
 
     const btnAdd = document.getElementById('btn-scale-add');
     if (btnAdd) {
         const addUnit = document.getElementById('add-unit')?.value;
-        btnAdd.style.display = (ready && (addUnit === 'g' || addUnit === 'ml')) ? '' : 'none';
+        btnAdd.style.display = (!medBlocked && ready && (addUnit === 'g' || addUnit === 'ml')) ? '' : 'none';
     }
     const btnUse = document.getElementById('btn-scale-use');
     if (btnUse) {
         const canUseByWeight = _useNormalUnit === 'g' || _useNormalUnit === 'ml' ||
                                (_useConfMode && (_useConfMode.packageUnit === 'g' || _useConfMode.packageUnit === 'ml'));
-        btnUse.style.display = (ready && canUseByWeight) ? '' : 'none';
+        btnUse.style.display = (!medBlocked && ready && canUseByWeight) ? '' : 'none';
     }
     // Live box: visible when scale enabled + connected + on use page + compatible unit
     // (never on a medicine use page — packs are counted, not weighed).
     const liveBox = document.getElementById('scale-live-box');
     if (liveBox) {
-        const medUse = document.getElementById('page-use')?.classList.contains('is-medical-use');
         const isWeightUnit = (_useNormalUnit === 'g' || _useNormalUnit === 'ml') ||
                              (_useConfMode && (_useConfMode.packageUnit === 'g' || _useConfMode.packageUnit === 'ml'));
-        liveBox.style.display = (!medUse && ready && _scaleConnected && _currentPageId === 'use' && isWeightUnit) ? '' : 'none';
-    }
-    const btnUseMedGuard = document.getElementById('btn-scale-use');
-    if (btnUseMedGuard && document.getElementById('page-use')?.classList.contains('is-medical-use')) {
-        btnUseMedGuard.style.display = 'none';
+        liveBox.style.display = (!medBlocked && ready && _scaleConnected && _currentPageId === 'use' && isWeightUnit) ? '' : 'none';
     }
     try { _itemDetailSyncScaleUi(); } catch (e) { /* product sheet closed */ }
 }
@@ -10557,7 +10570,7 @@ function _alertItemMeta(item, extra = '') {
     const parts = [];
     if (item.location && locInfo.label) parts.push(`${locInfo.icon} ${locInfo.label}`);
     if (item.quantity !== undefined && item.quantity !== null && item.quantity !== '') {
-        const qty = stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
+        const qty = stripHtml(formatQuantityForItem(item));
         if (qty) parts.push(t('dashboard.still_have_qty', { qty }));
     }
     if (extra) parts.push(extra);
@@ -11596,7 +11609,7 @@ function renderBannerItem() {
             ? t('dashboard.banner_opened_limit_none')
             : t('dashboard.banner_opened_limit', { warn: pao.warn, critical: pao.critical });
         const qtyPlain = (item.quantity !== undefined && item.quantity !== null && item.quantity !== '')
-            ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
+            ? stripHtml(formatQuantityForItem(item))
             : '';
         const qtyBit = qtyPlain
             ? ' · ' + escapeHtml(t('dashboard.banner_opened_remaining', { qty: qtyPlain }))
@@ -12732,7 +12745,7 @@ function renderDashItem(item, opts = {}) {
     const days = daysUntilExpiry(item.expiry_date);
     const isExpired = days < 0;
     const isExpiring = !isExpired && days <= 7;
-    const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const parts = formatQuantityPartsForItem(item);
     
     let expiryLabel = '';
     if (item.expiry_date) {
@@ -12798,10 +12811,12 @@ function _bindAlertItemsHoldOpen(container) {
     });
 }
 
-function formatSubRemainder(amt, pkgUnit) {
+function formatSubRemainder(amt, pkgUnit, opts) {
+    const approx = !!(opts && opts.approx);
+    const mark = _qtyApproxMark(pkgUnit, approx);
     const uL = { 'g': 'g', 'ml': 'ml' };
-    if (pkgUnit === 'ml' || pkgUnit === 'g') return `${Math.round(amt)}${uL[pkgUnit] || pkgUnit}`;
-    return `${Math.round(amt * 10) / 10}${uL[pkgUnit] || pkgUnit}`;
+    if (pkgUnit === 'ml' || pkgUnit === 'g') return `${mark}${Math.round(amt)}${uL[pkgUnit] || pkgUnit}`;
+    return `${mark}${Math.round(amt * 10) / 10}${uL[pkgUnit] || pkgUnit}`;
 }
 
 function _pzFractionLabel(n) {
@@ -12947,14 +12962,32 @@ function _inventoryVisibleItems(items) {
 
 function alertQtyDisplay(item) {
     if (isInventoryDepleted(item)) return t('shopping.out_of_stock');
-    return stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit));
+    return stripHtml(formatQuantityForItem(item));
 }
 
-function formatQuantity(qty, unit, defaultQty, packageUnit) {
+/** Mass/volume units — for medicines these are always approximate (~), never a scale reading. */
+function _isWeightVolumeUnit(unit) {
+    const u = String(unit || '').toLowerCase();
+    return u === 'g' || u === 'ml' || u === 'kg' || u === 'l';
+}
+
+/** `~` before a medicine mass/volume amount (creams, syrups — never weighed). */
+function _qtyApproxMark(unit, approx) {
+    return approx && _isWeightVolumeUnit(unit) ? '~' : '';
+}
+
+/**
+ * Format a quantity. Pass `{ approx: true }` (or a medical inventory/product row via
+ * `formatQuantityForItem`) so g/ml/kg/l amounts read as "~50 g".
+ */
+function formatQuantity(qty, unit, defaultQty, packageUnit, opts) {
     if (!qty && qty !== 0) return '';
+    const approx = !!(opts && opts.approx);
     const n = parseFloat(qty);
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
     const label = unitLabels[unit] || unit || t('units.pz');
+    const mark = _qtyApproxMark(unit, approx);
+    const pkgMark = _qtyApproxMark(packageUnit, approx);
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -12963,24 +12996,33 @@ function formatQuantity(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span>`;
+            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel})</span>`;
         }
-        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
+        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit, { approx });
         if (wholeConf > 0) {
-            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${defaultQty}${pkgLabel})</span> + ${remainderText}`;
+            return `${wholeConf} ${t('units.conf') || 'conf'} <span class="conf-size-info">(${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel})</span> + ${remainderText}`;
         }
         return remainderText;
     }
 
     let result;
-    if (n === Math.floor(n)) result = `${Math.floor(n)} ${label}`;
+    if (n === Math.floor(n)) result = `${mark}${Math.floor(n)} ${label}`;
     else if (unit === 'pz') result = `${_pzFractionLabel(n)} ${label}`;
-    else result = `${n.toFixed(1)} ${label}`;
+    else result = `${mark}${n.toFixed(1)} ${label}`;
     return result;
 }
 
+/** Quantity string for an inventory/product row (medicines get ~ on g/ml). */
+function formatQuantityForItem(item, qtyOverride) {
+    if (!item) return '';
+    const qty = qtyOverride != null ? qtyOverride : item.quantity;
+    return formatQuantity(qty, item.unit, item.default_quantity, item.package_unit, {
+        approx: _isMedicalRow(item),
+    });
+}
+
 /** Human-readable unit label for quantity inputs (pz, g, ml, conf…). */
-function getUnitDisplayLabel(unit) {
+function getUnitDisplayLabel(unit, opts) {
     const u = (unit || 'pz').toLowerCase();
     const map = {
         pz: t('units.pz') || 'pz',
@@ -12990,7 +13032,8 @@ function getUnitDisplayLabel(unit) {
         kg: 'kg',
         l: 'l',
     };
-    return map[u] || u;
+    const label = map[u] || u;
+    return _qtyApproxMark(u, !!(opts && opts.approx)) + label;
 }
 
 /** Wrap qty input with a visible unit badge if missing. */
@@ -13017,10 +13060,13 @@ function ensureQtyUnitBadge(inputId) {
     return badge;
 }
 
-function setQtyInputUnitLabel(inputId, unit, muted = false) {
+function setQtyInputUnitLabel(inputId, unit, muted = false, opts = null) {
     const badge = ensureQtyUnitBadge(inputId) || document.getElementById(inputId + '-unit');
     if (!badge) return;
-    badge.textContent = getUnitDisplayLabel(unit);
+    // Medicines never weigh: g/ml badges say "~g" / "~ml" so the household reads "about".
+    const approx = !!(opts && opts.approx)
+        || (_isMedicalRow(currentProduct) && _isWeightVolumeUnit(unit));
+    badge.textContent = getUnitDisplayLabel(unit, { approx });
     badge.classList.toggle('qty-unit-muted', !!muted);
     badge.title = (t('qty.unit_for_input')) + ': ' + badge.textContent;
 }
@@ -13062,10 +13108,13 @@ function syncRecipeUseQtyUnitBadge() {
 
 // Structured quantity display for inventory cards.
 // Returns { mainQty: '10', unitLabel: 'conf', packageDetail: 'da 36g', fraction: '¼' }
-function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
+function formatQuantityParts(qty, unit, defaultQty, packageUnit, opts) {
+    const approx = !!(opts && opts.approx);
     const n = parseFloat(qty) || 0;
     const unitLabels = { 'pz': t('units.pz'), 'g': 'g', 'ml': 'ml', 'conf': t('units.conf') };
     const label = unitLabels[unit] || unit || t('units.pz');
+    const mark = _qtyApproxMark(unit, approx);
+    const pkgMark = _qtyApproxMark(packageUnit, approx);
 
     // Special handling for conf with partial packages
     if (unit === 'conf' && packageUnit && defaultQty > 0) {
@@ -13074,19 +13123,19 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
         const fractionalConf = Math.round((n - wholeConf) * 1000) / 1000;
 
         if (fractionalConf < 0.01) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: '' };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel}`, fraction: '' };
         }
-        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit);
+        const remainderText = formatSubRemainder(fractionalConf * defaultQty, packageUnit, { approx });
         if (wholeConf > 0) {
-            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
+            return { mainQty: `${wholeConf}`, unitLabel: t('units.conf') || 'conf', packageDetail: `${t('units.from')} ${pkgMark}${defaultQty}${pkgLabel}`, fraction: `+ ${remainderText}` };
         }
         return { mainQty: remainderText, unitLabel: '', packageDetail: '', fraction: '' };
     }
 
     let mainQty;
-    if (n === Math.floor(n)) mainQty = `${Math.floor(n)}`;
+    if (n === Math.floor(n)) mainQty = `${mark}${Math.floor(n)}`;
     else if (unit === 'pz') mainQty = _pzFractionLabel(n);
-    else mainQty = `${n.toFixed(1)}`;
+    else mainQty = `${mark}${n.toFixed(1)}`;
     
     let packageDetail = '';
     let fraction = '';
@@ -13103,6 +13152,14 @@ function formatQuantityParts(qty, unit, defaultQty, packageUnit) {
     }
     
     return { mainQty, unitLabel: label, packageDetail, fraction };
+}
+
+function formatQuantityPartsForItem(item, qtyOverride) {
+    if (!item) return { mainQty: '', unitLabel: '', packageDetail: '', fraction: '' };
+    const qty = qtyOverride != null ? qtyOverride : item.quantity;
+    return formatQuantityParts(qty, item.unit, item.default_quantity, item.package_unit, {
+        approx: _isMedicalRow(item),
+    });
 }
 
 // Show package fraction: only ¼, ½, ¾ when there's a partial package.
@@ -13278,7 +13335,7 @@ function renderInventoryItem(item, opts = {}) {
     const medRow = _isMedicalRow(item);
     const catLabel = medRow ? '' : escapeHtml(categoryText(catKey));
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
-    const parts = formatQuantityParts(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const parts = formatQuantityPartsForItem(item);
     const openedClass = _inventoryOpenedRowClass(item);
     const qtyTone = _inventoryQtyTone(item);
     const qtyPlain = [parts.mainQty, parts.unitLabel].filter(Boolean).join(' ')
@@ -14085,7 +14142,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
     _itemDetailQtyInit(item, presetQty);
     _itemDetailScalePaused = false;
     const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
-    const qtyDisplay = formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit);
+    const qtyDisplay = formatQuantityForItem(item);
     // Header meta: place as light text (📍), never a pill; category stays out of the consume sheet.
     const locPin = isMed ? '💊' : '📍';
     const statusBits = [];
@@ -14401,7 +14458,8 @@ function _itemDetailUnitLabel() {
     const q = _itemDetailQty;
     if (q.unit === 'conf') return t('units.conf');
     if (q.unit === 'pz') return t('units.pz');
-    return q.unit;
+    // Medicine creams/syrups are approximate — never a scale reading.
+    return _qtyApproxMark(q.unit, !!q.isMedical) + q.unit;
 }
 
 /** Locale decimal for the product sheet (it → 101,5 · en → 101.5). */
@@ -14411,19 +14469,23 @@ function _itemDetailFmtQty(n) {
     return r.toLocaleString(_collationLocale(), { maximumFractionDigits: 2 });
 }
 
-/** Parse stepper/scale text that may use a comma or a period. */
+/** Parse stepper/scale text that may use a comma or a period (and a leading ~). */
 function _itemDetailParseQty(raw) {
     if (raw == null) return NaN;
-    const s = String(raw).trim().replace(/\s/g, '').replace(',', '.');
+    const s = String(raw).trim().replace(/^~/, '').replace(/\s/g, '').replace(',', '.');
     return parseFloat(s);
 }
 
 function _itemDetailQtyNumber() {
+    // Plain number for the input; the "~" lives on the unit badge / combined label.
     return _itemDetailFmtQty(_itemDetailQty.value || 0);
 }
 
 function _itemDetailQtyLabel() {
-    return `${_itemDetailQtyNumber()} ${_itemDetailUnitLabel()}`;
+    const q = _itemDetailQty;
+    const mark = _qtyApproxMark(q.unit, !!q.isMedical);
+    const unit = q.unit === 'conf' ? t('units.conf') : (q.unit === 'pz' ? t('units.pz') : q.unit);
+    return `${mark}${_itemDetailFmtQty(q.value || 0)} ${unit}`;
 }
 
 /** Scale strip: always "101,5 g" (space + locale decimal), never "101.5g". */
@@ -14449,7 +14511,7 @@ function _itemDetailMedSummaryHtml(item) {
     const pack = parseFloat(item.default_quantity) || 0;
     if (pack > 0) {
         const packUnit = item.package_unit || item.unit || 'pz';
-        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_pack'))}</span><span>${escapeHtml(stripHtml(formatQuantity(pack, packUnit === 'conf' ? 'pz' : packUnit, 0, '')))}</span></div>`);
+        rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.detail_pack'))}</span><span>${escapeHtml(stripHtml(formatQuantity(pack, packUnit === 'conf' ? 'pz' : packUnit, 0, '', { approx: true })))}</span></div>`);
     }
     if (item.barcode) {
         rows.push(`<div class="item-detail-med-row"><span class="item-detail-med-k">${escapeHtml(t('medical.form_code_label'))}</span><span class="item-detail-mono">${escapeHtml(item.barcode)}</span></div>`);
@@ -16159,15 +16221,13 @@ function _medRenderResults(q, r) {
         `<p class="med-search-groups">${escapeHtml(labels)}</p>` +
         items.map(item => {
             const exp = item.expiry_date ? formatDate(item.expiry_date) : '';
-            const qty = (typeof _formatQtyPlain === 'function')
-                ? _formatQtyPlain(item.quantity, item.unit)
-                : `${item.quantity} ${item.unit}`;
+            const qty = stripHtml(formatQuantityForItem(item));
             return `
             <button type="button" class="med-search-item" onclick="_medOpenItem(${Number(item.inventory_id) || 0})">
-                <span class="med-search-icon" aria-hidden="true">💊</span>
+                <span class="med-search-icon" aria-hidden="true">${_medFormIconEmoji(item)}</span>
                 <span class="med-search-main">
-                    <span class="med-search-name">${escapeHtml(item.name || '')}</span>
-                    <span class="med-search-meta">${escapeHtml([item.ingredient, qty, exp].filter(Boolean).join(' · '))}</span>
+                    <span class="med-search-name">${escapeHtml(_medCommercialName(item) || item.name || '')}</span>
+                    <span class="med-search-meta">${escapeHtml([item.ingredient || item.med_ingredient, qty, exp].filter(Boolean).join(' · '))}</span>
                 </span>
             </button>`;
         }).join('') +
@@ -16403,9 +16463,7 @@ function showInvActionChooser(productId, location, invId) {
     // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
     // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
     // "conf" units would be printed as a literal tag instead of a quantity.
-    const qtyLabel = item
-        ? stripHtml(formatQuantity(item.quantity, item.unit, item.default_quantity, item.package_unit))
-        : '';
+    const qtyLabel = item ? stripHtml(formatQuantityForItem(item)) : '';
 
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
@@ -21978,7 +22036,7 @@ function showProductAction() {
             const pkgUnit = inventoryItems[0].package_unit || '';
             const invHtml = inventoryItems.map(inv => {
                 const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-                const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
+                const qtyStr = formatQuantityForItem(inv);
                 const pkgF = formatPackageFraction(inv.quantity, inv.default_quantity);
                 totalQty += parseFloat(inv.quantity);
                 let expiryStr = '';
@@ -21993,7 +22051,9 @@ function showProductAction() {
                 return `<div class="inv-status-item inv-status-item-clickable" onclick="editActionInventoryItem(${inv.id})"><span>${_locIconMarkup(normalizeLocationKey(inv.location), locInfo)} ${locInfo.label}${vacuumIcon}${expiryStr}</span><span class="inv-status-qty">${qtyStr}${pkgF ? ' ' + pkgF : ''} ✏️</span></div>`;
             }).join('');
             
-            const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit);
+            const totalStr = formatQuantity(totalQty, unit, defQty, pkgUnit, {
+                approx: _isMedicalRow(currentProduct) || inventoryItems.some(_isMedicalRow),
+            });
             const totalFrac = formatPackageFraction(totalQty, defQty);
             
             statusBar.innerHTML = `
@@ -22218,7 +22278,7 @@ function openInventoryEdit() {
         <div style="display:flex;flex-direction:column;gap:8px">
             ${items.map(inv => {
                 const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-                const qtyStr = formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit);
+                const qtyStr = formatQuantityForItem(inv);
                 let expiryStr = '';
                 if (inv.expiry_date) {
                     const d = daysUntilExpiry(inv.expiry_date);
@@ -22323,11 +22383,11 @@ function showThrowForm() {
         const unit = items[0].unit || 'pz';
         const defQty = items[0].default_quantity || 0;
         const pkgUnit = items[0].package_unit || '';
-        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit);
+        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit, { approx: isMed });
         
         let locOptionsHtml = items.map(inv => {
             const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)}</span></div>`;
+            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantityForItem(inv)}</span></div>`;
         }).join('');
         
         document.getElementById('modal-content').innerHTML = `
@@ -22360,7 +22420,7 @@ function showThrowForm() {
                     <div class="location-selector" id="throw-location-selector">
                         ${items.map((inv, idx) => {
                             const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantity(inv.quantity, inv.unit, inv.default_quantity, inv.package_unit)})</button>`;
+                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantityForItem(inv)})</button>`;
                         }).join('')}
                     </div>
                     <input type="hidden" id="throw-location" value="${items[0].location}">
@@ -22373,7 +22433,7 @@ function showThrowForm() {
                             <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
                             <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
                         </div>
-                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz'))}</span>
+                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz', { approx: isMed }))}</span>
                     </div>
                 </div>
                 <button class="btn btn-large waste-partial-btn full-width" onclick="throwPartial()">
@@ -22952,6 +23012,10 @@ function showAddForm() {
     // Weight is kept by _scaleNavigatePreserveWeight when auto-navigating from the action page
     _cancelScaleAutoConfirm(false);
     _scaleResetNavRiseState();
+
+    // Medicines are never weighed: hide every scale affordance on this page.
+    const pageAdd = document.getElementById('page-add');
+    if (pageAdd) pageAdd.classList.toggle('is-medical-add', _isMedicalRow(currentProduct));
     
     // Set unit selector
     const unit = currentProduct.unit || 'pz';
@@ -22998,9 +23062,9 @@ function showAddForm() {
     addQtyInput.removeEventListener('input', markAddQtyManuallySet);
     addQtyInput.addEventListener('input', markAddQtyManuallySet);
     
-    // Show weight info if product has it
+    // Show weight info if product has it (never on medicines — packs are not scale readings).
     const weightInfoEl = document.getElementById('add-weight-info');
-    if (currentProduct.weight_info) {
+    if (currentProduct.weight_info && !_isMedicalRow(currentProduct)) {
         weightInfoEl.textContent = t('product.package_info', { info: currentProduct.weight_info });
         weightInfoEl.style.display = 'block';
     } else {
@@ -23108,6 +23172,7 @@ function showAddForm() {
         if (addExpiry) addExpiry.value = _medFormStock?.expiry || '';
         if (_medFormStock?.state === 'opened') _medAddStockState('opened');
     }
+    updateScaleReadButtons();
     startAddFormIdleCountdown();
     // History first (≥3 samples → average of last 3); AI only if history is insufficient
     (async () => {
@@ -23633,8 +23698,8 @@ function _recordRecentInventoryAdd(entry) {
     _recentInventoryAdds.push(entry);
 }
 
-function _formatQtyPlain(qty, unit, defaultQty, packageUnit) {
-    return formatQuantity(qty, unit, defaultQty, packageUnit).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+function _formatQtyPlain(qty, unit, defaultQty, packageUnit, opts) {
+    return formatQuantity(qty, unit, defaultQty, packageUnit, opts).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function _formatRecentAddWhen(ts) {
