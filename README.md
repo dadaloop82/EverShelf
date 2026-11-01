@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.6-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.7-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,8 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.29.7** — **SHELFY non resta più muta.** Ogni comando vocale ha uno stato visibile: *ascolto* (avatar con il livello della voce e le barre), *elaborazione* (anello smeraldo che gira e “Sto elaborando…”) e poi la card di conferma. Il silenzio chiude la frase dopo **1,4 s** invece di 2,5 s, il microfono è il volto di SHELFY, la trascrizione vive in un fumetto e il campo **[Esegui]** compare solo se scegli di scrivere.
 
 **v1.29.6** — **SHELFY saluta già dallo splash.** L’avatar dell’assistente compare sotto la riga “Powered by Open Data”: anello menta che respira e un galleggiamento leggero, fermo con *prefers-reduced-motion* e più piccolo sugli schermi bassi.
 

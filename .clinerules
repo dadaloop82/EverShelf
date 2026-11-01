@@ -72,6 +72,10 @@ runtime/binary files — if a task truly needs one, ask first.
   Modifica opens the compact product sheet (`showItemDetail(invId, productId, qty)`);
   “ho finito …” opens that same sheet with its slide-to-confirm. `_shelfyArmButton()`
   prints the remaining seconds in `.shelfy-arm-count`, so every countdown is visible.
+  One voice turn is a visible state machine (`_capturePhase()`): listening (levels + bars)
+  → «Sto elaborando…» with the ring turned into a spinner the instant the sentence closes
+  (silence deadline 1,4 s, so the screen is never still for seconds), and the `[Esegui]`
+  field lives behind a neutral «Preferisco scrivere» link, never in the voice view.
 - **SHELFY has a face**: `assets/img/shelfy/shelfy-avatar{,-192,-96}.png` (transparent
   PNG, in the `sw.js` shell) — the centre of the bottom nav, the capture sheet head,
   the intro hero, the confirm card and the foot of the splash (under the open-data

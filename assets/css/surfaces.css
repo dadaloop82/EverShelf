@@ -932,7 +932,6 @@ body {
     animation: capture-pulse 1.4s ease-in-out infinite;
 }
 .capture-mic[hidden] { display: none; }
-.capture-mic-icon { font-size: 2.1rem; line-height: 1; }
 @keyframes capture-pulse {
     0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--tone-calm) 14%, transparent); }
     50%      { box-shadow: 0 0 0 14px color-mix(in srgb, var(--tone-calm) 6%, transparent); }
@@ -1175,7 +1174,17 @@ body {
     transition: height 80ms linear;
     pointer-events: none;
 }
-.capture-mic-icon { position: relative; z-index: 1; }
+/* SHELFY's face instead of a generic microphone: the assistant you talk to is the
+   assistant you see. It sits above the level fill and never eats the tap. */
+.capture-mic-avatar {
+    position: relative;
+    z-index: 1;
+    width: 64%;
+    height: 64%;
+    object-fit: contain;
+    border-radius: 50%;
+    pointer-events: none;
+}
 
 .capture-bars {
     display: none;
@@ -1218,6 +1227,66 @@ body {
     font-style: normal;
     font-weight: 700;
 }
+
+/* ── The transcript is a speech bubble, not a naked line ────────────────────
+   It used to float between the avatar and the form as grey text with no frame, so
+   nothing told the eye it was what the assistant had heard. Now it is SHELFY's own
+   line: the avatar, a high-contrast bubble with a tail on the avatar's side. */
+.capture-bubble {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+.capture-bubble[hidden] { display: none; }
+.capture-bubble-avatar {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 2px;
+    border-radius: 50%;
+    object-fit: contain;
+    background: var(--brand-surface);
+}
+.capture-bubble .capture-transcript {
+    position: relative;
+    flex: 1 1 auto;
+    margin: 0;
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    text-align: left;
+}
+/* The tail: a small square rotated 45°, in the bubble's own colour and border. */
+.capture-bubble .capture-transcript::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    bottom: 10px;
+    width: 8px;
+    height: 8px;
+    background: var(--brand-surface);
+    border-left: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    transform: rotate(45deg);
+    border-radius: 1px;
+}
+
+/* Typing is a deliberate choice: a small neutral link, never an emerald action that
+   competes with the microphone. */
+.capture-type-btn {
+    display: block;
+    margin: 2px auto 12px;
+    padding: 6px 14px;
+    min-height: 32px;
+    border: 1px solid var(--surface-border);
+    border-radius: 9999px;
+    background: transparent;
+    color: var(--text-light);
+    font-size: 12px;
+    cursor: pointer;
+}
+.capture-type-btn[hidden] { display: none; }
+.capture-type-btn:active { background: color-mix(in srgb, var(--surface-border) 60%, transparent); }
+.capture-input-row[hidden] { display: none; }
 
 .capture-understood,
 .capture-choices {
@@ -2525,6 +2594,33 @@ a.free-api:hover { border-color: var(--brand-primary); }
 /* Recording: the ring turns faster, the halo tightens. */
 .capture-mic-wrap.is-listening::before { animation-duration: 1.1s; }
 .capture-mic-wrap.is-listening::after  { animation-duration: 1.1s; }
+/* Thinking: the ring stops being two calm arcs and becomes a spinner — a faint track
+   with one bright emerald head turning fast — the level fill and the bars disappear.
+   Two states that look alike are two states the household cannot tell apart. */
+.capture-mic-wrap.is-thinking::before {
+    background: conic-gradient(
+        from 0deg,
+        color-mix(in srgb, var(--brand-primary) 16%, transparent) 0deg 300deg,
+        var(--brand-primary) 352deg,
+        transparent 360deg);
+    animation-duration: 0.85s;
+}
+.capture-mic-wrap.is-thinking::after { animation-duration: 0.85s; }
+.capture-mic-wrap.is-thinking .capture-mic {
+    border-color: color-mix(in srgb, var(--brand-primary) 55%, transparent);
+    cursor: progress;
+}
+.capture-mic.is-thinking .capture-mic-level { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    /* No spin: the ring breathes instead, which still says "working" without motion. */
+    .capture-mic-wrap.is-thinking::before {
+        animation: capture-ring-breathe 1.6s ease-in-out infinite;
+    }
+}
+@keyframes capture-ring-breathe {
+    0%, 100% { opacity: 0.45; }
+    50%      { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
     .capture-mic-wrap::before { animation: none; }
     .capture-mic-wrap::after  { animation: none; opacity: 0.6; }
@@ -2742,9 +2838,14 @@ a.free-api:hover { border-color: var(--brand-primary); }
     font-size: 14px;
     font-weight: 700;
     color: var(--text-main);
+    /* Two lines, not one truncated one: "Registro 1 pz di Mela rossa" must be readable
+       on a phone, where the two buttons already take half of the row. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.25;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .shelfy-confirm-sub {
     font-size: 12px;

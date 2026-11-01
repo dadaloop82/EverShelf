@@ -1890,7 +1890,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261031af'; // bump when translations change
+const _I18N_VERSION = '20261101a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9689,8 +9689,12 @@ function _openCaptureSheet() {
         input.value = '';
     }
     _captureStatus('capture.idle');
+    _captureSetState('idle');
     _captureShowTranscript('', false);
     _captureShowChoices(null);
+    // The text field is not part of the voice view: it is opened on purpose (or by
+    // `_captureSyncMicAvailability` when the browser cannot listen at all).
+    _captureShowType(false);
     const understood = document.getElementById('capture-understood');
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureSyncMicAvailability();
@@ -9730,8 +9734,39 @@ function _closeCaptureSheet() {
 }
 
 function _captureStatus(key, params) {
+    _captureStatusText(t(key, params));
+}
+
+/** The status line, already resolved: the phase machine below passes the literal itself. */
+function _captureStatusText(text) {
     const el = document.getElementById('capture-status');
-    if (el) el.textContent = t(key, params);
+    if (!el) return;
+    // Rewriting the same sentence on every interim result made the live region repeat
+    // itself; the state machine below sets it once per transition.
+    if (el.textContent === text) return;
+    el.textContent = text;
+}
+
+/**
+ * Typing is a deliberate choice, never part of the voice view.
+ *
+ * A text field with an emerald [Esegui] under the avatar reads as "press me to confirm
+ * what you just said": the live test ended with the household tapping Esegui on a
+ * sentence the recogniser had already closed. The row is now opened only by this link —
+ * or by itself when the browser has no speech engine and typing is the only way in.
+ */
+function _captureShowType(show) {
+    const row = document.getElementById('capture-input-row');
+    const btn = document.getElementById('capture-type-btn');
+    if (!row) return;
+    const open = !!show;
+    row.hidden = !open;
+    if (btn) btn.hidden = open;
+    if (!open) return;
+    const input = document.getElementById('capture-input');
+    // Focusing a text field opens the soft keyboard: only do it when the user asked
+    // (or when there is no other way to speak to the assistant).
+    if (input) setTimeout(() => { try { input.focus(); } catch (e) { /* no field */ } }, 30);
 }
 
 /**
@@ -9746,6 +9781,9 @@ function _captureNotUnderstood(messageKey, params) {
     const understood = document.getElementById('capture-understood');
     if (understood) { understood.hidden = true; understood.innerHTML = ''; }
     _captureShowChoices(null);
+    // The turn is over: the avatar goes back to being a control (no spinner), so a
+    // second tap is obviously possible.
+    _captureSetState('idle');
     _captureStatus(messageKey || 'capture.not_understood', params);
     // EverShelf Med: "ho un forte mal di testa" is not a product, but it is a question the
     // household asked. With the module on, the sentence is handed to the LOCAL symptom map
@@ -9775,24 +9813,63 @@ function _captureSyncMicAvailability() {
     // ring spinning around nothing.
     const wrap = document.getElementById('capture-mic-wrap');
     if (wrap) wrap.hidden = !Ctor;
-    if (!Ctor) _captureStatus('capture.unsupported');
+    if (!Ctor) {
+        // No recogniser: typing IS the assistant here, so the field opens by itself
+        // (the link that normally reveals it would have nothing to offer).
+        _captureShowType(true);
+        _captureStatus('capture.unsupported');
+    }
 }
 
 /** Audio level meter (getUserMedia + AnalyserNode): the mic fills while you talk. */
 let _captureMeter = null;
 
+/**
+ * The visible state machine of ONE voice turn.
+ *
+ *   idle      → the avatar is a control (press it to speak)
+ *   listening → the avatar fills with the live level, the bars move, "SHELFY ti ascolta…"
+ *   thinking  → the fill and the bars stop, the ring closes into an emerald spinner,
+ *               "Sto elaborando…"
+ *
+ * The thinking state is the whole point: between the last word and the confirmation card
+ * the app used to sit perfectly still for seconds (a recogniser deadline plus a network
+ * round-trip), which is indistinguishable from a frozen app.
+ */
 function _captureSetState(state) {
     const mic = document.getElementById('capture-mic');
     const wrap = document.getElementById('capture-mic-wrap');
     const bars = document.getElementById('capture-bars');
-    const on = state === 'listening';
-    if (mic) mic.classList.toggle('is-listening', on);
-    if (wrap) wrap.classList.toggle('is-listening', on);
-    if (bars) bars.classList.toggle('is-listening', on);
-    if (!on) {
+    const listening = state === 'listening';
+    const thinking = state === 'thinking';
+    if (mic) {
+        mic.classList.toggle('is-listening', listening);
+        mic.classList.toggle('is-thinking', thinking);
+        // A control that is busy is not a control inviting another tap.
+        mic.setAttribute('aria-busy', thinking ? 'true' : 'false');
+    }
+    if (wrap) {
+        wrap.classList.toggle('is-listening', listening);
+        wrap.classList.toggle('is-thinking', thinking);
+    }
+    if (bars) bars.classList.toggle('is-listening', listening);
+    if (!listening) {
         if (mic) mic.style.setProperty('--level', '0');
         if (bars) bars.querySelectorAll('span').forEach(b => b.style.setProperty('--bar', '0.15'));
     }
+}
+
+/**
+ * The two states of the machine that also own the status line.
+ *
+ * The keys are written as bare translate calls on purpose: `scripts/i18n-audit.py` only
+ * sees a literal key inside a `t(...)` call, so a key routed through a helper would look
+ * unused.
+ */
+function _capturePhase(phase) {
+    _captureSetState(phase);
+    if (phase === 'listening') _captureStatusText(t('capture.listening'));
+    else if (phase === 'thinking') _captureStatusText(t('capture.processing'));
 }
 
 /** Start the level meter. Silent failure: the transcript still works without it. */
@@ -9877,6 +9954,10 @@ function _captureShowTranscript(text, isFinal) {
     el.hidden = !value;
     el.textContent = value;
     el.classList.toggle('is-final', !!isFinal);
+    // The bubble carries the avatar of the speaker: an empty bubble with a face and no
+    // words would be worse than no bubble at all.
+    const box = document.getElementById('capture-bubble');
+    if (box) box.hidden = !value;
 }
 
 /**
@@ -10430,9 +10511,21 @@ function _captureJoinText(heard, next) {
     return `${a} ${b}`.replace(/\s+/g, ' ').trim();
 }
 
-// How long a silence ends the sentence. Too short and a natural pause between "ho usato"
-// and "2 arance" closed it before the last word was spoken.
-const _CAPTURE_SILENCE_MS = 2500;
+/*
+ * How long a silence ends the sentence — the VAD deadline, and the single biggest
+ * complaint of the live test: 2.5 s of dead air after the last word, plus the browser's
+ * own `onend` and the inventory lookup, felt like a frozen app (≈7 s of a still screen).
+ *
+ * Two values, because a silence is not worth the same in both situations:
+ *
+ *  - `_CAPTURE_SILENCE_MS` (1.4 s) when the NEWEST result is final: the engine itself
+ *    decided the phrase is over, so a pause from here on is the end of the sentence.
+ *  - `_CAPTURE_SILENCE_INTERIM_MS` (2.2 s) while only an interim result exists: the
+ *    engine is still revising the words, and cutting there is what ate the last word of
+ *    "ho usato 2 arance" (that is why this was 2.5 s for everything).
+ */
+const _CAPTURE_SILENCE_MS = 1400;
+const _CAPTURE_SILENCE_INTERIM_MS = 2200;
 /**
  * How many times a session the BROWSER ended on its own is resumed before we hand over
  * what we have. Chrome on Android closes the recognition session at the first final
@@ -10452,8 +10545,7 @@ async function _captureStartVoice() {
     if (tr) { tr.hidden = true; tr.textContent = ''; }
     const un = document.getElementById('capture-understood');
     if (un) un.hidden = true;
-    _captureStatus('capture.listening');
-    _captureSetState('listening');
+    _capturePhase('listening');
     _captureVoice = { active: true, text: '', timer: 0, stopRequested: false };
     _captureMeterStarted = false;
     /** The sentence as heard so far: it survives a result list the browser resets. */
@@ -10461,17 +10553,33 @@ async function _captureStartVoice() {
     let submitted = false;
     /** Sessions resumed because the browser ended them mid-sentence (see the constant). */
     let restarts = 0;
+    /**
+     * The NEWEST result is a finished phrase. It picks the silence deadline in
+     * `armSilenceStop`: 1.4 s once the engine has committed the words, a little more
+     * while it is still guessing them.
+     */
+    let heardFinal = false;
 
     /** The user is still talking: push the deadline that closes this one session. */
     const armSilenceStop = () => {
         if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} }
+        // The engine marks a phrase final when the speaker pauses, so a final result
+        // means "the sentence may well be over": close it fast (1.4 s, the live test
+        // measured ~7 s of a perfectly still screen before). While only an interim
+        // result exists the engine has not committed the words, so a short cut there is
+        // what ate the last word of "ho usato 2 arance".
+        const wait = heardFinal ? _CAPTURE_SILENCE_MS : _CAPTURE_SILENCE_INTERIM_MS;
         _captureVoice.timer = setTimeout(() => {
             _captureVoice.timer = 0;
             // OUR deadline, not the browser's: this stop is the end of the sentence, so
             // `onend` may hand it over. Any other `onend` means it was cut.
             _captureVoice.stopRequested = true;
+            // The sentence is closed from here on. Saying "I am working" NOW (instead of
+            // waiting for `onend`, which Chrome can delay, plus the inventory lookup) is
+            // what turns the dead second into a visible state of the assistant.
+            _capturePhase('thinking');
             try { if (_captureRec) _captureRec.stop(); } catch (e) { /* already ended */ }
-        }, _CAPTURE_SILENCE_MS);
+        }, wait);
     };
 
     const finish = (text) => {
@@ -10511,6 +10619,16 @@ async function _captureStartVoice() {
             if (eventText) {
                 heard = _captureJoinText(heard, eventText);
                 _captureShowTranscript(heard, false);
+                // Words are arriving: the sheet is listening, not asking for a permission
+                // the user has already given (that line used to stay on screen).
+                _capturePhase('listening');
+            }
+            // Only the NEWEST result says whether the engine has closed the phrase: an
+            // old final stays in the list for the whole session, so "some result is
+            // final" would keep the short deadline on a sentence still being spoken.
+            const from = Number(ev.resultIndex) || 0;
+            if (ev.results.length > from) {
+                heardFinal = !!ev.results[ev.results.length - 1].isFinal;
             }
             if (!_captureMeterStarted) { _captureMeterStarted = true; _captureStartMeter(); }
             // A final chunk is ONE PHRASE, not the sentence: never submit from here.
@@ -10520,8 +10638,11 @@ async function _captureStartVoice() {
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
             if (denied) {
                 _captureVoiceStop();
-                _captureStatus('capture.mic_denied');
                 _captureSetState('idle');
+                // Typing is the way out of a denied microphone, so offer it instead of
+                // pointing at a field that is hidden.
+                _captureShowType(true);
+                _captureStatus('capture.mic_denied');
                 return;
             }
             // "no-speech" / "aborted": onend decides, and the interim text still counts.
@@ -10542,10 +10663,11 @@ async function _captureStartVoice() {
                 restarts++;
                 _captureVoice.stopRequested = false;
                 _captureMeterStarted = false;
+                heardFinal = false;
                 armSilenceStop();
                 try {
                     startSession();
-                    _captureSetState('listening');
+                    _capturePhase('listening');
                     return;
                 } catch (e) { /* the browser refused the resume: hand over what we have */ }
             }
@@ -10886,11 +11008,15 @@ function _captureIsActionable(parsed) {
  */
 async function _captureSubmit(raw, opts) {
     const text = String(raw || '').trim();
-    if (!text) { _captureStatus('capture.idle'); return; }
+    if (!text) { _captureSetState('idle'); _captureStatus('capture.idle'); return; }
     const parsed = _captureParse(text);
     _capturePending = parsed;
     _captureShowTranscript(text, true);
     _captureShowChoices(null);
+    // From this instant the sheet is WORKING, not listening: the answer is a lookup (and
+    // maybe a network round-trip) away, and a still screen is what reads as a frozen app.
+    // The spinner stays until the card appears or the sheet closes.
+    _capturePhase('thinking');
 
     // "Ho usato" alone is not an action: say so and keep the sheet open (the user can
     // retype). This used to fall through to the add form of an empty name — and printing
@@ -10964,6 +11090,9 @@ async function _captureSubmit(raw, opts) {
         // what the user meant. Touching a card (or the screen) takes over.
         _captureChoicesCache = rows;
         _captureShowChoices(rows);
+        // The work is done (the answer is a choice, not a spinner): the avatar is a
+        // control again, and the status line asks the question.
+        _captureSetState('idle');
         _captureStatus('capture.which_one');
         return;
     }
@@ -18181,7 +18310,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031af';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -18191,7 +18320,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031af';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

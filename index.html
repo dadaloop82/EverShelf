@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261031af">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261031af">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261101a">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261101a">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261101a">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261101a">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261031af">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261031af">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261101a">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261101a">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261031af"></script>
-    <script src="assets/js/core/auth.js?v=20261031af"></script>
-    <script src="assets/js/core/med.js?v=20261031af"></script>
+    <script src="assets/js/core/dom.js?v=20261101a"></script>
+    <script src="assets/js/core/auth.js?v=20261101a"></script>
+    <script src="assets/js/core/med.js?v=20261101a"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261031af"></script>
+    <script src="assets/js/med/italy.js?v=20261101a"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261031af"></script>
+    <script src="assets/js/core/support.js?v=20261101a"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261031af';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261101a';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261031af';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101a';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261031af"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261101a"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.6</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.7</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -178,7 +178,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.6</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.7</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -3246,25 +3246,36 @@
             <button type="button" class="capture-head-btn" id="shelfy-help-btn" onclick="_shelfyOpenIntro()" aria-label="SHELFY" data-i18n-aria="shelfy.intro_reopen">?</button>
             <button type="button" class="modal-close" onclick="_closeCaptureSheet()" aria-label="Chiudi" data-i18n-aria="btn.close">✕</button>
         </div>
-        <!-- The mic button fills with the incoming level (--level), so it is obvious
-             when the app is actually listening; the bars do the same at a glance. The
-             wrapper draws the animated border (ring + halo): the button clips its own
-             content for the fill, so a pseudo-element inside would be cut at the edge. -->
+        <!-- The button is SHELFY's face, not a generic microphone: the assistant you
+             talk to is the assistant you see. It fills with the incoming level
+             (--level) while it listens and the bars move underneath; as soon as the
+             sentence is closed the fill disappears, the ring closes into an emerald
+             spinner and the status line says it is working. The wrapper draws the
+             border, because the button clips its own content for the fill. -->
         <div class="capture-mic-wrap" id="capture-mic-wrap">
             <button type="button" class="capture-mic" id="capture-mic" onclick="_captureStartVoice()" aria-label="Parla" data-i18n-aria="capture.speak">
-                <span class="capture-mic-icon" aria-hidden="true">🎙️</span>
+                <img class="capture-mic-avatar" src="assets/img/shelfy/shelfy-avatar-192.png" alt="" aria-hidden="true" decoding="async">
                 <span class="capture-mic-level" id="capture-mic-level" aria-hidden="true"></span>
             </button>
         </div>
         <div class="capture-bars" id="capture-bars" aria-hidden="true">
             <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <p class="capture-status" id="capture-status" role="status" aria-live="polite" data-i18n="capture.idle">Parla pure: ti ascolto. Oppure scrivi qui sotto.</p>
-        <!-- What the app heard (live, grey) and how it read it (bold) -->
-        <p class="capture-transcript" id="capture-transcript" hidden aria-live="polite"></p>
+        <p class="capture-status" id="capture-status" role="status" aria-live="polite" data-i18n="capture.idle">Parla pure: SHELFY ti ascolta.</p>
+        <!-- What SHELFY heard, in a speech bubble: the sentence the user is checking,
+             not a naked grey line floating between the avatar and the form. -->
+        <div class="capture-bubble" id="capture-bubble" hidden>
+            <img class="capture-bubble-avatar" src="assets/img/shelfy/shelfy-avatar-96.png" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <p class="capture-transcript" id="capture-transcript" aria-live="polite"></p>
+        </div>
         <div class="capture-understood" id="capture-understood" hidden aria-live="polite"></div>
         <div class="capture-choices" id="capture-choices" hidden></div>
-        <div class="capture-input-row">
+        <!-- Typing is a deliberate choice, never part of the voice view: a text field
+             with an emerald [Esegui] under the avatar reads as "press me to confirm what
+             you just said". The row opens only from this link — or by itself when the
+             browser has no speech engine and typing is the only way in. -->
+        <button type="button" class="capture-type-btn" id="capture-type-btn" onclick="_captureShowType(true)" data-i18n="capture.type_instead">Preferisco scrivere</button>
+        <div class="capture-input-row" id="capture-input-row" hidden>
             <input type="text" id="capture-input" class="form-input" data-i18n-placeholder="capture.placeholder" placeholder="Es: ho usato un'arancia" autocomplete="off"
                    onkeydown="if(event.key==='Enter'){event.preventDefault();_captureSubmit(this.value)}">
             <button type="button" class="btn btn-accent" onclick="_captureSubmit(document.getElementById('capture-input').value)" data-i18n="capture.run">Esegui</button>
@@ -3419,17 +3430,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261031af"></script>
-<script src="assets/js/food_facts.generated.js?v=20261031af"></script>
-<script src="assets/js/free_apis.generated.js?v=20261031af"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261031af"></script>
-<script src="assets/js/off_categories.generated.js?v=20261031af"></script>
-<script src="assets/js/core/vocab.js?v=20261031af"></script>
-<script src="assets/js/app.js?v=20261031af"></script>
-<script src="assets/js/audit.js?v=20261031af"></script>
-<script src="assets/js/receipt.js?v=20261031af"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261031af"></script>
-<script src="assets/js/settings_search.js?v=20261031af"></script>
+<script src="assets/js/vocab.generated.js?v=20261101a"></script>
+<script src="assets/js/food_facts.generated.js?v=20261101a"></script>
+<script src="assets/js/free_apis.generated.js?v=20261101a"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261101a"></script>
+<script src="assets/js/off_categories.generated.js?v=20261101a"></script>
+<script src="assets/js/core/vocab.js?v=20261101a"></script>
+<script src="assets/js/app.js?v=20261101a"></script>
+<script src="assets/js/audit.js?v=20261101a"></script>
+<script src="assets/js/receipt.js?v=20261101a"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261101a"></script>
+<script src="assets/js/settings_search.js?v=20261101a"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

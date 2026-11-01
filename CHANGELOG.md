@@ -5,6 +5,31 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.7] - 2026-11-01
+
+### Changed
+- **SHELFY has a state machine, so it never looks frozen.** A voice turn now has three
+  visible states: *listening* (the avatar with the live level and the moving bars),
+  *thinking* (the fill and the bars stop, the ring closes into an emerald spinner and the
+  status line says “Sto elaborando…”) and then the confirmation card. The comment that
+  the app had stopped is what the live test felt: ~7 s of a perfectly still screen
+  between “Ho mangiato una mela” and the card.
+- **The silence deadline dropped from 2.5 s to 1.4 s.** Once the recogniser marks the
+  phrase final, 1.4 s of quiet closes the sentence; while only an interim result exists
+  the deadline stays 2.2 s, because cutting there is what used to eat the last word of
+  “Ho usato 2 arance”.
+- **The microphone is SHELFY's face.** The same avatar as the nav, the intro and the
+  confirmation card sits inside the ring, so the assistant you talk to is the assistant
+  you see — no more generic cyan microphone.
+- **The transcript is a speech bubble.** The avatar plus a high-contrast bubble with a
+  tail, instead of a bare grey line floating between the circle and the form.
+- **Typing is a deliberate choice.** The `[Esegui]` field is no longer part of the voice
+  view — it read as “press me to confirm what you just said”, and the test ended with a
+  tap on Esegui after the sentence had already been recognised. A neutral “Preferisco
+  scrivere” link opens it, and it opens by itself only when the browser cannot listen at
+  all (or the microphone is denied). The fixed “Consenti il microfono…” line is replaced
+  by “SHELFY ti ascolta…” as soon as the first word arrives.
+
 ## [1.29.6] - 2026-10-31
 
 ### Added
