@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.7-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.10-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,12 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+
+**v1.29.10** — **La dispensa non apre più una scheda mentre scorri.** Un tocco apriva il prodotto anche dopo 28 px di movimento: ora servono 10 px verticali perché il gesto sia «scroll», il `pointercancel` del browser non è mai un tocco e la lista deve essere rimasta ferma (un dito grosso che non ha scrollato viene ancora perdonato). Il banner delle scorte dà ragione alla mensola: **«✓ Confermo 2000 g»**, e non scrive niente — la stima del registro è un'ipotesi. Riso, pasta, farina, olio, conserve e spezie non generano più avvisi predittivi. E c'è **una sola scheda per buttare** («Registra cibo gettato»): lo swipe a sinistra e il vecchio «Cosa vuoi fare?» non esistono più.
+
+**v1.29.9** — **La confezione aperta ha un posto, e l’app lo chiede sempre.** Dopo «ho usato 200 ml di latte» la scheda non diceva più dove finiva il resto: la domanda c’è sempre, con la risposta presunta già scelta — la tua abitudine su quel prodotto, poi quella del suo **genere** (lo yogurt impara dal latte). Il bottone presunto si svuota da destra con i secondi stampati sopra: **10 s** se l’app ha un precedente, **20 s** se non ne ha (allora resta dov’era), e qualsiasi tocco ferma il conto. La ✕ non sposta niente.
+
+**v1.29.8** — **Il latte si consuma anche a millilitri.** Con 12 confezioni da 1 l la scheda “Usa” parlava solo di confezioni: la bilancia era spenta per quell’unità e digitare 250 finiva per dire “ho finito tutto e 12”. Ora la scheda ha il selettore **Confezioni | ml**, il campo in millilitri, le scorciatoie 250 · 500 · 1000 ml e la bilancia che scrive la frazione di confezione (250 g di latte = 242,7 ml, densità 1,03); un numero digitato nell’unità sbagliata viene capito, non troncato, e vale anche per la voce (“ho usato 250 ml di latte”).
 
 **v1.29.7** — **SHELFY non resta più muta.** Ogni comando vocale ha uno stato visibile: *ascolto* (avatar con il livello della voce e le barre), *elaborazione* (anello smeraldo che gira e “Sto elaborando…”) e poi la card di conferma. Il silenzio chiude la frase dopo **1,4 s** invece di 2,5 s, il microfono è il volto di SHELFY, la trascrizione vive in un fumetto e il campo **[Esegui]** compare solo se scegli di scrivere.
 

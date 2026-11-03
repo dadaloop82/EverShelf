@@ -24,6 +24,13 @@ const SMART_HIGH_USE_STOCK_PCT = 25.0;
 const SHOPPING_TOTAL_CACHE_MAX = 4;
 
 /**
+ * A sealed shelf life this long means a dry staple (rice, pasta, flour, oil, tinned and
+ * jarred goods, spices): a pantry nobody writes into is its NORMAL state, so the ledger
+ * guesses must not turn into "go and check the shelf" notices. See evershelfIsDurableStaple().
+ */
+const EVERSHELF_STAPLE_SHELF_DAYS = 180;
+
+/**
  * Comprato → block until the family is finished again (cleared on deplete).
  * Rimuovi (purchased=false) → block only for the rest of the calendar month.
  * Override: SHOPPING_REMOVED_BLOCK_MODE=days + SHOPPING_REMOVED_BLOCK_DAYS=N (month-mode only).
@@ -8174,6 +8181,26 @@ function undoTransaction(PDO $db): void {
 // ===== STATS =====
 
 /**
+ * Is this a dry staple? Rice, pasta, flour, oil, spices, tinned/jarred goods keep for
+ * months, so an empty ledger is the normal state of a pantry nobody writes into — not a
+ * shelf to go and check. The rule reads the SAME shelf-life estimates the expiry badge
+ * uses (`estimateSealedExpiryDaysPHP`), so "long life" means one thing in the whole app.
+ *
+ * @param string $name     product title
+ * @param string $category product category
+ * @param string $location where the stock is (the estimate is place-aware)
+ */
+function evershelfIsDurableStaple(string $name, string $category, string $location): bool {
+    if (!function_exists('estimateSealedExpiryDaysPHP')) return false;
+    // The short-life counters are never staples, whatever the shelf-life table answers for
+    // a name that merely CONTAINS a long-life word ("Pomodorini" hits the passata rule).
+    // These are category slugs (language-neutral keys), not product words.
+    $cat = mb_strtolower($category);
+    if (preg_match('/frutta|verdura|latticini|carne|pesce|pane|surgelat/', $cat)) return false;
+    return estimateSealedExpiryDaysPHP($name, $category, $location) >= EVERSHELF_STAPLE_SHELF_DAYS;
+}
+
+/**
  * Detect inventory items where the stored quantity is significantly inconsistent
  * with the transaction history (sum of in - sum of out/waste).
  *
@@ -8184,7 +8211,7 @@ function undoTransaction(PDO $db): void {
 function getInventoryAnomalies(PDO $db): void {
     EverLog::info('getInventoryAnomalies');
     $rows = $db->query("
-        SELECT p.id AS product_id, p.name, p.brand, p.unit,
+        SELECT p.id AS product_id, p.name, p.brand, p.unit, p.category,
                p.default_quantity, p.package_unit,
                MIN(i.id) AS inventory_id,
                -- Where the stock actually is: an anomaly without the shelf to look at
@@ -8204,7 +8231,7 @@ function getInventoryAnomalies(PDO $db): void {
             FROM transactions WHERE type IN ('out','waste') AND undone = 0 GROUP BY product_id
         ) tx_out ON tx_out.product_id = p.id
         WHERE i.quantity > 0
-        GROUP BY p.id, p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+        GROUP BY p.id, p.name, p.brand, p.unit, p.category, p.default_quantity, p.package_unit,
                  tx_in.tot, tx_out.tot
     ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -8221,6 +8248,13 @@ function getInventoryAnomalies(PDO $db): void {
         $unit     = (string)($r['unit'] ?? 'pz');
         // Trace leftovers (e.g. 2.5 g) belong to the "finished?" banner, not anomalies.
         if (isInventoryDepleted(['quantity' => $invQty, 'unit' => $unit])) {
+            continue;
+        }
+        // Dry staples (rice, pasta, flour, oil, tins, spices) never ask for a shelf check:
+        // the ledger is empty because nobody registers the daily spoonful, and "you have
+        // MORE rice than expected" is not a discrepancy — it is a two-kilo bag.
+        $firstLoc = trim((string)(explode(',', (string)($r['locations'] ?? ''))[0] ?? ''));
+        if (evershelfIsDurableStaple((string)$r['name'], (string)($r['category'] ?? ''), $firstLoc)) {
             continue;
         }
         $expected = floatval($r['total_in']) - floatval($r['total_out']);
@@ -9063,7 +9097,7 @@ function getConsumptionPredictions(PDO $db): void {
     // Get all current inventory items with their consumption history
     $items = $db->query("
         SELECT i.id AS inventory_id, i.product_id, i.quantity, i.location,
-               p.name, p.brand, p.unit, p.default_quantity, p.package_unit,
+               p.name, p.brand, p.unit, p.default_quantity, p.package_unit, p.category,
                i.updated_at
         FROM inventory i
         JOIN products p ON p.id = i.product_id
@@ -9078,6 +9112,13 @@ function getConsumptionPredictions(PDO $db): void {
 
         // Skip crumbs already treated as finished / hidden from the list
         if (isInventoryDepleted($item)) {
+            continue;
+        }
+
+        // Dry staples: three quiet months on two kilos of rice do not mean the rice
+        // disappeared by itself. Their consumption is never registered meal by meal, so a
+        // rate built from the ledger would accuse the household every time.
+        if (evershelfIsDurableStaple((string)$item['name'], (string)($item['category'] ?? ''), (string)$loc)) {
             continue;
         }
 

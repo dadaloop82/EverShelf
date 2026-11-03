@@ -300,8 +300,8 @@
     "row_actions": "More actions",
     "month_strip": "{used} used · {wasted} wasted in the last 30 days",
     "banner_location": "Where: {location}",
-    "banner_anomaly_align": "Confirm {qty} {unit}",
-    "banner_anomaly_aligned": "Stock set to {qty} {unit}",
+    "banner_anomaly_confirm": "Confirm {qty} {unit}",
+    "banner_anomaly_confirmed": "Stock confirmed: {qty} {unit}",
     "stale_expiry_label": "Expiry",
     "banner_anomaly_edit_qty": "Edit quantity",
     "banner_opened_menu_still_good": "Mark as still good",
@@ -318,6 +318,7 @@
   "inventory": {
     "title": "List",
     "filter_all": "All",
+    "view_filters": "List filters",
     "search_placeholder": "🔍 Search product...",
     "clear_search": "Clear search",
     "recent_title": "🕐 Recently used",
@@ -337,16 +338,7 @@
     "empty_text": "No products here.<br>Scan a product to add it!",
     "empty_db": "No products in the database.<br>Scan a product to get started!",
     "qty_trace": "< 1",
-    "swipe_use": "Use",
-    "swipe_action": "Use · Discard",
     "swipe_edit": "Edit",
-    "swipe_guide": "← Swipe for Use / Discard · swipe right to edit →",
-    "swipe_edge_use": "← Use / Discard",
-    "swipe_edge_edit": "Edit →",
-    "swipe_hint": "tap use · ← use/discard · edit →",
-    "swipe_chooser_title": "What do you want to do?",
-    "swipe_chooser_use": "📤 Use / consume",
-    "swipe_chooser_throw": "🗑️ Discard",
     "swipe_used_toast": "Used {qty} of {name}",
     "swipe_undo": "Undo",
     "item_detail_use": "Use",
@@ -400,6 +392,7 @@
     "detail_scale_detected": "detected",
     "detail_scale_copy": "Copy to use",
     "detail_chip_all_stock": "All ({n}{unit})",
+    "detail_measure_switch": "Measure in",
     "detail_expires_in": "⏳ Expires in {n} d",
     "expiry_edit_title": "Expiry",
     "expiry_edit_hint": "Pick a new date or extend with the buttons.",
@@ -645,7 +638,8 @@
     "reason_expired": "⏰ Expired",
     "reason_wrong_location": "📍 Wrong place",
     "reason_kept_too_long": "⏳ Kept too long",
-    "reason_other": "❓ Other"
+    "reason_other": "❓ Other",
+    "pick_place_title": "Where are you throwing it from?"
   },
   "product": {
     "title_new": "New Product",
@@ -1119,7 +1113,8 @@
     "transferring": "Transferring...",
     "transferred": "Added to Recipes!",
     "open_recipe": "Open recipe",
-    "quick_recipe_prompt": "Suggest a quick recipe FOR ONE PERSON using the products that expire first! Ignore freezer items, focus on fridge and pantry."
+    "quick_recipe_prompt": "Suggest a quick recipe FOR ONE PERSON using the products that expire first! Ignore freezer items, focus on fridge and pantry.",
+    "send": "Send"
   },
   "cooking": {
     "close": "Close",
@@ -2325,7 +2320,10 @@
     "moved_toast": "📦 Opened package moved to {location}",
     "vacuum_restore": "Restore vacuum sealed",
     "vacuum_seal_rest": "Vacuum seal the rest",
-    "moved_simple": "📦 Moved to {location}"
+    "moved_simple": "📦 Moved to {location}",
+    "hint_known": "You usually put it in {location}",
+    "hint_unknown": "No habit yet: it stays in {location}",
+    "stayed_toast": "📦 The opened pack stays in {location}"
   },
   "nova": {
     "1": "Unprocessed",

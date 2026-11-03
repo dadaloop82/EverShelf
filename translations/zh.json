@@ -300,8 +300,8 @@
     "row_actions": "更多操作",
     "month_strip": "近 30 天：已用 {used} · 丢弃 {wasted}",
     "banner_location": "位置：{location}",
-    "banner_anomaly_align": "确认 {qty} {unit}",
-    "banner_anomaly_aligned": "库存已调整为 {qty} {unit}",
+    "banner_anomaly_confirm": "确认现有 {qty} {unit}",
+    "banner_anomaly_confirmed": "库存已确认：{qty} {unit}",
     "stale_expiry_label": "保质期",
     "banner_anomaly_edit_qty": "修改数量",
     "banner_opened_menu_still_good": "标记为仍然可用",
@@ -318,6 +318,7 @@
   "inventory": {
     "title": "库存",
     "filter_all": "全部",
+    "view_filters": "列表筛选",
     "search_placeholder": "🔍 搜索商品…",
     "clear_search": "清除搜索",
     "recent_title": "🕐 最近取用",
@@ -337,16 +338,7 @@
     "empty_text": "此处暂无商品。<br>扫描商品即可添加！",
     "empty_db": "数据库中暂无商品。<br>扫描商品即可开始使用！",
     "qty_trace": "< 1",
-    "swipe_use": "取用",
-    "swipe_action": "取用 · 丢弃",
     "swipe_edit": "编辑",
-    "swipe_guide": "← 左滑取用/丢弃 · 右滑编辑 →",
-    "swipe_edge_use": "← 取用 / 丢弃",
-    "swipe_edge_edit": "编辑 →",
-    "swipe_hint": "点击取用 · ← 取用/丢弃 · 编辑 →",
-    "swipe_chooser_title": "你想做什么？",
-    "swipe_chooser_use": "📤 取用 / 消耗",
-    "swipe_chooser_throw": "🗑️ 丢弃",
     "swipe_used_toast": "已取用 {name}：{qty}",
     "swipe_undo": "撤销",
     "item_detail_use": "取用",
@@ -400,6 +392,7 @@
     "detail_scale_detected": "已测到",
     "detail_scale_copy": "填入用量",
     "detail_chip_all_stock": "全部 ({n}{unit})",
+    "detail_measure_switch": "计量单位",
     "detail_expires_in": "⏳ {n} 天后到期",
     "expiry_edit_title": "保质期",
     "expiry_edit_hint": "选择新日期，或用下方按钮延长。",
@@ -645,7 +638,8 @@
     "reason_expired": "⏰ 过期",
     "reason_wrong_location": "📍 存放位置不对",
     "reason_kept_too_long": "⏳ 存放过久",
-    "reason_other": "❓ 其他"
+    "reason_other": "❓ 其他",
+    "pick_place_title": "从哪个存放处丢弃？"
   },
   "product": {
     "title_new": "新建商品",
@@ -1119,7 +1113,8 @@
     "transferring": "正在转移…",
     "transferred": "已添加到食谱！",
     "open_recipe": "打开食谱",
-    "quick_recipe_prompt": "请用最先到期的食材推荐一道单人份快手食谱。忽略冷冻食材，优先使用冰箱和食品柜中的食材。"
+    "quick_recipe_prompt": "请用最先到期的食材推荐一道单人份快手食谱。忽略冷冻食材，优先使用冰箱和食品柜中的食材。",
+    "send": "发送"
   },
   "cooking": {
     "close": "关闭",
@@ -2325,7 +2320,10 @@
     "moved_toast": "📦 已将开封包装移至 {location}",
     "vacuum_restore": "恢复真空密封状态",
     "vacuum_seal_rest": "真空密封剩余部分",
-    "moved_simple": "📦 已移至 {location}"
+    "moved_simple": "📦 已移至 {location}",
+    "hint_known": "你通常把它放在{location}",
+    "hint_unknown": "还没有习惯：它留在{location}",
+    "stayed_toast": "📦 已开封的包装留在{location}"
   },
   "nova": {
     "1": "未加工或最低限度加工食品",

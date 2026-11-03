@@ -52,6 +52,33 @@ runtime/binary files — if a task truly needs one, ask first.
   mark (`_medIconMarkup()`, `assets/img/icons/medicine.svg`), never a food emoji:
   same for the plain emoji slots (`_productCatIconHtml()`), the `badge-medical`
   badge and the place icons (`_locIconMarkup()`), where the cabinet is the pill.
+- **A row opens on a tap, never on a scroll.** `_initInventoryRowSwipe()` is the one touch
+  grammar of the pantry: 10 px of vertical travel means "scroll" (`INV_TAP_SLOP_Y`), a
+  `pointercancel` is never a tap, and the gesture must not have moved `.inv-scroll`
+  (`scrollTop`). `touch-action: pan-y` stays on the list. Only the **right** swipe exists and
+  it opens the same product sheet the tap opens — no left swipe, no "Cosa vuoi fare?" chooser.
+- **One discard sheet.** `openWasteSheet()` → `_showWasteRecordModal()` (quantity + the four
+  reasons) is every "Butta": row, banner, swipe, action page. A medicine keeps its short
+  confirm. Never re-add `showThrowForm()` / `throwAll` / `throwPartial`.
+- **The shelf wins over the guess.** The anomaly banner's primary is `confirmBannerAnomaly`
+  (`✓ Confermo {inv_qty}`: it writes nothing, the ledger figure is a guess), and dry staples
+  (`evershelfIsDurableStaple`, ≥ 180 days sealed) raise no predictive notice at all.
+- **A `conf` row has two units.** A pack sold in g/ml (`_packMeasure()` from
+  `default_quantity` + `package_unit`) is consumed by the pack **and** by its own
+  measure: the product sheet carries the `Confezioni | ml` switch
+  (`_itemDetailPackSwitchHtml` / `_itemDetailSetEntryUnit`), the scale applies to it
+  (`_scaleApplyToItemDetail` writes the fraction of the pack), and a number typed in
+  the wrong unit is understood, never clamped (`250` in a 1 l "Confezioni" field is
+  250 ml, not "ho finito tutte e 12"). `_captureQtyFor` converts a dictated amount
+  through the same pack.
+- **An opened pack has a place.** A partial use creates a pack of its own, so the sheet (and
+  the legacy USE page, and the recipe flow) **always asks** where it went (`_showMovePrompt`):
+  the presumed answer is the product's habit and then its **genre**
+  (`_preferredMoveChoice`, product key `id|from`, genre key `kind:cat|from`), the control
+  carrying it drains with the seconds printed — **10 s** with a precedent, **20 s** without
+  (then it stays where it was) — and any touch cancels the clock. Never apply a move in
+  silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product sheet keeps the
+  household on the pantry instead of jumping to the dashboard.
 - **Product titles** (`products.name`/`kind`) go exclusively through
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.

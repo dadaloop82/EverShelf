@@ -2060,6 +2060,8 @@ body.offline-mode .offline-banner-retry {
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.15s;
+    /* Vertical pans scroll the list; the row never swallows them as a tap. */
+    touch-action: pan-y;
 }
 
 .inventory-item.inv-opened-ok .inv-row-content {
@@ -2104,13 +2106,6 @@ body.offline-mode .offline-banner-retry {
     pointer-events: none;
 }
 
-.inv-swipe-bg-left {
-    left: 0;
-    justify-content: flex-end;
-    background: rgba(239, 68, 68, 0.18);
-    color: #b91c1c;
-}
-
 .inv-swipe-bg-right {
     right: 0;
     justify-content: flex-start;
@@ -2118,7 +2113,6 @@ body.offline-mode .offline-banner-retry {
     color: #1d4ed8;
 }
 
-.inventory-item.swipe-left .inv-swipe-bg-left,
 .inventory-item.swipe-right .inv-swipe-bg-right {
     opacity: 1;
 }
@@ -2571,10 +2565,47 @@ body.offline-mode .offline-banner-retry {
     border: 2px solid var(--border);
 }
 
+/* The presumed answer of a "dove lo metto?" prompt: a bar that drains right→left with the
+   seconds printed next to the label. A promise with nothing moving reads as a frozen app,
+   so the countdown is always visible (same grammar as SHELFY's confirmation card). */
 .move-countdown-btn {
     position: relative;
     overflow: hidden;
     transition: none;
+}
+.move-countdown-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    pointer-events: none;
+    background: rgba(45, 80, 22, 0.18);
+    background: color-mix(in srgb, var(--brand-primary) 20%, transparent);
+}
+.move-countdown-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+    width: 100%;
+}
+.move-countdown-secs {
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    opacity: 0.7;
+}
+.move-countdown-btn.is-presumed,
+.loc-btn.is-presumed {
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+}
+.move-prompt-hint {
+    margin: 0 0 12px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-muted);
 }
 
 /* ===== SCALE LIVE BOX ===== */

@@ -300,8 +300,8 @@
     "row_actions": "Más acciones",
     "month_strip": "{used} usados · {wasted} tirados en los últimos 30 días",
     "banner_location": "Dónde: {location}",
-    "banner_anomaly_align": "Confirmar {qty} {unit}",
-    "banner_anomaly_aligned": "Stock ajustado a {qty} {unit}",
+    "banner_anomaly_confirm": "Confirmo {qty} {unit}",
+    "banner_anomaly_confirmed": "Existencias confirmadas: {qty} {unit}",
     "stale_expiry_label": "Caducidad",
     "banner_anomaly_edit_qty": "Editar cantidad",
     "banner_opened_menu_still_good": "Marcar como aún bueno",
@@ -318,6 +318,7 @@
   "inventory": {
     "title": "Lista",
     "filter_all": "Todos",
+    "view_filters": "Filtros de lista",
     "search_placeholder": "🔍 Buscar producto...",
     "clear_search": "Borrar búsqueda",
     "recent_title": "🕐 Usados recientemente",
@@ -337,16 +338,7 @@
     "empty_text": "No hay productos aquí.<br>¡Escanea un producto para añadirlo!",
     "empty_db": "No hay productos en la base de datos.<br>¡Escanea un producto para empezar!",
     "qty_trace": "< 1",
-    "swipe_use": "Usar",
-    "swipe_action": "Usar · Desechar",
     "swipe_edit": "Editar",
-    "swipe_guide": "← Desliza para Usar / Desechar · desliza a la derecha para editar →",
-    "swipe_edge_use": "← Usar / Desechar",
-    "swipe_edge_edit": "Editar →",
-    "swipe_hint": "tap = usar · ← usar/desechar · editar →",
-    "swipe_chooser_title": "¿Qué quieres hacer?",
-    "swipe_chooser_use": "📤 Usar / consumir",
-    "swipe_chooser_throw": "🗑️ Desechar",
     "swipe_used_toast": "Usado {qty} de {name}",
     "swipe_undo": "Deshacer",
     "item_detail_use": "Usar",
@@ -400,6 +392,7 @@
     "detail_scale_detected": "detectados",
     "detail_scale_copy": "Copiar al consumo",
     "detail_chip_all_stock": "Todo ({n}{unit})",
+    "detail_measure_switch": "Unidad de medida",
     "detail_expires_in": "⏳ Caduca en {n} d",
     "expiry_edit_title": "Caducidad",
     "expiry_edit_hint": "Elige una fecha o alarga con los botones.",
@@ -645,7 +638,8 @@
     "reason_expired": "⏰ Caducado",
     "reason_wrong_location": "📍 Lugar equivocado",
     "reason_kept_too_long": "⏳ Guardado demasiado",
-    "reason_other": "❓ Otro"
+    "reason_other": "❓ Otro",
+    "pick_place_title": "¿De dónde lo tiras?"
   },
   "product": {
     "title_new": "Nuevo producto",
@@ -1119,7 +1113,8 @@
     "transferring": "Transfiriendo...",
     "transferred": "¡Añadido a recetas!",
     "open_recipe": "Abrir receta",
-    "quick_recipe_prompt": "¡Sugiere una receta rápida PARA UNA PERSONA usando los productos que caducan primero! Ignora el congelador, céntrate en la nevera y la despensa."
+    "quick_recipe_prompt": "¡Sugiere una receta rápida PARA UNA PERSONA usando los productos que caducan primero! Ignora el congelador, céntrate en la nevera y la despensa.",
+    "send": "Enviar"
   },
   "cooking": {
     "close": "Cerrar",
@@ -2325,7 +2320,10 @@
     "moved_toast": "📦 Paquete abierto movido a {location}",
     "vacuum_restore": "🫙 Restaurar al vacío",
     "vacuum_seal_rest": "🔒 Sellar el resto al vacío",
-    "moved_simple": "📦 Movido a {location}"
+    "moved_simple": "📦 Movido a {location}",
+    "hint_known": "Normalmente lo pones en {location}",
+    "hint_unknown": "Aún sin costumbre: se queda en {location}",
+    "stayed_toast": "📦 El envase abierto se queda en {location}"
   },
   "nova": {
     "1": "Sin procesar",

@@ -300,8 +300,8 @@
     "row_actions": "Weitere Aktionen",
     "month_strip": "{used} verbraucht · {wasted} weggeworfen in den letzten 30 Tagen",
     "banner_location": "Wo: {location}",
-    "banner_anomaly_align": "{qty} {unit} bestätigen",
-    "banner_anomaly_aligned": "Bestand auf {qty} {unit} gesetzt",
+    "banner_anomaly_confirm": "{qty} {unit} bestätige",
+    "banner_anomaly_confirmed": "Bestand bestätigt: {qty} {unit}",
     "stale_expiry_label": "Ablauf",
     "banner_anomaly_edit_qty": "Menge bearbeiten",
     "banner_opened_menu_still_good": "Als noch gut markieren",
@@ -318,6 +318,7 @@
   "inventory": {
     "title": "Liste",
     "filter_all": "Alle",
+    "view_filters": "Listenfilter",
     "search_placeholder": "🔍 Produkt suchen...",
     "clear_search": "Suche löschen",
     "recent_title": "🕐 Zuletzt verwendet",
@@ -337,16 +338,7 @@
     "empty_text": "Keine Produkte hier.<br>Scanne ein Produkt, um es hinzuzufügen!",
     "empty_db": "Keine Produkte in der Datenbank.<br>Scanne ein Produkt, um loszulegen!",
     "qty_trace": "< 1",
-    "swipe_use": "Verbr.",
-    "swipe_action": "Verbr. · Wegwerfen",
     "swipe_edit": "Bearb.",
-    "swipe_guide": "← Wischen für Verbrauchen / Wegwerfen · rechts = Bearbeiten →",
-    "swipe_edge_use": "← Verbr. / Wegwerfen",
-    "swipe_edge_edit": "Bearb. →",
-    "swipe_hint": "tippen = verbr. · ← verbr./wegwerfen · bearb. →",
-    "swipe_chooser_title": "Was möchtest du tun?",
-    "swipe_chooser_use": "📤 Verbrauchen",
-    "swipe_chooser_throw": "🗑️ Wegwerfen",
     "swipe_used_toast": "{qty} von {name} verbraucht",
     "swipe_undo": "Rückgängig",
     "item_detail_use": "Verbrauchen",
@@ -400,6 +392,7 @@
     "detail_scale_detected": "erfasst",
     "detail_scale_copy": "In Verbrauch kopieren",
     "detail_chip_all_stock": "Alles ({n}{unit})",
+    "detail_measure_switch": "Maßeinheit",
     "detail_expires_in": "⏳ Läuft in {n} T. ab",
     "expiry_edit_title": "Haltbarkeit",
     "expiry_edit_hint": "Neues Datum wählen oder mit den Tasten verlängern.",
@@ -645,7 +638,8 @@
     "reason_expired": "⏰ Abgelaufen",
     "reason_wrong_location": "📍 Falscher Ort",
     "reason_kept_too_long": "⏳ Zu lange aufbewahrt",
-    "reason_other": "❓ Sonstiges"
+    "reason_other": "❓ Sonstiges",
+    "pick_place_title": "Woher wirfst du es weg?"
   },
   "product": {
     "title_new": "Neues Produkt",
@@ -1119,7 +1113,8 @@
     "transferring": "Übertrage...",
     "transferred": "Zu Rezepten hinzugefügt!",
     "open_recipe": "Rezept öffnen",
-    "quick_recipe_prompt": "Schlage mir ein schnelles Rezept FÜR EINE PERSON vor, das die Produkte mit dem nächsten Ablaufdatum verwendet! Ignoriere Tiefkühlprodukte, konzentriere dich auf Kühlschrank und Vorratsschrank."
+    "quick_recipe_prompt": "Schlage mir ein schnelles Rezept FÜR EINE PERSON vor, das die Produkte mit dem nächsten Ablaufdatum verwendet! Ignoriere Tiefkühlprodukte, konzentriere dich auf Kühlschrank und Vorratsschrank.",
+    "send": "Senden"
   },
   "cooking": {
     "close": "Schließen",
@@ -2325,7 +2320,10 @@
     "moved_toast": "📦 Offene Packung bewegt nach {location}",
     "vacuum_restore": "Vakuum wiederherstellen",
     "vacuum_seal_rest": "Rest vakuumieren",
-    "moved_simple": "📦 Nach {location} verschoben"
+    "moved_simple": "📦 Nach {location} verschoben",
+    "hint_known": "Normalerweise legst du es in {location}",
+    "hint_unknown": "Noch keine Gewohnheit: es bleibt in {location}",
+    "stayed_toast": "📦 Die geöffnete Packung bleibt in {location}"
   },
   "nova": {
     "1": "Unverarbeitet",

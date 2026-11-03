@@ -300,8 +300,8 @@
     "row_actions": "Autres actions",
     "month_strip": "{used} utilisés · {wasted} jetés ces 30 derniers jours",
     "banner_location": "Où : {location}",
-    "banner_anomaly_align": "Confirmer {qty} {unit}",
-    "banner_anomaly_aligned": "Stock réglé à {qty} {unit}",
+    "banner_anomaly_confirm": "Je confirme {qty} {unit}",
+    "banner_anomaly_confirmed": "Stock confirmé : {qty} {unit}",
     "stale_expiry_label": "Péremption",
     "banner_anomaly_edit_qty": "Modifier la quantité",
     "banner_opened_menu_still_good": "Marquer comme encore bon",
@@ -318,6 +318,7 @@
   "inventory": {
     "title": "Liste",
     "filter_all": "Tous",
+    "view_filters": "Filtres de liste",
     "search_placeholder": "🔍 Rechercher un produit...",
     "clear_search": "Effacer la recherche",
     "recent_title": "🕐 Utilisés récemment",
@@ -337,16 +338,7 @@
     "empty_text": "Aucun produit ici.<br>Scannez un produit pour l'ajouter !",
     "empty_db": "Aucun produit dans la base de données.<br>Scannez un produit pour commencer !",
     "qty_trace": "< 1",
-    "swipe_use": "Utiliser",
-    "swipe_action": "Utiliser · Jeter",
     "swipe_edit": "Modifier",
-    "swipe_guide": "← Glisser pour Utiliser / Jeter · glisser à droite pour modifier →",
-    "swipe_edge_use": "← Utiliser / Jeter",
-    "swipe_edge_edit": "Modifier →",
-    "swipe_hint": "tap = utiliser · ← utiliser/jeter · modifier →",
-    "swipe_chooser_title": "Que voulez-vous faire ?",
-    "swipe_chooser_use": "📤 Utiliser / consommer",
-    "swipe_chooser_throw": "🗑️ Jeter",
     "swipe_used_toast": "Utilisé {qty} de {name}",
     "swipe_undo": "Annuler",
     "item_detail_use": "Utiliser",
@@ -400,6 +392,7 @@
     "detail_scale_detected": "détectés",
     "detail_scale_copy": "Copier dans la conso",
     "detail_chip_all_stock": "Tout ({n}{unit})",
+    "detail_measure_switch": "Unité de mesure",
     "detail_expires_in": "⏳ Expire dans {n} j",
     "expiry_edit_title": "Péremption",
     "expiry_edit_hint": "Choisissez une date ou prolongez avec les boutons.",
@@ -645,7 +638,8 @@
     "reason_expired": "⏰ Périmé",
     "reason_wrong_location": "📍 Mauvais endroit",
     "reason_kept_too_long": "⏳ Gardé trop longtemps",
-    "reason_other": "❓ Autre"
+    "reason_other": "❓ Autre",
+    "pick_place_title": "D'où le jetez-vous ?"
   },
   "product": {
     "title_new": "Nouveau produit",
@@ -1119,7 +1113,8 @@
     "transferring": "Transfert en cours...",
     "transferred": "Ajouté aux recettes !",
     "open_recipe": "Ouvrir la recette",
-    "quick_recipe_prompt": "Suggérez une recette rapide POUR UNE PERSONNE en utilisant les produits qui expirent en premier ! Ignorez les congélateurs, concentrez-vous sur le réfrigérateur et le garde-manger."
+    "quick_recipe_prompt": "Suggérez une recette rapide POUR UNE PERSONNE en utilisant les produits qui expirent en premier ! Ignorez les congélateurs, concentrez-vous sur le réfrigérateur et le garde-manger.",
+    "send": "Envoyer"
   },
   "cooking": {
     "close": "Fermer",
@@ -2325,7 +2320,10 @@
     "moved_toast": "📦 Emballage ouvert déplacé vers {location}",
     "vacuum_restore": "🫙 Restaurer sous vide",
     "vacuum_seal_rest": "🔒 Mettre le reste sous vide",
-    "moved_simple": "📦 Déplacé vers {location}"
+    "moved_simple": "📦 Déplacé vers {location}",
+    "hint_known": "Tu le mets d'habitude dans {location}",
+    "hint_unknown": "Pas encore d'habitude : il reste dans {location}",
+    "stayed_toast": "📦 L'emballage ouvert reste dans {location}"
   },
   "nova": {
     "1": "Non transformé",

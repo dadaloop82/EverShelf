@@ -5,6 +5,70 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.10] - 2026-11-03
+
+### Fixed
+- **Scrolling the pantry no longer opens a product.** A tap opened the sheet after up to
+  28 px of travel, so on a tablet the finger that had already started the list moving ended
+  the gesture on a dialog nobody asked for. A pantry row now needs a real tap: **10 px** of
+  vertical travel turns the gesture into a scroll, a `pointercancel` (the browser taking the
+  touch for the scroller) is never a tap, the gesture must not have moved `.inv-scroll` and
+  `touch-action: pan-y` stays on the list. A quick tap that never scrolled anything is still
+  forgiven, so a fat finger keeps working.
+- **The anomaly banner confirms the shelf, not the estimate.** «Riso basmati — hai più
+  scorte del previsto» offered `✓ Conferma 88 g` as its primary: one tap turned two
+  physically stocked kilos into the algorithmic guess. The primary is now
+  `✓ Confermo 2000 g` — it acknowledges the notice and **writes nothing**; «Modifica
+  quantità» opens the product sheet for a real correction.
+- **Dry staples raise no predictive notice.** Rice, pasta, flour, oil, tinned and jarred
+  goods and spices keep for months: an empty ledger is the normal state of a pantry nobody
+  writes into, so `getInventoryAnomalies()` and `getConsumptionPredictions()` skip them
+  (`evershelfIsDurableStaple()` reads the same sealed shelf-life table as the expiry badge).
+- **One discard sheet, everywhere.** Swiping left on a pantry row opened a legacy «Cosa vuoi
+  fare?» chooser, and its «Butta» landed on `showThrowForm()` — a modal listing every place
+  and every pack plus a `throwAll`/`throwPartial` pair. Both are gone: the row, the banner,
+  the swipe and the action page all open the unified **«Registra cibo gettato»** sheet
+  (quantity + the four reasons), a medicine keeps its short confirm, and the action page
+  asks only *which place* when the product sits in more than one.
+- **The left swipe is gone.** The row already carries `✓ Usa` and `⋮`, so there was nothing
+  to add one tap away. The remaining right swipe needs ≥ 52 px and a clearly horizontal run,
+  and opens the same product sheet a tap opens.
+
+## [1.29.9] - 2026-11-03
+
+### Fixed
+- **Where the opened pack went is now always asked.** After "ho usato 200 ml di latte" the
+  product sheet said nothing about the remaining pack: the legacy USE page asked, but it
+  **skipped the question entirely** once a habit existed, so a move to the fridge happened
+  without a word — and from the sheet it never happened at all. The question is now asked
+  every time, from the sheet too (which stays on the pantry instead of jumping to the
+  dashboard), with the presumed answer already selected: the product's own history, then its
+  **genre**, so a yoghurt inherits the fridge the milk taught.
+- **The countdown says what it is doing.** The control carrying the presumption drains
+  right→left with the remaining seconds printed on it: **10 s** when the app has a precedent,
+  **20 s** when it has none (the pack then stays where it was, and the app says so). Any
+  touch stops the clock, so the tap is always the household's, and ✕ applies nothing.
+
+## [1.29.8] - 2026-11-03
+
+### Fixed
+- **A pack of milk could only be consumed by the pack.** With 12 confezioni da 1 l in the
+  fridge, the product sheet (“Usa”) spoke only in `conf`: the field was in packs, the
+  scale strip was hidden for that unit, and typing 250 was clamped to the 12 packs on the
+  shelf — one keystroke away from “ho finito tutto”. The sheet now carries the pack's own
+  measure: a `Confezioni | ml` selector (only for a `conf` row whose pack is sold in g/ml),
+  the field in millilitres, the shortcuts as amounts of the pack (250 ml · 500 ml ·
+  1000 ml · Tutto) and the scale reading converted into the fraction of the pack. A
+  number typed in the wrong unit is understood instead of clamped: `250` in the
+  “Confezioni” field of a 1 l pack becomes 250 ml and the selector moves with it. An
+  already-opened pack opens on a 250 ml dose, exactly as the pantry row already shows it.
+- **The scale reads a pack, and speaks the product's density.** A reading of 250 g of milk
+  is stored as 242,7 ml (1,03), never 250, and `kg`/`l` rows accept the plate too (250 g →
+  0,25 l) — they used to answer “metti sulla bilancia” while it was already on it.
+- **“Ho usato 250 ml di latte” now records 250 ml.** The voice path fell back to one whole
+  pack when the amount and the row were in different units; the pack behind the row is
+  the conversion, so the card says “Registro 250 ml di Latte”.
+
 ## [1.29.7] - 2026-11-01
 
 ### Changed

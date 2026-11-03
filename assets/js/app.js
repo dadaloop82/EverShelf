@@ -1890,7 +1890,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261101a'; // bump when translations change
+const _I18N_VERSION = '20261103c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -10972,10 +10972,18 @@ function _captureQtyFor(parsed, item) {
     const mass = ['g', 'ml', 'kg', 'l'];
     const inMass = mass.includes(said);
     const targetMass = mass.includes(unit);
-    if (inMass !== targetMass) return 0;
-    if (said === unit) return qty;
     const toBase = { g: 1, kg: 1000, ml: 1, l: 1000 };
     const fromBase = { g: 1, kg: 0.001, ml: 1, l: 0.001 };
+    // "250 ml di latte" against 12 confezioni da 1 l: the pack knows the conversion, so
+    // the row stores the fraction of the pack instead of falling back to one whole pack.
+    if (inMass && !targetMass) {
+        const pack = _packMeasure(item);
+        if (!pack || !(pack.base > 0)) return 0;
+        const base = qty * (toBase[said] || 1);
+        return Math.round((base / pack.base) * 10000) / 10000;
+    }
+    if (inMass !== targetMass) return 0;
+    if (said === unit) return qty;
     return Math.round(qty * (toBase[said] || 1) * (fromBase[unit] || 1) * 100) / 100;
 }
 
@@ -12386,7 +12394,13 @@ function renderBannerItem() {
         // lives). Finito/Buttato are product actions, Ignora duplicated the ✕, and Spiega
         // repeated what the sentence above already says: six buttons for one number was a
         // control panel, not a notice.
-        let btns = `<button class="btn-banner btn-banner-use" onclick="alignBannerAnomaly()">✓ ${escapeHtml(t('dashboard.banner_anomaly_align', { qty: an.expected_qty, unit: an.unit }))}</button>`;
+        // Two answers, and the primary one gives the shelf the last word: the stored
+        // quantity is what the household can see, the ledger figure is a guess built from
+        // the registrations. "Confermo 2000 g" therefore confirms the PHYSICAL stock (and
+        // only acknowledges the notice) — it used to write the algorithmic estimate over
+        // it, so two kilos of rice became 88 g with one tap. "Modifica quantità" opens the
+        // product sheet for the household that really has to correct the number.
+        let btns = `<button class="btn-banner btn-banner-use" onclick="confirmBannerAnomaly()">✓ ${escapeHtml(t('dashboard.banner_anomaly_confirm', { qty: an.inv_qty, unit: an.unit }))}</button>`;
         btns += `<button class="btn-banner btn-banner-edit-qty" onclick="editBannerAnomalyQuantity()">${escapeHtml(t('dashboard.banner_anomaly_edit_qty'))}</button>`;
         actionsEl.innerHTML = btns;
 
@@ -12554,30 +12568,23 @@ function editBannerAnomalyQuantity() {
     editReviewItem(invId, an.product_id);
 }
 
-/** Current inventory qty is correct — align ledger permanently (not just hide). */
 /**
- * "Aggiorna a N": set the stored quantity to what the ledger says it should be. The old
- * primary button said "Giusta", which told nobody what it would do.
+ * "Confermo N": the stock on the shelf is right, so the notice is acknowledged and
+ * nothing is written. The ledger estimate is never copied over the real quantity —
+ * it is built from the registrations, and the household is the one looking at the shelf.
+ *
+ * The dismissal is the same dated key the ✕ uses (`a_<product>_<direction>`), so the
+ * banner does not come back for this product until the direction actually flips.
  */
-async function alignBannerAnomaly() {
+function confirmBannerAnomaly() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry || entry.type !== 'anomaly') return;
     const an = entry.data;
-    const expected = Number(an.expected_qty);
-    if (!an.inventory_id || !(expected >= 0)) return;
-    try {
-        const res = await api('inventory_update', {}, 'POST', { id: an.inventory_id, quantity: expected });
-        if (res && res.success) {
-            _bannerMarkAnomalyDismissed(an);
-            dismissBannerItem();
-            showToast(t('dashboard.banner_anomaly_aligned', { qty: expected, unit: an.unit }), 'success');
-            try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
-        } else {
-            showToast((res && res.error) || t('error.generic'), 'error');
-        }
-    } catch (e) {
-        showToast(t('error.connection'), 'error');
-    }
+    // `dismissBannerItem()` already persists the dated dismissal of an anomaly (the ✕
+    // path does the same), so the notice does not come back for this product until the
+    // direction actually flips.
+    dismissBannerItem();
+    showToast(t('dashboard.banner_anomaly_confirmed', { qty: an.inv_qty, unit: an.unit }), 'success');
 }
 
 function dismissDuplicateLossCheck() {
@@ -12639,19 +12646,10 @@ function bannerQuickUse() {
 function bannerThrowAway() {
     const entry = _bannerQueue[_bannerIndex];
     if (!entry) return;
-    const item = entry.data;
-    // Populate currentProduct so the shared showThrowForm / throwAll / throwPartial work
-    currentProduct = {
-        id: item.product_id,
-        name: item.name,
-        brand: item.brand || '',
-        image_url: item.image_url || null,
-        category: item.category || '',
-        unit: item.unit || 'pz',
-        default_quantity: item.default_quantity || 0,
-        package_unit: item.package_unit || ''
-    };
-    showThrowForm();
+    // One door only: the row itself opens the unified waste sheet (medicine → its confirm).
+    // The legacy `showThrowForm()` listed places and packs and then asked the reason in a
+    // second dialog; every "Butta" in the app now lands on that same sheet.
+    openWasteSheet(entry.data);
 }
 
 async function bannerMarkVacuum() {
@@ -13545,6 +13543,29 @@ function _qtyApproxMark(unit, approx) {
 }
 
 /**
+ * The pack behind a `conf` row, measured the way a scale reads it.
+ *
+ * 12 confezioni di latte are 12 × 1000 ml: the household pours 250 ml, so the quantity
+ * field needs the pack's own size and not only a count of packs. A package counted in
+ * pieces (`package_unit` = pz) or a row with no pack size has no weighable measure —
+ * null, and the UI keeps speaking in packs alone.
+ *
+ * @param {object} item inventory row (unit, default_quantity, package_unit)
+ * @returns {{base:number, unit:'g'|'ml'}|null} pack size in g/ml and the unit it speaks
+ */
+function _packMeasure(item) {
+    if (!item || String(item.unit || '') !== 'conf') return null;
+    const size = parseFloat(item.default_quantity) || 0;
+    const pkg = String(item.package_unit || '').toLowerCase();
+    if (!(size > 0)) return null;
+    if (pkg === 'g') return { base: size, unit: 'g' };
+    if (pkg === 'ml') return { base: size, unit: 'ml' };
+    if (pkg === 'kg') return { base: size * 1000, unit: 'g' };
+    if (pkg === 'l') return { base: size * 1000, unit: 'ml' };
+    return null;
+}
+
+/**
  * Format a quantity. Pass `{ approx: true }` (or a medical inventory/product row via
  * `formatQuantityForItem`) so g/ml/kg/l amounts read as "~50 g".
  */
@@ -13936,7 +13957,6 @@ function renderInventoryItem(item, opts = {}) {
 
     return `
     <div class="inventory-item${medRow ? ' is-medical-row' : ''}${isFav ? ' inv-item-fav' : ''}${openedClass ? ' ' + openedClass : ''}" data-inv-id="${item.id}" data-product-id="${item.product_id}" data-location="${escapeHtml(item.location)}">
-        <div class="inv-swipe-bg inv-swipe-bg-left">${escapeHtml(t('inventory.swipe_action'))}</div>
         <div class="inv-swipe-bg inv-swipe-bg-right">${escapeHtml(t('inventory.swipe_edit'))}</div>
         <div class="inv-row-content inv-card">
             <div class="inv-card-top">
@@ -14090,12 +14110,34 @@ function _findInventoryItem(id) {
         || _allInventoryCache.find(i => i.id == id);
 }
 
+/**
+ * Touch grammar of a pantry row (shared by phones and wall tablets).
+ *
+ * A tap opens the product sheet, a scroll never does. The old rule accepted a tap after
+ * up to 28 px of travel, so a finger that had already started the list moving still
+ * opened the sheet: on a tablet the row you were scrolling with became a dialog you did
+ * not ask for. The threshold is now the standard 10 px on the vertical axis, the list is
+ * asked whether it actually scrolled, a pointercancel (the browser taking the touch for
+ * the scroller) is never a tap, and a swipe must be clearly horizontal before it fires.
+ */
+const INV_TAP_SLOP_Y = 10;      // vertical travel that turns a tap into a scroll
+const INV_TAP_SLOP_X = 24;      // horizontal room so a thumb landing askew still taps
+const INV_TAP_FORGIVE_Y = 18;   // fat-finger tap that never scrolled the list…
+const INV_TAP_MAX_MS = 300;     // …and lasted no longer than this
+const INV_SWIPE_MIN_X = 52;     // a swipe must be clearly horizontal before it fires
+const INV_SWIPE_RATIO = 1.8;    // …and run ~2× further sideways than down (a box-diagonal
+                                // thumb on a wall tablet is a scroll attempt, not an action)
+
 function _initInventoryRowSwipe(container) {
     if (!container) return;
     if (container._invSwipeTeardown) {
         container._invSwipeTeardown();
         container._invSwipeTeardown = null;
     }
+
+    // The element that actually scrolls the pantry (.inv-scroll); its scrollTop is the
+    // honest answer to "did this gesture move the list?".
+    const scroller = container.closest('.inv-scroll') || container;
 
     let swipeCtx = null;
 
@@ -14137,6 +14179,8 @@ function _initInventoryRowSwipe(container) {
             maxDy: 0,
             pointerId: e.pointerId ?? null,
             isTouch,
+            startedAt: Date.now(),
+            scrollTop0: scroller.scrollTop || 0,
             swipeLocked: false,
             captured: false,
             // Vertical scroll intent: stop the swipe visual, but KEEP context so a
@@ -14158,13 +14202,16 @@ function _initInventoryRowSwipe(container) {
         swipeCtx.maxDy = Math.max(swipeCtx.maxDy, dy);
 
         // Vertical intent → release the row so the list scrolls; keep ctx for tap-on-end.
-        if (!swipeCtx.swipeLocked && swipeCtx.maxDy > 14 && swipeCtx.maxDy >= swipeCtx.maxDx) {
+        if (!swipeCtx.swipeLocked && swipeCtx.maxDy > INV_TAP_SLOP_Y && swipeCtx.maxDy >= swipeCtx.maxDx) {
             resetRowVisual(swipeCtx.row, swipeCtx.content);
             swipeCtx.scrollIntent = true;
             return;
         }
 
-        if (!swipeCtx.swipeLocked && swipeCtx.maxDx > 12 && swipeCtx.maxDx > swipeCtx.maxDy + 6) {
+        // Horizontal intent → swipe. A diagonal drag on a wall tablet is a scroll attempt,
+        // so the horizontal run has to be clearly larger than the vertical one.
+        if (!swipeCtx.swipeLocked && swipeCtx.maxDx > INV_TAP_SLOP_X
+            && swipeCtx.maxDx >= swipeCtx.maxDy * INV_SWIPE_RATIO + 12) {
             swipeCtx.swipeLocked = true;
             if (e.pointerId !== undefined && swipeCtx.row.setPointerCapture) {
                 try {
@@ -14178,19 +14225,20 @@ function _initInventoryRowSwipe(container) {
             e.preventDefault();
             const clamped = dx > 0 ? Math.min(100, dx) : Math.max(-100, dx);
             swipeCtx.content.style.transform = `translateX(${clamped}px)`;
-            swipeCtx.row.classList.toggle('swipe-right', dx > 40);
-            swipeCtx.row.classList.toggle('swipe-left', dx < -40);
+            // Only the right swipe has an action (the product sheet): the left one used to
+            // open a «Usa · Butta» chooser that duplicated the sheet's own buttons.
+            swipeCtx.row.classList.toggle('swipe-right', dx > INV_SWIPE_MIN_X);
         }
     };
 
-    const onEnd = (e) => {
+    const onEnd = (ev) => {
         const ctx = swipeCtx;
         swipeCtx = null;
         if (!ctx) return;
-        if (ctx.pointerId !== null && e.pointerId !== undefined && e.pointerId !== ctx.pointerId) return;
+        if (ctx.pointerId !== null && ev.pointerId !== undefined && ev.pointerId !== ctx.pointerId) return;
 
         const { row, content } = ctx;
-        const pt = pointFromEvent(e, true);
+        const pt = pointFromEvent(ev, true);
         const dx = pt.x - ctx.startX;
         resetRowVisual(row, content);
         if (ctx.captured && ctx.pointerId !== undefined && row.releasePointerCapture) {
@@ -14206,23 +14254,42 @@ function _initInventoryRowSwipe(container) {
             setTimeout(() => { row.dataset.invSwipeDone = ''; }, 450);
         };
 
-        // Swipe left → Use / Discard chooser; swipe right → Edit (not while scrolling)
-        if (!ctx.scrollIntent && dx <= -60 && !isNaN(invId) && !isNaN(productId)) {
-            markSwipeDone();
-            showInvActionChooser(productId, location, invId);
-            return;
-        }
-        if (!ctx.scrollIntent && dx >= 60 && !isNaN(invId)) {
+        const scrolled = Math.abs((scroller.scrollTop || 0) - ctx.scrollTop0) > 1;
+        const elapsed = Date.now() - ctx.startedAt;
+
+        // Swipe right → the product sheet. The action is the SAME one a tap opens, so the
+        // gesture can never reach a surface the tap does not have.
+        if (!ctx.scrollIntent && !scrolled && dx >= INV_SWIPE_MIN_X
+            && dx >= ctx.maxDy * INV_SWIPE_RATIO + 12 && !isNaN(invId)) {
             markSwipeDone();
             editInventoryItem(invId);
             return;
         }
-        // Short tap → product sheet (mouse AND touch). Slop is generous for Android
-        // tablets: the old maxDy>10 abandon wiped the context, so taps with 11–17 px
-        // of jitter (common with fat fingers / g-ml mid-list rows) did nothing.
-        if (ctx.maxDx < 28 && ctx.maxDy < 28 && !isNaN(productId)) {
+
+        // A tap opens the sheet only when the gesture stayed a tap: the list must not have
+        // scrolled and the finger must not have run down the row. 10 px is the rule; the
+        // forgiveness covers a QUICK coarse-digitizer tap (≤ 18 px in ≤ 300 ms) that
+        // scrolled nothing — a real scroll moves the list, which disqualifies it anyway.
+        const stayedStill = !scrolled
+            && ctx.maxDx <= INV_TAP_SLOP_X
+            && (ctx.maxDy <= INV_TAP_SLOP_Y || (elapsed <= INV_TAP_MAX_MS && ctx.maxDy <= INV_TAP_FORGIVE_Y));
+        if (stayedStill && !isNaN(productId)) {
             markSwipeDone();
             quickUse(productId, location);
+        }
+    };
+
+    /**
+     * The browser cancelled the pointer: it has taken the touch for the scroller, so this
+     * gesture is a scroll even when the list has not visibly moved yet. Never a tap.
+     */
+    const onCancel = () => {
+        const ctx = swipeCtx;
+        swipeCtx = null;
+        if (!ctx) return;
+        resetRowVisual(ctx.row, ctx.content);
+        if (ctx.captured && ctx.pointerId !== undefined && ctx.row.releasePointerCapture) {
+            try { ctx.row.releasePointerCapture(ctx.pointerId); } catch (_) {}
         }
     };
 
@@ -14230,7 +14297,7 @@ function _initInventoryRowSwipe(container) {
         ['pointerdown', onStart, { passive: true }],
         ['pointermove', onMove, { passive: false }],
         ['pointerup', onEnd, { passive: true }],
-        ['pointercancel', onEnd, { passive: true }],
+        ['pointercancel', onCancel, { passive: true }],
     ];
     bindings.forEach(([ev, fn, opts]) => container.addEventListener(ev, fn, opts));
     container._invSwipeTeardown = () => {
@@ -14252,12 +14319,6 @@ function _playInventorySwipeDemo(container) {
 
     (async () => {
         await sleep(350);
-        row.classList.add('swipe-left');
-        content.style.transform = 'translateX(-76px)';
-        await sleep(620);
-        content.style.transform = '';
-        row.classList.remove('swipe-left');
-        await sleep(280);
         row.classList.add('swipe-right');
         content.style.transform = 'translateX(76px)';
         await sleep(620);
@@ -14937,6 +14998,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     <strong class="item-detail-stock-qty">${qtyDisplay}</strong>
                 </div>
                 <p class="item-detail-section-label">${escapeHtml(consumeLabel)}</p>
+                ${_itemDetailPackSwitchHtml()}
                 ${scaleCapable ? _itemDetailScalePillHtml() : ''}
                 <div class="item-detail-stepper item-detail-stepper--input">
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(-1)" aria-label="${escapeAttr(t('inventory.detail_less'))}">−</button>
@@ -14948,7 +15010,7 @@ function showItemDetail(inventoryId, productId, presetQty) {
                     </div>
                     <button type="button" class="item-detail-step" onclick="_itemDetailStep(1)" aria-label="${escapeAttr(t('inventory.detail_more_qty'))}">+</button>
                 </div>
-                ${_itemDetailFractionsHtml(item)}
+                <div id="item-detail-frac-slot">${_itemDetailFractionsHtml(item)}</div>
                 <button type="button" class="item-detail-primary" id="item-detail-primary-btn" onclick="_itemDetailConsume()">
                     <span class="item-detail-action-icon" aria-hidden="true">✓</span>
                     <span id="item-detail-primary-label"></span>
@@ -15109,7 +15171,7 @@ async function _finishStockWithUndo({ productId, location, name, useAll = true, 
  * type 2.5, read the scale (food g/ml), and tell "Usa" from "Usa tutto" at a glance — same
  * height, different colour — like the recipe-use modal, styled for the rest of the app.
  */
-let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', productId: 0, inventoryId: 0, location: '', name: '', isMedical: false };
+let _itemDetailQty = { value: 1, max: 1, step: 1, unit: 'pz', entry: 'conf', pack: null, productId: 0, inventoryId: 0, location: '', name: '', isMedical: false };
 let _itemDetailScalePaused = false;
 
 function _itemDetailQtyInit(item, presetQty) {
@@ -15119,6 +15181,12 @@ function _itemDetailQtyInit(item, presetQty) {
     const step = isWeight
         ? (qty >= 100 ? 10 : (qty >= 20 ? 5 : 1))
         : (unit === 'pz' || unit === 'conf' ? 0.25 : 1);
+    // 12 confezioni da 1 l: the pack has its own measure, so the field can speak ml too.
+    const pack = _packMeasure(item);
+    // An already-opened pack is read in millilitres — exactly like the pantry row that
+    // shows it ("750 ml") — so 250 ml is one typed number, not 0,25 di confezione.
+    const opened = !!item.opened_at || (!!pack && Math.abs(qty - Math.round(qty)) > 0.001);
+    const entry = (pack && opened) ? 'pkg' : 'conf';
     // Dictated qty (voice) wins. Otherwise open on a typical dose — never already at
     // "Ho finito tutto", which made a distracted tap wipe the whole pack.
     const preset = Number(presetQty);
@@ -15128,6 +15196,15 @@ function _itemDetailQtyInit(item, presetQty) {
     } else if (isWeight) {
         const typical = qty >= 100 ? 25 : (qty >= 40 ? 25 : (qty >= 20 ? 10 : Math.min(step, qty)));
         value = Math.min(qty, typical);
+    } else if (entry === 'pkg') {
+        // A quarter of the pack, snapped to the stepper: a pour, never "everything".
+        const pStep = getSubUnitStep(pack.unit);
+        const dose = Math.max(pStep, Math.round((pack.base * 0.25) / pStep) * pStep);
+        value = dose / pack.base;
+        // A remainder smaller than the pour opens on half of it, so the sheet never starts
+        // on "Ho finito tutto" (the finish link is one tap away when it is the whole pack).
+        if (value >= qty - 1e-6) value = Math.max(pStep / pack.base, qty / 2);
+        value = Math.min(qty, value);
     } else if (unit === 'pz' || unit === 'conf') {
         value = Math.min(qty, 1);
     } else {
@@ -15140,18 +15217,109 @@ function _itemDetailQtyInit(item, presetQty) {
         max: qty,
         step,
         unit,
+        entry,
+        pack,
         productId: item.product_id,
         inventoryId: item.id,
         location: item.location || 'dispensa',
         name: item.name || '',
+        category: item.category || '',
         isMedical: _isMedicalRow(item),
-        packSize: parseFloat(item.default_quantity) || 0,
-        packageUnit: String(item.package_unit || ''),
     };
+}
+
+/** Is the field speaking the pack's own measure (ml/g) instead of counting packs? */
+function _itemDetailPackEntry() {
+    const q = _itemDetailQty;
+    return !!(q && q.entry === 'pkg' && q.pack && q.pack.base > 0);
+}
+
+/** Stepper step in the unit the field is speaking (packs, or the pack's g/ml). */
+function _itemDetailEntryStep() {
+    return _itemDetailPackEntry() ? getSubUnitStep(_itemDetailQty.pack.unit) : _itemDetailQty.step;
+}
+
+/** Highest amount the field accepts, in its own unit. */
+function _itemDetailEntryMax() {
+    const q = _itemDetailQty;
+    return _itemDetailPackEntry() ? q.max * q.pack.base : q.max;
+}
+
+/** Conf value (what the API stores) → what the field shows. */
+function _itemDetailEntryValue(value) {
+    const q = _itemDetailQty;
+    const conf = Number.isFinite(value) ? value : (q.value || 0);
+    return _itemDetailPackEntry() ? conf * q.pack.base : conf;
+}
+
+/** What was typed in the field's unit → the conf quantity the API stores. */
+function _itemDetailConfValue(amount) {
+    const q = _itemDetailQty;
+    const a = Number(amount);
+    if (!(a > 0)) return 0;
+    if (!_itemDetailPackEntry()) return Math.round(a * 100) / 100;
+    // 4 decimals, so one millilitre of a 1000 ml pack survives the round trip.
+    return Math.round((a / q.pack.base) * 10000) / 10000;
+}
+
+/**
+ * Segmented control of a conf row: packs or the pack's own measure ("Confezioni | ml").
+ * Returns '' when the row describes no weighable pack, so nothing changes for a plain
+ * pz / g / ml row.
+ */
+function _itemDetailPackSwitchHtml() {
+    const q = _itemDetailQty;
+    if (!q.pack || !(q.pack.base > 0)) return '';
+    const confOn = q.entry !== 'pkg';
+    const pkgOn = q.entry === 'pkg';
+    return `<div class="item-detail-unit-switch" role="group" aria-label="${escapeAttr(t('inventory.detail_measure_switch'))}">
+        <button type="button" class="item-detail-unit-btn${confOn ? ' is-on' : ''}" data-entry="conf" aria-pressed="${confOn}" onclick="_itemDetailSetEntryUnit('conf')">${escapeHtml(t('units.boxes'))}</button>
+        <button type="button" class="item-detail-unit-btn${pkgOn ? ' is-on' : ''}" data-entry="pkg" aria-pressed="${pkgOn}" onclick="_itemDetailSetEntryUnit('pkg')">${escapeHtml(q.pack.unit)}</button>
+    </div>`;
+}
+
+/**
+ * Switch the field between packs and the pack's own measure (ml/g).
+ *
+ * "Ho usato 250 ml di latte" is one number, not 0,25: the conf field used to speak only
+ * in packs, and typing 250 was clamped to "tutte le 12". `keepTyped` carries a number the
+ * household typed in the other unit (see `_itemDetailOnQtyInput`), so the intent is
+ * honoured instead of rejected.
+ */
+function _itemDetailSetEntryUnit(mode, opts = {}) {
+    const q = _itemDetailQty;
+    if (!q.pack || !(q.pack.base > 0)) return;
+    const next = mode === 'pkg' ? 'pkg' : 'conf';
+    const typed = Number(opts.keepTyped);
+    if (q.entry === next && !(typed > 0)) return;
+    q.entry = next;
+    if (typed > 0) _itemDetailApplyEntryAmount(typed);
+    const input = document.getElementById('item-detail-qty-input');
+    if (input) input.value = _itemDetailQtyNumber();
+    const slot = document.getElementById('item-detail-frac-slot');
+    if (slot) slot.innerHTML = _itemDetailFractionsHtml();
+    _itemDetailSyncQtyUi();
+}
+
+/** A number typed in a conf field that only makes sense in the pack's measure. */
+function _itemDetailSwitchesToPackEntry(raw) {
+    const q = _itemDetailQty;
+    if (!q.pack || !(q.pack.base > 0) || q.entry === 'pkg') return false;
+    return raw > 0 && raw <= q.max * q.pack.base + 1e-6;
+}
+
+/** Write an amount expressed in the field's unit into the conf value the API receives. */
+function _itemDetailApplyEntryAmount(amount) {
+    const q = _itemDetailQty;
+    const capped = Math.min(_itemDetailEntryMax(), Math.max(0, Number(amount) || 0));
+    q.value = _itemDetailConfValue(capped);
+    return q.value;
 }
 
 function _itemDetailUnitLabel() {
     const q = _itemDetailQty;
+    // The pack's own measure: "ml" reads exactly like the pantry row ("750 ml").
+    if (_itemDetailPackEntry()) return q.pack.unit;
     if (q.unit === 'conf') return t('units.conf');
     if (q.unit === 'pz') return t('units.pz');
     // Medicine creams/syrups are approximate — never a scale reading.
@@ -15174,14 +15342,14 @@ function _itemDetailParseQty(raw) {
 
 function _itemDetailQtyNumber() {
     // Plain number for the input; the "~" lives on the unit badge / combined label.
-    return _itemDetailFmtQty(_itemDetailQty.value || 0);
+    // In pack mode the field shows millilitres (250), never the conf fraction (0,25).
+    return _itemDetailFmtQty(_itemDetailEntryValue());
 }
 
 function _itemDetailQtyLabel() {
     const q = _itemDetailQty;
-    const mark = _qtyApproxMark(q.unit, !!q.isMedical);
-    const unit = q.unit === 'conf' ? t('units.conf') : (q.unit === 'pz' ? t('units.pz') : q.unit);
-    return `${mark}${_itemDetailFmtQty(q.value || 0)} ${unit}`;
+    const mark = _itemDetailPackEntry() ? '' : _qtyApproxMark(q.unit, !!q.isMedical);
+    return `${mark}${_itemDetailQtyNumber()} ${_itemDetailUnitLabel()}`;
 }
 
 /** Scale strip: always "101,5 g" (space + locale decimal), never "101.5g". */
@@ -15220,13 +15388,19 @@ function _itemDetailMedSummaryHtml(item) {
     return `<div class="item-detail-med-summary">${rows.join('')}</div>`;
 }
 
-/** Row can be weighed if settings allow a scale — visibility still needs a live stream. */
+/**
+ * Row can be weighed if settings allow a scale — visibility still needs a live stream.
+ *
+ * A pack counted in confezioni is weighed just as much: 12 × 1000 ml of milk are poured
+ * 250 ml at a time, so a `conf` row whose pack is measured in g/ml belongs on the plate
+ * too. A pack counted in pieces does not.
+ */
 function _itemDetailScaleCapable(item) {
-    // Only mass/volume units: never show the chip for pz/conf (not weighed on the plate).
     if (!item || _isMedicalRow(item)) return false;
     const s = getSettings();
     if (!(s.scale_enabled && s.scale_gateway_url)) return false;
     const unit = String(item.unit || '').toLowerCase();
+    if (unit === 'conf') return !!_packMeasure(item);
     return unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l';
 }
 
@@ -15305,21 +15479,53 @@ function _itemDetailApplyScaleReading() {
     }
 }
 
+/** The mass/volume unit the sheet counts in: the pack's own, or the row's (g/ml). */
+function _itemDetailMassUnit() {
+    const q = _itemDetailQty;
+    if (q.pack) return q.pack.unit;
+    const u = String(q.unit || '').toLowerCase();
+    return (u === 'ml' || u === 'l') ? 'ml' : 'g';
+}
+
+/**
+ * The plate's reading in g/ml, tare removed.
+ *
+ * A pack sold in millilitres is weighed in grams and the app already knows the product's
+ * density (`_scaleDensityForProduct` — the same rule the legacy USE page applies), so milk
+ * is never recorded 3 % heavy. A scale that already speaks ml is taken as it comes.
+ *
+ * @param {object} msg scale weight message
+ * @returns {number|null} amount in the sheet's mass unit
+ */
+function _itemDetailScaleAmount(msg) {
+    let grams = _scaleMsgToGrams(msg);
+    if (grams === null) return null;
+    grams = Math.max(0, grams - (_scaleTareOffsetG || 0));
+    if (grams < 0.5) return null;
+    const src = String((msg && msg.unit) || 'g').toLowerCase();
+    const fromVolume = src === 'ml' || src === 'l';
+    const target = _itemDetailMassUnit();
+    const density = _scaleDensityForProduct({ name: _itemDetailQty.name });
+    if (target === 'ml' && !fromVolume) return grams / density;
+    if (target === 'g' && fromVolume) return grams * density;
+    return grams;
+}
+
 function _updateItemDetailScaleCompare(msg) {
     const box = document.getElementById('idetail-scale-live-box');
     if (!box) return;
     const valEl = document.getElementById('idetail-scale-val');
-    let grams = _scaleMsgToGrams(msg);
-    if (grams === null) {
+    const q = _itemDetailQty;
+    const amount = _itemDetailScaleAmount(msg);
+    if (amount === null) {
         if (valEl) valEl.textContent = '—';
         box.classList.remove('is-settling', 'is-stable');
         return;
     }
-    grams = Math.max(0, grams - (_scaleTareOffsetG || 0));
-    const q = _itemDetailQty;
-    const baseUnit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
+    const shown = (q.unit === 'kg' || q.unit === 'l') ? amount / 1000 : amount;
+    const shownUnit = (q.unit === 'kg' || q.unit === 'l') ? q.unit : _itemDetailMassUnit();
     if (valEl) {
-        valEl.textContent = _itemDetailScaleWeightText(Math.round(grams * 10) / 10, baseUnit);
+        valEl.textContent = _itemDetailScaleWeightText(Math.round(shown * 10) / 10, shownUnit);
         valEl.hidden = false;
     }
     // Settling = soft pulse on the pill; stable = mint glow.
@@ -15333,30 +15539,41 @@ function _updateItemDetailScaleCompare(msg) {
     }
 }
 
-/** Write a scale message into the product-sheet quantity (g/ml, or conf fraction of pack). */
+/**
+ * Write a scale message into the product-sheet quantity.
+ *
+ * g/ml rows take the amount, kg/l rows divide by a thousand, and a `conf` row whose pack
+ * is measured in g/ml stores the fraction of the pack (250 ml of a 1 l bottle = 0,25) —
+ * the field itself keeps speaking whatever the household chose (see
+ * `_itemDetailPackEntry`).
+ */
 function _scaleApplyToItemDetail(msg, opts = {}) {
     if (!opts.force && _itemDetailScalePaused) return false;
     const input = document.getElementById('item-detail-qty-input');
     if (!input) return false;
-    let grams = _scaleMsgToGrams(msg);
-    if (grams === null) return false;
-    grams = Math.max(0, grams - (_scaleTareOffsetG || 0));
-    if (grams < 0.5) return false;
     const q = _itemDetailQty;
-    const unit = (q.unit === 'ml' || q.packageUnit === 'ml') ? 'ml' : 'g';
-    let value = grams;
-    if (q.unit === 'conf' && q.packSize > 0) {
-        value = Math.round((grams / q.packSize) * 100) / 100;
-    } else if (q.unit !== 'g' && q.unit !== 'ml') {
+    const amount = _itemDetailScaleAmount(msg);
+    if (amount === null) return false;
+    const massUnit = _itemDetailMassUnit();
+    if (q.unit === 'conf') {
+        if (!q.pack || !(q.pack.base > 0)) return false;
+        // 4 decimals: one millilitre of a 1000 ml pack must survive the round trip.
+        q.value = Math.min(q.max, Math.max(0.001, Math.round((amount / q.pack.base) * 10000) / 10000));
+    } else if (q.unit === 'g' || q.unit === 'ml') {
+        q.value = Math.min(q.max, Math.max(0.01, Math.round(amount * 100) / 100));
+    } else if (q.unit === 'kg' || q.unit === 'l') {
+        q.value = Math.min(q.max, Math.max(0.001, Math.round((amount / 1000) * 1000) / 1000));
+    } else {
         return false;
     }
-    q.value = Math.min(q.max, Math.max(0.01, Math.round(value * 100) / 100));
     // Force the field even if it still has focus (tap must always land).
     input.value = _itemDetailQtyNumber();
     _itemDetailSyncQtyUi();
     const valEl = document.getElementById('idetail-scale-val');
     if (valEl) {
-        valEl.textContent = _itemDetailScaleWeightText(Math.round(grams * 10) / 10, unit);
+        const shown = (q.unit === 'kg' || q.unit === 'l') ? amount / 1000 : amount;
+        const shownUnit = (q.unit === 'kg' || q.unit === 'l') ? q.unit : massUnit;
+        valEl.textContent = _itemDetailScaleWeightText(Math.round(shown * 10) / 10, shownUnit);
         valEl.hidden = false;
     }
     const box = document.getElementById('idetail-scale-live-box');
@@ -15390,7 +15607,7 @@ function _itemDetailAtMax() {
 /** Primary CTA copy: follows the stepper, absorbs "finish all" when at max stock. */
 function _itemDetailPrimaryLabelText() {
     const q = _itemDetailQty;
-    const qty = _itemDetailFmtQty(q.value);
+    const qty = _itemDetailQtyNumber();
     const unit = _itemDetailUnitLabel();
     if (q.isMedical) return t('medical.use_confirm');
     if (_itemDetailAtMax()) {
@@ -15405,14 +15622,15 @@ function _itemDetailFinishLabelText() {
     const q = _itemDetailQty;
     if (q.isMedical) return t('medical.use_all');
     const n = _itemDetailFmtQty(q.max);
-    const unit = _itemDetailUnitLabel();
     if (q.unit === 'pz') {
         if (q.max <= 1 + 1e-6) return '';
-        return t('inventory.detail_finish_pieces', { n, unit });
+        return t('inventory.detail_finish_pieces', { n, unit: _itemDetailUnitLabel() });
     }
     if (q.unit === 'conf') {
         if (q.max <= 1 + 1e-6) return t('inventory.detail_finish_one_pack');
-        return t('inventory.detail_finish_packs', { n, unit });
+        // Always the packs, even while the field is counting millilitres: the stock is a
+        // number of packs, and "12 ml" here would be a lie about what the tap does.
+        return t('inventory.detail_finish_packs', { n, unit: t('units.conf') });
     }
     if (q.unit === 'g' || q.unit === 'ml' || q.unit === 'kg' || q.unit === 'l') {
         return t('inventory.detail_finish_weight');
@@ -15440,9 +15658,11 @@ function _itemDetailFractionOptions(item) {
     const q = _itemDetailQty;
     const opts = [];
     const seen = {};
+    // The chips live in the field's own unit: packs, the pack's ml, or pieces.
+    const maxEntry = _itemDetailEntryMax();
     const add = (value, label) => {
         const v = Math.round(Number(value) * 100) / 100;
-        if (!(v > 0) || v > q.max + 1e-6 || seen[v]) return;
+        if (!(v > 0) || v > maxEntry + 1e-6 || seen[v]) return;
         seen[v] = true;
         opts.push({ value: v, label: label });
     };
@@ -15452,7 +15672,19 @@ function _itemDetailFractionOptions(item) {
         add(1, '1');
         add(2, '2');
         add(3, '3');
-        if (q.max > 0) add(q.max, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(q.max) }));
+        if (maxEntry > 0) add(maxEntry, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(maxEntry) }));
+    } else if (q.unit === 'conf' && _itemDetailPackEntry()) {
+        // A pack has a size: the shortcuts are amounts of it (250 ml, 500 ml, 1 l…).
+        const u = q.pack.unit;
+        add(q.pack.base / 4, `${_itemDetailFmtQty(q.pack.base / 4)} ${u}`);
+        add(q.pack.base / 2, `${_itemDetailFmtQty(q.pack.base / 2)} ${u}`);
+        add(q.pack.base, `${_itemDetailFmtQty(q.pack.base)} ${u}`);
+        if (maxEntry > q.pack.base + 1e-6) {
+            add(maxEntry, t('inventory.detail_chip_all_stock', {
+                n: _itemDetailFmtQty(maxEntry),
+                unit: u,
+            }));
+        }
     } else if (q.unit === 'conf') {
         add(0.5, '½');
         if (q.max > 1) add(1, `1 ${t('units.conf')}`);
@@ -15477,7 +15709,7 @@ function _itemDetailFractionOptions(item) {
 function _itemDetailFractionsHtml(item) {
     const opts = _itemDetailFractionOptions(item);
     if (opts.length < 2) return '';
-    const current = Math.round(_itemDetailQty.value * 100) / 100;
+    const current = Math.round(_itemDetailEntryValue() * 100) / 100;
     return `<div class="item-detail-frac-row">` + opts.map(o => {
         const on = Math.abs(o.value - current) < 0.005;
         return `<button type="button" class="item-detail-frac${on ? ' is-on' : ''}" data-frac="${o.value}" onclick="_itemDetailSetQty(${o.value})">${escapeHtml(o.label)}</button>`;
@@ -15486,21 +15718,30 @@ function _itemDetailFractionsHtml(item) {
 
 /** Keep the typed field, unit badge, chips and speaking CTAs in sync with `_itemDetailQty`. */
 function _itemDetailSyncQtyUi() {
-    const q = _itemDetailQty;
     const input = document.getElementById('item-detail-qty-input');
     if (input && document.activeElement !== input) input.value = _itemDetailQtyNumber();
-    else if (input && document.activeElement === input) { /* leave caret while typing */ }
-    else if (input) input.value = _itemDetailQtyNumber();
     const unitEl = document.getElementById('item-detail-qty-unit');
     if (unitEl) unitEl.textContent = _itemDetailUnitLabel();
     // Legacy span (if any leftover markup) stays coherent.
     const span = document.getElementById('item-detail-qty-value');
     if (span) span.textContent = _itemDetailQtyLabel();
-    document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
-        const f = parseFloat(b.dataset.frac);
-        b.classList.toggle('is-on', Math.abs(f - q.value) < 0.005);
+    _itemDetailSyncChips();
+    // The pack / measure switch follows the field it describes.
+    document.querySelectorAll('#modal-content .item-detail-unit-btn').forEach(b => {
+        const on = b.dataset.entry === (_itemDetailPackEntry() ? 'pkg' : 'conf');
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     _itemDetailSyncActionLabels();
+}
+
+/** Highlight the shortcut that matches the current amount (chips live in the field's unit). */
+function _itemDetailSyncChips() {
+    const current = Math.round(_itemDetailEntryValue() * 100) / 100;
+    document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
+        const f = parseFloat(b.dataset.frac);
+        b.classList.toggle('is-on', Math.abs(f - current) < 0.005);
+    });
 }
 
 /** Household typed a number (2,5 / 2.5): pause scale auto-fill and clamp to stock. */
@@ -15509,11 +15750,16 @@ function _itemDetailOnQtyInput() {
     const input = document.getElementById('item-detail-qty-input');
     const raw = _itemDetailParseQty(input && input.value);
     if (!(raw > 0)) return;
-    _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
-    document.querySelectorAll('#modal-content .item-detail-frac').forEach(b => {
-        const f = parseFloat(b.dataset.frac);
-        b.classList.toggle('is-on', Math.abs(f - _itemDetailQty.value) < 0.005);
-    });
+    // Typing 250 in a "confezioni" field of a 12 × 1 l row means 250 ml, not 250 packs:
+    // the pack's own measure is the honest reading (the old clamp turned it into
+    // "ho finito tutte e 12"). The switch moves under the household's eyes, so the
+    // number and its unit never disagree.
+    if (raw > _itemDetailEntryMax() + 1e-6 && _itemDetailSwitchesToPackEntry(raw)) {
+        _itemDetailSetEntryUnit('pkg', { keepTyped: raw });
+        return;
+    }
+    _itemDetailApplyEntryAmount(raw);
+    _itemDetailSyncChips();
     _itemDetailSyncActionLabels();
 }
 
@@ -15522,16 +15768,21 @@ function _itemDetailReadInput() {
     const input = document.getElementById('item-detail-qty-input');
     if (!input) return;
     const raw = _itemDetailParseQty(input.value);
-    if (raw > 0) _itemDetailQty.value = Math.min(_itemDetailQty.max, Math.round(raw * 100) / 100);
+    if (!(raw > 0)) return;
+    if (raw > _itemDetailEntryMax() + 1e-6 && _itemDetailSwitchesToPackEntry(raw)) {
+        _itemDetailSetEntryUnit('pkg', { keepTyped: raw });
+        return;
+    }
+    _itemDetailApplyEntryAmount(raw);
 }
 
-/** One of the shortcuts: the number goes into the field, the chips follow. */
+/** One of the shortcuts: the number (in the field's unit) goes in, the chips follow. */
 function _itemDetailSetQty(value) {
     const q = _itemDetailQty;
     const v = Math.round(Number(value) * 100) / 100;
     if (!(v > 0)) return;
     _itemDetailScalePaused = true;
-    q.value = Math.min(q.max, v);
+    q.value = _itemDetailConfValue(Math.min(_itemDetailEntryMax(), v));
     const input = document.getElementById('item-detail-qty-input');
     if (input) input.value = _itemDetailQtyNumber();
     _itemDetailSyncQtyUi();
@@ -15541,9 +15792,11 @@ function _itemDetailStep(dir) {
     const q = _itemDetailQty;
     _itemDetailScalePaused = true;
     _itemDetailReadInput();
-    const fallback = q.step <= q.max ? q.step : q.max;
-    const next = Math.round((q.value + dir * q.step) * 100) / 100;
-    q.value = Math.min(q.max, Math.max(fallback || 0.01, next));
+    const step = _itemDetailEntryStep();
+    const max = _itemDetailEntryMax();
+    const fallback = step <= max ? step : max;
+    const next = Math.round((_itemDetailEntryValue() + dir * step) * 100) / 100;
+    q.value = _itemDetailConfValue(Math.min(max, Math.max(fallback || 0.01, next)));
     const input = document.getElementById('item-detail-qty-input');
     if (input) input.value = _itemDetailQtyNumber();
     _itemDetailSyncQtyUi();
@@ -15623,6 +15876,17 @@ async function _itemDetailConsume() {
     try {
         const res = await api('inventory_use', {}, 'POST', payload);
         if (res && res.success) {
+            const openedId = Number(res.opened_id) || 0;
+            // The opened pack lives somewhere: snapshot what the question needs before the
+            // sheet goes away and the caches are rebuilt.
+            const ctx = {
+                productId: q.productId,
+                name: q.name,
+                category: q.category || '',
+                isMedical: q.isMedical,
+                fromLoc: String(res.used_location || q.location || 'dispensa'),
+            };
+            const vacuum = res.opened_vacuum_sealed ?? 0;
             closeModal();
             const pname = _plainUiText(q.name);
             showToast(
@@ -15633,6 +15897,22 @@ async function _itemDetailConsume() {
             );
             _dashboardLiveRefresh(q.inventoryId);
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
+            // The remainder is a pack of its own (the fridge, not the pantry): ask where it
+            // went — presuming this product's habit, then its genre — instead of leaving the
+            // household with a consumed 200 ml and no answer about the rest.
+            if (openedId > 0) {
+                showMoveAfterUseModal(
+                    // The flag travels: a medicine may only be offered its own cabinet, and a
+                    // plain {id,name} object would read as food and offer the fridge.
+                    { id: ctx.productId, name: ctx.name, category: ctx.category, is_medical: ctx.isMedical ? 1 : 0 },
+                    ctx.fromLoc,
+                    Number(res.total_remaining) || 0,
+                    openedId,
+                    vacuum,
+                    q.unit,
+                    { stayPut: true }
+                );
+            }
         } else if (res && res.duplicate) {
             // Race double-submit only — never a raw key, never a blocking dialog.
             showToast(t('use.duplicate_recent'), 'info');
@@ -17027,6 +17307,9 @@ document.addEventListener('keydown', (ev) => {
  */
 let _modalOpenedAt = 0;
 const _MODAL_BACKDROP_GUARD_MS = 500;
+// The "dove lo metto?" prompt currently on screen (declared here so closeModal() — which can
+// run before the prompt section is evaluated — never hits the temporal dead zone).
+let _movePromptCtx = null;
 
 function _showModalOverlay() {
     _modalOpenedAt = Date.now();
@@ -17049,6 +17332,8 @@ function closeModal() {
 
     document.getElementById('modal-overlay').style.display = 'none';
     clearMoveModalTimer();
+    // A prompt that is gone must not be applied by a stale handler later on.
+    _movePromptCtx = null;
     _cancelScaleAutoConfirm(false);
     _scaleRecipeAutoFillPaused = false;
     _scaleUserDismissed = false;
@@ -17138,78 +17423,70 @@ async function quickUse(productId, location) {
 }
 
 /**
- * After swipe-left on an inventory row: choose Use vs Discard.
- * Mouse click on the row goes straight to Use; touch uses swipe only.
+ * THE "Butta" door. Food opens the single waste sheet (quantity + the four reasons);
+ * a medicine keeps its short confirm, because a drug has no waste questionnaire.
+ *
+ * It replaced the legacy `showThrowForm()` — a modal listing every place and every pack
+ * plus a `throwAll`/`throwPartial` pair — and the swipe-left "Cosa vuoi fare?" chooser
+ * that duplicated the sheet's own Usa/Butta buttons one tap away from them.
  */
-function showInvActionChooser(productId, location, invId) {
-    const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
-    const name = item?.name || '';
-    const brand = item?.brand || '';
-    const img = item?.image_url || '';
-    const catIcon = CATEGORY_ICONS[mapToLocalCategory(item?.category || '', name)] || '📦';
-    const locInfo = LOCATIONS[normalizeLocationKey(location)] || { icon: '📦', label: location };
-    // Plain text: this value is escaped into the modal markup below (escapeHtml) and shown
-    // in a <p>, so the <span class="conf-size-info"> produced by formatQuantity() for
-    // "conf" units would be printed as a literal tag instead of a quantity.
-    const qtyLabel = item ? stripHtml(formatQuantityForItem(item)) : '';
+function openWasteSheet(item) {
+    if (!item) return;
+    if (_isMedicalRow(item)) {
+        // The row may come from a banner while the pantry list is filtered elsewhere.
+        deleteInventoryItem(item.id, item);
+        return;
+    }
+    _showWasteRecordModal(item);
+}
 
+/**
+ * "Butta" from the product action page: the product can sit in more than one place, so
+ * the reader only asks WHICH place (one tap) and then opens the one waste sheet.
+ */
+function throwWasteForProduct(product) {
+    const pid = Number(product?.id) || 0;
+    const rows = (currentInventory || []).concat(_allInventoryCache || [])
+        .filter((row, idx, all) => Number(row.product_id) === pid
+            && (parseFloat(row.quantity) || 0) > 0
+            && all.findIndex((r) => Number(r.id) === Number(row.id)) === idx);
+    if (!rows.length) {
+        showToast(t('error.not_in_inventory'), 'error');
+        return;
+    }
+    if (rows.length === 1) {
+        openWasteSheet(rows[0]);
+        return;
+    }
+    const name = rows[0].display_name || rows[0].name || product?.name || '';
     document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('inventory.swipe_chooser_title')}</h3>
-            <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <div class="product-preview-small" style="margin-bottom:16px">
-            ${img
-                ? `<img src="${escapeHtml(img)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">`
-                : `<span style="font-size:2rem">${catIcon}</span>`}
-            <div class="product-preview-info">
-                <h3>${escapeHtml(name || t('inventory.swipe_chooser_title'))}</h3>
-                <p>${brand ? escapeHtml(brand) + ' · ' : ''}${locInfo.icon} ${escapeHtml(locInfo.label)}${qtyLabel ? ' · <strong>' + escapeHtml(qtyLabel) + '</strong>' : ''}</p>
+        <div class="waste-modal">
+            <div class="modal-header">
+                <h3>${escapeHtml(t('waste.pick_place_title'))}</h3>
+                <button type="button" class="modal-close" onclick="closeModal()">✕</button>
             </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-            <button type="button" class="btn btn-large btn-warning full-width" id="inv-chooser-use">
-                ${t('inventory.swipe_chooser_use')}
-            </button>
-            <button type="button" class="btn btn-large btn-danger full-width" id="inv-chooser-throw">
-                ${t('inventory.swipe_chooser_throw')}
-            </button>
-            <button type="button" class="btn btn-secondary full-width" onclick="closeModal()">${t('btn.cancel')}</button>
+            <p class="waste-modal-product">${escapeHtml(name)}</p>
+            <div class="waste-place-list">
+                ${rows.map((row) => {
+                    const locInfo = LOCATIONS[normalizeLocationKey(row.location)] || { icon: '📦', label: row.location || '' };
+                    return `<button type="button" class="waste-place-btn" data-waste-inv="${row.id}">
+                        <span class="waste-place-ico" aria-hidden="true">${locInfo.icon || '📦'}</span>
+                        <span class="waste-place-label">${escapeHtml(locInfo.label || row.location || '')}</span>
+                        <span class="waste-place-qty">${escapeHtml(stripHtml(formatQuantityForItem(row)))}</span>
+                    </button>`;
+                }).join('')}
+            </div>
+            <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
         </div>
     `;
     _showModalOverlay();
-    document.getElementById('inv-chooser-use')?.addEventListener('click', () => {
-        closeModal();
-        quickUse(productId, location);
+    document.querySelectorAll('[data-waste-inv]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const row = _findInventoryItem(parseInt(btn.getAttribute('data-waste-inv'), 10));
+            if (!row) { closeModal(); return; }
+            openWasteSheet(row);
+        });
     });
-    document.getElementById('inv-chooser-throw')?.addEventListener('click', () => {
-        closeModal();
-        quickThrowFromInv(productId, location, invId);
-    });
-}
-
-async function quickThrowFromInv(productId, location, invId) {
-    const item = (invId != null && !isNaN(invId)) ? _findInventoryItem(invId) : null;
-    currentProduct = {
-        id: productId,
-        name: item?.name || '',
-        brand: item?.brand || '',
-        image_url: item?.image_url || null,
-        category: item?.category || '',
-        unit: item?.unit || 'pz',
-        default_quantity: item?.default_quantity || 0,
-        package_unit: item?.package_unit || '',
-    };
-    // Enrich with full product if inventory row had sparse data
-    if (!currentProduct.name || !currentProduct.image_url) {
-        try {
-            const data = await api('product_get', { id: productId });
-            if (data?.product) {
-                currentProduct = { ...currentProduct, ...data.product };
-            }
-        } catch (_) { /* showThrowForm still works with id */ }
-    }
-    showThrowForm();
 }
 
 /** Four macro-reasons shown in the unified waste sheet (legacy keys still accepted by the API). */
@@ -17242,43 +17519,6 @@ function _bindWasteReasonPicks(onPick) {
         btn.addEventListener('click', () => {
             const reason = btn.getAttribute('data-waste-reason') || 'other';
             onPick(reason);
-        });
-    });
-}
-
-/** Reason-only sheet (throw form already chose the quantity). */
-function _showWasteReasonModal(productLabel, onPick) {
-    document.getElementById('modal-content').innerHTML = `
-        <div class="waste-modal">
-            <div class="modal-header">
-                <h3>${escapeHtml(t('waste.reason_title'))}</h3>
-                <button type="button" class="modal-close" onclick="closeModal()">✕</button>
-            </div>
-            ${productLabel ? `<p class="waste-modal-product">${escapeHtml(productLabel)}</p>` : ''}
-            <p class="waste-modal-section-label">${escapeHtml(t('waste.reason_subtitle'))}</p>
-            ${_wasteReasonGridHtml()}
-            <button type="button" class="btn btn-secondary full-width waste-modal-cancel" onclick="closeModal()">${escapeHtml(t('confirm.cancel'))}</button>
-        </div>
-    `;
-    _showModalOverlay();
-    _bindWasteReasonPicks((reason) => {
-        closeModal();
-        onPick(reason);
-    });
-}
-
-function _inventoryWaste(payload, productLabel) {
-    return new Promise((resolve, reject) => {
-        _showWasteReasonModal(productLabel || '', async (reason) => {
-            showLoading(true);
-            try {
-                const result = await api('inventory_use', {}, 'POST', { ...payload, notes: _wasteNotesForReason(reason) });
-                resolve(result);
-            } catch (e) {
-                reject(e);
-            } finally {
-                showLoading(false);
-            }
         });
     });
 }
@@ -17331,12 +17571,16 @@ function _showWasteRecordModal(item) {
     _bindWasteReasonPicks((reason) => {
         const mode = document.querySelector('.waste-qty-btn.is-on')?.getAttribute('data-waste-qty') || 'all';
         closeModal();
-        _submitWasteRecord(item.id, reason, mode);
+        _submitWasteRecord(item.id, reason, mode, item);
     });
 }
 
-async function _submitWasteRecord(inventoryId, reason, mode) {
-    const item = currentInventory.find(i => i.id == inventoryId);
+async function _submitWasteRecord(inventoryId, reason, mode, knownRow) {
+    // The row can live outside the current place filter (banner, action page): ask both
+    // pools and fall back to the row the caller already had, or a banner would answer
+    // "nothing happened" after the reason was picked.
+    const item = _findInventoryItem(inventoryId)
+        || (knownRow && Number(knownRow.id) === Number(inventoryId) ? knownRow : null);
     if (!item) return;
     const useOne = mode === 'one'
         && (item.unit === 'pz' || item.unit === 'conf')
@@ -17361,8 +17605,11 @@ async function _submitWasteRecord(inventoryId, reason, mode) {
     }
 }
 
-async function deleteInventoryItem(id) {
-    const item = currentInventory.find(i => i.id == id);
+async function deleteInventoryItem(id, knownRow) {
+    // `knownRow` is the banner/action-page row: the pantry list may be filtered to another
+    // place, and losing the row here would delete nothing without saying so.
+    const item = _findInventoryItem(id)
+        || (knownRow && Number(knownRow.id) === Number(id) ? knownRow : null);
     if (!item) return;
     const isMed = _isMedicalRow(item);
 
@@ -18310,7 +18557,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261101a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261103c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -18320,7 +18567,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261101a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261103c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -22765,7 +23012,7 @@ function showProductAction() {
                     <span class="btn-icon">📤</span>
                     <span class="btn-text">${t('action.use_btn')}<br><small>${actionIsMedical ? t('medical.action_use_sub') : t('action.use_qty_sub')}</small></span>
                 </button>
-                <button type="button" class="btn btn-huge btn-throw" id="btn-action-throw" onclick="showThrowForm()">
+                <button type="button" class="btn btn-huge btn-throw" id="btn-action-throw" onclick="throwWasteForProduct(currentProduct)">
                     <span class="btn-icon">🗑️</span>
                     <span class="btn-text">${actionIsMedical ? t('medical.discard') : t('action.throw_btn')}<br><small>${actionIsMedical ? t('medical.discard_title') : t('action.throw_sub')}</small></span>
                 </button>
@@ -23056,88 +23303,6 @@ async function deleteActionInventoryItem(id) {
     }
 }
 
-// === THROW AWAY FORM ===
-function showThrowForm() {
-    // Open a modal to ask how much to throw away / smaltire
-    api('inventory_list').then(data => {
-        const items = (data.inventory || []).filter(i => i.product_id == currentProduct.id);
-        if (items.length === 0) {
-            showToast(t('error.not_in_inventory'), 'error');
-            return;
-        }
-
-        const isMed = _isMedicalRow(currentProduct) || items.some(_isMedicalRow);
-        const totalQty = items.reduce((sum, i) => sum + parseFloat(i.quantity), 0);
-        const unit = items[0].unit || 'pz';
-        const defQty = items[0].default_quantity || 0;
-        const pkgUnit = items[0].package_unit || '';
-        const qtyDisplay = formatQuantity(totalQty, unit, defQty, pkgUnit, { approx: isMed });
-        
-        let locOptionsHtml = items.map(inv => {
-            const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-            return `<div class="inv-status-item"><span>${locInfo.icon} ${locInfo.label}</span><span class="inv-status-qty">${formatQuantityForItem(inv)}</span></div>`;
-        }).join('');
-        
-        document.getElementById('modal-content').innerHTML = `
-            <div class="modal-header">
-                <h3>${isMed ? t('medical.discard_title') : t('use.throw_title')}</h3>
-                <button class="modal-close" onclick="closeModal()">✕</button>
-            </div>
-            <div class="product-preview-small" style="margin-bottom:12px;position:relative">
-                ${currentProduct.image_url ?
-                    `<img src="${escapeHtml(currentProduct.image_url)}" alt="" style="width:50px;height:50px;border-radius:10px;object-fit:cover">` :
-                    `<span style="font-size:2rem">${_productCatIconHtml(currentProduct)}</span>`
-                }
-                <div class="product-preview-info">
-                    <h3>${escapeHtml(currentProduct.name)}</h3>
-                    <p>${escapeHtml(t('inventory.label_quantity').replace(/^📦\s*/, ''))}: <strong>${qtyDisplay}</strong></p>
-                </div>
-                ${items[0] ? `<button type="button" class="btn-edit-inline" onclick="editInventoryItem(${items[0].id})" title="${escapeHtml(t('inventory.item_detail_edit'))}">✏️</button>` : ''}
-            </div>
-            ${isMed ? `<p class="settings-hint">${escapeHtml(t('medical.discard_hint'))}</p>` : ''}
-            <div class="inventory-status-bar" style="margin-bottom:16px">
-                <div class="inv-status-items">${locOptionsHtml}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-                <button class="btn btn-large btn-danger full-width" onclick="throwAll()">
-                    ${isMed ? t('medical.discard_all', { qty: qtyDisplay }) : t('use.throw_all', { qty: qtyDisplay })}
-                </button>
-                <div style="text-align:center;color:var(--text-muted);font-size:0.85rem">${isMed ? t('medical.discard_qty_hint') : t('use.throw_qty_hint')}</div>
-                <div class="form-group"${isMed && items.length === 1 ? ' hidden' : ''}>
-                    <label>${t('use.location_label')}</label>
-                    <div class="location-selector" id="throw-location-selector">
-                        ${items.map((inv, idx) => {
-                            const locInfo = LOCATIONS[normalizeLocationKey(inv.location)] || { icon: '📦', label: inv.location };
-                            return `<button type="button" class="loc-btn ${idx === 0 ? 'active' : ''}" onclick="selectThrowLocation(this, '${inv.location}')">${locInfo.icon} ${locInfo.label} (${formatQuantityForItem(inv)})</button>`;
-                        }).join('')}
-                    </div>
-                    <input type="hidden" id="throw-location" value="${items[0].location}">
-                </div>
-                <div class="form-group">
-                    <label>${isMed ? t('medical.discard_qty_label') : t('use.throw_qty_label')}</label>
-                    <div class="qty-control-with-unit">
-                        <div class="qty-control">
-                            <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', -1)">−</button>
-                            <input type="number" id="throw-quantity" value="1" min="0.1" step="any" class="qty-input">
-                            <button type="button" class="qty-btn" onclick="adjustQty('throw-quantity', 1)">+</button>
-                        </div>
-                        <span class="qty-unit-badge" id="throw-quantity-unit" aria-live="polite">${escapeHtml(getUnitDisplayLabel(items[0]?.unit || 'pz', { approx: isMed }))}</span>
-                    </div>
-                </div>
-                <button class="btn btn-large waste-partial-btn full-width" onclick="throwPartial()">
-                    ${isMed ? t('medical.discard_partial_btn') : t('use.throw_partial_btn')}
-                </button>
-            </div>
-        `;
-        _showModalOverlay();
-    });
-}
-
-function selectThrowLocation(btn, loc) {
-    btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('throw-location').value = loc;
-}
 
 /**
  * Show a destructive-action confirmation modal with a 5-second auto-confirm countdown.
@@ -23219,53 +23384,6 @@ function _showDestructiveConfirm(title, msg, onConfirm, confirmLabel, opts) {
     }
     rafHandle = requestAnimationFrame(tick);
     timerHandle = setTimeout(doConfirm, DURATION);
-}
-
-async function throwAll() {
-    const name = currentProduct ? currentProduct.name : '';
-    _showDestructiveConfirm(
-        t('use.throw_all_confirm_title'),
-        (t('use.throw_all_confirm_msg')) + (name ? `\n"${name}"` : ''),
-        async () => {
-            try {
-                const result = await _inventoryWaste({
-                    product_id: currentProduct.id,
-                    use_all: true,
-                    location: '__all__',
-                }, name);
-                if (result.success) {
-                    showToast(t('toast.thrown_away', { name: currentProduct.name }), 'success');
-                    showPage('dashboard');
-                } else {
-                    showToast(result.error || t('error.generic'), 'error');
-                }
-            } catch(e) {
-                showToast(t('error.connection'), 'error');
-            }
-        },
-        t('use.throw_all_confirm_btn')
-    );
-}
-
-async function throwPartial() {
-    const qty = parseFloat(document.getElementById('throw-quantity').value) || 1;
-    const loc = document.getElementById('throw-location').value;
-    closeModal();
-    try {
-        const result = await _inventoryWaste({
-            product_id: currentProduct.id,
-            quantity: qty,
-            location: loc,
-        }, currentProduct.name);
-        if (result.success) {
-            showToast(t('toast.thrown_away_partial', { qty, unit: currentProduct.unit || 'pz', name: currentProduct.name }), 'success');
-            showPage('dashboard');
-        } else {
-            showToast(result.error || t('error.generic'), 'error');
-        }
-    } catch(e) {
-        showToast(t('error.connection'), 'error');
-    }
 }
 
 function toggleActionEdit() {
@@ -25330,35 +25448,73 @@ function selectUseLocation(btn, loc) {
 const _PREF_LOC_NEEDED = 1; // choices needed to confirm a preference
 
 // ── PREFERRED MOVE-AFTER-USE LOCATION ────────────────────────────────────
-// Tracks where the user puts the remainder after using a product.
-// After _PREF_MOVE_NEEDED consistent choices, the modal is skipped entirely.
-const _PREF_MOVE_NEEDED = 1;
-let _pendingMoveCtx = null; // { productId, fromLoc, openedId } — set before showing modal
+// Where the household puts the remainder of an opened pack. The question is asked EVERY
+// time (a silent inference is what made a consumed 200 ml look like it went nowhere): the
+// history only decides what the prompt presumes and how long you have to disagree.
+const _PREF_MOVE_NEEDED = 1;      // this very product: one earlier choice is a habit
+const _PREF_MOVE_KIND_NEEDED = 2; // same genre, other products: two are a habit
+let _pendingMoveCtx = null; // { productId, category, fromLoc, openedId, landing }
+
+function _moveHistKey(id, fromLoc) { return `${id}|${fromLoc}`; }
+function _kindHistKey(category, fromLoc) { return `kind:${String(category || '').toLowerCase()}|${fromLoc}`; }
 
 function _getMoveLocHistory(productId, fromLoc) {
     const all = _prefMoveLocCache || {};
-    return all[`${productId}|${fromLoc}`] || [];
+    return all[_moveHistKey(productId, fromLoc)] || [];
 }
 
-function _recordMoveLocChoice(productId, fromLoc, toLoc) {
+/** The same choice seen across the genre: "latte, yogurt, panna → frigo". */
+function _getKindMoveLocHistory(category, fromLoc) {
+    if (!category) return [];
+    const all = _prefMoveLocCache || {};
+    return all[_kindHistKey(category, fromLoc)] || [];
+}
+
+/** Most frequent place among the last five choices, once `needed` of them agree. */
+function _topMoveLoc(hist, needed) {
+    const recent = (hist || []).slice(-5);
+    if (recent.length < needed) return null;
+    const counts = {};
+    for (const loc of recent) counts[loc] = (counts[loc] || 0) + 1;
+    const [topLoc, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return topCount >= needed ? topLoc : null;
+}
+
+/**
+ * Record where the opened pack went — for the product AND for its genre, so a new yogurt
+ * inherits the fridge the milk taught.
+ *
+ * @param {number} productId
+ * @param {string} fromLoc  where the stock was taken from
+ * @param {string} toLoc    where the opened pack is now
+ * @param {string} [category] product genre ('' records the product only)
+ */
+function _recordMoveLocChoice(productId, fromLoc, toLoc, category) {
     const all = Object.assign({}, _prefMoveLocCache || {});
-    const key = `${productId}|${fromLoc}`;
-    const hist = (all[key] || []).slice();
-    hist.push(toLoc);
-    if (hist.length > 8) hist.splice(0, hist.length - 8);
-    all[key] = hist;
+    const keys = [_moveHistKey(productId, fromLoc)];
+    if (category) keys.push(_kindHistKey(category, fromLoc));
+    for (const key of keys) {
+        const hist = (all[key] || []).slice();
+        hist.push(toLoc);
+        if (hist.length > 8) hist.splice(0, hist.length - 8);
+        all[key] = hist;
+    }
     _prefMoveLocCache = all;
     _saveToServer('pref_move_loc', all);
 }
 
-function _getPreferredMoveLoc(productId, fromLoc) {
-    const hist = _getMoveLocHistory(productId, fromLoc);
-    if (hist.length < _PREF_MOVE_NEEDED) return null;
-    const recent = hist.slice(-5);
-    const counts = {};
-    for (const loc of recent) counts[loc] = (counts[loc] || 0) + 1;
-    const [topLoc, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-    return topCount >= _PREF_MOVE_NEEDED ? topLoc : null;
+/**
+ * What the prompt presumes and why: the product's own habit first, then its genre, and
+ * nothing at all when the app has not seen this yet.
+ *
+ * @returns {{loc:string, source:'product'|'kind'}|null}
+ */
+function _preferredMoveChoice(productId, category, fromLoc) {
+    const byProduct = _topMoveLoc(_getMoveLocHistory(productId, fromLoc), _PREF_MOVE_NEEDED);
+    if (byProduct) return { loc: byProduct, source: 'product' };
+    const byKind = _topMoveLoc(_getKindMoveLocHistory(category, fromLoc), _PREF_MOVE_KIND_NEEDED);
+    if (byKind) return { loc: byKind, source: 'kind' };
+    return null;
 }
 
 function _getPrefLocHistory(productId) {
@@ -25940,22 +26096,37 @@ function startAddFormIdleCountdown() {
     scheduleExpire();
 }
 
-function startMoveModalCountdown(btnId, onExpire) {
+/**
+ * Drain the bar of the presumed answer and apply it when the bar is empty.
+ *
+ * The seconds are printed on the button (a promise with nothing moving reads as a frozen
+ * app) and the fill shrinks from the right, like SHELFY's confirmation card. Any touch
+ * inside the modal stops the clock, so the tap is always the household's.
+ *
+ * @param {string} btnId   the control carrying the presumed answer
+ * @param {Function} onExpire what to apply when nobody disagrees
+ * @param {number} [seconds] 10 with a precedent, 20 without
+ */
+function startMoveModalCountdown(btnId, onExpire, seconds = 15) {
     clearMoveModalTimer();
     // Any touch inside the modal cancels the auto-close countdown
     _moveModalTouchHandler = () => clearMoveModalTimer();
     document.getElementById('modal-content')?.addEventListener('pointerdown', _moveModalTouchHandler, { capture: true, once: true });
-    const duration = 15000;
-    const start = performance.now();
     const btn = document.getElementById(btnId);
     if (!btn) return;
+    const fill = btn.querySelector('.move-countdown-fill');
+    const secs = btn.querySelector('.move-countdown-secs');
+    const duration = Math.max(1000, (Number(seconds) || 15) * 1000);
+    const start = performance.now();
+    function paint(leftMs) {
+        if (fill) fill.style.width = `${(leftMs / duration) * 100}%`;
+        if (secs) secs.textContent = String(Math.ceil(leftMs / 1000));
+    }
+    paint(duration);
     function tick() {
-        const elapsed = performance.now() - start;
-        const pct = Math.max(0, 100 - (elapsed / duration) * 100);
-        btn.style.background = `linear-gradient(to right, rgba(45,80,22,0.2) ${pct}%, transparent ${pct}%)`;
-        if (elapsed < duration) {
-            _moveModalRAF = requestAnimationFrame(tick);
-        }
+        const left = Math.max(0, duration - (performance.now() - start));
+        paint(left);
+        if (left > 0) _moveModalRAF = requestAnimationFrame(tick);
     }
     _moveModalRAF = requestAnimationFrame(tick);
     _moveModalTimer = setTimeout(() => {
@@ -25964,68 +26135,185 @@ function startMoveModalCountdown(btnId, onExpire) {
     }, duration);
 }
 
-function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacuumSealed, unit) {
-    // Store context so _saveVacuumAndStay can record the choice
-    _pendingMoveCtx = { productId: product.id, fromLoc, openedId };
+/** The draining bar + the seconds a presumed button carries. */
+function _moveCountdownMetaHtml(labelHtml) {
+    return `<span class="move-countdown-fill" aria-hidden="true"></span>`
+        + `<span class="move-countdown-label">${labelHtml}`
+        + `<span class="move-countdown-secs" aria-hidden="true"></span></span>`;
+}
 
-    // If a preference is established, skip the modal entirely and auto-apply
-    const prefMoveLoc = _getPreferredMoveLoc(product.id, fromLoc);
-    if (prefMoveLoc) {
-        if (prefMoveLoc === fromLoc) {
-            // Preference: stay in place — silent, no modal
-            _saveVacuumAndStay(openedId || 0);
-        } else {
-            // Preference: move to another location — apply silently
-            confirmMoveAfterUse(product.id, fromLoc, prefMoveLoc, openedId || 0, !!(openedVacuumSealed ?? product.vacuum_sealed));
-        }
-        return;
-    }
+/**
+ * "Dove l'hai messa?" — the question after a pack has been opened.
+ *
+ * It is ALWAYS asked. An opened pack has a place of its own (the fridge, not the pantry)
+ * and the app used to infer it in silence, so "ho usato 200 ml di latte" looked like the
+ * milk vanished. The prompt presumes an answer — the product's own habit, then its genre —
+ * and the control carrying it drains: 10 s to disagree when there is a precedent, 20 s
+ * when there is none (then the pack simply stays where it was).
+ *
+ * @param {object} cfg { mode:'use'|'recipe', productId, name, category, fromLoc, openedId,
+ *                       wasVacuum, isMedical, question, landing }
+ */
+function _showMovePrompt(cfg) {
+    clearMoveModalTimer();
+    _movePromptCtx = cfg;
+    const locMeta = (key) => LOCATIONS[normalizeLocationKey(key)] || { icon: '📦', label: key };
+    const fromLabel = locMeta(cfg.fromLoc).label;
+    const locs = _locationsForDomain(!!cfg.isMedical, cfg.fromLoc);
+    let assumed = _preferredMoveChoice(cfg.productId, cfg.category, cfg.fromLoc);
+    // A habit about a place that no longer exists (a deleted fridge) or about a place this
+    // domain cannot offer is no habit at all: fall back to "it stays where it was".
+    if (assumed && assumed.loc !== cfg.fromLoc && !locs.some(([k]) => k === assumed.loc)) assumed = null;
+    // With a precedent the app has "enough data": the presumed place is preselected and the
+    // household has 10 s to disagree. Otherwise it presumes "stays where it was" and gives
+    // 20 s — a guessed move is worse than no move.
+    const presumedLoc = assumed ? assumed.loc : cfg.fromLoc;
+    const seconds = assumed ? 10 : 20;
+    const presumedLabel = locMeta(presumedLoc).label;
 
-    const otherLocs = _locationsForDomain(_isMedicalRow(product), fromLoc);
-    const locButtons = otherLocs.map(([k, v]) =>
-        `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmMoveAfterUse(${product.id}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
-    ).join('');
-    // Show vacuum checkbox for any container-type unit or if the item was previously vacuum sealed.
-    // Pre-checked when it was already sealed (semi-automatic: if you sealed it last time, you likely will again).
-    const wasVacuum = !!(openedVacuumSealed ?? product.vacuum_sealed);
-    // Always offer vacuum sealing: any leftover food can be vacuum sealed regardless of unit type.
-    const vacuumRow = `
-        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
-            <input type="checkbox" id="move-vacuum-check" ${wasVacuum ? 'checked' : ''}>
-            <span>${wasVacuum ? t('move.vacuum_restore') : t('move.vacuum_seal_rest')}</span>
-        </label>`;
+    // Nowhere else to put it: say where it stays instead of asking a rhetorical question.
+    if (!locs.length) { _movePromptStay({ auto: true }); return; }
+
+    const locButtons = locs.map(([k, v]) => {
+        const on = k === presumedLoc;
+        const body = on
+            ? _moveCountdownMetaHtml(`${v.icon} ${escapeHtml(v.label)}`)
+            : `${v.icon} ${escapeHtml(v.label)}`;
+        return `<button type="button" class="loc-btn${on ? ' is-presumed move-countdown-btn' : ''}"${on ? ' id="btn-move-presumed"' : ''} onclick="_movePromptChoose('${k}')">${body}</button>`;
+    }).join('');
+
+    const stayPresumed = presumedLoc === cfg.fromLoc;
+    const stayLabel = escapeHtml(t('move.stay_btn').replace('{location}', fromLabel));
+    const stayBody = stayPresumed ? _moveCountdownMetaHtml(stayLabel) : stayLabel;
+    const stayBtn = `<button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn${stayPresumed ? ' is-presumed' : ''}" style="margin-top:12px" onclick="_movePromptStay()">${stayBody}</button>`;
+
+    const hint = assumed
+        ? t('move.hint_known', { location: presumedLabel })
+        : t('move.hint_unknown', { location: presumedLabel });
+
     document.getElementById('modal-content').innerHTML = `
         <div class="modal-header">
             <h3>${t('move.title')}</h3>
-            <button class="modal-close" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0})">✕</button>
+            <button class="modal-close" onclick="_movePromptClose()">✕</button>
         </div>
         <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px">${t('move.question').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')).replace('{name}', `<strong>${escapeHtml(product.name)}</strong>`)}</p>
+            <p style="margin-bottom:10px">${cfg.question}</p>
+            <p class="move-prompt-hint">${escapeHtml(hint)}</p>
             <div class="location-selector">${locButtons}</div>
-            ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_saveVacuumAndStay(${openedId || 0});">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+                <input type="checkbox" id="move-vacuum-check" ${cfg.wasVacuum ? 'checked' : ''}>
+                <span>${cfg.wasVacuum ? t('move.vacuum_restore') : t('move.vacuum_seal_rest')}</span>
+            </label>
+            ${stayBtn}
         </div>
     `;
     _showModalOverlay();
-    startMoveModalCountdown('btn-move-stay', () => { _saveVacuumAndStay(openedId || 0); });
+    // The countdown lives on the presumed answer, wherever it is.
+    if (stayPresumed) startMoveModalCountdown('btn-move-stay', () => _movePromptStay({ auto: true }), seconds);
+    else startMoveModalCountdown('btn-move-presumed', () => _movePromptChoose(presumedLoc), seconds);
 }
 
-/** Save vacuum state when user chooses to keep the item at the current location. */
-async function _saveVacuumAndStay(openedId) {
-    // Record the "stay" preference before closing
-    if (_pendingMoveCtx) {
-        _recordMoveLocChoice(_pendingMoveCtx.productId, _pendingMoveCtx.fromLoc, _pendingMoveCtx.fromLoc);
+/** One place chosen — by the household or by the draining bar. */
+function _movePromptChoose(locKey) {
+    const cfg = _movePromptCtx;
+    if (!cfg) return;
+    clearMoveModalTimer();
+    _movePromptCtx = null;
+    if (cfg.mode === 'recipe') confirmRecipeMove(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined);
+    else confirmMoveAfterUse(cfg.productId, cfg.fromLoc, locKey, cfg.openedId || 0, undefined);
+}
+
+/** "No, resta dove l'ho preso" — or the bar emptied with no habit yet. */
+function _movePromptStay(opts = {}) {
+    const cfg = _movePromptCtx;
+    if (!cfg) return;
+    clearMoveModalTimer();
+    if (cfg.mode === 'recipe') {
+        _movePromptCtx = null;
+        _recipeMoveCancelStay(cfg.productId, cfg.fromLoc, cfg.openedId || 0);
+        return;
+    }
+    _saveVacuumAndStay(cfg.openedId || 0, !!opts.auto);
+}
+
+/** ✕ = no decision: nothing moves and nothing is recorded. */
+function _movePromptClose() {
+    const cfg = _movePromptCtx;
+    _movePromptCtx = null;
+    _pendingMoveCtx = null;
+    clearMoveModalTimer();
+    closeModal();
+    // The legacy USE page has no other landing spot after a use; the product sheet does.
+    if (cfg && cfg.landing) showPage(cfg.landing);
+}
+
+/**
+ * Ask where the opened portion went.
+ *
+ * @param {object} product        product row (id, name, category, vacuum_sealed)
+ * @param {string} fromLoc        place the stock was taken from
+ * @param {number} remaining      stock left (informational, kept for the callers)
+ * @param {number} openedId       inventory row of the opened portion
+ * @param {number} openedVacuumSealed
+ * @param {string} unit
+ * @param {object} [opts] { stayPut: true } → do not navigate after the answer (the product
+ *                        sheet lives on the pantry, not on the dashboard)
+ */
+function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacuumSealed, unit, opts = {}) {
+    const productId = Number(product && product.id) || 0;
+    const category = String((product && product.category) || '');
+    const landing = opts.stayPut ? null : 'dashboard';
+    // Context for _saveVacuumAndStay / confirmMoveAfterUse, which record the choice.
+    _pendingMoveCtx = { productId, category, fromLoc, openedId, landing };
+    _showMovePrompt({
+        mode: 'use',
+        productId,
+        name: (product && product.name) || '',
+        category,
+        fromLoc,
+        openedId: openedId || 0,
+        wasVacuum: !!(openedVacuumSealed ?? (product && product.vacuum_sealed)),
+        isMedical: _isMedicalRow(product),
+        question: t('move.question')
+            .replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))
+            .replace('{name}', `<strong>${escapeHtml((product && product.name) || '')}</strong>`),
+        landing,
+    });
+}
+
+/**
+ * Keep the opened pack where it was taken from.
+ *
+ * `auto` = the countdown ran out (nobody disagreed): then the app says where it is, because
+ * "ho usato 200 ml" with no answer at all is what looked like the pack had vanished.
+ *
+ * @param {number} openedId
+ * @param {boolean} [auto]
+ */
+async function _saveVacuumAndStay(openedId, auto = false) {
+    // Record the "stay" preference (and say where the pack is) before closing.
+    const ctx = _pendingMoveCtx;
+    const landing = ctx ? ctx.landing : 'dashboard';
+    if (ctx) {
+        _recordMoveLocChoice(ctx.productId, ctx.fromLoc, ctx.fromLoc, ctx.category);
         _pendingMoveCtx = null;
     }
+    const vacuumEl = document.getElementById('move-vacuum-check');
+    // No prompt on screen (nowhere else to put it): nothing was chosen, so the vacuum flag
+    // of the row must not be rewritten by a missing checkbox.
+    const isVacuum = vacuumEl && vacuumEl.checked ? 1 : 0;
     closeModal();
-    if (openedId) {
-        const isVacuum = document.getElementById('move-vacuum-check')?.checked ? 1 : 0;
+    if (auto && ctx && ctx.fromLoc) {
+        const where = (LOCATIONS[normalizeLocationKey(ctx.fromLoc)] || {}).label || ctx.fromLoc;
+        showToast(t('move.stayed_toast', { location: where }), 'info');
+    }
+    if (openedId && vacuumEl) {
         try {
             await api('inventory_update', {}, 'POST', { id: openedId, vacuum_sealed: isVacuum });
             if (isVacuum) showToast(t('add.vacuum_saved'), 'success');
         } catch (_) {}
     }
-    showPage('dashboard');
+    if (landing) showPage(landing);
 }
 
 async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVacuum) {
@@ -26033,7 +26321,7 @@ async function confirmMoveAfterUse(productId, fromLoc, toLoc, openedId, forcedVa
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
     // Record preference
     if (_pendingMoveCtx && _pendingMoveCtx.productId === productId) {
-        _recordMoveLocChoice(productId, fromLoc, toLoc);
+        _recordMoveLocChoice(productId, fromLoc, toLoc, _pendingMoveCtx.category);
         _pendingMoveCtx = null;
     }
     closeModal();
@@ -32343,56 +32631,33 @@ async function submitRecipeUse(useAll) {
 }
 
 function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum) {
-    // Set context for recording the choice
-    _pendingMoveCtx = { productId, fromLoc, openedId };
-
-    // If a preference exists, skip the modal entirely
-    const prefMoveLoc = _getPreferredMoveLoc(productId, fromLoc);
-    if (prefMoveLoc) {
-        if (prefMoveLoc === fromLoc) {
-            closeModal();
-        } else {
-            confirmRecipeMove(productId, fromLoc, prefMoveLoc, openedId, wasVacuum);
-        }
-        _pendingMoveCtx = null;
-        return;
-    }
-
-    // A recipe ingredient is food: the cabinet is never offered.
-    const otherLocs = _locationsForDomain(false, fromLoc);
-    const locButtons = otherLocs.map(([k, v]) =>
-        `<button type="button" class="loc-btn" onclick="clearMoveModalTimer();confirmRecipeMove(${productId}, '${fromLoc}', '${k}', ${openedId || 0})">${v.icon} ${v.label}</button>`
-    ).join('');
-    const vacuumRow = `
-        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
-            <input type="checkbox" id="move-vacuum-check" ${wasVacuum ? 'checked' : ''}>
-            <span>${wasVacuum ? t('move.vacuum_restore') : t('move.vacuum_seal_rest')}</span>
-        </label>`;
-    document.getElementById('modal-content').innerHTML = `
-        <div class="modal-header">
-            <h3>${t('move.title')}</h3>
-            <button class="modal-close" onclick="clearMoveModalTimer();closeModal()">✕</button>
-        </div>
-        <div style="padding:0 16px 16px">
-            <p style="margin-bottom:12px">${t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))}</p>
-            <div class="location-selector">${locButtons}</div>
-            ${vacuumRow}
-            <button type="button" id="btn-move-stay" class="btn btn-secondary full-width move-countdown-btn" style="margin-top:12px" onclick="clearMoveModalTimer();_recipeMoveCancelStay(${productId}, '${fromLoc}', ${openedId || 0})">${t('move.stay_btn').replace('{location}', LOCATIONS[normalizeLocationKey(fromLoc)]?.label || fromLoc)}</button>
-        </div>
-    `;
-    _showModalOverlay();
-    startMoveModalCountdown('btn-move-stay', () => { _recipeMoveCancelStay(productId, fromLoc, openedId || 0); });
+    // A recipe ingredient is food: the cabinet is never offered. The question is the same
+    // one the pantry asks (presumed answer + draining bar), never a silent move.
+    const category = String((currentProduct && currentProduct.category) || '');
+    _pendingMoveCtx = { productId, category, fromLoc, openedId, landing: null };
+    _showMovePrompt({
+        mode: 'recipe',
+        productId,
+        name: (currentProduct && currentProduct.name) || '',
+        category,
+        fromLoc,
+        openedId: openedId || 0,
+        wasVacuum: !!wasVacuum,
+        isMedical: false,
+        question: t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')),
+        landing: null,
+    });
 }
 
 function _recipeMoveCancelStay(productId, fromLoc, openedId) {
-    _recordMoveLocChoice(productId, fromLoc, fromLoc);
+    _recordMoveLocChoice(productId, fromLoc, fromLoc, (_pendingMoveCtx && _pendingMoveCtx.category) || '');
     _pendingMoveCtx = null;
     closeModal();
 }
 
 async function confirmRecipeMove(productId, fromLoc, toLoc, openedId, forcedVacuum) {
     clearMoveModalTimer();
-    _recordMoveLocChoice(productId, fromLoc, toLoc);
+    _recordMoveLocChoice(productId, fromLoc, toLoc, (_pendingMoveCtx && _pendingMoveCtx.category) || '');
     _pendingMoveCtx = null;
     const newVacuum = forcedVacuum !== undefined ? (forcedVacuum ? 1 : 0) : (document.getElementById('move-vacuum-check')?.checked ? 1 : 0);
     closeModal();

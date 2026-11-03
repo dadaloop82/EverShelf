@@ -3777,6 +3777,44 @@ button.scan-med-name-hit:focus-visible {
     box-shadow: inset 0 0 0 1px var(--brand-primary);
     color: var(--brand-primary);
 }
+/* Pack ⇄ measure switch of the consume sheet ("Confezioni | ml"): a neutral selector, so
+   the only emerald in the strip stays the button that writes the outcome. */
+.item-detail-unit-switch {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin: 0 auto 8px;
+    max-width: 260px;
+    border: 1px solid var(--surface-border);
+    border-radius: 9px;
+    overflow: hidden;
+}
+.item-detail-unit-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 0;
+    background: var(--surface-bg);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.item-detail-unit-btn + .item-detail-unit-btn {
+    border-left: 1px solid var(--surface-border);
+}
+.item-detail-unit-btn:hover,
+.item-detail-unit-btn:focus-visible {
+    color: var(--text-main);
+}
+.item-detail-unit-btn.is-on {
+    background: var(--brand-surface);
+    color: var(--brand-primary);
+    box-shadow: inset 0 0 0 1px var(--brand-primary);
+}
 .med-match-filled {
     color: var(--brand-primary);
     font-weight: 600;
@@ -4374,14 +4412,37 @@ button.scan-med-name-hit:focus-visible {
     text-underline-offset: 2px;
 }
 .waste-modal-cancel { margin-top: 4px; }
-.waste-partial-btn {
-    border: 1px solid color-mix(in srgb, #DC2626 28%, var(--surface-border)) !important;
-    background: var(--surface-bg) !important;
-    color: #B91C1C !important;
+/* “Da dove?” — only when the product sits in more than one place, and it asks nothing
+   else: the waste sheet (quantity + reason) always comes next. */
+.waste-place-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 12px;
 }
-.waste-partial-btn:active {
-    background: color-mix(in srgb, #DC2626 12%, var(--surface-bg)) !important;
+.waste-place-btn {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
 }
+.waste-place-btn:hover,
+.waste-place-btn:focus-visible {
+    border-color: var(--brand-primary);
+}
+.waste-place-ico { font-size: 1.05rem; }
+.waste-place-qty { color: var(--text-muted); font-size: 0.84rem; font-weight: 700; }
 
 /* Soft-duplicate confirm (parked — consume flow no longer opens it). */
 .dup-confirm-overlay { display: none !important; }

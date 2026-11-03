@@ -359,11 +359,6 @@ select.form-input:focus {
     font-weight: 700;
 }
 
-.inv-swipe-bg-left {
-    background: color-mix(in srgb, var(--es-action-use) 22%, transparent);
-    color: #92400e;
-}
-
 .inv-swipe-bg-right {
     background: color-mix(in srgb, var(--primary-light) 22%, transparent);
     color: var(--primary-dark);
