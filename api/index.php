@@ -1357,6 +1357,9 @@ try {
         case 'recipes_toggle_favorite':
             recipeToggleFavorite($db);
             break;
+        case 'recipes_rate':
+            recipeRate($db);
+            break;
         case 'recipe_shopping_add':
             // Recipe ingredients → shopping list, deducting what the pantry already holds.
             // Implements recipeShoppingAdd() in api/lib/recipe_shopping.php.
@@ -13015,7 +13018,22 @@ function recipeNormalizeParsedRecipe(array $recipe): array {
                 return $s;
             }
             if (is_array($s)) {
-                return $s['text'] ?? $s['description'] ?? $s['step'] ?? $s['instruction'] ?? json_encode($s, JSON_UNESCAPED_UNICODE);
+                // The FIELDS are not ordered. A model that emits both `text` and `instruction`
+                // may leave a fragment in one and the whole sentence in the other, and a fixed
+                // priority (`text` first) printed "confezione di Tonno all'olio…" with the
+                // beginning of the step — "Nel Frullatore/Mixer: unire la…" — silently gone.
+                // The step IS the sentence, so take the fullest candidate, whichever key it is.
+                $candidates = [];
+                foreach (['instruction', 'text', 'description', 'step'] as $field) {
+                    if (isset($s[$field]) && is_string($s[$field]) && trim($s[$field]) !== '') {
+                        $candidates[] = trim($s[$field]);
+                    }
+                }
+                if ($candidates) {
+                    usort($candidates, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+                    return $candidates[0];
+                }
+                return json_encode($s, JSON_UNESCAPED_UNICODE);
             }
             return (string)$s;
         }, $recipe['steps']));
@@ -14030,6 +14048,7 @@ REGOLE:
 2. La ricetta deve essere eseguibile ORA con SOLO ciò che è in DISPENSA + acqua/sale/pepe/olio. VIETATO includere ingredienti assenti.
 3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine/finocchio) 1 pz/pers, cipolla grande 1 pz/pers (per soffritto mezza basta), formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). IMPORTANTE: per unità "pz" scrivi PEZZI (es. 1 cipolla = 1, anche ½ = 0.5).
+4b. COERENZA NUMERICA (vincolante): ogni quantità citata nei `steps` DEVE coincidere al 100% con il valore della lista `ingredients`. Se in `ingredients` c’è «Pan Bauletto: 1 pz», il passo dice «1 fetta di Pan Bauletto» e MAI «2 fette». Se la preparazione richiede più unità, correggi `qty_number` di conseguenza: il testo del procedimento non può contraddire la tabella degli ingredienti.
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
@@ -14649,6 +14668,7 @@ REGOLE:
 2. La ricetta deve essere eseguibile ORA con SOLO ciò che è in DISPENSA + acqua/sale/pepe/olio. VIETATO includere ingredienti assenti.
 3. Quantità MASSIME per $persons persona/e (NON superare mai): pasta/riso asciutto 90g/pers, carne 150g/pers, affettati/salumi/speck/prosciutto 70g/pers, pesce 180g/pers, legumi secchi 80g/pers (lessi 200g/pers), verdure contorno 150g/pers, verdure intere grosse (peperoni/melanzane/zucchine/finocchio) 1 pz/pers, cipolla grande 1 pz/pers (per soffritto mezza basta), formaggio 70g/pers, latte 200ml/pers, farina per dolci 200g/pers, piadina/tortilla/wrap 1-2 pz/pers. Se un ingrediente rimasto è inferiore a questi limiti, usalo tutto.
 4. "qty_number": valore NUMERICO nella STESSA unità della dispensa (g/ml/pz/conf, MAI kg o litri). IMPORTANTE: per unità "pz" scrivi PEZZI (es. 1 cipolla = 1, anche ½ = 0.5).
+4b. COERENZA NUMERICA (vincolante): ogni quantità citata nei `steps` DEVE coincidere al 100% con il valore della lista `ingredients`. Se in `ingredients` c’è «Pan Bauletto: 1 pz», il passo dice «1 fetta di Pan Bauletto» e MAI «2 fette». Se la preparazione richiede più unità, correggi `qty_number` di conseguenza: il testo del procedimento non può contraddire la tabella degli ingredienti.
 5. "name": usa ESATTAMENTE il nome dalla lista (copia-incolla).
 6. In `ingredients` metti SOLO prodotti presenti in DISPENSA (tutti con from_pantry:true). Includi tutti quelli citati nei passi (tranne acqua/sale/pepe/olio e erbe in pizzico: prezzemolo, origano, basilico — solo nei passi, NON in ingredients).
 7. Se manca un carboidrato (couscous, pasta, riso…), usa un carboidrato PRESENTE in lista (es. riso/pasta che hai) oppure scegli un piatto senza quel componente. NON citare nei passi ingredienti che non sono in DISPENSA.
@@ -21453,7 +21473,7 @@ function appSettingsSave(PDO $db): void {
 
 function recipesList(PDO $db): void {
     $limit = min(intval($_GET['limit'] ?? 60), 200);
-    $rows = $db->query("SELECT id, date, meal, recipe_json, created_at, is_favorite FROM recipes ORDER BY is_favorite DESC, date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
+    $rows = $db->query("SELECT id, date, meal, recipe_json, created_at, is_favorite, rating FROM recipes ORDER BY is_favorite DESC, date DESC, created_at DESC LIMIT {$limit}")->fetchAll();
     EverLog::debug('recipesList');
     $recipes = [];
     foreach ($rows as $row) {
@@ -21464,6 +21484,8 @@ function recipesList(PDO $db): void {
             'recipe'      => json_decode($row['recipe_json'], true),
             'savedAt'     => strtotime($row['created_at']) * 1000,
             'is_favorite' => (bool)$row['is_favorite'],
+            // 0 = not rated. A number, not a boolean: the book is filtered by it.
+            'rating'      => (int)($row['rating'] ?? 0),
         ];
     }
     echo json_encode(['success' => true, 'recipes' => $recipes]);
@@ -21477,6 +21499,36 @@ function recipeToggleFavorite(PDO $db): void {
     $db->prepare("UPDATE recipes SET is_favorite = 1 - is_favorite WHERE id = ?")->execute([$id]);
     $fav = (int)$db->query("SELECT is_favorite FROM recipes WHERE id = {$id}")->fetchColumn();
     echo json_encode(['success' => true, 'is_favorite' => (bool)$fav]);
+}
+
+/**
+ * POST /api/?action=recipes_rate — the household's own vote on a saved recipe (0–5).
+ *
+ * 0 is a real value: it means "not rated" and it is how a vote is taken back. The number is
+ * clamped here because the client is not the authority on what a rating is, and the change is
+ * logged: a vote is user data and this endpoint has no history to undo it from.
+ */
+function recipeRate(PDO $db): void {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $id = intval($input['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'Invalid id']);
+        return;
+    }
+    $rating = max(0, min(5, intval($input['rating'] ?? 0)));
+    $upd = $db->prepare('UPDATE recipes SET rating = ? WHERE id = ?');
+    $upd->execute([$rating, $id]);
+    if ($upd->rowCount() === 0) {
+        // rowCount() is 0 also when the value did not change: only a missing row is an error.
+        $exists = $db->prepare('SELECT id FROM recipes WHERE id = ? LIMIT 1');
+        $exists->execute([$id]);
+        if (!$exists->fetchColumn()) {
+            echo json_encode(['success' => false, 'error' => 'not_found']);
+            return;
+        }
+    }
+    EverLog::info('Recipe rated', ['event' => 'recipe_rate', 'id' => $id, 'rating' => $rating]);
+    echo json_encode(['success' => true, 'id' => $id, 'rating' => $rating]);
 }
 
 function recipesSave(PDO $db): void {
@@ -21533,6 +21585,10 @@ function recipesArchiveUpsert(PDO $db, $recipe, string $meal = '', string $date 
             if ($hashId > 0) {
                 $db->prepare("UPDATE recipes SET date = ?, meal = ?, recipe_json = ?, content_hash = ?, created_at = datetime('now') WHERE id = ?")
                     ->execute([$date, $meal, $json, $hash, $hashId]);
+                // The row that survives keeps the better vote: merging two copies of the same
+                // dish must never erase what the household already said about it.
+                $db->prepare('UPDATE recipes SET rating = MAX(rating, COALESCE((SELECT rating FROM recipes WHERE id = ?), 0)) WHERE id = ?')
+                    ->execute([$id, $hashId]);
                 $db->prepare('DELETE FROM recipes WHERE id = ?')->execute([$id]);
                 return $hashId;
             }

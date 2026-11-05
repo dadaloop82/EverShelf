@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105l'; // bump when translations change
+const _I18N_VERSION = '20261105s'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8558,6 +8558,8 @@ function _dashboardLiveRefresh(inventoryId) {
 
 /** Reload banner + current page (and shopping tabs when relevant) after a mutation. */
 function refreshAppDataAfterMutation() {
+    // The capture keeps its own short-lived copy of the rows: a write invalidates it.
+    _captureInventoryCacheAt = 0;
     if (typeof loadBannerAlerts === 'function') loadBannerAlerts();
     // One choke point: whatever mutated, the dashboard rebuilds itself if it is on screen.
     _dashboardLiveRefresh();
@@ -9894,6 +9896,12 @@ function _openCaptureSheet() {
     if (!sheet) return;
     // A new sentence replaces a pending confirmation: never two writable actions at once.
     _shelfyClearConfirm();
+    // The sentence is parsed locally, but the rows it is matched against may cost one round
+    // trip: warm them NOW — while the household reads the intro or speaks — so the lookup at
+    // the end of the turn finds them in memory (`_captureInventoryRows`).
+    _captureInventoryRows().catch(() => {});
+    // And ask once whether this device can listen without the network at all.
+    _captureProbeLocal(_captureSpeechLang());
     // First run: SHELFY introduces itself before it starts listening.
     if (!_shelfyIntroSeen()) { _shelfyOpenIntro(); return; }
     sheet.style.display = '';
@@ -10046,8 +10054,6 @@ function _captureSyncMicAvailability() {
     }
 }
 
-/** Audio level meter (getUserMedia + AnalyserNode): the mic fills while you talk. */
-let _captureMeter = null;
 
 /**
  * The visible state machine of ONE voice turn.
@@ -10227,52 +10233,55 @@ function _captureRetryVoice() {
 }
 
 /** Start the level meter. Silent failure: the transcript still works without it. */
-async function _captureStartMeter() {
-    _captureStopMeter();
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx || !navigator.mediaDevices?.getUserMedia) return;
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const ctx = new AudioCtx();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        source.connect(analyser);
-        const buf = new Uint8Array(analyser.fftSize);
-        const mic = document.getElementById('capture-mic');
-        const bars = document.getElementById('capture-bars');
-        const tick = () => {
-            analyser.getByteTimeDomainData(buf);
-            let sum = 0;
-            for (let i = 0; i < buf.length; i++) {
-                const v = (buf[i] - 128) / 128;
-                sum += v * v;
-            }
-            // RMS, boosted: speech sits around 0.1-0.3, so a linear bar barely moves.
-            const level = Math.min(1, Math.sqrt(sum / buf.length) * 4.5);
-            if (mic) mic.style.setProperty('--level', level.toFixed(3));
-            if (bars) {
-                bars.querySelectorAll('span').forEach((b, i) => {
-                    const wobble = 0.55 + 0.45 * Math.abs(Math.sin(Date.now() / 180 + i));
-                    b.style.setProperty('--bar', Math.max(0.12, level * wobble).toFixed(3));
-                });
-            }
-            _captureMeter.raf = requestAnimationFrame(tick);
-        };
-        _captureMeter = { stream, ctx, raf: 0 };
-        tick();
-    } catch (e) {
-        _captureMeter = null;   // permission denied or no device: the recogniser still works
-    }
+/**
+ * The bars of the capture sheet, drawn WITHOUT a second microphone client.
+ *
+ * This used to open `getUserMedia` + an AnalyserNode on the first recognised word. Two audio
+ * clients on the same microphone is exactly what makes Chrome on Android drop the recognition
+ * session mid-sentence (the session then gets resumed, and the household waits through two
+ * silence windows for a sentence that was already over), and the meter was only cosmetic.
+ * The level is now derived from the recogniser itself: every result is a pulse that decays,
+ * which is the same picture with one client and no permission of its own.
+ *
+ * The state of the sheet is NOT touched here: this is cleanup, and the turn owns the state
+ * (`_captureSetState`). It used to end with `_captureSetState('idle')`, i.e. a cleanup helper
+ * silently stopping the watchdog of a turn that was still running.
+ */
+let _captureMeterPulse = 0;
+let _captureMeterRaf = 0;
+
+function _capturePaintLevel(level) {
+    const mic = document.getElementById('capture-mic');
+    const bars = document.getElementById('capture-bars');
+    const lv = Math.max(0, Math.min(1, Number(level) || 0));
+    if (mic) mic.style.setProperty('--level', lv.toFixed(3));
+    if (!bars) return;
+    bars.querySelectorAll('span').forEach((b, i) => {
+        const wobble = 0.55 + 0.45 * Math.abs(Math.sin(Date.now() / 180 + i));
+        b.style.setProperty('--bar', Math.max(0.12, lv * wobble).toFixed(3));
+    });
+}
+
+/** One pulse per recognised chunk: the decay is the "voice" the household sees. */
+function _captureMeterPulseStart() {
+    if (_captureMeterRaf) return;
+    const tick = () => {
+        _captureMeterRaf = 0;
+        if (_captureState !== 'listening') { _capturePaintLevel(0); return; }
+        const since = Date.now() - _captureMeterPulse;
+        // ~550 ms half-life: a word lights the bars, a pause lets them fall.
+        const level = since >= 0 ? 0.9 * Math.exp(-since / 550) : 0;
+        _capturePaintLevel(Math.max(0.06, level));
+        _captureMeterRaf = requestAnimationFrame(tick);
+    };
+    _captureMeterRaf = requestAnimationFrame(tick);
 }
 
 function _captureStopMeter() {
-    if (!_captureMeter) return;
-    try { cancelAnimationFrame(_captureMeter.raf); } catch (e) {}
-    try { _captureMeter.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
-    try { _captureMeter.ctx.close(); } catch (e) {}
-    _captureMeter = null;
-    _captureSetState('idle');
+    if (_captureMeterRaf) { try { cancelAnimationFrame(_captureMeterRaf); } catch (e) {} }
+    _captureMeterRaf = 0;
+    _captureMeterPulse = 0;
+    _capturePaintLevel(0);
 }
 
 /**
@@ -10289,14 +10298,20 @@ function _captureVoiceStop() {
         try { clearTimeout(_captureVoice.timer); } catch (e) { /* already fired */ }
         _captureVoice.timer = 0;
     }
+    // The hand-over guard is part of the session: a turn that is closed must not submit a
+    // sentence 700 ms later.
+    if (_captureVoice.guard) {
+        try { clearTimeout(_captureVoice.guard); } catch (e) { /* already fired */ }
+        _captureVoice.guard = 0;
+    }
     _captureVoice.active = false;
     _captureVoice.text = '';
+    _captureVoice.restarted = false;
     _captureVoice.stopRequested = false;
     try {
         if (_captureRec) { _captureRec.onend = null; _captureRec.onerror = null; _captureRec.stop(); }
     } catch (e) { /* already stopped */ }
     _captureRec = null;
-    _captureMeterStarted = false;
     _captureStopMeter();
 }
 
@@ -10363,6 +10378,9 @@ function _captureShowChoices(rows) {
                 : `<span class="shelfy-pick-emoji">${cat}</span>`;
             const meta = [item.brand, `${loc.icon} ${loc.label}`, _formatQtyPlain(item.quantity, item.unit, item.default_quantity, item.package_unit)]
                 .filter(Boolean).map(x => escapeHtml(String(x))).join(' · ');
+            // The number in the handler is the row's PANTRY index, not its slot in this
+            // shortlist: `_captureChoose()` searches the four cached rows for it (indexing
+            // the cache with it found nothing and the choice registered nothing at all).
             return `<button type="button" class="shelfy-pick${i === 0 ? ' is-best' : ''}" onclick="_captureChoose(${index})">
                 <span class="shelfy-pick-media">${media}</span>
                 <span class="shelfy-pick-body">
@@ -10391,9 +10409,25 @@ function _captureShowChoices(rows) {
  * `stopRequested` marks a session WE ended on the silence deadline: only then may `onend`
  * hand the sentence over.
  */
-let _captureVoice = { active: false, text: '', timer: 0, stopRequested: false };
-/** The level meter is started lazily (see _captureStartVoice). */
-let _captureMeterStarted = false;
+let _captureVoice = {
+    active: false, text: '', timer: 0, guard: 0,
+    restarted: false, stopRequested: false, t0: 0,
+};
+
+/**
+ * The timeline of one turn, printed only with `?debug=1` (`_bootDebug`).
+ *
+ * "Ci mette 30 secondi" has four different causes — the recogniser's own latency, our silence
+ * deadline, a resumed session, or the lookup — and only a timeline says which one a device is
+ * paying. `t0` is the tap, so every line is the real cost of the step.
+ */
+function _captureTrace(step, extra) {
+    if (typeof _bootDebug === 'undefined' || !_bootDebug) return;
+    try {
+        const t0 = _captureVoice.t0 || (_captureVoice.t0 = Date.now());
+        console.debug(`[shelfy] ${step} +${Date.now() - t0}ms`, extra || '');
+    } catch (e) { /* no console */ }
+}
 
 /**
  * "Cosa posso dire": the sheet's own manual.
@@ -10812,6 +10846,34 @@ function _captureSpeechLang(navLang) {
 }
 
 /**
+ * On-device recognition, when the browser really has it.
+ *
+ * The Web Speech API of Chrome does not listen locally: it uploads the audio and returns the
+ * final result after a round trip, which is the half of a voice turn nobody controls. Modern
+ * Chromium can run the recogniser on the device (`processLocally`), but only for a language
+ * pack that is actually installed — so this asks `available()` once per language and says yes
+ * only on a plain "available". Anything else (downloadable, downloading, unavailable, an older
+ * engine without the API) leaves the networked recogniser in place: a half-installed pack that
+ * fails every session is worse than a slow one that works.
+ */
+let _captureLocalLang = '';
+let _captureLocalOk = false;
+
+async function _captureProbeLocal(lang) {
+    if (!lang || lang === _captureLocalLang) return;
+    _captureLocalLang = lang;      // one probe per language, whatever the answer
+    _captureLocalOk = false;
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor || typeof Ctor.available !== 'function') return;
+    try {
+        const state = await Ctor.available({ langs: [lang], processLocally: true });
+        _captureLocalOk = state === 'available';
+    } catch (e) {
+        _captureLocalOk = false;
+    }
+}
+
+/**
  * Web Speech API: on-device, free, no server round-trip.
  *
  * ONE session per tap (`continuous = true`), and the session is closed by our own
@@ -10890,9 +10952,27 @@ const _CAPTURE_SILENCE_INTERIM_MS = 2200;
  * phrase even with `continuous = true`; submitting there cut "Ho usato 2 arance" at
  * "Ho usato 2" and "Aggiungi il latte" at "Aggiungi il" — the last word never arrived.
  * A resume keeps the same sentence (nothing is heard twice); the bound only stops an
- * endless resume on a microphone that is not delivering anything.
+ * endless resume on a microphone that is not delivering anything. It is 2, not 4: a resumed
+ * session already holds what was said, and every extra resume is another full silence window
+ * the household spends looking at "ti ascolto…" after having stopped talking.
  */
-const _CAPTURE_RESTARTS_MAX = 4;
+const _CAPTURE_RESTARTS_MAX = 2;
+/**
+ * The deadline of a session the browser already ended (and we resumed) that holds text: the
+ * words arrived, so the pause from here is the end of the sentence, not a breath.
+ */
+const _CAPTURE_SILENCE_RESTART_MS = 1000;
+/**
+ * How long `onend` gets after our stop before the sentence we already hold is handed over.
+ *
+ * `stop()` does not end a session locally: Chrome uploads the audio and calls `onend` after a
+ * round trip nobody controls. `heard` is already complete at that point — every result is
+ * merged into it, interim included — and the parser reads it locally in a few milliseconds,
+ * so this window is only there to let a browser that is quick enough deliver its own final.
+ * Waiting for `onend` instead is what turned a complete sentence into "la richiesta ha
+ * impiegato troppo tempo".
+ */
+const _CAPTURE_HANDOVER_GUARD_MS = 700;
 
 async function _captureStartVoice() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -10904,8 +10984,11 @@ async function _captureStartVoice() {
     const un = document.getElementById('capture-understood');
     if (un) un.hidden = true;
     _capturePhase('listening');
-    _captureVoice = { active: true, text: '', timer: 0, stopRequested: false };
-    _captureMeterStarted = false;
+    _captureVoice = {
+        active: true, text: '', timer: 0, guard: 0,
+        restarted: false, stopRequested: false, t0: Date.now(),
+    };
+    _captureTrace('tap');
     /** The sentence as heard so far: it survives a result list the browser resets. */
     let heard = '';
     let submitted = false;
@@ -10925,8 +11008,11 @@ async function _captureStartVoice() {
         // means "the sentence may well be over": close it fast (1.4 s, the live test
         // measured ~7 s of a perfectly still screen before). While only an interim
         // result exists the engine has not committed the words, so a short cut there is
-        // what ate the last word of "ho usato 2 arance".
-        const wait = heardFinal ? _CAPTURE_SILENCE_MS : _CAPTURE_SILENCE_INTERIM_MS;
+        // what ate the last word of "ho usato 2 arance". A session the browser ended and
+        // we resumed already holds those words: there a pause IS the end of the sentence.
+        const wait = heardFinal
+            ? _CAPTURE_SILENCE_MS
+            : ((_captureVoice.restarted && heard) ? _CAPTURE_SILENCE_RESTART_MS : _CAPTURE_SILENCE_INTERIM_MS);
         _captureVoice.timer = setTimeout(() => {
             _captureVoice.timer = 0;
             // OUR deadline, not the browser's: this stop is the end of the sentence, so
@@ -10936,7 +11022,10 @@ async function _captureStartVoice() {
             // waiting for `onend`, which Chrome can delay, plus the inventory lookup) is
             // what turns the dead second into a visible state of the assistant.
             _capturePhase('thinking');
+            _captureTrace('stop-requested', { heard, restarted: _captureVoice.restarted });
             try { if (_captureRec) _captureRec.stop(); } catch (e) { /* already ended */ }
+            // ...and the turn never waits for `onend` to act on the sentence it holds.
+            armHandOver();
         }, wait);
     };
 
@@ -10951,6 +11040,33 @@ async function _captureStartVoice() {
     };
 
     /**
+     * Hand over the sentence we already hold, unless `onend` beats us to it.
+     *
+     * `stop()` does not end the session locally: Chrome sends the audio to its servers and
+     * calls `onend` when the final result comes back — the one step of a voice turn nobody
+     * controls. Everything else is local: `heard` is rebuilt from every result (interim
+     * included), `_captureParse` reads it in milliseconds and the pantry rows are already in
+     * memory. So the deadline, not the cloud, ends the turn; a late final is dropped by the
+     * turn id and `submitted` makes a double hand-over impossible.
+     */
+    const armHandOver = () => {
+        if (_captureVoice.guard) { try { clearTimeout(_captureVoice.guard); } catch (e) {} }
+        _captureVoice.guard = setTimeout(() => {
+            _captureVoice.guard = 0;
+            const said = String(heard || '').replace(/\s+/g, ' ').trim();
+            _captureTrace('handover-guard', { said });
+            if (!said) {
+                // Nothing was heard: this is not a slow turn, it is an empty one.
+                _captureVoiceStop();
+                _captureSetState('idle');
+                _captureStatus('capture.not_understood');
+                return;
+            }
+            finish(said);
+        }, _CAPTURE_HANDOVER_GUARD_MS);
+    };
+
+    /**
      * Wire ONE recognition session.
      *
      * Called once inside the tap (the gesture that allows the microphone) and again when
@@ -10961,10 +11077,19 @@ async function _captureStartVoice() {
     const startSession = () => {
         _captureRec = new Ctor();
         _captureRec.lang = _captureSpeechLang();
+        // On-device when this browser really has the language installed: the cloud round
+        // trip is the slow half of a voice turn (see `_captureProbeLocal`).
+        if (_captureLocalOk) {
+            try { _captureRec.processLocally = true; } catch (e) { _captureLocalOk = false; }
+        }
         _captureRec.interimResults = true;
         _captureRec.continuous = true;
         _captureRec.maxAlternatives = 1;
         _captureRec.onresult = (ev) => {
+            // A session that was already handed over — the guard fired before the browser's own
+            // final — must not paint "ti ascolto" over the card, and above all must not re-arm
+            // a deadline for a turn that is no longer running.
+            if (submitted || !_captureVoice.active) return;
             // What the browser believes NOW (it may be the whole session or just the phrase
             // it restarted on): rebuild it, then join it with what we already heard.
             let eventText = '';
@@ -10988,12 +11113,23 @@ async function _captureStartVoice() {
             if (ev.results.length > from) {
                 heardFinal = !!ev.results[ev.results.length - 1].isFinal;
             }
-            if (!_captureMeterStarted) { _captureMeterStarted = true; _captureStartMeter(); }
+            if (!_captureMeterPulse) _captureTrace('first-result', { text: heard });
+            // The bars pulse on the recogniser's own results: no getUserMedia, so the
+            // microphone has ONE client (see `_capturePaintLevel`).
+            _captureMeterPulse = Date.now();
+            _captureMeterPulseStart();
             // A final chunk is ONE PHRASE, not the sentence: never submit from here.
             armSilenceStop();
         };
         _captureRec.onerror = (ev) => {
             const denied = ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed');
+            // The on-device pack vanished (language uninstalled, browser updated): fall back
+            // to the networked engine instead of failing every turn of this device.
+            if (_captureLocalOk && ev && ev.error === 'language-not-supported') {
+                _captureLocalOk = false;
+                _captureTrace('local-failed', { error: ev.error });
+                return;                          // `onend` resumes the session
+            }
             if (denied) {
                 _captureVoiceStop();
                 _captureSetState('idle');
@@ -11008,7 +11144,11 @@ async function _captureStartVoice() {
         _captureRec.onend = () => {
             const deadlineReached = _captureVoice.stopRequested;
             _captureRec = null;
+            _captureTrace('onend', { deadlineReached, heard });
             if (_captureVoice.timer) { try { clearTimeout(_captureVoice.timer); } catch (e) {} _captureVoice.timer = 0; }
+            // `onend` beat the guard: the browser was quick, and the sentence is handed over
+            // here instead of by the guard.
+            if (_captureVoice.guard) { try { clearTimeout(_captureVoice.guard); } catch (e) {} _captureVoice.guard = 0; }
             _captureStopMeter();
             if (!_captureVoice.active) return;      // sheet closed, microphone denied
             // The whole utterance, finals plus the text the browser never finalised.
@@ -11020,8 +11160,9 @@ async function _captureStartVoice() {
                 // really finished still ends the sentence `_CAPTURE_SILENCE_MS` later.
                 restarts++;
                 _captureVoice.stopRequested = false;
-                _captureMeterStarted = false;
+                _captureVoice.restarted = true;
                 heardFinal = false;
+                _captureTrace('resume', { restarts, heard });
                 armSilenceStop();
                 try {
                     startSession();
@@ -11041,9 +11182,9 @@ async function _captureStartVoice() {
 
     try {
         startSession();
-        // The meter (getUserMedia) starts on the first result, not before: two clients on
-        // the microphone at the same instant is what made the recogniser hear nothing on
-        // some phones, and the meter is only cosmetic.
+        // The bars are painted from the recogniser's own results: no getUserMedia, so the
+        // microphone has exactly one client (two clients is what made the recogniser hear
+        // nothing on some phones).
     } catch (e) {
         _captureStopMeter();
         _captureSetState('idle');
@@ -11288,22 +11429,54 @@ function _captureItemMatchScore(needle, item) {
     return best;
 }
 
+/**
+ * The rows a spoken sentence is matched against: the WHOLE pantry, never the place the list
+ * happens to be showing.
+ *
+ * `currentInventory` is the pantry page's own array — filtered by the open place, the macro
+ * domain and the tag chips — so using it as the search space made a product on another shelf
+ * answer "non è in dispensa", and the fresh `inventory_list` only ran when that array was
+ * EMPTY (a filtered list is not empty, so it never refreshed). The order is now: the capture's
+ * own short-lived cache, the pantry page's array when nothing is narrowing it, and only then
+ * one `inventory_list` — which the sheet also warms in the background when it opens, so the
+ * round trip happens while the household is still talking.
+ */
+let _captureInventoryCache = null;
+let _captureInventoryCacheAt = 0;
+const _CAPTURE_INVENTORY_TTL_MS = 30000;
+
+async function _captureInventoryRows() {
+    if (Array.isArray(_captureInventoryCache)
+        && (Date.now() - _captureInventoryCacheAt) < _CAPTURE_INVENTORY_TTL_MS) {
+        return _captureInventoryCache;
+    }
+    // Nothing is narrowing the pantry page's list: it already holds every row, and asking the
+    // server again would only cost a round trip.
+    const narrowed = !!currentLocation || (_inventoryTagFilter || []).length > 0;
+    if (!narrowed) {
+        if (Array.isArray(_allInventoryCache) && _allInventoryCache.length) return _allInventoryCache;
+        if (Array.isArray(currentInventory) && currentInventory.length) return currentInventory;
+    }
+    try {
+        // The turn has a 15 s deadline (`CAPTURE_TIMEOUT_MS`): the request is aborted shortly
+        // before it, so the fallback card is not competing with a fetch in flight.
+        const data = await api('inventory_list', {}, 'GET', null, {}, 8000);
+        const rows = (data && Array.isArray(data.inventory)) ? data.inventory : [];
+        if (rows.length) {
+            _captureInventoryCache = rows;
+            _captureInventoryCacheAt = Date.now();
+        }
+        return rows;
+    } catch (e) {
+        return [];
+    }
+}
+
 /** Pantry + cabinet rows matching a spoken name, best first (rows with stock only). */
 async function _captureFindProducts(name) {
     const needle = String(name || '').toLowerCase().trim();
     if (!needle) return [];
-    let list = Array.isArray(currentInventory) ? currentInventory : [];
-    if (!list.length) {
-        try {
-            // The turn has a 15 s deadline (`CAPTURE_TIMEOUT_MS`): the request is aborted a
-            // little before it, so the fallback card is not competing with a fetch in flight.
-            const data = await api('inventory_list', {}, 'GET', null, {}, 12000);
-            currentInventory = (data && data.inventory) || [];
-            list = currentInventory;
-        } catch (e) {
-            return [];
-        }
-    }
+    const list = await _captureInventoryRows();
     return list
         .filter(i => !isInventoryDepleted(i))
         .map((item, index) => ({ item, index, score: _captureItemMatchScore(needle, item) }))
@@ -11316,6 +11489,26 @@ async function _captureFindProducts(name) {
 async function _captureFindProduct(name) {
     const rows = await _captureFindProducts(name);
     return rows.length ? rows[0].item : null;
+}
+
+/**
+ * One pack of a row, expressed in the row's own unit: "una busta di cioccolato" against a
+ * product kept in grams is the amount that row calls a pack (`default_quantity`).
+ *
+ * `_packMeasure()` answers the opposite direction — a `conf` row whose pack is sold in
+ * g/ml — so until now a mass row had no way to say what one of its packages holds.
+ *
+ * Only a row that really is measured in a mass/volume has one: on a `pz` row
+ * `default_quantity` may be a legacy label weight (400 g of bread), which is never "one
+ * piece", and the pack fields (`default_quantity` + `package_unit`) only pair up on a
+ * `conf` row — everywhere else the amount is read in the row's own unit
+ * (`isSuspiciousDefaultQty()` uses exactly that rule).
+ */
+function _rowPackInUnit(item) {
+    const unit = String((item && item.unit) || '');
+    if (unit !== 'g' && unit !== 'ml' && unit !== 'kg' && unit !== 'l') return 0;
+    const size = parseFloat(item.default_quantity) || 0;
+    return size > 0 ? size : 0;
 }
 
 /**
@@ -11342,16 +11535,36 @@ function _captureQtyFor(parsed, item) {
         const base = qty * (toBase[said] || 1);
         return Math.round((base / pack.base) * 10000) / 10000;
     }
+    // The other direction — "una busta di cioccolato" against a row kept in grams: one
+    // pack is the amount that row calls a pack. Giving up here (return 0) left the caller
+    // with its "one piece" fallback, i.e. a single gram, which on the shelf reads as
+    // "it took nothing off".
+    if (!inMass && targetMass && said === 'conf') {
+        const pack = _rowPackInUnit(item);
+        if (pack > 0) return Math.round(qty * pack * 100) / 100;
+    }
     if (inMass !== targetMass) return 0;
     if (said === unit) return qty;
     return Math.round(qty * (toBase[said] || 1) * (fromBase[unit] || 1) * 100) / 100;
 }
 
-/** One of the offered rows: route it exactly like a confident match. */
+/**
+ * One of the offered rows: route it exactly like a confident match.
+ *
+ * The argument is the row's `index` — its position in the PANTRY list, which is what the
+ * cards carry — while `_captureChoicesCache` holds at most four rows. Indexing the cache
+ * with a pantry address (`_captureChoicesCache[37]`) found nothing in any pantry longer
+ * than four rows and the function returned in silence: picking a candidate, or letting the
+ * 10 s bar empty on the best one, closed the cards and registered nothing at all. The
+ * address of a row is not its position in the shortlist.
+ */
 function _captureChoose(index) {
-    const row = _captureChoicesCache[index];
-    _captureShowChoices(null);
+    const rows = Array.isArray(_captureChoicesCache) ? _captureChoicesCache : [];
+    const row = rows.find(r => r && Number(r.index) === Number(index)) || null;
+    // Resolve first, hide after: a card that cannot be resolved must leave the other
+    // ones on screen instead of closing the only way forward.
     if (!row) return;
+    _captureShowChoices(null);
     // The dictated amount (or "use it all") travels with the choice.
     _shelfyRunConsume(row, _capturePending);
 }
@@ -11379,6 +11592,7 @@ async function _captureSubmit(raw, opts) {
     if (!text) { _captureSetState('idle'); _captureStatus('capture.idle'); return; }
     const parsed = _captureParse(text);
     _capturePending = parsed;
+    _captureTrace('submit', { text, intent: parsed.intent, product: parsed.product });
     _captureShowTranscript(text, true);
     _captureShowChoices(null);
     _captureHideFallback();
@@ -11427,6 +11641,7 @@ async function _captureSubmit(raw, opts) {
     }
 
     const rows = await _captureFindProducts(parsed.product);
+    _captureTrace('lookup-done', { rows: rows.length });
     // The deadline may have fired (or the sheet may have been closed) while we waited: the
     // turn is over, and its late answer must not open anything.
     if (turn !== _captureTurnId) return;
@@ -16234,9 +16449,21 @@ function _fractionChipOptions(spec) {
         if (maxEntry > 2) addAll(maxEntry, t('units.conf'), 'count');
     } else if (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l') {
         const u = spec.measureLabel || unit;
-        add(10, `10 ${u}`);
-        add(25, `25 ${u}`);
-        add(50, `50 ${u}`);
+        // The shortcuts follow the ORDER OF MAGNITUDE of what is being asked for. 10/25/50 g
+        // are right for flour and absurd for 2 g of oregano — half a jar of dried herbs offered
+        // as a "quick dose". With a reference amount the chips are its halves and multiples
+        // (1 g · 2 g · 4 g + the whole pack); without one the old grocery steps stay, so the
+        // product sheet is unchanged.
+        const ref = Number(spec.refQty) || 0;
+        if (ref > 0) {
+            add(ref / 2, `${format(ref / 2)} ${u}`);
+            add(ref, `${format(ref)} ${u}`);
+            add(ref * 2, `${format(ref * 2)} ${u}`);
+        } else {
+            add(10, `10 ${u}`);
+            add(25, `25 ${u}`);
+            add(50, `50 ${u}`);
+        }
         addAll(maxEntry, u, 'measure');
     }
     return opts;
@@ -17794,6 +18021,8 @@ function _medDiscard(invId) {
 
 const _OVERLAY_CLOSERS = {
     'modal-overlay': () => closeModal(),
+    // The end-of-cook question over the cooking screen: Esc = "no, just leave".
+    'cooking-finish-overlay': () => _cookingFinishSkip(),
     // The package photo over the product sheet: Esc closes the picture, not the sheet.
     'image-lightbox': () => _closeImageLightbox(),
     'capture-sheet': () => _closeCaptureSheet(),
@@ -19125,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105s';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19135,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105s';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -31928,11 +32157,19 @@ const MEAL_TYPE_DEFS = [
     { id: 'merenda',    icon: '🍪', i18nKey: 'meal_types.merenda',    from: 14, to: 17 },
     { id: 'cena',       icon: '🌙', i18nKey: 'meal_types.cena',       from: 17, to: 6  },
     { id: 'dolce',      icon: '🍰', i18nKey: 'meal_types.dolce',      from: -1, to: -1 },
-    { id: 'succo',      icon: '🧃', i18nKey: 'meal_types.succo',      from: -1, to: -1 },
+    // A juice is a DRINK, not a meal: it stays in the labels (an archived recipe must still be
+    // able to say what it was) but it is not one of the answers to "per quale pasto?" — a sixth
+    // chip left an orphan on a second row and pushed the whole dialog out of a tablet viewport.
+    { id: 'succo',      icon: '🧃', i18nKey: 'meal_types.succo',      from: -1, to: -1, drink: true },
 ];
 
 function getMealTypes() {
     return MEAL_TYPE_DEFS.map(m => ({ ...m, label: t(m.i18nKey) }));
+}
+
+/** The meals a recipe can be generated FOR (a drink is not one of them). */
+function getMealPickerTypes() {
+    return getMealTypes().filter(m => !m.drink);
 }
 
 function getMealSubTypes() {
@@ -32044,6 +32281,110 @@ let _recipeArchiveEntries = [];
 /** 'book' = ricettario (favourites first); 'history' = chronological meal log. */
 let _recipeArchiveView = 'book';
 
+/* ── Quick filters of the recipe book ────────────────────────────────────────────────
+ * A cookbook of fifty saved recipes is a scroll, not a shelf: the chips are the meals people
+ * actually name (a juice is a drink), plus the two questions a pantry asks — "what is quick?"
+ * and "what can I make in the appliance I already have?". The filter runs on the archive the
+ * page has just loaded, so it costs nothing and never hides a recipe behind a round trip.
+ */
+let _recipeArchiveFilter = 'all';
+
+/** Minutes in a duration label ("10 min", "1 h 30", "20m", "1h30"). 0 when it says nothing. */
+function _recipeMinutes(value) {
+    const s = String(value || '').toLowerCase().trim();
+    if (!s) return 0;
+    let total = 0;
+    let rest = s;
+    const hours = rest.match(/(\d+(?:[.,]\d+)?)\s*(?:h|ore|ora|hours?|std|stunde)/);
+    if (hours) {
+        total += parseFloat(hours[1].replace(',', '.')) * 60;
+        rest = rest.slice(rest.indexOf(hours[0]) + hours[0].length);
+    }
+    // The minutes may be bare ("1 h 30") or carry a unit ("10 min"): the hour part is already
+    // consumed, so the first number left is the minutes.
+    const mins = rest.match(/(\d+)/);
+    if (mins) total += parseInt(mins[1], 10);
+    if (!total && /^\d+$/.test(s)) total = parseInt(s, 10);
+    return Math.round(total);
+}
+
+function _recipeTotalMinutes(r) {
+    return _recipeMinutes(r && r.prep_time) + _recipeMinutes(r && r.cook_time);
+}
+
+/** The appliances a pantry already owns: "Cookeo / Forno" is the question, not a brand list. */
+const _RECIPE_APPLIANCE_WORDS = ['cookeo', 'moulinex', 'forno', 'airfryer', 'friggitrice', 'bimby', 'microonde', 'tm5', 'tm6'];
+
+function _recipeNeedsAppliance(r) {
+    if (!r) return false;
+    const parts = []
+        .concat(Array.isArray(r.tools_needed) ? r.tools_needed : [])
+        .concat(Array.isArray(r.appliances_used) ? r.appliances_used : [])
+        .concat(Array.isArray(r.steps) ? r.steps : []);
+    return parts.some((x) => {
+        const raw = (x && typeof x === 'object') ? (x.instruction || x.text || x.description || '') : (x || '');
+        const s = String(raw).toLowerCase();
+        return _RECIPE_APPLIANCE_WORDS.some(w => s.includes(w));
+    });
+}
+
+function _recipeArchiveFilterMatches(entry) {
+    const id = _recipeArchiveFilter;
+    if (!id || id === 'all') return true;
+    const r = (entry && entry.recipe) || {};
+    // Filters by vote: "at least n stars". One dimension at a time, like every other chip in
+    // the bar (a meal, a duration, an appliance, a vote).
+    const rated = Math.max(0, Math.min(5, Math.round(Number((entry && entry.rating) || 0))));
+    if (id === 'rating5') return rated >= 5;
+    if (id === 'rating4') return rated >= 4;
+    if (id === 'rating3') return rated >= 3;
+    if (id === 'quick') {
+        const mins = _recipeTotalMinutes(r);
+        return mins > 0 && mins <= 15;
+    }
+    if (id === 'appliance') return _recipeNeedsAppliance(r);
+    const meal = _normalizeMealId(r.meal || entry.meal || '');
+    return meal === id;
+}
+
+/** The chips, built from the same meal data the generator uses (one vocabulary). */
+function _renderRecipeFilterBar() {
+    const bar = document.getElementById('recipe-filter-bar');
+    if (!bar) return;
+    // The history is a log, not a shelf: chips there would filter a handful of rows.
+    // `display`, not the `hidden` attribute: the class sets `display: flex`, which beats the
+    // user-agent's `[hidden]` rule and would leave an empty row on screen.
+    if (_recipeArchiveView !== 'book') {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+    }
+    bar.style.display = '';
+    const filters = [{ id: 'all', icon: '', label: t('recipes.filter_all') }]
+        .concat(getMealPickerTypes().map(m => ({ id: m.id, icon: m.icon, label: m.label })))
+        .concat([
+            { id: 'quick', icon: '⚡', label: t('recipes.filter_quick') },
+            { id: 'appliance', icon: '🍲', label: t('recipes.filter_appliance') },
+            // The votes: "at least n stars". Numbers, so they need no translation.
+            { id: 'rating5', icon: '⭐', label: '5' },
+            { id: 'rating4', icon: '⭐', label: '4+' },
+            { id: 'rating3', icon: '⭐', label: '3+' },
+        ]);
+    bar.innerHTML = filters.map(f => {
+        const on = f.id === _recipeArchiveFilter ? ' is-active' : '';
+        const label = `${f.icon ? f.icon + ' ' : ''}${f.label}`;
+        return `<button type="button" class="recipe-filter-chip${on}" data-recipe-filter="${escapeHtml(f.id)}"`
+            + ` aria-pressed="${f.id === _recipeArchiveFilter ? 'true' : 'false'}"`
+            + ` onclick="_setRecipeArchiveFilter('${escapeHtml(f.id)}')">${escapeHtml(label)}</button>`;
+    }).join('');
+}
+
+function _setRecipeArchiveFilter(id) {
+    _recipeArchiveFilter = id || 'all';
+    _renderRecipeFilterBar();
+    loadRecipeArchive();
+}
+
 function _setRecipeArchiveView(view) {
     _recipeArchiveView = (view === 'history') ? 'history' : 'book';
     document.querySelectorAll('.recipe-view-tab').forEach(btn => {
@@ -32063,13 +32404,38 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     const appliance = Array.isArray(r.steps)
         ? (r.steps.map(s => (typeof _stepAppliance === 'function' ? _stepAppliance(s) : null)).find(Boolean) || '')
         : '';
+    const isHistory = _recipeArchiveView === 'history';
+    // A past meal is a MOMENT, not just a day: the same evening can hold two things. `savedAt`
+    // is the archive's own timestamp (ms), so the time is the household's local one.
+    let savedTime = '';
+    if (isHistory && entry.savedAt) {
+        try {
+            savedTime = new Date(Number(entry.savedAt))
+                .toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
+        } catch (e) { savedTime = ''; }
+    }
     let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}" onclick="viewArchivedRecipe(${archiveIdx})">`;
     html += `<div class="recipe-archive-card-header">`;
     html += `<span class="recipe-archive-meal recipe-archive-meal-lg" aria-hidden="true">${mealIcon}</span>`;
     html += `<span class="recipe-archive-title">${escapeHtml(r.title || '')}</span>`;
     html += favBadge;
+    // "Ripeti pasto": the saved recipe again, in one tap and with no generation at all.
+    if (isHistory) {
+        html += `<button type="button" class="recipe-archive-repeat"`
+            + ` onclick="event.stopPropagation();_recipeRepeatMeal(${archiveIdx})"`
+            + ` title="${escapeHtml(t('recipes.repeat_meal'))}" aria-label="${escapeHtml(t('recipes.repeat_meal'))}">`
+            + `🔄 <span>${escapeHtml(t('recipes.repeat_meal'))}</span></button>`;
+    }
     html += `</div>`;
     html += `<div class="recipe-archive-card-meta">`;
+    if (savedTime) html += `<span class="recipe-archive-badge">🕐 ${escapeHtml(savedTime)}</span>`;
+    // The vote, right on the card: it is what the book is filtered by, so it has to be visible
+    // before opening the recipe.
+    const cardRating = Math.max(0, Math.min(5, Math.round(Number(entry.rating) || 0)));
+    if (cardRating > 0) {
+        html += `<span class="recipe-archive-rating" title="${escapeHtml(t('recipes.rating_value', { n: String(cardRating) }))}">`
+            + '★'.repeat(cardRating) + `<span class="recipe-archive-rating-off">${'☆'.repeat(5 - cardRating)}</span></span>`;
+    }
     if (r.prep_time) html += `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.prep_time))}</span>`;
     if (r.cook_time) html += `<span class="recipe-archive-badge">🔥 ${escapeHtml(String(r.cook_time))}</span>`;
     html += `<span class="recipe-archive-badge">👥 ${escapeHtml(String(r.persons || 1))}</span>`;
@@ -32087,6 +32453,8 @@ async function loadRecipeArchive() {
     if (!container) return;
     const archive = await getRecipeArchive();
     _recipeArchiveEntries = archive;
+    // The chips live outside the list: paint them before any branch decides what to print.
+    _renderRecipeFilterBar();
     
     if (archive.length === 0) {
         container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>${t('recipes.archive_empty')}</p></div>`;
@@ -32094,9 +32462,14 @@ async function loadRecipeArchive() {
     }
 
     if (_recipeArchiveView === 'book') {
-        const favs = archive.filter(e => e.is_favorite);
-        const rest = archive.filter(e => !e.is_favorite);
+        // The chips filter the book only (the history stays a plain log).
+        const shown = archive.filter(_recipeArchiveFilterMatches);
+        const favs = shown.filter(e => e.is_favorite);
+        const rest = shown.filter(e => !e.is_favorite);
         let html = '';
+        if (!shown.length) {
+            html += `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">🍳</div><p>${escapeHtml(t('recipes.archive_empty'))}</p></div>`;
+        }
         if (favs.length) {
             html += `<div class="recipe-archive-day"><div class="recipe-archive-date">★ ${escapeHtml(t('recipes.favorites_section') || t('recipes.favorite'))}</div>`;
             for (const entry of favs) {
@@ -32142,13 +32515,31 @@ async function loadRecipeArchive() {
     container.innerHTML = html;
 }
 
+/**
+ * "Ripeti pasto" on a past meal: reopen the SAVED recipe, in one tap and with no AI call.
+ *
+ * Regenerating would cost a model call and return a different dish; the household is asking for
+ * the one already eaten, whose ingredients are still on the shelf. The sheet is the usual one —
+ * its sticky footer carries "Ho cucinato questo piatto", which scales the whole ingredient list
+ * in a single tap — and that footer pulses once, because "repeat" means "cook it again".
+ */
+function _recipeRepeatMeal(idx) {
+    viewArchivedRecipe(idx);
+    setTimeout(() => {
+        const footer = document.getElementById('recipe-primary-actions');
+        if (!footer) return;
+        footer.classList.add('is-prompted');
+        setTimeout(() => footer.classList.remove('is-prompted'), 1900);
+    }, 350);
+}
+
 function viewArchivedRecipe(idx) {
     const pick = _recipeArchiveEntries[idx];
     if (!pick) return;
     _recipeArchiveCache = null;
     getRecipeArchive().then(archive => {
         const entry = archive.find(e => e.id === pick.id) || pick;
-        _cachedRecipe = { meal: _normalizeMealId(entry.meal), recipe: entry.recipe, id: entry.id, is_favorite: !!entry.is_favorite };
+        _cachedRecipe = { meal: _normalizeMealId(entry.meal), recipe: entry.recipe, id: entry.id, is_favorite: !!entry.is_favorite, rating: Number(entry.rating) || 0 };
         return renderRecipe(entry.recipe);
     }).then(() => {
         document.getElementById('recipe-overlay').style.display = 'flex';
@@ -32172,10 +32563,10 @@ function openRecipeDialog() {
     const settings = getSettings();
     document.getElementById('recipe-overlay').style.display = 'flex';
 
-    // Build meal selector radios
+    // Build meal selector radios — meals only, a juice is a drink.
     const mealGrid = document.getElementById('recipe-meal-grid');
     if (mealGrid) {
-        mealGrid.innerHTML = getMealTypes().map(m => {
+        mealGrid.innerHTML = getMealPickerTypes().map(m => {
             const checked = m.id === meal ? ' checked' : '';
             return `<label class="recipe-meal-chip"><input type="radio" name="recipe-meal" value="${m.id}"${checked}> ${m.icon} ${m.label}</label>`;
         }).join('');
@@ -32185,14 +32576,15 @@ function openRecipeDialog() {
     // Show today's meal plan hint
     _renderMealPlanHint(meal);
 
-    // Check for cached recipe matching current meal type
-    if (_cachedRecipe && _cachedRecipe.meal === meal && _cachedRecipe.recipe) {
-        document.getElementById('recipe-ask').style.display = 'none';
-        document.getElementById('recipe-loading').style.display = 'none';
-        renderRecipe(_cachedRecipe.recipe);
-        document.getElementById('recipe-result').style.display = '';
-        return;
-    }
+    // "Genera nuova ricetta" means the FORM, always.
+    //
+    // This used to short-circuit on `_cachedRecipe` — the last recipe RENDERED, which the
+    // archive view sets as well — so after reading "Sformatine al Tonno" the button reopened
+    // that same recipe instead of the generator, and the only way out was closing the app's
+    // sheet and hoping. The cached object is what the sheet is showing RIGHT NOW, never a
+    // reason to skip the form: the panels are reset here and the form is painted below.
+    document.getElementById('recipe-result').style.display = 'none';
+    document.getElementById('recipe-loading').style.display = 'none';
 
     // Pre-fill persons from settings
     document.getElementById('recipe-persons').value = settings.default_persons || 1;
@@ -32243,13 +32635,16 @@ async function onRecipeFuelToggle() {
 }
 
 function updateRecipeFuelGenerateBtn() {
+    // The CTA of the generator is ONE sentence, always `✨ Genera Ricetta`.
+    //
+    // It used to become "Genera porzioni sul mio fabbisogno" when 🔥 A ritmo mio was ticked: an
+    // action that changes its NAME because a parameter changed. The fuel mode is sent to the
+    // generator like the servings are, and a button that renames itself is a second, longer
+    // action the household has to re-read every time.
     const btn = document.querySelector('#recipe-ask .btn-success[onclick*="generateRecipe"]')
         || document.querySelector('#recipe-ask button.btn-large.btn-success');
     if (!btn) return;
-    const fuelOn = !!(document.getElementById('recipe-opt-fuel')?.checked) && !!(getSettings().health_enabled);
-    btn.textContent = fuelOn
-        ? (t('recipes.generate_fuel_btn'))
-        : (t('recipes.generate_btn'));
+    btn.textContent = t('recipes.generate_btn');
 }
 
 /** Silent: once per recipe/day when you use an ingredient from that recipe. */
@@ -33280,6 +33675,9 @@ function _recipeUseFractionOptions() {
         unit: unit,
         maxEntry: maxEntry,
         measureLabel: unit,
+        // The dose the recipe asks for: the chips are its halves and multiples, so "2 g of
+        // oregano" offers 1 g · 2 g · 4 g and the whole jar — never 10/25/50 g.
+        refQty: Number(ctx.qtyNumber) || 0,
         format: _itemDetailFmtQty,
         allLabel: _recipeUseAllChipLabel,
     });
@@ -33611,6 +34009,64 @@ let _recipeCurrentPersons = 1;
  * Toggle favorite status for the currently displayed recipe (#124).
  * New (unsaved) recipes are archived first so the star never silently no-ops.
  */
+/**
+ * The 0–5 stars of a recipe, as five buttons.
+ *
+ * 0 is a real value ("not rated") and it is also how a vote is taken back: tapping the star you
+ * already gave clears it. Five buttons, no slider and no dropdown — a vote is one tap on the
+ * star you mean, and the number is what the book can be filtered by.
+ */
+function _recipeRatingStarsHtml(rating) {
+    const n = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+    const groupLabel = n > 0 ? t('recipes.rating_value', { n: String(n) }) : t('recipes.rate_aria');
+    let out = `<span class="recipe-rating" role="group" aria-label="${escapeHtml(groupLabel)}" title="${escapeHtml(groupLabel)}">`;
+    for (let i = 1; i <= 5; i++) {
+        const on = i <= n;
+        out += `<button type="button" class="recipe-rating-star${on ? ' is-on' : ''}"`
+            + ` onclick="rateRecipe(${i})"`
+            + ` aria-label="${escapeHtml(t('recipes.rate_star', { n: String(i) }))}"`
+            + ` aria-pressed="${on ? 'true' : 'false'}">${on ? '★' : '☆'}</button>`;
+    }
+    return out + '</span>';
+}
+
+/** Repaint the stars in place: the sheet (and its ingredient list) must not be re-rendered. */
+function _repaintRecipeRating() {
+    const host = document.getElementById('recipe-rating-host');
+    if (!host) return;
+    host.innerHTML = _recipeRatingStarsHtml(Number(_cachedRecipe && _cachedRecipe.rating) || 0);
+}
+
+/**
+ * Give — or take back — the 0–5 vote of the recipe on screen.
+ *
+ * The vote lives on the ARCHIVE row, so a recipe that was never saved is archived first: the
+ * same rule the favourite star follows, and for the same reason — a number nobody stored is not
+ * a rating. Tapping the value already given clears it (0). The archive cache is invalidated so
+ * the card in the book shows the new vote on the next paint.
+ */
+async function rateRecipe(value) {
+    if (!_cachedRecipe || !_cachedRecipe.recipe) return;
+    const n = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+    const next = (Number(_cachedRecipe.rating) || 0) === n ? 0 : n;
+    if (!_cachedRecipe.id) {
+        const id = await saveRecipeToArchive(_cachedRecipe.recipe, null);
+        if (!id) {
+            showToast(t('recipes.load_error'), 'error');
+            return;
+        }
+        _cachedRecipe.id = id;
+    }
+    const res = await api('recipes_rate', {}, 'POST', { id: _cachedRecipe.id, rating: next });
+    if (!res || !res.success) {
+        showToast(_apiErrorText(res) || t('error.generic'), 'error');
+        return;
+    }
+    _cachedRecipe.rating = Number(res.rating) || 0;
+    _repaintRecipeRating();
+    _recipeArchiveCache = null;
+}
+
 async function toggleRecipeFavorite(btn) {
     if (!_cachedRecipe || !_cachedRecipe.recipe) return;
     if (!_cachedRecipe.id) {
@@ -34014,9 +34470,12 @@ async function renderRecipe(r) {
 
     let html = `<div class="recipe-title-row">
         <h2>${escapeHtml(r.title)}</h2>
+        <span class="recipe-title-actions">
+        <button type="button" class="btn-recipe-share-icon" onclick="doRegenerateReplace()" title="${escapeHtml(t('recipes.reroll'))}" aria-label="${escapeHtml(t('recipes.reroll'))}">🎲</button>
         <button type="button" class="btn-recipe-share-icon" onclick="shareRecipe()" title="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}" aria-label="${escapeHtml(t('recipes.share_title') || t('recipes.share_btn'))}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
+        </span>
     </div>`;
 
     // Meta tags + star (#124) + persons rescaler (#123)
@@ -34034,6 +34493,9 @@ async function renderRecipe(r) {
     // Favorite star — archives on first tap when the recipe is still new
     if (_cachedRecipe) {
         html += `<button class="btn-recipe-fav${isFav ? ' active' : ''}" onclick="toggleRecipeFavorite(this)" title="${isFav ? t('recipes.unfavorite') : t('recipes.save_favorite')}">${isFav ? '★' : '☆'}</button>`;
+        // The household's own vote, 0–5 (a different statement from the favourite star: "this
+        // was good" is a number the book can be filtered by).
+        html += `<span id="recipe-rating-host">${_recipeRatingStarsHtml(Number(_cachedRecipe.rating) || 0)}</span>`;
     }
     html += '</div>';
 
@@ -34127,14 +34589,8 @@ async function renderRecipe(r) {
         html += `<div class="recipe-shopping-suggestions" id="recipe-shopping-plan" hidden></div>`;
     }
 
-    // Cooking mode + one-tap deduct for every ticked pantry ingredient (per-row Usa stays).
-    html += `<div class="recipe-primary-actions mt-2">
-        <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
-        <button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>
-        <button type="button" class="btn btn-large btn-secondary${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
-    </div>`;
-
-    // Steps
+    // Steps (the actions are a sticky FOOTER at the end of the sheet, not a divider in the
+    // middle: they used to sit between the ingredients and the procedure).
     html += `<h3>${t('recipes.steps_title')}</h3><ol>`;
     (r.steps || []).forEach(step => {
         const appliance = _stepAppliance(step);
@@ -34212,6 +34668,15 @@ async function renderRecipe(r) {
     if (r.nutrition_note) {
         html += `<p class="recipe-nutrition-footnote">💡 ${escapeHtml(r.nutrition_note)}</p>`;
     }
+
+    // The three actions of a meal live in ONE sticky footer: they end the recipe, so they
+    // cannot stand between the ingredients and the procedure that explains how to cook it.
+    // Cooking mode + one-tap deduct for every ticked pantry ingredient (per-row Usa stays).
+    html += `<div class="recipe-primary-actions" id="recipe-primary-actions">
+        <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
+        <button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>
+        <button type="button" class="btn btn-large btn-secondary${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
+    </div>`;
 
     document.getElementById('recipe-content').innerHTML = html;
     _bindRecipeIngredientOpens();
@@ -34335,6 +34800,31 @@ const _stepAppliance = s => {
     return null;
 };
 
+/**
+ * The appliance a sentence NAMES, as a cook would say it ("Cookeo", "Frullatore", "Forno").
+ *
+ * One list for the timer label and for the per-step strip: the same words the book filter uses
+ * (`_RECIPE_APPLIANCE_WORDS`), so a recipe that says "nel Moulinex" is labelled and filtered as
+ * the Cookeo it is.
+ */
+const _COOKING_APPLIANCE_NAMES = [
+    { re: /\b(?:cookeo|moulinex)\b/i, name: 'Cookeo' },
+    { re: /\b(?:bimby|tm5|tm6)\b/i, name: 'Bimby' },
+    { re: /\b(?:forno|fornetto)\b/i, name: 'Forno' },
+    { re: /\b(?:microonde)\b/i, name: 'Microonde' },
+    { re: /\b(?:airfryer|friggitrice)\b/i, name: 'Friggitrice' },
+    { re: /\b(?:frullator\w*|mixer|minipimer)\b/i, name: 'Frullatore' },
+    { re: /\b(?:tostapane)\b/i, name: 'Tostapane' },
+];
+
+function _stepApplianceName(text) {
+    const raw = String(text || '');
+    for (const entry of _COOKING_APPLIANCE_NAMES) {
+        if (entry.re.test(raw)) return entry.name;
+    }
+    return '';
+}
+
 let _cookingWheelBound = false;
 let _cookingWheelTouchStartY = null;
 let _cookingWheelLastNavTs = 0;
@@ -34392,6 +34882,101 @@ function _layoutCookingWheelCards() {
     placeGhost(nextEl, false);
 }
 
+/* ── Screen wake-lock ────────────────────────────────────────────────────────────────
+ * Cooking mode is used with wet or floury hands, and a tablet sleeps after 60 s of no touch:
+ * waking it again means dirtying the display. The lock is requested on entry, given back on
+ * exit, and asked for again when the tab returns (the browser drops it while hidden, by design).
+ */
+let _cookingWakeLock = null;
+
+function _cookingModeOpen() {
+    const el = document.getElementById('cooking-overlay');
+    return !!el && el.style.display !== 'none';
+}
+
+async function _cookingWakeLockOn() {
+    if (_cookingWakeLock) return;
+    try {
+        if (!navigator.wakeLock || typeof navigator.wakeLock.request !== 'function') return;
+        _cookingWakeLock = await navigator.wakeLock.request('screen');
+        if (_cookingWakeLock && _cookingWakeLock.addEventListener) {
+            _cookingWakeLock.addEventListener('release', () => { _cookingWakeLock = null; });
+        }
+    } catch (e) {
+        _cookingWakeLock = null;   // unsupported or tab not visible: no lock, no error
+    }
+}
+
+function _cookingWakeLockOff() {
+    try { if (_cookingWakeLock && _cookingWakeLock.release) _cookingWakeLock.release(); } catch (e) { /* already gone */ }
+    _cookingWakeLock = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && _cookingModeOpen()) _cookingWakeLockOn();
+});
+
+/**
+ * "Il piatto è pronto": the ONE question at the end of cooking mode.
+ *
+ * The Finish button used to drop the household back on the recipe sheet, where the meal still
+ * had to be registered by scrolling to "Ho cucinato questo piatto" — after five steps in front
+ * of the stove the dish is already on the table, so the only question left is whether the
+ * pantry is scaled. Asked here, over the cooking screen, with the two honest answers.
+ */
+function _cookingFinishPendingCount() {
+    const r = _cookingRecipe || {};
+    if (!Array.isArray(r.ingredients)) return 0;
+    return r.ingredients.filter(i => i && i.product_id && !i.used && Number(i.qty_number) > 0).length;
+}
+
+function _cookingFinishPrompt() {
+    const pending = _cookingFinishPendingCount();
+    const old = document.getElementById('cooking-finish-prompt');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.className = 'modal-overlay cooking-finish-overlay';
+    el.id = 'cooking-finish-prompt';
+    const actions = pending > 0
+        ? `<button type="button" class="btn btn-large btn-primary" onclick="_cookingFinishConfirm()">${escapeHtml(t('cooking.finish_confirm'))}</button>
+           <button type="button" class="btn btn-large btn-secondary" onclick="_cookingFinishSkip()">${escapeHtml(t('cooking.finish_skip'))}</button>`
+        : `<button type="button" class="btn btn-large btn-primary" onclick="_cookingFinishSkip()">${escapeHtml(t('cooking.finish_close'))}</button>`;
+    el.innerHTML = `
+        <div class="modal-content cooking-finish-card" role="dialog" aria-modal="true" aria-labelledby="cooking-finish-title">
+            <span class="cooking-finish-icon" aria-hidden="true">🎉</span>
+            <h3 id="cooking-finish-title">${escapeHtml(t('cooking.finish_title'))}</h3>
+            <p class="cooking-finish-body">${escapeHtml(pending > 0
+                ? t('cooking.finish_body', { n: String(pending) })
+                : t('cooking.finish_body_empty'))}</p>
+            <div class="cooking-finish-actions">${actions}</div>
+        </div>`;
+    document.body.appendChild(el);
+}
+
+function _closeCookingFinishPrompt() {
+    const el = document.getElementById('cooking-finish-prompt');
+    if (el) el.remove();
+}
+
+/** "No, solo esci": back to the recipe sheet, nothing written (Esc does the same). */
+function _cookingFinishSkip() {
+    _closeCookingFinishPrompt();
+    closeCookingMode();
+}
+
+/** "Conferma e scala": write the pantry, close every sheet and land on the dashboard. */
+async function _cookingFinishConfirm() {
+    _closeCookingFinishPrompt();
+    closeCookingMode();
+    try {
+        await cookRecipeDeductSelected();
+    } catch (e) { /* the toast inside already said what failed */ }
+    try { closeRecipeDialog(); } catch (e) { /* dialog already closed */ }
+    // The pantry on screen must be the one just written, not the one before the cook.
+    try { refreshAppDataAfterMutation(); } catch (e) { /* older build */ }
+    try { showPage('dashboard'); } catch (e) { /* already there */ }
+}
+
 function startCookingMode() {
     const recipe = _cachedRecipe && _cachedRecipe.recipe ? _cachedRecipe.recipe : null;
     if (!recipe || !(recipe.steps || []).length) {
@@ -34428,6 +35013,7 @@ function startCookingMode() {
     }
     document.getElementById('cooking-overlay').style.display = 'flex';
     document.body.classList.add('cooking-mode-active');
+    _cookingWakeLockOn();          // keep the screen awake: hands are busy, not idle
     // Hide kiosk overlay — it lives outside <body> with z-index:2147483647 and would overlap cooking UI
     const _kioskOvl = document.getElementById('_kiosk_overlay');
     if (_kioskOvl) _kioskOvl.style.display = 'none';
@@ -34445,6 +35031,8 @@ function startCookingMode() {
 }
 function closeCookingMode() {
     _cookingVoiceStop();
+    _closeCookingFinishPrompt();
+    _cookingWakeLockOff();         // the screen may sleep again
     document.getElementById('cooking-overlay').style.display = 'none';
     document.body.classList.remove('cooking-mode-active');
     // Restore kiosk overlay
@@ -34597,6 +35185,61 @@ function _cookingScrapTip(stepText) {
     return '';
 }
 
+/**
+ * The step sentence, with its duration as a TAPPABLE timer.
+ *
+ * A pill reading "⏱️ 08:00" is an instruction the household has to translate into tapping
+ * something else — and while cooking there is flour on both hands. Here the run of text that
+ * STATES the time is the control: it starts the same countdown `addSuggestedCookingTimer()`
+ * starts (one timer engine, not two), and everything else stays plain escaped text.
+ */
+function _renderCookingStepText(text) {
+    const el = document.getElementById('cooking-step-text');
+    if (!el) return;
+    const clean = String(text || '');
+    const parsed = _parseStepTimers(clean);
+    if (!parsed.total || !parsed.matches.length) { el.textContent = clean; return; }
+    const first = parsed.matches[0];
+    const label = t('cooking.timer_chip');
+    el.innerHTML = escapeHtml(clean.slice(0, first.start))
+        + `<button type="button" class="cooking-step-timer" onclick="addSuggestedCookingTimer()"`
+        + ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">`
+        + `⏱️ ${escapeHtml(clean.slice(first.start, first.end).trim())}</button>`
+        + escapeHtml(clean.slice(first.end));
+}
+
+/**
+ * The ingredients THIS step talks about, right under its text.
+ *
+ * A step says "unire la confezione di tonno, la panna e l'origano": three doses read two screens
+ * ago, now needed with both hands busy. The strip repeats only the ones the sentence names — the
+ * head words, because no sentence repeats "Tonno all'olio di oliva sgocciolato" verbatim — plus
+ * the appliance, and disappears when the step names nothing.
+ */
+function _renderCookingStepIngredients(stepText) {
+    const el = document.getElementById('cooking-step-ings');
+    if (!el) return;
+    const r = _cookingRecipe || {};
+    const text = String(stepText || '').toLowerCase();
+    const hits = (Array.isArray(r.ingredients) ? r.ingredients : []).filter((ing) => {
+        if (!ing) return false;
+        const name = String(ing.name || '').toLowerCase().trim();
+        if (!name) return false;
+        const tokens = name.split(/\s+/).filter(w => w.length >= 4);
+        return tokens.length ? tokens.some(w => text.includes(w)) : text.includes(name);
+    }).slice(0, 6);
+    const appliance = _stepApplianceName(stepText);
+    if (!hits.length && !appliance) {
+        el.innerHTML = '';
+        el.style.display = 'none';
+        return;
+    }
+    const chips = hits.map(ing => `<span class="cooking-ing-chip"><strong>${escapeHtml(ing.name || '')}</strong>${ing.qty ? ' ' + escapeHtml(String(ing.qty)) : ''}</span>`);
+    if (appliance) chips.push(`<span class="cooking-ing-chip cooking-ing-tool">🔌 ${escapeHtml(appliance)}</span>`);
+    el.innerHTML = chips.join('');
+    el.style.display = '';
+}
+
 function renderCookingStep() {
     if (!_cookingRecipe) return;
     const steps = _cookingRecipe.steps || [];
@@ -34608,7 +35251,7 @@ function renderCookingStep() {
     _cookingVisited.add(_cookingStep);
 
     document.getElementById('cooking-step-num').textContent = `${_cookingStep + 1} / ${total}`;
-    document.getElementById('cooking-step-text').textContent = cleanStep;
+    _renderCookingStepText(cleanStep);
     const scrapEl = document.getElementById('cooking-scrap-hint');
     if (scrapEl) {
         const tip = (getSettings().zerowaste_tips_enabled === true) ? _cookingScrapTip(cleanStep) : '';
@@ -34656,12 +35299,9 @@ function renderCookingStep() {
         }).join('');
     }
 
-    // Ingredients are shown in the recipe view only, not in cooking mode.
-    const ingsEl = document.getElementById('cooking-step-ings');
-    if (ingsEl) {
-        ingsEl.innerHTML = '';
-        ingsEl.style.display = 'none';
-    }
+    // The ingredients THIS step names, and the appliance it uses: standing at the stove with a
+    // step on screen, repeating the doses here is what stops them having to be memorised.
+    _renderCookingStepIngredients(cleanStep);
 
     // Navigation button states
     const prevBtn = document.getElementById('cooking-prev');
@@ -36002,23 +36642,44 @@ function _notifyCookingTimer(type, label) {
  * Parse time durations from step text.
  * Returns total seconds or 0 if no time found.
  */
-function _parseStepTimer(text) {
-    const t = text.toLowerCase();
+/**
+ * Every duration written in a step, WITH its position in the sentence.
+ *
+ * One parser, two readers: `_parseStepTimer()` answers "how long", while the cooking view needs
+ * "where" to turn that run of text into a timer the household can tap. Keeping both in one place
+ * is what stops a step from suggesting one number and printing another.
+ */
+function _parseStepTimers(text) {
+    const t = String(text || '').toLowerCase();
     let totalSec = 0;
+    const matches = [];
+    let m;
+    const collect = (re, factor) => {
+        re.lastIndex = 0;
+        while ((m = re.exec(t)) !== null) {
+            const sec = parseFloat(m[1].replace(',', '.')) * factor;
+            totalSec += sec;
+            matches.push({ start: m.index, end: m.index + m[0].length, seconds: Math.round(sec) });
+        }
+    };
     if (/mezz['']?\s*ora/i.test(t)) totalSec += 30 * 60;
     if (/un\s+quarto\s+d['']?\s*ora/i.test(t)) totalSec += 15 * 60;
     if (/un['']?\s*ora(?!\s*e)/i.test(t) && !/\d\s*or[ae]/i.test(t)) totalSec += 60 * 60;
-    if (totalSec > 0) return totalSec;
+    if (totalSec > 0) return { total: Math.round(totalSec), matches };
     const reOre = /(\d+(?:[.,]\d+)?)\s*or[ae]/gi;
     const reMin = /(\d+(?:[.,]\d+)?)\s*min(?:ut[oi])?/gi;
     const reSec = /(\d+(?:[.,]\d+)?)\s*second[oi]/gi;
-    let m;
-    while ((m = reOre.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 3600;
-    while ((m = reMin.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.')) * 60;
-    while ((m = reSec.exec(t)) !== null) totalSec += parseFloat(m[1].replace(',', '.'));
+    collect(reOre, 3600);
+    collect(reMin, 60);
+    collect(reSec, 1);
     if (totalSec === 0 && /(?:un\s+paio\s+di|qualche|pochi)\s+minut/i.test(t)) totalSec = 2 * 60;
     if (totalSec === 0 && /qualche\s+second/i.test(t)) totalSec = 15;
-    return Math.round(totalSec);
+    return { total: Math.round(totalSec), matches };
+}
+
+/** "How long is this step's timer" — the same parser, only the number. */
+function _parseStepTimer(text) {
+    return _parseStepTimers(text).total;
 }
 
 function _formatTimerDisplay(sec) {
@@ -36030,8 +36691,22 @@ function _formatTimerDisplay(sec) {
 }
 
 /** Extract a short 2-3 word label from the step text for the timer. */
-function _extractTimerLabel(text, stepNum) {
+function _extractTimerLabel(text, stepNum, seconds) {
     const raw = String(text || '');
+    // An APPLIANCE in the sentence IS the name of the timer: "Nel Frullatore/Mixer: unire la
+    // confezione di tonno all'olio sgocciolato…" used to become "Frullatore/mixer unire confezi…",
+    // a string cut in the middle of a word. The chip now reads what a cook would say out loud:
+    // "Avvia Frullatore: 00:20". Falls back to the action-word derivation below when no
+    // appliance is named.
+    if (seconds > 0) {
+        const appliance = _stepApplianceName(raw);
+        if (appliance) {
+            return t('cooking.timer_label_appliance', {
+                name: appliance,
+                time: _formatTimerDisplay(seconds),
+            });
+        }
+    }
     const fillers = new Set(['il','la','lo','le','gli','i','dell','della','dello','delle','degli','dei',
         'un','una','uno','del','al','alla','allo','alle','agli','ai','nel','nella','nello','nelle',
         'negli','nei','per','con','che','poi','e','o','non','se','in','di','a','da','fino','mentre',
@@ -36125,7 +36800,7 @@ function setupCookingTimerSuggestion(stepText) {
         return;
     }
     _cookingSuggestedSeconds = seconds;
-    _cookingSuggestedLabel = _extractTimerLabel(stepText, _cookingStep);
+    _cookingSuggestedLabel = _extractTimerLabel(stepText, _cookingStep, seconds);
     document.getElementById('cooking-timer-suggest-text').textContent =
         `⏱️ ${_formatTimerDisplay(seconds)}  ·  ${_cookingSuggestedLabel}`;
     suggestEl.style.display = 'flex';
@@ -36328,13 +37003,15 @@ function navigateCookingStep(delta) {
     const next = _cookingStep + delta;
     if (next < 0) return;
     if (next >= total) {
-        // All steps done: mark all visited, announce completion, then close overlay
+        // All steps done: mark all visited, announce completion, then ask ONCE what to do with
+        // the pantry (`_cookingFinishPrompt`). Closing straight back to the recipe sheet made
+        // the household scroll to "Ho cucinato questo piatto" for a dish already on the table.
         for (let i = 0; i < total; i++) _cookingVisited.add(i);
         if (_cookingTTS) {
             const doneText = t('cooking.recipe_done_tts').replace('{title}', _cookingRecipe.title || '');
             speakCookingStep(doneText);
         }
-        closeCookingMode();
+        _cookingFinishPrompt();
         return;
     }
     _cookingWheelLastDelta = delta;
@@ -36788,6 +37465,41 @@ async function installMealie() {
     }
 }
 
+/* ── What SHELFY is doing while the model answers ─────────────────────────────────────
+ * The wait is 4-5 seconds, and a lone spinner over a still page is indistinguishable from a
+ * frozen app. The server's own status lines only arrive with the first streamed event, so these
+ * three sentences fill the gap — in the household's language, resolved on LITERAL keys so
+ * scripts/i18n-audit.py can see them — and stop by themselves the moment the block is hidden.
+ */
+let _recipeLoadingStageTimer = null;
+
+/** Literal keys on purpose (the audit only sees a key written inside a `t(...)` call). */
+function _recipeLoadingStageText(i) {
+    if (i === 0) return t('recipes.loading_step_1');
+    if (i === 1) return t('recipes.loading_step_2');
+    return t('recipes.loading_step_3');
+}
+
+function _recipeLoadingStagesStop() {
+    if (_recipeLoadingStageTimer) { clearInterval(_recipeLoadingStageTimer); _recipeLoadingStageTimer = null; }
+    const el = document.getElementById('recipe-loading-step');
+    if (el) el.textContent = '';
+}
+
+function _recipeLoadingStagesStart() {
+    _recipeLoadingStagesStop();
+    let i = 0;
+    const paint = () => {
+        const box = document.getElementById('recipe-loading');
+        const target = document.getElementById('recipe-loading-step');
+        if (!target || !box || box.style.display === 'none') { _recipeLoadingStagesStop(); return; }
+        target.textContent = _recipeLoadingStageText(i % 3);
+        i++;
+    };
+    paint();
+    _recipeLoadingStageTimer = setInterval(paint, 2200);
+}
+
 async function generateRecipe() {
     if (!_requireRecipeEngine()) return;
     const meal = getSelectedMealType();
@@ -36828,6 +37540,9 @@ async function generateRecipe() {
     document.getElementById('recipe-loading').style.display = '';
     document.getElementById('recipe-result').style.display = 'none';
     const loadingMsg = document.getElementById('recipe-loading-msg');
+    // SHELFY says what it is doing while the model works; the stream's own statuses then take
+    // over the line above this one.
+    _recipeLoadingStagesStart();
 
     try {
         const payload = {
@@ -36901,7 +37616,7 @@ async function generateRecipe() {
             await renderRecipe(recipe);
             if (recipe.title) _generatedTodayTitles.push(recipe.title);
             const archiveId = await saveRecipeToArchive(recipe);
-            _cachedRecipe = { meal, recipe, id: archiveId || undefined };
+            _cachedRecipe = { meal, recipe, id: archiveId || undefined, rating: 0 };
             document.getElementById('recipe-loading').style.display = 'none';
             document.getElementById('recipe-result').style.display = '';
             try { _aiCostNoteUsage(); } catch (_) { /* pill optional */ }

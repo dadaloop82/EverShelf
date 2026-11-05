@@ -393,7 +393,8 @@ function migrateDB(PDO $db): void {
                 meal TEXT NOT NULL,
                 recipe_json TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_favorite INTEGER NOT NULL DEFAULT 0
+                is_favorite INTEGER NOT NULL DEFAULT 0,
+                rating INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX idx_recipes_date ON recipes(date);
         ");
@@ -494,6 +495,15 @@ function migrateDB(PDO $db): void {
     $recCols = array_column($db->query("PRAGMA table_info(recipes)")->fetchAll(), 'name');
     if (!in_array('is_favorite', $recCols)) {
         try { $db->exec("ALTER TABLE recipes ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0"); }
+        catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
+    }
+
+    // Add rating column to recipes if missing: the household's own 0–5 vote (0 = not rated).
+    // A separate scale from the favourite star on purpose — "I like this" and "this was good"
+    // are two different statements, and a rating is a number the book can be filtered by.
+    $recRatingCols = array_column($db->query("PRAGMA table_info(recipes)")->fetchAll(), 'name');
+    if (!in_array('rating', $recRatingCols)) {
+        try { $db->exec("ALTER TABLE recipes ADD COLUMN rating INTEGER NOT NULL DEFAULT 0"); }
         catch (PDOException $e) { if (strpos($e->getMessage(), 'duplicate column') === false) throw $e; }
     }
 

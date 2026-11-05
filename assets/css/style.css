@@ -7027,6 +7027,29 @@ body:has(#page-scan.active) .app-content {
     text-align: center;
     padding: 40px 16px;
 }
+/* SHELFY's own face over the wait: the assistant is the one working, and the drawing is the
+   only thing in the app that says so without a word. */
+.recipe-loading-avatar {
+    width: 84px;
+    height: 84px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 10px;
+    animation: recipeLoadingFloat 2.6s ease-in-out infinite;
+}
+.recipe-loading-step {
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    min-height: 1.2em;
+}
+@keyframes recipeLoadingFloat {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%      { transform: translateY(-4px) scale(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .recipe-loading-avatar { animation: none; }
+}
 
 .recipe-loading p {
     margin-top: 16px;
@@ -7341,39 +7364,46 @@ body:has(#page-scan.active) .app-content {
 
 /* Recipe ingredient Usa (use) button: a primary action, sized like one.
    Double the old 0.78rem — it was the smallest control on the recipes screen. */
+/* The per-ingredient "Usa" is a SECONDARY escape hatch: the one green action of a recipe is
+   "Ho cucinato questo piatto" in the footer, which scales the whole list in one tap. A solid
+   green 1.55 rem button on every row competed with it and turned a two-tap cook into three
+   separate sheets. */
 .btn-use-ingredient {
     flex-shrink: 0;
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 8px 18px;
-    min-height: 48px;
-    font-size: 1.55rem;
-    font-weight: 700;
+    align-self: center;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--surface-border, rgba(0,0,0,0.12));
+    border-radius: 999px;
+    padding: 5px 12px;
+    min-height: 34px;
+    font-size: 0.78rem;
+    font-weight: 600;
     line-height: 1.1;
     letter-spacing: 0.01em;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.2s, opacity 0.2s;
+    transition: background 0.2s, color 0.2s;
 }
 
 .btn-use-ingredient:active {
-    opacity: 0.7;
+    background: var(--bg, #f8fafc);
 }
 
 .btn-use-ingredient:disabled {
     cursor: default;
-    opacity: 0.6;
+    opacity: 0.55;
 }
 
 /* The deducted label (✔ Scalato) is a status, not a tap target: bigger than
    before but it must not squeeze the ingredient name on a phone. */
 .btn-use-ingredient.btn-used {
-    background: var(--success);
-    font-size: 1.05rem;
-    min-height: 40px;
-    padding: 6px 12px;
+    background: transparent;
+    border-color: transparent;
+    color: var(--success);
+    font-size: 0.78rem;
+    min-height: 30px;
+    padding: 4px 8px;
 }
 
 .recipe-ing-used .recipe-ing-text {
@@ -7769,6 +7799,27 @@ body.cooking-mode-active .app-header {
     animation: cookingCardFloat 4.2s ease-in-out infinite;
 }
 
+/* The duration inside the step is the button: a pill in the middle of the sentence, tappable
+   with a wet hand, which starts the same countdown the suggestion chip does. */
+.cooking-step-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 3px;
+    padding: 2px 12px;
+    border: none;
+    border-radius: 999px;
+    background: var(--brand-primary, #10b981);
+    color: #06301f;
+    font: inherit;
+    font-size: 0.72em;
+    font-weight: 800;
+    cursor: pointer;
+    vertical-align: baseline;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+}
+.cooking-step-timer:active { transform: scale(0.96); }
+
 .cooking-step-ghost {
     position: absolute;
     left: 50%;
@@ -8061,9 +8112,27 @@ body.cooking-mode-active .app-header {
     width: 100%;
     max-width: 480px;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
 }
+
+/* The doses of the ingredients THIS step names: small translucent pills on the dark cooking
+   screen, so nothing has to be remembered while both hands are busy. */
+.cooking-ing-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: rgba(255,255,255,0.94);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+.cooking-ing-chip strong { font-weight: 700; }
+.cooking-ing-tool { opacity: 0.82; }
 
 .cooking-ing-row {
     display: flex;
@@ -8215,10 +8284,34 @@ body.cooking-mode-active .app-header {
     opacity: 0.9;
 }
 
+/* The three actions of a recipe are a FOOTER, not a divider.
+   They used to sit between the ingredients and the steps: reading how to cook the dish meant
+   scrolling past three buttons that END the meal. Sticky at the bottom of the sheet, so they
+   are always one tap away without ever standing in front of the procedure. */
 .recipe-primary-actions {
+    position: sticky;
+    bottom: -1px;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    margin-top: 16px;
+    background: linear-gradient(to top, var(--bg-card, #fff) 82%, transparent);
+}
+
+/* "Ripeti pasto" lands on this footer: it pulses once, so the one action that scales the whole
+   ingredient list is where the eye lands. */
+.recipe-primary-actions.is-prompted {
+    animation: recipePromptFooter 1.9s ease-out 1;
+}
+@keyframes recipePromptFooter {
+    0%, 100% { box-shadow: none; }
+    30%      { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary, #10b981) 45%, transparent); }
+    65%      { box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary, #10b981) 28%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .recipe-primary-actions.is-prompted { animation: none; }
 }
 
 .recipe-primary-actions .btn {
@@ -8231,6 +8324,16 @@ body.cooking-mode-active .app-header {
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 4px;
+}
+
+/* "Altra idea" (🎲) and Share, side by side in the head: the re-roll used to live only at the
+   very bottom of the sheet, under nutrition and storage, so a dish that does not convince meant
+   scrolling the whole recipe to ask for another. */
+.recipe-title-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .recipe-title-row h2 {
@@ -8933,26 +9036,51 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== RECIPE OPTIONS GRID ===== */
+/* Three per row: the chips are a SHORT list of choices, and one per row turned the
+   generation dialog into a page that scrolls on a tablet. */
 .recipe-options-grid {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-top: 4px;
 }
 
 .recipe-option-chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 9px 6px;
     background: var(--bg);
     border-radius: 999px;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
     cursor: pointer;
     transition: background 0.2s;
     border: 2px solid var(--surface-border, rgba(0,0,0,0.08));
-    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* Persons stepper + this week's suggestion on ONE row (they are two settings, not two
+   sections): 80 px of height back inside a dialog that must fit an iPad without scrolling. */
+.recipe-ask-2col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    text-align: left;
+}
+.recipe-ask-2col > .form-group {
+    margin: 0;
+    min-width: 0;
+}
+.recipe-ask-2col .recipe-mealplan-hint {
+    margin: 0;
+    height: 100%;
+    font-size: 0.8rem;
 }
 
 .recipe-option-chip:has(input:checked) {
@@ -8997,6 +9125,36 @@ body.cooking-mode-active .app-header {
     background: var(--bg-card, #fff);
     color: var(--text-primary);
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* Quick filters of the book: one scrolling row of chips, right under the generate button.
+   A cookbook of 50 recipes with no filter is a scroll, not a shelf. */
+.recipe-filter-bar {
+    display: flex;
+    gap: 6px;
+    margin: 10px 0 2px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+.recipe-filter-bar::-webkit-scrollbar { display: none; }
+.recipe-filter-chip {
+    flex: 0 0 auto;
+    border: 1px solid var(--surface-border, rgba(0,0,0,0.08));
+    background: var(--bg-card, #fff);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.recipe-filter-chip.is-active {
+    background: var(--brand-primary, #10b981);
+    border-color: var(--brand-primary, #10b981);
+    color: #fff;
 }
 
 .recipe-archive-meal-lg { font-size: 1.55rem; }
@@ -9203,10 +9361,13 @@ body.cooking-mode-active .app-header {
     accent-color: var(--primary);
 }
 
-/* Meal type selector */
+/* Meal type selector — five chips on ONE row: a sixth (a juice is a drink, not a meal)
+   left an orphan on its own line and pushed the whole dialog out of an iPad viewport. */
 .recipe-meal-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    /* auto-fit + a 58 px floor: five chips share one row wherever it fits (a tablet, a phone
+       in portrait) instead of being squeezed into five fixed fractions that clip the labels. */
+    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
     gap: 6px;
     margin-top: 4px;
 }
@@ -9214,17 +9375,22 @@ body.cooking-mode-active .app-header {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 10px 6px;
+    gap: 3px;
+    padding: 8px 3px;
     background: var(--bg);
     border-radius: var(--radius-sm);
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s;
     border: 2px solid transparent;
     text-align: center;
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+}
+@media (max-width: 380px) {
+    .recipe-meal-chip { font-size: 0.64rem; padding: 8px 2px; }
 }
 .recipe-meal-chip:has(input:checked) {
     background: rgba(45, 80, 22, 0.1);
@@ -10507,7 +10673,9 @@ body.cooking-mode-active .app-header {
     font-size: 0.95rem;
     color: var(--text-primary);
     padding: 2px 0;
-    border-bottom: 2px solid var(--accent);
+    /* A neutral hairline, never the violet `--accent`: the accent is a recipe ACTION colour,
+       and a 2 px violet rule under every date read as a second, wrong palette. */
+    border-bottom: 1px solid color-mix(in srgb, var(--surface-border, #e2e8f0) 90%, transparent);
     margin-bottom: 2px;
 }
 
@@ -10532,6 +10700,31 @@ body.cooking-mode-active .app-header {
     gap: 8px;
 }
 
+/* The quick action of a past meal, on the right of the card: one tap reopens the saved recipe
+   (no generation, no shopping of the same ingredients twice). */
+.recipe-archive-repeat {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--surface-border, rgba(0,0,0,0.1));
+    background: var(--bg-card, #fff);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.recipe-archive-repeat:active { background: var(--bg, #f8fafc); }
+@media (max-width: 420px) {
+    /* On a phone the label costs the title its room: the icon carries the action. */
+    .recipe-archive-repeat span { display: none; }
+    .recipe-archive-repeat { padding: 5px 8px; font-size: 0.9rem; }
+}
+
 .recipe-archive-meal {
     font-size: 1.3rem;
     flex-shrink: 0;
@@ -10544,6 +10737,9 @@ body.cooking-mode-active .app-header {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* Without this a long title pushes the badges out of the row instead of ellipsing. */
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .recipe-archive-card-meta {
@@ -10582,6 +10778,38 @@ body.cooking-mode-active .app-header {
 
 .btn-recipe-fav:hover { color: #f59e0b; transform: scale(1.2); }
 .btn-recipe-fav.active { color: #f59e0b; }
+
+/* ===== Recipe vote, 0–5 stars =====
+   Five buttons in the recipe's meta line: the vote is one tap on the star you mean, and the
+   number is what the book filters by. 0 exists — it is what tapping the current value gives. */
+.recipe-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-border, #e2e8f0) 45%, transparent);
+}
+.recipe-rating-star {
+    border: none;
+    background: none;
+    padding: 0 1px;
+    font-size: 1.12rem;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, transform 0.15s;
+}
+.recipe-rating-star.is-on { color: #f59e0b; }
+.recipe-rating-star:active { transform: scale(0.88); }
+
+/* The same vote on the card of the book, compact. */
+.recipe-archive-rating {
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    color: #f59e0b;
+}
+.recipe-archive-rating-off { color: var(--text-muted); opacity: 0.45; }
 
 .btn-inv-fav {
     flex-shrink: 0;
@@ -13275,3 +13503,42 @@ body.offline-mode #smart-shopping {
     0%, 100% { background: transparent; }
     50% { background: rgba(46, 125, 50, 0.10); }
 }
+
+/* ===== End of cooking: the ONE question =====
+   Over the dark cooking screen, centred, with the emerald answer for the action that writes
+   the pantry and a neutral one for "not now". It replaces the old bounce back to the recipe
+   sheet, where the meal still had to be registered by scrolling to the footer. */
+.cooking-finish-overlay {
+    z-index: 99999;               /* one above .cooking-overlay (99998) */
+    align-items: center;
+    padding: 20px;
+}
+.cooking-finish-card {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    padding: 22px 20px 18px;
+    border-radius: 20px;
+}
+.cooking-finish-icon {
+    display: block;
+    font-size: 2.1rem;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.cooking-finish-card h3 {
+    margin: 0 0 8px;
+    font-size: 1.22rem;
+}
+.cooking-finish-body {
+    margin: 0 0 16px;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+.cooking-finish-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.cooking-finish-actions .btn { width: 100%; }

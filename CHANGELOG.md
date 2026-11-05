@@ -5,6 +5,134 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.20] - 2026-11-05
+
+### Added
+- **Recipes can be voted 0–5 stars, and the book can be filtered by the vote.** `recipes.rating`
+  (a new column, added by `migrateDB` for existing installs) holds the household's own number —
+  `0` is a real value and means "not rated". `POST recipes_rate` clamps it to 0–5 server-side,
+  refuses a row that does not exist (`not_found`) and logs every change
+  (`event: recipe_rate`): a vote is user data and there is no history to undo it from. In the
+  recipe sheet the five stars sit in the meta line next to the favourite star
+  (`_recipeRatingStarsHtml` / `rateRecipe`): the vote lives on the ARCHIVE row, so a recipe that
+  was never saved is archived first (same rule as the favourite), tapping the value you already
+  gave clears it, and the stars repaint in place so the ingredient list is never re-rendered. The
+  card in the book carries the compact `★★★☆☆` next to the time, and three chips join the filter
+  row — `⭐ 5`, `⭐ 4+`, `⭐ 3+` (numbers, so no translation). When two copies of the same dish are
+  merged by content hash the surviving row keeps the BETTER vote.
+
+### Fixed
+- **A voice turn waited for the cloud before doing anything.** `SpeechRecognition.stop()` does not
+  end a session locally: Chrome uploads the audio and calls `onend` after a round trip nobody
+  controls, and the whole turn sat on that. The measured 30 s — and the fallback card that said
+  "la richiesta ha impiegato troppo tempo" about a sentence the app had already heard in full —
+  came from there. The silence deadline (`armSilenceStop`) now arms a **700 ms hand-over guard**:
+  `heard` is complete by definition (every result is merged into it, interim included), so the
+  sentence is parsed locally as soon as the stop is requested; `onend` only overtakes the guard
+  when the browser is quick, and a late final is dropped by the turn id. The status line no
+  longer claims "Interrogo l'inventario…" while the app is really waiting for a transcript.
+- **The microphone had two clients.** The level meter opened `getUserMedia` + an AnalyserNode on
+  the first recognised word, while the recogniser was running — the pattern that makes Chrome on
+  Android drop the session mid-sentence (it then got resumed, and the household paid two silence
+  windows for a sentence that was already over). The bars are now driven by the recogniser's own
+  results: one client, no extra permission, same picture. The cleanup helper no longer calls
+  `_captureSetState('idle')` either — the turn owns the state.
+- **A resumed session paid a full interim window.** `_CAPTURE_RESTARTS_MAX` goes 4 → 2, and when
+  the resumed session already holds text the deadline is 1 s instead of 2.2 s.
+- **The capture searched the open shelf, not the pantry.** `currentInventory` is filtered by the
+  open place, the macro domain and the tag chips, and the fresh `inventory_list` only ran when
+  that array was EMPTY — a filtered list is not empty, so «ho usato il riso» answered "non è in
+  dispensa" while standing in the fridge. The capture now reads its own short-lived cache, filled
+  by one `inventory_list` warmed when the sheet opens (so the round trip happens while the
+  household is still talking) and invalidated by `refreshAppDataAfterMutation()`.
+- **On-device recognition when the browser really has it.** `processLocally` is set after a
+  `SpeechRecognition.available()` probe per language: a plain "available" takes the cloud round
+  trip out of the turn, anything else (downloadable, unavailable, an older engine) keeps the
+  networked recogniser. A pack that disappears mid-session falls back instead of failing every
+  turn.
+- **A recipe step could lose its beginning.** `recipeNormalizeParsedRecipe()` read `text` before
+  `instruction`, so a step object that carried a fragment in one field printed "confezione di
+  Tonno all'olio…" without its first half. The fullest candidate wins, whichever key carries it.
+- **«Genera nuova ricetta» reopened the last recipe seen.** `openRecipeDialog()` short-circuited on
+  `_cachedRecipe` — the last recipe RENDERED, which the archive view sets too — so after reading a
+  dish the button reopened it instead of the generator. It now always paints the form.
+- **A violet rule under the recipe lists.** `.recipe-archive-date` used the 2 px `--accent`
+  underline (violet) under "Ricettario & Idee", the favourites and every history date: a second,
+  wrong palette in an emerald app. One neutral slate hairline now.
+
+### Changed
+- **The recipe book has filters.** A scrolling row of chips under "Genera nuova ricetta" —
+  Tutte · the meals · ⚡ Rapide (<15 min) · 🍲 Cookeo / Forno — filtering the archive the page has
+  already loaded. It reorders/filters the book only; the history stays a plain log.
+- **The generator fits a tablet.** «Succo di frutta» is no longer a meal (it is a drink: it stays
+  in the labels, not in the picker), so five chips sit on one row; persons + this week's
+  suggestion share a two-column row; the option chips are a 3-column grid; and the CTA is always
+  `✨ Genera Ricetta` — it used to rename itself "Genera porzioni sul mio fabbisogno" when a
+  parameter changed.
+- **A past meal now says WHEN and can be repeated.** The history card carries `🕐 20:15` (the
+  archive's own `savedAt`) and a `🔄 Ripeti pasto` action that reopens the SAVED recipe (no AI
+  call, no different dish) with the footer that scales the whole ingredient list pulsing once.
+- **The recipe actions are a sticky footer.** Cooking mode, "Ho cucinato questo piatto" and the
+  favourite used to sit between the ingredients and the procedure: reading how to cook the dish
+  meant scrolling past the three buttons that end the meal. The per-ingredient `Usa` is now a
+  quiet neutral pill — the ONE emerald action of a recipe is the footer's "Ho cucinato questo
+  piatto", which scales the whole list in one tap, and a solid green button on every row was
+  competing with it.
+- **The duration inside a cooking step is the timer.** `_parseStepTimers()` is the one parser
+  (the old `_parseStepTimer()` is its number), and the run that states the time is rendered as a
+  tappable pill that starts the same countdown `addSuggestedCookingTimer()` starts — beep and
+  spoken alert included — instead of asking the household to read "⏱️ 08:00" and find something
+  else to press.
+- **The wait says what it is doing.** SHELFY's avatar over three staged sentences
+  (`recipes.loading_step_1..3`) until the stream's own statuses take over.
+
+### Cooking mode
+- **Finish asks the question, once.** Pressing `🏁 Fine` dropped the household back on the recipe
+  sheet, where the meal still had to be registered by scrolling to "Ho cucinato questo piatto" —
+  after five steps in front of the stove the dish is already on the table. `navigateCookingStep()`
+  now opens `_cookingFinishPrompt()`: "🎉 Buon appetito — scalo {n} ingredienti e registro il
+  pasto?" with an emerald **Conferma e scala** (writes the pantry, closes everything, lands on the
+  dashboard already refreshed) and a neutral **No, solo esci**. Esc is the neutral answer; nothing
+  is written without it.
+- **The screen stays awake.** `navigator.wakeLock.request('screen')` on entry, released on exit and
+  re-asked when the tab comes back (the browser drops it while hidden): waking a tablet with wet
+  hands is the thing this removes. Unsupported browsers lose nothing.
+- **Timers say a name a cook would say.** `_extractTimerLabel()` printed strings cut in the middle
+  of a word ("Frullatore/mixer unire confezi…"): with an appliance in the sentence the chip is now
+  `_stepApplianceName()` + the time — "Avvia Frullatore: 00:20", "Avvia Cookeo: 08:00" — and the
+  action-word derivation stays as the fallback. The running timers keep living in their own bar
+  above the wheel, so an 8-minute Cookeo stays on screen while the next step is read.
+- **Each step repeats its own doses.** `#cooking-step-ings` was deliberately emptied ("ingredients
+  are shown in the recipe view only"); it now carries the pills of the ingredients THAT sentence
+  names (head words, so "Tonno all'olio di oliva sgocciolato" is found by "tonno") plus the
+  appliance, and disappears when the step names nothing.
+- **Quick doses follow the order of magnitude.** `_fractionChipOptions()` hardcoded 10/25/50 g for
+  any mass: opening 2 g of oregano from a recipe offered half a jar. The recipe sheet passes the
+  dose it needs (`refQty`), so the chips are 1 g · 2 g · 4 g · the whole pack; the product sheet
+  (no reference) keeps the old grocery steps untouched.
+- **"Altra idea" in the head.** `🎲` next to the title re-rolls the recipe (the current one stays
+  in the archive) instead of forcing a scroll to the bottom of the sheet.
+- **The generator must not contradict its own table.** Rule 4b in both recipe prompts: every
+  number quoted in a step has to match the `ingredients` list ("1 pz di Pan Bauletto" ⇒ "1 fetta",
+  never "2 fette").
+
+## [1.29.19] - 2026-11-05
+
+### Fixed
+- **A chosen candidate — or the 10 s auto-pick — registered nothing.** When the spoken sentence
+  was ambiguous SHELFY offered the four closest pantry rows and drained the bar on the most likely
+  one, but every card carried the row's **pantry index** (37, 41 …) while `_captureChoicesCache`
+  holds at most four entries: `_captureChoicesCache[37]` was `undefined`, so both the tap and the
+  timeout returned in silence — the cards disappeared and no quantity was ever written.
+  `_captureChoose()` now resolves the row by that index (and hides the cards only once it has one),
+  so the choice opens the usual 10 s confirmation and the consume reaches `inventory_use`.
+- **«Una busta di cioccolato» against a row kept in grams took 1 g.** `_captureQtyFor()` gave up on
+  a package word when the row was measured in g/ml and its caller fell back to one piece — a single
+  gram, which on the shelf reads as "it took nothing off". One pack of a mass row is the amount
+  that row calls a pack (`_rowPackInUnit()`: `default_quantity`, read in the row's own unit exactly
+  like `isSuspiciousDefaultQty()` does), so a 100 g bar loses 100 g and a 1 l bottle 1000 ml. A `pz`
+  row is left alone: its `default_quantity` may be a legacy label weight, never "one piece".
+
 ## [1.29.18] - 2026-11-05
 
 ### Added
