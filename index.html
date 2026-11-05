@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261105u">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261105u">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261105u">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261105w">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261105w">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261105w">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261105u">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261105w">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261105u">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261105u">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261105w">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261105w">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261105u"></script>
-    <script src="assets/js/core/auth.js?v=20261105u"></script>
-    <script src="assets/js/core/med.js?v=20261105u"></script>
+    <script src="assets/js/core/dom.js?v=20261105w"></script>
+    <script src="assets/js/core/auth.js?v=20261105w"></script>
+    <script src="assets/js/core/med.js?v=20261105w"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261105u"></script>
+    <script src="assets/js/med/italy.js?v=20261105w"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261105u"></script>
+    <script src="assets/js/core/support.js?v=20261105w"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105w';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105u';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105w';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261105u"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261105w"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -3152,17 +3152,24 @@
                 </div>
                 <div id="recipe-mealplan-hint" class="recipe-mealplan-hint" style="display:none"></div>
             </div>
-            <div class="form-group" style="text-align:left">
-                <label data-i18n="recipes.meal_type_label">🎯 Tipo di pasto</label>
+            <!-- Two groups of chips, no native checkboxes in sight: the input stays in the DOM
+                 (it is the state and the accessible control) but it is invisible — the chip
+                 itself is the pill that turns emerald when it is on. The meal-plan tag is the
+                 FIRST chip of the list instead of a full-width banner of its own. -->
+            <div class="form-group recipe-chip-groups" style="text-align:left" role="group" data-i18n-aria="recipes.meal_type_label" aria-label="Tipo di pasto">
+                <p class="recipe-chip-group-label" data-i18n="recipes.chip_group_goals">🎯 Obiettivi e preferenze</p>
                 <div class="recipe-options-grid">
-                    <label class="recipe-option-chip recipe-opt-mealplan-chip" id="recipe-opt-mealplan-wrap" style="display:none"><input type="checkbox" id="recipe-opt-mealplan" checked onchange="onMealPlanChipChange(this)"> <span id="recipe-opt-mealplan-label"></span></label>
+                    <label class="recipe-option-chip recipe-opt-mealplan-chip" id="recipe-opt-mealplan-wrap" style="display:none"><input type="checkbox" id="recipe-opt-mealplan" checked onchange="onMealPlanChipChange(this)"> <span id="recipe-opt-mealplan-label"></span><button type="button" class="recipe-chip-x" data-i18n-aria="recipes.chip_remove_plan" aria-label="Togli il piano" onclick="event.preventDefault();event.stopPropagation();_clearMealPlanChip();">✕</button></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-veloce"> <span data-i18n="recipes.opt_fast">⚡ Pasto Veloce</span></label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> <span data-i18n="recipes.opt_light">🥗 Poca Fame</span></label>
-                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> <span data-i18n="recipes.opt_expiry">⏰ Priorità Scadenze</span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-healthy"> <span data-i18n="recipes.opt_healthy">💚 Extra Salutare</span></label>
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-pocafame"> <span data-i18n="recipes.opt_light">🥗 Poca Fame</span></label>
+                </div>
+                <p class="recipe-chip-group-label" data-i18n="recipes.chip_group_pantry">♻️ Gestione dispensa</p>
+                <div class="recipe-options-grid">
+                    <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-scadenze"> <span data-i18n="recipes.opt_expiry">⏰ Priorità Scadenze</span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-opened"> <span data-i18n="recipes.opt_opened">📦 Priorità Cose Aperte</span></label>
                     <label class="recipe-option-chip"><input type="checkbox" id="recipe-opt-zerowaste"> <span data-i18n="recipes.opt_zero_waste">♻️ Zero Sprechi</span></label>
-                    <label class="recipe-option-chip recipe-opt-fuel-wrap recipe-opt-fuel-featured" id="recipe-opt-fuel-wrap"><input type="checkbox" id="recipe-opt-fuel" onchange="onRecipeFuelToggle()"> <span data-i18n="recipes.opt_fuel">🔥 A ritmo mio</span></label>
+                    <label class="recipe-option-chip recipe-opt-fuel-wrap" id="recipe-opt-fuel-wrap"><input type="checkbox" id="recipe-opt-fuel" onchange="onRecipeFuelToggle()"> <span data-i18n="recipes.opt_fuel">🔥 A ritmo mio</span></label>
                 </div>
             </div>
             <button class="btn btn-large btn-success full-width" onclick="generateRecipe()" data-i18n="recipes.generate_btn">
@@ -3482,17 +3489,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261105u"></script>
-<script src="assets/js/food_facts.generated.js?v=20261105u"></script>
-<script src="assets/js/free_apis.generated.js?v=20261105u"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261105u"></script>
-<script src="assets/js/off_categories.generated.js?v=20261105u"></script>
-<script src="assets/js/core/vocab.js?v=20261105u"></script>
-<script src="assets/js/app.js?v=20261105u"></script>
-<script src="assets/js/audit.js?v=20261105u"></script>
-<script src="assets/js/receipt.js?v=20261105u"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261105u"></script>
-<script src="assets/js/settings_search.js?v=20261105u"></script>
+<script src="assets/js/vocab.generated.js?v=20261105w"></script>
+<script src="assets/js/food_facts.generated.js?v=20261105w"></script>
+<script src="assets/js/free_apis.generated.js?v=20261105w"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261105w"></script>
+<script src="assets/js/off_categories.generated.js?v=20261105w"></script>
+<script src="assets/js/core/vocab.js?v=20261105w"></script>
+<script src="assets/js/app.js?v=20261105w"></script>
+<script src="assets/js/audit.js?v=20261105w"></script>
+<script src="assets/js/receipt.js?v=20261105w"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261105w"></script>
+<script src="assets/js/settings_search.js?v=20261105w"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

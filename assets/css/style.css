@@ -9036,56 +9036,124 @@ body.cooking-mode-active .app-header {
 }
 
 /* ===== RECIPE OPTIONS GRID ===== */
-/* Three per row: the chips are a SHORT list of choices, and one per row turned the
-   generation dialog into a page that scrolls on a tablet. */
+/* ===== RECIPE OPTIONS: real chips =====
+   A chip is the CONTROL, not a checkbox inside a balloon: 36 px tall, 8 px radius, one line of
+   text that never wraps, its whole surface turning emerald when it is on. The native checkbox
+   is still in the DOM (state + keyboard + screen reader) but it is invisible — it was the 2000s
+   square that broke the design, and it also forced the 60 px height nobody asked for. */
 .recipe-options-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 4px;
 }
 
-.recipe-option-chip {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 4px 6px;
-    padding: 9px 6px;
-    background: var(--bg);
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    line-height: 1.2;
-    text-align: center;
-    cursor: pointer;
-    transition: background 0.2s;
-    border: 2px solid var(--surface-border, rgba(0,0,0,0.08));
-    min-width: 0;
+.recipe-chip-group-label {
+    margin: 10px 0 2px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
 }
 
+.recipe-option-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+/* The control the label wraps: present, focusable, invisible. */
+.recipe-option-chip input[type="checkbox"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.recipe-option-chip:has(input:checked) {
+    background: var(--brand-primary, #10b981);
+    border-color: var(--brand-primary, #10b981);
+    color: #fff;
+}
+
+/* "A ritmo mio" is a different promise from a pantry option (it changes the portions), so it
+   answers in amber instead of the emerald of the ordinary preferences. */
+.recipe-opt-fuel-wrap:has(input:checked) {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #fff;
+}
+
+/* Keyboard focus stays visible even with the input hidden. */
+.recipe-option-chip:has(input:focus-visible) {
+    outline: 2px solid var(--brand-primary, #10b981);
+    outline-offset: 2px;
+}
+
+/* The ✕ of the meal-plan chip: it takes the tag off without touching the others. */
+.recipe-chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-left: 2px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.28);
+    color: inherit;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+}
+.recipe-chip-x:active { background: rgba(255, 255, 255, 0.45); }
+
+[data-theme="dark"] .recipe-option-chip {
+    background: var(--bg-card, #1e293b);
+    border-color: #334155;
+}
+[data-theme="dark"] .recipe-chip-x { background: rgba(0, 0, 0, 0.25); }
+
 /* Persons stepper + this week's suggestion on ONE row (they are two settings, not two
-   sections): 80 px of height back inside a dialog that must fit an iPad without scrolling. */
+   sections): 80 px of height back inside a dialog that must fit an iPad without scrolling.
+   Flex, not a fixed two-column grid: when there is no meal-plan hint the stepper is alone on
+   the row and takes its width instead of leaving a half-empty column. */
 .recipe-ask-2col {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: 10px;
-    align-items: start;
     text-align: left;
 }
 .recipe-ask-2col > .form-group {
+    flex: 1 1 140px;
     margin: 0;
     min-width: 0;
 }
 .recipe-ask-2col .recipe-mealplan-hint {
+    flex: 1 1 160px;
     margin: 0;
-    height: 100%;
     font-size: 0.8rem;
-}
-
-.recipe-option-chip:has(input:checked) {
-    background: rgba(45, 80, 22, 0.08);
-    border-color: var(--primary);
 }
 
 .recipe-meal-compact .recipe-meal-grid {
@@ -9230,20 +9298,6 @@ body.cooking-mode-active .app-header {
     font-weight: 600;
     color: var(--text);
 }
-.recipe-opt-fuel-featured {
-    border-color: rgba(180, 83, 9, 0.45) !important;
-    background: rgba(180, 83, 9, 0.12) !important;
-    color: #7c2d12 !important;
-    font-weight: 700;
-}
-.recipe-opt-fuel-featured:has(input:checked) {
-    background: rgba(180, 83, 9, 0.22) !important;
-    border-color: #b45309 !important;
-    color: #7c2d12 !important;
-}
-.recipe-opt-fuel-featured span {
-    color: inherit !important;
-}
 .recipe-fuel-why {
     margin: 0 0 12px;
     padding: 12px 14px;
@@ -9336,29 +9390,6 @@ body.cooking-mode-active .app-header {
 [data-theme="dark"] .recipe-fuel-badge {
     background: rgba(251, 146, 60, 0.15);
     border-color: rgba(251, 146, 60, 0.3);
-}
-
-/* Meal-plan chip: visually highlighted to stand out as the planned food type */
-.recipe-opt-mealplan-chip {
-    grid-column: 1 / -1;
-    background: rgba(100, 60, 20, 0.07);
-    border-color: #b07830;
-    font-weight: 600;
-}
-.recipe-opt-mealplan-chip:has(input:checked) {
-    background: rgba(120, 70, 10, 0.13);
-    border-color: #c08020;
-}
-.recipe-opt-mealplan-chip:has(input:not(:checked)) {
-    opacity: 0.6;
-    text-decoration: line-through;
-    text-decoration-color: #c08020;
-}
-
-.recipe-option-chip input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--primary);
 }
 
 /* Meal type selector — five chips on ONE row: a sixth (a juice is a drink, not a meal)

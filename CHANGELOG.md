@@ -82,6 +82,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong palette in an emerald app. One neutral slate hairline now.
 
 ### Changed
+- **"Tipo di pasto" is a real chip grid now, not checkboxes inside balloons.** The native square
+  is gone from the eye (the `<input>` stays in the DOM — it is the state, the keyboard target and
+  the screen-reader control — but it is invisible), the chip itself is the pill: `height: 36px`,
+  `border-radius: 8px`, `padding: 0 14px`, `font-size: 13px`, `white-space: nowrap`, its whole
+  surface emerald (`#10b981`) when it is on and `#f8fafc` when it is off; "A ritmo mio" answers in
+  amber because it changes the portions, not the pantry. The labels no longer wrap ("⏰ Priorità /
+  Scadenze") and nothing is 60 px tall.
+- **The options are grouped and the weekly plan is a chip.** Two blocks with a small grey label —
+  🎯 *Obiettivi e preferenze* (Piano, Pasto Veloce, Extra Salutare, Poca Fame) and ♻️ *Gestione
+  dispensa* (Scadenze, Cose Aperte, Zero Sprechi, A ritmo mio) — inside a `flex-wrap` container, so
+  they pack themselves instead of leaving holes. The full-width "✓ 🐟 Pesce" bar is now the FIRST
+  chip of the list, pre-selected and removable with the ✕ on it (`_clearMealPlanChip()`: the chip
+  stays, grey and re-selectable, because today's plan is information, not a switch). Persons +
+  meal-plan hint are a wrapping flex row, so a missing hint no longer leaves a half-empty column.
 - **The recipe book has filters.** A scrolling row of chips under "Genera nuova ricetta" —
   Tutte · the meals · ⚡ Rapide (<15 min) · 🍲 Cookeo / Forno — filtering the archive the page has
   already loaded. It reorders/filters the book only; the history stays a plain log.

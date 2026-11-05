@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105u'; // bump when translations change
+const _I18N_VERSION = '20261105w'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105u';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105w';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105w';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -37198,6 +37198,19 @@ function getSelectedSubType() {
 }
 
 /** Show/hide the meal-plan badge hint + top banner in the recipe dialog. */
+/**
+ * La ✕ della chip del piano: toglie il tag senza toccare le altre preferenze.
+ *
+ * La chip resta nella griglia (grigia, riselezionabile) invece di sparire: il piano di oggi è
+ * un'informazione, e nasconderne il controllo renderebbe impossibile rimetterlo.
+ */
+function _clearMealPlanChip() {
+    const cb = document.getElementById('recipe-opt-mealplan');
+    if (!cb) return;
+    cb.checked = false;
+    onMealPlanChipChange(cb);
+}
+
 function onMealPlanChipChange(cb) {
     const show = cb.checked;
     const banner = document.getElementById('recipe-mealplan-banner');
