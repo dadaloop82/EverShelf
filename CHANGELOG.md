@@ -5,7 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.15] - 2026-11-05
+## [1.29.16] - 2026-11-05
+
+### Changed
+- **The stocktake card says each thing once.** It used to print the same quantity four times — in
+  the heading, in a giant badge, inside a spoken sentence («Ci sono ancora 1500 ml di Succo…») and
+  again in the primary button — while eight commands stacked in three different colour languages.
+  The card now reads in half a second: a **real progress bar** (it fills on the card you are
+  looking at, so 1 of 15 is 7% and never an empty grey line) with «1 di 15» beside it, the product
+  as facts once (56 px photo, name, **brand on its own line**, «📍 Frigo · 📦 Giacenza: 1500 ml»),
+  then **one** emerald primary `✓ Confermo 1500 ml`, then a neutral **2×2** for the exceptions
+  (`🏁 Finito`, `🗑️ Andato a male`, `✏️ Modifica quantità`, `📍 Sposta`) and two quiet links in the
+  footer (`⚠️ Quasi finito`, `Salta →`).
+- **«Finito» and «Andato a male» are twins and now look like it**: same neutral cell, same weight,
+  thin border — no more solid red next to a purple outline. The scale is a **mint pill**
+  (`#F0FDF4`, emerald border) like the product sheet, never a purple dashed button; the picker,
+  the summary and the focus ring moved to the same emerald tokens.
+- «Quasi finito» stays reachable (it writes the low threshold, which is what puts the item on the
+  shopping list) but as a footer link instead of an eighth button.
+
+### Notes
+- `scripts/i18n-audit.py` now also scans `audit.js`, `receipt.js` and `settings_search.js`: the
+  stocktake card paints a dozen translated strings from its own file, and its keys were never
+  checked against the six locales. Every `audit.*` key is used and present again.
+
 
 ### Fixed
 - **«Dispensa (15)» over an empty pantry.** The place counts came from `inventory_summary`, which

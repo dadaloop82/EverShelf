@@ -117,6 +117,8 @@ runtime/binary files — if a task truly needs one, ask first.
   and Settings keep only its pace (`AUDIT_MODE_BATCH_SIZE`). A settings row with a stepper is ONE
   line — label + hint left, `[−] N [+]` right (`.settings-stepper-row`), never a control alone on
   a half-empty row. In the whole-house view the stocktake button does not exist: there is no shelf.
+  Its card is ONE primary (`✓ Confermo {qty}`) + a neutral 2×2 + two footer links, and the progress
+  bar fills on the card you are LOOKING at: no sentence repeated, no purple, no alarm colours.
 - **A place is deletable only when empty — and the server decides.** `POST location_delete`
   (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
   `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave

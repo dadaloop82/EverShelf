@@ -12991,67 +12991,133 @@ body.offline-mode #smart-shopping {
     color: var(--text-color, inherit);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
+.audit-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
 .audit-progress {
+    flex: 1 1 auto;
     height: 6px;
     border-radius: 999px;
-    background: var(--border-color, #e0e0e0);
+    background: color-mix(in srgb, var(--border) 55%, transparent);
     overflow: hidden;
-    margin-bottom: 14px;
 }
-.audit-progress > span { display: block; height: 100%; background: var(--accent-color, #2e7d32); transition: width 0.2s; }
+.audit-progress > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--brand-primary, #059669);
+    transition: width 0.22s ease;
+}
+.audit-count {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 0.76rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+}
 .audit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .audit-head h3 { margin: 0; font-size: 1.35rem; line-height: 1.25; }
 .audit-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted, #666); }
 .audit-meta { margin: 6px 0 0; color: var(--text-muted, #666); font-size: 0.9rem; }
 .audit-hint { margin: 12px 0; font-size: 0.95rem; }
-.audit-scopes, .audit-answers { display: flex; flex-direction: column; gap: 10px; }
-.audit-scope, .audit-answer, .audit-done {
+.audit-scopes { display: flex; flex-direction: column; gap: 10px; }
+.audit-scope, .audit-done {
     width: 100%;
     padding: 16px;
     font: inherit;
     font-size: 1.1rem;
     font-weight: 600;
     border-radius: 12px;
-    border: 1px solid var(--border-color, #d8d8d8);
-    background: var(--bg-subtle, #f6f6f6);
-    color: var(--text-color, inherit);
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #f8fafc);
+    color: var(--text-main, inherit);
     cursor: pointer;
     text-align: left;
 }
-.audit-scope:hover, .audit-answer:hover, .audit-done:hover { border-color: var(--accent-color, #2e7d32); }
+.audit-scope:hover, .audit-done:hover { border-color: var(--brand-primary, #059669); }
+/* The ONE answer that writes the stock: full width, emerald, 56 px tall. */
 .audit-there {
-    border-color: transparent;
-    background: #059669;
-    color: #fff;
-    text-align: center;
-    justify-content: center;
-    min-height: 52px;
-    font-size: 1.15rem;
-}
-.audit-there:hover { border-color: transparent; background: #047857; }
-.audit-almost { border-color: #f9a825; background: #fffbeb; }
-.audit-finished { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
-.audit-spoiled { border-color: #e9d5ff; background: #faf5ff; }
-.audit-answer {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    min-height: 48px;
+    width: 100%;
+    min-height: 56px;
+    padding: 14px 16px;
+    border: 1px solid var(--brand-primary, #059669);
+    border-radius: 14px;
+    background: var(--brand-primary, #059669);
+    color: #fff;
+    font: inherit;
+    font-size: 1.12rem;
+    font-weight: 800;
+    cursor: pointer;
 }
-.audit-answer span { margin-right: 0; flex: 0 0 auto; }
+.audit-there:active { background: var(--brand-primary-hover, #047857); }
+/* The four exceptions: same weight, same colour, no alarm palette — the emoji says what they
+   are. "Finito" and "andato a male" are twins and must not look like two different apps. */
+.audit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+}
+.audit-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #f8fafc);
+    color: var(--text-main, inherit);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 650;
+    text-align: center;
+    cursor: pointer;
+}
+.audit-cell:active { background: var(--bg-app, #f1f5f9); }
 .audit-product-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 8px 0 4px;
-    padding: 10px;
-    border-radius: 12px;
-    background: var(--bg-subtle, #f6f6f6);
+    margin: 2px 0 14px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: var(--surface-bg, #fff);
 }
-.audit-product-thumb { flex: 0 0 48px; }
-.audit-product-name { margin: 0; font-weight: 700; font-size: 1.02rem; }
-.audit-product-brand { font-weight: 500; color: var(--text-muted, #666); font-size: 0.9rem; }
-.audit-product-qty { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-muted, #666); }
+.audit-product-thumb { flex: 0 0 56px; }
+.audit-product-main { min-width: 0; }
+.audit-product-name { margin: 0; font-weight: 700; font-size: 1.05rem; line-height: 1.25; }
+.audit-product-brand { margin: 2px 0 0; font-weight: 500; color: var(--text-muted, #64748b); font-size: 0.82rem; }
+.audit-product-meta { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted, #64748b); }
+/* A scale reading is a shortcut, not a warning: a mint pill like the product sheet. */
+.audit-scale-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--brand-primary, #059669);
+    background: #F0FDF4;
+    color: color-mix(in srgb, var(--brand-primary, #059669) 75%, var(--text-main));
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
 
 .inv-tools-row {
     display: flex;
@@ -13093,7 +13159,7 @@ body.offline-mode #smart-shopping {
     text-decoration: underline;
 }
 .audit-summary { font-size: 1.05rem; line-height: 1.5; }
-.audit-done { margin-top: 12px; text-align: center; background: var(--accent-color, #2e7d32); color: #fff; border-color: transparent; }
+.audit-done { margin-top: 12px; text-align: center; background: var(--brand-primary, #059669); color: #fff; border-color: transparent; }
 
 /* The card reads a sentence: quantity, article, brand and place are the facts
    being checked, so the quantity is deliberately the loudest thing on screen. */
@@ -13106,75 +13172,53 @@ body.offline-mode #smart-shopping {
     text-transform: uppercase;
     color: var(--text-muted, #666);
 }
-.audit-question {
+.audit-resume { border-color: var(--brand-primary, #059669); background: #F0FDF4; }
+.audit-resume-hint { margin-bottom: 6px; }
+.audit-foot {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin: 4px 0 0;
-    font-size: 1rem;
-    font-weight: 600;
+    margin-top: 12px;
+    flex-wrap: wrap;
 }
-.audit-question b { color: var(--accent-color, #2e7d32); }
-.audit-sentence {
-    margin: 14px 0 16px;
-    font-size: 1.2rem;
-    line-height: 1.6;
-}
-.audit-sentence .audit-em { font-weight: 700; }
-.audit-sentence .audit-loc { white-space: nowrap; }
-.audit-sentence .audit-qty {
-    display: inline-block;
-    margin: 0 2px;
-    padding: 2px 10px;
-    font-size: 1.5em;
-    line-height: 1.25;
-    font-weight: 800;
-    white-space: nowrap;
-    color: var(--accent-color, #2e7d32);
-    background: var(--bg-subtle, #eef5ee);
-    border: 1px solid var(--accent-color, #2e7d32);
-    border-radius: 10px;
-}
-.audit-edit-row { display: flex; gap: 10px; }
-.audit-edit-row .audit-answer {
-    flex: 1 1 0;
-    padding: 12px 10px;
-    font-size: 0.98rem;
-    text-align: center;
-}
-.audit-edit { border-style: dashed; }
-.audit-scale { border-color: #5b21b6; color: #5b21b6; border-style: dashed; }
-.audit-scale:hover { border-color: #4c1d95; }
-.audit-resume { border-color: var(--accent-color, #2e7d32); background: var(--bg-subtle, #eef5ee); }
-.audit-resume-hint { margin-bottom: 6px; }
-.audit-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .audit-foot .audit-skip { margin-top: 0; }
+.audit-almost-link {
+    background: none;
+    border: none;
+    color: var(--text-muted, #64748b);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 6px 2px;
+}
+.audit-almost-link:active { color: var(--text-main); }
 .audit-back,
 .audit-undo {
     font: inherit;
     font-weight: 600;
     border-radius: 12px;
-    border: 1px dashed var(--accent-color, #2e7d32);
+    border: 1px dashed var(--brand-primary, #059669);
     background: none;
-    color: var(--accent-color, #2e7d32);
+    color: var(--brand-primary, #059669);
     cursor: pointer;
 }
 .audit-back { padding: 8px 12px; }
 .audit-undo { width: 100%; margin-top: 12px; padding: 14px; }
 .audit-back:hover,
-.audit-undo:hover { background: var(--bg-subtle, #eef5ee); }
-.audit-spoiled { border-color: #8e24aa; }
-.audit-spoiled:hover { border-color: #6a1b9a; }
+.audit-undo:hover { background: #F0FDF4; }
 /* The edit sheet opens above the card; this ring says which field was asked for. */
 .audit-edit-focus { animation: auditFieldFocus 1.5s ease-out; border-radius: 10px; }
 @keyframes auditFieldFocus {
-    0%   { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.55); }
-    60%  { box-shadow: 0 0 0 12px rgba(46, 125, 50, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.55); }
+    60%  { box-shadow: 0 0 0 12px rgba(5, 150, 105, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
 }
-@media (max-width: 460px) {
-    .audit-edit-row { flex-direction: column; }
+@media (max-width: 420px) {
+    /* Two columns would cut the labels in half on a small phone: one per row, still compact. */
+    .audit-grid { grid-template-columns: 1fr; }
 }
 
 /* Receipt OCR (#114): the review table is the safety net before the pantry. */

@@ -26,7 +26,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TRANS = ROOT / 'translations'
 MANIFEST = ROOT / 'manifest.json'
-SRC_JS = [ROOT / 'assets/js/app.js', *sorted((ROOT / 'assets/js/core').glob('*.js'))]
+SRC_JS = [
+    ROOT / 'assets/js/app.js',
+    # The stocktake wizard lives in its own file and paints a dozen translated strings
+    # (`_auditRender`): leaving it out meant its keys were never verified against the six
+    # locales — a missing one prints its raw key on a card shown at arm's length.
+    ROOT / 'assets/js/audit.js',
+    ROOT / 'assets/js/receipt.js',
+    ROOT / 'assets/js/settings_search.js',
+    *sorted((ROOT / 'assets/js/core').glob('*.js')),
+]
 SRC_HTML = [ROOT / 'index.html']
 # PHP answers are rendered server-side (the ICS expiry feed, future notifications)
 # and use evershelfTr('key', $lang) — those keys are used, just not in JS.
