@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   HAD been. The same button also refreshes in place after a deduction (`_refreshRecipeCookFooter`)
   and, when there is nothing left to scale at the end of cooking mode, the completion card offers
   the redo too.
+- **"Already made" starts from the FIRST deducted row, not the last — and the footer says it at
+  once.** Two holes kept the old "✓ Ho cucinato questo piatto (scala gli ingredienti)" on dishes
+  the household had already cooked: the rule waited for EVERY row to be used (a partially scaled
+  dish — three of the twelve cooked recipes in the real archive — still showed it), and
+  `submitRecipeUse()` (the per-row `Usa`) wrote `used` without ever repainting the footer, so the
+  old label survived the whole session. `_recipeCookFooterMode()` now answers from
+  `_recipeUsedPantryCount()`: one deducted row is enough to make the dish "made", and both paths
+  (one-tap and per-row) refresh the button in place.
 - **The end-of-cook card asked to scale ingredients that were already scaled.**
   `_cookingFinishPrompt()` counted `_cookingRecipe` — the DEEP COPY taken when the overlay
   opened — so a resumed session (or any deduction made from the sheet) left a stale snapshot: the

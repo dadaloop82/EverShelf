@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105w'; // bump when translations change
+const _I18N_VERSION = '20261105x'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105w';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105x';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105w';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105x';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -33852,6 +33852,10 @@ async function submitRecipeUse(useAll) {
             if (_cachedRecipe && _cachedRecipe.recipe && _cachedRecipe.recipe.ingredients && _cachedRecipe.recipe.ingredients[idx]) {
                 _cachedRecipe.recipe.ingredients[idx].used = true;
                 saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
+                // One row is enough to say "this dish was made": the footer must turn into
+                // "Rifai questa ricetta" right away, not after reopening the sheet.
+                _syncCookingRecipeUsedFlags();
+                _refreshRecipeCookFooter();
             }
             
             showToast(t('recipes.ingredient_scaled_toast'), 'success');
@@ -34455,20 +34459,34 @@ async function addRecipeShoppingPlan(all) {
 }
 
 /**
- * How many pantry ingredients of a recipe still have to be scaled, and how many can be at all.
+ * How many pantry ingredients this recipe has at all (the rows that CAN be scaled), and how
+ * many of them have already been deducted.
  *
- * Two questions, because "nothing selected" and "everything already deducted" are different
- * states that used to look identical: the same green button offered to scale a list with
- * nothing left to scale, and tapping it only produced a warning.
+ * Two plain questions instead of one: "nothing selected" and "already deducted" used to look
+ * identical to the footer, which then offered to scale a list that had nothing left to scale.
  */
-function _recipePendingPantryCount(r) {
-    if (!r || !Array.isArray(r.ingredients)) return 0;
-    return r.ingredients.filter(i => i && i.product_id && !i.used && Number(i.qty_number) > 0).length;
-}
-
 function _recipeScalablePantryCount(r) {
     if (!r || !Array.isArray(r.ingredients)) return 0;
     return r.ingredients.filter(i => i && i.product_id && Number(i.qty_number) > 0).length;
+}
+
+function _recipeUsedPantryCount(r) {
+    if (!r || !Array.isArray(r.ingredients)) return 0;
+    return r.ingredients.filter(i => i && i.product_id && i.used && Number(i.qty_number) > 0).length;
+}
+
+/**
+ * Which action the green footer button carries: 'redo' or 'cook'.
+ *
+ * A recipe counts as ALREADY MADE as soon as one of its pantry rows has been deducted — the
+ * household decided it cooked this dish, and from then on the useful one-tap action is "make it
+ * again", not "scale the ingredients" over a list it has already written. Waiting for EVERY row
+ * left the old label on screen for a partially scaled dish (or on any dish scaled row by row
+ * with the per-row `Usa`, which never repainted the footer).
+ */
+function _recipeCookFooterMode(r) {
+    if (_recipeScalablePantryCount(r) <= 0) return 'cook';   // nothing to scale at all
+    return _recipeUsedPantryCount(r) > 0 ? 'redo' : 'cook';
 }
 
 /**
@@ -34485,9 +34503,7 @@ function _refreshRecipeCookFooter() {
     if (!r || !host) return;
     const btn = host.querySelector('button.btn-success');
     if (!btn) return;
-    const pending = _recipePendingPantryCount(r);
-    const scalable = _recipeScalablePantryCount(r);
-    if (scalable > 0 && pending === 0) {
+    if (_recipeCookFooterMode(r) === 'redo') {
         btn.textContent = t('recipes.redo');
         btn.setAttribute('onclick', '_recipeRedoIngredients()');
     } else {
@@ -34742,12 +34758,10 @@ async function renderRecipe(r) {
 
     // The three actions of a meal live in ONE sticky footer: they end the recipe, so they
     // cannot stand between the ingredients and the procedure that explains how to cook it.
-    // The green button answers the STATE of the pantry: it scales while something is left to
-    // scale, and once every ingredient has been deducted it becomes "Rifai questa ricetta"
-    // instead of offering an action that could write nothing.
-    const _pendingIng = _recipePendingPantryCount(r);
-    const _scalableIng = _recipeScalablePantryCount(r);
-    const _cookBtn = (_scalableIng > 0 && _pendingIng === 0)
+    // The green button answers the STATE of the pantry: it scales while nothing has been
+    // deduced yet, and becomes "Rifai questa ricetta" as soon as the dish has been cooked once
+    // (a recipe is "already made" from the first row deducted, not from the last).
+    const _cookBtn = (_recipeCookFooterMode(r) === 'redo')
         ? `<button type="button" class="btn btn-large btn-success" onclick="_recipeRedoIngredients()">${t('recipes.redo')}</button>`
         : `<button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>`;
     html += `<div class="recipe-primary-actions" id="recipe-primary-actions">
