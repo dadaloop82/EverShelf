@@ -5,7 +5,20 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.12] - 2026-11-05
+## [1.29.13] - 2026-11-05
+
+### Added
+- **The pantry can be grouped by place.** Under the status chips a quiet switch says
+  **Raggruppa per: 📁 Categoria | 📍 Posizione**. «Categoria» is the default and the list you
+  know; «Posizione» keeps the same rows but sections them by shelf — Dispensa → the marked
+  cabinet → the fridges → the custom places, the order every other surface already uses — with
+  the place icon, the name and the count in the header. Standing in front of the fridge the
+  question is «cosa c'è qui», not «cosa cucino»: that is the mode for it.
+- The choice is remembered on the device (`localStorage`), the switch hides itself once a single
+  place is open (it would be one group) and in the medicine cabinet, and a search result stays
+  flat: the grouping reorders the list, it never filters it — the place filter is still the one
+  control in the strip above.
+
 
 ### Changed
 - **The product sheet opens with the package, not with a line of grey text.** The thumbnail is

@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105c'; // bump when translations change
+const _I18N_VERSION = '20261105d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -13544,6 +13544,51 @@ function renderGroupedByCategory(items, compact = false) {
     return html;
 }
 
+/**
+ * The pantry grouped by PLACE — "sono davanti allo scaffale: cosa c'è qui?".
+ *
+ * The default grouping is the genre (`renderGroupedByCategory`), which is what a household
+ * wants when it plans a meal. Standing in front of the fridge the question is another one:
+ * what do I have HERE, and what is about to go. Same list, same rows, another key.
+ *
+ * The order is the one every other surface uses (`LOCATIONS`: Dispensa → the marked cabinet →
+ * the fridges → the custom places), so "🧊 Frigo" is in the same position here, in the filter
+ * menu and on the dashboard. A place the map does not know keeps its stored name at the end
+ * instead of disappearing.
+ */
+function renderGroupedByLocation(items) {
+    const groups = {};
+    (items || []).forEach(item => {
+        const key = normalizeLocationKey(item.location) || String(item.location || '');
+        (groups[key] = groups[key] || []).push(item);
+    });
+    const order = Object.keys(LOCATIONS);
+    const keys = Object.keys(groups).sort((a, b) => {
+        const ia = order.indexOf(a);
+        const ib = order.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+
+    let html = '';
+    for (const key of keys) {
+        const rows = _sortOpenedFirst(groups[key]);
+        const meta = LOCATIONS[key] || null;
+        const label = meta ? meta.label : (String(groups[key][0].location || key) || '—');
+        // The cabinet wears its drawn pill: an emoji cannot say "farmaci".
+        const icon = !meta ? '📦' : (isMedicalLocation(key) ? _medIconMarkup() : meta.icon);
+        html += `<div class="cat-group-header is-location" role="heading" aria-level="3">`
+            + `<span class="cat-group-icon" aria-hidden="true">${icon}</span>`
+            + `<span class="cat-group-label">${escapeHtml(label)}</span>`
+            + `<span class="cat-group-count">${rows.length}</span>`
+            + `<span class="cat-group-rule" aria-hidden="true"></span>`
+            + `</div>`;
+        // No `hideCatIcon`: under a place header the genre emoji is the only thing that says
+        // WHAT a package is, and rows are not grouped by it any more.
+        html += rows.map(item => renderInventoryItem(item)).join('');
+    }
+    return html;
+}
+
 function renderDashItem(item, opts = {}) {
     const catIcon = CATEGORY_ICONS[mapToLocalCategory(item.category, item.name)] || '📦';
     // A medicine always wears its own mark: it is not a food category, so hiding the category
@@ -14747,6 +14792,50 @@ function _medCabinetEmptyManual() {
 
 let _inventoryViewFilter = 'all'; // all | fav | opened | expiring
 
+/**
+ * How the pantry groups its rows: the genre (`category`, default) or the place (`location`).
+ * A layout preference, not a filter — the place FILTER is still the one control in the strip
+ * above (`_locMacroBarHtml`). Kept in localStorage so the household finds the list as it left
+ * it; nothing here belongs to the server.
+ */
+let _inventoryGroupBy = (() => {
+    try {
+        const v = localStorage.getItem('evershelf_inv_group_v1');
+        return v === 'location' ? 'location' : 'category';
+    } catch (e) {
+        return 'category';   // private mode / storage disabled
+    }
+})();
+
+/** Grouping by place only means something when the whole pantry is on screen. */
+function _inventoryGroupAvailable() {
+    if (currentLocation) return false;
+    if (_inventoryIsMedicalContext()) return false;
+    return true;
+}
+
+function _syncInventoryGroupUi() {
+    const bar = document.getElementById('inventory-group-bar');
+    if (!bar) return;
+    const available = _inventoryGroupAvailable();
+    bar.hidden = !available;
+    if (!available) return;
+    bar.querySelectorAll('[data-inv-group]').forEach(btn => {
+        const on = btn.dataset.invGroup === _inventoryGroupBy;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+}
+
+function setInventoryGroupBy(mode) {
+    const next = mode === 'location' ? 'location' : 'category';
+    if (next === _inventoryGroupBy) return;
+    _inventoryGroupBy = next;
+    try { localStorage.setItem('evershelf_inv_group_v1', next); } catch (e) { /* private mode */ }
+    _syncInventoryGroupUi();
+    filterInventory();
+}
+
 function setInventoryViewFilter(filter) {
     const next = ['all', 'fav', 'opened', 'expiring'].includes(filter) ? filter : 'all';
     _inventoryViewFilter = next;
@@ -14786,6 +14875,7 @@ function renderInventory(items, options = {}) {
     if (!_knownTags.length) { _loadKnownTags(); _loadFamilies(); }
     _renderInventoryTagFilter();
     _syncInventoryMedChips();
+    _syncInventoryGroupUi();
     const container = document.getElementById('inventory-list');
     const baseVisible = _inventoryVisibleItems(items);
     const visible = _inventoryApplyViewFilter(baseVisible);
@@ -14793,9 +14883,13 @@ function renderInventory(items, options = {}) {
         container.innerHTML = _inventoryEmptyHtml(baseVisible);
         return;
     }
-    // Pharmacy cabinet: flat list (the page title already says "Farmacia (N)" —
-    // a second "💊 Farmaco N" group header is noise). Food "all" keeps category sections.
-    if (options.flat || _inventoryViewFilter !== 'all' || _inventoryIsMedicalContext()) {
+    // Two groupings, one list: the genre (a meal is planned by genre) or the place (standing in
+    // front of a shelf the question is "what is HERE"). A search result, a status filter and the
+    // pharmacy cabinet keep their own single-section look.
+    const groupByLocation = _inventoryGroupBy === 'location' && !options.flat && _inventoryGroupAvailable();
+    if (groupByLocation) {
+        container.innerHTML = renderGroupedByLocation(visible);
+    } else if (options.flat || _inventoryViewFilter !== 'all' || _inventoryIsMedicalContext()) {
         container.innerHTML = _sortOpenedFirst(visible).map(item => renderInventoryItem(item)).join('');
     } else {
         container.innerHTML = renderGroupedByCategory(visible, false);
@@ -18901,7 +18995,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -18911,7 +19005,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

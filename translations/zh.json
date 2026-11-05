@@ -408,7 +408,11 @@
     "empty_fav": "收藏中没有商品",
     "empty_opened": "没有已开封的商品",
     "empty_expiring": "没有即将过期的商品",
-    "photo_zoom": "放大图片"
+    "photo_zoom": "放大图片",
+    "group_by_label": "分组方式",
+    "group_category": "按类别",
+    "group_location": "按位置",
+    "group_aria": "列表分组"
   },
   "scan": {
     "title": "扫描",

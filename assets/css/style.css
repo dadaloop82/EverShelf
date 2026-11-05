@@ -2018,6 +2018,57 @@ body.offline-mode .offline-banner-retry {
     border-color: color-mix(in srgb, var(--brand-primary, #10b981) 50%, var(--border));
     color: color-mix(in srgb, var(--brand-primary, #059669) 75%, var(--text));
 }
+/* Grouping switch (Categoria | Posizione): a quiet segmented control under the status chips —
+   it reorders the same list, it does not filter it, so it must not compete with them. */
+.inv-group-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 0 0 10px;
+    margin-bottom: 2px;
+}
+.inv-group-bar[hidden] { display: none; }
+.inv-group-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+.inv-group-switch {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, var(--border));
+    background: color-mix(in srgb, var(--border) 30%, transparent);
+    gap: 2px;
+}
+.inv-group-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 650;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.inv-group-btn.is-active {
+    background: var(--surface-bg, #fff);
+    color: color-mix(in srgb, var(--brand-primary, #059669) 70%, var(--text));
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+}
+.inv-group-btn:focus-visible {
+    outline: 2px solid var(--brand-primary, #10b981);
+    outline-offset: 1px;
+}
 #page-inventory .inv-page-header {
     /* Compact context line — not a glass "Lista" card with admin icons. */
     background: transparent;

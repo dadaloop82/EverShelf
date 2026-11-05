@@ -408,7 +408,11 @@
     "empty_fav": "Ningún producto en favoritos",
     "empty_opened": "Ningún producto abierto",
     "empty_expiring": "Nada a punto de caducar",
-    "photo_zoom": "Ampliar la foto"
+    "photo_zoom": "Ampliar la foto",
+    "group_by_label": "Agrupar por",
+    "group_category": "Categoría",
+    "group_location": "Ubicación",
+    "group_aria": "Agrupar la lista"
   },
   "scan": {
     "title": "Escáner",

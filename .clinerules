@@ -106,7 +106,9 @@ runtime/binary files — if a task truly needs one, ask first.
 - **The pantry filter has ONE place control.** The macro pills (Food | pharmacy) + the room menu
   (`_locFoodMenuToggle`) — a **fixed** layer placed by `_locFoodMenuPlace()`: inside the
   horizontally scrolling `.location-tabs` an absolute panel is clipped and the tap reads as "il
-  dropdown non si apre". No second row of place chips.
+  dropdown non si apre". No second row of place chips. Grouping is a separate, quiet switch
+  (`Categoria | Posizione`, `_inventoryGroupBy` → `renderGroupedByLocation()`): it **reorders** the
+  rows, it never filters, and it hides itself while one place is open.
 - **No swipe in the Home.** The dashboard rows open on tap/hold (`_bindRowHoldOpen`); the
   horizontal swipe lives only in the pantry list (`_initInventoryRowSwipe`), where nothing scrolls
   sideways. A card that already carries `✓ Usa` does not need a gesture.
