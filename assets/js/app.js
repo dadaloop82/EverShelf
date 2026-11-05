@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105x'; // bump when translations change
+const _I18N_VERSION = '20261105y'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105x';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105y';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105x';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105y';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32250,6 +32250,18 @@ async function saveRecipeToArchive(recipe, archiveId = null) {
     const scheduledMeals = ['colazione', 'pranzo', 'merenda', 'cena', 'dolce', 'succo'];
     const meal = scheduledMeals.includes(mealSlot) ? mealSlot : '';
     const payload = { ...recipe };
+    // `stock_missing` is a fact about the shelf RIGHT NOW, computed by
+    // `enrichRecipeIngredientsStock` on every render: it must not be stored in the archive (a
+    // stale "missing" flag would outlive the shopping trip that fixed it, and it would also
+    // change the content hash of a recipe that did not change).
+    if (Array.isArray(payload.ingredients)) {
+        payload.ingredients = payload.ingredients.map((ing) => {
+            if (!ing || typeof ing !== 'object') return ing;
+            const clean = { ...ing };
+            delete clean.stock_missing;
+            return clean;
+        });
+    }
     if (payload.meal === 'libero' || !scheduledMeals.includes(_normalizeMealId(payload.meal || ''))) {
         delete payload.meal;
     }
@@ -33231,6 +33243,8 @@ async function enrichRecipeIngredientsStock(recipe) {
         };
 
         for (const ing of recipe.ingredients) {
+            // Recomputed on every pass: the shelf changes, and this flag is a fact about NOW.
+            delete ing.stock_missing;
             let rows = [];
             if (ing.product_id) {
                 rows = invCookable.filter(i => i.product_id == ing.product_id);
@@ -33274,6 +33288,11 @@ async function enrichRecipeIngredientsStock(recipe) {
             }
 
             if (!rows.length) {
+                // The ingredient is no longer anywhere in the pantry (eaten, deleted, thrown
+                // away, or left at zero): the recipe as written can NOT be cooked. The row is
+                // struck through and the sheet says it out loud — a "Usa" button that would
+                // answer "non è in dispensa" is worse than no button at all.
+                if (ing.from_pantry || ing.product_id) ing.stock_missing = true;
                 if (ing.from_pantry && ing.product_id) {
                     delete ing.stock_have;
                     delete ing.stock_remain;
@@ -34467,7 +34486,9 @@ async function addRecipeShoppingPlan(all) {
  */
 function _recipeScalablePantryCount(r) {
     if (!r || !Array.isArray(r.ingredients)) return 0;
-    return r.ingredients.filter(i => i && i.product_id && Number(i.qty_number) > 0).length;
+    // A row whose product vanished from the pantry cannot be scaled: promising it in the green
+    // footer would be a button that can only fail.
+    return r.ingredients.filter(i => i && i.product_id && Number(i.qty_number) > 0 && !i.stock_missing).length;
 }
 
 function _recipeUsedPantryCount(r) {
@@ -34503,6 +34524,14 @@ function _refreshRecipeCookFooter() {
     if (!r || !host) return;
     const btn = host.querySelector('button.btn-success');
     if (!btn) return;
+    if (_recipeScalablePantryCount(r) <= 0) {
+        // Nothing left in the pantry to scale: the button says so instead of failing.
+        btn.textContent = t('recipes.cook_unavailable');
+        btn.disabled = true;
+        btn.removeAttribute('onclick');
+        return;
+    }
+    btn.disabled = false;
     if (_recipeCookFooterMode(r) === 'redo') {
         btn.textContent = t('recipes.redo');
         btn.setAttribute('onclick', '_recipeRedoIngredients()');
@@ -34617,21 +34646,38 @@ async function renderRecipe(r) {
     }
 
     // Ingredients
+    const missingIngs = (r.ingredients || []).filter(ing => ing && ing.stock_missing);
+    const pantryIngs = (r.ingredients || []).filter(ing => ing && ing.from_pantry && ing.product_id);
+    // The red banner is for a dish that CANNOT be cooked at all. A recipe that lost one
+    // ingredient is still dinner: its row is struck through below, and a red alarm on sixteen
+    // recipes out of eighteen (the real pantry) would only teach the household to ignore red.
+    const uncookable = pantryIngs.length > 0 && missingIngs.length === pantryIngs.length;
+    if (uncookable) {
+        const names = missingIngs.map(ing => ing.name).filter(Boolean);
+        html += `<div class="recipe-missing-banner" role="status">
+            <strong>${escapeHtml(t('recipes.missing_title'))}</strong>
+            <p>${escapeHtml(t('recipes.missing_body', { list: names.join(', ') || '—' }))}</p>
+        </div>`;
+    }
     html += `<h3>${t('recipes.ingredients_title')}</h3><ul class="recipe-ingredients">`;
     (r.ingredients || []).forEach((ing, idx) => {
         if (ing.from_pantry && ing.product_id) {
             const loc = ing.location || 'dispensa';
             const locJs = String(loc).replace(/'/g, "\\'");
             const alreadyUsed = ing.used === true;
+            const missing = !!ing.stock_missing;
             const qtyNum = Math.round((ing.qty_number || 0) * 10) / 10;
-            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeHtml(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
-            if (!alreadyUsed) {
+            html += `<li class="recipe-ingredient${alreadyUsed ? ' recipe-ing-used' : ''}${missing ? ' recipe-ing-missing' : ''}" id="recipe-ing-${idx}" data-ing-idx="${idx}" data-product-id="${ing.product_id}" data-location="${escapeHtml(loc)}" data-base-qty="${ing.qty_number || 0}" data-base-qty-str="${escapeHtml(ing.qty || '')}">`;
+            if (!alreadyUsed && !missing) {
                 html += `<label class="recipe-ing-include" title="${escapeHtml(t('recipes.cook_include'))}">`
                     + `<input type="checkbox" class="recipe-ing-check" checked data-ing-idx="${idx}">`
                     + `</label>`;
             }
-            html += `<span class="recipe-ing-text recipe-ing-open-use" title="${escapeHtml(t('cooking.ingredient_open_use'))}" role="button" tabindex="0">`;
-            html += `<strong class="recipe-ing-name">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''} ✅`;
+            // A missing row is not a control: no tap-to-use, no ✅ — it is a fact.
+            const textCls = missing ? 'recipe-ing-text' : 'recipe-ing-text recipe-ing-open-use';
+            const textTitle = missing ? t('recipes.ing_missing_tag') : t('cooking.ingredient_open_use');
+            html += `<span class="${textCls}" title="${escapeHtml(textTitle)}"${missing ? '' : ' role="button" tabindex="0"'}>`;
+            html += `<strong class="recipe-ing-name">${escapeHtml(ing.name)}</strong>${ing.brand ? ' <em>(' + escapeHtml(ing.brand) + ')</em>' : ''}: <span class="recipe-ing-qty">${escapeHtml(ing.qty)}</span>${ing.use_all_suggested ? ' ♻️' : ''}${missing ? ' ❌' : ' ✅'}`;
             // Detail line: location + expiry
             let details = [];
             const ingredientLocLabels = Object.fromEntries(Object.entries(LOCATIONS).map(([k,v]) => [k, `${v.icon} ${v.label}`]));
@@ -34639,7 +34685,7 @@ async function renderRecipe(r) {
             if (ing.location === 'freezer') {
                 details.push(t('recipes.frozen_badge'));
             }
-            if (ing.expiry_date) {
+            if (!missing && ing.expiry_date) {
                 const exp = new Date(ing.expiry_date);
                 const now = new Date(); now.setHours(0,0,0,0);
                 const diffDays = Math.round((exp - now) / 86400000);
@@ -34649,10 +34695,14 @@ async function renderRecipe(r) {
                 else details.push('📅 ' + exp.toLocaleDateString(_collationLocale()));
             }
             if (details.length) html += `<br><small class="recipe-ing-detail">${details.join(' · ')}</small>`;
-            const stockLine = _recipeIngStockHintHtml(ing);
-            if (stockLine) html += `<br><small class="recipe-ing-stock">${escapeHtml(stockLine)}</small>`;
+            if (!missing) {
+                const stockLine = _recipeIngStockHintHtml(ing);
+                if (stockLine) html += `<br><small class="recipe-ing-stock">${escapeHtml(stockLine)}</small>`;
+            }
             html += `</span>`;
-            if (alreadyUsed) {
+            if (missing) {
+                html += `<span class="btn-use-ingredient btn-missing">${escapeHtml(t('recipes.ing_missing_tag'))}</span>`;
+            } else if (alreadyUsed) {
                 html += `<button class="btn-use-ingredient btn-used" disabled>${t('cooking.ingredient_used')}</button>`;
             } else {
                 html += `<button class="btn-use-ingredient" onclick="useRecipeIngredient(${idx}, ${ing.product_id}, '${locJs}', ${qtyNum}, this, '${(ing.qty || '').replace(/'/g, "&apos;")}')" title="${t('cooking.ingredient_deduct_title')}">${t('cooking.ingredient_use_btn')}</button>`;
@@ -34758,12 +34808,16 @@ async function renderRecipe(r) {
 
     // The three actions of a meal live in ONE sticky footer: they end the recipe, so they
     // cannot stand between the ingredients and the procedure that explains how to cook it.
-    // The green button answers the STATE of the pantry: it scales while nothing has been
-    // deduced yet, and becomes "Rifai questa ricetta" as soon as the dish has been cooked once
-    // (a recipe is "already made" from the first row deducted, not from the last).
-    const _cookBtn = (_recipeCookFooterMode(r) === 'redo')
-        ? `<button type="button" class="btn btn-large btn-success" onclick="_recipeRedoIngredients()">${t('recipes.redo')}</button>`
-        : `<button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>`;
+    // The green button answers the STATE of the pantry: it scales while the ingredients are
+    // there, becomes "Rifai questa ricetta" as soon as the dish has been cooked once (a recipe
+    // is "already made" from the first row deducted, not from the last), and says it cannot be
+    // cooked when the products have left the pantry.
+    const _scalableIng = _recipeScalablePantryCount(r);
+    const _cookBtn = _scalableIng <= 0
+        ? `<button type="button" class="btn btn-large btn-success" disabled>${t('recipes.cook_unavailable')}</button>`
+        : (_recipeCookFooterMode(r) === 'redo'
+            ? `<button type="button" class="btn btn-large btn-success" onclick="_recipeRedoIngredients()">${t('recipes.redo')}</button>`
+            : `<button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>`);
     html += `<div class="recipe-primary-actions" id="recipe-primary-actions">
         <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
         ${_cookBtn}

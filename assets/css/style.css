@@ -7411,6 +7411,58 @@ body:has(#page-scan.active) .app-content {
     opacity: 0.5;
 }
 
+/* ===== An ingredient the pantry no longer has =====
+   Struck through like a used one, but for the opposite reason: the product is GONE. The row is
+   not a control any more (no checkbox, no "Usa"), and the sheet says at the top that the dish as
+   written cannot be cooked — a strike-through alone would read as "already done". */
+.recipe-ing-missing .recipe-ing-text {
+    text-decoration: line-through;
+    text-decoration-color: #dc2626;
+    text-decoration-thickness: 2px;
+    opacity: 0.6;
+}
+.recipe-ing-missing .recipe-ing-name { color: #b91c1c; }
+.recipe-ing-missing .recipe-ing-detail { color: #b91c1c; opacity: 0.8; }
+.btn-use-ingredient.btn-missing {
+    background: transparent;
+    border-color: transparent;
+    color: #b91c1c;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    cursor: default;
+}
+
+.recipe-missing-banner {
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm, 10px);
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    color: #7f1d1d;
+    text-align: left;
+}
+.recipe-missing-banner strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.92rem;
+}
+.recipe-missing-banner p {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+[data-theme="dark"] .recipe-missing-banner {
+    background: #2a0a0a;
+    border-color: #7f1d1d;
+    border-left-color: #ef4444;
+    color: #fecaca;
+}
+[data-theme="dark"] .recipe-ing-missing .recipe-ing-name,
+[data-theme="dark"] .recipe-ing-missing .recipe-ing-detail,
+[data-theme="dark"] .btn-use-ingredient.btn-missing { color: #fca5a5; }
+
 .recipe-ing-detail {
     color: var(--text-muted);
     font-size: 0.78rem;

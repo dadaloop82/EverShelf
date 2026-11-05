@@ -41,6 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   old label survived the whole session. `_recipeCookFooterMode()` now answers from
   `_recipeUsedPantryCount()`: one deducted row is enough to make the dish "made", and both paths
   (one-tap and per-row) refresh the button in place.
+- **An ingredient the pantry no longer has is struck through, and a dish that cannot be cooked says
+  so.** `enrichRecipeIngredientsStock()` found no stock for a row and quietly `continue`d, so the
+  sheet kept a `✅`, a checkbox and a `Usa` button that could only answer "non è in dispensa".
+  Every such row is now marked `stock_missing` (recomputed on each render, never stored in the
+  archive — the flag is a fact about the shelf, and it would also change the content hash): it is
+  struck through in red with a ❌, loses its checkbox and its `Usa` (a neutral "Non disponibile"
+  tag instead), and stops offering the tap-to-use panel. When EVERY pantry ingredient is gone the
+  sheet opens with a red banner — "⚠️ Questa ricetta non si può fare — gli ingredienti necessari
+  non sono più in dispensa: …" — and the green footer button is disabled ("Ingredienti non
+  disponibili") instead of failing row by row. A recipe that lost ONE ingredient keeps a working
+  button: in the real archive 16 of 18 recipes are in that state, and a red alarm on all of them
+  would only teach the household to ignore red.
 - **The end-of-cook card asked to scale ingredients that were already scaled.**
   `_cookingFinishPrompt()` counted `_cookingRecipe` — the DEEP COPY taken when the overlay
   opened — so a resumed session (or any deduction made from the sheet) left a stale snapshot: the
