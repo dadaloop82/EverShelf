@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · 计时器",
     "finish_title": "🎉 开饭啦！",
     "finish_body": "菜已做好。要从库存中扣减 {n} 种食材并记录这一餐吗？",
-    "finish_body_empty": "菜已做好。",
+    "finish_body_empty": "菜已做好。这道菜的食材已经扣减过了。",
     "finish_confirm": "✓ 确认并扣减",
     "finish_skip": "不，只退出",
     "finish_close": "关闭",

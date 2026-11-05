@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · Minuteur",
     "finish_title": "🎉 Bon appétit !",
     "finish_body": "Le plat est prêt. Décompter {n} ingrédients du garde-manger et enregistrer le repas ?",
-    "finish_body_empty": "Le plat est prêt.",
+    "finish_body_empty": "Le plat est prêt. Les ingrédients de cette recette ont déjà été décomptés.",
     "finish_confirm": "✓ Confirmer et décompter",
     "finish_skip": "Non, juste sortir",
     "finish_close": "Fermer",

@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   HAD been. The same button also refreshes in place after a deduction (`_refreshRecipeCookFooter`)
   and, when there is nothing left to scale at the end of cooking mode, the completion card offers
   the redo too.
+- **The end-of-cook card asked to scale ingredients that were already scaled.**
+  `_cookingFinishPrompt()` counted `_cookingRecipe` — the DEEP COPY taken when the overlay
+  opened — so a resumed session (or any deduction made from the sheet) left a stale snapshot: the
+  rows were already struck through, the footer already said "Rifai questa ricetta", and the card
+  still asked "vuoi scalare 5 ingredienti?". The count now reads `_recipeSheetSource()` — the
+  sheet is the list `cookRecipeDeductSelected()` acts on — and `_syncCookingRecipeUsedFlags()`
+  keeps the copy aligned on resume, after a deduction and after a redo. With nothing left to
+  scale the card says exactly that and offers "Chiudi" + "Rifai questa ricetta".
 
 ### Fixed
 - **A voice turn waited for the cloud before doing anything.** `SpeechRecognition.stop()` does not

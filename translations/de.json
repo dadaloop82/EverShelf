@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · Timer",
     "finish_title": "🎉 Guten Appetit!",
     "finish_body": "Das Gericht ist fertig. {n} Zutaten aus dem Vorrat abziehen und die Mahlzeit eintragen?",
-    "finish_body_empty": "Das Gericht ist fertig.",
+    "finish_body_empty": "Das Gericht ist fertig. Die Zutaten dieses Rezepts wurden bereits abgezogen.",
     "finish_confirm": "✓ Bestätigen und abziehen",
     "finish_skip": "Nein, nur schließen",
     "finish_close": "Schließen",

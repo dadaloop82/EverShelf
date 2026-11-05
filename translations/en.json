@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · Timer",
     "finish_title": "🎉 Enjoy your meal!",
     "finish_body": "The dish is ready. Scale {n} ingredients from the pantry and log the meal?",
-    "finish_body_empty": "The dish is ready.",
+    "finish_body_empty": "The dish is ready. This recipe’s ingredients have already been scaled.",
     "finish_confirm": "✓ Confirm and scale",
     "finish_skip": "No, just leave",
     "finish_close": "Close",

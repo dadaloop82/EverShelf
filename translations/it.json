@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · Timer",
     "finish_title": "🎉 Buon appetito!",
     "finish_body": "Il piatto è pronto. Vuoi scalare {n} ingredienti dalla dispensa e registrare il pasto?",
-    "finish_body_empty": "Il piatto è pronto.",
+    "finish_body_empty": "Il piatto è pronto. Gli ingredienti di questa ricetta sono già stati scalati.",
     "finish_confirm": "✓ Conferma e scala",
     "finish_skip": "No, solo esci",
     "finish_close": "Chiudi",

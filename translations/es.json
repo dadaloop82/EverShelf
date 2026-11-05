@@ -1165,7 +1165,7 @@
     "timer_chip": "⏱️ 00:00 · Temporizador",
     "finish_title": "🎉 ¡Buen provecho!",
     "finish_body": "El plato está listo. ¿Descontar {n} ingredientes de la despensa y registrar la comida?",
-    "finish_body_empty": "El plato está listo.",
+    "finish_body_empty": "El plato está listo. Los ingredientes de esta receta ya se han descontado.",
     "finish_confirm": "✓ Confirmar y descontar",
     "finish_skip": "No, solo salir",
     "finish_close": "Cerrar",

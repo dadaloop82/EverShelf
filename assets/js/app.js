@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105t'; // bump when translations change
+const _I18N_VERSION = '20261105u'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105t';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105u';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105u';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -34514,10 +34514,8 @@ async function _recipeRedoIngredients() {
         if (ing && ing.used) { ing.used = false; touched++; }
     });
     // The cooking-mode copy carries its own flags (it is a deep copy): leaving them set would
-    // make the end-of-cook question claim there is nothing to scale after a redo.
-    if (_cookingRecipe && Array.isArray(_cookingRecipe.ingredients)) {
-        _cookingRecipe.ingredients.forEach((ing) => { if (ing) ing.used = false; });
-    }
+    // make the end-of-cook card claim there is nothing left to scale after a redo.
+    _syncCookingRecipeUsedFlags();
     if (!touched) return;
     _cookingStep = 0;
     _cookingVisited = new Set();
@@ -34824,8 +34822,12 @@ async function cookRecipeDeductSelected() {
         }
         if (ok > 0) showToast(t('recipes.cook_deduct_done').replace('{n}', String(ok)), 'success');
         if (fail > 0) showToast(t('recipes.cook_deduct_partial').replace('{n}', String(fail)), 'info');
-        // Every pantry row is now struck through: the footer must stop offering to scale them.
-        if (ok > 0) _refreshRecipeCookFooter();
+        // Every pantry row is now struck through: the footer must stop offering to scale them,
+        // and the cooking copy must say the same (its flags are a snapshot of this list).
+        if (ok > 0) {
+            _syncCookingRecipeUsedFlags();
+            _refreshRecipeCookFooter();
+        }
     } finally {
         showLoading(false);
     }
@@ -35006,15 +35008,46 @@ document.addEventListener('visibilitychange', () => {
  * of the stove the dish is already on the table, so the only question left is whether the
  * pantry is scaled. Asked here, over the cooking screen, with the two honest answers.
  */
+/**
+ * The recipe the sheet is showing — the ONE list that writes the pantry.
+ *
+ * The cooking session holds a DEEP COPY (`_cookingRecipe`), taken when the overlay opened: its
+ * `used` flags are a snapshot, and a deduction made from the sheet (or a redo) leaves them
+ * behind. `cookRecipeDeductSelected()` acts on the sheet's checkboxes, so the sheet is the
+ * source of truth for "how much is still to scale" — never the copy.
+ */
+function _recipeSheetSource() {
+    return (_cachedRecipe && _cachedRecipe.recipe) || _cookingRecipe || {};
+}
+
+/**
+ * Keep the cooking copy's `used` flags aligned with the sheet.
+ *
+ * Resuming a session (`startCookingMode` keeps `_cookingRecipe` when the title matches) used to
+ * carry yesterday's snapshot: the dish had already been deducted, every row of the sheet was
+ * struck through, and the end-of-cook card still asked "vuoi scalare 5 ingredienti?". One place
+ * copies the flags, so the two views cannot disagree.
+ */
+function _syncCookingRecipeUsedFlags() {
+    const src = _recipeSheetSource();
+    if (!_cookingRecipe || !Array.isArray(_cookingRecipe.ingredients) || !Array.isArray(src.ingredients)) return;
+    const n = Math.min(src.ingredients.length, _cookingRecipe.ingredients.length);
+    for (let i = 0; i < n; i++) {
+        const from = src.ingredients[i];
+        const to = _cookingRecipe.ingredients[i];
+        if (from && to) to.used = !!from.used;
+    }
+}
+
 function _cookingFinishPendingCount() {
-    const r = _cookingRecipe || {};
+    const r = _recipeSheetSource();
     if (!Array.isArray(r.ingredients)) return 0;
     return r.ingredients.filter(i => i && i.product_id && !i.used && Number(i.qty_number) > 0).length;
 }
 
 function _cookingFinishPrompt() {
     const pending = _cookingFinishPendingCount();
-    const r = _cookingRecipe || {};
+    const r = _recipeSheetSource();
     const old = document.getElementById('cooking-finish-prompt');
     if (old) old.remove();
     const el = document.createElement('div');
@@ -35087,6 +35120,9 @@ function startCookingMode() {
         _dismissedZeroWasteTips = new Set();
         clearAllCookingTimers();
     }
+    // A resumed session keeps its old copy, and that copy's `used` flags are a snapshot: bring
+    // them back to the sheet, or the end-of-cook card counts ingredients already deducted.
+    _syncCookingRecipeUsedFlags();
     _cookingTTS = true;
     document.getElementById('cooking-title').textContent = _cookingRecipe.title || '';
     document.getElementById('cooking-tts-btn').textContent = '🔊';
