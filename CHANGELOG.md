@@ -28,7 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recorded in `app_settings.deleted_locations` (and `validInventoryLocations()` stops accepting
   stock there, so it cannot come back through an old client); a custom place also loses its label.
   Deleting Dispensa retires its legacy alias `altro` in the same shot. Settings now lists **all**
-  places with a ✕ — rename stays on the custom ones, whose names are the household's words.
+  places with a ✕ — rename stays on the custom ones, whose names are the household's words —
+  and a **Luoghi eliminati** line under it puts a place back (`POST location_restore`): a
+  destructive action with no way back is a trap, and a deleted built-in has no other door,
+  because its name lives in the translation files.
 
 ### Changed
 - **The quick stocktake is a small pill, and only on a place.** In the whole-house view the big

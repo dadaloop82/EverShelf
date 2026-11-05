@@ -8872,6 +8872,32 @@ body.cooking-mode-active .app-header {
     background: #fee2e2;
 }
 
+/* Deleted places, with their way back: a one-way destructive action is a trap, and a deleted
+   built-in has no other door (its name lives in the translations). */
+.deleted-locations {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+}
+.deleted-locations[hidden] { display: none; }
+.deleted-locations-title {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.appliance-item-gone {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+}
+.appliance-item-gone .btn { flex: 0 0 auto; }
+
 /* A custom location can be renamed as well as removed: the pencil sits next to the ✕,
    neutral, because it does not destroy anything. */
 .appliance-actions {

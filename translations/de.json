@@ -1912,7 +1912,11 @@
       "deleted": "„{name}“ gelöscht.",
       "delete_failed": "Der Ort konnte nicht gelöscht werden: bitte erneut versuchen.",
       "delete_missing": "Diesen Ort gibt es nicht mehr.",
-      "last_place": "Mindestens ein Ort muss bleiben: lege zuerst einen weiteren an."
+      "last_place": "Mindestens ein Ort muss bleiben: lege zuerst einen weiteren an.",
+      "deleted_title": "Gelöschte Orte",
+      "restore": "Wiederherstellen",
+      "restored": "Ort wiederhergestellt.",
+      "restore_failed": "Der Ort konnte nicht wiederhergestellt werden: bitte erneut versuchen."
     },
     "ai": {
       "title": "🤖 Künstliche Intelligenz",

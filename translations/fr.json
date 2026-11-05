@@ -1912,7 +1912,11 @@
       "deleted": "« {name} » supprimé.",
       "delete_failed": "Impossible de supprimer l’emplacement : réessayez.",
       "delete_missing": "Cet emplacement n’existe plus.",
-      "last_place": "Il doit rester au moins un emplacement : ajoutez-en un avant de supprimer celui-ci."
+      "last_place": "Il doit rester au moins un emplacement : ajoutez-en un avant de supprimer celui-ci.",
+      "deleted_title": "Emplacements supprimés",
+      "restore": "Restaurer",
+      "restored": "Emplacement restauré.",
+      "restore_failed": "Impossible de restaurer l’emplacement : réessayez."
     },
     "ai": {
       "title": "🤖 Intelligence artificielle",

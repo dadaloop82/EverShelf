@@ -1233,6 +1233,12 @@ try {
             locationDeleteAction($db);
             break;
 
+        // POST location_restore — put a deleted place back. One tap, one key: a destructive
+        // action without a way back is a trap, and a built-in has no other way in.
+        case 'location_restore':
+            locationRestoreAction($db);
+            break;
+
         case 'get_settings':
             getServerSettings($db);
             break;
@@ -11309,6 +11315,72 @@ function _locationDeletePersist(PDO $db, string $key, string $label, bool $isCus
             'reason'   => $e->getMessage(),
         ]);
     }
+}
+
+/**
+ * POST location_restore — bring back a deleted place (built-in or custom).
+ *
+ * Deleting is guarded (empty, not the last one), so the reverse has to exist: a place deleted by
+ * mistake must not need a hand-edited database. For a custom place the label was the household's
+ * word and it left `CUSTOM_LOCATIONS` with the place — it is restored from the slug, which is the
+ * same name in lower case (`custom_cantina` → «Cantina»), and can be renamed afterwards.
+ */
+function locationRestoreAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+
+    $gone = deletedLocationsList($db);
+    if ($key === '' || !in_array($key, $gone, true)) {
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Not a deleted location',
+            'error_key' => 'settings.custom_locations.delete_missing',
+        ]);
+        return;
+    }
+
+    $restored = array_values(array_filter($gone, static fn($k) => $k !== $key));
+    // Deleting Dispensa retired `altro` with it: restoring brings the alias back too.
+    if ($key === 'dispensa') {
+        $restored = array_values(array_filter($restored, static fn($k) => $k !== 'altro'));
+    }
+    saveDeletedLocations($db, $restored);
+
+    // A custom place needs its label back, or the pantry would show a raw slug.
+    $labels = inventoryCustomLocationLabels($db);
+    $isBuiltin = in_array($key, array_map('mb_strtolower', inventoryBuiltinLocations()), true);
+    if (!$isBuiltin && !in_array($key, array_map('inventorySlugifyCustomLocation', $labels), true)) {
+        $label = inventoryLabelFromSlug($key);
+        $labels[] = $label;
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates)) {
+            EverLog::warn('restored place keeps no label', [
+                'event'    => 'location_restore_label_skipped',
+                'location' => $key,
+            ]);
+        }
+    }
+
+    EverLog::info('restored a storage location', [
+        'event'    => 'location_restore',
+        'location' => $key,
+    ]);
+
+    echo json_encode([
+        'success'           => true,
+        'deleted_locations' => deletedLocationsList($db),
+        'custom_locations'  => inventoryCustomLocationLabels($db),
+    ], JSON_UNESCAPED_UNICODE);
 }
 
 // ===== GEMINI AI FUNCTIONS =====

@@ -1912,7 +1912,11 @@
       "deleted": "“{name}” deleted.",
       "delete_failed": "Could not delete the place: try again.",
       "delete_missing": "This place no longer exists.",
-      "last_place": "At least one place must remain: add another one before deleting this."
+      "last_place": "At least one place must remain: add another one before deleting this.",
+      "deleted_title": "Deleted places",
+      "restore": "Restore",
+      "restored": "Place restored.",
+      "restore_failed": "Could not restore the place: try again."
     },
     "ai": {
       "title": "🤖 Artificial intelligence",

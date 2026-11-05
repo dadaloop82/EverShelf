@@ -1912,7 +1912,11 @@
       "deleted": "«{name}» eliminato.",
       "delete_failed": "Non riesco a eliminare il luogo: riprova.",
       "delete_missing": "Questo luogo non esiste più.",
-      "last_place": "Deve restare almeno un luogo: aggiungine un altro prima di eliminare questo."
+      "last_place": "Deve restare almeno un luogo: aggiungine un altro prima di eliminare questo.",
+      "deleted_title": "Luoghi eliminati",
+      "restore": "Ripristina",
+      "restored": "Luogo ripristinato.",
+      "restore_failed": "Non riesco a ripristinare il luogo: riprova."
     },
     "ai": {
       "title": "🤖 Intelligenza artificiale",

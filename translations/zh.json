@@ -1912,7 +1912,11 @@
       "deleted": "已删除“{name}”。",
       "delete_failed": "无法删除该位置：请重试。",
       "delete_missing": "该位置已不存在。",
-      "last_place": "至少需保留一个位置：请先添加另一个位置。"
+      "last_place": "至少需保留一个位置：请先添加另一个位置。",
+      "deleted_title": "已删除的位置",
+      "restore": "恢复",
+      "restored": "位置已恢复。",
+      "restore_failed": "无法恢复该位置：请重试。"
     },
     "ai": {
       "title": "🤖 人工智能",

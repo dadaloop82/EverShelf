@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105g'; // bump when translations change
+const _I18N_VERSION = '20261105h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -3029,6 +3029,8 @@ function renderCustomLocations(list) {
         </div>
     `;
     }).join('');
+    // Both lists are painted together: a place is either in the list or in the "deleted" line.
+    renderDeletedLocations();
 }
 
 /**
@@ -3157,6 +3159,62 @@ async function addCustomLocation() {
     renderCustomLocations(next);
     if (input) input.value = '';
     showToast(t('settings.custom_locations.added'), 'success');
+}
+
+/**
+ * Paint the deleted places with their restore button, under the place list.
+ *
+ * A deleted built-in has no other way back (its name is in the translation files and a custom
+ * place with that name is refused as reserved), so the delete is only acceptable in company of
+ * this line.
+ */
+function renderDeletedLocations() {
+    const box = document.getElementById('deleted-locations-list');
+    if (!box) return;
+    const gone = _deletedLocationKeys();
+    if (!gone.length) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+    }
+    const labelOf = (key) => {
+        const meta = BUILTIN_LOCATIONS[key];
+        if (meta) return t(meta.labelKey);
+        return key.replace(/^custom_/, '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+    };
+    box.hidden = false;
+    box.innerHTML = `<p class="deleted-locations-title">${escapeHtml(t('settings.custom_locations.deleted_title'))}</p>`
+        + gone.map((key) => `
+            <div class="appliance-item appliance-item-gone">
+                <span>${escapeHtml(labelOf(key))}</span>
+                <button type="button" class="btn btn-outline btn-small" onclick="restoreLocation('${escapeAttr(key)}')"
+                        title="${escapeAttr(t('settings.custom_locations.restore'))}">↩ ${escapeHtml(t('settings.custom_locations.restore'))}</button>
+            </div>
+        `).join('');
+}
+
+/**
+ * Put a deleted place back (server: `location_restore`).
+ *
+ * @param {string} key the slug that was deleted
+ */
+async function restoreLocation(key) {
+    const slug = String(key || '').trim().toLowerCase();
+    if (!slug) return;
+    const res = await api('location_restore', {}, 'POST', { key: slug }).catch(() => null);
+    if (!res || res.success === false) {
+        showToast(_apiErrorText(res) || t('settings.custom_locations.restore_failed'), 'error');
+        return;
+    }
+    const s = getSettings();
+    s.deleted_locations = Array.isArray(res.deleted_locations) ? res.deleted_locations : [];
+    s.custom_locations = Array.isArray(res.custom_locations) ? res.custom_locations : (s.custom_locations || []);
+    saveSettingsToStorage(s);
+    mergeCustomLocations(s.custom_locations);
+    renderCustomLocations(s.custom_locations);
+    renderDeletedLocations();
+    _syncLocationFilterUi();
+    showToast(t('settings.custom_locations.restored'), 'success');
 }
 
 /**
@@ -19067,7 +19125,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19077,7 +19135,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
