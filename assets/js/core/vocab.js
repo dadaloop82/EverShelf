@@ -307,6 +307,37 @@ function vocabCaptureOf(lang) {
     return (capture && typeof capture === 'object') ? capture : null;
 }
 
+/**
+ * The words that say nothing about WHO makes a medicine: legal forms and the bureaucratic run
+ * of a company name ("AZIENDE CHIMICHE RIUNITE … S.P.A.", "LABORATOIRES …", "… GMBH").
+ *
+ * DATA, not code: each language declares its own list under `company_stop_words` in
+ * api/vocab/<lang>.json, and every shipped language contributes — a catalogue mixes them
+ * (an Italian box printed by a German firm, "Pharmaceuticals" on a US label). Merged, deduped
+ * and lowercased once; a language that declares nothing simply adds nothing.
+ */
+function vocabCompanyStopWords() {
+    if (vocabCompanyStopWords._value) return vocabCompanyStopWords._value;
+    const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};
+    const lang = (typeof _currentLang === 'string' && _currentLang) ? _currentLang : 'it';
+    const order = [lang].concat(Object.keys(all).filter(code => code !== lang).sort());
+    const seen = new Set();
+    const out = [];
+    order.forEach(code => {
+        const data = all[code];
+        const list = data && data.company_stop_words;
+        if (!Array.isArray(list)) return;
+        list.forEach((word) => {
+            const key = String(word == null ? '' : word).trim().toLowerCase();
+            if (key === '' || seen.has(key)) return;
+            seen.add(key);
+            out.push(key);
+        });
+    });
+    vocabCompanyStopWords._value = out;
+    return out;
+}
+
 /** One language's "locale" block (its own name, collation tag, speech tag). */
 function vocabLocale(lang) {
     const all = (typeof EVERSHELF_VOCAB_ALL !== 'undefined' && EVERSHELF_VOCAB_ALL) ? EVERSHELF_VOCAB_ALL : {};

@@ -102,6 +102,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong palette in an emerald app. One neutral slate hairline now.
 
 ### Changed
+- **The medicine company words left the code and became data.** `_medShortCompany()` carried a
+  `Set` of Italian/English/French company words (`aziende`, `chimiche`, `riunite`,
+  `farmaceutico`, `laboratoires`, …) plus a regex alternation in `_medCommercialName()`: the
+  right values in the wrong place, because §4b says the vocabulary is DATA. They now live in
+  `api/vocab/<lang>.json` under `company_stop_words` (one list per language, 87 merged words
+  instead of 28) and reach the browser through `vocabCompanyStopWords()` in
+  `assets/js/core/vocab.js` + the regenerated `assets/js/vocab.generated.js`. A new legal form
+  (GmbH, Sàrl, Co., Ltd…) is one word in the JSON, never a line in a function, and the trailing
+  "– AZIENDE CHIMICHE …" regex is built from the same list. Behaviour verified unchanged on
+  real catalogue strings ("AZIENDE CHIMICHE RIUNITE ANGELINI S.P.A." → "Angelini").
 - **"Tipo di pasto" is a real chip grid now, not checkboxes inside balloons.** The native square
   is gone from the eye (the `<input>` stays in the DOM — it is the state, the keyboard target and
   the screen-reader control — but it is invisible), the chip itself is the pill: `height: 36px`,

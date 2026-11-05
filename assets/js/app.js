@@ -197,6 +197,9 @@ function _medIconMarkup(extraClass = '') {
 /**
  * Short company for list cards: drop S.P.A./S.R.L. and the bureaucratic run
  * ("AZIENDE CHIMICHE RIUNITE …") so the household reads "Angelini", not a tax name.
+ *
+ * The generic words come from the vocabulary DATA (`vocabCompanyStopWords()`): a new legal form
+ * is one word in api/vocab/<lang>.json, never a line in this function.
  */
 function _medShortCompany(raw) {
     let s = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -205,18 +208,15 @@ function _medShortCompany(raw) {
     s = s.replace(/\b(S\.?\s*P\.?\s*A\.?|S\.?\s*R\.?\s*L\.?|S\.?\s*A\.?S\.?|GMBH|A\.?G\.?|LTD\.?|LLC\.?|INC\.?|N\.?\s*V\.?|B\.?\s*V\.?)\.?/gi, ' ');
     s = s.replace(/\b([A-Z]\.){2,}\b/g, ' '); // A.C.R.A.F.
     s = s.replace(/\s+/g, ' ').trim();
-    const GENERIC = new Set([
-        'aziende', 'chimiche', 'riunite', 'laboratorio', 'chimico', 'farmaceutico',
-        'farmaceutica', 'farmaceutiche', 'industrie', 'industria', 'francesco',
-        'societa', 'società', 'della', 'delle', 'dei', 'del', 'spa', 'srl',
-        'group', 'groupe', 'holding', 'pharma', 'pharmaceutical', 'pharmaceuticals',
-        'laboratoires', 'laboratorio', 'laboratories', 'company', 'co',
-    ]);
+    // The words that say nothing about the maker are VOCABULARY, not code: each language
+    // declares its own under `company_stop_words` (api/vocab/<lang>.json → vocab.generated.js)
+    // and every shipped language contributes, because a catalogue mixes them.
+    const generic = new Set(typeof vocabCompanyStopWords === 'function' ? vocabCompanyStopWords() : []);
     const tokens = s.split(/\s+/).filter((tok) => {
         const bare = tok.replace(/\./g, '');
         if (!bare || bare.length < 2) return false;
         if (/^[A-Z]$/i.test(bare)) return false;
-        return !GENERIC.has(tok.toLowerCase());
+        return !generic.has(tok.toLowerCase());
     });
     if (!tokens.length) return s.slice(0, 28);
     const brandish = tokens.filter((t) => t.replace(/\./g, '').length >= 4);
@@ -231,6 +231,22 @@ function _medShortCompany(raw) {
 }
 
 /**
+ * The alternation that recognises a trailing "– AZIENDE CHIMICHE …" run in a title, built from
+ * the SAME vocabulary list (`company_stop_words`): one word added to the data is one more way a
+ * catalogue can glue a company onto a drug name. `null` when the data declares nothing.
+ */
+function _medCompanyRunRe() {
+    if (_medCompanyRunRe._re !== undefined) return _medCompanyRunRe._re;
+    const words = (typeof vocabCompanyStopWords === 'function' ? vocabCompanyStopWords() : [])
+        .filter((w) => w.length >= 6)
+        .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    _medCompanyRunRe._re = words.length
+        ? new RegExp('\\s+[-–—]\\s+(?:' + words.join('|') + ')\\b.*$', 'i')
+        : null;
+    return _medCompanyRunRe._re;
+}
+
+/**
  * Commercial name for a medicine card: strip a trailing "(S.P.A. …)" / company run
  * that some catalogue rows glue onto the title.
  */
@@ -238,7 +254,8 @@ function _medCommercialName(item) {
     let name = String((item && (item.display_name || item.name)) || '').trim();
     if (!name) return '';
     name = name.replace(/\s*\((?:[^)]*(?:S\.?\s*P\.?\s*A|S\.?\s*R\.?\s*L|GMBH|LTD|INC|SPA|SRL)[^)]*)\)\s*$/i, '').trim();
-    name = name.replace(/\s+[-–—]\s+(?:AZIENDE|LABORATORIO|INDUSTRIE|LABORATOIRES)\b.*$/i, '').trim();
+    const companyRun = _medCompanyRunRe();
+    if (companyRun) name = name.replace(companyRun, '').trim();
     // If brand was accidentally duplicated into the title in ALL CAPS after the drug name.
     const brand = String((item && item.brand) || '').trim();
     if (brand && brand.length > 12 && name.toUpperCase().endsWith(brand.toUpperCase())) {
@@ -1912,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105y'; // bump when translations change
+const _I18N_VERSION = '20261105z'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105y';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105z';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105y';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105z';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

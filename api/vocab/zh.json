@@ -998,6 +998,7 @@
   },
   "translated_from": "it",
   "translated_with": "ai:gemini",
+  "company_stop_words": ["制药", "药业", "医药", "公司", "集团", "有限公司", "化学", "生物", "科技"],
   "capture": {
     "intent": {
       "recipe": [
