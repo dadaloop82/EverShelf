@@ -297,11 +297,11 @@ function _auditRender() {
     const qtyPlain = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
         ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
         : `${it.quantity || ''} ${it.unit || ''}`.trim();
-    const confirmLabel = t('audit.confirm_yes_qty').replace('{qty}', qtyPlain || String(it.quantity || ''));
-    const countLabel = t('audit.count_of').replace('{n}', done + 1).replace('{total}', total);
+    const confirmLabel = t('audit.confirm_yes_qty', { qty: qtyPlain || String(it.quantity || '') });
+    const countLabel = t('audit.count_of', { n: done + 1, total });
     const locMeta = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
         || { icon: '📦', label: it.location || '' };
-    const placeTitle = t('audit.verify_place').replace('{place}', locMeta.label || t('audit.title'));
+    const placeTitle = t('audit.verify_place', { place: locMeta.label || t('audit.title') });
     const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('audit.title'))}">
         <div class="audit-top">
