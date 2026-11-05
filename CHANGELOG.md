@@ -5,7 +5,29 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.13] - 2026-11-05
+## [1.29.14] - 2026-11-05
+
+### Changed
+- **The quick stocktake is not a setting any more.** It used to be a global switch in
+  Settings → *Inventario veloce*: nobody walks into the settings, flips a toggle, goes to the
+  fridge and comes back to switch it off — and a toggle that never stuck left the feature
+  invisible with no way to tell why. The switch is **gone** (`AUDIT_MODE_ENABLED` no longer
+  exists in the settings page, in the settings registry, in the API payload or in
+  `.env.example`): the banner now lives in the pantry, always visible as long as the shelf has
+  something to check, it names the place you have open («⚡ Inventario veloce · Frigo — 42
+  prodotti da verificare») and its **Avvia verifica rapida** starts the wizard on exactly those
+  rows, with no scope picker in the way. The whole-house view keeps the picker (a hundred
+  products in one run is not a session) and a paused run for the same place continues where it
+  stopped.
+- **A settings row with a stepper is one line.** *Salva ogni* and *Preferiti automatici dopo*
+  stacked label, then the control, then the hint — which left an empty expanse of card to the
+  right of the `[−] N [+]` block and read as a broken layout on a tablet or a desktop. Label and
+  explanation now sit on the left and the stepper on the right (`.settings-stepper-row`,
+  `space-between`, vertically centred), the same line grammar as a toggle row.
+- The automatic-favourites rule now explains itself in a sentence («Quanti utilizzi servono
+  perché un prodotto diventi preferito: la regola promuove solo i 3 più usati in assoluto»)
+  instead of a lowercase fragment that only made sense after the number it followed.
+
 
 ### Added
 - **The pantry can be grouped by place.** Under the status chips a quiet switch says

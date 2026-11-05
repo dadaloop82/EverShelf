@@ -112,6 +112,11 @@ runtime/binary files — if a task truly needs one, ask first.
 - **No swipe in the Home.** The dashboard rows open on tap/hold (`_bindRowHoldOpen`); the
   horizontal swipe lives only in the pantry list (`_initInventoryRowSwipe`), where nothing scrolls
   sideways. A card that already carries `✓ Usa` does not need a gesture.
+- **A procedure is not a setting.** The quick stocktake has no global switch: the banner sits in
+  the pantry on the place you opened (`_auditStartFromBanner()` starts the wizard on those rows)
+  and Settings keep only its pace (`AUDIT_MODE_BATCH_SIZE`). A settings row with a stepper is ONE
+  line — label + hint left, `[−] N [+]` right (`.settings-stepper-row`), never a control alone on
+  a half-empty row.
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
 - **A title carries no HTML entities.** `productTitleDecodeEntities()` (inside

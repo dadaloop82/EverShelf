@@ -145,30 +145,6 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "bool"
         },
         {
-            "id": "setting-audit-mode-enabled",
-            "env": "AUDIT_MODE_ENABLED",
-            "tab": "tab-general",
-            "group": "app",
-            "label": "settings.product_rules.audit_label",
-            "hint": "settings.product_rules.audit_hint",
-            "card": "settings.product_rules.card_title",
-            "card_hint": "settings.product_rules.card_hint",
-            "keywords": "settings.search_kw.audit",
-            "type": "bool"
-        },
-        {
-            "id": "setting-auto-favorite-min-uses",
-            "env": "AUTO_FAVORITE_MIN_USES",
-            "tab": "tab-general",
-            "group": "app",
-            "label": "settings.product_rules.auto_favorite_label",
-            "hint": "settings.product_rules.auto_favorite_suffix",
-            "card": "settings.product_rules.card_title",
-            "card_hint": "settings.product_rules.card_hint",
-            "keywords": "settings.search_kw.favorites",
-            "type": "int"
-        },
-        {
             "id": "setting-ai-enabled",
             "env": "AI_ENABLED",
             "tab": "tab-api",
@@ -1309,6 +1285,30 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "type": "int"
         },
         {
+            "id": "recipe-persons",
+            "env": "",
+            "tab": "tab-credits",
+            "group": "system",
+            "label": "recipes.persons_label",
+            "hint": "",
+            "card": "",
+            "card_hint": "",
+            "keywords": "",
+            "type": "int"
+        },
+        {
+            "id": "recipe-opt-mealplan",
+            "env": "",
+            "tab": "tab-credits",
+            "group": "system",
+            "label": "recipes.meal_type_label",
+            "hint": "support.donate_hint",
+            "card": "",
+            "card_hint": "",
+            "keywords": "",
+            "type": "bool"
+        },
+        {
             "id": "setting-audit-batch-size",
             "env": "AUDIT_MODE_BATCH_SIZE",
             "tab": "tab-general",
@@ -1317,7 +1317,19 @@ window.EVERSHELF_SETTINGS_SCHEMA = {
             "hint": "",
             "card": "settings.product_rules.card_title",
             "card_hint": "settings.product_rules.card_hint",
-            "keywords": "",
+            "keywords": "settings.search_kw.audit",
+            "type": "action"
+        },
+        {
+            "id": "setting-auto-favorite-min-uses",
+            "env": "AUTO_FAVORITE_MIN_USES",
+            "tab": "tab-general",
+            "group": "app",
+            "label": "settings.product_rules.auto_favorite_suffix",
+            "hint": "",
+            "card": "settings.product_rules.card_title",
+            "card_hint": "settings.product_rules.card_hint",
+            "keywords": "settings.search_kw.favorites",
             "type": "action"
         },
         {

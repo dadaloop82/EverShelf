@@ -2881,6 +2881,42 @@ body.offline-mode .offline-banner-retry {
 }
 
 /* ===== QUANTITY CONTROL ===== */
+/* A settings row with a stepper: label + explanation on the left, the [−] N [+] block on the
+   right. The old markup stacked label, then the control on its own line and the hint UNDER it,
+   which left an empty expanse of card to the right of the stepper (very visible on a tablet and
+   on a desktop). Same grammar as `.toggle-row`: one line, space-between, centred. */
+.settings-stepper-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+.settings-stepper-copy { flex: 1 1 220px; min-width: 0; }
+.settings-stepper-copy .settings-hint { margin: 2px 0 0; }
+.settings-stepper-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+.settings-row-label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    color: var(--text);
+}
+.settings-stepper-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.settings-stepper-row .qty-control { flex: 0 0 auto; }
+.settings-stepper-row .qty-input { width: 64px; text-align: center; }
+
 .qty-control {
     display: flex;
     align-items: center;

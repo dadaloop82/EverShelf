@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105d'; // bump when translations change
+const _I18N_VERSION = '20261105e'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -5494,7 +5494,7 @@ function _applySyncedSettings(serverSettings) {
         'zerowaste_tips_enabled',
         'shopping_enabled','shopping_mode','shopping_smart_suggestions',
         'shopping_forecast','shopping_auto_add_threshold',
-        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
+        'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
         'dark_mode',
         'barcode_ai_fallback',
         'recipe_source','mealie_url','mealie_offline','mealie_cache_sync_days','mealie_usable','recipe_shopping_mode',
@@ -6580,7 +6580,7 @@ async function loadSettingsUI() {
             'price_enabled','price_country','price_currency','price_update_months',
             'shopping_enabled','shopping_mode','shopping_smart_suggestions',
             'shopping_forecast','shopping_auto_add_threshold',
-            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
+            'product_kind_prefix','auto_favorite_min_uses','tags_enabled','audit_mode_batch_size','product_variants_enabled','receipt_ocr_enabled',
             'weather_enabled','weather_lat','weather_lon','weather_city',
             'ha_enabled','ha_url','ha_tts_entity','ha_webhook_id','ha_webhook_events',
             'ha_notify_service','ha_expiry_days'];
@@ -7282,8 +7282,6 @@ function _applyProductRuleSettingsUI(s) {
     if (prefixEl) prefixEl.checked = s.product_kind_prefix !== false;
     const tagsEnabledEl = document.getElementById('setting-tags-enabled');
     if (tagsEnabledEl) tagsEnabledEl.checked = s.tags_enabled !== false;
-    const auditEnabledEl = document.getElementById('setting-audit-mode-enabled');
-    if (auditEnabledEl) auditEnabledEl.checked = s.audit_mode_enabled !== false;
     const variantsEl = document.getElementById('setting-product-variants-enabled');
     if (variantsEl) variantsEl.checked = s.product_variants_enabled !== false;
     const receiptEl = document.getElementById('setting-receipt-ocr-enabled');
@@ -7500,8 +7498,6 @@ async function saveSettings() {
     if (productKindPrefixEl) s.product_kind_prefix = productKindPrefixEl.checked;
     const tagsToggleEl = document.getElementById('setting-tags-enabled');
     if (tagsToggleEl) s.tags_enabled = tagsToggleEl.checked;
-    const auditToggleEl = document.getElementById('setting-audit-mode-enabled');
-    if (auditToggleEl) s.audit_mode_enabled = auditToggleEl.checked;
     const variantsToggleEl = document.getElementById('setting-product-variants-enabled');
     if (variantsToggleEl) s.product_variants_enabled = variantsToggleEl.checked;
     const receiptToggleEl = document.getElementById('setting-receipt-ocr-enabled');
@@ -7601,7 +7597,6 @@ async function saveSettings() {
             ...(s.shopping_remove_on_buy ? { shopping_remove_on_buy: s.shopping_remove_on_buy } : {}),
             product_kind_prefix:         s.product_kind_prefix !== false,
             tags_enabled:                s.tags_enabled !== false,
-            audit_mode_enabled:          s.audit_mode_enabled !== false,
             audit_mode_batch_size:       s.audit_mode_batch_size || 5,
             product_variants_enabled:    s.product_variants_enabled !== false,
             receipt_ocr_enabled:         s.receipt_ocr_enabled !== false,
@@ -14100,31 +14095,38 @@ async function loadInventory() {
 }
 
 /**
- * Stocktake banner: only when a single place is open.
- * "All locations" / whole-house views hide it — checking 126 products at once is not a real session.
+ * The quick stocktake banner — the procedure lives where the procedure happens.
+ *
+ * It used to be a global switch in Settings («Inventario veloce», `AUDIT_MODE_ENABLED`):
+ * nobody walks into the settings, flips a toggle, goes back to the fridge and then returns to
+ * switch it off. The banner is always here now, it names the place it will check (or the whole
+ * pantry) and it starts the wizard on that place directly, so «2 minuti davanti allo scaffale»
+ * is two taps away from any screen.
  */
 function _syncInventoryAuditBanner() {
     const banner = document.getElementById('inventory-stocktake-btn');
     const sub = document.getElementById('inventory-audit-banner-sub');
     const titleEl = banner ? banner.querySelector('.inv-audit-banner-title') : null;
     if (!banner) return;
-    const enabled = (typeof getSettings === 'function' ? getSettings() : {}).audit_mode_enabled !== false;
     const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
     const meta = key ? LOCATIONS[key] : null;
-    if (!enabled || !meta) {
+    const n = (_inventoryVisibleItems(currentInventory) || []).length;
+    // An empty shelf has nothing to confirm: a banner with nothing to check is noise.
+    if (!n) {
         banner.hidden = true;
         return;
     }
     banner.hidden = false;
-    const n = (_inventoryVisibleItems(currentInventory) || []).length;
     if (titleEl) {
         titleEl.removeAttribute('data-i18n');
-        titleEl.textContent = t('audit.banner_title_place', { place: meta.label });
+        titleEl.textContent = meta
+            ? t('audit.banner_title_place', { place: meta.label })
+            : t('audit.banner_title');
     }
     if (sub) {
-        sub.textContent = t('audit.banner_sub_place')
-            .replace('{place}', `${meta.icon} ${meta.label}`)
-            .replace('{n}', String(n));
+        sub.textContent = meta
+            ? t('audit.banner_sub_place').replace('{place}', `${meta.icon} ${meta.label}`).replace('{n}', String(n))
+            : t('audit.banner_sub_all').replace('{n}', String(n));
     }
 }
 
@@ -18995,7 +18997,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105d';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105e';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19005,7 +19007,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105d';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105e';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -183,6 +183,28 @@ function _auditSentence(it) {
     return out;
 }
 
+/**
+ * The pantry banner's CTA: start on the place the list is showing.
+ *
+ * Opening a place already answers "what do I want to check", so the scope picker would be one
+ * question too many — the wizard starts on those rows. In the whole-house view the picker IS the
+ * answer (a hundred products in one run is not a session), and a paused run for the same place
+ * continues instead of restarting from zero.
+ */
+function _auditStartFromBanner() {
+    const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
+    if (!key) {
+        _auditStart();
+        return;
+    }
+    const saved = _auditSavedRun();
+    if (saved && (saved.scope || '') === key) {
+        _auditResume();
+        return;
+    }
+    _auditBegin(key, null);
+}
+
 /** Entry point: resume a paused run, or choose the scope of a new one. */
 function _auditStart() {
     const items = _auditItems();
@@ -228,7 +250,8 @@ function _auditResume() {
 }
 
 function _auditBegin(location, saved = null) {
-    const items = saved ? saved.items : _auditItems().filter(it => !location || it.location === location);
+    // Same comparison on both sides: a row may store the slug while the scope is a label.
+    const items = saved ? saved.items : _auditItems().filter(it => !location || normalizeLocationKey(it.location) === location);
     _audit = {
         items,
         index: 0,
@@ -246,8 +269,11 @@ function _auditBegin(location, saved = null) {
         flushPromise: null,
     };
     if (!_audit.items.length) {
+        // Nothing matched the scope (a row moved between the banner and the tap): say it
+        // instead of opening an empty wizard.
         _audit = null;
         _auditStop();
+        showToast(t('audit.empty'), 'info');
         return;
     }
     _auditPersist();
