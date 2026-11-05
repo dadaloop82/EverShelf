@@ -16,8 +16,8 @@
  *   - "No, è deperito"    the "butta tutto" action (`inventory_use` + a waste
  *                         reason, notes "Buttato|spoiled"), so it counts as waste.
  *
- * "Quasi finito" and "Salta" stay as the quiet answers. The writes are queued and
- * flushed every AUDIT_MODE_BATCH_SIZE items and at the end, so a broken connection
+ * "Salta" stays as the quiet answer. The writes are queued and flushed every
+ * AUDIT_MODE_BATCH_SIZE items and at the end, so a broken connection
  * costs at most one batch, and the summary counts what changed; a change that did
  * not save is reported instead of disappearing.
  *
@@ -114,7 +114,7 @@ function _auditItems() {
 
 /** The counters a run starts with (and the summary falls back to). */
 function _auditEmptyCounts() {
-    return { there: 0, almost: 0, finished: 0, spoiled: 0, skipped: 0 };
+    return { there: 0, finished: 0, spoiled: 0, skipped: 0 };
 }
 
 /** The mass unit the scale can fill for this row, or '' when it cannot weigh it. */
@@ -271,8 +271,8 @@ function _auditBegin(location, saved = null) {
  *   1. the product (photo, name, brand, place, stock on record) — facts, once;
  *   2. ONE emerald primary: `✓ Confermo {qty}`;
  *   3. a neutral 2×2 for when something is off (finished / spoiled / edit / move);
- *   4. two quiet links in the footer: «Quasi finito» (it writes the low threshold, which is
- *      what puts the item on the shopping list) and «Salta».
+ *   4. one quiet link in the footer: «Salta» — a card the household cannot answer (a product
+ *      that is not there, a shelf it does not want to touch) moves on without writing anything.
  *
  * The progress line is a real bar: it fills on the card you are LOOKING AT (`done + 1`), so the
  * first of fifteen shows ~7% instead of an empty grey line.
@@ -331,7 +331,6 @@ function _auditRender() {
         ${_auditScaleReady(it) ? `<button type="button" class="audit-scale-pill" onclick="_auditScale()"><span aria-hidden="true">⚖️</span> ${escapeHtml(t('audit.read_scale'))}</button>` : ''}
         <div class="audit-foot">
             ${_audit.history.length ? `<button type="button" class="audit-back" onclick="_auditUndo()">↩ ${escapeHtml(t('audit.undo_last'))}</button>` : '<span></span>'}
-            <button type="button" class="audit-almost-link" onclick="_auditAnswer('almost')"><span aria-hidden="true">⚠️</span> ${escapeHtml(t('audit.almost_out'))}</button>
             <button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>
         </div>
     </div>`;
@@ -398,11 +397,14 @@ function _auditItemSaved(id) {
 /**
  * Register one answer and move on.
  *  - "there" writes nothing: the row is right;
- *  - "almost" lowers the row to the unit's low-stock value (`inventory_update`);
  *  - "finished" is the real "usa tutto": `inventory_use` + use_all, so consumption
  *    stats, the shopping list and the depleted-product rules all react;
  *  - "spoiled" is the real "butta tutto": the same call with a waste reason, so it
  *    is counted as waste (and feeds the waste-learning hints).
+ *
+ * There is deliberately NO "quasi finito" answer: it wrote a quantity the household never said
+ * (100 g, half a pack) and looked like a third way to confirm. Whoever has a little left says
+ * the real amount through «Modifica quantità», and the shopping list follows the shelf.
  */
 function _auditAnswer(kind) {
     if (!_audit || _audit.finished) return;
@@ -417,11 +419,7 @@ function _auditAnswer(kind) {
         row: null,
     };
     _audit.answered[String(it.id)] = kind;
-    if (kind === 'almost') {
-        entry.row = { kind: 'update', id: it.id, quantity: _auditAlmostOutQty(it), label };
-        _audit.queue.push(entry.row);
-        _audit.counts.almost++;
-    } else if (kind === 'finished') {
+    if (kind === 'finished') {
         entry.row = { kind: 'use', product_id: it.product_id, location: it.location, label };
         _audit.queue.push(entry.row);
         _audit.counts.finished++;
@@ -580,7 +578,6 @@ async function _auditFinish() {
         </div>
         <p class="audit-summary">${t('audit.summary_line')
             .replace('{there}', c.there)
-            .replace('{almost}', c.almost)
             .replace('{finished}', c.finished)
             .replace('{spoiled}', c.spoiled)
             .replace('{skipped}', c.skipped)}</p>
@@ -626,9 +623,6 @@ document.addEventListener('keydown', (ev) => {
     } else if (ev.key === 'ArrowRight') {
         ev.preventDefault();
         _auditAnswer('there');
-    } else if (ev.key === 'ArrowDown') {
-        ev.preventDefault();
-        _auditAnswer('almost');
     } else if (ev.key === 'ArrowLeft') {
         ev.preventDefault();
         _auditAnswer('finished');

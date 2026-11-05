@@ -13183,18 +13183,6 @@ body.offline-mode #smart-shopping {
     flex-wrap: wrap;
 }
 .audit-foot .audit-skip { margin-top: 0; }
-.audit-almost-link {
-    background: none;
-    border: none;
-    color: var(--text-muted, #64748b);
-    font: inherit;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 6px 2px;
-}
-.audit-almost-link:active { color: var(--text-main); }
 .audit-back,
 .audit-undo {
     font: inherit;

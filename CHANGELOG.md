@@ -5,7 +5,18 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.16] - 2026-11-05
+## [1.29.17] - 2026-11-05
+
+### Removed
+- **«Quasi finito» is gone from the stocktake card.** It was a link that looked nothing like the
+  rest of the card, appeared on every product and — the real problem — wrote a quantity the
+  household never said (100 g, half a pack) while reading like a third way to confirm. A count
+  must record what is on the shelf, never a threshold the app invented: whoever has a little left
+  says the real amount through «Modifica quantità», and the shopping list follows the shelf. The
+  answer, its ready-made quantity, its keyboard shortcut and its line in the summary are all
+  removed (the footer is now «Salta» only, and the summary counts confirmed / used up / spoiled /
+  skipped).
+
 
 ### Changed
 - **The stocktake card says each thing once.** It used to print the same quantity four times — in
