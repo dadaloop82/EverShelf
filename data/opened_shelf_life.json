@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "note": "PAO — period after opening. Deterministic on purpose (no model call, no network): `warn` = start checking, `critical` = almost certainly spoiled. Sources: USDA FoodKeeper (post-opening storage), EFSA/EC guidance on 'best before' vs PAO, Open Food Facts categories for the mapping. A keyword ending with `*` matches by prefix (plural/gender variants); keywords are lowercase, matched whole-word and case-insensitively.",
+    "note": "PAO — period after opening. Deterministic on purpose (no model call, no network): `warn` = start checking, `critical` = almost certainly spoiled. Sources: USDA FoodKeeper (post-opening storage), EFSA/EC guidance on 'best before' vs PAO, Open Food Facts categories for the mapping. A keyword ending with `*` matches by prefix (plural/gender variants); keywords are lowercase, matched whole-word and case-insensitively. Optional per-family keys: `icon` is the mark the UI shows instead of the generic category emoji (a wine is 🍷, not 🥤); `cook_after` + `cook_hint_key` say that from that day the product is no longer something to pour or plate but an INGREDIENT: the UI then asks to cook with it and leaves throwing it away as a neutral second choice (wine: 10 days, because an opened white keeps for months in a risotto).",
     "defaults": {
         "frigo":    { "warn": 5,  "critical": 10 },
         "dispensa": { "warn": 20, "critical": 45 },
