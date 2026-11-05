@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "Caducidad estimada respecto al lugar actual",
     "empty_fav": "Ningún producto en favoritos",
     "empty_opened": "Ningún producto abierto",
-    "empty_expiring": "Nada a punto de caducar"
+    "empty_expiring": "Nada a punto de caducar",
+    "photo_zoom": "Ampliar la foto"
   },
   "scan": {
     "title": "Escáner",
@@ -2888,7 +2889,13 @@
     "examples_med": "Medicamentos",
     "intent_shop": "Compra",
     "example_shop": "Añade huevos a la lista de la compra",
-    "shop_done": "{name} está en la lista de la compra"
+    "shop_done": "{name} está en la lista de la compra",
+    "thinking_step_2": "Consulto el inventario…",
+    "thinking_step_3": "La respuesta está tardando más de lo previsto…",
+    "timeout": "La petición ha tardado demasiado: no se registró nada.",
+    "fallback_lead": "He entendido: «{text}» — pero el comando no se completó.",
+    "continue_chat": "Continuar en el chat",
+    "retry_voice": "Reintentar por voz"
   },
   "location_altro": {
     "removed": "La ubicación «Otro» ya no existe: {n} productos se han movido a «{to}»."

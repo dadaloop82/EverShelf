@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105a'; // bump when translations change
+const _I18N_VERSION = '20261105c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -9778,6 +9778,7 @@ function _openCaptureSheet() {
     _captureSetState('idle');
     _captureShowTranscript('', false);
     _captureShowChoices(null);
+    _captureHideFallback();
     // The text field is not part of the voice view: it is opened on purpose (or by
     // `_captureSyncMicAvailability` when the browser cannot listen at all).
     _captureShowType(false);
@@ -9815,6 +9816,10 @@ function _closeCaptureSheet() {
     // succeeding, or a failure in there traps the user behind an overlay.
     const sheet = document.getElementById('capture-sheet');
     if (sheet) sheet.style.display = 'none';
+    // A turn that was still running is nobody's answer any more: its lookup must not open a
+    // sheet over whatever the household is doing now.
+    _captureTurnId++;
+    _captureWatchdogStop();
     _shelfyDisarm();
     _captureVoiceStop();
 }
@@ -9871,6 +9876,10 @@ function _captureNotUnderstood(messageKey, params) {
     // second tap is obviously possible.
     _captureSetState('idle');
     _captureStatus(messageKey || 'capture.not_understood', params);
+    // A sentence SHELFY cannot turn into an action is not a closed door: the card repeats
+    // what was heard and offers the chat (transcript already in it) and a new attempt. The
+    // specific reason stays on the status line (keepStatus).
+    _captureShowFallback('not_understood', { keepStatus: true });
     // EverShelf Med: "ho un forte mal di testa" is not a product, but it is a question the
     // household asked. With the module on, the sentence is handed to the LOCAL symptom map
     // (no AI, no dosage) and the answer opens in its own sheet with the disclaimer on top.
@@ -9943,6 +9952,11 @@ function _captureSetState(state) {
         if (mic) mic.style.setProperty('--level', '0');
         if (bars) bars.querySelectorAll('span').forEach(b => b.style.setProperty('--bar', '0.15'));
     }
+    // The clock of the turn belongs to the state: it runs only while the assistant is
+    // working, and every other state (a card, a choice, an idle avatar) stops it.
+    _captureState = thinking ? 'thinking' : (listening ? 'listening' : 'idle');
+    if (thinking) _captureWatchdogStart();
+    else _captureWatchdogStop();
 }
 
 /**
@@ -9956,6 +9970,130 @@ function _capturePhase(phase) {
     _captureSetState(phase);
     if (phase === 'listening') _captureStatusText(t('capture.listening'));
     else if (phase === 'thinking') _captureStatusText(t('capture.processing'));
+}
+
+/* ── The clock of one voice turn ──────────────────────────────────────────────
+ * In a kitchen nobody watches a spinner: fifteen seconds is already generous for a local
+ * lookup, and a screen that says "sto elaborando…" for minutes is indistinguishable from a
+ * frozen app. So the turn has a deadline, the status line says WHAT it is doing while it
+ * waits, and when the clock runs out the sentence is not lost: the sheet keeps it on screen
+ * and offers the chat (transcript already inside) or a second attempt by voice.
+ *
+ * The turn has an id: a lookup that answers after the deadline belongs to a turn nobody is
+ * waiting for any more, and must not open a sheet behind the fallback card.
+ */
+const CAPTURE_TIMEOUT_MS = 15000;
+const CAPTURE_STEP_2_MS = 4000;
+const CAPTURE_STEP_3_MS = 8000;
+let _captureWatchdog = [];
+let _captureTurnId = 0;
+let _captureState = 'idle';
+
+function _captureWatchdogStop() {
+    _captureWatchdog.forEach((id) => clearTimeout(id));
+    _captureWatchdog = [];
+}
+
+function _captureWatchdogStart() {
+    _captureWatchdogStop();
+    const arm = (ms, fn) => _captureWatchdog.push(setTimeout(fn, ms));
+    arm(CAPTURE_STEP_2_MS, () => { if (_captureState === 'thinking') _captureStatusStep(2); });
+    arm(CAPTURE_STEP_3_MS, () => { if (_captureState === 'thinking') _captureStatusStep(3); });
+    arm(CAPTURE_TIMEOUT_MS, () => _captureTimeout());
+}
+
+/**
+ * What the assistant is doing, while it is doing it.
+ *
+ * Literal keys on purpose, exactly like `_capturePhase`: `scripts/i18n-audit.py` only sees a
+ * key written inside a bare translate call.
+ */
+function _captureStatusStep(step) {
+    if (step === 2) _captureStatusText(t('capture.thinking_step_2'));
+    else if (step === 3) _captureStatusText(t('capture.thinking_step_3'));
+}
+
+/** The two endings of a failed turn, resolved on literals (see `_captureStatusStep`). */
+function _captureFailureText(kind) {
+    return kind === 'timeout' ? t('capture.timeout') : t('capture.not_understood');
+}
+
+/** The clock ran out: the turn is over and the sheet says so, with the two ways forward. */
+function _captureTimeout() {
+    if (_captureState !== 'thinking') return;
+    _captureTurnId++;                 // anything landing from here on is another turn
+    _captureWatchdogStop();
+    _captureSetState('idle');
+    _captureShowFallback('timeout');
+}
+
+function _captureHideFallback() {
+    const box = document.getElementById('capture-fallback');
+    if (box) box.hidden = true;
+    const lead = document.getElementById('capture-fallback-lead');
+    if (lead) lead.textContent = '';
+}
+
+/**
+ * "Non ce l'ho fatta" — said with the sentence the household actually spoke.
+ *
+ * A bare error would throw away the only thing the user produced (the sentence), so the card
+ * repeats it and offers the chat and a new attempt. The "Ho capito" chips of the half-finished
+ * turn are removed: naming a product above a failure is the contradiction the audit found.
+ */
+function _captureShowFallback(kind, opts = {}) {
+    const understood = document.getElementById('capture-understood');
+    if (understood) { understood.hidden = true; understood.innerHTML = ''; }
+    _captureShowChoices(null);
+    const tr = document.getElementById('capture-transcript');
+    const text = String((tr && tr.textContent) || '').trim();
+    const lead = document.getElementById('capture-fallback-lead');
+    if (lead) {
+        lead.textContent = text
+            ? t('capture.fallback_lead', { text })
+            : _captureFailureText(kind);
+    }
+    const box = document.getElementById('capture-fallback');
+    if (box) box.hidden = false;
+    // A specific "not understood" (e.g. "{name} non è in dispensa") keeps its own line: the
+    // card adds the two ways forward, it does not overwrite the reason.
+    if (!opts.keepStatus) _captureStatusText(_captureFailureText(kind));
+}
+
+/**
+ * Hand the sentence to the full chat, already written in the field.
+ *
+ * The chat is where a sentence that is not a command still gets an answer, and asking the
+ * household to say it again (or to type it) after a failure is exactly the dead end this
+ * fallback removes. One helper, used by the failure card and by the "recipe" intent.
+ */
+function _shelfyHandOverToChat(text) {
+    const said = String(text || '').trim();
+    _openChatSheet();
+    if (!said) return;
+    setTimeout(() => {
+        const input = document.getElementById('chat-input');
+        if (input) input.value = said;
+        sendChatMessage();
+    }, 350);
+}
+
+function _captureContinueInChat() {
+    const tr = document.getElementById('capture-transcript');
+    const text = String((tr && tr.textContent) || '').trim();
+    _captureWatchdogStop();
+    _captureHideFallback();
+    _closeCaptureSheet();
+    _shelfyHandOverToChat(text);
+}
+
+function _captureRetryVoice() {
+    _captureWatchdogStop();
+    _captureHideFallback();
+    _captureShowTranscript('', false);
+    _captureShowChoices(null);
+    _captureSetState('idle');
+    _captureStartVoice();
 }
 
 /** Start the level meter. Silent failure: the transcript still works without it. */
@@ -10483,6 +10621,7 @@ function _shelfyAddUnit(qty, unit) {
  * article, and creating one is never the end of a wrong parse.
  */
 async function _shelfyOpenAdd(parsed) {
+    const turn = _captureTurnId;
     const name = (parsed && parsed.product) || '';
     const dictated = (Number(parsed && parsed.qty) || 0) * (Number(parsed && parsed.unit_factor) || 1);
     const spoken = _shelfyAddUnit(dictated, parsed && parsed.unit);
@@ -10490,6 +10629,9 @@ async function _shelfyOpenAdd(parsed) {
     const unit = spoken.unit;
 
     const rows = await _captureFindProducts(name);
+    // The clock may have run out while we waited: the fallback card is on screen and this
+    // turn is nobody's answer any more (the same rule as `_captureSubmit`).
+    if (turn !== _captureTurnId) return;
     const best = rows[0] || null;
     if (!best || best.score < 0.75) {
         // "Aggiungi il latte" for an article the catalogue does not know used to close the
@@ -11023,7 +11165,9 @@ async function _captureFindProducts(name) {
     let list = Array.isArray(currentInventory) ? currentInventory : [];
     if (!list.length) {
         try {
-            const data = await api('inventory_list');
+            // The turn has a 15 s deadline (`CAPTURE_TIMEOUT_MS`): the request is aborted a
+            // little before it, so the fallback card is not competing with a fetch in flight.
+            const data = await api('inventory_list', {}, 'GET', null, {}, 12000);
             currentInventory = (data && data.inventory) || [];
             list = currentInventory;
         } catch (e) {
@@ -11107,6 +11251,11 @@ async function _captureSubmit(raw, opts) {
     _capturePending = parsed;
     _captureShowTranscript(text, true);
     _captureShowChoices(null);
+    _captureHideFallback();
+    // This turn owns the sheet from here on: if the deadline fires (or the household closes
+    // it) while the lookup runs, the answer that arrives late is dropped instead of opening a
+    // sheet nobody asked for.
+    const turn = ++_captureTurnId;
     // From this instant the sheet is WORKING, not listening: the answer is a lookup (and
     // maybe a network round-trip) away, and a still screen is what reads as a frozen app.
     // The spinner stays until the card appears or the sheet closes.
@@ -11125,14 +11274,7 @@ async function _captureSubmit(raw, opts) {
     const go = (fn) => setTimeout(() => { _closeCaptureSheet(); fn(); }, 650);
 
     if (parsed.intent === 'recipe') {
-        go(() => {
-            _openChatSheet();
-            setTimeout(() => {
-                const input = document.getElementById('chat-input');
-                if (input) input.value = text;
-                sendChatMessage();
-            }, 350);
-        });
+        go(() => _shelfyHandOverToChat(text));
         return;
     }
     // Pharmacy / symptom ask — local map only (no AI, no dosage). Reuses the same
@@ -11155,6 +11297,9 @@ async function _captureSubmit(raw, opts) {
     }
 
     const rows = await _captureFindProducts(parsed.product);
+    // The deadline may have fired (or the sheet may have been closed) while we waited: the
+    // turn is over, and its late answer must not open anything.
+    if (turn !== _captureTurnId) return;
     const best = rows[0] || null;
 
     if (parsed.intent === 'throw') {
@@ -14972,6 +15117,45 @@ function quickAccessSelect(productId) {
 }
 
 // ===== ITEM DETAIL MODAL =====
+
+/**
+ * The package photo, full screen.
+ *
+ * The 64×64 tile of the sheet tells one variant from another; it can never show an ingredient
+ * list, a nutrition table or a lot number — and the household is holding the box, not a
+ * magnifier. One tap opens the same picture over everything, ✕ / Esc / a tap outside puts it
+ * away, and the product sheet underneath is still there.
+ */
+function openProductImageLightbox(inventoryId) {
+    const item = _findInventoryItem(inventoryId);
+    const url = item && _validProductImageUrl(item.image_url) ? String(item.image_url).trim() : '';
+    if (!url) return;
+    let ov = document.getElementById('image-lightbox');
+    if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'image-lightbox';
+        ov.className = 'modal-overlay image-lightbox';
+        ov.setAttribute('role', 'dialog');
+        ov.setAttribute('aria-modal', 'true');
+        // A tap on the dark backdrop is "chiudi": the frame stops the bubbling (see below).
+        ov.addEventListener('click', _closeImageLightbox);
+        document.body.appendChild(ov);
+    }
+    ov.innerHTML = `<figure class="image-lightbox-frame" onclick="event.stopPropagation()">
+        <button type="button" class="image-lightbox-close" onclick="_closeImageLightbox()"
+                aria-label="${escapeAttr(t('btn.close'))}">✕</button>
+        <img src="${escapeAttr(url)}" alt="${escapeAttr(item.name || '')}" decoding="async">
+    </figure>`;
+    ov.style.display = 'flex';
+}
+
+function _closeImageLightbox() {
+    const ov = document.getElementById('image-lightbox');
+    if (!ov) return;
+    ov.style.display = 'none';
+    ov.innerHTML = '';
+}
+
 function _itemDetailExpiryChip(item) {
     if (!item.expiry_date) return '';
     const days = daysUntilExpiry(item.expiry_date);
@@ -15027,7 +15211,20 @@ function showItemDetail(inventoryId, productId, presetQty) {
     const canVacuum = _itemAllowsVacuumAction(item);
     const canExtend = !isMed && _shouldOfferExtendExpiry(item);
     const titleName = escapeHtml(item.display_name || item.name);
-    const brandInline = item.brand ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>` : '';
+    // Name and brand on two lines: the eye reads WHAT it is first, then WHO makes it. A brand
+    // in parentheses inside the title flattened both into one grey sentence
+    // ("Pan Bauletto al Grano Duro (Mulino Bianco)"), and at 16 px the pair was unreadable.
+    const brandLine = item.brand ? `<p class="item-detail-brand">${escapeHtml(item.brand)}</p>` : '';
+    // A package is recognised by its picture: 64 px tells the variants apart (grano duro vs
+    // classico vs integrale), and a tap opens it full screen to read an ingredient list, a
+    // nutrition table or a lot number off the box itself (`openProductImageLightbox`).
+    const hasPhoto = _validProductImageUrl(item.image_url);
+    const thumbHtml = hasPhoto
+        ? `<button type="button" class="item-detail-photo-btn" onclick="openProductImageLightbox(${inventoryId})"
+                   title="${escapeAttr(t('inventory.photo_zoom'))}" aria-label="${escapeAttr(t('inventory.photo_zoom'))}">
+               <img src="${escapeAttr(item.image_url)}" alt="">
+           </button>`
+        : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`;
     // Mount the slots whenever this row *could* be weighed; visibility follows a live stream.
     const scaleCapable = _itemDetailScaleCapable(item);
 
@@ -15073,13 +15270,11 @@ function showItemDetail(inventoryId, productId, presetQty) {
             <div class="modal-header item-detail-header">
                 <div class="item-detail-header-row">
                     <div class="item-detail-image">
-                        ${_validProductImageUrl(item.image_url)
-                            ? `<img src="${escapeHtml(item.image_url)}" alt="">`
-                            : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`
-                        }
+                        ${thumbHtml}
                     </div>
                     <div class="item-detail-header-text">
-                        <h3 class="item-detail-title">${titleName}${brandInline}</h3>
+                        <h3 class="item-detail-title">${titleName}</h3>
+                        ${brandLine}
                         <p class="item-detail-loc-line">
                             <span aria-hidden="true">${locPin}</span> ${escapeHtml(locInfo.label)}${statusBits.length ? ` · ${statusBits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}
                         </p>
@@ -17375,6 +17570,8 @@ function _medDiscard(invId) {
 
 const _OVERLAY_CLOSERS = {
     'modal-overlay': () => closeModal(),
+    // The package photo over the product sheet: Esc closes the picture, not the sheet.
+    'image-lightbox': () => _closeImageLightbox(),
     'capture-sheet': () => _closeCaptureSheet(),
     'shelfy-intro':  () => _shelfyCloseIntro(),
     'support-modal': () => closeSupportModal(),
@@ -18704,7 +18901,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -18714,7 +18911,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32746,17 +32943,19 @@ function _recipeUseHeadHtml() {
     const expiryChip = _itemDetailExpiryChip(item);
     const catSlug = mapToLocalCategory(item.category, item.name, item.brand);
     const catText = (catSlug && catSlug !== 'altro') ? categoryText(catSlug) : '';
-    const brand = item.brand
-        ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>`
-        : '';
+    // Same hierarchy as the product sheet: name, then the brand on its own line, then the
+    // genre and the place as light meta. A brand in parentheses inside the title flattened
+    // both lines into one.
+    const brandLine = item.brand ? `<p class="item-detail-brand">${escapeHtml(item.brand)}</p>` : '';
     return `<div class="item-detail-image">
             ${_validProductImageUrl(item.image_url)
                 ? `<img src="${escapeAttr(item.image_url)}" alt="">`
                 : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`}
         </div>
         <div class="item-detail-header-text">
-            <h3 class="item-detail-title">${escapeHtml(item.name)}${brand}</h3>
-            ${catText ? `<p class="item-detail-brand">${escapeHtml(catText)}</p>` : ''}
+            <h3 class="item-detail-title">${escapeHtml(item.name)}</h3>
+            ${brandLine}
+            ${catText ? `<p class="item-detail-cat">${escapeHtml(catText)}</p>` : ''}
             <p class="item-detail-loc-line"><span aria-hidden="true">${isMed ? '💊' : '📍'}</span> ${escapeHtml(locInfo.label)}${bits.length ? ` · ${bits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}</p>
         </div>`;
 }

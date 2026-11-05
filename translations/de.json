@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "Geschätzte Haltbarkeit gegenüber dem aktuellen Ort",
     "empty_fav": "Keine Favoriten",
     "empty_opened": "Keine geöffneten Produkte",
-    "empty_expiring": "Nichts bald ablaufend"
+    "empty_expiring": "Nichts bald ablaufend",
+    "photo_zoom": "Foto vergrößern"
   },
   "scan": {
     "title": "Scannen",
@@ -2888,7 +2889,13 @@
     "examples_med": "Medikamente",
     "intent_shop": "Einkauf",
     "example_shop": "Eier auf die Einkaufsliste",
-    "shop_done": "{name} steht auf der Einkaufsliste"
+    "shop_done": "{name} steht auf der Einkaufsliste",
+    "thinking_step_2": "Ich prüfe den Vorrat…",
+    "thinking_step_3": "Die Antwort dauert länger als erwartet…",
+    "timeout": "Die Anfrage hat zu lange gedauert: nichts wurde gespeichert.",
+    "fallback_lead": "Verstanden: „{text}“ — aber der Befehl ist nicht durchgelaufen.",
+    "continue_chat": "Weiter im Chat",
+    "retry_voice": "Noch einmal sprechen"
   },
   "location_altro": {
     "removed": "Der Ort „Sonstiges“ wurde entfernt: {n} Produkte sind nach „{to}“ verschoben."

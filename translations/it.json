@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "Giorni di conservazione stimati rispetto alla posizione attuale",
     "empty_fav": "Nessun prodotto nei preferiti",
     "empty_opened": "Nessun prodotto aperto",
-    "empty_expiring": "Nessun prodotto in scadenza"
+    "empty_expiring": "Nessun prodotto in scadenza",
+    "photo_zoom": "Ingrandisci la foto"
   },
   "scan": {
     "title": "Scansiona",
@@ -2888,7 +2889,13 @@
     "examples_med": "Farmaci",
     "intent_shop": "Spesa",
     "example_shop": "Aggiungi le uova alla spesa",
-    "shop_done": "{name} è nella lista della spesa"
+    "shop_done": "{name} è nella lista della spesa",
+    "thinking_step_2": "Interrogo l’inventario…",
+    "thinking_step_3": "La risposta sta impiegando più del previsto…",
+    "timeout": "La richiesta ha impiegato troppo tempo: non ho registrato nessuna azione.",
+    "fallback_lead": "Ho capito: «{text}» — ma il comando non è andato a buon fine.",
+    "continue_chat": "Continua nella Chat",
+    "retry_voice": "Riprova a voce"
   },
   "location_altro": {
     "removed": "La locazione «Altro» non esiste più: {n} prodotti sono stati spostati in «{to}»."

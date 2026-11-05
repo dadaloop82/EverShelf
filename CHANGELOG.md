@@ -5,7 +5,36 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.11] - 2026-11-05
+## [1.29.12] - 2026-11-05
+
+### Changed
+- **The product sheet opens with the package, not with a line of grey text.** The thumbnail is
+  **64×64** with a 12 px radius — enough to tell «grano duro» from «integrale» — and it is a
+  control: one tap opens the photo **full screen** (`openProductImageLightbox`), where an
+  ingredient list, a nutrition table or a lot number can be read off the box itself. Esc, ✕ or a
+  tap outside closes the picture and the sheet underneath is still there. The title takes the
+  first line (18 px, bold, slate-900) and the **brand moves to its own line** (13 px, medium,
+  muted): `Pan Bauletto al Grano Duro` and `Mulino Bianco` are two facts, not one parenthesis.
+- **The edit sheet breathes.** 14 px between the field groups, 6 px between a label and its
+  field, a 20 px padding and a body that scrolls at `85vh` instead of being squeezed to fit: on a
+  wall tablet — and on a desktop, where the compression looked even worse — the form was
+  unreadable, labels touched the controls and the buttons had no air under them.
+- The recipe «Usa» head follows the same hierarchy (title, brand line, genre), so the three
+  sheets speak the same language instead of one of them parenthesising the brand.
+
+### Added
+- **A voice turn has a clock.** SHELFY's turn now has a **15 s** deadline and a status line that
+  says what it is doing («Interrogo l'inventario…» after 4 s, «la risposta sta impiegando più del
+  previsto» after 8 s). When the clock runs out the sentence is not lost: the fallback card
+  quotes it back and offers **💬 Continua nella Chat** — the transcript is written into the chat
+  field and sent, so nothing has to be repeated — and **🔄 Riprova a voce**. The same card appears
+  when a sentence cannot be mapped to an action, and an answer that arrives after the deadline is
+  dropped (`_captureTurnId`) instead of opening a sheet nobody asked for.
+
+### Notes
+- The Home keeps its direct interaction: the dashboard rows open on tap and hold, and the
+  horizontal swipe stays where it has no horizontal neighbours (the pantry list).
+
 
 ### Fixed
 - **A wine open for 26 days is no longer a bin job.** The post-opening clock called every

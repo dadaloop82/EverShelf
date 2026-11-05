@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "相对当前位置的预计保质期变化",
     "empty_fav": "收藏中没有商品",
     "empty_opened": "没有已开封的商品",
-    "empty_expiring": "没有即将过期的商品"
+    "empty_expiring": "没有即将过期的商品",
+    "photo_zoom": "放大图片"
   },
   "scan": {
     "title": "扫描",
@@ -2888,7 +2889,13 @@
     "examples_med": "药品",
     "intent_shop": "购物",
     "example_shop": "把鸡蛋加到购物清单",
-    "shop_done": "{name} 已加入购物清单"
+    "shop_done": "{name} 已加入购物清单",
+    "thinking_step_2": "正在查询库存…",
+    "thinking_step_3": "响应时间比预期更长…",
+    "timeout": "请求耗时过长：没有记录任何操作。",
+    "fallback_lead": "我听到的是：“{text}” —— 但命令没有执行成功。",
+    "continue_chat": "继续在聊天中处理",
+    "retry_voice": "再说一次"
   },
   "location_altro": {
     "removed": "“其他”位置已移除：{n} 个产品已移至“{to}”。"

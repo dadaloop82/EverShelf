@@ -1304,6 +1304,55 @@ body {
 }
 .capture-understood[hidden],
 .capture-choices[hidden] { display: none; }
+/* A turn that could not be finished. A soft amber panel (attention, not alarm: the sentence
+   is safe and the action is one tap away) with ONE emerald answer — the chat, which is where
+   the outcome is written — and a neutral second attempt by voice. */
+.capture-fallback {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--tone-soon, #f59e0b) 45%, var(--surface-border));
+    background: color-mix(in srgb, var(--tone-soon, #f59e0b) 12%, var(--surface-bg));
+}
+.capture-fallback[hidden] { display: none; }
+.capture-fallback-lead {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-main);
+    overflow-wrap: anywhere;
+}
+.capture-fallback-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.capture-fallback-actions button {
+    flex: 1 1 140px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.capture-fallback-chat {
+    border: 1px solid var(--brand-primary, #10b981);
+    background: var(--brand-primary, #10b981);
+    color: #fff;
+}
+.capture-fallback-chat:active { background: var(--brand-primary-hover, #059669); }
+.capture-fallback-retry {
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-muted);
+}
+.capture-fallback-retry:active { background: var(--bg-app); }
 .cu-label {
     width: 100%;
     font-size: 12px;
@@ -1546,10 +1595,12 @@ body {
     flex: 1 1 auto;
 }
 .item-detail-header-row .item-detail-image {
-    width: 52px;
-    height: 52px;
+    /* 64 px, not 44: the tile has to tell "grano duro" from "integrale" at a glance, and it
+       is the target of the lightbox tap (`openProductImageLightbox`). */
+    width: 64px;
+    height: 64px;
     flex: 0 0 auto;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
     background: var(--surface-bg);
     display: flex;
@@ -1561,16 +1612,84 @@ body {
     height: 100%;
     object-fit: contain;
 }
+/* The picture is a control: a package is read by looking at it. */
+.item-detail-photo-btn {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+}
+.item-detail-photo-btn:focus-visible {
+    outline: 2px solid var(--brand-primary, #10b981);
+    outline-offset: -2px;
+}
 .item-detail-header-text { flex: 1 1 auto; min-width: 0; }
 .item-detail-header-text .item-detail-title {
     margin: 0;
-    font-size: 1.05rem;
+    /* The product owns the first line: 18 px, strong, slate-900. */
+    font-size: 1.14rem;
+    font-weight: 700;
     line-height: 1.25;
+    color: var(--text-main);
 }
 .item-detail-header-text .item-detail-brand {
-    margin: 2px 0 6px;
+    /* The brand owns its own line, never a parenthesis inside the title. */
+    margin: 2px 0 2px;
     font-size: 0.82rem;
+    font-weight: 500;
     color: var(--text-muted);
+}
+.item-detail-header-text .item-detail-cat {
+    margin: 0 0 4px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-light);
+}
+/* The package photo, full screen: the sheet's 64 px tile opens here to be READ. A dark
+   backdrop (never a translucent panel over the sheet: the picture is the subject), one
+   hairline frame and the ✕ where a thumb expects it. */
+.image-lightbox {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(2, 6, 23, 0.88);
+    z-index: 900;
+}
+.image-lightbox-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    max-width: min(100%, 760px);
+    max-height: 100%;
+}
+.image-lightbox-frame img {
+    max-width: 100%;
+    max-height: 86vh;
+    object-fit: contain;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 48px rgba(2, 6, 23, 0.45);
+}
+.image-lightbox-close {
+    position: absolute;
+    top: -14px;
+    right: -8px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    color: var(--text-main);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(2, 6, 23, 0.28);
 }
 .item-detail-header-text .item-detail-loc-line {
     margin: 3px 0 0;
@@ -4016,16 +4135,25 @@ button.scan-med-name-hit:focus-visible {
 }
 
 /* ── Edit inventory sheet (aligned with the consume sheet) ─────────────── */
+/* The sheet SCROLLS instead of being squeezed to fit: on a wall tablet (and on a desktop,
+   where the compressed layout is even more out of proportion) the old 92vh box with 8 px
+   between groups hid the air the form needs. 85vh + a real padding, one vertical rhythm. */
+.modal-content:has(.edit-inventory-modal) {
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+}
 .edit-inventory-modal {
     padding-bottom: 4px;
 }
 .edit-inventory-modal .item-detail-header {
-    margin-bottom: 8px;
+    margin-bottom: 14px;
 }
 .edit-inventory-modal .edit-thumb {
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
+    /* Same 64 px frame as the consume sheet: two sibling sheets, one grammar. */
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
 }
 .edit-inventory-modal .edit-title-tap {
     display: inline;
@@ -4049,7 +4177,9 @@ button.scan-med-name-hit:focus-visible {
     width: 100%;
 }
 .edit-section-label {
-    margin: 0 0 4px;
+    /* A label has to breathe over its field: 6 px is the difference between "compressed
+       form" and a form you can read on a wall tablet. */
+    margin: 0 0 6px;
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.03em;
@@ -4059,7 +4189,7 @@ button.scan-med-name-hit:focus-visible {
 .edit-meta-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 14px;
     margin-bottom: 0;
 }
 @media (max-width: 420px) {
@@ -4079,13 +4209,17 @@ button.scan-med-name-hit:focus-visible {
     color: var(--brand-primary, #059669);
 }
 .edit-inventory-form {
-    gap: 8px;
+    /* One vertical rhythm for every group (brand/category, quantity, place, expiry): the form
+       looked suffocated because 8 px between groups and 4 px under a label is no air at all. */
+    gap: 14px;
 }
 .edit-inventory-form .form-group {
     margin-bottom: 0;
+    /* Label → field: 6 px (the form's own 4 px gap made the pair read as one block). */
+    gap: 6px;
 }
 .edit-inventory-form > .edit-section-label {
-    margin: 2px 0 0;
+    margin: 4px 0 0;
 }
 .edit-qty-row {
     display: flex;
@@ -4261,7 +4395,8 @@ button.scan-med-name-hit:focus-visible {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-top: 4px;
+    /* Air under the last group and above the bottom edge of the sheet. */
+    margin-top: 14px;
 }
 .edit-inventory-modal .edit-form-actions .btn {
     margin: 0;

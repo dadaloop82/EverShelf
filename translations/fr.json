@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "Durée de conservation estimée vs l’emplacement actuel",
     "empty_fav": "Aucun produit dans les favoris",
     "empty_opened": "Aucun produit ouvert",
-    "empty_expiring": "Rien n’expire bientôt"
+    "empty_expiring": "Rien n’expire bientôt",
+    "photo_zoom": "Agrandir la photo"
   },
   "scan": {
     "title": "Scanner",
@@ -2888,7 +2889,13 @@
     "examples_med": "Médicaments",
     "intent_shop": "Courses",
     "example_shop": "Ajouter des œufs à la liste de courses",
-    "shop_done": "{name} est sur la liste de courses"
+    "shop_done": "{name} est sur la liste de courses",
+    "thinking_step_2": "Je consulte le stock…",
+    "thinking_step_3": "La réponse prend plus de temps que prévu…",
+    "timeout": "La demande a pris trop de temps : rien n’a été enregistré.",
+    "fallback_lead": "J’ai compris : « {text} » — mais la commande n’a pas abouti.",
+    "continue_chat": "Continuer dans le chat",
+    "retry_voice": "Réessayer à la voix"
   },
   "location_altro": {
     "removed": "L’emplacement « Autre » n’existe plus : {n} produits ont été déplacés vers « {to} »."

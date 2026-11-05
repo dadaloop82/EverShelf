@@ -2149,11 +2149,6 @@ body.offline-mode .offline-banner-retry {
     margin: 0;
 }
 
-.item-detail-brand-inline {
-    font-weight: 550;
-    color: var(--text-light);
-}
-
 .item-detail-header-actions {
     display: flex;
     align-items: center;

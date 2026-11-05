@@ -407,7 +407,8 @@
     "loc_expiry_delta_hint": "Estimated shelf-life change vs the current place",
     "empty_fav": "No favourites yet",
     "empty_opened": "No opened products",
-    "empty_expiring": "Nothing expiring soon"
+    "empty_expiring": "Nothing expiring soon",
+    "photo_zoom": "Zoom the photo"
   },
   "scan": {
     "title": "Scan",
@@ -2888,7 +2889,13 @@
     "examples_med": "Medicines",
     "intent_shop": "Shopping",
     "example_shop": "Add eggs to the shopping list",
-    "shop_done": "{name} is on the shopping list"
+    "shop_done": "{name} is on the shopping list",
+    "thinking_step_2": "Checking the pantry…",
+    "thinking_step_3": "This is taking longer than expected…",
+    "timeout": "The request took too long: nothing was recorded.",
+    "fallback_lead": "I heard: “{text}” — but the command did not go through.",
+    "continue_chat": "Continue in the chat",
+    "retry_voice": "Try again by voice"
   },
   "location_altro": {
     "removed": "The “Other” location is gone: {n} products moved to “{to}”."
