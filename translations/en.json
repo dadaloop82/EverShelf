@@ -842,6 +842,8 @@
     "rate_aria": "Rate this recipe from 0 to 5 stars",
     "rate_star": "Rate {n} out of 5",
     "rating_value": "Rating: {n} out of 5",
+    "redo": "🔄 Make it again",
+    "redo_done": "Ingredients ready to scale again.",
     "loading_step_1": "Checking what is open in the fridge…",
     "loading_step_2": "Picking the pairings…",
     "loading_step_3": "Balancing the macros…",

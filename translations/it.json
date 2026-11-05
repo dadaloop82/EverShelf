@@ -842,6 +842,8 @@
     "rate_aria": "Vota questa ricetta da 0 a 5 stelle",
     "rate_star": "Vota {n} su 5",
     "rating_value": "Voto: {n} su 5",
+    "redo": "🔄 Rifai questa ricetta",
+    "redo_done": "Ingredienti di nuovo da scalare.",
     "loading_step_1": "Controllo gli alimenti aperti in frigo…",
     "loading_step_2": "Seleziono gli abbinamenti…",
     "loading_step_3": "Bilancio i macronutrienti…",

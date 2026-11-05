@@ -842,6 +842,8 @@
     "rate_aria": "Noter cette recette de 0 à 5 étoiles",
     "rate_star": "Noter {n} sur 5",
     "rating_value": "Note : {n} sur 5",
+    "redo": "🔄 Refaire cette recette",
+    "redo_done": "Ingrédients à nouveau prêts à être décomptés.",
     "loading_step_1": "Je vérifie les aliments ouverts au frigo…",
     "loading_step_2": "Je choisis les accords…",
     "loading_step_3": "J'équilibre les macros…",

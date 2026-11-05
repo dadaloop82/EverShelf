@@ -842,6 +842,8 @@
     "rate_aria": "Dieses Rezept mit 0 bis 5 Sternen bewerten",
     "rate_star": "{n} von 5 bewerten",
     "rating_value": "Bewertung: {n} von 5",
+    "redo": "🔄 Noch einmal kochen",
+    "redo_done": "Zutaten können erneut abgezogen werden.",
     "loading_step_1": "Ich prüfe, was im Kühlschrank offen ist…",
     "loading_step_2": "Ich wähle die Kombinationen…",
     "loading_step_3": "Ich gleiche die Makros ab…",

@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card in the book carries the compact `★★★☆☆` next to the time, and three chips join the filter
   row — `⭐ 5`, `⭐ 4+`, `⭐ 3+` (numbers, so no translation). When two copies of the same dish are
   merged by content hash the surviving row keeps the BETTER vote.
+- **A recipe already cooked says "Rifai questa ricetta" instead of "scala gli ingredienti".**
+  `used` is not a view flag: `cookRecipeDeductSelected()` writes it into the archive JSON, which
+  is why a dish you already made reopens with every row struck through — and the green footer
+  button still offered to scale a list with nothing left to scale (tapping it only produced
+  "Seleziona almeno un ingrediente"). The footer now answers the state of the pantry
+  (`_recipePendingPantryCount` / `_recipeScalablePantryCount`): while something is pending it is
+  "✓ Ho cucinato questo piatto", and once everything is deducted it becomes **🔄 Rifai questa
+  ricetta** (`_recipeRedoIngredients()`), which puts every row back as pending — checkbox back,
+  `Usa` alive, steps and the cooking session reset to the first one — and persists the reset, so
+  the next open agrees with the screen. Nothing is written to the pantry: it only forgets that it
+  HAD been. The same button also refreshes in place after a deduction (`_refreshRecipeCookFooter`)
+  and, when there is nothing left to scale at the end of cooking mode, the completion card offers
+  the redo too.
 
 ### Fixed
 - **A voice turn waited for the cloud before doing anything.** `SpeechRecognition.stop()` does not

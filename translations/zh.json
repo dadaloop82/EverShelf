@@ -842,6 +842,8 @@
     "rate_aria": "给这道菜打 0 到 5 分",
     "rate_star": "打 {n} 分（满分 5）",
     "rating_value": "评分：{n} / 5",
+    "redo": "🔄 再做一次",
+    "redo_done": "食材已恢复待扣减。",
     "loading_step_1": "正在查看冰箱里开封的食材…",
     "loading_step_2": "正在挑选搭配…",
     "loading_step_3": "正在平衡宏量营养素…",

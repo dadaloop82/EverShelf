@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105s'; // bump when translations change
+const _I18N_VERSION = '20261105t'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19354,7 +19354,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105s';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105t';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19364,7 +19364,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105s';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105t';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -34454,6 +34454,79 @@ async function addRecipeShoppingPlan(all) {
     }
 }
 
+/**
+ * How many pantry ingredients of a recipe still have to be scaled, and how many can be at all.
+ *
+ * Two questions, because "nothing selected" and "everything already deducted" are different
+ * states that used to look identical: the same green button offered to scale a list with
+ * nothing left to scale, and tapping it only produced a warning.
+ */
+function _recipePendingPantryCount(r) {
+    if (!r || !Array.isArray(r.ingredients)) return 0;
+    return r.ingredients.filter(i => i && i.product_id && !i.used && Number(i.qty_number) > 0).length;
+}
+
+function _recipeScalablePantryCount(r) {
+    if (!r || !Array.isArray(r.ingredients)) return 0;
+    return r.ingredients.filter(i => i && i.product_id && Number(i.qty_number) > 0).length;
+}
+
+/**
+ * Repaint the green footer button after a deduction.
+ *
+ * The ingredient rows update themselves in place when they are scaled, but the footer is a
+ * separate block: it kept saying "Ho cucinato questo piatto (scala gli ingredienti)" over a
+ * list with nothing left to scale. Here it becomes "Rifai questa ricetta" — and back again
+ * when a redo brings the rows back.
+ */
+function _refreshRecipeCookFooter() {
+    const r = _cachedRecipe && _cachedRecipe.recipe;
+    const host = document.getElementById('recipe-primary-actions');
+    if (!r || !host) return;
+    const btn = host.querySelector('button.btn-success');
+    if (!btn) return;
+    const pending = _recipePendingPantryCount(r);
+    const scalable = _recipeScalablePantryCount(r);
+    if (scalable > 0 && pending === 0) {
+        btn.textContent = t('recipes.redo');
+        btn.setAttribute('onclick', '_recipeRedoIngredients()');
+    } else {
+        btn.textContent = t('recipes.cook_deduct_all');
+        btn.setAttribute('onclick', 'cookRecipeDeductSelected()');
+    }
+}
+
+/**
+ * "Rifai questa ricetta": the whole ingredient list goes back to pending.
+ *
+ * `used` is not a view flag — it is written into the archive JSON when a dish is cooked
+ * (`cookRecipeDeductSelected` → `saveRecipeToArchive`), which is why a recipe you already made
+ * reopens with every row struck through and nothing left to scale. This puts it back to the
+ * state of a freshly generated recipe (nothing deducted, every row tickable, every `Usa` alive)
+ * and persists the reset, so the next open agrees with the screen. Nothing is written to the
+ * pantry: it only forgets that it HAD been.
+ */
+async function _recipeRedoIngredients() {
+    const r = _cachedRecipe && _cachedRecipe.recipe;
+    if (!r || !Array.isArray(r.ingredients)) return;
+    let touched = 0;
+    r.ingredients.forEach((ing) => {
+        if (ing && ing.used) { ing.used = false; touched++; }
+    });
+    // The cooking-mode copy carries its own flags (it is a deep copy): leaving them set would
+    // make the end-of-cook question claim there is nothing to scale after a redo.
+    if (_cookingRecipe && Array.isArray(_cookingRecipe.ingredients)) {
+        _cookingRecipe.ingredients.forEach((ing) => { if (ing) ing.used = false; });
+    }
+    if (!touched) return;
+    _cookingStep = 0;
+    _cookingVisited = new Set();
+    await renderRecipe(r);
+    // The archive must agree with the screen: `used` lives inside recipe_json.
+    if (_cachedRecipe && _cachedRecipe.id) await saveRecipeToArchive(r, _cachedRecipe.id);
+    showToast(t('recipes.redo_done'), 'success');
+}
+
 async function renderRecipe(r) {
     await enrichRecipeIngredientsStock(r);
     // Reset regen choice panel (hide choice, show button)
@@ -34671,10 +34744,17 @@ async function renderRecipe(r) {
 
     // The three actions of a meal live in ONE sticky footer: they end the recipe, so they
     // cannot stand between the ingredients and the procedure that explains how to cook it.
-    // Cooking mode + one-tap deduct for every ticked pantry ingredient (per-row Usa stays).
+    // The green button answers the STATE of the pantry: it scales while something is left to
+    // scale, and once every ingredient has been deducted it becomes "Rifai questa ricetta"
+    // instead of offering an action that could write nothing.
+    const _pendingIng = _recipePendingPantryCount(r);
+    const _scalableIng = _recipeScalablePantryCount(r);
+    const _cookBtn = (_scalableIng > 0 && _pendingIng === 0)
+        ? `<button type="button" class="btn btn-large btn-success" onclick="_recipeRedoIngredients()">${t('recipes.redo')}</button>`
+        : `<button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>`;
     html += `<div class="recipe-primary-actions" id="recipe-primary-actions">
         <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
-        <button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>
+        ${_cookBtn}
         <button type="button" class="btn btn-large btn-secondary${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
     </div>`;
 
@@ -34744,6 +34824,8 @@ async function cookRecipeDeductSelected() {
         }
         if (ok > 0) showToast(t('recipes.cook_deduct_done').replace('{n}', String(ok)), 'success');
         if (fail > 0) showToast(t('recipes.cook_deduct_partial').replace('{n}', String(fail)), 'info');
+        // Every pantry row is now struck through: the footer must stop offering to scale them.
+        if (ok > 0) _refreshRecipeCookFooter();
     } finally {
         showLoading(false);
     }
@@ -34932,6 +35014,7 @@ function _cookingFinishPendingCount() {
 
 function _cookingFinishPrompt() {
     const pending = _cookingFinishPendingCount();
+    const r = _cookingRecipe || {};
     const old = document.getElementById('cooking-finish-prompt');
     if (old) old.remove();
     const el = document.createElement('div');
@@ -34940,7 +35023,12 @@ function _cookingFinishPrompt() {
     const actions = pending > 0
         ? `<button type="button" class="btn btn-large btn-primary" onclick="_cookingFinishConfirm()">${escapeHtml(t('cooking.finish_confirm'))}</button>
            <button type="button" class="btn btn-large btn-secondary" onclick="_cookingFinishSkip()">${escapeHtml(t('cooking.finish_skip'))}</button>`
-        : `<button type="button" class="btn btn-large btn-primary" onclick="_cookingFinishSkip()">${escapeHtml(t('cooking.finish_close'))}</button>`;
+        : `<button type="button" class="btn btn-large btn-primary" onclick="_cookingFinishSkip()">${escapeHtml(t('cooking.finish_close'))}</button>`
+          + (_recipeScalablePantryCount(r) > 0
+                // Nothing left to scale because the dish was already deducted: the way forward
+                // is to make it AGAIN, which puts the whole list back as pending.
+                ? `<button type="button" class="btn btn-large btn-secondary" onclick="_cookingRedo()">${escapeHtml(t('recipes.redo'))}</button>`
+                : '');
     el.innerHTML = `
         <div class="modal-content cooking-finish-card" role="dialog" aria-modal="true" aria-labelledby="cooking-finish-title">
             <span class="cooking-finish-icon" aria-hidden="true">🎉</span>
@@ -34962,6 +35050,13 @@ function _closeCookingFinishPrompt() {
 function _cookingFinishSkip() {
     _closeCookingFinishPrompt();
     closeCookingMode();
+}
+
+/** "Rifai questa ricetta" dal cartellino di fine cottura: esci e rimetti tutto da scalare. */
+function _cookingRedo() {
+    _closeCookingFinishPrompt();
+    closeCookingMode();
+    _recipeRedoIngredients();
 }
 
 /** "Conferma e scala": write the pantry, close every sheet and land on the dashboard. */
