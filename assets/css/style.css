@@ -2019,14 +2019,15 @@ body.offline-mode .offline-banner-retry {
     color: color-mix(in srgb, var(--brand-primary, #059669) 75%, var(--text));
 }
 /* Grouping switch (Categoria | Posizione): a quiet segmented control under the status chips —
-   it reorders the same list, it does not filter it, so it must not compete with them. */
+   it reorders the same list, it does not filter it, so it must not compete with them. It shares
+   the tools row with the stocktake pill (one of the two is ever visible). */
 .inv-group-bar {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    padding: 0 0 10px;
-    margin-bottom: 2px;
+    padding: 0;
+    margin: 0;
 }
 .inv-group-bar[hidden] { display: none; }
 .inv-group-label {
@@ -13026,21 +13027,36 @@ body.offline-mode #smart-shopping {
 .audit-product-brand { font-weight: 500; color: var(--text-muted, #666); font-size: 0.9rem; }
 .audit-product-qty { margin: 4px 0 0; font-size: 0.9rem; color: var(--text-muted, #666); }
 
-.inv-audit-banner {
+.inv-tools-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 0 0 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
-    background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 0 0 10px;
+    margin-bottom: 2px;
 }
-.inv-audit-banner[hidden] { display: none !important; }
-.inv-audit-banner-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.inv-audit-banner-title { font-size: 0.95rem; }
-.inv-audit-banner-sub { font-size: 0.8rem; color: var(--text-light); line-height: 1.35; }
-.inv-audit-banner-cta { flex: 0 0 auto; white-space: nowrap; min-height: 42px; }
+/* The stocktake is a procedure, not a notice: one quiet pill with a dashed frame (a notice
+   would be a card, and in the whole-house view this button does not exist at all). */
+.inv-stocktake-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px dashed color-mix(in srgb, var(--brand-primary, #10b981) 45%, var(--border));
+    background: transparent;
+    color: color-mix(in srgb, var(--brand-primary, #059669) 65%, var(--text));
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 650;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.inv-stocktake-btn[hidden] { display: none !important; }
+.inv-stocktake-btn:active { background: color-mix(in srgb, var(--brand-primary, #10b981) 12%, transparent); }
+
 .audit-skip {
     margin-top: 10px;
     background: none;

@@ -59,13 +59,9 @@
     "summary_line": "{there} bestätigt · {almost} fast leer · {finished} aufgebraucht · {spoiled} verdorben · {skipped} übersprungen",
     "summary_errors": "{n} Änderungen nicht gespeichert",
     "done": "Fertig",
-    "banner_title": "⚡ Schnelle Inventur",
-    "banner_sub_place": "Prüfe {place} Regal für Regal: {n} Produkte zu prüfen",
-    "banner_sub_all": "Prüfe den Vorrat Regal für Regal: {n} Produkte zu prüfen",
-    "banner_cta": "Schnellprüfung starten",
     "confirm_yes_qty": "Ja, {qty} bestätigen",
     "verify_place": "Prüfe {place}",
-    "banner_title_place": "⚡ Schnelle Inventur · {place}"
+    "button_label": "Schnelle Inventur · {place} ({n} Produkte)"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 Eigene Lagerorte",
       "hint": "Orte zusätzlich zu Vorrat, Kühlschrank und Gefrierfach (z. B. Keller, Garage). Namen bleiben unverändert.",
-      "builtin_hint": "Vordefiniert (nicht entfernbar): Vorrat, Kühlschrank, Gefrierfach.",
       "placeholder": "Z. B.: Keller, Garage…",
       "empty": "Noch keine eigenen Orte",
       "added": "Ort hinzugefügt",
@@ -1912,7 +1907,12 @@
       "renamed": "Ort umbenannt in „{name}“",
       "rename_missing": "Diesen Ort gibt es nicht mehr: Seite neu laden.",
       "invalid": "Ungültiger Name: 1 bis 40 Zeichen, ohne Kommas.",
-      "rename_failed": "Der Ort konnte nicht umbenannt werden."
+      "rename_failed": "Der Ort konnte nicht umbenannt werden.",
+      "delete_hint": "Jeder Ort lässt sich löschen, auch die voreingestellten: er muss nur leer sein.",
+      "deleted": "„{name}“ gelöscht.",
+      "delete_failed": "Der Ort konnte nicht gelöscht werden: bitte erneut versuchen.",
+      "delete_missing": "Diesen Ort gibt es nicht mehr.",
+      "last_place": "Mindestens ein Ort muss bleiben: lege zuerst einen weiteren an."
     },
     "ai": {
       "title": "🤖 Künstliche Intelligenz",

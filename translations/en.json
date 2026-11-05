@@ -59,13 +59,9 @@
     "summary_line": "{there} confirmed · {almost} almost out · {finished} used up · {spoiled} spoiled · {skipped} skipped",
     "summary_errors": "{n} changes not saved",
     "done": "Done",
-    "banner_title": "⚡ Quick stocktake",
-    "banner_sub_place": "Check {place} shelf by shelf: {n} products to verify",
-    "banner_sub_all": "Check the pantry shelf by shelf: {n} products to verify",
-    "banner_cta": "Start quick check",
     "confirm_yes_qty": "Yes, confirm {qty}",
     "verify_place": "Check {place}",
-    "banner_title_place": "⚡ Quick stocktake · {place}"
+    "button_label": "Quick stocktake · {place} ({n} products)"
   },
   "product_tags": {
     "form_label": "Tags",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 Custom storage locations",
       "hint": "Add places beyond Pantry, Fridge and Freezer (e.g. Cellar, Garage). Names are kept as you type them.",
-      "builtin_hint": "Built-in (not removable): Pantry, Fridge, Freezer.",
       "placeholder": "E.g.: Cellar, Garage box…",
       "empty": "No custom locations yet",
       "added": "Location added",
@@ -1912,7 +1907,12 @@
       "renamed": "Location renamed to “{name}”",
       "rename_missing": "That location no longer exists: reload the page.",
       "invalid": "Invalid name: use 1 to 40 characters, without commas.",
-      "rename_failed": "I could not rename the location."
+      "rename_failed": "I could not rename the location.",
+      "delete_hint": "Any place can be deleted, built-in ones included: it only has to be empty.",
+      "deleted": "“{name}” deleted.",
+      "delete_failed": "Could not delete the place: try again.",
+      "delete_missing": "This place no longer exists.",
+      "last_place": "At least one place must remain: add another one before deleting this."
     },
     "ai": {
       "title": "🤖 Artificial intelligence",

@@ -59,13 +59,9 @@
     "summary_line": "{there} confirmados · {almost} casi acabados · {finished} agotados · {spoiled} estropeados · {skipped} saltados",
     "summary_errors": "{n} cambios no guardados",
     "done": "Hecho",
-    "banner_title": "⚡ Inventario rápido",
-    "banner_sub_place": "Revisa {place} estante por estante: {n} productos por verificar",
-    "banner_sub_all": "Revisa la despensa estante por estante: {n} productos por verificar",
-    "banner_cta": "Iniciar revisión rápida",
     "confirm_yes_qty": "Sí, confirmo {qty}",
     "verify_place": "Verificar {place}",
-    "banner_title_place": "⚡ Inventario rápido · {place}"
+    "button_label": "Inventario rápido · {place} ({n} productos)"
   },
   "product_tags": {
     "form_label": "Etiquetas",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 Ubicaciones personalizadas",
       "hint": "Añade sitios además de Despensa, Nevera y Congelador (p. ej. Bodega, Garaje). Los nombres se conservan tal cual.",
-      "builtin_hint": "Predefinidos (no eliminables): Despensa, Nevera, Congelador.",
       "placeholder": "Ej.: Bodega, Box garaje…",
       "empty": "Sin ubicaciones personalizadas",
       "added": "Ubicación añadida",
@@ -1912,7 +1907,12 @@
       "renamed": "Lugar renombrado a «{name}»",
       "rename_missing": "Ese lugar ya no existe: recarga la página.",
       "invalid": "Nombre no válido: de 1 a 40 caracteres, sin comas.",
-      "rename_failed": "No he podido renombrar el lugar."
+      "rename_failed": "No he podido renombrar el lugar.",
+      "delete_hint": "Cualquier lugar se puede eliminar, también los predefinidos: solo tiene que estar vacío.",
+      "deleted": "«{name}» eliminado.",
+      "delete_failed": "No se pudo eliminar el lugar: inténtalo de nuevo.",
+      "delete_missing": "Este lugar ya no existe.",
+      "last_place": "Debe quedar al menos un lugar: añade otro antes de eliminar este."
     },
     "ai": {
       "title": "🤖 Inteligencia artificial",

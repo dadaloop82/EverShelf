@@ -1226,6 +1226,13 @@ try {
             locationRenameAction($db);
             break;
 
+        // POST location_delete — remove a place, built-in included, but only while it is
+        // EMPTY. "Empty" is the pantry's own rule (no usable stock), so a place that the
+        // household can see on a shelf can never be deleted from under it.
+        case 'location_delete':
+            locationDeleteAction($db);
+            break;
+
         case 'get_settings':
             getServerSettings($db);
             break;
@@ -2041,10 +2048,63 @@ function inventoryCustomLocationMap(?PDO $db = null): array {
 
 /** All allowed inventory location keys (built-in + custom). */
 function validInventoryLocations(?PDO $db = null): array {
-    return array_values(array_unique(array_merge(
+    $all = array_values(array_unique(array_merge(
         inventoryBuiltinLocations(),
         array_keys(inventoryCustomLocationMap($db))
     )));
+    // A deleted place is not a place: the pantry refuses a row that points at it, which is
+    // what makes "delete when empty" a real removal and not a hidden tab.
+    if ($db instanceof PDO) {
+        $gone = deletedLocationsList($db);
+        if ($gone !== []) {
+            $all = array_values(array_filter($all, static fn($key) => !in_array(mb_strtolower((string)$key), $gone, true)));
+        }
+    }
+    return $all;
+}
+
+/**
+ * The places the household deleted (`app_settings.deleted_locations`, a JSON list of slugs).
+ *
+ * A built-in place (Dispensa / Frigo / Freezer) cannot be removed from a list it is not in, so
+ * deleting one records its slug here: every surface that builds the place list subtracts this
+ * list, and `validInventoryLocations()` stops accepting stock for it. A custom place disappears
+ * by dropping its label; its slug stays here too, so a stale reference cannot revive it.
+ *
+ * @return string[] lowercased slugs
+ */
+function deletedLocationsList(PDO $db): array
+{
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'deleted_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw === false || $raw === null || $raw === '') {
+            return [];
+        }
+        $list = json_decode((string)$raw, true);
+        if (!is_array($list)) {
+            return [];
+        }
+        return array_values(array_unique(array_filter(array_map(
+            static fn($v) => mb_strtolower(trim((string)$v)),
+            $list
+        ))));
+    } catch (Throwable $e) {
+        return [];   // no marks yet
+    }
+}
+
+/** Persist the deleted-place list (one row, like `medical_locations`). */
+function saveDeletedLocations(PDO $db, array $list): void
+{
+    $clean = array_values(array_unique(array_filter(array_map(
+        static fn($v) => mb_strtolower(trim((string)$v)),
+        $list
+    ))));
+    $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('deleted_locations', ?, datetime('now'))
+                  ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+       ->execute([json_encode($clean, JSON_UNESCAPED_UNICODE)]);
 }
 
 /** Display names only (for settings UI / .env). */
@@ -7982,15 +8042,51 @@ function restoreGhostInventory(PDO $db): void {
     ]);
 }
 
-function inventorySummary(PDO $db): void {
+/**
+ * Counts per place for the location rail and the pantry title.
+ *
+ * The pantry a household can SEE is the pantry this returns: a row at zero quantity is
+ * history, and a trace the app itself calls finished ("2 g of Pomodoro") is not a product
+ * on a shelf. Counting every inventory row made the rail say «Dispensa 15» over a place whose
+ * list was empty — the count and the list must be the same fact.
+ */
+function inventorySummary(PDO $db): void
+{
     EverLog::debug('inventorySummary');
-    $stmt = $db->query("
-        SELECT i.location, COUNT(DISTINCT i.product_id) as product_count, 
-               SUM(i.quantity) as total_items
+    $rows = $db->query("
+        SELECT i.location, i.product_id, i.quantity, p.unit,
+               COALESCE(p.default_quantity, 0) AS default_quantity,
+               COALESCE(p.package_unit, '') AS package_unit
         FROM inventory i
-        GROUP BY i.location
-    ");
-    echo json_encode(['summary' => $stmt->fetchAll()]);
+        JOIN products p ON p.id = i.product_id
+        WHERE i.quantity > 0
+    ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $byLoc = [];
+    foreach ($rows as $row) {
+        if (isInventoryDepleted($row)) {
+            continue;   // a trace: the list hides it, so the count does too
+        }
+        $loc = (string)($row['location'] ?? '');
+        if ($loc === '') {
+            continue;
+        }
+        if (!isset($byLoc[$loc])) {
+            $byLoc[$loc] = ['products' => [], 'total' => 0.0];
+        }
+        $byLoc[$loc]['products'][(int)$row['product_id']] = true;
+        $byLoc[$loc]['total'] += (float)$row['quantity'];
+    }
+
+    $summary = [];
+    foreach ($byLoc as $loc => $info) {
+        $summary[] = [
+            'location'      => $loc,
+            'product_count' => count($info['products']),
+            'total_items'   => $info['total'],
+        ];
+    }
+    echo json_encode(['summary' => $summary]);
 }
 
 // ===== TRANSACTION FUNCTIONS =====
@@ -9399,6 +9495,7 @@ function getServerSettings(?PDO $db = null): void {
         'dietary' => env('DIETARY', ''),
         'appliances' => env('APPLIANCES', '') ? array_values(array_filter(array_map('trim', explode(',', env('APPLIANCES', ''))))) : [],
         'custom_locations' => inventoryCustomLocationLabels($db),
+        'deleted_locations' => deletedLocationsList($db),
 
         'camera_facing' => env('CAMERA_FACING', 'environment'),
         'scale_enabled' => env('SCALE_ENABLED', 'false') === 'true',
@@ -11025,6 +11122,193 @@ function locationRenameAction(PDO $db): void
         'new_slug' => $newSlug,
         'moved'    => $moved,
     ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * POST location_delete — remove a storage place, built-in included, **only while it is empty**.
+ *
+ * Why an action and not a settings field: removing a place is a promise. "Dispensa" can go, but
+ * only when nothing lives there — a place the household can still see a jar in must never vanish
+ * from under it. Emptiness is judged the way the pantry judges it (`isInventoryDepleted`), so a
+ * 2 g trace the list already hides does not keep a room alive forever.
+ *
+ * The last remaining place cannot be deleted: the add form and every picker need somewhere to
+ * put the next product (`settings.custom_locations.last_place`).
+ *
+ * What happens per kind:
+ *   - built-in  → its slug is recorded in `app_settings.deleted_locations`;
+ *   - custom    → its label leaves `CUSTOM_LOCATIONS` (the rows are gone, the label would
+ *                 otherwise re-create the place) and its slug is recorded too;
+ *   - in both cases the medicine marking is dropped if it pointed here.
+ */
+function locationDeleteAction(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true);
+    $input = is_array($input) ? $input : [];
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+
+    $builtins = array_map('mb_strtolower', inventoryBuiltinLocations());
+    $customMap = inventoryCustomLocationMap($db);   // slug => label
+    $isBuiltin = in_array($key, $builtins, true);
+    $isCustom = isset($customMap[$key]);
+    if ($key === '' || (!$isBuiltin && !$isCustom)) {
+        EverLog::warn('location delete: unknown location', ['event' => 'location_delete_unknown', 'location' => $key]);
+        http_response_code(404);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Unknown location',
+            'error_key' => 'settings.custom_locations.delete_missing',
+        ]);
+        return;
+    }
+
+    // Empty means what the pantry means: no usable stock (a trace is not a product).
+    $stocked = 0;
+    try {
+        $stmt = $db->prepare('
+            SELECT i.quantity, p.unit
+            FROM inventory i JOIN products p ON p.id = i.product_id
+            WHERE LOWER(i.location) = ? AND i.quantity > 0
+        ');
+        $stmt->execute([$key]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if (!isInventoryDepleted($row)) {
+                $stocked++;
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::error('location delete: stock check failed', [
+            'event'    => 'location_delete_check_failed',
+            'location' => $key,
+            'reason'   => $e->getMessage(),
+        ]);
+        http_response_code(500);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Could not check the location',
+            'error_key' => 'settings.custom_locations.delete_failed',
+        ]);
+        return;
+    }
+    if ($stocked > 0) {
+        EverLog::info('location delete refused: still in use', [
+            'event'    => 'location_delete_in_use',
+            'location' => $key,
+            'items'    => $stocked,
+        ]);
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'Location still in use',
+            'error_key' => 'settings.custom_locations.in_use',
+            'count'     => $stocked,
+        ]);
+        return;
+    }
+
+    // Somewhere has to stay: the next product needs a place to go. `altro` does not count —
+    // it is the legacy alias of Dispensa (the client normalises it away), not a room.
+    $remaining = array_values(array_filter(
+        validInventoryLocations($db),
+        static fn($k) => !in_array(mb_strtolower((string)$k), [$key, 'altro'], true)
+    ));
+    if ($remaining === []) {
+        http_response_code(409);
+        echo json_encode([
+            'success'   => false,
+            'error'     => 'The last location cannot be deleted',
+            'error_key' => 'settings.custom_locations.last_place',
+        ]);
+        return;
+    }
+
+    $label = $isBuiltin
+        ? (string)($input['label'] ?? $key)
+        : (string)$customMap[$key];
+    _locationDeletePersist($db, $key, $label, $isCustom, $customMap);
+
+    EverLog::info('deleted a storage location', [
+        'event'    => 'location_delete',
+        'location' => $key,
+        'label'    => $label,
+        'builtin'  => $isBuiltin,
+    ]);
+
+    echo json_encode([
+        'success'           => true,
+        'deleted_locations' => deletedLocationsList($db),
+        'custom_locations'  => inventoryCustomLocationLabels($db),
+    ], JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * The writes of `locationDeleteAction()`: label list, deleted list, medicine marking.
+ *
+ * Kept apart so the guards above stay readable — and so a failure in any of the three
+ * surfaces as one error instead of a half-deleted place.
+ *
+ * @param array<string,string> $customMap slug => label, read before the change
+ */
+function _locationDeletePersist(PDO $db, string $key, string $label, bool $isCustom, array $customMap): void
+{
+    // 1) A custom place disappears through its label list (comma separated .env value).
+    if ($isCustom) {
+        $labels = array_values($customMap);
+        $pos = array_search($label, $labels, true);
+        if ($pos !== false) {
+            unset($labels[$pos]);
+        }
+        $labels = array_values($labels);
+        $updates = ['CUSTOM_LOCATIONS' => implode(',', $labels)];
+        $envFile = evershelfEnvFile();
+        $written = false;
+        if (is_writable($envFile) || (!file_exists($envFile) && is_writable(dirname($envFile)))) {
+            $written = evershelfWriteEnvFile($envFile, $updates, __DIR__ . '/../.env.example');
+        }
+        if ($written) {
+            clearEnvOverrides(['CUSTOM_LOCATIONS']);
+        } elseif (!saveEnvOverrides($updates) || ($labels !== [] && env('CUSTOM_LOCATIONS') !== $updates['CUSTOM_LOCATIONS'])) {
+            // A place whose label was not really removed comes back on the next load.
+            throw new RuntimeException('settings_not_persisted');
+        }
+    }
+
+    // 2) The slug is remembered as deleted, built-in or not. Deleting Dispensa also retires
+    //    `altro`, its legacy alias: an old row must not bring the room back.
+    $gone = deletedLocationsList($db);
+    if (!in_array($key, $gone, true)) {
+        $gone[] = $key;
+    }
+    if ($key === 'dispensa' && !in_array('altro', $gone, true)) {
+        $gone[] = 'altro';
+    }
+    saveDeletedLocations($db, $gone);
+
+    // 3) A place that was the medicine cabinet stops being one.
+    try {
+        $stmt = $db->prepare("SELECT value FROM app_settings WHERE key = 'medical_locations'");
+        $stmt->execute();
+        $raw = $stmt->fetchColumn();
+        if ($raw !== false && $raw !== null) {
+            $list = json_decode((string)$raw, true);
+            $list = is_array($list) ? $list : [];
+            $kept = array_values(array_filter($list, static function ($v) use ($key, $label) {
+                $val = mb_strtolower(trim((string)$v));
+                return $val !== $key && $val !== mb_strtolower(trim($label));
+            }));
+            if (count($kept) !== count($list)) {
+                $db->prepare("INSERT INTO app_settings (key, value, updated_at) VALUES ('medical_locations', ?, datetime('now'))
+                              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+                   ->execute([json_encode($kept, JSON_UNESCAPED_UNICODE)]);
+            }
+        }
+    } catch (Throwable $e) {
+        EverLog::warn('medical location not cleared on delete', [
+            'event'    => 'location_delete_medical_skipped',
+            'location' => $key,
+            'reason'   => $e->getMessage(),
+        ]);
+    }
 }
 
 // ===== GEMINI AI FUNCTIONS =====

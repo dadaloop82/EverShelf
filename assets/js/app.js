@@ -1912,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105f'; // bump when translations change
+const _I18N_VERSION = '20261105g'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2554,14 +2554,28 @@ function isMedicalLocation(key, label) {
     return candidates.some(v => meds.includes(_medLocationKey(v)));
 }
 
+/**
+ * The slugs of the places the household deleted (`app_settings.deleted_locations`).
+ * A built-in can only disappear this way — it is not in any list to be removed from.
+ */
+function _deletedLocationKeys() {
+    return (getSettings().deleted_locations || [])
+        .map(v => String(v || '').trim().toLowerCase())
+        .filter(Boolean);
+}
+
 function mergeCustomLocations(names) {
     const medical = [];
     const rest = [];
+    // A place the household deleted does not come back: the slug list is the promise the
+    // server keeps (`app_settings.deleted_locations`), and a built-in can only go this way.
+    const gone = _deletedLocationKeys();
     (names || []).forEach(label => {
         const name = String(label || '').trim();
         if (!name) return;
         const key = slugifyCustomLocation(name);
         if (BUILTIN_LOCATIONS[key] || BUILTIN_LOCATIONS[name]) return;
+        if (gone.includes(key)) return;
         const icon = isMedicalLocation(key, name) ? MEDICAL_LOCATION_ICON : CUSTOM_LOCATION_ICON;
         (icon === MEDICAL_LOCATION_ICON ? medical : rest).push([key, { icon, label: name }]);
     });
@@ -2570,12 +2584,14 @@ function mergeCustomLocations(names) {
     // Dispensa first, the medicine cabinet right after it, then the fridges and the other
     // custom places. Where the household happened to type the pharmacy must not decide
     // where it sits — a medicine cabinet buried at the end of the list is a cabinet nobody
-    // opens.
+    // opens. A deleted built-in is simply not in the map any more.
     const next = {};
     for (const [key, meta] of Object.entries(BUILTIN_LOCATIONS)) {
+        if (gone.includes(key)) continue;
         next[key] = { icon: meta.icon, label: t(meta.labelKey) };
         if (key === 'dispensa') medical.forEach(([k, m]) => { next[k] = m; });
     }
+    if (gone.includes('dispensa')) medical.forEach(([k, m]) => { next[k] = m; });
     rest.forEach(([k, m]) => { next[k] = m; });
 
     LOCATIONS = next;
@@ -2965,26 +2981,50 @@ async function _saveCustomLocations(list) {
     return true;
 }
 
+/**
+ * The place list in Settings: EVERY place, built-in included, each with its delete.
+ *
+ * "Predefiniti (non rimovibili)" was a rule without a reason: a household that keeps everything
+ * in the fridge does not want an empty "Dispensa" tab forever. Deleting is allowed on one
+ * condition — the place is empty — and the server enforces it (`location_delete`), because a
+ * client-side list can be stale. Renaming stays a custom-place affair: the three built-ins carry
+ * their name in the translation files.
+ */
 function renderCustomLocations(list) {
     const container = document.getElementById('custom-locations-list');
     if (!container) return;
-    const items = list || getSettings().custom_locations || [];
-    if (!items.length) {
+    const customs = list || getSettings().custom_locations || [];
+    const gone = _deletedLocationKeys();
+    const rows = [];
+    // Built-ins first (the order the pantry shows), then the custom places as the household typed them.
+    for (const [key, meta] of Object.entries(BUILTIN_LOCATIONS)) {
+        if (gone.includes(key)) continue;
+        const icon = isMedicalLocation(key) ? _medIconMarkup() : meta.icon;
+        rows.push({ key, label: t(meta.labelKey), icon, custom: false });
+    }
+    customs.forEach((name) => {
+        const key = slugifyCustomLocation(name);
+        if (gone.includes(key)) return;
+        const icon = isMedicalLocation(key, name) ? _medIconMarkup() : CUSTOM_LOCATION_ICON;
+        rows.push({ key, label: String(name), icon, custom: true });
+    });
+    if (!rows.length) {
         container.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0">${t('settings.custom_locations.empty')}</p>`;
         return;
     }
-    container.innerHTML = items.map((name, i) => {
-        // The medicine cabinet wears the pill here too, not a cardboard box.
-        const icon = isMedicalLocation(slugifyCustomLocation(name), name) ? _medIconMarkup() : CUSTOM_LOCATION_ICON;
+    container.innerHTML = rows.map((row) => {
+        // A label can hold an apostrophe ("Dispensa d'inverno"): escape it for the JS call the
+        // same way the rest of the file does (`locEsc`), never by trusting the text.
+        const labelArg = String(row.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         return `
         <div class="appliance-item">
-            <span>${icon} ${escapeHtml(name)}</span>
+            <span>${row.icon} ${escapeHtml(row.label)}</span>
             <span class="appliance-actions">
-                <button class="appliance-rename" onclick="renameCustomLocation(${i})"
+                ${row.custom ? `<button class="appliance-rename" onclick="renameCustomLocation('${labelArg}')"
                         title="${escapeAttr(t('settings.custom_locations.rename'))}"
-                        aria-label="${escapeAttr(t('settings.custom_locations.rename'))}">✏️</button>
-                <button class="appliance-remove" onclick="removeCustomLocation(${i})" title="${escapeAttr(t('btn.delete'))}"
-                        aria-label="${escapeAttr(t('btn.delete'))}">✕</button>
+                        aria-label="${escapeAttr(t('settings.custom_locations.rename'))}">✏️</button>` : ''}
+                <button class="appliance-remove" onclick="removeLocation('${escapeAttr(row.key)}', '${labelArg}')"
+                        title="${escapeAttr(t('btn.delete'))}" aria-label="${escapeAttr(t('btn.delete'))}">✕</button>
             </span>
         </div>
     `;
@@ -2998,10 +3038,16 @@ function renderCustomLocations(list) {
  * `inventory.location` holds: both the stock and the history rows follow the new name, and
  * so does the medicine marking — the server does the three of them in one action
  * (`location_rename`), because a client-side swap of the label would orphan the pantry.
+ *
+ * @param {number|string} nameOrIndex the label shown in the list (or, for old callers, its
+ *                                   position in `custom_locations`)
  */
-function renameCustomLocation(idx) {
+function renameCustomLocation(nameOrIndex) {
     const s = getSettings();
-    const oldName = String(((s.custom_locations || [])[idx]) || '').trim();
+    const list = s.custom_locations || [];
+    const oldName = typeof nameOrIndex === 'number'
+        ? String(list[nameOrIndex] || '').trim()
+        : String(nameOrIndex || '').trim();
     if (!oldName) return;
     _closeLocationRename();
 
@@ -3113,11 +3159,21 @@ async function addCustomLocation() {
     showToast(t('settings.custom_locations.added'), 'success');
 }
 
-async function removeCustomLocation(idx) {
-    const s = getSettings();
-    if (!s.custom_locations || !s.custom_locations[idx]) return;
-    const name = s.custom_locations[idx];
-    const slug = slugifyCustomLocation(name);
+/**
+ * Delete a place — built-in or custom — as long as nothing lives there.
+ *
+ * The rule is the household's own ("solo se sono vuote") and the server is the one that keeps
+ * it (`location_delete` answers `error_key: settings.custom_locations.in_use` with the count):
+ * a stale client list must never be able to delete a shelf with jars on it. The client check
+ * below is only the fast, friendly path.
+ *
+ * @param {string} key   the slug the pantry stores (`dispensa`, `custom_cantina`)
+ * @param {string} label the name to show in the message
+ */
+async function removeLocation(key, label) {
+    const slug = String(key || '').trim().toLowerCase();
+    const name = String(label || slug).trim();
+    if (!slug) return;
     let pool = _inventoryVisibleItems(_allInventoryCache.length ? _allInventoryCache : currentInventory);
     if (!pool.length) {
         try {
@@ -3125,18 +3181,33 @@ async function removeCustomLocation(idx) {
             pool = data.inventory || [];
         } catch (_) { pool = []; }
     }
-    const count = pool.filter(i => i.location === slug).length;
+    const count = pool.filter(i => normalizeLocationKey(i.location) === slug).length;
     if (count > 0) {
         showToast(t('settings.custom_locations.in_use').replace('{n}', count).replace('{name}', name), 'error');
         return;
     }
-    // Same rule as adding: the server list is the one the pantry validates against.
-    const next = s.custom_locations.filter((_, i) => i !== idx);
-    if (!(await _saveCustomLocations(next))) return;
-    s.custom_locations = next;
+    const res = await api('location_delete', {}, 'POST', { key: slug, label: name }).catch(() => null);
+    if (!res || res.success === false) {
+        const msg = _apiErrorText(res) || t('settings.custom_locations.delete_failed');
+        showToast(msg, 'error');
+        if (res && res.count) {
+            showToast(t('settings.custom_locations.in_use').replace('{n}', res.count).replace('{name}', name), 'error');
+        }
+        return;
+    }
+    const s = getSettings();
+    s.custom_locations = Array.isArray(res.custom_locations) ? res.custom_locations : (s.custom_locations || []);
+    s.deleted_locations = Array.isArray(res.deleted_locations) ? res.deleted_locations : (s.deleted_locations || []);
     saveSettingsToStorage(s);
-    mergeCustomLocations(next);
-    renderCustomLocations(next);
+    // The place leaves every surface at once: pickers, macro bar, dashboard rail, title.
+    mergeCustomLocations(s.custom_locations);
+    renderCustomLocations(s.custom_locations);
+    if (currentLocation && normalizeLocationKey(currentLocation) === slug) {
+        filterLocation('');
+    } else {
+        _syncLocationFilterUi();
+    }
+    showToast(t('settings.custom_locations.deleted').replace('{name}', name), 'success');
 }
 
 const CATEGORY_ICONS = {
@@ -5512,6 +5583,12 @@ function _applySyncedSettings(serverSettings) {
     }
     if (Array.isArray(serverSettings.custom_locations)) {
         s.custom_locations = serverSettings.custom_locations;
+        changed = true;
+    }
+    // The places the household deleted: the server owns the list, so a device that has been
+    // offline cannot bring a deleted room back.
+    if (Array.isArray(serverSettings.deleted_locations)) {
+        s.deleted_locations = serverSettings.deleted_locations;
         changed = true;
     }
     if (changed) {
@@ -14095,39 +14172,32 @@ async function loadInventory() {
 }
 
 /**
- * The quick stocktake banner — the procedure lives where the procedure happens.
+ * The quick stocktake entry — a small button that belongs to the place you opened.
  *
  * It used to be a global switch in Settings («Inventario veloce», `AUDIT_MODE_ENABLED`):
  * nobody walks into the settings, flips a toggle, goes back to the fridge and then returns to
- * switch it off. The banner is always here now, it names the place it will check (or the whole
- * pantry) and it starts the wizard on that place directly, so «2 minuti davanti allo scaffale»
- * is two taps away from any screen.
+ * switch it off. It was then a banner, which in the whole-house view was a big emerald card
+ * asking to "check 107 products" — no shelf, no session. Now it is one quiet pill: it exists
+ * only while a specific place is on screen (pharmacy included) and it starts the wizard on
+ * exactly those rows (`_auditStartFromBanner`).
  */
 function _syncInventoryAuditBanner() {
-    const banner = document.getElementById('inventory-stocktake-btn');
-    const sub = document.getElementById('inventory-audit-banner-sub');
-    const titleEl = banner ? banner.querySelector('.inv-audit-banner-title') : null;
-    if (!banner) return;
+    const btn = document.getElementById('inventory-stocktake-btn');
+    if (!btn) return;
     const key = currentLocation ? normalizeLocationKey(currentLocation) : '';
-    const meta = key ? LOCATIONS[key] : null;
-    const n = (_inventoryVisibleItems(currentInventory) || []).length;
-    // An empty shelf has nothing to confirm: a banner with nothing to check is noise.
-    if (!n) {
-        banner.hidden = true;
+    const n = key ? (_inventoryVisibleItems(currentInventory) || []).length : 0;
+    // No place open → no shelf to check; empty place → nothing to confirm.
+    if (!key || !n) {
+        btn.hidden = true;
         return;
     }
-    banner.hidden = false;
-    if (titleEl) {
-        titleEl.removeAttribute('data-i18n');
-        titleEl.textContent = meta
-            ? t('audit.banner_title_place', { place: meta.label })
-            : t('audit.banner_title');
-    }
-    if (sub) {
-        sub.textContent = meta
-            ? t('audit.banner_sub_place').replace('{place}', `${meta.icon} ${meta.label}`).replace('{n}', String(n))
-            : t('audit.banner_sub_all').replace('{n}', String(n));
-    }
+    const meta = LOCATIONS[key] || null;
+    const label = meta
+        ? t('audit.button_label', { place: meta.label, n })
+        : t('audit.start');
+    btn.hidden = false;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
 }
 
 /** Closed medical categories of a row, as small badges (slug → translated label). */
@@ -18997,7 +19067,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105f';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105g';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19007,7 +19077,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105g';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });

@@ -59,13 +59,9 @@
     "summary_line": "{there} confermati · {almost} quasi finiti · {finished} esauriti · {spoiled} deperiti · {skipped} saltati",
     "summary_errors": "{n} modifiche non salvate",
     "done": "Fatto",
-    "banner_title": "⚡ Inventario veloce",
-    "banner_sub_place": "Controlla {place} scaffale per scaffale: {n} prodotti da verificare",
-    "banner_sub_all": "Controlla la dispensa scaffale per scaffale: {n} prodotti da verificare",
-    "banner_cta": "Avvia verifica rapida",
     "confirm_yes_qty": "Sì, confermo {qty}",
     "verify_place": "Verifica {place}",
-    "banner_title_place": "⚡ Inventario veloce · {place}"
+    "button_label": "Inventario veloce · {place} ({n} prodotti)"
   },
   "product_tags": {
     "form_label": "Tag",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 Luoghi di conservazione",
       "hint": "Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.",
-      "builtin_hint": "Predefiniti (non rimovibili): Dispensa, Frigo, Freezer.",
       "placeholder": "Es: Cantina, Box garage…",
       "empty": "Nessun luogo personalizzato",
       "added": "Luogo aggiunto",
@@ -1912,7 +1907,12 @@
       "renamed": "Luogo rinominato in «{name}»",
       "rename_missing": "Questo luogo non esiste più: ricarica la pagina.",
       "invalid": "Nome non valido: usa da 1 a 40 caratteri, senza virgole.",
-      "rename_failed": "Non ho potuto rinominare il luogo."
+      "rename_failed": "Non ho potuto rinominare il luogo.",
+      "delete_hint": "Ogni luogo si può eliminare, anche i predefiniti: basta che sia vuoto.",
+      "deleted": "«{name}» eliminato.",
+      "delete_failed": "Non riesco a eliminare il luogo: riprova.",
+      "delete_missing": "Questo luogo non esiste più.",
+      "last_place": "Deve restare almeno un luogo: aggiungine un altro prima di eliminare questo."
     },
     "ai": {
       "title": "🤖 Intelligenza artificiale",

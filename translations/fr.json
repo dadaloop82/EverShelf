@@ -59,13 +59,9 @@
     "summary_line": "{there} confirmés · {almost} presque finis · {finished} épuisés · {spoiled} gâtés · {skipped} passés",
     "summary_errors": "{n} modifications non enregistrées",
     "done": "Terminé",
-    "banner_title": "⚡ Inventaire rapide",
-    "banner_sub_place": "Vérifiez {place} étagère par étagère : {n} produits à contrôler",
-    "banner_sub_all": "Vérifiez le stock étagère par étagère : {n} produits à contrôler",
-    "banner_cta": "Lancer la vérification",
     "confirm_yes_qty": "Oui, je confirme {qty}",
     "verify_place": "Vérifier {place}",
-    "banner_title_place": "⚡ Inventaire rapide · {place}"
+    "button_label": "Inventaire rapide · {place} ({n} produits)"
   },
   "product_tags": {
     "form_label": "Étiquettes",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 Emplacements personnalisés",
       "hint": "Ajoutez des lieux en plus du Garde-manger, du Frigo et du Congélateur (ex. Cave, Garage). Les noms restent tels quels.",
-      "builtin_hint": "Prédéfinis (non supprimables) : Garde-manger, Frigo, Congélateur.",
       "placeholder": "Ex. : Cave, Box garage…",
       "empty": "Aucun emplacement personnalisé",
       "added": "Emplacement ajouté",
@@ -1912,7 +1907,12 @@
       "renamed": "Emplacement renommé en « {name} »",
       "rename_missing": "Cet emplacement n’existe plus : rechargez la page.",
       "invalid": "Nom invalide : de 1 à 40 caractères, sans virgules.",
-      "rename_failed": "Impossible de renommer l’emplacement."
+      "rename_failed": "Impossible de renommer l’emplacement.",
+      "delete_hint": "Tout emplacement peut être supprimé, même les prédéfinis : il suffit qu’il soit vide.",
+      "deleted": "« {name} » supprimé.",
+      "delete_failed": "Impossible de supprimer l’emplacement : réessayez.",
+      "delete_missing": "Cet emplacement n’existe plus.",
+      "last_place": "Il doit rester au moins un emplacement : ajoutez-en un avant de supprimer celui-ci."
     },
     "ai": {
       "title": "🤖 Intelligence artificielle",

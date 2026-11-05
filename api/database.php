@@ -209,6 +209,25 @@ function initializeDB(PDO $db): void {
     ");
 }
 
+/**
+ * The one place `app_settings` is created. Every migration reads it, so it has to exist
+ * before the first of them runs — on a brand-new install nothing else creates it.
+ */
+function evershelfEnsureAppSettingsTable(PDO $db): void
+{
+    $exists = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'")->fetchColumn();
+    if ($exists) {
+        return;
+    }
+    $db->exec("
+        CREATE TABLE app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    ");
+}
+
 function migrateDB(PDO $db): void {
     // Guard: if core tables don't exist yet (e.g. DB file present but empty / partial init),
     // run initializeDB first so all tables are created, then return — no ALTER TABLE needed.
@@ -219,6 +238,9 @@ function migrateDB(PDO $db): void {
         initializeDB($db);
         return;
     }
+    // A fresh install reaches the migrations with no app_settings row store: create it before
+    // anything reads a migration marker (a brand-new instance used to answer HTTP 500 here).
+    evershelfEnsureAppSettingsTable($db);
 
     // Add package_unit column if missing
     $cols = $db->query("PRAGMA table_info(products)")->fetchAll();
@@ -355,17 +377,11 @@ function migrateDB(PDO $db): void {
     }
 
     // --- New shared tables ---
-    // app_settings: key-value store shared across all devices
-    $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='app_settings'")->fetchAll();
-    if (empty($tables)) {
-        $db->exec("
-            CREATE TABLE app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL DEFAULT '',
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        ");
-    }
+    // app_settings: key-value store shared across all devices.
+    // FIRST, before any migration reads it: on a brand-new install nothing has created this
+    // table yet, and the title/marker migrations below query it — a fresh instance failed with
+    // "no such table: app_settings" and served HTTP 500 on every request.
+    evershelfEnsureAppSettingsTable($db);
 
     // recipes archive: multiple uncategorized (libero) per day; one row per scheduled meal slot per day
     $tables = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name='recipes'")->fetchAll();

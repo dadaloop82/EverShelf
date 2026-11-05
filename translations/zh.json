@@ -59,13 +59,9 @@
     "summary_line": "{there} 已确认 · {almost} 快没了 · {finished} 已用完 · {spoiled} 已变质 · {skipped} 跳过",
     "summary_errors": "{n} 项修改未保存",
     "done": "完成",
-    "banner_title": "⚡ 快速盘点",
-    "banner_sub_place": "逐层核对{place}：{n} 件商品待确认",
-    "banner_sub_all": "逐层核对库存：{n} 件商品待确认",
-    "banner_cta": "开始快速核对",
     "confirm_yes_qty": "确认 {qty}",
     "verify_place": "核对 {place}",
-    "banner_title_place": "⚡ 快速盘点 · {place}"
+    "button_label": "快速盘点 · {place}（{n} 件商品）"
   },
   "product_tags": {
     "form_label": "标签",
@@ -1899,7 +1895,6 @@
     "custom_locations": {
       "title": "📍 自定义存放位置",
       "hint": "在食品柜、冰箱和冷冻柜之外添加更多位置（例如地下室、车库）。名称会按你输入的内容保存。",
-      "builtin_hint": "内置位置（不可移除）：食品柜、冰箱、冷冻柜。",
       "placeholder": "例如：地下室、车库储物箱…",
       "empty": "暂无自定义位置",
       "added": "位置已添加",
@@ -1912,7 +1907,12 @@
       "renamed": "存放位置已重命名为“{name}”",
       "rename_missing": "该存放位置已不存在：请刷新页面。",
       "invalid": "名称无效：请使用 1 到 40 个字符，不要包含逗号。",
-      "rename_failed": "无法重命名该存放位置。"
+      "rename_failed": "无法重命名该存放位置。",
+      "delete_hint": "任何位置都可以删除，包括默认位置：只要它是空的。",
+      "deleted": "已删除“{name}”。",
+      "delete_failed": "无法删除该位置：请重试。",
+      "delete_missing": "该位置已不存在。",
+      "last_place": "至少需保留一个位置：请先添加另一个位置。"
     },
     "ai": {
       "title": "🤖 人工智能",

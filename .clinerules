@@ -116,7 +116,11 @@ runtime/binary files — if a task truly needs one, ask first.
   the pantry on the place you opened (`_auditStartFromBanner()` starts the wizard on those rows)
   and Settings keep only its pace (`AUDIT_MODE_BATCH_SIZE`). A settings row with a stepper is ONE
   line — label + hint left, `[−] N [+]` right (`.settings-stepper-row`), never a control alone on
-  a half-empty row.
+  a half-empty row. In the whole-house view the stocktake button does not exist: there is no shelf.
+- **A place is deletable only when empty — and the server decides.** `POST location_delete`
+  (`locationDeleteAction`) removes a built-in too (`app_settings.deleted_locations`, subtracted by
+  `validInventoryLocations()`), refuses a place with usable stock (`in_use`) and refuses to leave
+  zero places (`last_place`). Never trust the client's cache here.
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
 - **A title carries no HTML entities.** `productTitleDecodeEntities()` (inside

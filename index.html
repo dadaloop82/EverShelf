@@ -12,29 +12,29 @@
     <title>EverShelf</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/logo/logo_icon.png">
-    <link rel="stylesheet" href="assets/css/style.css?v=20261105f">
-    <link rel="stylesheet" href="assets/css/corporate.css?v=20261105f">
-    <link rel="stylesheet" href="assets/css/elegant.css?v=20261105f">
+    <link rel="stylesheet" href="assets/css/style.css?v=20261105g">
+    <link rel="stylesheet" href="assets/css/corporate.css?v=20261105g">
+    <link rel="stylesheet" href="assets/css/elegant.css?v=20261105g">
     <!-- Calm surfaces: neutral card chrome + one semantic tone per block. Loaded
          after the themes and BEFORE mobile.css, which must stay last (geometry). -->
-    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261105f">
+    <link rel="stylesheet" href="assets/css/surfaces.css?v=20261105g">
     <!-- Tablet/kiosk type + denser lists (html.is-kiosk / is-touch-tablet). Before mobile.css. -->
-    <link rel="stylesheet" href="assets/css/tablet.css?v=20261105f">
-    <link rel="stylesheet" href="assets/css/mobile.css?v=20261105f">
+    <link rel="stylesheet" href="assets/css/tablet.css?v=20261105g">
+    <link rel="stylesheet" href="assets/css/mobile.css?v=20261105g">
     <!-- Core modules (auth, DOM helpers, the country-NEUTRAL medicine scanner) -->
-    <script src="assets/js/core/dom.js?v=20261105f"></script>
-    <script src="assets/js/core/auth.js?v=20261105f"></script>
-    <script src="assets/js/core/med.js?v=20261105f"></script>
+    <script src="assets/js/core/dom.js?v=20261105g"></script>
+    <script src="assets/js/core/auth.js?v=20261105g"></script>
+    <script src="assets/js/core/med.js?v=20261105g"></script>
     <!-- Medicine COUNTRY MODULES: one file per country, registered by the slug the schema
          declares ("module": "italy" in data/medical_code_schemas.json). The core above knows
          only the GS1 standard and the data file; everything national — Italy's printed AIC,
          the packaging codes to throw away, the AIFA columns — lives here. -->
-    <script src="assets/js/med/italy.js?v=20261105f"></script>
+    <script src="assets/js/med/italy.js?v=20261105g"></script>
     <!-- Optional support layer: the one-off donation question (see
          api/lib/support.php). Loaded before app.js so it can be kept out of that
          file; it only defines functions there. Advertising is not part of it: the
          banner slots are parked and commented out further down this file. -->
-    <script src="assets/js/core/support.js?v=20261105f"></script>
+    <script src="assets/js/core/support.js?v=20261105g"></script>
     <!-- ZBar WASM — loaded asynchronously (no document.write); skipped on kiosk WebView (OOM).
          Barcode scanning is only needed on user action, so app.js guards with typeof checks. -->
     <script>
@@ -42,7 +42,7 @@
         var kioskWv = /; wv\)/.test(navigator.userAgent);
         if (kioskWv) return;
         var s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105f';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105g';
         s1.async = false;
         s1.onload = function () {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
@@ -51,13 +51,13 @@
         };
         document.head.appendChild(s1);
         var s2 = document.createElement('script');
-        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105f';
+        s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105g';
         s2.async = false;
         document.head.appendChild(s2);
     })();
     </script>
     <!-- QuaggaJS — legacy last-resort only (bundled locally, no CDN fallback) -->
-    <script src="assets/vendor/quagga/quagga.min.js?v=20261105f"></script>
+    <script src="assets/vendor/quagga/quagga.min.js?v=20261105g"></script>
     <!-- @xenova/transformers: ES-module bootstrap that exposes a lazy category-classifier as window._categoryPipelinePromise -->
     <script type="module">
         // Lazy-load the embedding pipeline only when first needed.
@@ -122,7 +122,7 @@
             <!-- Version chip: the splash is where the version gets read out on a bug report -->
             <span class="app-preloader-verchip">
                 <span class="app-preloader-verchip-label" data-i18n="startup.version">Versione</span>
-                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.14</span>
+                <span class="app-preloader-verchip-value" id="preloader-version">v1.29.15</span>
                 <!-- Which line of work this build came from, in small. Refreshed by
                      scripts/bump-version.sh from git, so it can never go stale. -->
                 <span class="app-preloader-verchip-branch" id="preloader-branch">refactor_25_10_2026</span>
@@ -178,7 +178,7 @@
         <!-- Title — left-aligned; grows to fill space -->
         <div class="header-title-wrap">
             <h1 class="header-title" onclick="showPage('dashboard')">
-                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.14</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
+                <img src="assets/img/logo/logo_icon.png" alt="" class="header-logo-icon" aria-hidden="true" /><span data-i18n="nav.title">EverShelf</span><span class="header-version">v1.29.15</span><span class="header-branch" id="header-branch">refactor_25_10_2026</span>
             </h1>
             <!-- Update badge — shown alongside title, never replaces it -->
             <span class="header-update-badge" id="header-update-badge" style="display:none"></span>
@@ -393,32 +393,31 @@
                 <button type="button" role="tab" class="inv-view-chip" data-inv-filter="opened" aria-selected="false" onclick="setInventoryViewFilter('opened')" data-i18n="inventory.filter_opened">📦 Aperti</button>
                 <button type="button" role="tab" class="inv-view-chip" data-inv-filter="expiring" aria-selected="false" onclick="setInventoryViewFilter('expiring')" data-i18n="inventory.filter_expiring">⚠️ In scadenza</button>
             </div>
-            <!-- How the rows are grouped: the genre (default, "cosa cucino?") or the place
-                 ("sono davanti allo scaffale: cosa c'è qui?"). It groups, it does not filter —
-                 the place FILTER is still the one control in the strip above. Hidden while a
-                 single place is open (it would be one group) and in the medicine cabinet. -->
-            <div class="inv-group-bar" id="inventory-group-bar" role="group" data-i18n-aria="inventory.group_aria" hidden>
-                <span class="inv-group-label" data-i18n="inventory.group_by_label">Raggruppa per</span>
-                <div class="inv-group-switch">
-                    <button type="button" class="inv-group-btn is-active" data-inv-group="category" aria-pressed="true" onclick="setInventoryGroupBy('category')">
-                        <span aria-hidden="true">📁</span> <span data-i18n="inventory.group_category">Categoria</span>
-                    </button>
-                    <button type="button" class="inv-group-btn" data-inv-group="location" aria-pressed="false" onclick="setInventoryGroupBy('location')">
-                        <span aria-hidden="true">📍</span> <span data-i18n="inventory.group_location">Posizione</span>
-                    </button>
+            <!-- One quiet row of tools under the status chips: the grouping switch when the
+                 whole pantry is on screen, the stocktake button when a single place is open
+                 (a procedure belongs to the shelf you are standing in). -->
+            <div class="inv-tools-row">
+                <div class="inv-group-bar" id="inventory-group-bar" role="group" data-i18n-aria="inventory.group_aria" hidden>
+                    <span class="inv-group-label" data-i18n="inventory.group_by_label">Raggruppa per</span>
+                    <div class="inv-group-switch">
+                        <button type="button" class="inv-group-btn is-active" data-inv-group="category" aria-pressed="true" onclick="setInventoryGroupBy('category')">
+                            <span aria-hidden="true">📁</span> <span data-i18n="inventory.group_category">Categoria</span>
+                        </button>
+                        <button type="button" class="inv-group-btn" data-inv-group="location" aria-pressed="false" onclick="setInventoryGroupBy('location')">
+                            <span aria-hidden="true">📍</span> <span data-i18n="inventory.group_location">Posizione</span>
+                        </button>
+                    </div>
                 </div>
+                <!-- Quick stocktake: a small button on the place you opened (never in the
+                     whole-house view, where there is no shelf to check). -->
+                <button type="button" class="inv-stocktake-btn" id="inventory-stocktake-btn" onclick="_auditStartFromBanner()" hidden>
+                    <span aria-hidden="true">⚡</span>
+                    <span data-i18n="audit.start">Inventario veloce</span>
+                </button>
             </div>
             <!-- Medicine symptom chips: visible whenever the pharmacy macro is open (also empty). -->
             <div class="inv-med-chips" id="inventory-med-chips" hidden></div>
             <div class="inv-tag-filter" id="inventory-tag-filter" hidden></div>
-            <!-- Stocktake: only when a single place is selected (not "all locations"). -->
-            <div class="inv-audit-banner" id="inventory-stocktake-btn" role="region" hidden>
-                <div class="inv-audit-banner-copy">
-                    <strong class="inv-audit-banner-title" data-i18n="audit.banner_title">⚡ Inventario veloce</strong>
-                    <span class="inv-audit-banner-sub" id="inventory-audit-banner-sub" data-i18n="audit.banner_sub_all">Controlla la dispensa scaffale per scaffale</span>
-                </div>
-                <button type="button" class="btn btn-primary inv-audit-banner-cta" onclick="_auditStartFromBanner()" data-i18n="audit.banner_cta">Avvia verifica rapida</button>
-            </div>
         </div>
         <div class="inv-scroll">
             <div class="inventory-list" id="inventory-list"></div>
@@ -1409,7 +1408,7 @@
                 <div class="settings-card">
                     <h4 data-i18n="settings.custom_locations.title">📍 Luoghi di conservazione</h4>
                     <p class="settings-hint" data-i18n="settings.custom_locations.hint">Aggiungi posti oltre a Dispensa, Frigo e Freezer (es. Cantina, Garage). I nomi restano così come li scrivi.</p>
-                    <p class="settings-hint" data-i18n="settings.custom_locations.builtin_hint">Predefiniti (non rimovibili): Dispensa, Frigo, Freezer.</p>
+                    <p class="settings-hint" data-i18n="settings.custom_locations.delete_hint">Ogni luogo si può eliminare, anche i predefiniti: basta che sia vuoto.</p>
                     <div class="appliances-list" id="custom-locations-list"></div>
                     <div class="form-group mt-2">
                         <div class="barcode-input-row">
@@ -3469,17 +3468,17 @@
     </div>
 </div>
 
-<script src="assets/js/vocab.generated.js?v=20261105f"></script>
-<script src="assets/js/food_facts.generated.js?v=20261105f"></script>
-<script src="assets/js/free_apis.generated.js?v=20261105f"></script>
-<script src="assets/js/storage_actions.generated.js?v=20261105f"></script>
-<script src="assets/js/off_categories.generated.js?v=20261105f"></script>
-<script src="assets/js/core/vocab.js?v=20261105f"></script>
-<script src="assets/js/app.js?v=20261105f"></script>
-<script src="assets/js/audit.js?v=20261105f"></script>
-<script src="assets/js/receipt.js?v=20261105f"></script>
-<script src="assets/js/settings.schema.generated.js?v=20261105f"></script>
-<script src="assets/js/settings_search.js?v=20261105f"></script>
+<script src="assets/js/vocab.generated.js?v=20261105g"></script>
+<script src="assets/js/food_facts.generated.js?v=20261105g"></script>
+<script src="assets/js/free_apis.generated.js?v=20261105g"></script>
+<script src="assets/js/storage_actions.generated.js?v=20261105g"></script>
+<script src="assets/js/off_categories.generated.js?v=20261105g"></script>
+<script src="assets/js/core/vocab.js?v=20261105g"></script>
+<script src="assets/js/app.js?v=20261105g"></script>
+<script src="assets/js/audit.js?v=20261105g"></script>
+<script src="assets/js/receipt.js?v=20261105g"></script>
+<script src="assets/js/settings.schema.generated.js?v=20261105g"></script>
+<script src="assets/js/settings_search.js?v=20261105g"></script>
 <div id="audit-overlay" class="audit-overlay" hidden></div>
 <div id="receipt-overlay" class="audit-overlay" hidden></div>
 </body>

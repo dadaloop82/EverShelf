@@ -5,7 +5,37 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.14] - 2026-11-05
+## [1.29.15] - 2026-11-05
+
+### Fixed
+- **«Dispensa (15)» over an empty pantry.** The place counts came from `inventory_summary`, which
+  counted **every** inventory row: a product at zero and a 2 g trace the list itself hides were
+  both "products on a shelf", so the rail and the pantry title promised rows the pantry then
+  refused to show. The count now applies the pantry's own rule (`isInventoryDepleted`, `quantity >
+  0`), so a count and the list behind it are the same fact.
+- **A brand-new install could not start.** `migrateDB()` queried `app_settings` (the title-entities
+  and opened-row markers) *before* the table was created, so a fresh database answered
+  `no such table: app_settings` with HTTP 500 on every request — only an instance with a
+  pre-existing database survived. The table is now created by one helper
+  (`evershelfEnsureAppSettingsTable()`) as the first thing both `initializeDB()` and `migrateDB()`
+  do.
+
+### Added
+- **Every place can be deleted, built-in ones included — as long as it is empty.** `POST
+  location_delete` (`locationDeleteAction`) is the one door: it refuses a place that still holds
+  usable stock (`settings.custom_locations.in_use`, with the count) and refuses to remove the last
+  remaining place (`last_place`), because the next product needs somewhere to go. A built-in is
+  recorded in `app_settings.deleted_locations` (and `validInventoryLocations()` stops accepting
+  stock there, so it cannot come back through an old client); a custom place also loses its label.
+  Deleting Dispensa retires its legacy alias `altro` in the same shot. Settings now lists **all**
+  places with a ✕ — rename stays on the custom ones, whose names are the household's words.
+
+### Changed
+- **The quick stocktake is a small pill, and only on a place.** In the whole-house view the big
+  emerald banner asked to "check 107 products": no shelf, no session. It is now one quiet button
+  (⚡ Inventario veloce) that exists only while a specific place is on screen — pharmacy included —
+  and it starts the wizard on exactly those rows.
+
 
 ### Changed
 - **The quick stocktake is not a setting any more.** It used to be a global switch in
