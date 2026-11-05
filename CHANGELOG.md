@@ -5,7 +5,21 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.29.17] - 2026-11-05
+## [1.29.18] - 2026-11-05
+
+### Added
+- **The stocktake card says when it expires, and the primary asks the whole question.**
+  The fact line gained the date — «📍 Frigo · 📦 Giacenza: 1500 ml · ⏳ Scade il 31/01/2027»
+  («Senza scadenza» when the row has none, red when the date is already past) — and the emerald
+  primary now answers it in one sentence: **«Confermi 1500 ml in Frigo che scade il 31/01/2027?»**,
+  with «…, scaduto il 01/11/2026?» for an expired row and «Confermi 2 pz in Frigo?» when there is
+  no date to confirm.
+- **The sentence shortens itself, it is not guessed from a breakpoint.** `_auditFitConfirm()`
+  measures the question after the paint (lines × line-height): past two lines it swaps in
+  «Confermi 1500 ml?», and a rotation or a resize re-measures the card on screen. The date is
+  formatted with the app's collation (`formatDate()`), so it reads 31/01/2027 in Italian,
+  31.01.2027 in German and 2027/01/31 in Chinese.
+
 
 ### Removed
 - **«Quasi finito» is gone from the stocktake card.** It was a link that looked nothing like the

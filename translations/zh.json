@@ -54,11 +54,17 @@
     "summary_line": "{there} 已确认 · {finished} 已用完 · {spoiled} 已变质 · {skipped} 跳过",
     "summary_errors": "{n} 项修改未保存",
     "done": "完成",
-    "confirm_yes_qty": "确认 {qty}",
+    "confirm_yes_qty": "确认 {qty}？",
     "verify_place": "核对 {place}",
     "button_label": "快速盘点 · {place}（{n} 件商品）",
     "count_of": "第 {n} / {total} 件",
-    "stock_label": "库存"
+    "stock_label": "库存",
+    "confirm_sentence": "确认{place}的 {qty}，{date} 到期？",
+    "confirm_sentence_expired": "确认{place}的 {qty}，已于 {date} 过期？",
+    "confirm_sentence_no_expiry": "确认{place}的 {qty}？",
+    "expiry_on": "{date} 到期",
+    "expiry_was": "{date} 已过期",
+    "expiry_none": "无保质期"
   },
   "product_tags": {
     "form_label": "标签",

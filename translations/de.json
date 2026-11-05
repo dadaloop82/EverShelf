@@ -54,11 +54,17 @@
     "summary_line": "{there} bestätigt · {finished} aufgebraucht · {spoiled} verdorben · {skipped} übersprungen",
     "summary_errors": "{n} Änderungen nicht gespeichert",
     "done": "Fertig",
-    "confirm_yes_qty": "Bestätige {qty}",
+    "confirm_yes_qty": "{qty} bestätigen?",
     "verify_place": "Prüfe {place}",
     "button_label": "Schnelle Inventur · {place} ({n} Produkte)",
     "count_of": "{n} von {total}",
-    "stock_label": "Bestand"
+    "stock_label": "Bestand",
+    "confirm_sentence": "Bestätigst du {qty} in {place}, haltbar bis {date}?",
+    "confirm_sentence_expired": "Bestätigst du {qty} in {place}, abgelaufen am {date}?",
+    "confirm_sentence_no_expiry": "Bestätigst du {qty} in {place}?",
+    "expiry_on": "Haltbar bis {date}",
+    "expiry_was": "Abgelaufen am {date}",
+    "expiry_none": "Kein Haltbarkeitsdatum"
   },
   "product_tags": {
     "form_label": "Tags",

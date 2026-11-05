@@ -13055,9 +13055,20 @@ body.offline-mode #smart-shopping {
     font: inherit;
     font-size: 1.12rem;
     font-weight: 800;
+    line-height: 1.25;
+    text-align: center;
     cursor: pointer;
 }
 .audit-there:active { background: var(--brand-primary-hover, #047857); }
+/* The question is the button: quantity, place and date. It may wrap onto two lines; past that
+   `_auditFitConfirm()` swaps in the short answer (`is-compact`), measured on the real width. */
+.audit-there .audit-there-full { display: inline; }
+.audit-there .audit-there-short { display: none; }
+.audit-there.is-compact .audit-there-full { display: none; }
+.audit-there.is-compact .audit-there-short { display: inline; }
+/* The date is part of the fact line: red only when it has already gone. */
+.audit-expiry { white-space: nowrap; }
+.audit-expiry.is-expired { color: var(--tone-danger, #dc2626); font-weight: 700; }
 /* The four exceptions: same weight, same colour, no alarm palette — the emoji says what they
    are. "Finito" and "andato a male" are twins and must not look like two different apps. */
 .audit-grid {

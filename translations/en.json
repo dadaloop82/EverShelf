@@ -54,11 +54,17 @@
     "summary_line": "{there} confirmed · {finished} used up · {spoiled} spoiled · {skipped} skipped",
     "summary_errors": "{n} changes not saved",
     "done": "Done",
-    "confirm_yes_qty": "Confirm {qty}",
+    "confirm_yes_qty": "Confirm {qty}?",
     "verify_place": "Check {place}",
     "button_label": "Quick stocktake · {place} ({n} products)",
     "count_of": "{n} of {total}",
-    "stock_label": "On hand"
+    "stock_label": "On hand",
+    "confirm_sentence": "Do you confirm {qty} in {place}, expiring on {date}?",
+    "confirm_sentence_expired": "Do you confirm {qty} in {place}, expired on {date}?",
+    "confirm_sentence_no_expiry": "Do you confirm {qty} in {place}?",
+    "expiry_on": "Expires on {date}",
+    "expiry_was": "Expired on {date}",
+    "expiry_none": "No expiry date"
   },
   "product_tags": {
     "form_label": "Tags",

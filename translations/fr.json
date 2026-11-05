@@ -54,11 +54,17 @@
     "summary_line": "{there} confirmés · {finished} épuisés · {spoiled} gâtés · {skipped} passés",
     "summary_errors": "{n} modifications non enregistrées",
     "done": "Terminé",
-    "confirm_yes_qty": "Je confirme {qty}",
+    "confirm_yes_qty": "Confirmer {qty} ?",
     "verify_place": "Vérifier {place}",
     "button_label": "Inventaire rapide · {place} ({n} produits)",
     "count_of": "{n} sur {total}",
-    "stock_label": "En stock"
+    "stock_label": "En stock",
+    "confirm_sentence": "Vous confirmez {qty} dans {place}, périmant le {date} ?",
+    "confirm_sentence_expired": "Vous confirmez {qty} dans {place}, périmé le {date} ?",
+    "confirm_sentence_no_expiry": "Vous confirmez {qty} dans {place} ?",
+    "expiry_on": "Périme le {date}",
+    "expiry_was": "Périmé le {date}",
+    "expiry_none": "Sans date de péremption"
   },
   "product_tags": {
     "form_label": "Étiquettes",

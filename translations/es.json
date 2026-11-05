@@ -54,11 +54,17 @@
     "summary_line": "{there} confirmados · {finished} agotados · {spoiled} estropeados · {skipped} saltados",
     "summary_errors": "{n} cambios no guardados",
     "done": "Hecho",
-    "confirm_yes_qty": "Confirmo {qty}",
+    "confirm_yes_qty": "¿Confirmas {qty}?",
     "verify_place": "Verificar {place}",
     "button_label": "Inventario rápido · {place} ({n} productos)",
     "count_of": "{n} de {total}",
-    "stock_label": "Existencias"
+    "stock_label": "Existencias",
+    "confirm_sentence": "¿Confirmas {qty} en {place}, que caduca el {date}?",
+    "confirm_sentence_expired": "¿Confirmas {qty} en {place}, caducado el {date}?",
+    "confirm_sentence_no_expiry": "¿Confirmas {qty} en {place}?",
+    "expiry_on": "Caduca el {date}",
+    "expiry_was": "Caducado el {date}",
+    "expiry_none": "Sin caducidad"
   },
   "product_tags": {
     "form_label": "Etiquetas",

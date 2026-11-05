@@ -54,11 +54,17 @@
     "summary_line": "{there} confermati · {finished} esauriti · {spoiled} deperiti · {skipped} saltati",
     "summary_errors": "{n} modifiche non salvate",
     "done": "Fatto",
-    "confirm_yes_qty": "Confermo {qty}",
+    "confirm_yes_qty": "Confermi {qty}?",
     "verify_place": "Verifica {place}",
     "button_label": "Inventario veloce · {place} ({n} prodotti)",
     "count_of": "{n} di {total}",
-    "stock_label": "Giacenza"
+    "stock_label": "Giacenza",
+    "confirm_sentence": "Confermi {qty} in {place} che scade il {date}?",
+    "confirm_sentence_expired": "Confermi {qty} in {place}, scaduto il {date}?",
+    "confirm_sentence_no_expiry": "Confermi {qty} in {place}?",
+    "expiry_on": "Scade il {date}",
+    "expiry_was": "Scaduto il {date}",
+    "expiry_none": "Senza scadenza"
   },
   "product_tags": {
     "form_label": "Tag",

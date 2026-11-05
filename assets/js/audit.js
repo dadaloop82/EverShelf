@@ -297,12 +297,27 @@ function _auditRender() {
     const qtyPlain = (typeof stripHtml === 'function' && typeof formatQuantity === 'function')
         ? stripHtml(formatQuantity(it.quantity, it.unit, it.default_quantity, it.package_unit))
         : `${it.quantity || ''} ${it.unit || ''}`.trim();
-    const confirmLabel = t('audit.confirm_yes_qty', { qty: qtyPlain || String(it.quantity || '') });
     const countLabel = t('audit.count_of', { n: done + 1, total });
     const locMeta = (typeof LOCATIONS !== 'undefined' && LOCATIONS[normalizeLocationKey(it.location)])
         || { icon: '📦', label: it.location || '' };
-    const placeTitle = t('audit.verify_place', { place: locMeta.label || t('audit.title') });
+    const placeLabel = locMeta.label || it.location || '';
+    const placeTitle = t('audit.verify_place', { place: placeLabel || t('audit.title') });
     const thumb = (typeof _productThumbHtml === 'function') ? _productThumbHtml(it) : '';
+    // The date is part of the question: "confermo 1500 ml in Frigo" without "che scade il …"
+    // is half an answer. A missing date says so instead of leaving the family guessing.
+    const hasExpiry = !!it.expiry_date;
+    const expiryDate = hasExpiry && typeof formatDate === 'function' ? formatDate(it.expiry_date) : '';
+    const isExpired = hasExpiry && typeof daysUntilExpiry === 'function' && daysUntilExpiry(it.expiry_date) < 0;
+    const expiryFact = hasExpiry
+        ? t(isExpired ? 'audit.expiry_was' : 'audit.expiry_on', { date: expiryDate })
+        : t('audit.expiry_none');
+    // The primary carries the whole question; `_auditFitConfirm()` swaps in the short one when
+    // the sentence needs more than two lines (a phone, a big font, a long place name).
+    const confirmFull = hasExpiry
+        ? t(isExpired ? 'audit.confirm_sentence_expired' : 'audit.confirm_sentence',
+            { qty: qtyPlain, place: placeLabel, date: expiryDate })
+        : t('audit.confirm_sentence_no_expiry', { qty: qtyPlain, place: placeLabel });
+    const confirmShort = t('audit.confirm_yes_qty', { qty: qtyPlain });
     el.innerHTML = `<div class="audit-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('audit.title'))}">
         <div class="audit-top">
             <div class="audit-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"
@@ -318,10 +333,10 @@ function _auditRender() {
             <div class="audit-product-main">
                 <p class="audit-product-name">${escapeHtml(it.display_name || it.name || '')}</p>
                 ${it.brand ? `<p class="audit-product-brand">${escapeHtml(it.brand)}</p>` : ''}
-                <p class="audit-product-meta"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(locMeta.label || it.location || '')} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong>${escapeHtml(qtyPlain)}</strong></p>
+                <p class="audit-product-meta"><span aria-hidden="true">${escapeHtml(locMeta.icon || '📍')}</span> ${escapeHtml(placeLabel)} · <span aria-hidden="true">📦</span> ${escapeHtml(t('audit.stock_label'))}: <strong>${escapeHtml(qtyPlain)}</strong> · <span aria-hidden="true">⏳</span> <span class="audit-expiry${isExpired ? ' is-expired' : ''}">${escapeHtml(expiryFact)}</span></p>
             </div>
         </div>
-        <button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> ${escapeHtml(confirmLabel)}</button>
+        <button type="button" class="audit-there" onclick="_auditAnswer('there')"><span aria-hidden="true">✓</span> <span class="audit-there-full">${escapeHtml(confirmFull)}</span><span class="audit-there-short">${escapeHtml(confirmShort)}</span></button>
         <div class="audit-grid">
             <button type="button" class="audit-cell audit-finished" onclick="_auditAnswer('finished')"><span aria-hidden="true">🏁</span> ${escapeHtml(t('audit.exhausted'))}</button>
             <button type="button" class="audit-cell audit-spoiled" onclick="_auditAnswer('spoiled')"><span aria-hidden="true">🗑️</span> ${escapeHtml(t('audit.spoiled'))}</button>
@@ -334,6 +349,28 @@ function _auditRender() {
             <button type="button" class="audit-skip" onclick="_auditAnswer('skip')">${escapeHtml(t('audit.skip'))} →</button>
         </div>
     </div>`;
+    // The full question is the default; on a narrow screen (or a long place name) it becomes
+    // the short one instead of growing into a paragraph.
+    _auditFitConfirm(el);
+}
+
+/**
+ * Keep the primary answer readable: the full sentence ("Confermi 1500 ml in Frigo che scade il
+ * 05/11/2026?") must fit in at most two lines. It is MEASURED, not guessed from a breakpoint:
+ * the same card is a phone, a wall tablet and a kiosk, and the household's language decides how
+ * long the sentence gets.
+ */
+function _auditFitConfirm(root) {
+    const btn = (root || document).querySelector('.audit-there');
+    if (!btn) return;
+    const full = btn.querySelector('.audit-there-full');
+    if (!full) return;
+    btn.classList.remove('is-compact');
+    const style = window.getComputedStyle(full);
+    const fontSize = parseFloat(style.fontSize) || 16;
+    const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.3;
+    const lines = Math.round(full.getBoundingClientRect().height / lineHeight);
+    if (lines > 2) btn.classList.add('is-compact');
 }
 
 /**
@@ -604,6 +641,18 @@ function _auditStop(reload = false) {
 }
 
 // Arrow keys for a tablet with a keyboard attached; a kiosk needs none of this.
+// Rotating a tablet (or resizing a window) changes how many lines the question needs: re-fit
+// the primary answer instead of leaving the wrong variant on screen until the next card.
+let _auditFitTimer = 0;
+window.addEventListener('resize', () => {
+    if (!_audit) return;
+    clearTimeout(_auditFitTimer);
+    _auditFitTimer = setTimeout(() => {
+        const el = document.getElementById('audit-overlay');
+        if (el && !el.hidden) _auditFitConfirm(el);
+    }, 120);
+});
+
 document.addEventListener('keydown', (ev) => {
     if (!_audit) return;
     // The edit sheet sits ON TOP of the stocktake: while it is open the keys
