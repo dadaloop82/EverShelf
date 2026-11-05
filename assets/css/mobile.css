@@ -190,6 +190,17 @@
     .alert-item {
         padding: 9px;
     }
+    /* The stocktake banner is always on now: on a phone the copy takes the full width and the
+       CTA moves under it, so the sentence is not squeezed into two words per line. */
+    .inv-audit-banner {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+    .inv-audit-banner-cta {
+        flex: 1 1 100%;
+        width: 100%;
+    }
     /* The banner strip is compact and right-aligned: a long answer ("Non è finito, ne ho
        ancora 200 g") may wrap onto two lines instead of overflowing the notice. */
     .alert-banner-actions .btn-banner {
