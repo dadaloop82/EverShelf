@@ -122,9 +122,14 @@ function openedShelfLifeFamily(string $name, string $category): array
 
 /**
  * The two thresholds of one product in one place:
- * `['warn' => int, 'critical' => int, 'family' => string, 'location' => string]`.
+ * `['warn' => int, 'critical' => int, 'family' => string, 'location' => string,
+ *   'icon' => string, 'cook_after' => int, 'cook_hint_key' => string]`.
  * A family that says nothing about this place inherits the defaults, so a yoghurt that
  * ends up in the pantry keeps a short clock instead of borrowing a shelf life.
+ *
+ * `icon` is the family's own mark (a wine is not a soft drink, whatever its category says)
+ * and `cook_after` is the day a drink stops being something to pour and becomes an
+ * ingredient: from there the row is a kitchen job, not a waste decision.
  */
 function openedShelfLifeThresholds(string $name, string $category, string $location): array
 {
@@ -137,11 +142,24 @@ function openedShelfLifeThresholds(string $name, string $category, string $locat
     $warn = max(0, (int)($spec['warn'] ?? 5));
     $critical = max($warn + 1, (int)($spec['critical'] ?? 10));
     return [
-        'warn'     => $warn,
-        'critical' => $critical,
-        'family'   => (string)($family['id'] ?? 'other'),
-        'location' => $loc,
+        'warn'          => $warn,
+        'critical'      => $critical,
+        'family'        => (string)($family['id'] ?? 'other'),
+        'location'      => $loc,
+        'icon'          => (string)($family['icon'] ?? ''),
+        'cook_after'    => max(0, (int)($family['cook_after'] ?? 0)),
+        'cook_hint_key' => (string)($family['cook_hint_key'] ?? ''),
     ];
+}
+
+/**
+ * The family's own icon, or '' when it has none (a soft drink stays the category emoji).
+ * Used by the pantry list, which asks it only for beverages: the walk is a keyword scan.
+ */
+function openedShelfLifeFamilyIcon(string $name, string $category): string
+{
+    $family = openedShelfLifeFamily($name, $category);
+    return (string)($family['icon'] ?? '');
 }
 
 /** 'ok' | 'warn' | 'critical' — the state machine of the banner, nothing else. */
@@ -159,8 +177,14 @@ function openedShelfLifeState(int $daysOpen, int $warn, int $critical): string
 /**
  * Everything the UI needs about one opened row, or null when it was never opened.
  *
+ * `cook_only` is the answer to "should I throw this away?": from `cook_after` days an
+ * opened wine is no longer a glass to pour, but it is still an ingredient — so the row
+ * asks to be cooked with, not binned. The flag is DATA (`cook_after` on the family), the
+ * sentence the UI shows comes as `cook_hint_key`.
+ *
  * @param array<string,mixed> $item inventory row (needs name, category, location, opened_at)
- * @return array{days_open:int,warn:int,critical:int,family:string,state:string,score:float}|null
+ * @return array{days_open:int,warn:int,critical:int,family:string,state:string,score:float,
+ *               icon:string,cook_only:bool,cook_after:int,cook_hint_key:string}|null
  */
 function openedShelfLifeSummary(array $item): ?array
 {
@@ -183,13 +207,19 @@ function openedShelfLifeSummary(array $item): ?array
     );
     $state = openedShelfLifeState($days, $t['warn'], $t['critical']);
     $score = $t['critical'] > 0 ? round($days / $t['critical'], 3) : 0.0;
+    $cookAfter = (int)($t['cook_after'] ?? 0);
+    $cookOnly = $cookAfter > 0 && $days >= $cookAfter;
 
     return [
-        'days_open' => $days,
-        'warn'      => $t['warn'],
-        'critical'  => $t['critical'],
-        'family'    => $t['family'],
-        'state'     => $state,
-        'score'     => $score,
+        'days_open'     => $days,
+        'warn'          => $t['warn'],
+        'critical'      => $t['critical'],
+        'family'        => $t['family'],
+        'state'         => $state,
+        'score'         => $score,
+        'icon'          => (string)($t['icon'] ?? ''),
+        'cook_only'     => $cookOnly,
+        'cook_after'    => $cookAfter,
+        'cook_hint_key' => $cookOnly ? (string)($t['cook_hint_key'] ?? '') : '',
     ];
 }

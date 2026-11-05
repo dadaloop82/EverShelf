@@ -6,7 +6,7 @@
 
 **[Website](https://evershelf.site/)** · **[Demo](https://evershelf.site/demo)** · **[Wiki](https://github.com/dadaloop82/EverShelf/wiki)** · **[Changelog](CHANGELOG.md)**
 
-[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.10-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![PHP 8+](https://img.shields.io/badge/PHP-8.0+-blue.svg)](https://www.php.net/) [![Version](https://img.shields.io/badge/version-1.29.11-brightgreen.svg)](CHANGELOG.md) [![Branch](https://img.shields.io/badge/branch-refactor__25__10__2026)](../../branches) [![CI](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml/badge.svg)](https://github.com/dadaloop82/EverShelf/actions/workflows/ci.yml)
 
 </div>
 
@@ -36,6 +36,7 @@ cp .env.example .env && docker compose up -d    # → http://localhost:8080
 
 <details>
 <summary><b>📰 What's new</b></summary>
+**v1.29.11** — **Il vino aperto si cucina, non si butta.** Un bianco aperto da 26 giorni in frigo non è «probabilmente andato»: per sfumare e deglassare dura mesi. La strip delle scorte ora lo dice con l'azione giusta — **🍳 Usa per cucinare** in smeraldo, **🗑️ Butta** resta lì ma come scelta neutra, il limite «da tavola» non viene più stampato e l'avviso spiega a cosa serve ancora («ha perso il profumo da tavola, ma è perfetto per sfumare e insaporire»). La regola è **dati, non intelligenza artificiale**: la famiglia del vino nella tabella PAO dichiara `cook_after` a 10 giorni. E la bottiglia ha finalmente la sua icona — 🍷 invece del bicchiere da fast food della categoria «bevande» (🍺 per la birra, 🥃 per i distillati). **Il filtro delle locazioni si apre**: la pillola «📍 Tutte le locazioni ▾» rispondeva a vuoto perché il menu era assoluto dentro una striscia che scorre, che lo tagliava via; ora è un livello ancorato al suo bottone, che si apre sopra quando sotto non c'è spazio e si chiude appena scorri. **La schermata di scansione torna tutta alla fotocamera**: il campo `A [040313076]` non è più ancorato in basso — sta dietro **✏️ Scrivi codice** e compare da solo soltanto nella card di soccorso dopo venti secondi senza lettura. Il pannello continua a capire da sé che cosa sta leggendo: un EAN va al catalogo alimentare, un AIC alla scheda del farmaco.
 
 **v1.29.10** — **La dispensa non apre più una scheda mentre scorri.** Un tocco apriva il prodotto anche dopo 28 px di movimento: ora servono 10 px verticali perché il gesto sia «scroll», il `pointercancel` del browser non è mai un tocco e la lista deve essere rimasta ferma (un dito grosso che non ha scrollato viene ancora perdonato). Il banner delle scorte dà ragione alla mensola: **«✓ Confermo 2000 g»**, e non scrive niente — la stima del registro è un'ipotesi. Riso, pasta, farina, olio, conserve e spezie non generano più avvisi predittivi. E c'è **una sola scheda per buttare** («Registra cibo gettato»): lo swipe a sinistra e il vecchio «Cosa vuoi fare?» non esistono più.
 

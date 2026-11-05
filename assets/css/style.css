@@ -12322,12 +12322,12 @@ body.offline-mode #smart-shopping {
 .ruse-modal {
     padding: 0 16px 18px;
 }
-.ruse-product-name {
+/* Head of the sheet: the product's own facts (thumb, name, brand, place, opened, expiry)
+   in the exact grammar of the product sheet, above the "need" card. The doubled class is
+   deliberate: surfaces.css owns .item-detail-header-row and loads after this file. */
+.ruse-product-head.item-detail-header-row {
     margin: 0 0 12px;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1.3;
+    align-items: center;
 }
 .ruse-target-card {
     display: flex;

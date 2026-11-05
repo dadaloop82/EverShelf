@@ -335,6 +335,23 @@ function _invImageHtml(imageUrl, catIcon) {
 }
 
 /**
+ * The product's OWN mark when the data knows it (a wine, a beer, a spirit), '' otherwise.
+ *
+ * `category` is the shelf a product sits on, not what it is: every drink is `bevande`, so the
+ * generic 🥤 drew a fast-food cup with a straw on a bottle of white wine. The family table
+ * (`data/opened_shelf_life.json`) already knows the genre — the server hands its `icon` over
+ * with the pantry row (`family_icon`) and with the post-opening clock (`pao.icon`).
+ *
+ * @param {object} item a product or an inventory row
+ * @returns {string} the emoji, or '' when the category emoji is the right answer
+ */
+function _productFamilyIcon(item) {
+    const it = item || {};
+    const own = (it.pao && it.pao.icon) || it.family_icon || '';
+    return own ? String(own) : '';
+}
+
+/**
  * The emoji slot of a product row, with the medicine exception.
  *
  * Rows that lead with `_productThumbHtml()` get the medicine mark for free; this is for the few
@@ -348,7 +365,8 @@ function _invImageHtml(imageUrl, catIcon) {
  */
 function _productCatIconHtml(item, extraClass = 'med-icon-lg') {
     if (_isMedicalRow(item)) return _medFormIconMarkup(item, extraClass);
-    return escapeHtml(CATEGORY_ICONS[mapToLocalCategory(item && item.category, item && item.name)] || '📦');
+    const own = _productFamilyIcon(item);
+    return escapeHtml(own || CATEGORY_ICONS[mapToLocalCategory(item && item.category, item && item.name)] || '📦');
 }
 
 /**
@@ -372,9 +390,11 @@ function _productThumbHtml(item, opts = {}) {
     if (!url && opts.icon === false) return '';
     const medical = _isMedicalRow(it);
     // Medicines without a box photo wear a form emoji (🧴/🩹/💊/💨), not one purple pill for every row.
+    // A food row wears its own family mark when the data has one (a wine is 🍷, never 🥤).
+    const ownIcon = medical ? '' : _productFamilyIcon(it);
     const icon = medical
         ? _medFormIconMarkup(it, 'med-icon-lg')
-        : escapeHtml(CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦');
+        : escapeHtml(ownIcon || CATEGORY_ICONS[mapToLocalCategory(it.category, it.name)] || '📦');
     const extra = opts.className ? ' ' + String(opts.className) : '';
     return `<span class="product-thumb${url ? '' : ' is-icon'}${medical ? ' is-medical' : ''}${extra}" aria-hidden="true">`
         + `<span class="product-thumb-emoji">${icon}</span>`
@@ -1287,6 +1307,7 @@ function _scaleAutoFillRecipeUse(msg) {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
             _updateRecipeUseScaleCompare(val);
+            _recipeUseSyncFractions();
             if (hint) {
                 hint.textContent = t('scale.weight_value', { value: val, unit }) + hintExtra;
                 hint.style.display = '';
@@ -1308,6 +1329,7 @@ function _scaleAutoFillRecipeUse(msg) {
             const inp = document.getElementById('ruse-quantity');
             if (inp) inp.value = val;
             _updateRecipeUseScaleCompare(val);
+            _recipeUseSyncFractions();
             if (livLabel) livLabel.textContent = t('scale.auto_confirm', { val, unit });
             const confirmWrap3 = document.getElementById('ruse-scale-confirm-wrap');
             if (confirmWrap3) confirmWrap3.style.display = '';
@@ -1890,7 +1912,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261103c'; // bump when translations change
+const _I18N_VERSION = '20261105a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -2818,6 +2840,37 @@ function _locFoodMenuClose() {
     });
 }
 
+/**
+ * Put the open menu under its trigger, on screen, whichever way there is room.
+ *
+ * The panel is a `position: fixed` layer (see `.loc-food-menu` in surfaces.css): inside the
+ * pantry strip, which scrolls horizontally, an absolutely positioned menu is clipped by the
+ * ancestor's `overflow` and the tap looks like it did nothing. Fixed layers do not know where
+ * their button is, so the button tells them here — and the same math flips the panel above the
+ * trigger when the strip sits low on the screen.
+ */
+function _locFoodMenuPlace(trigger, menu) {
+    if (!trigger || !menu) return;
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    const gap = 6;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 360;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 640;
+    const width = Math.round(Math.min(Math.max(rect.width, 220), vw - margin * 2));
+    // Right-aligned with the trigger, never off the left or right edge.
+    const left = Math.round(Math.min(Math.max(margin, rect.right - width), vw - width - margin));
+    menu.style.width = width + 'px';
+    menu.style.minWidth = width + 'px';
+    menu.style.left = left + 'px';
+    const wanted = Math.min(menu.scrollHeight || 320, Math.round(vh * 0.6), 360);
+    const below = vh - rect.bottom - margin;
+    if (below < wanted && rect.top > below) {
+        menu.style.top = Math.round(Math.max(margin, rect.top - gap - wanted)) + 'px';
+    } else {
+        menu.style.top = Math.round(rect.bottom + gap) + 'px';
+    }
+}
+
 function _locFoodMenuToggle(ev, surface) {
     if (ev) {
         ev.preventDefault();
@@ -2833,6 +2886,8 @@ function _locFoodMenuToggle(ev, surface) {
     if (open) {
         menu.hidden = false;
         trigger.setAttribute('aria-expanded', 'true');
+        _locFoodMenuPlace(trigger, menu);
+        _locFoodMenuOpenedAt = Date.now();
     }
 }
 
@@ -2881,6 +2936,17 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') _locFoodMenuClose();
 });
+// A fixed layer does not travel with the strip it belongs to: any scroll (the pantry list, the
+// page, the strip itself) closes it instead of leaving it floating over the content. The first
+// 350 ms are forgiven — a tap can make the browser scroll its own button into view.
+let _locFoodMenuOpenedAt = 0;
+function _locFoodMenuCloseOnMove() {
+    if (Date.now() - _locFoodMenuOpenedAt < 350) return;
+    _locFoodMenuClose();
+}
+document.addEventListener('scroll', _locFoodMenuCloseOnMove, true);
+window.addEventListener('resize', _locFoodMenuClose);
+window.addEventListener('orientationchange', _locFoodMenuClose);
 
 /**
  * Persist the custom-location list on the server (`CUSTOM_LOCATIONS`).
@@ -3442,6 +3508,26 @@ function _openedPao(item) {
     if (!p || typeof p !== 'object') return null;
     if (!p.state || !Number.isFinite(Number(p.days_open))) return null;
     return p;
+}
+
+/**
+ * The sentence of an opened row that is still an ingredient ("it lost its table aroma, but it
+ * is perfect for deglazing").
+ *
+ * The key arrives from the DATA (`cook_hint_key` on the family in
+ * `data/opened_shelf_life.json`), and it is resolved with a bare `t()` literal here so the
+ * i18n audit can see every key this function can ever paint.
+ *
+ * @param {string} key the `cook_hint_key` of the row's family
+ * @returns {string} the localised sentence, '' for a key we do not ship
+ */
+function _openedCookHint(key) {
+    switch (String(key || '')) {
+        case 'dashboard.banner_opened_cook_hint':
+            return t('dashboard.banner_opened_cook_hint');
+        default:
+            return '';
+    }
 }
 
 /** "È ancora buono" asked today: the banner stays quiet this long, then the clock returns. */
@@ -12076,6 +12162,7 @@ async function loadBannerAlerts() {
  * Priority tiers:
  *   3000+   : an opened row past its critical PAO threshold (probably spoiled)
  *   1500+   : an opened row past its warning threshold (check it)
+ *   1400+   : an opened row that is now an INGREDIENT (wine for deglazing) — informative
  *   1000+ : expired (longer ago = higher)
  *   500-799: anomalies (data discrepancies)
  *   200-499: suspicious quantities (low stock > high stock > package)
@@ -12088,6 +12175,9 @@ function _bannerPriority(entry) {
     const pao = _openedPao(entry && entry.data);
     if (pao) {
         const score = Math.min(Number(pao.score) || 0, 99);
+        // A row the data calls an ingredient (`cook_only`) is a suggestion, not a spoilage
+        // alarm: it must never push a really spoiled yoghurt out of the first slot.
+        if (pao.cook_only) return 1400 + score;
         if (pao.state === 'critical') return 3000 + score;
         if (pao.state === 'warn') return 1500 + score;
     }
@@ -12174,7 +12264,12 @@ function renderBannerItem() {
         const item = entry.data;
         const pao = _openedPao(item) || { state: 'warn', days_open: 0, warn: 0, critical: 0, score: 0 };
         const critical = pao.state === 'critical';
-        banner.className = `alert-banner banner-opened ${critical ? 'is-critical' : 'is-warn'}`;
+        // Past its drinking window a wine is not a waste decision: the data says from
+        // `cook_after` days the row is an INGREDIENT (`cook_only`), so the strip leads with the
+        // kitchen and leaves throwing it away as a neutral second choice. Recommending the bin
+        // on 126 ml of white wine is the opposite of what a pantry is for.
+        const cookFirst = !!pao.cook_only;
+        banner.className = `alert-banner banner-opened ${cookFirst ? 'is-cook' : (critical ? 'is-critical' : 'is-warn')}`;
         if (iconEl) {
             iconEl.innerHTML = _productThumbHtml(item);
             iconEl.classList.add('has-thumb');
@@ -12190,15 +12285,22 @@ function renderBannerItem() {
         const qtyBit = qtyPlain
             ? ' · ' + escapeHtml(t('dashboard.banner_opened_remaining', { qty: qtyPlain }))
             : '';
+        // A kitchen-only row keeps the age, drops the drinking window (it would contradict the
+        // hint) and says instead what it is still good for.
+        const cookHint = cookFirst ? _openedCookHint(pao.cook_hint_key) : '';
         detailEl.innerHTML = `
-            <div class="banner-fact">${escapeHtml(t('dashboard.banner_opened_since', { days: pao.days_open, location: locMeta.label || item.location || '' }))}${limitText ? ' · ' + escapeHtml(limitText) : ''}${qtyBit}</div>`;
+            <div class="banner-fact">${escapeHtml(t('dashboard.banner_opened_since', { days: pao.days_open, location: locMeta.label || item.location || '' }))}${(!cookFirst && limitText) ? ' · ' + escapeHtml(limitText) : ''}${qtyBit}</div>`
+            + (cookHint ? `<div class="banner-cook-hint">💡 ${escapeHtml(cookHint)}</div>` : '');
         const itemId = Number(item.id) || 0;
         const productId = Number(item.product_id) || 0;
         const moreLabel = escapeAttr(t('dashboard.banner_opened_more_actions'));
         const canFreeze = _itemAllowsFreeze(item);
+        const cookButton = `<button type="button" class="btn-banner btn-banner-cook" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_cook'))}</button>`;
+        const throwPrimary = `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`;
+        const throwNeutral = `<button type="button" class="btn-banner btn-banner-throw" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`;
+        const recipeSecond = `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`;
         actionsEl.innerHTML =
-            `<button type="button" class="btn-banner btn-banner-throw-primary" onclick="bannerThrowAway()">🗑️ ${escapeHtml(t('dashboard.banner_expired_action_throw'))}</button>`
-            + `<button type="button" class="btn-banner btn-banner-recover" onclick="bannerUseInRecipe()">🍳 ${escapeHtml(t('dashboard.banner_opened_action_recipe'))}</button>`
+            (cookFirst ? cookButton + throwNeutral : throwPrimary + recipeSecond)
             + `<button type="button" class="btn-banner btn-banner-more" id="alert-banner-more-btn" onclick="event.stopPropagation();_bannerMenuToggle()" aria-expanded="false" aria-controls="alert-banner-menu" title="${moreLabel}" aria-label="${moreLabel}">⋮</button>`
             + `<div class="alert-banner-menu" id="alert-banner-menu" hidden role="menu">`
             +   `<button type="button" role="menuitem" class="alert-banner-menu-item" onclick="bannerStillGood()">`
@@ -14493,10 +14595,8 @@ function _medCabinetEmptyScan() {
 function _medCabinetEmptyManual() {
     _medGoToCabinetScan();
     setTimeout(() => {
-        const input = document.getElementById('scan-med-code-input');
-        if (input) {
-            try { input.focus(); } catch (_) { /* */ }
-        }
+        // "Aggiungi a mano" from an empty cabinet IS the request the field waits for.
+        try { _medCodeRowOpen(); } catch (_) { /* panel not ready */ }
     }, 400);
 }
 
@@ -15654,55 +15754,96 @@ function _itemDetailSyncActionLabels() {
     if (finishLbl) finishLbl.textContent = finishText;
 }
 
-function _itemDetailFractionOptions(item) {
-    const q = _itemDetailQty;
+/**
+ * The quick chips of a quantity field — ONE grammar for the product sheet and the
+ * recipe "Usa" sheet.
+ *
+ * Every chip is capped by `maxEntry`: what the household can really take from the place
+ * the sheet has selected. A chip is therefore never a tap that asks for more than the
+ * shelf holds, and a product with nothing whole left simply ends up with fewer chips
+ * (fewer than two and the row is not drawn at all — see `_itemDetailFractionsHtml`).
+ *
+ * @param {object} spec
+ * @param {string} spec.unit            'pz' | 'conf' | 'g' | 'ml' | 'kg' | 'l'
+ * @param {number} spec.maxEntry        how much there is, in the field's own unit
+ * @param {number} [spec.packBase]      the pack's own measure (a 1 l bottle → 1000)
+ * @param {string} [spec.packUnit]      that measure's label ('ml')
+ * @param {string} [spec.measureLabel]  label of the weight unit (locale mark included)
+ * @param {function} [spec.format]      number → text of the chip
+ * @param {function} [spec.allLabel]    (n, label, kind) → text of the "tutto" chip,
+ *                                      kind = 'count' (pieces, packs) or 'measure' (g/ml)
+ * @returns {Array<{value:number,label:string}>}
+ */
+function _fractionChipOptions(spec) {
     const opts = [];
-    const seen = {};
-    // The chips live in the field's own unit: packs, the pack's ml, or pieces.
-    const maxEntry = _itemDetailEntryMax();
+    const seen = Object.create(null);
+    const unit = String(spec.unit || '');
+    const maxEntry = Number(spec.maxEntry) || 0;
+    const packBase = Number(spec.packBase) || 0;
+    const format = typeof spec.format === 'function'
+        ? spec.format
+        : (n => String(Math.round(Number(n) * 100) / 100));
+    const allLabel = typeof spec.allLabel === 'function' ? spec.allLabel : null;
     const add = (value, label) => {
         const v = Math.round(Number(value) * 100) / 100;
         if (!(v > 0) || v > maxEntry + 1e-6 || seen[v]) return;
         seen[v] = true;
         opts.push({ value: v, label: label });
     };
-    if (q.unit === 'pz') {
+    const addAll = (n, label, kind) => {
+        if (!allLabel || !(n > 0)) return;
+        add(n, allLabel(n, label, kind));
+    };
+    if (unit === 'pz') {
         // Practical piece chips — not microscopic quarters.
         add(0.5, '½');
         add(1, '1');
         add(2, '2');
         add(3, '3');
-        if (maxEntry > 0) add(maxEntry, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(maxEntry) }));
-    } else if (q.unit === 'conf' && _itemDetailPackEntry()) {
+        addAll(maxEntry, t('units.pz'), 'count');
+    } else if (unit === 'conf' && packBase > 0) {
         // A pack has a size: the shortcuts are amounts of it (250 ml, 500 ml, 1 l…).
-        const u = q.pack.unit;
-        add(q.pack.base / 4, `${_itemDetailFmtQty(q.pack.base / 4)} ${u}`);
-        add(q.pack.base / 2, `${_itemDetailFmtQty(q.pack.base / 2)} ${u}`);
-        add(q.pack.base, `${_itemDetailFmtQty(q.pack.base)} ${u}`);
-        if (maxEntry > q.pack.base + 1e-6) {
-            add(maxEntry, t('inventory.detail_chip_all_stock', {
-                n: _itemDetailFmtQty(maxEntry),
-                unit: u,
-            }));
-        }
-    } else if (q.unit === 'conf') {
+        const u = spec.packUnit;
+        add(packBase / 4, `${format(packBase / 4)} ${u}`);
+        add(packBase / 2, `${format(packBase / 2)} ${u}`);
+        add(packBase, `${format(packBase)} ${u}`);
+        if (maxEntry > packBase + 1e-6) addAll(maxEntry, u, 'measure');
+    } else if (unit === 'conf') {
         add(0.5, '½');
-        if (q.max > 1) add(1, `1 ${t('units.conf')}`);
-        if (q.max >= 2) add(2, `2 ${t('units.conf')}`);
-        if (q.max > 2) add(q.max, t('inventory.detail_chip_all', { n: _itemDetailFmtQty(q.max) }));
-    } else if (q.unit === 'g' || q.unit === 'ml' || q.unit === 'kg' || q.unit === 'l') {
-        const u = _itemDetailUnitLabel();
+        if (maxEntry > 1) add(1, `1 ${t('units.conf')}`);
+        if (maxEntry >= 2) add(2, `2 ${t('units.conf')}`);
+        if (maxEntry > 2) addAll(maxEntry, t('units.conf'), 'count');
+    } else if (unit === 'g' || unit === 'ml' || unit === 'kg' || unit === 'l') {
+        const u = spec.measureLabel || unit;
         add(10, `10 ${u}`);
         add(25, `25 ${u}`);
         add(50, `50 ${u}`);
-        if (q.max > 0) {
-            add(q.max, t('inventory.detail_chip_all_stock', {
-                n: _itemDetailFmtQty(q.max),
-                unit: u,
-            }));
-        }
+        addAll(maxEntry, u, 'measure');
     }
     return opts;
+}
+
+/**
+ * The quarter / half / three-quarter shortcuts of the product modal, read off the state
+ * of its quantity field (packs, the pack's own ml, or pieces).
+ *
+ * @param {object} item the inventory row (for a packaged product's own size)
+ * @returns {Array<{value:number,label:string}>}
+ */
+function _itemDetailFractionOptions(item) {
+    const q = _itemDetailQty;
+    const packEntry = _itemDetailPackEntry();
+    return _fractionChipOptions({
+        unit: q.unit,
+        maxEntry: _itemDetailEntryMax(),
+        packBase: packEntry ? q.pack.base : 0,
+        packUnit: packEntry ? q.pack.unit : '',
+        measureLabel: _itemDetailUnitLabel(),
+        format: _itemDetailFmtQty,
+        allLabel: (n, label, kind) => (kind === 'count'
+            ? t('inventory.detail_chip_all', { n: _itemDetailFmtQty(n) })
+            : t('inventory.detail_chip_all_stock', { n: _itemDetailFmtQty(n), unit: label })),
+    });
 }
 
 /** The chip row itself (empty string when no fraction can be chosen). */
@@ -15898,15 +16039,17 @@ async function _itemDetailConsume() {
             _dashboardLiveRefresh(q.inventoryId);
             try { refreshAppDataAfterMutation(); } catch (e) { /* older builds */ }
             // The remainder is a pack of its own (the fridge, not the pantry): ask where it
-            // went — presuming this product's habit, then its genre — instead of leaving the
-            // household with a consumed 200 ml and no answer about the rest.
+            // went — presuming this product's habit, then its genre. A finished product has
+            // no remainder to place, so the question is skipped by the guard inside
+            // `_showMovePrompt` ("se è finito è finito").
+            const leftover = _leftoverAfterUse(res);
             if (openedId > 0) {
                 showMoveAfterUseModal(
                     // The flag travels: a medicine may only be offered its own cabinet, and a
                     // plain {id,name} object would read as food and offer the fridge.
                     { id: ctx.productId, name: ctx.name, category: ctx.category, is_medical: ctx.isMedical ? 1 : 0 },
                     ctx.fromLoc,
-                    Number(res.total_remaining) || 0,
+                    leftover,
                     openedId,
                     vacuum,
                     q.unit,
@@ -16398,10 +16541,14 @@ function _setScanModeInner(mode) {
     const sampleEl = document.getElementById('scan-med-frame-sample');
     if (sampleEl) sampleEl.classList.remove('is-read');
     if (medical) _medOcrSelfTest().catch(() => {});
-    // One field for the code, always available in the medicine panel: no "read" button and no
-    // "add by hand" button — the reader runs by itself, and this is what to type when it cannot.
+    // The hand entry is ASKED for, never parked under the camera: the medicine panel carries a
+    // "✏️ Scrivi codice" button and the field appears only when it is tapped (or when the
+    // twenty-second rescue card asks). A permanently anchored A + 9 digits row took the camera's
+    // space and read as a barcode field to a household scanning a cheese.
     const codeRow = document.getElementById('scan-med-code-row');
-    if (codeRow) codeRow.hidden = !medical;
+    if (codeRow) codeRow.hidden = true;
+    const codeOpenBtn = document.getElementById('scan-med-code-open');
+    if (codeOpenBtn) codeOpenBtn.hidden = !medical;
     // The status chip is the ONE line of feedback (no box over the camera): what the reader got.
     const codeInput = document.getElementById('scan-med-code-input');
     if (codeInput && !medical) codeInput.value = '';
@@ -18557,7 +18704,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261103c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -18567,7 +18714,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261103c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261105a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -19920,9 +20067,9 @@ function _medShowAsk(on) {
         _medNameMoreSet(false);
     }
     if (!row) return;
-    row.hidden = false;
     if (on) {
         // The field belongs under the sentence that asks for it.
+        row.hidden = false;
         row.classList.add('is-wanted');
         if (resume) resume.hidden = false;
         if (ask && row.parentElement !== ask) ask.appendChild(row);
@@ -19930,9 +20077,12 @@ function _medShowAsk(on) {
         if (input && !String(input.value || '').trim()) input.value = '';
         try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
     } else {
+        // Closed means GONE: the strip goes back to the camera, and the field returns only when
+        // the household taps "✏️ Scrivi codice" (see `_medCodeRowOpen`).
+        row.hidden = true;
         row.classList.remove('is-wanted');
         if (resume) resume.hidden = true;
-        // Back under the camera while the reader runs (always available to type).
+        // Back under the camera, ready for the next tap (never left inside the hidden card).
         if (bar && row.parentElement !== bar) bar.appendChild(row);
     }
 }
@@ -20062,6 +20212,34 @@ function _medAskCodeSoon() {
     }, 20000);
 }
 
+/**
+ * "✏️ Scrivi codice": the household asks for the field, so it appears under the camera.
+ *
+ * A toggle, because the same button must be able to put it away again: the reader keeps
+ * running while it is open (a box in the other hand may still be recognised), and the
+ * twenty-second rescue card is cancelled — the answer is already on its way by hand.
+ */
+function _medCodeRowOpen() {
+    if (!_scanModeIsMedical()) return;
+    const row = document.getElementById('scan-med-code-row');
+    const ask = document.getElementById('scan-med-ask');
+    const input = document.getElementById('scan-med-code-input');
+    if (!row) return;
+    const inlineOpen = !row.hidden && row.parentElement !== ask;
+    if (inlineOpen) {
+        _medShowAsk(false);
+        _medAskCodeSoon();   // the reader gets its rescue clock back
+        scanLog('Medicine: the hand entry was closed by the household');
+        return;
+    }
+    if (_medAskCodeTimer) { clearTimeout(_medAskCodeTimer); _medAskCodeTimer = null; }
+    _medShowAsk(false);
+    row.hidden = false;
+    row.classList.remove('is-wanted');
+    try { input?.focus({ preventScroll: true }); } catch (e) { /* no keyboard */ }
+    scanLog('Medicine: the hand entry was opened by the household');
+}
+
 /** Back to the camera after the code prompt stopped it. */
 function _medResumeScan() {
     const row = document.getElementById('scan-med-code-row');
@@ -20071,7 +20249,9 @@ function _medResumeScan() {
     _medShowAsk(false);
     _setScanStatus(t('medical.ocr_reading'), 'retry', t('scan.method_med_ocr'));
     scanLog('Medicine: reader resumed by the household');
-    initScanner();
+    // Only restart what the rescue card stopped: the field can be opened while the camera has
+    // never left, and a second `initScanner()` would open a second stream.
+    if (!scannerStream) initScanner();
     _medAskCodeSoon();
 }
 
@@ -26143,6 +26323,52 @@ function _moveCountdownMetaHtml(labelHtml) {
 }
 
 /**
+ * "Se è finito è finito": is there really a portion with a place of its own to ask about?
+ *
+ * The question exists for the part of a PACK that was opened and has to go somewhere (the
+ * milk to the fridge). Asked about nothing it becomes rhetorical, so it is skipped when
+ *  - nothing is left (`remaining` not above zero) — the product is finished;
+ *  - what is left is a trace the pantry itself calls finished (`isInventoryDepleted`), so
+ *    the shelf already shows the product as gone;
+ *  - the row counts PIECES and the pieces left are whole: no pack was opened, and three
+ *    eggs left are still three eggs on the same shelf — "la confezione aperta" would be a
+ *    lie (a half piece, however, IS an opened one).
+ *
+ * An unknown `remaining` never silences the question: there the caller's own gate decides.
+ *
+ * @param {number|string|undefined} remaining stock left of the portion that would move
+ * @param {string} [unit] the row's unit ('pz', 'conf', 'g'…)
+ * @returns {boolean}
+ */
+function _movePromptHasPortion(remaining, unit) {
+    if (remaining === undefined || remaining === null || remaining === '') return true;
+    const qty = Number(remaining);
+    if (!Number.isFinite(qty)) return true;
+    if (!(qty > 0)) return false;
+    const u = String(unit || '').toLowerCase();
+    if (!u) return true;
+    if (isInventoryDepleted({ quantity: qty, unit: u })) return false;
+    if (u === 'pz' && Math.abs(qty - Math.round(qty)) < 1e-6) return false;
+    return true;
+}
+
+/**
+ * How much would really stay on the shelf after a use — the figure the move question is
+ * about: the smaller of the row's own remainder and the product's total. A finished product
+ * is 0, and a trace stays a trace even when another pack sits in the other room. Unknown
+ * figures are ignored; with none known the callers' own gate decides (`undefined`).
+ *
+ * @param {object} result the `inventory_use` answer
+ * @returns {number|undefined}
+ */
+function _leftoverAfterUse(result) {
+    const rowLeft = Number((result || {}).remaining);
+    const totalLeft = Number((result || {}).total_remaining);
+    const known = [rowLeft, totalLeft].filter(Number.isFinite);
+    return known.length ? Math.min(...known) : undefined;
+}
+
+/**
  * "Dove l'hai messa?" — the question after a pack has been opened.
  *
  * It is ALWAYS asked. An opened pack has a place of its own (the fridge, not the pantry)
@@ -26151,11 +26377,22 @@ function _moveCountdownMetaHtml(labelHtml) {
  * and the control carrying it drains: 10 s to disagree when there is a precedent, 20 s
  * when there is none (then the pack simply stays where it was).
  *
+ * A finished product is never asked about: with no portion left to place, there is no
+ * question (`_movePromptHasPortion`), and the caller's landing still happens.
+ *
  * @param {object} cfg { mode:'use'|'recipe', productId, name, category, fromLoc, openedId,
- *                       wasVacuum, isMedical, question, landing }
+ *                       wasVacuum, isMedical, question, landing, remaining, unit }
  */
 function _showMovePrompt(cfg) {
     clearMoveModalTimer();
+    if (!_movePromptHasPortion(cfg.remaining, cfg.unit)) {
+        // Nothing to place: drop the half-built context and honour where the caller wanted
+        // to land, so a finished product never strands the household on a dead screen.
+        _movePromptCtx = null;
+        _pendingMoveCtx = null;
+        if (cfg.landing) showPage(cfg.landing);
+        return;
+    }
     _movePromptCtx = cfg;
     const locMeta = (key) => LOCATIONS[normalizeLocationKey(key)] || { icon: '📦', label: key };
     const fromLabel = locMeta(cfg.fromLoc).label;
@@ -26274,6 +26511,10 @@ function showMoveAfterUseModal(product, fromLoc, remaining, openedId, openedVacu
         openedId: openedId || 0,
         wasVacuum: !!(openedVacuumSealed ?? (product && product.vacuum_sealed)),
         isMedical: _isMedicalRow(product),
+        // What is left to place: a finished product ("remaining" at zero, or a trace the
+        // pantry already calls gone) is never asked about.
+        remaining: remaining,
+        unit: unit || '',
         question: t('move.question')
             .replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest'))
             .replace('{name}', `<strong>${escapeHtml((product && product.name) || '')}</strong>`),
@@ -26652,8 +26893,11 @@ async function _submitUseOneConf(location) {
             }
             _recordUseLocationChoice(currentProduct.id, location);
             const _vacUnit = result.product_unit || currentProduct?.unit || '';
-            const moveCallback = result.remaining > 0
-                ? () => showMoveAfterUseModal(currentProduct, location, result.remaining, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
+            // "Se è finito è finito": only a portion that really stays on the shelf is asked
+            // about; the guard inside `_showMovePrompt` reads the same figure.
+            const leftover = _leftoverAfterUse(result);
+            const moveCallback = leftover > 0
+                ? () => showMoveAfterUseModal(currentProduct, location, leftover, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
                 : () => showPage('dashboard');
             showLowStockBringPrompt(result, moveCallback);
         } else if (result.duplicate) {
@@ -26769,8 +27013,9 @@ async function submitUse(e) {
             const usedFrom = document.getElementById('use-location').value;
             _recordUseLocationChoice(currentProduct.id, usedFrom); // track for preferred-location feature
             const _vacUnit = result.product_unit || currentProduct?.unit || '';
-            const moveCallback = result.remaining > 0
-                ? () => showMoveAfterUseModal(currentProduct, usedFrom, result.remaining, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
+            const leftover = _leftoverAfterUse(result);
+            const moveCallback = leftover > 0
+                ? () => showMoveAfterUseModal(currentProduct, usedFrom, leftover, result.opened_id, result.opened_vacuum_sealed ?? 0, _vacUnit)
                 : () => showPage('dashboard');
             // Check low stock → Bring! prompt, then move/vacuum modal
             showLowStockBringPrompt(result, moveCallback);
@@ -32350,7 +32595,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
                         <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${step}" step="${step}" class="qty-input"
-                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
+                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none'; _recipeUseSyncFractions();">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                     </div>
                     <span class="qty-unit-badge" id="ruse-quantity-unit" aria-live="polite">${escapeHtml(subLabel)}</span>
@@ -32367,7 +32612,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                     <div class="qty-control">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(-1)">−</button>
                         <input type="number" id="ruse-quantity" value="${defaultQtyValue}" min="${inputMin}" step="any" class="qty-input"
-                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none';">
+                               oninput="_scaleRecipeAutoFillPaused=true; _cancelScaleAutoConfirm(false); var h=document.getElementById('ruse-scale-hint'); if(h) h.style.display='none'; _recipeUseSyncFractions();">
                         <button type="button" class="qty-btn" onclick="adjustRecipeUseQty(1)">+</button>
                     </div>
                     <span class="qty-unit-badge" id="ruse-quantity-unit" aria-live="polite">${escapeHtml(unitLabel)}</span>
@@ -32417,7 +32662,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div class="ruse-modal">
-                <p class="ruse-product-name">${escapeHtml(items[0].name)}</p>
+                <div class="ruse-product-head item-detail-header-row" id="ruse-head-slot"></div>
                 <div class="ruse-target-card">
                     <span class="ruse-target-label">${escapeHtml(t('recipes.need_for_recipe'))}</span>
                     <div class="ruse-target-value">${escapeHtml(_fmtRecipeUseQty(targetQty))}<span class="ruse-target-unit">${escapeHtml(targetUnit)}</span></div>
@@ -32432,6 +32677,7 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
                 <div class="form-group ruse-qty-block">
                     <label>${t('recipes.amount_label')}?</label>
                     ${qtySection}
+                    <div id="ruse-frac-slot"></div>
                     <small id="ruse-scale-hint" class="ruse-scale-hint"></small>
                 </div>
                 <div class="ruse-actions">
@@ -32446,6 +32692,8 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
         `;
         _showModalOverlay();
         syncRecipeUseQtyUnitBadge();
+        _recipeUseSyncHead();
+        _recipeUseSyncFractions();
         if (showScaleLive) _updateRecipeUseScaleCompare(null);
 
     } catch (err) {
@@ -32454,10 +32702,200 @@ async function useRecipeIngredient(idx, productId, location, qtyNumber, btn, rec
     }
 }
 
+/**
+ * The pantry row the sheet is about: the one on the shelf the household has open.
+ * Used by the head (thumb, brand, placed facts) so it never describes another place.
+ */
+function _recipeUseItemAtLoc() {
+    const items = (_recipeUseContext && _recipeUseContext.items) || [];
+    if (!items.length) return null;
+    const locEl = document.getElementById('ruse-location');
+    const loc = locEl ? locEl.value : '';
+    const at = loc ? items.filter(i => i.location === loc) : items;
+    if (!at.length) return items[0];
+    return at.find(i => _isOpenedInventoryItem(i) && (parseFloat(i.quantity) || 0) > 0)
+        || at.find(i => (parseFloat(i.quantity) || 0) > 0)
+        || at[0];
+}
+
+/**
+ * Head of the recipe "Usa" sheet — the same grammar as the product sheet: thumbnail, name,
+ * brand and the facts of the row (place, opened for N days, vacuum, expiry verdict).
+ *
+ * A bare title asked the household to book a use of a product it could not recognise:
+ * two milks of two brands, one already opened, were the same line on screen.
+ */
+function _recipeUseHeadHtml() {
+    const item = _recipeUseItemAtLoc();
+    if (!item) return '';
+    const isMed = _isMedicalRow(item);
+    const locInfo = LOCATIONS[normalizeLocationKey(item.location)] || { icon: '📦', label: item.location };
+    const bits = [];
+    if (item.opened_at) {
+        if (isMed) {
+            bits.push(escapeHtml(t('medical.state_opened')));
+        } else {
+            const pao = _openedPao(item);
+            const daysOpen = (pao && pao.days_open != null)
+                ? Number(pao.days_open)
+                : Math.max(0, Math.floor((Date.now() - new Date(item.opened_at).getTime()) / 86400000));
+            bits.push(escapeHtml(t('inventory.opened_for_days', { n: daysOpen })));
+        }
+    }
+    if (!isMed && item.vacuum_sealed) bits.push(escapeHtml(t('inventory.vacuum_badge')));
+    const expiryChip = _itemDetailExpiryChip(item);
+    const catSlug = mapToLocalCategory(item.category, item.name, item.brand);
+    const catText = (catSlug && catSlug !== 'altro') ? categoryText(catSlug) : '';
+    const brand = item.brand
+        ? ` <span class="item-detail-brand-inline">(${escapeHtml(item.brand)})</span>`
+        : '';
+    return `<div class="item-detail-image">
+            ${_validProductImageUrl(item.image_url)
+                ? `<img src="${escapeAttr(item.image_url)}" alt="">`
+                : `<span class="item-detail-emoji">${_productCatIconHtml(item)}</span>`}
+        </div>
+        <div class="item-detail-header-text">
+            <h3 class="item-detail-title">${escapeHtml(item.name)}${brand}</h3>
+            ${catText ? `<p class="item-detail-brand">${escapeHtml(catText)}</p>` : ''}
+            <p class="item-detail-loc-line"><span aria-hidden="true">${isMed ? '💊' : '📍'}</span> ${escapeHtml(locInfo.label)}${bits.length ? ` · ${bits.join(' · ')}` : ''}${expiryChip ? ` · ${expiryChip}` : ''}</p>
+        </div>`;
+}
+
+/** Redraw the head: opening the sheet and whenever the place changes. */
+function _recipeUseSyncHead() {
+    const slot = document.getElementById('ruse-head-slot');
+    if (!slot) return;
+    slot.innerHTML = _recipeUseHeadHtml();
+}
+
 function selectRecipeUseLoc(btn, loc) {
     btn.parentElement.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('ruse-location').value = loc;
+    // The chips are measured on the place that is open: another shelf, another amount.
+    _recipeUseSyncHead();
+    _recipeUseSyncFractions();
+}
+
+/**
+ * How much of the product sits in the place the sheet has selected, in the row's own
+ * unit. The chips are capped by this: a fraction the shelf cannot give is not offered.
+ */
+function _recipeUseStockAtLoc() {
+    const items = (_recipeUseContext && _recipeUseContext.items) || [];
+    const locEl = document.getElementById('ruse-location');
+    const loc = locEl ? locEl.value : '';
+    return items
+        .filter(i => (!loc || i.location === loc) && (parseFloat(i.quantity) || 0) > 0)
+        .reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0);
+}
+
+/** "Tutto (…)": the two labels of the product sheet, in the recipe sheet's units. */
+function _recipeUseAllChipLabel(n, label, kind) {
+    return kind === 'count'
+        ? t('inventory.detail_chip_all', { n: _itemDetailFmtQty(n) })
+        : t('inventory.detail_chip_all_stock', { n: _itemDetailFmtQty(n), unit: label });
+}
+
+/**
+ * How much the sheet's field can take from the selected place, in the field's own unit:
+ * packs (or the pack's own measure) for a packaged product, the row's unit otherwise.
+ * `0` means the shelf is empty and no chip can be offered.
+ */
+function _recipeUseFractionMaxEntry() {
+    const ctx = _recipeUseContext || {};
+    if (!ctx.items || !ctx.items.length) return 0;
+    const stock = _recipeUseStockAtLoc();
+    if (!(stock > 0)) return 0;
+    const conf = _recipeUseConfMode;
+    if (conf && conf.packageSize > 0) {
+        // The field speaks either the pack's own measure (sub) or the packs themselves.
+        return conf._activeUnit !== 'conf' ? stock * conf.packageSize : stock;
+    }
+    return stock;
+}
+
+/**
+ * Fraction chips of the recipe "Usa" sheet.
+ *
+ * Same grammar as the product sheet — ½ / 1 / 2 pieces, a quarter / half / whole pack,
+ * the pack's own measure — but measured on the place the household picked, so a chip is
+ * never a tap that asks for more than that shelf holds.
+ *
+ * @returns {Array<{value:number,label:string}>}
+ */
+function _recipeUseFractionOptions() {
+    const ctx = _recipeUseContext || {};
+    const maxEntry = _recipeUseFractionMaxEntry();
+    if (!(maxEntry > 0)) return [];
+    const conf = _recipeUseConfMode;
+    if (conf && conf.packageSize > 0) {
+        const inSub = conf._activeUnit !== 'conf';
+        const pu = String(conf.packageUnit || '').toLowerCase();
+        const continuous = pu === 'g' || pu === 'ml' || pu === 'kg' || pu === 'l';
+        if (inSub && !continuous) {
+            // A pack counted in pieces ("confezione da 6"): the field counts pieces, so the
+            // chips are pieces too — a quarter of that pack would read "1,5 uova".
+            return _fractionChipOptions({
+                unit: 'pz',
+                maxEntry: maxEntry,
+                format: _itemDetailFmtQty,
+                allLabel: _recipeUseAllChipLabel,
+            });
+        }
+        return _fractionChipOptions({
+            unit: 'conf',
+            maxEntry: maxEntry,
+            packBase: inSub ? conf.packageSize : 0,
+            packUnit: conf.packageUnit,
+            format: _itemDetailFmtQty,
+            allLabel: _recipeUseAllChipLabel,
+        });
+    }
+    const unit = String((ctx.items[0] || {}).unit || 'pz');
+    return _fractionChipOptions({
+        unit: unit,
+        maxEntry: maxEntry,
+        measureLabel: unit,
+        format: _itemDetailFmtQty,
+        allLabel: _recipeUseAllChipLabel,
+    });
+}
+
+/** The chip row itself — '' when this shelf offers nothing to split. */
+function _recipeUseFractionsHtml() {
+    const maxEntry = _recipeUseFractionMaxEntry();
+    const opts = maxEntry > 0 ? _recipeUseFractionOptions() : [];
+    // A lonely chip earns a row only when it is a FRACTION: when it just repeats what is
+    // left ("Tutto") the "Usa tutto" button below already says it.
+    const onlyAll = opts.length === 1 && Math.abs(opts[0].value - maxEntry) < 1e-6;
+    if (!opts.length || onlyAll) return '';
+    const input = document.getElementById('ruse-quantity');
+    const current = Math.round((parseFloat(input && input.value) || 0) * 100) / 100;
+    return `<div class="item-detail-frac-row">` + opts.map(o => {
+        const on = Math.abs(o.value - current) < 0.005;
+        return `<button type="button" class="item-detail-frac${on ? ' is-on' : ''}" data-frac="${o.value}" onclick="_recipeUseSetFraction(${o.value})">${escapeHtml(o.label)}</button>`;
+    }).join('') + `</div>`;
+}
+
+/** Redraw the chips: opening the sheet, another place, the unit switch, typing. */
+function _recipeUseSyncFractions() {
+    const slot = document.getElementById('ruse-frac-slot');
+    if (!slot) return;
+    slot.innerHTML = _recipeUseFractionsHtml();
+}
+
+/** One of the shortcuts: the number goes into the field the sheet is showing. */
+function _recipeUseSetFraction(value) {
+    const input = document.getElementById('ruse-quantity');
+    const v = Math.round(Number(value) * 100) / 100;
+    if (!input || !(v > 0)) return;
+    _scaleRecipeAutoFillPaused = true;
+    _cancelScaleAutoConfirm(false);
+    const hint = document.getElementById('ruse-scale-hint');
+    if (hint) hint.style.display = 'none';
+    input.value = v;
+    _recipeUseSyncFractions();
 }
 
 function switchRecipeUseUnit(mode) {
@@ -32496,6 +32934,7 @@ function switchRecipeUseUnit(mode) {
         }
     }
     syncRecipeUseQtyUnitBadge();
+    _recipeUseSyncFractions();
     const targetEl = document.querySelector('.ruse-target-value');
     if (targetEl && _recipeUseContext) {
         targetEl.innerHTML = `${escapeHtml(_fmtRecipeUseQty(_recipeUseContext.targetQty))}<span class="ruse-target-unit">${escapeHtml(_recipeUseContext.targetUnit)}</span>`;
@@ -32521,6 +32960,7 @@ function adjustRecipeUseQty(direction) {
     }
     val = Math.max(step, val + direction * step);
     input.value = Math.round(val * 1000) / 1000;
+    _recipeUseSyncFractions();
 }
 
 async function submitRecipeUse(useAll) {
@@ -32608,11 +33048,16 @@ async function submitRecipeUse(useAll) {
             }
             
             const usedLocation = result.used_location || location;
-            const moveCallback = result.remaining > 0
+            // "Se è finito è finito": the place question belongs to a portion that really
+            // stays on the shelf. A product finished everywhere (total left at zero, or a
+            // trace the pantry already hides) is not asked about at all.
+            const leftover = _leftoverAfterUse(result);
+            const rowUnit = cachedItems[0]?.unit || '';
+            const moveCallback = leftover > 0
                 ? () => setTimeout(() => {
                     const itemAtLoc = cachedItems.find(i => i.location === usedLocation);
                     const wasVacuum = !!(itemAtLoc?.vacuum_sealed);
-                    showRecipeMoveModal(productId, usedLocation, result.remaining, result.opened_id, wasVacuum);
+                    showRecipeMoveModal(productId, usedLocation, leftover, result.opened_id, wasVacuum, rowUnit);
                   }, 300)
                 : null;
             setTimeout(() => showLowStockBringPrompt(result, moveCallback), 300);
@@ -32630,7 +33075,7 @@ async function submitRecipeUse(useAll) {
     _recipeUseContext = null;
 }
 
-function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum) {
+function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum, unit) {
     // A recipe ingredient is food: the cabinet is never offered. The question is the same
     // one the pantry asks (presumed answer + draining bar), never a silent move.
     const category = String((currentProduct && currentProduct.category) || '');
@@ -32644,6 +33089,9 @@ function showRecipeMoveModal(productId, fromLoc, remaining, openedId, wasVacuum)
         openedId: openedId || 0,
         wasVacuum: !!wasVacuum,
         isMedical: false,
+        // A finished ingredient has nothing to place: the question is skipped by the guard.
+        remaining: remaining,
+        unit: unit || '',
         question: t('move.question_short').replace('{thing}', openedId ? t('move.thing_opened') : t('move.thing_rest')),
         landing: null,
     });

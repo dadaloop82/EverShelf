@@ -446,12 +446,18 @@ body {
 }
 
 .loc-food-menu {
-    position: absolute;
-    z-index: 40;
-    top: calc(100% + 6px);
+    /* The strip that hosts this button scrolls horizontally (`.location-tabs` is
+       `overflow-x: auto`), and an `overflow` that is not `visible` clips an absolutely
+       positioned child: tapping the pill opened the menu *out of sight*, which read as
+       "the dropdown does not work". It is a fixed layer now, anchored to the trigger by
+       `_locFoodMenuPlace()` (top/left/width), so no ancestor can clip it. */
+    position: fixed;
+    z-index: 60;
+    top: 0;
     left: 0;
-    right: 0;
+    right: auto;
     min-width: 220px;
+    max-width: min(92vw, 320px);
     max-height: min(60vh, 360px);
     overflow: auto;
     padding: 6px;
@@ -1949,6 +1955,16 @@ body {
    throw it, or use it up — while the ⋮ opens the rest in place (nothing hidden, one tap). */
 .alert-banner.banner-opened { border-left-color: var(--tone-soon); }
 .alert-banner.banner-opened.is-critical { border-left-color: var(--tone-danger); }
+/* "Aperto da 26 giorni" on a wine is not a spoilage alarm: the data calls it an ingredient
+   (`cook_only`), so the rail wears the colour of the answer that writes the outcome and the
+   hint line says what it is still good for. */
+.alert-banner.banner-opened.is-cook { border-left-color: var(--brand-primary); }
+.alert-banner.banner-opened .banner-cook-hint {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+}
 .alert-banner.banner-opened .banner-verdict { margin-top: 6px; }
 .alert-banner-actions .btn-banner-more {
     min-width: var(--touch-min);
@@ -2398,19 +2414,21 @@ a.free-api:hover { border-color: var(--brand-primary); }
     font-weight: 700;
 }
 .alert-banner-actions .btn-banner-ok,
-.alert-banner-actions .btn-banner-confirm {
+.alert-banner-actions .btn-banner-confirm,
+.alert-banner-actions .btn-banner-cook {
     background: var(--brand-primary);
     border-color: var(--brand-primary);
     color: #fff;
 }
 .alert-banner-actions .btn-banner-ok:active,
-.alert-banner-actions .btn-banner-confirm:active { background: var(--brand-primary-hover); }
+.alert-banner-actions .btn-banner-confirm:active,
+.alert-banner-actions .btn-banner-cook:active { background: var(--brand-primary-hover); }
 .alert-banner-actions .btn-banner-throw-primary {
     background: var(--tone-danger);
     border-color: var(--tone-danger);
     color: #fff;
 }
-[data-theme="dark"] .alert-banner-actions .btn-banner:not(.btn-banner-ok):not(.btn-banner-confirm):not(.btn-banner-use):not(.btn-banner-throw-primary) {
+[data-theme="dark"] .alert-banner-actions .btn-banner:not(.btn-banner-ok):not(.btn-banner-confirm):not(.btn-banner-cook):not(.btn-banner-use):not(.btn-banner-throw-primary) {
     background: #1E293B;
     color: #CBD5E1;
     border-color: var(--surface-border);
@@ -3355,6 +3373,9 @@ a.free-api:hover { border-color: var(--brand-primary); }
 #page-scan.is-medical-scan #scan-ai-manual-btn,
 #page-scan.is-medical-scan #scan-search-btn,
 #page-scan.is-medical-scan #scan-manual-btn { display: none !important; }
+/* The hand entry of the medicine panel lives behind its own button: in the food panel it does
+   not exist, and the strip stays the camera's. */
+#page-scan:not(.is-medical-scan) #scan-med-code-open { display: none !important; }
 /* The medicine panel reads a LABEL, not a barcode: the particle cloud, the corner frame and the
    sweeping red line belong to the barcode hunt and only add noise here. What replaces them is
    one rectangle that says where to aim and what the app expects to see inside it. */
@@ -3776,6 +3797,10 @@ button.scan-med-name-hit:focus-visible {
     border-color: var(--brand-primary);
     box-shadow: inset 0 0 0 1px var(--brand-primary);
     color: var(--brand-primary);
+}
+/* Recipe "Usa" sheet: the same quick chips, sitting right under its stepper. */
+.ruse-qty-block .item-detail-frac-row {
+    margin: 10px 0 0;
 }
 /* Pack ⇄ measure switch of the consume sheet ("Confezioni | ml"): a neutral selector, so
    the only emerald in the strip stays the button that writes the outcome. */

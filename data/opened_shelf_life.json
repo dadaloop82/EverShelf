@@ -46,6 +46,7 @@
         {
             "id": "spirits",
             "match": ["sambuca", "rum", "brandy", "whisky", "whiskey", "vodka", "gin", "grappa", "amaro", "aperol", "campari", "limoncello", "cognac", "porto", "marsala", "amaretto", "vermouth", "liquore*"],
+            "icon": "🥃",
             "frigo":    { "warn": 365, "critical": 730 },
             "dispensa": { "warn": 365, "critical": 730 },
             "freezer":  { "warn": 3650, "critical": 9999 }
@@ -53,6 +54,9 @@
         {
             "id": "wine",
             "match": ["vino*", "wine*", "wein*", "vin*", "prosecco", "spumante", "chardonnay", "trebbiano", "sangiovese", "merlot", "pinot", "cabernet", "barolo", "chianti"],
+            "icon": "🍷",
+            "cook_after": 10,
+            "cook_hint_key": "dashboard.banner_opened_cook_hint",
             "frigo":    { "warn": 4, "critical": 10 },
             "dispensa": { "warn": 3, "critical": 7 },
             "freezer":  { "warn": 365, "critical": 730 }
@@ -60,6 +64,7 @@
         {
             "id": "beer",
             "match": ["birra*", "beer*", "bier*", "bière*", "cerveza*"],
+            "icon": "🍺",
             "frigo":    { "warn": 2, "critical": 5 },
             "dispensa": { "warn": 1, "critical": 3 },
             "freezer":  { "warn": 365, "critical": 730 }

@@ -5,6 +5,46 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.11] - 2026-11-05
+
+### Fixed
+- **A wine open for 26 days is no longer a bin job.** The post-opening clock called every
+  drink past its drinking window «probabilmente andato» and painted **🗑️ Butta** as the red
+  primary. For cooking an opened white wine keeps for months, so the family now declares
+  `cook_after` (10 days) in `data/opened_shelf_life.json`: the server answers `cook_only`
+  plus the hint key, the strip leads with the emerald **🍳 Usa per cucinare**
+  (`bannerUseInRecipe()`), **🗑️ Butta** stays *inline* as a neutral secondary, the drinking
+  window is no longer printed and `_bannerPriority` drops the row below one that is really
+  spoiled. The notice is a sentence, not a verdict («ha perso il profumo da tavola, ma è
+  perfetto per sfumare e insaporire») — and it stays deterministic: no model call, no network.
+- **A wine is 🍷, not 🥤.** `category` is the shelf a product sits on, not what it is: every
+  drink is `bevande`, so the generic fast-food cup was drawn on a bottle of Trebbiano. Each
+  PAO family now carries its own `icon`; the pantry row (`family_icon`) and the clock
+  (`pao.icon`) hand it over and `_productFamilyIcon()` puts it in the 44×44 tile — beer is 🍺,
+  spirits 🥃, a soft drink keeps the category emoji.
+- **The pantry place menu opens.** The pill «📍 Tutte le locazioni ▾» answered nothing,
+  because the menu was `position: absolute` inside `.location-tabs` — a strip with
+  `overflow-x: auto`, which clips its own children: the tap *did* open it, out of sight. It is
+  now a fixed layer anchored to the trigger (`_locFoodMenuPlace()`), flips above the strip
+  when there is no room below, and closes on scroll/resize (the first 350 ms forgiven, so a
+  tap that scrolls its own button into view does not slam it shut).
+- **The medicine panel keeps the whole camera.** The `A [ 040313076 ] [Conferma]` row was
+  anchored under the viewfinder of every medicine scan, stealing space and reading as a
+  barcode field. It now lives behind **✏️ Scrivi codice** (`#scan-med-code-open`, a toggle that
+  puts it away again with the same tap) and appears by itself only in the twenty-second rescue
+  card, when the reader really cannot win. Nothing is asked to the household that the panel
+  already knows: an EAN goes to the food catalogue, an AIC/Code 32 to the medicine form.
+
+### Changed
+- The recipe **«Usa»** sheet opens with the product's own facts — thumbnail, name, brand,
+  category, place, opened days, vacuum and the expiry verdict of the shelf the selector has
+  open (`_recipeUseHeadHtml` / `_recipeUseSyncHead`) — instead of a bare title, and its
+  fraction chips follow the quantity typed or weighed (`_recipeUseSyncFractions`).
+- A partial use asks where the opened pack went only when a portion really stays on the
+  shelf: `_leftoverAfterUse()` reads the smallest of `remaining` / `total_remaining`, so
+  «se è finito è finito» — nothing left, a trace, or a `pz` row with whole pieces — skips the
+  question without stranding the caller.
+
 ## [1.29.10] - 2026-11-03
 
 ### Fixed

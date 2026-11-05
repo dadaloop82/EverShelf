@@ -5141,6 +5141,15 @@ function listInventory(PDO $db): void {
             (string)($row['unit'] ?? ''),
             (string)($row['kind'] ?? '')
         );
+        // A wine is not a soft drink: the PAO table knows the families and their own marks, so
+        // the row can wear 🍷 instead of the category's generic 🥤. Only beverages are asked —
+        // anything else falls straight through to its category emoji.
+        if (mb_strtolower(trim((string)($row['category'] ?? ''))) === 'bevande') {
+            $familyIcon = openedShelfLifeFamilyIcon((string)$row['name'], (string)$row['category']);
+            if ($familyIcon !== '') {
+                $row['family_icon'] = $familyIcon;
+            }
+        }
     }
     unset($row);
     EverLog::debug('inventory_list fetched', [

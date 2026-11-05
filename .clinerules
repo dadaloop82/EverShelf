@@ -63,6 +63,13 @@ runtime/binary files — if a task truly needs one, ask first.
 - **The shelf wins over the guess.** The anomaly banner's primary is `confirmBannerAnomaly`
   (`✓ Confermo {inv_qty}`: it writes nothing, the ledger figure is a guess), and dry staples
   (`evershelfIsDurableStaple`, ≥ 180 days sealed) raise no predictive notice at all.
+- **A drink past its drinking window is an ingredient.** When the PAO table declares
+  `cook_after` (the wine family, 10 days) the summary carries `cook_only` + `cook_hint_key`:
+  the opened strip leads with the emerald **🍳 Usa per cucinare**, **🗑️ Butta** stays inline
+  as a neutral secondary, the drinking window is not printed and the row drops below a really
+  spoiled one (`_bannerPriority` 1400+). Recommending the bin on 126 ml of white wine is the
+  opposite of what a pantry is for. The same table carries each family's `icon` (🍷/🍺/🥃) →
+  `pao.icon` / the pantry's `family_icon` / `_productFamilyIcon()`: a wine is never 🥤.
 - **A `conf` row has two units.** A pack sold in g/ml (`_packMeasure()` from
   `default_quantity` + `package_unit`) is consumed by the pack **and** by its own
   measure: the product sheet carries the `Confezioni | ml` switch
@@ -79,6 +86,12 @@ runtime/binary files — if a task truly needs one, ask first.
   (then it stays where it was) — and any touch cancels the clock. Never apply a move in
   silence: `showMoveAfterUseModal(..., { stayPut: true })` from the product sheet keeps the
   household on the pantry instead of jumping to the dashboard.
+  **"Se è finito è finito":** the question belongs to a portion that really stays on the
+  shelf, so `_movePromptHasPortion(remaining, unit)` refuses it when nothing is left (`0`),
+  when the leftover is a trace the pantry itself already calls finished
+  (`isInventoryDepleted`), and when a `pz` row still holds whole pieces — no pack was opened,
+  and "la confezione aperta" about three eggs is a lie (a half piece still asks). A skipped
+  question never strands the caller: `landing` is honoured and both move contexts are cleared.
 - **Product titles** (`products.name`/`kind`) go exclusively through
   `mergeIncomingProductFields()` in `api/index.php` + `api/lib/product_kind.php`.
   Never add a second dictionary or write a title elsewhere.
