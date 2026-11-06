@@ -319,6 +319,10 @@
   "inventory": {
     "title": "Liste",
     "filter_all": "Alle",
+    "search_placeholder": "Liste durchsuchen",
+    "price_unavailable": "Für dieses Produkt liegt kein Preis vor",
+    "price_nd": "k.A.",
+    "price_total_partial": "Berechnet aus {n} bepreisten von {m} Artikeln",
     "view_filters": "Listenfilter",
     "search_placeholder": "🔍 Produkt suchen...",
     "clear_search": "Suche löschen",
@@ -885,6 +889,10 @@
     "save_favorite": "⭐ Zu Favoriten"
   },
   "shopping": {
+    "search_placeholder": "Liste durchsuchen",
+    "price_unavailable": "Für dieses Produkt liegt kein Preis vor",
+    "price_nd": "k.A.",
+    "price_total_partial": "Berechnet aus {n} bepreisten von {m} Artikeln",
     "spesa_done_title": "Einkauf abgeschlossen!",
     "spesa_done_count": "{n} Produkte im Vorrat gespeichert.",
     "spesa_done_ask": "Möchtest du die Gesamtsumme für die Monatsgrafik speichern?",

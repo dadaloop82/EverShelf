@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.7] - 2026-11-06
+
+### Added
+- **Search in the shopping list**, filtering as you type (accents and case ignored), 44 px tall.
+  The priority pills count what the search leaves, so a pill never promises a row you cannot see.
+- **The suggested products are on the list page** (collapsed strip at the bottom, one tap to add),
+  not only in the forecast tab.
+
+### Fixed
+- **A purchase from the list never reached the Storico.** `_shopRowBought()` wrote the stock to
+  `dispensa` — a place this household had **deleted** — so the server answered
+  "Invalid location" and no transaction was created (nothing to see, nothing to undo). It now
+  uses the place the product really lives in and falls back to a place that exists. Verified:
+  `inventory_add` → transaction `in` → visible in Storico → `transaction_undo` puts it back.
+- **Removed items came back.** `smart_shopping` did not consult the dismiss map: the next cache
+  rebuild put them in the suggestions again. The server skips them now, and the client filters
+  them out of the inline suggestions and the suggested strip too. This pantry's list went from
+  73 predicted rows to **47** once the dismissed products stopped being re-proposed.
+- **Missing prices said nothing.** A line without a price shows `n.d.` with the reason in the
+  tooltip instead of a mute dash, and the total explains itself on hover ("based on 66 priced
+  items out of 71").
+- The `Da comprare` section header (title + count) is gone: the count lives in the badge and in
+  the pills, and the header was a third place saying the same number.
+
 ## [1.30.6] - 2026-11-06
 
 ### Fixed

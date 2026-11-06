@@ -5063,6 +5063,31 @@ body:has(#page-scan.active) .app-content {
     font-size: 1rem;
 }
 
+/* Search: the way into a list of 70 rows that is not scrolling. */
+.shop-search-row {
+    flex: 0 0 auto;
+    display: flex;
+    margin-bottom: 2px;
+}
+.shop-search-input {
+    flex: 1 1 auto;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
+    color: var(--text-main, #0f172a);
+    font-size: 1rem;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.shop-search-input::placeholder { color: var(--text-muted, #94a3b8); }
+.shop-search-input:focus {
+    outline: none;
+    border-color: var(--brand-primary, #059669);
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}
+
 /* Priority pills of the shopping list. */
 .shop-filter-row {
     display: flex;

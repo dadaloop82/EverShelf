@@ -885,6 +885,10 @@
     "save_favorite": "⭐ Guardar en favoritos"
   },
   "shopping": {
+    "search_placeholder": "Buscar en la lista",
+    "price_unavailable": "No hay precio para este producto",
+    "price_nd": "n.d.",
+    "price_total_partial": "Calculado sobre {n} artículos con precio de {m}",
     "spesa_done_title": "¡Compra completada!",
     "spesa_done_count": "Has cargado {n} productos en la despensa.",
     "spesa_done_ask": "¿Quieres guardar el total para los gráficos mensuales?",

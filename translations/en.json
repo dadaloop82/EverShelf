@@ -885,6 +885,10 @@
     "save_favorite": "⭐ Save to favourites"
   },
   "shopping": {
+    "search_placeholder": "Search the list",
+    "price_unavailable": "No price available for this product",
+    "price_nd": "n/a",
+    "price_total_partial": "Based on {n} priced items out of {m}",
     "spesa_done_title": "Shopping done!",
     "spesa_done_count": "You loaded {n} products into the pantry.",
     "spesa_done_ask": "Do you want to save the total for the monthly charts?",

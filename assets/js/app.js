@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106t'; // bump when translations change
+const _I18N_VERSION = '20261106u'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106t';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106u';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106t';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106u';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29542,7 +29542,8 @@ async function fetchAllPrices(forceRefresh = false) {
                     };
                     if (badge) badge.innerHTML = _buildPriceBadgeHTML(entry, sym);
                 } else {
-                    if (badge) badge.innerHTML = `<span class="price-col-error">–</span>`;
+                    // No price is a FACT, not an empty cell: say it once, with the reason.
+                    if (badge) badge.innerHTML = `<span class="price-col-error" title="${escapeHtml(t('shopping.price_unavailable'))}">${escapeHtml(t('shopping.price_nd'))}</span>`;
                 }
             });
 
@@ -29555,6 +29556,13 @@ async function fetchAllPrices(forceRefresh = false) {
                     itemCount: shoppingItems.length,
                     pricedCount,
                 });
+                // A total computed on half the list must say so (hover on the figure).
+                const totalEl = document.getElementById('price-total-value');
+                if (totalEl) {
+                    totalEl.title = pricedCount < shoppingItems.length
+                        ? t('shopping.price_total_partial').replace('{n}', String(pricedCount)).replace('{m}', String(shoppingItems.length))
+                        : '';
+                }
             }
         }
     } catch (_err) {
@@ -30117,9 +30125,23 @@ function _renderShoppingDismissed(items) {
     }).join('');
 }
 
+/** Keys the household dismissed ("non serve"): the suggestions must respect them too. */
+let _shoppingDismissedKeys = new Set();
+
+function _shopIsDismissed(name, smartData) {
+    if (!_shoppingDismissedKeys || _shoppingDismissedKeys.size === 0) return false;
+    const candidates = [name, smartData?.shopping_name, smartData?.name]
+        .filter(Boolean)
+        .map((v) => _shopSearchNorm(v));
+    return candidates.some((c) => c !== '' && _shoppingDismissedKeys.has(c));
+}
+
 async function loadShoppingDismissed() {
     try {
         const res = await api('shopping_dismissed', {}, 'GET', null, {}, 8000);
+        _shoppingDismissedKeys = new Set(((res && res.success && Array.isArray(res.items)) ? res.items : [])
+            .map((r) => _shopSearchNorm(r.key || r.name || ''))
+            .filter(Boolean));
         _renderShoppingDismissed((res && res.success) ? res.items : []);
     } catch (e) {
         _renderShoppingDismissed([]);
@@ -30232,7 +30254,8 @@ function renderSmartShopping() {
  * household actually needs off the first screen. A tap puts one back in the list.
  */
 function _renderSmartSuggestedStrip() {
-    const rows = Array.isArray(smartShoppingSuggested) ? smartShoppingSuggested : [];
+    const rows = (Array.isArray(smartShoppingSuggested) ? smartShoppingSuggested : [])
+        .filter((i) => !_shopIsDismissed(i.name, i));
     if (!rows.length) return '';
     const chips = rows.slice(0, 12).map((it) => {
         const name = it.shopping_name || it.name || '';
@@ -31028,7 +31051,16 @@ async function _shopRowBought(idx) {
     const qty = Number(_shopRowBuyQty(item, smartData)) || 0;
     const buyUnit = String(smartData?.suggested_unit || '').toLowerCase();
     const ownUnit = String(smartData?.unit || '').toLowerCase();
-    const location = String(smartData?.locations || '').split(',')[0].trim() || 'dispensa';
+    // A place the household DELETED is not a place: the server refuses the write
+    // ("Invalid location") and the purchase never reached the Storico. Take the first
+    // place the product actually lives in, and fall back to a place that exists now.
+    const validLocs = Object.keys(LOCATIONS || {});
+    const location = String(smartData?.locations || '')
+        .split(',')
+        .map((v) => v.trim())
+        .find((v) => v && validLocs.includes(v))
+        || validLocs[0]
+        || 'frigo';
     if (productId > 0 && qty > 0 && (buyUnit === '' || buyUnit === ownUnit)) {
         try {
             const res = await api('inventory_add', {}, 'POST', {
@@ -31472,7 +31504,7 @@ function _renderShoppingSectionHead(secKey, secDef, count, collapsed) {
 }
 
 function _renderShoppingSuggestionsInline() {
-    const items = smartShoppingItems.filter(i => !i.on_bring);
+    const items = smartShoppingItems.filter(i => !i.on_bring && !_shopIsDismissed(i.name, i));
     if (!items.length) return '';
     const secKey = '__suggest__';
     const collapsed = !!_shoppingSectionsCollapsedGet()[secKey];
@@ -31516,6 +31548,37 @@ function _renderShoppingSuggestionsInline() {
  * that does not say how much it hides is a guess. One place control, one filter row.
  */
 let _shopUrgencyFilter = 'all';
+/** What is typed in the search box: a list of 70 rows needs a way in. */
+let _shopSearchTerm = '';
+
+/** Accent- and case-insensitive, so "caffe" finds "Caffè". */
+function _shopSearchNorm(str) {
+    return String(str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+/** True when a row matches the typed text (generic, product name or brand). */
+function _shopRowMatchesSearch(item, smartData, term) {
+    if (!term) return true;
+    const hay = _shopSearchNorm([
+        item?.name, item?.rawName, item?.raw_name, item?.specification,
+        smartData?.shopping_name, smartData?.name, smartData?.brand,
+    ].filter(Boolean).join(' '));
+    return hay.includes(term);
+}
+
+function _initShopSearchInput() {
+    const input = document.getElementById('shop-search-input');
+    if (!input || input._searchHandler) return;
+    input._searchHandler = debounce(() => {
+        _shopSearchTerm = _shopSearchNorm(input.value);
+        renderShoppingItems(true);
+    }, 140);
+    input.addEventListener('input', input._searchHandler);
+}
 
 function _shopUrgencyPillsMeta() {
     return [
@@ -31580,7 +31643,7 @@ async function renderShoppingItems(force = false) {
     if (shoppingItems.length === 0) {
         _setNavBadge('shopping', 0);
         _renderShopFilterRow([]);
-        countEl.textContent = 0;
+        if (countEl) countEl.textContent = 0;
         const tabCountEmpty = document.getElementById('tab-count-acquisto');
         if (tabCountEmpty) tabCountEmpty.textContent = 0;
         container.innerHTML = `<div class="empty-state" style="padding:20px"><div class="empty-state-icon">✅</div><p>${t('shopping.empty')}</p></div>`;
@@ -31604,14 +31667,20 @@ async function renderShoppingItems(force = false) {
     // shopping_list, so it lagged behind every add / bought / dismissed row and could
     // say 75 while the list had 71.
     _setNavBadge('shopping', enrichedAll.length);
-    _renderShopFilterRow(enrichedAll);
+    _initShopSearchInput();
+    // The search narrows what the pills count: a filter that ignores the search box
+    // would promise rows the user cannot see.
+    const searched = _shopSearchTerm
+        ? enrichedAll.filter((e) => _shopRowMatchesSearch(e.item, e.smartData, _shopSearchTerm))
+        : enrichedAll;
+    _renderShopFilterRow(searched);
     _initShopFilterRow();
     const enriched = _shopUrgencyFilter === 'all'
-        ? enrichedAll
-        : enrichedAll.filter((e) => (e.urgency || 'low') === _shopUrgencyFilter);
+        ? searched
+        : searched.filter((e) => (e.urgency || 'low') === _shopUrgencyFilter);
     const pantryRows = enriched;
 
-    countEl.textContent = enriched.length;
+    if (countEl) countEl.textContent = enriched.length;
     const tabCount = document.getElementById('tab-count-acquisto');
     if (tabCount) tabCount.textContent = enriched.length;
 
@@ -31670,6 +31739,8 @@ async function renderShoppingItems(force = false) {
     }
 
     html += _renderShoppingSuggestionsInline();
+    // "Suggeriti": what this pantry buys once in a while, one tap from the list.
+    html += _renderSmartSuggestedStrip();
     container.innerHTML = html;
     renderShoppingItems._lastSig = sig;
     _renderShoppingPlanDaysBar();

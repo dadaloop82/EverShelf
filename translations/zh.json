@@ -885,6 +885,10 @@
     "save_favorite": "⭐ 收藏食谱"
   },
   "shopping": {
+    "search_placeholder": "搜索清单",
+    "price_unavailable": "该商品暂无价格",
+    "price_nd": "无",
+    "price_total_partial": "按 {m} 项中的 {n} 项已定价商品计算",
     "spesa_done_title": "购物完成！",
     "spesa_done_count": "已存入 {n} 个产品。",
     "spesa_done_ask": "要保存总额用于月度图表吗？",

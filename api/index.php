@@ -20393,6 +20393,14 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         // Is already on Bring? check both product name and generic shopping name
         $onBring = _productOnBring($p['name'], $bringItems, $shoppingName);
 
+        // "Non serve" is a decision, and the smart list is what feeds the suggestions
+        // under the list: without this guard a dismissed product came back with the next
+        // cache rebuild, which is exactly what the household reported as "ricompare".
+        if (shoppingIsDismissed($db, (string)$shoppingName, (string)$p['name'])) {
+            $skippedOutOfSeason[] = (string)$shoppingName;   // logged with the same debug channel
+            continue;
+        }
+
         // Blocklisted after spesa — hide only when stock still covers the habit.
         // High-use staples that are empty / about to run out must reappear.
         if (bringIsPurchasedBlocked($db, $p['name'], $shoppingName)) {
