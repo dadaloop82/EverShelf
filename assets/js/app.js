@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106q'; // bump when translations change
+const _I18N_VERSION = '20261106r'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106q';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106r';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106q';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106r';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29898,15 +29898,8 @@ function _previewShoppingPlanDaysBar() {
     const v = parseInt(input.value, 10);
     if (v < 1 || v > 31) return;
     const label = document.getElementById('shopping-plan-days-label');
-    const def = getShoppingPlanDaysDefault();
     if (label) {
         label.innerHTML = t('shopping.plan_days_label').replace('{days}', `<strong>${v}</strong>`);
-    }
-    const hint = document.getElementById('shopping-plan-days-hint');
-    if (hint) {
-        hint.textContent = v === def
-            ? t('shopping.plan_days_auto').replace('{days}', def)
-            : t('shopping.plan_days_custom').replace('{days}', v);
     }
 }
 const _debouncedShoppingPlanDaysPreview = debounce(_previewShoppingPlanDaysBar, 300);
@@ -30003,25 +29996,11 @@ function _renderShoppingPlanDaysBar() {
     if (label) {
         label.innerHTML = t('shopping.plan_days_label').replace('{days}', `<strong>${days}</strong>`);
     }
-    const hint = document.getElementById('shopping-plan-days-hint');
-    if (hint) {
-        // The default is not a fixed 7 or 30: the server infers the household's real
-        // shopping cycle from the purchase history (plan_days_default). Saying so beats
-        // imposing a number nobody chose.
-        const base = days === def
-            ? t('shopping.plan_days_auto').replace('{days}', def) + ' ' + t('shopping.plan_days_inferred')
-            : t('shopping.plan_days_custom').replace('{days}', days);
-        // Fresh produce is planned on a week whatever the window says: saying the
-        // whole window is "the horizon" made the header claim 30 days over 3 bananas.
-        const fresh = Number(window._smartFreshHorizonDays) || 7;
-        hint.textContent = base + ' ' + t('shopping.plan_days_fresh').replace('{days}', fresh);
-    }
     const resetBtn = document.getElementById('shopping-plan-days-reset');
     if (resetBtn) {
+        // Back to the cycle the pantry lives on (inferred from the purchase history).
         resetBtn.style.display = isShoppingPlanDaysCustom() ? '' : 'none';
-        // "Auto (30gg)" was a hardcoded label that lied the moment the default moved:
-        // resetting goes back to the SERVER's cycle, whatever it is today.
-        resetBtn.textContent = t('shopping.plan_days_reset').replace('{days}', String(def));
+        resetBtn.textContent = t('shopping.plan_days_reset');
     }
 }
 

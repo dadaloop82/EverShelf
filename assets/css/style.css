@@ -5109,18 +5109,70 @@ body:has(#page-scan.active) .app-content {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
+    /* One row: money on the left, horizon on the right. They only stack when there is
+       genuinely no room (a phone), never to fill a wide screen with two half-empty
+       boxes. */
+    flex-wrap: nowrap;
     flex: 0 0 auto;
     margin-bottom: 2px;
 }
+@media (max-width: 620px) {
+    .shop-head-row { flex-wrap: wrap; }
+    .shop-head-row #shopping-price-bar,
+    .shop-head-row .shopping-plan-days-bar { flex: 1 1 100%; }
+}
 .shop-head-row #shopping-price-bar { flex: 1 1 200px; }
+/* The horizon is ONE line: the sentence, the number, the unit and the reset sit on the
+   same baseline. It used to stack a title, an explanatory sentence and a control row —
+   the tallest thing in a header where the products should be. */
 .shop-head-row .shopping-plan-days-bar {
     flex: 1 1 240px;
     margin: 0;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: nowrap;
     gap: 8px;
+    box-shadow: var(--shadow);
+}
+.shopping-plan-days-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-muted, #475569);
+    font-size: 0.84rem;
+    font-weight: 600;
+}
+.shopping-plan-days-label strong { color: var(--text-main, #0f172a); font-weight: 800; }
+.shopping-plan-days-input-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+.shopping-plan-days-unit {
+    font-size: 0.8rem;
+    color: var(--text-muted, #64748b);
+}
+.shop-plan-reset {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
+    color: var(--text-muted, #475569);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+}
+/* A phone has no room for a sentence and three controls on one line: the sentence goes
+   away, the number and the reset stay. */
+@media (max-width: 620px) {
+    .shopping-plan-days-label { display: none; }
 }
 
 /* "Suggeriti": the rarely bought products, out of the way and one tap each. */

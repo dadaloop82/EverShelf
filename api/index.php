@@ -19188,10 +19188,34 @@ function smartInferShoppingCycleDays(?PDO $db = null): ?int {
                 ORDER BY d ASC
             ")->fetchAll(PDO::FETCH_COLUMN);
             $days = array_values(array_filter(array_map('strval', $rows ?: [])));
-            for ($i = 1; $i < count($days); $i++) {
-                $g = (int)round((strtotime($days[$i]) - strtotime($days[$i - 1])) / 86400);
-                if ($g >= 3 && $g <= 45) {
+            // A SHOP is a cluster of days, not a day: food is put away over an evening,
+            // logged on the 3rd and again on the 4th. Counting every logged day as its
+            // own trip gave a 3-day "cycle" on a pantry that shops twice a month.
+            $trips = [];
+            $prevTs = null;
+            foreach ($days as $d) {
+                $ts = strtotime($d);
+                if ($ts === false) {
+                    continue;
+                }
+                if ($prevTs === null || ($ts - $prevTs) / 86400 > 2) {
+                    $trips[] = $d;
+                }
+                $prevTs = $ts;
+            }
+            for ($i = 1; $i < count($trips); $i++) {
+                $g = (int)round((strtotime($trips[$i]) - strtotime($trips[$i - 1])) / 86400);
+                if ($g >= 2 && $g <= 45) {
                     $gaps[] = $g;
+                }
+            }
+            // The interval still open (last trip → today) is evidence too: it is how long
+            // the household has been living off the last shop.
+            $last = end($trips);
+            if ($last) {
+                $open = (int)round((strtotime(date('Y-m-d')) - strtotime((string)$last)) / 86400);
+                if ($open >= 2 && $open <= 45) {
+                    $gaps[] = $open;
                 }
             }
         } catch (Throwable $e) {
@@ -19202,9 +19226,12 @@ function smartInferShoppingCycleDays(?PDO $db = null): ?int {
     if (count($gaps) < 2) {
         return null;
     }
-    sort($gaps);
-    $mid = (int)$gaps[(int)floor((count($gaps) - 1) / 2)];
-    return max(7, min(30, $mid));
+    // The household's own rhythm: the AVERAGE of the gaps between shopping days,
+    // including the interval still open (last shop → today). The last trip is part of
+    // the pattern — a pantry whose last shop was ten days ago is on a ten-day cycle,
+    // not on the one it had in spring. Clamped to a horizon a pantry can act on.
+    $mean = (int)round(array_sum($gaps) / count($gaps));
+    return max(7, min(30, $mean));
 }
 
 /**

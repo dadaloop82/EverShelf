@@ -5,6 +5,26 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.4] - 2026-11-06
+
+### Changed
+- **The header is ONE line.** The horizon block stacked a title, an explanatory sentence
+  ("Periodo personalizzato (30 giorni) I freschi si calcolano su 7 giorni") and a control row —
+  the tallest thing in a header where the products should be. The sentence is gone, the label,
+  the number, the unit and the reset sit on the same baseline, and the two boxes stay side by
+  side on any screen wider than a phone.
+- **The horizon is measured from the household, not typed by them.**
+  `smartInferShoppingCycleDays()` now clusters consecutive buy days into ONE trip (food is put
+  away over an evening: three logged days are not three shops) and includes the interval still
+  open — last shop → today — before averaging. On this pantry the 61 logged days are 5–6 trips
+  and the cycle comes out at **10 days**; the stored `shopping_plan_days` (a 30 that nobody
+  chose) was removed, so the app plans on the real rhythm and the label says "Quantità per 10
+  giorni". A household that prefers a fixed window can still type it — "Auto" brings it back.
+
+### Removed
+- `#shopping-plan-days-hint` and its four i18n keys from the code path (the strings stay in the
+  locale files, unused): a sentence that repeats the number next to it is not a hint.
+
 ## [1.30.3] - 2026-11-06
 
 ### Fixed
