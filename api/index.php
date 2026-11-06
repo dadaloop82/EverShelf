@@ -20415,14 +20415,11 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         );
         $qtyHorizon = (int)$horizonMeta['days'];
         $shelfCapped = !empty($horizonMeta['capped']);
-        // Fresh produce is planned on a WEEKLY horizon, never on the monthly window:
-        // a 30-day plan for bananas and oranges asks for fruit that rots in five days
-        // and makes the whole list look absurd. Dry goods keep the monthly window
-        // (a 1 kg bag of rice does not care about next Tuesday).
-        $freshHorizon = saleUnitsFreshHorizonDays();
-        if ($qtyHorizon > $freshHorizon && saleUnitsIsFresh((string)($p['category'] ?? ''))) {
-            $qtyHorizon = $freshHorizon;
-        }
+        // The horizon of a product is its own shelf life, never the category's: a banana
+        // keeps 5 days and an onion keeps a month, and a blanket "fresh = one week" rule
+        // asked for 3 onions to cover 30 days (the household was buying 10).
+        // smartPurchaseHorizonDays() already caps every perishable to its estimate; the
+        // category-wide cap was a second, coarser rule that only made the list smaller.
 
         $monthlyMeta     = smartMonthlyConsumptionNeed($tx, $dailyRate);
         $monthlyNeed     = smartSanitizePieceMonthly($monthlyMeta['amount'], $useCount, $usesPerMonth, $unit);
@@ -21068,7 +21065,9 @@ function internalShoppingNormalizeNames(PDO $db): array {
             continue;
         }
         $genKey = internalShoppingListGenericKey($db, $name, $raw);
-        $canonical = computeShoppingName($genKey);
+        // No AI, no brand: computeShoppingNameCanonical() only answers when the vocabulary
+        // really knows the product, so a load can never rename a row to a brand again.
+        $canonical = computeShoppingNameCanonical($genKey);
         if ($canonical === '' || mb_strtolower($canonical) === mb_strtolower($name)) {
             continue;
         }

@@ -554,6 +554,88 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // v5: recompute EVERY stored generic with the current pipeline.
+    //
+    // The previous passes patched names one rule at a time, and each rule could leave an
+    // artifact behind: the phrase rule turned "Latte di Montagna" into "Latte di montagna",
+    // which split milk into one family per brand — so the list asked for milk the pantry
+    // already had. Here the canonical generic is rebuilt from the product name
+    // (dictionary → specific generic → phrase → plural) and the list rows are merged onto it.
+    $genericsV5 = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_generic_v5'")->fetchColumn();
+    if (!$genericsV5) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $renamedV5 = 0;
+        $mergedV5 = 0;
+        $rows = $db->query("SELECT id, name, brand, shopping_name FROM products")
+                   ->fetchAll(PDO::FETCH_ASSOC);
+        $upd5 = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+        $alias = [];   // old generic (lowercased) → new one, to repair the list rows too
+        foreach ($rows as $row) {
+            $name = trim((string)$row['name']);
+            if ($name === '') {
+                continue;
+            }
+            $canonical = computeShoppingNameCanonical($name, (string)($row['brand'] ?? ''));
+            $current = trim((string)($row['shopping_name'] ?? ''));
+            if ($canonical === '') {
+                continue;
+            }
+            if ($current !== '' && mb_strtolower($current) !== mb_strtolower($canonical)) {
+                $alias[mb_strtolower($current)] = $canonical;
+            }
+            if ($current === $canonical) {
+                continue;
+            }
+            $upd5->execute([$canonical, (int)$row['id']]);
+            $renamedV5++;
+        }
+        try {
+            $listRows = $db->query("SELECT id, name, raw_name, need_qty, need_unit FROM shopping_list")
+                           ->fetchAll(PDO::FETCH_ASSOC);
+            $updList5 = $db->prepare('UPDATE shopping_list SET name = ? WHERE id = ?');
+            $findDup5 = $db->prepare('SELECT id, need_qty, need_unit FROM shopping_list WHERE lower(name) = lower(?) LIMIT 1');
+            $bumpDup5 = $db->prepare('UPDATE shopping_list SET need_qty = ?, need_unit = ? WHERE id = ?');
+            $delRow5  = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
+            foreach ($listRows as $row) {
+                $current = trim((string)$row['name']);
+                if ($current === '') {
+                    continue;
+                }
+                $target = $alias[mb_strtolower($current)] ?? '';
+                if ($target === '' || mb_strtolower($target) === mb_strtolower($current)) {
+                    continue;
+                }
+                $findDup5->execute([$target]);
+                $dup = $findDup5->fetch(PDO::FETCH_ASSOC);
+                if (!$dup) {
+                    $updList5->execute([$target, (int)$row['id']]);
+                    $renamedV5++;
+                    continue;
+                }
+                $q1 = (float)($row['need_qty'] ?? 0);
+                $u1 = trim((string)($row['need_unit'] ?? ''));
+                $q2 = (float)($dup['need_qty'] ?? 0);
+                $u2 = trim((string)($dup['need_unit'] ?? ''));
+                if ($q1 > 0 && $q2 > 0 && ($u1 === $u2 || $u1 === '' || $u2 === '')) {
+                    $bumpDup5->execute([$q1 + $q2, $u1 !== '' ? $u1 : $u2, (int)$dup['id']]);
+                }
+                $delRow5->execute([(int)$row['id']]);
+                $mergedV5++;
+            }
+        } catch (Throwable $e) {
+            // no shopping_list yet
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_shopping_generic_v5', '1')");
+        if (($renamedV5 + $mergedV5) > 0 && class_exists('EverLog')) {
+            EverLog::info('Shopping generics recomputed with the full pipeline', [
+                'event' => 'shopping_generic_recompute_v5',
+                'renamed' => $renamedV5,
+                'merged' => $mergedV5,
+            ]);
+        }
+    }
+
     $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
     $invColNames = array_column($invCols, 'name');
     if (!in_array('expiry_user_set', $invColNames)) {
@@ -1150,7 +1232,7 @@ function estimateSealedExpiryDaysPHP(string $name, string $category, string $loc
     elseif (preg_match('/\bpomodor[oi]\b/', $n) && !preg_match('/passata|pelati|polpa|concentrat|scatol|lattina|salsa|sugo/', $n)) $days = 7;
     elseif (preg_match('/carota|carote|zucchina|zucchine|peperon|melanzan/', $n)) $days = 7;
     elseif (preg_match('/broccoli|cavolfiore|cavolo|spinaci|bietola/', $n)) $days = 5;
-    elseif (preg_match('/cipolla|cipolle/', $n)) $days = 10;
+    elseif (preg_match('/cipolla|cipolle/', $n)) $days = 30; // dry bulbs in a basket: weeks, not days (10 made the list suggest 3 onions for a month)
     elseif (preg_match('/patata|patate/', $n)) $days = 30; // whole tubers in a bag, pantry: 3-5 weeks
     elseif (preg_match('/biscott|cracker|grissini|fette\s+biscott/', $n)) $days = 180;
     elseif (preg_match('/nutella|marmellata|miele/', $n)) $days = 365;

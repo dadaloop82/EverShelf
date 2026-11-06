@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.6] - 2026-11-06
+
+### Fixed
+- **"Di cipolle ne uso tanto e me ne consiglia 3".** Two rules were capping a real need to a
+  tenth of itself: the shelf-life estimate gave a **dry onion 10 days** (the figure for a cut
+  one) and a blanket "fresh = one week" cap then cut every fruit and vegetable to 7 days — so a
+  30-day plan asked for 3 onions while the household buys ~10 a month. The onion estimate is 30
+  days now (like potatoes, which already were) and **the category-wide cap is gone**: each
+  product is planned on its own shelf life (bananas 5 days, onions and potatoes 30).
+  On this pantry: **Cipolle 8 pz** (was 3), Patate 8, Pomodori 6, Uova 12 (two trays of 6).
+- **"Latte di Montagna" was its own milk family** while the fridge had five kinds of milk, so
+  the list asked for milk the household already owned. The phrase rule ("head + di + noun")
+  turned the name into a generic even when the dictionary already knew the head word — "latte"
+  is a genre, so the generic is **Latte** and the brand belongs to the variant. Five milk
+  products are one family again and the row disappeared from the list.
+- **A brand is never a generic.** When the vocabulary does not recognise a product,
+  `computeShoppingNameCanonical()` now answers **nothing** and the caller keeps the generic it
+  already has: the old first-token fallback renamed rows to "Armonia", "Limmi", "Zagara",
+  "Campagnole" — one family per brand — at every page load, because
+  `internalShoppingNormalizeNames()` runs on each read. That pass uses the canonical (no AI, no
+  brand) path now.
+- **`migration_shopping_generic_v5`** recomputes the stored generics with that pipeline and
+  merges the list rows onto them (once: it cannot churn, since an unknown product is left alone).
+
 ## [1.30.5] - 2026-11-06
 
 ### Fixed

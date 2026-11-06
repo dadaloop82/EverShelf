@@ -730,12 +730,53 @@ function productKindShoppingPhrase(string $name): string
     if (!in_array($second, $connectors, true)) {
         return '';
     }
+    // The head may already BE the generic ("Latte di Montagna": the dictionary knows
+    // "latte"). Turning that into a phrase split the milk into one family per brand —
+    // and the shopping list then asked for milk the pantry already had.
+    $headKind = trim((string)(productKindFromDictionary($words[0])['kind'] ?? ''));
+    if ($headKind !== '' && productKindIsPlausibleGenre($headKind)) {
+        return '';
+    }
     // A connector attached to the word ("d'oliva") or its own word ("di pollo").
     $third = trim($words[2]);
     if ($third === '' || mb_strlen($third) < 3 || productKindIsContainerHead($third)) {
         return '';
     }
     return productTitleCapitalize($words[0] . ' ' . $second . ' ' . $third);
+}
+
+/**
+ * The canonical shopping generic of a product name — the whole pipeline, no AI.
+ *
+ * `computeShoppingName()` (api/index.php) does the same and adds the Bring back-translation
+ * and the cached AI word; a migration that runs at boot cannot call it, and re-deriving the
+ * word one rule at a time is how "Latte di Montagna" became its own milk family. Order:
+ * dictionary genre → the specific generic → the phrase → the first significant token,
+ * always through the plural of the language data.
+ */
+function computeShoppingNameCanonical(string $name, string $brand = ''): string
+{
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+    $curated = productKindFromDictionary($name, $brand);
+    $generic = trim((string)($curated['kind'] ?? ''));
+    $specific = productKindShoppingGeneric($name, $brand);
+    if ($generic !== '' && productKindIsPlausibleGenre($generic)) {
+        return productKindShoppingPlural($specific !== '' ? $specific : $generic);
+    }
+    if ($specific !== '') {
+        return productKindShoppingPlural($specific);
+    }
+    $phrase = productKindShoppingPhrase($name);
+    if ($phrase !== '') {
+        return productKindShoppingPlural($phrase);
+    }
+    // Nothing recognised: return '' — the caller KEEPS the generic it already has. The
+    // first token of "Yogurt Armonia" is a brand, and the old fallback renamed the row to
+    // "Armonia" (one family per brand, milk asked for while the fridge was full).
+    return '';
 }
 
 /**
