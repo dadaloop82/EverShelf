@@ -4918,89 +4918,203 @@ body:has(#page-scan.active) .app-content {
     line-height: 1.3;
 }
 
-/* ── The card's own answers: a stepper you can press and two real buttons ──────────
- * A shopping list is read at arm's length, standing up, often with one hand holding a
- * basket: nothing operational may live in a 11 px sentence. Everything below is at
- * least 44 px tall, and the only colour on the strip is the emerald of the action that
- * writes the outcome ("Comprato"); "Non serve" is a neutral secondary.
+/* ── A shopping row is a ROW, not a card ─────────────────────────────────────────
+ * 58 products with nothing but aisle grouping is a wall, and a row carrying a stepper
+ * and two 46 px buttons is 140 px tall: fifty-eight of those is a page nobody reaches
+ * the end of. The suggested quantity is confirmed by default (tap the number for a
+ * micro-popover), the two answers are a swipe — or a discreet ✓ / ✕ on a device with a
+ * mouse — and the row stays at 68–72 px.
  */
-.shop-row-buy {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--surface-border, rgba(148, 163, 184, 0.28));
+.shop-row-content {
+    padding: 8px 10px;
 }
-.shop-row-buy-label {
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted, #64748b);
-}
-.shop-qty-btn {
+.shop-row-visual {
     width: 44px;
     height: 44px;
     min-width: 44px;
-    border-radius: 12px;
+    border-radius: 10px;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-app, #f1f5f9);
+    border: 1px solid var(--surface-border, #e2e8f0);
+}
+/* No photo: the aisle's emoji, on the same neutral frame — never a pastel square that
+   reads as a broken image. */
+.shop-row-visual--emoji span {
+    font-size: 26px;
+    line-height: 1;
+    filter: saturate(1.05);
+}
+.shop-row-title {
+    align-items: center;
+    gap: 8px;
+}
+.shop-row-title-name {
+    flex: 1 1 auto;
+}
+.shop-row-qty-tap {
+    border: none;
+    background: var(--surface-bg, #fff);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--brand-primary, #059669);
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+    box-shadow: inset 0 0 0 1px var(--surface-border, #e2e8f0);
+}
+.shop-row-qty-tap:active { background: var(--bg-app, #f1f5f9); }
+.shop-row-subtitle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 0.8rem;
+    margin-top: 1px;
+}
+.shop-row-dot { opacity: 0.45; }
+.shop-row-freq { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.shop-row-freq.freq-high { color: #b45309; }
+.shop-row-freq.freq-med  { color: #0369a1; }
+.shop-row-freq.freq-low  { color: var(--text-muted, #64748b); }
+.shop-spark { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 11px; }
+.shop-spark i {
+    display: block;
+    width: 3px;
+    background: currentColor;
+    opacity: 0.28;
+    border-radius: 1px;
+}
+.shop-spark i:nth-child(1) { height: 4px; }
+.shop-spark i:nth-child(2) { height: 6px; }
+.shop-spark i:nth-child(3) { height: 8px; }
+.shop-spark i:nth-child(4) { height: 11px; }
+.shop-spark i.on { opacity: 0.95; }
+.shop-row-stock { font-weight: 650; }
+.shop-row-stock.is-empty { color: #b91c1c; }
+.shop-row-quick {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+.shop-quick-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     border: 1px solid var(--surface-border, #e2e8f0);
     background: var(--surface-bg, #fff);
-    color: var(--text-main, #0f172a);
-    font-size: 1.3rem;
-    font-weight: 700;
+    color: var(--text-muted, #475569);
+    font-size: 0.95rem;
+    font-weight: 800;
     line-height: 1;
     cursor: pointer;
     touch-action: manipulation;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    -webkit-tap-highlight-color: transparent;
 }
-.shop-qty-btn:active {
-    transform: scale(0.94);
-    background: var(--bg-app, #f1f5f9);
+.shop-quick-btn--bought {
+    background: var(--brand-primary, #059669);
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
 }
-.shop-qty-value {
-    min-width: 78px;
-    text-align: center;
-    font-size: 1.12rem;
+.shop-quick-btn:active { transform: scale(0.93); }
+/* On a touch screen the swipe is the gesture: the two micro-buttons go away, or a
+   thumb landing on a card would tick it. */
+@media (hover: none) and (pointer: coarse) {
+    .shop-row-quick { display: none; }
+}
+
+/* Micro-popover of the buy quantity (opened by tapping the number). */
+.shop-qty-popover {
+    position: absolute;
+    z-index: 60000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    background: var(--surface-bg, #fff);
+    border: 1px solid var(--surface-border, #e2e8f0);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+}
+.shop-qty-pop-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
+    font-size: 1.15rem;
     font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.shop-qty-pop-value {
+    min-width: 64px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 1rem;
+}
+
+/* Priority pills of the shopping list. */
+.shop-filter-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 2px 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+.shop-filter-row::-webkit-scrollbar { display: none; }
+.shop-filter-pill {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border, #e2e8f0);
+    background: var(--surface-bg, #fff);
     color: var(--text-main, #0f172a);
+    font-size: 0.9rem;
+    font-weight: 650;
+    cursor: pointer;
+    touch-action: manipulation;
     white-space: nowrap;
 }
-.shop-qty-step {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text-muted, #94a3b8);
+.shop-filter-pill.is-active {
+    background: var(--brand-primary, #059669);
+    border-color: var(--brand-primary, #059669);
+    color: #fff;
+}
+.shop-filter-count {
+    font-variant-numeric: tabular-nums;
     opacity: 0.8;
+    font-weight: 800;
 }
-.shop-row-buy .shop-row-price {
-    margin-left: auto;
-}
-.shop-row-actions {
+
+/* One header line: money on the left, horizon on the right. */
+.shop-head-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 2px;
 }
-.shop-row-btn {
-    flex: 1 1 0;
-    min-height: 46px;
-    padding: 0 16px;
-    border-radius: 12px;
-    font-size: 0.98rem;
-    font-weight: 700;
-    cursor: pointer;
-    touch-action: manipulation;
-    border: 1px solid transparent;
-    -webkit-tap-highlight-color: transparent;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.shop-head-row #shopping-price-bar { flex: 1 1 200px; }
+.shop-head-row .shopping-plan-days-bar {
+    flex: 1 1 240px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
 }
-.shop-row-btn:active { transform: scale(0.985); }
 
 /* "Suggeriti": the rarely bought products, out of the way and one tap each. */
 .smart-suggested {
@@ -5046,24 +5160,7 @@ body:has(#page-scan.active) .app-content {
     font-weight: 700;
     color: var(--text-muted, #64748b);
 }
-/* Neutral secondary: "not this time" is a decision, not a danger. */
-.shop-row-btn--dismiss {
-    background: var(--surface-bg, #fff);
-    border-color: var(--surface-border, #e2e8f0);
-    color: var(--text-muted, #475569);
-    flex: 0 0 auto;
-}
-/* ONE emerald, on the action that writes the outcome. */
-.shop-row-btn--bought {
-    background: var(--brand-primary, #059669);
-    border-color: var(--brand-primary, #059669);
-    color: #fff;
-}
-@media (max-width: 480px) {
-    .shop-qty-value { min-width: 62px; font-size: 1.02rem; }
-    .shop-qty-btn { width: 42px; height: 42px; min-width: 42px; }
-    .shop-row-btn { font-size: 0.92rem; padding: 0 10px; }
-}
+/* (the old stepper + big button styles lived here: the row is a ROW now) */
 
 .shop-row-main {
     display: flex;

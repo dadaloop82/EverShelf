@@ -5,6 +5,44 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.1] - 2026-11-06
+
+### Fixed
+- **"Esaurito Esaurito".** The stock state was written twice — once in the subtitle and once by
+  the reason line under it. The battery badge owns that word now (`🪫 Esaurito`) and the reason
+  is dropped when its CODE is `out_of_stock`: comparing translated strings was fragile, two
+  synonyms would still read twice.
+- **"70 voci · ~3167 pezzi".** The footer summed `suggested_qty` across units, so 1000 g of
+  flour + 1500 ml of juice + 3 apples made 2503 "pieces". It counts REFERENCES now
+  (`{items} prodotti in lista`), which is the only number that means anything across aisles.
+- **The pastel squares that looked like broken images.** A row with no photo drew a tinted
+  tile of the category colour; now it draws the category's own emoji (🧅 🍌 🧀 🥛) large, on the
+  neutral frame the pantry already uses.
+- **`Suggeriti` ignored the sale units** (`Formaggio ~504 g`): `_effectiveSmartQty` recomputes a
+  quantity for another horizon and that path knew nothing about packs. It snaps to `sale_step`
+  now, so the client can never print a quantity the server would not have suggested.
+- **The purple button.** "Suggerisci cosa comprare" was `.btn-accent` (violet) in an emerald app:
+  it is the primary again.
+
+### Added
+- **The priority pills of the shopping list** — `[ Tutti (58) ] [ 🔴 Urgente (8) ] [ 🟠 Presto (15) ]
+  [ 🟡 A breve ] [ 🔵 Previsione ]`, each with its count, empty pills hidden, one active at a time.
+  Grouping by aisle stays, but it is no longer the ONLY way to read 58 rows.
+- **One header line**: the estimated spend on the left, the horizon and its control on the right.
+  Two stacked banners cost a third of a phone screen before the first product.
+- **The horizon says where it comes from**: "Quantità per N giorni (dal tuo ciclo medio di spesa)"
+  — `plan_days_default` is inferred from the purchase history, so it is not a number imposed by
+  the app.
+
+### Changed
+- **The row is a ROW again (68–76 px).** The stepper `[−] 3 pz [＋]` and the two 46 px buttons are
+  gone: 58 rows at 140 px is a page nobody scrolls to the end of. The suggested quantity is
+  CONFIRMED by default and tapping the number opens a micro-popover; the two answers are the
+  swipe (right = bought, left = not needed) or a discreet ✓ / ✕ that disappears on touch screens.
+- **"Comprato" writes the stock**, not just the archive: the purchase goes into the inventory
+  (which is what lands in the Storico as a load) and then the row leaves the list. Only when the
+  suggested quantity speaks the product's own unit — "2 confezioni" must never become "2 g".
+
 ## [1.30.0] - 2026-11-06
 
 ### Changed

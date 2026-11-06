@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106n'; // bump when translations change
+const _I18N_VERSION = '20261106o'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106n';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106o';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106n';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106o';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28670,12 +28670,34 @@ function _computeSuggestedQtyForPlanDays(smartData) {
     return { suggested_qty: suggestedQty, suggested_unit: suggestedUnit, suggested_approx: suggestedApprox };
 }
 
+/**
+ * Snap a quantity to the shelf unit, client-side.
+ *
+ * The server already does it (`sale_unit.json` → saleUnitSnap), but the client can
+ * recompute a quantity for another horizon (`_computeSuggestedQtyForPlanDays`) and
+ * that path knew nothing about packs: it is how "Formaggio ~504 g" appeared next to a
+ * list that had just been taught that cheese is bought in 250 g steps.
+ */
+function _snapToSaleUnit(qty, unit, smartData) {
+    const q = Number(qty);
+    if (!Number.isFinite(q) || q <= 0) return q;
+    const step = Number(smartData?.sale_step) || 0;
+    if (step <= 0) return q;
+    return Math.ceil((q - 1e-9) / step) * step;
+}
+
 function _effectiveSmartQty(smartData) {
     const computed = _computeSuggestedQtyForPlanDays(smartData);
-    if (computed) return computed;
+    if (computed) {
+        const snapped = _snapToSaleUnit(computed.suggested_qty, computed.suggested_unit, smartData);
+        if (snapped !== computed.suggested_qty) {
+            return Object.assign({}, computed, { suggested_qty: snapped });
+        }
+        return computed;
+    }
     if (smartData?.suggested_qty > 0) {
         return {
-            suggested_qty: smartData.suggested_qty,
+            suggested_qty: _snapToSaleUnit(smartData.suggested_qty, smartData.suggested_unit, smartData),
             suggested_unit: smartData.suggested_unit || smartData.unit,
             suggested_approx: !!smartData.suggested_approx,
         };
@@ -29942,27 +29964,31 @@ function _shopRowVisualHtml(item, smartData) {
     const rows = inv.length ? _shoppingFamilyInventoryRows(item, smartData, inv) : [];
     const imageUrl = rows.find(r => r.image_url)?.image_url || smartData?.image_url || '';
     const cat = smartData?.category || rows[0]?.category || '';
-    const catKey = mapToLocalCategory(cat, smartData?.shopping_name || item?.name || '');
-    const bg = imageUrl
-        ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
-        : `<div class="shop-row-visual-bg shop-row-visual-bg--cat cat-${catKey}"></div>`;
-    const img = imageUrl
-        ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
-        : '';
-    // Section header already shows the aisle icon — row visual is photo or tinted tile only
-    return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
+    const name = smartData?.shopping_name || item?.name || '';
+    const catKey = mapToLocalCategory(cat, name);
+    if (imageUrl) {
+        return `<div class="shop-row-visual" aria-hidden="true">`
+            + `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
+            + `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            + `</div>`;
+    }
+    // No photo: a pastel square reads as a broken image. The aisle's own emoji, drawn
+    // big on the same neutral frame the pantry uses, is a picture of the CATEGORY —
+    // which is exactly what a household needs when the packaging is unknown.
+    const emoji = escapeHtml(_productCatIconHtml({ category: cat, name }) || '📦');
+    return `<div class="shop-row-visual shop-row-visual--emoji cat-${catKey}" aria-hidden="true"><span>${emoji}</span></div>`;
 }
 
 function _shopRowVisualHtmlFromSmart(item) {
     const name = item.shopping_name || item.name;
     const catKey = mapToLocalCategory(item.category || '', name);
     const imageUrl = item.image_url || '';
-    const bg = imageUrl
-        ? `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`
-        : `<div class="shop-row-visual-bg shop-row-visual-bg--cat cat-${catKey}"></div>`;
-    const img = imageUrl
-        ? `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`
-        : '';
+    if (!imageUrl) {
+        const emoji = escapeHtml(_productCatIconHtml({ category: item.category || '', name }) || '📦');
+        return `<div class="shop-row-visual shop-row-visual--emoji cat-${catKey}" aria-hidden="true"><span>${emoji}</span></div>`;
+    }
+    const bg = `<div class="shop-row-visual-bg" style="background-image:url('${escapeHtml(imageUrl)}')"></div>`;
+    const img = `<img class="shop-row-visual-img" src="${escapeHtml(imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
     return `<div class="shop-row-visual" aria-hidden="true">${bg}${img}</div>`;
 }
 
@@ -29979,8 +30005,11 @@ function _renderShoppingPlanDaysBar() {
     }
     const hint = document.getElementById('shopping-plan-days-hint');
     if (hint) {
+        // The default is not a fixed 7 or 30: the server infers the household's real
+        // shopping cycle from the purchase history (plan_days_default). Saying so beats
+        // imposing a number nobody chose.
         const base = days === def
-            ? t('shopping.plan_days_auto').replace('{days}', def)
+            ? t('shopping.plan_days_auto').replace('{days}', def) + ' ' + t('shopping.plan_days_inferred')
             : t('shopping.plan_days_custom').replace('{days}', days);
         // Fresh produce is planned on a week whatever the window says: saying the
         // whole window is "the horizon" made the header claim 30 days over 3 bananas.
@@ -30849,14 +30878,10 @@ function _updateShoppingFooter() {
         footer.style.display = 'none';
         return;
     }
-    let totalQty = 0;
-    for (const item of shoppingItems) {
-        const smart = _matchBringToSmart(item.name, smartShoppingItems);
-        totalQty += _discreteFooterQty(smart);
-    }
-    statsEl.textContent = t('shopping.footer_stats')
-        .replace('{items}', n)
-        .replace('{qty}', Math.round(totalQty * 10) / 10);
+    // Count REFERENCES, never quantities: 1000 g of flour + 1500 ml of juice + 3 apples
+    // is 3 products, not 2503 pieces. Summing across units is how the footer once
+    // announced "70 voci · ~3167 pezzi".
+    statsEl.textContent = t('shopping.footer_stats').replace('{items}', n);
     footer.style.display = 'flex';
 }
 
@@ -30987,12 +31012,49 @@ function _shopRowQtyAdjust(btn) {
 }
 
 /** The two answers of a shopping card. 44 px tall, one verb each. */
+/**
+ * "Comprato": the row leaves the list and the stock lands in the pantry.
+ *
+ * The user's model of a shopping list is "I ticked it, so I own it": the purchase is
+ * written into the inventory (which is what puts it in the Storico as a load) and only
+ * then the row is archived. A row with no product behind it — a free-text line — is
+ * only archived: there is nothing to credit.
+ *
+ * The suggested quantity is written ONLY when it speaks the product's own unit: "2
+ * confezioni" must never become "2 g" because the product is weighed.
+ */
+async function _shopRowBought(idx) {
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+    const productId = Number(smartData?.product_id) || 0;
+    const qty = Number(_shopRowBuyQty(item, smartData)) || 0;
+    const buyUnit = String(smartData?.suggested_unit || '').toLowerCase();
+    const ownUnit = String(smartData?.unit || '').toLowerCase();
+    const location = String(smartData?.locations || '').split(',')[0].trim() || 'dispensa';
+    if (productId > 0 && qty > 0 && (buyUnit === '' || buyUnit === ownUnit)) {
+        try {
+            const res = await api('inventory_add', {}, 'POST', {
+                product_id: productId,
+                quantity: qty,
+                location,
+                vacuum_sealed: 0,
+            });
+            if (res && res.success === false) {
+                // A refused stock write must not swallow the purchase: the row is still bought.
+                showToast(_apiErrorText(res), 'warning', 6000);
+            }
+        } catch (e) { /* offline: the row is archived anyway */ }
+    }
+    await markShoppingItemBoughtAtHome(idx);
+}
+
 async function _shopRowAction(btn) {
     const idx = parseInt(btn?.dataset?.idx, 10);
     const act = String(btn?.dataset?.act || '');
     if (!Number.isFinite(idx)) return;
     if (act === 'bought') {
-        await markShoppingItemBoughtAtHome(idx);
+        await _shopRowBought(idx);
         return;
     }
     if (act === 'dismiss') {
@@ -31006,14 +31068,14 @@ async function _shopRowAction(btn) {
 function _initShopRowActions(container) {
     if (!container || container._rowActionHandler) return;
     container._rowActionHandler = (ev) => {
-        const qtyBtn = ev.target.closest('.shop-qty-btn');
+        const qtyBtn = ev.target.closest('.shop-row-qty-tap');
         if (qtyBtn) {
             ev.preventDefault();
             ev.stopPropagation();
-            _shopRowQtyAdjust(qtyBtn);
+            _shopQtyPopover(parseInt(qtyBtn.dataset.qtyOpen, 10), qtyBtn);
             return;
         }
-        const actBtn = ev.target.closest('.shop-row-btn');
+        const actBtn = ev.target.closest('.shop-quick-btn, .shop-row-btn');
         if (actBtn) {
             ev.preventDefault();
             ev.stopPropagation();
@@ -31021,6 +31083,66 @@ function _initShopRowActions(container) {
         }
     };
     container.addEventListener('click', container._rowActionHandler);
+}
+
+/**
+ * Tap the quantity → a small numeric popover, the only way to correct a suggestion.
+ *
+ * The number on the card is CONFIRMED by default: 58 rows each carrying a [−] N [+] and
+ * two 46 px buttons is a page 140 px per row, and nobody scrolls that to the end.
+ */
+function _shopQtyPopover(idx, anchorEl) {
+    const item = shoppingItems[idx];
+    if (!item) return;
+    const smartData = _matchBringToSmart(item.name, smartShoppingItems);
+    const step = _shopRowQtyStep(smartData);
+    const current = _shopRowBuyQty(item, smartData) || step;
+    const unit = smartData?.suggested_unit || smartData?.unit || item?.unit || '';
+    const existing = document.getElementById('shop-qty-popover');
+    if (existing) existing.remove();
+    const pop = document.createElement('div');
+    pop.id = 'shop-qty-popover';
+    pop.className = 'shop-qty-popover';
+    pop.innerHTML = `
+        <button type="button" class="shop-qty-pop-btn" data-pop-delta="-1">−</button>
+        <span class="shop-qty-pop-value">${escapeHtml(_formatSuggestQty(current, unit) || String(current))}</span>
+        <button type="button" class="shop-qty-pop-btn" data-pop-delta="1">＋</button>`;
+    document.body.appendChild(pop);
+    const rect = anchorEl?.getBoundingClientRect();
+    if (rect) {
+        const top = Math.min(window.innerHeight - 70, rect.bottom + 6);
+        const left = Math.max(8, Math.min(window.innerWidth - 190, rect.left - 60));
+        pop.style.top = `${top + window.scrollY}px`;
+        pop.style.left = `${left + window.scrollX}px`;
+    }
+    let value = current;
+    pop.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const b = ev.target.closest('[data-pop-delta]');
+        if (!b) {
+            pop.remove();
+            return;
+        }
+        const delta = parseInt(b.dataset.popDelta, 10) || 0;
+        value = Math.max(step, value + delta * step);
+        const overrides = _shopQtyOverrides();
+        const key = _shopQtyKey(item, smartData);
+        if (key) {
+            overrides[key] = value;
+            try { localStorage.setItem('evershelf_shop_qty_v1', JSON.stringify(overrides)); } catch (e) { /* private mode */ }
+        }
+        pop.querySelector('.shop-qty-pop-value').textContent = _formatSuggestQty(value, unit) || String(value);
+        const lbl = document.querySelector(`.shop-row-qty-tap[data-qty-open="${idx}"]`);
+        if (lbl) lbl.textContent = _formatSuggestQty(value, unit) || String(value);
+    });
+    setTimeout(() => {
+        const close = (ev) => {
+            if (pop.contains(ev.target)) return;
+            pop.remove();
+            document.removeEventListener('click', close, true);
+        };
+        document.addEventListener('click', close, true);
+    }, 0);
 }
 
 function _shopRowQtyHtml(smartData) {
@@ -31045,24 +31167,84 @@ function _shoppingListSubtitle(item, displayName) {
 }
 
 /**
- * The line under the generic name: what it is in the house, and how much is left.
+ * The line under the generic name: which one, how often, and what is left.
  *
- * The card's title is the BUYABLE generic ("Cipolla"), so the second line has to say
- * which one ("Rossa di Tropea") and whether the shelf is empty ("Esaurito") — the
- * household reads it in a shop aisle, not at a desk.
+ * The card's title is the BUYABLE generic ("Cipolla"), so the second line says the
+ * variety ("Cipolle rosse"), the rhythm (🔥 Quotidiano + its sparkline) and the shelf
+ * (🪫 Esaurito). The stock lives HERE and only here: it used to be written twice — once
+ * in the subtitle and once by the reason line under it — so every finished product read
+ * "Esaurito Esaurito".
  */
 function _shoppingRowSubtitle(item, displayName, smartData) {
     const parts = [];
     const brand = String(smartData?.brand || item?.brand || '').trim();
     const specific = _shoppingListSubtitle(item, displayName);
-    if (specific) parts.push(specific);
-    else if (brand) parts.push(brand);
-    const stock = _shopRowStockLabel(smartData);
+    if (specific) parts.push(escapeHtml(specific));
+    else if (brand) parts.push(escapeHtml(brand));
+    const freq = _shopRowFrequencyHtml(smartData);
+    if (freq) parts.push(freq);
+    const stock = _shopRowStockHtml(smartData);
     if (stock) parts.push(stock);
-    return parts.join(' · ');
+    return parts.join(' <span class="shop-row-dot">·</span> ');
+}
+
+/** 🔥 Quotidiano / ⚡ Abituale / ☕ Occasionale + a four-step sparkline of the rhythm. */
+function _shopRowFrequencyHtml(smartData) {
+    const uses = Number(smartData?.uses_per_month) || 0;
+    let label = '';
+    let cls = 'freq-low';
+    if (uses >= 4) { label = t('shopping.freq_daily'); cls = 'freq-high'; }
+    else if (uses >= 2) { label = t('shopping.freq_habit'); cls = 'freq-med'; }
+    else if (uses >= 1) { label = t('shopping.freq_occasional'); cls = 'freq-low'; }
+    if (!label) return '';
+    // Sparkline: four bars, filled in proportion to the rhythm (a picture beats
+    // "~14/mese", which nobody can act on in an aisle).
+    const level = Math.max(1, Math.min(4, Math.round(uses / 4)));
+    let bars = '';
+    for (let i = 1; i <= 4; i++) {
+        bars += `<i class="shop-spark${i <= level ? ' on' : ''}"></i>`;
+    }
+    return `<span class="shop-row-freq ${cls}">${cls === 'freq-high' ? '🔥' : cls === 'freq-med' ? '⚡' : '☕'} ${escapeHtml(label)}<span class="shop-spark" aria-hidden="true">${bars}</span></span>`;
+}
+
+/** The shelf as a battery — the word "Esaurito" appears once, next to its icon. */
+function _shopRowStockHtml(smartData) {
+    if (!smartData) return '';
+    const pct = Number(smartData.pct_left) || 0;
+    const fam = Number(smartData.family_qty);
+    const own = Number(smartData.current_qty);
+    const qty = Number.isFinite(fam) && fam > 0 ? fam : (Number.isFinite(own) ? own : 0);
+    const unit = String(smartData.unit || smartData.suggested_unit || '').trim();
+    if (!(qty > 0)) {
+        return `<span class="shop-row-stock is-empty">🪫 ${escapeHtml(t('shopping.out_of_stock'))}</span>`;
+    }
+    const icon = pct <= 15 ? '🪫' : pct <= 50 ? '🟨' : '🟩';
+    return `<span class="shop-row-stock">${icon} ${escapeHtml(`${_formatSuggestQty(qty, unit) || qty + ' ' + unit}`)}</span>`;
 }
 
 /** "Esaurito" / "3 pz a casa" in one short word — the subtitle's second half. */
+/**
+ * The reason line, minus what the subtitle already said.
+ *
+ * "Esaurito" is carried by the battery badge of the second line: repeating it in italics
+ * underneath is the bug that made every row read "Esaurito Esaurito".
+ */
+function _shopRowReasonText(item, displayName, smartData) {
+    // The reason is a CODE (out_of_stock, ends_in:3…): the battery badge of the second
+    // line already carries "Esaurito", so the code that only repeats it is dropped.
+    // Comparing translated strings was fragile — two synonyms still read twice.
+    const codes = (Array.isArray(smartData?.reasons) ? smartData.reasons : [])
+        .map((r) => String(r).split(':')[0]);
+    const stockEmpty = !(Number(smartData?.family_qty) > 0 || Number(smartData?.current_qty) > 0);
+    if (stockEmpty && codes.includes('out_of_stock')) return '';
+    const reason = _shoppingPrimaryReason(smartData || item);
+    if (!reason) return '';
+    const flat = String(reason).toLowerCase().replace(/[^a-zà-ÿ ]+/g, ' ').trim();
+    const stock = _shopRowStockLabel(smartData || {}).toLowerCase().trim();
+    if (stock !== '' && (flat === stock || flat === stock.replace(/\s+/g, ' '))) return '';
+    return reason;
+}
+
 function _shopRowStockLabel(smartData) {
     if (!smartData) return '';
     const fam = Number(smartData.family_qty);
@@ -31096,25 +31278,20 @@ function _shopRowInnerHtml({
     qtyStep = 1,
     inList = true,
 }) {
+    // (subtitle arrives already escaped, because it carries the badges; reason does not)
     const subHtml = subtitle
-        ? `<div class="shop-row-subtitle">${escapeHtml(subtitle)}</div>`
+        ? `<div class="shop-row-subtitle">${subtitle}</div>`
         : '';
     const reasonHtml = reason
         ? `<div class="shop-row-reason">${escapeHtml(reason)}</div>`
         : '';
-    const step = Number(qtyStep) > 0 ? Number(qtyStep) : 1;
-    const buyHtml = buyQty
-        ? `<div class="shop-row-buy">
-            <span class="shop-row-buy-label">${escapeHtml(t('shopping.buy_label'))}</span>
-            <button type="button" class="shop-qty-btn" data-qty-delta="-1" data-idx="${idx}"
-                    aria-label="${escapeHtml(t('shopping.qty_less'))}">−</button>
-            <span class="shop-qty-value" data-qty-value="${idx}">${escapeHtml(buyQty)}</span>
-            <button type="button" class="shop-qty-btn" data-qty-delta="1" data-idx="${idx}"
-                    aria-label="${escapeHtml(t('shopping.qty_more'))}">＋</button>
-            <span class="shop-qty-step" aria-hidden="true">${step > 0 ? '+' + step : ''}</span>
-            ${priceCell || ''}
-        </div>`
-        : `<div class="shop-row-buy">${priceCell || ''}</div>`;
+    // The quantity is CONFIRMED by default: it is a tap target, not a stepper. A row
+    // that carries [−] 3 pz [+] plus two 46 px buttons is 140 px tall, and 58 of them
+    // is a page nobody scrolls to the end of. Tap the number → a micro-popover.
+    const qtyHtml = buyQty
+        ? `<button type="button" class="shop-row-qty-tap" data-qty-open="${idx}"
+                   aria-label="${escapeHtml(t('shopping.qty_edit'))}">${escapeHtml(buyQty)}</button>`
+        : '';
     return `
     <div class="shop-row-swipe-zones">
         <div class="shop-row-zone shop-row-zone-home">${escapeHtml(t('shopping.swipe_home'))}</div>
@@ -31127,20 +31304,19 @@ function _shopRowInnerHtml({
             <div class="shop-row-text">
                 <div class="shop-row-title">
                     <span class="shop-row-title-name">${escapeHtml(displayName)}</span>
+                    ${qtyHtml}
+                    ${priceCell || ''}
                     ${urgencyBadge}
                 </div>
                 ${subHtml}
                 ${reasonHtml}
             </div>
-        </div>
-        ${buyHtml}
-        <div class="shop-row-actions">
-            <button type="button" class="shop-row-btn shop-row-btn--dismiss" data-act="dismiss" data-idx="${idx}">
-                ✕ ${escapeHtml(t('shopping.btn_dismiss'))}
-            </button>
-            <button type="button" class="shop-row-btn shop-row-btn--bought" data-act="bought" data-idx="${idx}">
-                🛒 ${escapeHtml(t(inList ? 'shopping.btn_bought' : 'shopping.btn_add_to_list'))}
-            </button>
+            <div class="shop-row-quick" aria-hidden="false">
+                <button type="button" class="shop-quick-btn shop-quick-btn--dismiss" data-act="dismiss" data-idx="${idx}"
+                        title="${escapeHtml(t('shopping.btn_dismiss'))}" aria-label="${escapeHtml(t('shopping.btn_dismiss'))}">✕</button>
+                <button type="button" class="shop-quick-btn shop-quick-btn--bought" data-act="bought" data-idx="${idx}"
+                        title="${escapeHtml(t('shopping.btn_bought'))}" aria-label="${escapeHtml(t('shopping.btn_bought'))}">✓</button>
+            </div>
         </div>
     </div>`;
 }
@@ -31238,7 +31414,7 @@ function _initShopRowSwipe(container) {
             const idx = parseInt(row.dataset.idx, 10);
             if (!isNaN(idx)) {
                 if (dx >= th.scanMin) markShoppingItemBought(idx);
-                else if (dx >= th.homeMin) markShoppingItemBoughtAtHome(idx);
+                else if (dx >= th.homeMin) _shopRowBought(idx);   // swipe right = bought (writes the stock too)
                 else if (dx <= th.removeMax) removeBringItem(idx);
             }
         }
@@ -31335,6 +31511,61 @@ function _renderShoppingSuggestionsInline() {
     return html;
 }
 
+/**
+ * The priority pills of the shopping list.
+ *
+ * 58 rows grouped only by aisle is a wall: the household wants "what do I really need",
+ * not "what is in the vegetable section". Each pill carries its count, because a filter
+ * that does not say how much it hides is a guess. One place control, one filter row.
+ */
+let _shopUrgencyFilter = 'all';
+
+function _shopUrgencyPillsMeta() {
+    return [
+        { key: 'all', icon: '', label: t('shopping.filter_all') },
+        { key: 'critical', icon: '🔴', label: t('shopping.urgency_critical') },
+        { key: 'high', icon: '🟠', label: t('shopping.urgency_high') },
+        { key: 'medium', icon: '🟡', label: t('shopping.urgency_medium') },
+        { key: 'low', icon: '🔵', label: t('shopping.urgency_low') },
+    ];
+}
+
+function _renderShopFilterRow(enriched) {
+    const row = document.getElementById('shop-filter-row');
+    if (!row) return;
+    const counts = { all: enriched.length, critical: 0, high: 0, medium: 0, low: 0 };
+    for (const e of enriched) {
+        const u = e.urgency || 'low';
+        if (counts[u] !== undefined) counts[u]++;
+    }
+    // A pill with nothing behind it is noise: hide the empty ones (but never "Tutti").
+    const pills = _shopUrgencyPillsMeta().filter((p) => p.key === 'all' || counts[p.key] > 0);
+    if (_shopUrgencyFilter !== 'all' && !counts[_shopUrgencyFilter]) _shopUrgencyFilter = 'all';
+    row.innerHTML = pills.map((p) => {
+        const active = _shopUrgencyFilter === p.key ? ' is-active' : '';
+        return `<button type="button" class="shop-filter-pill${active}" data-filter="${p.key}">`
+            + `${p.icon ? p.icon + ' ' : ''}${escapeHtml(p.label)}`
+            + ` <span class="shop-filter-count">${counts[p.key]}</span></button>`;
+    }).join('');
+    row.style.display = pills.length > 1 ? '' : 'none';
+}
+
+function setShopUrgencyFilter(key) {
+    _shopUrgencyFilter = String(key || 'all');
+    renderShoppingItems(true);
+}
+
+function _initShopFilterRow() {
+    const row = document.getElementById('shop-filter-row');
+    if (!row || row._filterHandler) return;
+    row._filterHandler = (ev) => {
+        const pill = ev.target.closest('.shop-filter-pill');
+        if (!pill) return;
+        setShopUrgencyFilter(pill.dataset.filter || 'all');
+    };
+    row.addEventListener('click', row._filterHandler);
+}
+
 async function renderShoppingItems(force = false) {
     const container = document.getElementById('shopping-items');
     const countEl = document.getElementById('shopping-count');
@@ -31350,6 +31581,7 @@ async function renderShoppingItems(force = false) {
     const priceEnabled = getSettings().price_enabled;
 
     if (shoppingItems.length === 0) {
+        _renderShopFilterRow([]);
         countEl.textContent = 0;
         const tabCountEmpty = document.getElementById('tab-count-acquisto');
         if (tabCountEmpty) tabCountEmpty.textContent = 0;
@@ -31369,7 +31601,12 @@ async function renderShoppingItems(force = false) {
         const sec = getItemSection(item.name, smartData);
         return { item, idx, smartData, urgency, sec };
     });
-    const enriched = _dedupeShoppingByGeneric(enrichedRaw);
+    const enrichedAll = _dedupeShoppingByGeneric(enrichedRaw);
+    _renderShopFilterRow(enrichedAll);
+    _initShopFilterRow();
+    const enriched = _shopUrgencyFilter === 'all'
+        ? enrichedAll
+        : enrichedAll.filter((e) => (e.urgency || 'low') === _shopUrgencyFilter);
     const pantryRows = enriched;
 
     countEl.textContent = enriched.length;
@@ -31417,7 +31654,7 @@ async function renderShoppingItems(force = false) {
                 ${_shopRowInnerHtml({
                     displayName,
                     subtitle: _shoppingRowSubtitle(item, displayName, smartData),
-                    reason: _shoppingPrimaryReason(smartData || item),
+                    reason: _shopRowReasonText(item, displayName, smartData),
                     priceCell,
                     visualHtml,
                     urgencyBadge,
