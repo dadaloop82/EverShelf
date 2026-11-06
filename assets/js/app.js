@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106k'; // bump when translations change
+const _I18N_VERSION = '20261106l'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106k';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106l';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106k';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106l';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29983,6 +29983,8 @@ function _renderShoppingPlanDaysBar() {
 }
 
 async function loadSmartShopping(forceRefresh = false) {
+    // The "Non comprati" drawer is part of this page: load it with the list.
+    loadShoppingDismissed();
     try {
         const planDays = getShoppingPlanDays();
         const params = { plan_days: planDays };
@@ -30047,6 +30049,74 @@ async function loadSmartShopping(forceRefresh = false) {
     }
 }
 
+/* ── "Non comprati": il cassetto di ciò che hai tolto ────────────────────────────────
+ * `shopping_remove` con purchased:false registra un "non lo compro" datato (SHOPPING_DISMISS_DAYS);
+ * il prodotto spariva dalla lista e non c'era modo di ripensarci. Qui si rilegge la mappa
+ * (GET shopping_dismissed) e ogni riga ha Ripristina.
+ */
+function _renderShoppingDismissed(items) {
+    const box = document.getElementById('shopping-dismissed');
+    const list = document.getElementById('shopping-dismissed-list');
+    const countEl = document.getElementById('shopping-dismissed-count');
+    if (!box || !list) return;
+    const rows = Array.isArray(items) ? items : [];
+    if (countEl) countEl.textContent = String(rows.length);
+    if (!rows.length) {
+        box.hidden = true;
+        list.innerHTML = '';
+        return;
+    }
+    box.hidden = false;
+    list.innerHTML = rows.map((row) => {
+        const until = row.until ? formatDate(row.until) : '';
+        const meta = until ? t('shopping.dismissed_until', { date: until }) : '';
+        return `<div class="shopping-dismissed-row" data-key="${escapeHtml(row.key || '')}">`
+            + `<span class="shopping-dismissed-name">${escapeHtml(row.name || row.key || '')}`
+            + `${meta ? `<small class="shopping-dismissed-until">${escapeHtml(meta)}</small>` : ''}</span>`
+            + `<button type="button" class="btn btn-secondary btn-small" onclick="restoreShoppingDismissed('${escapeHtml((row.key || '').replace(/'/g, "\\'"))}')">${escapeHtml(t('shopping.dismissed_restore'))}</button>`
+            + `</div>`;
+    }).join('');
+}
+
+async function loadShoppingDismissed() {
+    try {
+        const res = await api('shopping_dismissed', {}, 'GET', null, {}, 8000);
+        _renderShoppingDismissed((res && res.success) ? res.items : []);
+    } catch (e) {
+        _renderShoppingDismissed([]);
+    }
+}
+
+async function restoreShoppingDismissed(key) {
+    if (!key) return;
+    try {
+        const res = await api('shopping_dismissed_restore', {}, 'POST', { key });
+        if (res && res.success) {
+            showToast(t('shopping.dismissed_restored', { name: key }), 'success');
+            await loadShoppingDismissed();
+            // The product is buyable again: the list may now want it.
+            loadSmartShopping(true);
+        } else {
+            showToast(_apiErrorText(res) || t('error.generic'), 'error');
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+async function restoreAllShoppingDismissed() {
+    try {
+        const res = await api('shopping_dismissed_restore', {}, 'POST', { all: true });
+        if (res && res.success) {
+            showToast(t('shopping.dismissed_restored_all'), 'success');
+            await loadShoppingDismissed();
+            loadSmartShopping(true);
+        }
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    }
+}
+
 function filterSmart(filter) {
     smartShoppingFilter = filter;
     document.querySelectorAll('.smart-filter').forEach(b => b.classList.remove('active'));
@@ -30059,7 +30129,16 @@ function renderSmartShopping() {
     const countEl = document.getElementById('smart-count');
     const actionsEl = document.getElementById('smart-actions');
 
-    let items = smartShoppingItems;
+    // Counts on the pills: a filter that does not say how much it hides is a guess.
+    const all = Array.isArray(smartShoppingItems) ? smartShoppingItems : [];
+    const counts = { all: all.length, critical: 0, high: 0, medium: 0, low: 0 };
+    all.forEach((i) => { if (counts[i.urgency] !== undefined) counts[i.urgency]++; });
+    document.querySelectorAll('#smart-filter-row .smart-filter-count').forEach((el) => {
+        const key = el.dataset.count || 'all';
+        el.textContent = String(counts[key] || 0);
+    });
+
+    let items = all;
     if (smartShoppingFilter !== 'all') {
         items = items.filter(i => i.urgency === smartShoppingFilter);
     }

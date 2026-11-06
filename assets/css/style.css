@@ -14541,3 +14541,80 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
     color: #6EE7B7;
     animation: cookingMicPulse 1.6s ease-in-out infinite;
 }
+
+/* ── Shopping: counts on the pills + the "Non comprati" drawer ──────── */
+.smart-filter-count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    margin-left: 2px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.22);
+    color: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.6;
+    text-align: center;
+}
+.smart-filter.active .smart-filter-count {
+    background: rgba(16, 185, 129, 0.22);
+    color: #047857;
+}
+
+.shopping-dismissed {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--bg, #f8fafc);
+    border: 1px solid var(--surface-border, #e2e8f0);
+}
+.shopping-dismissed[hidden] { display: none; }
+.shopping-dismissed > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    list-style: none;
+}
+.shopping-dismissed > summary::-webkit-details-marker { display: none; }
+.shopping-dismissed > summary::after {
+    content: '▾';
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.shopping-dismissed[open] > summary::after { content: '▴'; }
+.shopping-dismissed-count {
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.2);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+.shopping-dismissed-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-top: 1px solid color-mix(in srgb, var(--surface-border, #e2e8f0) 70%, transparent);
+}
+.shopping-dismissed-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.shopping-dismissed-until {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+[data-theme="dark"] .shopping-dismissed {
+    background: var(--bg-card, #1e293b);
+    border-color: #334155;
+}

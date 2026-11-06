@@ -1185,6 +1185,12 @@ try {
         case 'shopping_add':
             shoppingAdd($db);
             break;
+        case 'shopping_dismissed':
+            shoppingDismissedList($db);
+            break;
+        case 'shopping_dismissed_restore':
+            shoppingDismissedRestore($db);
+            break;
         case 'shopping_remove':
             shoppingRemove($db);
             break;
@@ -17631,6 +17637,68 @@ function shoppingClearDismissedForProduct(PDO $db, int $productId): void
     $name    = (string)($prod['name'] ?? '');
     $generic = trim((string)($prod['shopping_name'] ?? '')) ?: computeShoppingName($name);
     shoppingClearDismissed($db, array_merge([$name, $generic], shoppingDismissKeys($db, $generic, $name)));
+}
+
+/**
+ * GET shopping_dismissed — the "Non comprati" drawer.
+ *
+ * `shopping_dismissed` is a map of lowercased name → date-until. It was write-only from the UI:
+ * the household could say "this week I don't want broccoli" and had no way of seeing or undoing
+ * it. This lists what is out and for how long, so the drawer can offer Ripristina.
+ */
+function shoppingDismissedList(PDO $db): void
+{
+    $map = shoppingDismissLoad($db);
+    $today = strtotime(date('Y-m-d'));
+    $items = [];
+    foreach ($map as $key => $until) {
+        $items[] = [
+            'key'      => (string)$key,
+            'name'     => shoppingDismissedDisplayName($db, (string)$key),
+            'until'    => (string)$until,
+            'days_left'=> max(0, (int)round((strtotime((string)$until) - $today) / 86400)),
+        ];
+    }
+    usort($items, static fn(array $a, array $b): int => strcmp($a['name'], $b['name']));
+    echo json_encode(['success' => true, 'items' => $items, 'count' => count($items)], JSON_UNESCAPED_UNICODE);
+}
+
+/** The real spelling of a dismissed key: a product that carries it, else the key title-cased. */
+function shoppingDismissedDisplayName(PDO $db, string $key): string
+{
+    $key = trim($key);
+    if ($key === '') {
+        return '';
+    }
+    try {
+        $stmt = $db->prepare('SELECT name FROM products WHERE LOWER(TRIM(name)) = ? OR LOWER(TRIM(shopping_name)) = ? LIMIT 1');
+        $stmt->execute([$key, $key]);
+        $found = (string)($stmt->fetchColumn() ?: '');
+        if ($found !== '') {
+            return $found;
+        }
+    } catch (Throwable $e) { /* no products table: fall back to the key */ }
+    return mb_convert_case($key, MB_CASE_TITLE, 'UTF-8');
+}
+
+/** POST shopping_dismissed_restore — put one product (or all) back on the list. */
+function shoppingDismissedRestore(PDO $db): void
+{
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    if (!empty($input['all'])) {
+        shoppingDismissSave($db, []);
+        echo json_encode(['success' => true, 'restored' => 'all', 'remaining' => 0]);
+        return;
+    }
+    $key = mb_strtolower(trim((string)($input['key'] ?? '')));
+    if ($key === '') {
+        echo json_encode(['success' => false, 'error' => 'Invalid key']);
+        return;
+    }
+    shoppingClearDismissed($db, [$key]);
+    $remaining = count(shoppingDismissLoad($db));
+    EverLog::info('Shopping dismissed restored', ['event' => 'shopping_dismissed_restore', 'key' => $key, 'remaining' => $remaining]);
+    echo json_encode(['success' => true, 'key' => $key, 'remaining' => $remaining], JSON_UNESCAPED_UNICODE);
 }
 
 /** Mark Bring! "recently purchased" items so cron/client do not re-add them. */

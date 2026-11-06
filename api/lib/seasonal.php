@@ -146,7 +146,14 @@ const SEASONAL_PRESERVED_PATTERN = '/surgelat|congelat|abbattut|scatola|barattol
  * describes a fresh variety — so a bare "polpa" only counts when it is the
  * head noun, never as a qualifier further down the name.
  */
-const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea'];
+const SEASONAL_PRESERVED_HEADS = ['polpa', 'purea',
+    // Dried herbs and spices are on the shelf all year: "Spezie Origano foglie" is not a
+    // vegetable, and hiding it in October is the bug the household reported. A FRESH bunch
+    // still carries its own name ("Basilico fresco") and is matched by the catalogue below.
+    'origano', 'basilico', 'prezzemolo', 'salvia', 'rosmarino', 'alloro', 'timo',
+    'maggiorana', 'aneto', 'erba', 'spezie', 'spezia', 'curcuma', 'paprika', 'zenzero',
+    'cannella', 'zafferano', 'curry', 'senape', 'peperoncino', 'noce', 'chiodi',
+];
 
 function seasonalIsPreserved(string $name): bool {
     $n = seasonalNormalize($name);

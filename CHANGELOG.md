@@ -5,6 +5,27 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.22] - 2026-11-06
+
+### Added
+- **The shopping list counts its priorities, and remembers what you refused.** The filter pills
+  were there without numbers: each one now carries its count (`Tutti 76`, `🔴 Urgenti 16`, …) so a
+  filter never hides something without saying how much. Under the list, a **Non comprati (N)**
+  drawer lists every product the household took off the list — with the date it comes back — and
+  each row has **↩ Ripristina** (plus “Rimettili tutti”). It reads the dismiss map that
+  `shopping_remove` already wrote (`shopping_dismissed`, `SHOPPING_DISMISS_DAYS`), through two new
+  actions: `GET shopping_dismissed` and `POST shopping_dismissed_restore` (`{key}` or `{all:true}`).
+
+### Fixed
+- **Dried herbs and spices are no longer “out of season”.** `Spezie Origano foglie` sits in a jar
+  for a year, but its category is `verdura` and the produce catalogue matched the plant name: the
+  shopping review announced “fuori stagione: Zucchine, Origano” and offered to remove both. The
+  herb/spice head nouns (`origano`, `basilico`, `prezzemolo`, `salvia`, `rosmarino`, `alloro`,
+  `timo`, `spezie`, `curcuma`, `paprika`, `zenzero`, `cannella`, `zafferano`, `curry`, …) are
+  preserves by definition, like “surgelato” and “in barattolo” already were.
+  Verified on November: Origano/Basilico → not seasonal, Zucchine → still hidden, Pomodori/
+  Cipolle/Limoni → all-year crops, untouched.
+
 ## [1.29.21] - 2026-11-06
 
 ### Changed
