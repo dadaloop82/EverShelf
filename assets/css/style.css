@@ -14186,3 +14186,193 @@ body.offline-mode #smart-shopping {
 /* The capture sheet must sit ABOVE the cooking overlay (99998), or SHELFY opens invisibly. */
 body.cooking-mode-active #capture-sheet { z-index: 100000; }
 body.cooking-mode-active #shelfy-intro { z-index: 100001; }
+
+/* ===============================================================
+ * COOKING MODE — layout pass (supersedes the sizes above)
+ * Full width, centred stack, SHELFY in the middle of the navigation.
+ * =============================================================== */
+
+/* ── Header: a bare, evident ✕ ────────────────────────────────────── */
+.cooking-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+}
+.cooking-close-btn {
+    width: 44px;
+    height: 44px;
+    min-height: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(148, 163, 184, 0.14);
+    color: #F1F5F9;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ── Status: full width, the bar in the middle ────────────────────── */
+.cooking-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    width: 100%;
+    padding: 10px 16px 6px;
+}
+.cooking-status .cooking-step-num {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+}
+.cooking-status .cooking-progress-dots {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 5px;
+    margin: 0 6px;
+    min-width: 0;
+}
+.cooking-status .cprog-dot {
+    flex: 1 1 0;
+    height: 6px;
+    border-radius: 999px;
+}
+.cooking-status .cooking-restart-btn {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+}
+/* The running timers get their own full-width row under the status. */
+#cooking-timers-bar {
+    width: 100%;
+    margin: 0;
+    padding: 0 16px;
+    max-width: none;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ── Card: fills the width, content centred VERTICALLY ────────────── */
+.cooking-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* `margin: auto` on the card (below) centres it when it fits AND leaves the top reachable
+       when it does not: `justify-content: center` on an overflowing flex box clips the start. */
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.cooking-card {
+    width: 100%;
+    max-width: 980px;                 /* use the screen, not a 760px column */
+    margin: auto 0;                   /* vertical centring even when it does not fill */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;          /* chips + sentence + action centred inside the card */
+    gap: 16px;
+    padding: 22px 24px;
+    min-height: 0;
+}
+.cooking-card .cooking-wheel {
+    width: 100%;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;              /* the sentence is centred in its own area */
+    justify-content: center;
+    min-height: 0;
+}
+.cooking-card .cooking-step-text {
+    width: 100%;
+    text-align: center;
+    font-size: clamp(26px, 3.6vw, 40px);
+    line-height: 1.5;
+    margin: auto 0;
+}
+
+/* ── Ingredient chips: across the whole width ─────────────────────── */
+.cooking-card .cooking-step-ings {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.cooking-card .cooking-ing-chip {
+    flex: 1 1 220px;
+    min-width: 0;
+    max-width: none;
+    text-align: left;
+}
+
+/* ── Step action: centred ─────────────────────────────────────────── */
+.cooking-action-row {
+    width: 100%;
+    display: none;
+    justify-content: center;
+    padding: 0 16px 8px;
+}
+.cooking-step-action {
+    text-align: center;
+    padding: 0 22px;
+}
+
+/* ── Navigation: [ ◀ Precedente ]  (SHELFY)  [ Successivo ▶ ] ─────── */
+.cooking-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.cooking-nav .cooking-nav-btn {
+    flex: 1 1 0;                      /* the two are EQUAL */
+    min-width: 0;
+    min-height: 56px;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 700;
+}
+.cooking-prev-btn {
+    background: rgba(148, 163, 184, 0.14);
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    color: #E2E8F0;
+}
+.cooking-next-btn {
+    background: #10B981;
+    border: none;
+    color: #052e1f;
+}
+/* SHELFY in the middle, as big as the home button and with the same ring. */
+.cooking-shelfy-fab {
+    flex: 0 0 auto;
+    width: clamp(56px, 12vw, 64px);
+    height: clamp(56px, 12vw, 64px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 3px solid #10B981;
+    background: radial-gradient(circle at 50% 30%, #10B981 0%, #047857 100%);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+    cursor: pointer;
+    overflow: hidden;
+}
+.cooking-shelfy-fab img {
+    width: 82%;
+    height: 82%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+.cooking-shelfy-fab:active { transform: scale(0.96); }
