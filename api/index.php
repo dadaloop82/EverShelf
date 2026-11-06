@@ -15525,7 +15525,20 @@ function isPreparedSaladProduct(string $name, string $brand = ''): bool {
     return false;
 }
 
+/**
+ * The buyable generic of a product, at the number a shopping list writes it.
+ *
+ * Every title in this app is SINGULAR in the pantry ("Uovo medio") and PLURAL on the
+ * list ("Uova medie"): a list is a list of things to buy, and "Peperone" next to
+ * "Peperoni" was two rows of the same vegetable. The number comes from the language
+ * data via productKindShoppingPlural(), so a mass noun (latte, pane, pasta) is never
+ * given an invented plural.
+ */
 function computeShoppingName(string $name, string $category = '', string $brand = '', bool $allowAi = false): string {
+    return productKindShoppingPlural(computeShoppingNameBase($name, $category, $brand, $allowAi));
+}
+
+function computeShoppingNameBase(string $name, string $category = '', string $brand = '', bool $allowAi = false): string {
     $lower = mb_strtolower(trim($name));
     if (isPreparedSaladProduct($name, $brand) && !preg_match('/insalata\s+di\s+riso/u', $lower)) {
         return 'Insalata di riso';

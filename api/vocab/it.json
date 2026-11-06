@@ -115,19 +115,49 @@
       "Agli",
       "m"
     ],
+    "Albicocca": [
+      "Albicocca",
+      "Albicocche",
+      "f"
+    ],
+    "Ananas": [
+      "Ananas",
+      "Ananas",
+      "m"
+    ],
+    "Anguria": [
+      "Anguria",
+      "Angurie",
+      "f"
+    ],
     "Arance": [
       "Arancia",
       "Arance",
       "f"
+    ],
+    "Asparago": [
+      "Asparago",
+      "Asparagi",
+      "m"
     ],
     "Banane": [
       "Banana",
       "Banane",
       "f"
     ],
+    "Barbabietola": [
+      "Barbabietola",
+      "Barbabietole",
+      "f"
+    ],
     "Bevande": [
       "Bevanda",
       "Bevande",
+      "f"
+    ],
+    "Bietola": [
+      "Bietola",
+      "Bietole",
       "f"
     ],
     "Birra": [
@@ -140,9 +170,59 @@
       "Biscotti",
       "m"
     ],
+    "Bistecca": [
+      "Bistecca",
+      "Bistecche",
+      "f"
+    ],
+    "Broccolo": [
+      "Broccolo",
+      "Broccoli",
+      "m"
+    ],
+    "Cachi": [
+      "Caco",
+      "Cachi",
+      "m"
+    ],
+    "Camomilla": [
+      "Camomilla",
+      "Camomille",
+      "f"
+    ],
+    "Carciofo": [
+      "Carciofo",
+      "Carciofi",
+      "m"
+    ],
     "Carote": [
       "Carota",
       "Carote",
+      "f"
+    ],
+    "Cavolfiore": [
+      "Cavolfiore",
+      "Cavolfiori",
+      "m"
+    ],
+    "Cavolo": [
+      "Cavolo",
+      "Cavoli",
+      "m"
+    ],
+    "Cece": [
+      "Cece",
+      "Ceci",
+      "m"
+    ],
+    "Cetriolo": [
+      "Cetriolo",
+      "Cetrioli",
+      "m"
+    ],
+    "Ciliegia": [
+      "Ciliegia",
+      "Ciliegie",
       "f"
     ],
     "Cipolla": [
@@ -150,10 +230,35 @@
       "Cipolle",
       "f"
     ],
+    "Cipollotto": [
+      "Cipollotto",
+      "Cipollotti",
+      "m"
+    ],
+    "Cotoletta": [
+      "Cotoletta",
+      "Cotolette",
+      "f"
+    ],
+    "Fagiolino": [
+      "Fagiolino",
+      "Fagiolini",
+      "m"
+    ],
+    "Fagiolo": [
+      "Fagiolo",
+      "Fagioli",
+      "m"
+    ],
     "Fette biscottate": [
       "Fetta biscottata",
       "Fette biscottate",
       "f"
+    ],
+    "Filetto": [
+      "Filetto",
+      "Filetti",
+      "m"
     ],
     "Finocchio": [
       "Finocchio",
@@ -165,14 +270,39 @@
       "Formaggi",
       "m"
     ],
+    "Fragola": [
+      "Fragola",
+      "Fragole",
+      "f"
+    ],
+    "Frollino": [
+      "Frollino",
+      "Frollini",
+      "m"
+    ],
     "Gelato": [
       "Gelato",
       "Gelati",
       "m"
     ],
+    "Gnocco": [
+      "Gnocco",
+      "Gnocchi",
+      "m"
+    ],
     "Insalata": [
       "Insalata",
       "Insalate",
+      "f"
+    ],
+    "Kiwi": [
+      "Kiwi",
+      "Kiwi",
+      "m"
+    ],
+    "Lenticchia": [
+      "Lenticchia",
+      "Lenticchie",
       "f"
     ],
     "Limone": [
@@ -185,9 +315,24 @@
       "Liquori",
       "m"
     ],
+    "Mandorla": [
+      "Mandorla",
+      "Mandorle",
+      "f"
+    ],
     "Marmellata": [
       "Marmellata",
       "Marmellate",
+      "f"
+    ],
+    "Melagrana": [
+      "Melagrana",
+      "Melagrane",
+      "f"
+    ],
+    "Melanzana": [
+      "Melanzana",
+      "Melanzane",
       "f"
     ],
     "Mele": [
@@ -205,19 +350,89 @@
       "Mozzarelle",
       "f"
     ],
+    "Nespola": [
+      "Nespola",
+      "Nespole",
+      "f"
+    ],
+    "Nocciola": [
+      "Nocciola",
+      "Nocciole",
+      "f"
+    ],
+    "Noce": [
+      "Noce",
+      "Noci",
+      "f"
+    ],
+    "Oliva": [
+      "Oliva",
+      "Olive",
+      "f"
+    ],
+    "Panino": [
+      "Panino",
+      "Panini",
+      "m"
+    ],
     "Passata": [
       "Passata",
       "Passate",
       "f"
+    ],
+    "Patata": [
+      "Patata",
+      "Patate",
+      "f"
+    ],
+    "Patatina": [
+      "Patatina",
+      "Patatine",
+      "f"
+    ],
+    "Peperoncino": [
+      "Peperoncino",
+      "Peperoncini",
+      "m"
+    ],
+    "Peperone": [
+      "Peperone",
+      "Peperoni",
+      "m"
     ],
     "Pere": [
       "Pera",
       "Pere",
       "f"
     ],
+    "Pesca": [
+      "Pesca",
+      "Pesche",
+      "f"
+    ],
+    "Petalo": [
+      "Petalo",
+      "Petali",
+      "m"
+    ],
     "Piadina": [
       "Piadina",
       "Piadine",
+      "f"
+    ],
+    "Pisello": [
+      "Pisello",
+      "Piselli",
+      "m"
+    ],
+    "Pistacchio": [
+      "Pistacchio",
+      "Pistacchi",
+      "m"
+    ],
+    "Pizza": [
+      "Pizza",
+      "Pizze",
       "f"
     ],
     "Pomodori": [
@@ -230,6 +445,21 @@
       "Pomodorini",
       "m"
     ],
+    "Porro": [
+      "Porro",
+      "Porri",
+      "m"
+    ],
+    "Radicchio": [
+      "Radicchio",
+      "Radicchi",
+      "m"
+    ],
+    "Ravanello": [
+      "Ravanello",
+      "Ravanelli",
+      "m"
+    ],
     "Ricotta": [
       "Ricotta",
       "Ricotte",
@@ -239,6 +469,21 @@
       "Salsiccia",
       "Salsicce",
       "f"
+    ],
+    "Scatola": [
+      "Scatola",
+      "Scatole",
+      "f"
+    ],
+    "Sedano": [
+      "Sedano",
+      "Sedani",
+      "m"
+    ],
+    "Spinacio": [
+      "Spinacio",
+      "Spinaci",
+      "m"
     ],
     "Succo": [
       "Succo",
@@ -255,14 +500,44 @@
       "Surgelati",
       "m"
     ],
+    "Tarallo": [
+      "Tarallo",
+      "Taralli",
+      "m"
+    ],
+    "Tavoletta": [
+      "Tavoletta",
+      "Tavolette",
+      "f"
+    ],
+    "Tortellino": [
+      "Tortellino",
+      "Tortellini",
+      "m"
+    ],
     "Uova": [
       "Uovo",
       "Uova",
       "f"
     ],
+    "Uovo": [
+      "Uovo",
+      "Uova",
+      "m"
+    ],
     "Verdure": [
       "Verdura",
       "Verdure",
+      "f"
+    ],
+    "Zucca": [
+      "Zucca",
+      "Zucche",
+      "f"
+    ],
+    "Zucchina": [
+      "Zucchina",
+      "Zucchine",
       "f"
     ],
     "Zucchine": [
@@ -743,8 +1018,35 @@
     "aceto",
     "lievito"
   ],
-  "phrase_connectors": ["di", "del", "dello", "della", "dei", "degli", "delle", "d'"],
-    "shopping_container_heads": ["frutta", "frutta fresca", "verdura", "verdure", "latticini", "condimenti", "bevande", "surgelati", "snack", "conserve", "carne", "pesce", "cereali", "colazione", "misto", "ver", "conserva"],
+  "phrase_connectors": [
+    "di",
+    "del",
+    "dello",
+    "della",
+    "dei",
+    "degli",
+    "delle",
+    "d'"
+  ],
+  "shopping_container_heads": [
+    "frutta",
+    "frutta fresca",
+    "verdura",
+    "verdure",
+    "latticini",
+    "condimenti",
+    "bevande",
+    "surgelati",
+    "snack",
+    "conserve",
+    "carne",
+    "pesce",
+    "cereali",
+    "colazione",
+    "misto",
+    "ver",
+    "conserva"
+  ],
   "umbrella_labels": [
     "snacks & sweets",
     "snack & dolci",
@@ -1659,8 +1961,59 @@
       "star"
     ]
   },
-  "company_stop_words": ["aziende", "chimiche", "chimici", "riunite", "riuniti", "laboratorio", "laboratori", "chimico", "chimica", "farmaceutico", "farmaceutica", "farmaceutici", "farmaceutiche", "industrie", "industria", "societa", "società", "spa", "srl", "sas", "snc", "del", "della", "delle", "dei", "degli", "francesco", "group", "groupe", "holding", "pharma"],
-  "cooking_voice": {"next": ["avanti", "successivo", "prossimo", "dopo", "vai avanti"], "prev": ["indietro", "precedente", "torna"], "replay": ["rileggi", "ripeti", "leggi di nuovo", "ancora"]},
+  "company_stop_words": [
+    "aziende",
+    "chimiche",
+    "chimici",
+    "riunite",
+    "riuniti",
+    "laboratorio",
+    "laboratori",
+    "chimico",
+    "chimica",
+    "farmaceutico",
+    "farmaceutica",
+    "farmaceutici",
+    "farmaceutiche",
+    "industrie",
+    "industria",
+    "societa",
+    "società",
+    "spa",
+    "srl",
+    "sas",
+    "snc",
+    "del",
+    "della",
+    "delle",
+    "dei",
+    "degli",
+    "francesco",
+    "group",
+    "groupe",
+    "holding",
+    "pharma"
+  ],
+  "cooking_voice": {
+    "next": [
+      "avanti",
+      "successivo",
+      "prossimo",
+      "dopo",
+      "vai avanti"
+    ],
+    "prev": [
+      "indietro",
+      "precedente",
+      "torna"
+    ],
+    "replay": [
+      "rileggi",
+      "ripeti",
+      "leggi di nuovo",
+      "ancora"
+    ]
+  },
   "capture": {
     "intent": {
       "recipe": [

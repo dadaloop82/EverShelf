@@ -5,6 +5,31 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.2] - 2026-11-06
+
+### Fixed
+- **One number per generic: no more "Peperone" next to "Peperoni".** The pantry title is
+  singular by design ("Uovo medio") and the shopping word was copied from it, so the list grew
+  two rows of the same vegetable — Peperone/Peperoni, Patata/Patate, Gnocco/Gnocchi,
+  Cipolla/Cipolle, Formaggio/Formaggi. `computeShoppingName()` now hands every generic to
+  `productKindShoppingPlural()`, and a list is a list of things to buy: plural.
+
+### Added
+- **The plural is language data, not code** (`api/vocab/<lang>.json` → `number_forms`, the table
+  the singular/plural engine already read): 55 pairs added in `it` — vegetables (Peperone,
+  Patata, Zucchina, Melanzana, Carciofo, Finocchio, Zucca…), fruit (Fragola, Ciliegia, Pesca,
+  Albicocca, Anguria, Nespola…), nuts and legumes (Noce, Mandorla, Nocciola, Cece, Fagiolo,
+  Lenticchia, Pisello), prepared food (Gnocco, Uovo, Cotoletta, Bistecca, Panino, Pizza,
+  Tavoletta, Scatola) and the olives. A word the language does NOT declare is left alone: latte,
+  pane, pasta, tonno, sale, olio have no plural in this table and the app will never invent
+  "Latti". A language without the table (en/de today) simply keeps its words as they are.
+- **A phrase takes the number on its head**: "Marmellata di limone" → "Marmellate di limone",
+  "Succo di pera" → "Succhi di pera". Only a real connector (`phrase_connectors`) opens that
+  door, so "Formaggio fresco" is never turned into "Formaggi fresco".
+- **`migration_shopping_generic_v4`** rewrites the stored generics and MERGES the rows that
+  differed only by number: on this instance 72 rows, 0 singular/plural pairs left, 0 duplicated
+  generics in the smart list.
+
 ## [1.30.1] - 2026-11-06
 
 ### Fixed

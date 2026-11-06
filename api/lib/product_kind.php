@@ -204,6 +204,45 @@ function productKindPluralForm(string $kind): string {
     return $forms['plural'] === $forms['singular'] ? '' : $forms['plural'];
 }
 
+/**
+ * The buyable word at the number a SHOPPING LIST uses: the plural.
+ *
+ * You write "Peperoni" on a list, never "Peperone" — and a list that carried both was
+ * carrying two families of the same vegetable. The plural comes from the language data
+ * (`api/vocab/<lang>.json` → `number_forms`), which is where the pairs live; a word the
+ * language does not declare (latte, pane, pasta, tonno: mass nouns) is left exactly as
+ * it is, because "Latti" and "Pasti" are not words this app may invent.
+ */
+function productKindShoppingPlural(string $generic): string {
+    $generic = trim($generic);
+    if ($generic === '') {
+        return $generic;
+    }
+    $plural = productKindPluralForm($generic);
+    if ($plural !== '') {
+        return $plural;
+    }
+    // A generic that is a phrase ("Marmellata di limone", "Succo di pera"): the HEAD
+    // takes the number, the complement stays put. Only a real connector opens that
+    // door — "Formaggio fresco" must never become "Formaggi fresco", because there the
+    // second word is an adjective that would have to agree too.
+    $words = preg_split('/\s+/u', $generic) ?: [];
+    if (count($words) >= 3) {
+        $connectors = array_map(
+            static fn($w) => mb_strtolower(trim((string)$w)),
+            (array)(evershelfVocab()['phrase_connectors'] ?? [])
+        );
+        if (in_array(mb_strtolower($words[1]), $connectors, true)) {
+            $headPlural = productKindPluralForm($words[0]);
+            if ($headPlural !== '') {
+                $words[0] = $headPlural;
+                return implode(' ', $words);
+            }
+        }
+    }
+    return $generic;
+}
+
 /** Gender of a genre word from its ending ('m'/'f'); '' when the ending does not tell. */
 function productKindGenderOfWord(string $word): string {
     $parts = preg_split('/\s+/u', trim($word)) ?: [];

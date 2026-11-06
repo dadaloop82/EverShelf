@@ -484,6 +484,76 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // v4: one number per buyable generic. The list carried "Peperone" AND "Peperoni",
+    // "Patata" AND "Patate", "Gnocco" AND "Gnocchi" — two rows of the same vegetable,
+    // because the pantry title is singular and the shopping word was copied from it.
+    // Every shopping generic now goes to the PLURAL the language declares (a mass noun
+    // is untouched), and the rows that differ only by number are merged.
+    $genericsV4 = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_generic_v4'")->fetchColumn();
+    if (!$genericsV4) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $renamedV4 = 0;
+        $mergedV4 = 0;
+        $rows = $db->query("SELECT id, shopping_name FROM products
+                            WHERE shopping_name IS NOT NULL AND TRIM(shopping_name) != ''")
+                   ->fetchAll(PDO::FETCH_ASSOC);
+        $upd4 = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+        foreach ($rows as $row) {
+            $better = productKindShoppingPlural((string)$row['shopping_name']);
+            if ($better === (string)$row['shopping_name']) {
+                continue;
+            }
+            $upd4->execute([$better, (int)$row['id']]);
+            $renamedV4++;
+        }
+        try {
+            $listRows = $db->query("SELECT id, name, need_qty, need_unit FROM shopping_list")
+                           ->fetchAll(PDO::FETCH_ASSOC);
+            $updList4 = $db->prepare('UPDATE shopping_list SET name = ? WHERE id = ?');
+            $findDup  = $db->prepare('SELECT id, need_qty, need_unit FROM shopping_list WHERE name = ? LIMIT 1');
+            $delRow   = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
+            $bumpDup  = $db->prepare('UPDATE shopping_list SET need_qty = ?, need_unit = ? WHERE id = ?');
+            foreach ($listRows as $row) {
+                $better = productKindShoppingPlural((string)$row['name']);
+                if ($better === (string)$row['name']) {
+                    continue;
+                }
+                try {
+                    $updList4->execute([$better, (int)$row['id']]);
+                    $renamedV4++;
+                } catch (Throwable $e) {
+                    // The plural row is already there: merge the numbers when they speak
+                    // the same unit, then drop the duplicate. Same word = same family.
+                    $findDup->execute([$better]);
+                    $dup = $findDup->fetch(PDO::FETCH_ASSOC);
+                    if (!$dup) {
+                        continue;
+                    }
+                    $q1 = (float)($row['need_qty'] ?? 0);
+                    $u1 = trim((string)($row['need_unit'] ?? ''));
+                    $q2 = (float)($dup['need_qty'] ?? 0);
+                    $u2 = trim((string)($dup['need_unit'] ?? ''));
+                    if ($q1 > 0 && $q2 > 0 && ($u1 === $u2 || $u1 === '' || $u2 === '')) {
+                        $bumpDup->execute([$q1 + $q2, $u1 !== '' ? $u1 : $u2, (int)$dup['id']]);
+                    }
+                    $delRow->execute([(int)$row['id']]);
+                    $mergedV4++;
+                }
+            }
+        } catch (Throwable $e) {
+            // no shopping_list yet
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_shopping_generic_v4', '1')");
+        if (($renamedV4 + $mergedV4) > 0 && class_exists('EverLog')) {
+            EverLog::info('Shopping generics moved to plural, singular duplicates merged', [
+                'event' => 'shopping_generic_plural_v4',
+                'renamed' => $renamedV4,
+                'merged' => $mergedV4,
+            ]);
+        }
+    }
+
     $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
     $invColNames = array_column($invCols, 'name');
     if (!in_array('expiry_user_set', $invColNames)) {
