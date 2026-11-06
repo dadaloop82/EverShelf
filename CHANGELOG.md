@@ -5,6 +5,13 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.12] - 2026-11-06
+
+### Fixed
+- **Spices were bought by the hundred gram.** `sale_units.json` had no rule for `condimenti`, so
+  oregano came out at 80 g for the month. A jar is the unit: 10 g steps, 10 g minimum, 50 g cap.
+  Origano 80 g → **50 g**, rosmarino → 10 g.
+
 ## [1.30.11] - 2026-11-06
 
 ### Fixed
