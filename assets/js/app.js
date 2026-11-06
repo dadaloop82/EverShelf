@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106x'; // bump when translations change
+const _I18N_VERSION = '20261106y'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19383,7 +19383,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106x';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106y';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19393,7 +19393,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106x';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106y';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -30313,7 +30313,9 @@ function _initSmartSuggestedChips(container) {
             const payload = { items: [{ name, specification: spec }] };
             if (shoppingListUUID) payload.listUUID = shoppingListUUID;
             const res = await api('shopping_add', {}, 'POST', payload);
-            if (res.success) {
+            const addedNow = Number(res && res.added) || 0;
+            const updatedNow = Number(res && res.updated) || 0;
+            if (res && res.success && (addedNow + updatedNow) > 0) {
                 showToast(t('shopping.added_to_list', { n: 1 }), 'success');
                 // Optimistic + in place: the chip leaves the strip, the new row appears in the
                 // list, and NOTHING is re-fetched in the foreground (a full reload is what
@@ -30326,8 +30328,13 @@ function _initSmartSuggestedChips(container) {
                 renderSmartShopping();
                 loadShoppingList._bgCall = true;
                 loadShoppingList();
+            } else if (res && res.success) {
+                // The server accepted it but wrote nothing (already on the list under another
+                // name): say that instead of a cheerful "added" over no new row.
+                showToast(t('shopping.already_on_list'), 'info');
+                chip.disabled = false;
             } else {
-                showToast(res.error || t('error.generic'), 'error');
+                showToast((res && (res.error || res.error_key)) || t('error.generic'), 'error');
                 chip.disabled = false;
             }
         } catch (e) {

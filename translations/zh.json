@@ -885,6 +885,7 @@
     "save_favorite": "⭐ 收藏食谱"
   },
   "shopping": {
+    "already_on_list": "已在清单中",
     "loading_shelfy": "SHELFY 正在准备清单…",
     "search_placeholder": "搜索清单",
     "price_unavailable": "该商品暂无价格",

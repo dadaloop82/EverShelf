@@ -19732,11 +19732,19 @@ function shoppingSplitSuggested(array $items): array
     $suggested = [];
     foreach ($items as $item) {
         $buyCount = (int)($item['buy_count'] ?? 0);
+        $useCount = (int)($item['use_count'] ?? 0);
         $uses = (float)($item['uses_per_month'] ?? 0);
+        $stock = (float)($item['family_qty'] ?? 0);
         $keep = !empty($item['on_bring'])
-            || ($item['urgency'] ?? 'none') === 'critical'
+            || in_array((string)($item['urgency'] ?? 'none'), ['critical', 'high'], true)
             || (string)($item['suggested_via'] ?? '') !== '';   // explicit household requests
-        if (!$keep && $buyCount <= SHOPPING_RARE_BUY_COUNT && $uses < SHOPPING_RARE_USES_PER_MONTH) {
+        // "Rarely bought" must mean RARELY USED *and* still on the shelf: something that is
+        // finished and that the household does use belongs to the list, not to a footnote
+        // ("molti suggeriti li uso, quindi dovrebbero stare in lista").
+        $rarely = $buyCount <= SHOPPING_RARE_BUY_COUNT
+            && $useCount <= 2
+            && $uses < SHOPPING_RARE_USES_PER_MONTH;
+        if (!$keep && $rarely && $stock > 0) {
             $suggested[] = $item;
             continue;
         }
@@ -20395,8 +20403,12 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
 
         // "Non serve" is a decision, and the smart list is what feeds the suggestions
         // under the list: without this guard a dismissed product came back with the next
-        // cache rebuild, which is exactly what the household reported as "ricompare".
-        if (shoppingIsDismissed($db, (string)$shoppingName, (string)$p['name'])) {
+        // cache rebuild, which is what the household reported as "ricompare".
+        // BUT a tap cannot mute a staple for two weeks: a product this pantry uses at least
+        // once a week ignores the dismissal (yogurt, milk, bread). The date still applies to
+        // everything else, and buying it clears the entry anyway.
+        if ($usesPerMonth < SHOPPING_HIGH_USES_PER_MONTH
+            && shoppingIsDismissed($db, (string)$shoppingName, (string)$p['name'])) {
             $skippedOutOfSeason[] = (string)$shoppingName;   // logged with the same debug channel
             continue;
         }

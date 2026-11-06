@@ -5,6 +5,25 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.11] - 2026-11-06
+
+### Fixed
+- **Yogurt was missing from the list.** The dismiss map ("non serve") contained `yogurt` from a
+  tap weeks ago, and the guard added in 1.30.7 muted the whole generic for the whole window. A tap
+  cannot silence a staple: a product used at least once a week (`SHOPPING_HIGH_USES_PER_MONTH`)
+  now ignores the dismissal, and buying it clears the entry anyway. Yogurt (38 uses in 90 days) is
+  back in the list at 1000 g.
+- **"Suggeriti" was stealing products the household uses.** The split moved a row out of the list
+  when it had been bought once — even when it was finished ("molti suggeriti li uso, quindi
+  dovrebbero stare in lista"). A row is only suggested when it is **rarely used AND still on the
+  shelf**; anything the pantry uses and has run out of stays in the list where it belongs.
+  On this pantry: 47 rows → **56 in the list, 2 suggested** (chocolate with stock, butter never used).
+- **"Aggiungi" from a suggestion did nothing.** Two causes: the chips of the strip under the list
+  had no click handler at all outside the forecast tab (fixed in 1.30.10), and the success toast
+  fired even when the server wrote nothing. The chip now reports what really happened —
+  `added` / `updated` from the response, "Era già in lista" when nothing was written, the error
+  when there is one — and re-enables itself instead of staying disabled.
+
 ## [1.30.10] - 2026-11-06
 
 ### Fixed
