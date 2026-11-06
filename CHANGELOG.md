@@ -5,6 +5,19 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.10] - 2026-11-06
+
+### Fixed
+- **Adding a suggested product wiped the suggestions.** The chips in the strip under the list had
+  their click handler attached only in the forecast tab, and the add path (a) reloaded the whole
+  page and (b) let a payload WITHOUT the `suggested` key reset the list to `[]` — so one tap made
+  every suggestion disappear. Now the strip is wired on the shopping page too, a response that does
+  not carry the list no longer replaces it, and the add is optimistic: the chip leaves the strip,
+  the row appears in the list, and the server syncs in the background.
+- **The search now filters the suggestions**, both the inline section and the "Suggeriti" strip.
+  A search that leaves the suggestion area untouched promises rows that are not in the list; with
+  no match the area disappears entirely.
+
 ## [1.30.9] - 2026-11-06
 
 ### Added

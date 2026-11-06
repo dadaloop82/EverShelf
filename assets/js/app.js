@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106w'; // bump when translations change
+const _I18N_VERSION = '20261106x'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19383,7 +19383,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106w';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106x';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19393,7 +19393,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106w';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106x';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -30057,7 +30057,10 @@ async function loadSmartShopping(forceRefresh = false) {
             smartShoppingItems = _filterPurchasedSmartItems(data.items);
             // Rarely bought products: out of the list, still one tap away. They never
             // bury the milk again, but the household must be able to see them.
-            smartShoppingSuggested = Array.isArray(data.suggested) ? data.suggested : [];
+            // Only a payload that CARRIES the list may replace it: a cached/older answer
+            // without `suggested` used to wipe the strip (the household added one item and
+            // every suggestion disappeared).
+            if (Array.isArray(data.suggested)) smartShoppingSuggested = data.suggested;
             if (data.fresh_horizon_days) window._smartFreshHorizonDays = parseInt(data.fresh_horizon_days, 10) || 7;
             window._planDaysMeta = {
                 source: String(data.plan_days_source || 'default'),
@@ -30276,7 +30279,9 @@ function renderSmartShopping() {
  */
 function _renderSmartSuggestedStrip() {
     const rows = (Array.isArray(smartShoppingSuggested) ? smartShoppingSuggested : [])
-        .filter((i) => !_shopIsDismissed(i.name, i));
+        .filter((i) => !_shopIsDismissed(i.name, i))
+        // A search must narrow EVERY list on the page, the suggestions included.
+        .filter((i) => _shopRowMatchesSearch(null, i, _shopSearchTerm));
     if (!rows.length) return '';
     const chips = rows.slice(0, 12).map((it) => {
         const name = it.shopping_name || it.name || '';
@@ -30310,8 +30315,16 @@ function _initSmartSuggestedChips(container) {
             const res = await api('shopping_add', {}, 'POST', payload);
             if (res.success) {
                 showToast(t('shopping.added_to_list', { n: 1 }), 'success');
+                // Optimistic + in place: the chip leaves the strip, the new row appears in the
+                // list, and NOTHING is re-fetched in the foreground (a full reload is what
+                // blanked the other suggestions).
                 smartShoppingSuggested = (smartShoppingSuggested || []).filter((i) => (i.shopping_name || i.name) !== name);
+                if (!(shoppingItems || []).some((it) => String(it.name).toLowerCase() === name.toLowerCase())) {
+                    shoppingItems.push({ name, rawName: name, specification: spec });
+                }
+                renderShoppingItems(true);
                 renderSmartShopping();
+                loadShoppingList._bgCall = true;
                 loadShoppingList();
             } else {
                 showToast(res.error || t('error.generic'), 'error');
@@ -31573,7 +31586,9 @@ function _renderShoppingSectionHead(secKey, secDef, count, collapsed) {
 }
 
 function _renderShoppingSuggestionsInline() {
-    const items = smartShoppingItems.filter(i => !i.on_bring && !_shopIsDismissed(i.name, i));
+    const items = smartShoppingItems
+        .filter(i => !i.on_bring && !_shopIsDismissed(i.name, i))
+        .filter(i => _shopRowMatchesSearch(null, i, _shopSearchTerm));
     if (!items.length) return '';
     const secKey = '__suggest__';
     const collapsed = !!_shoppingSectionsCollapsedGet()[secKey];
@@ -31816,6 +31831,9 @@ async function renderShoppingItems(force = false) {
     _updateShoppingFooter();
     _initShopRowSwipe(container);
     _initShopRowActions(container);
+    // The "Suggeriti" strip lives in THIS container too: without this its chips were dead
+    // on the shopping page (the handler was only attached in the forecast tab).
+    _initSmartSuggestedChips(container);
     _initShoppingPullRefresh();
     requestAnimationFrame(() => {
         _restoreShoppingScroll(scrollY);
