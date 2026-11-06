@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106c'; // bump when translations change
+const _I18N_VERSION = '20261106d'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106c';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106d';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106c';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106d';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32604,15 +32604,22 @@ async function _recipeLiveProductIdSet() {
     }
 }
 
-/** How many pantry ingredients of an archived recipe are no longer on the shelf. */
+/**
+ * What is missing for an archived recipe: the count, the total, the all-missing case and the
+ * NAMES — the card says "manca 1 ingrediente" and the popover has to say WHICH one (and put it
+ * on the shopping list).
+ */
 function _recipeArchiveMissingInfo(recipe) {
-    const info = { missing: 0, pantry: 0, uncookable: false };
+    const info = { missing: 0, pantry: 0, uncookable: false, items: [] };
     const live = _recipeLiveProductIds;
     if (!live || !recipe || !Array.isArray(recipe.ingredients)) return info;
     recipe.ingredients.forEach((i) => {
         if (!i || !i.product_id || !(Number(i.qty_number) > 0)) return;
         info.pantry++;
-        if (!live.has(String(i.product_id))) info.missing++;
+        if (!live.has(String(i.product_id))) {
+            info.missing++;
+            info.items.push({ name: String(i.name || '').trim(), qty: String(i.qty || '').trim() });
+        }
     });
     info.uncookable = info.pantry > 0 && info.missing === info.pantry;
     return info;
@@ -32621,6 +32628,70 @@ function _recipeArchiveMissingInfo(recipe) {
 /** Backwards-compatible: just the count. */
 function _recipeArchiveMissingCount(recipe) {
     return _recipeArchiveMissingInfo(recipe).missing;
+}
+
+/* ── "Manca 1 ingrediente": dillo, e offri la spesa ────────────────────────────────
+ * A chip that only states a lack is half a feature: the household is looking at the list, so
+ * the popover names WHAT is missing and puts it on the shopping list in one tap.
+ */
+function _recipeMissingPopoverClose() {
+    document.querySelectorAll('.recipe-missing-popover').forEach((el) => el.remove());
+}
+
+function _recipeMissingPopoverOutside(e) {
+    const el = document.querySelector('.recipe-missing-popover');
+    if (el && !el.contains(e.target)) _recipeMissingPopoverClose();
+}
+
+function _recipeMissingPopover(ev, archiveIdx) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    _recipeMissingPopoverClose();
+    const entry = Array.isArray(_recipeArchiveEntries) ? _recipeArchiveEntries[archiveIdx] : null;
+    const r = entry && entry.recipe;
+    if (!r) return;
+    const info = _recipeArchiveMissingInfo(r);
+    if (!info.missing) return;
+    const rows = info.items.map((it) => `<li>${escapeHtml(it.name)}`
+        + `${it.qty ? ` <span class="recipe-missing-qty">${escapeHtml(it.qty)}</span>` : ''}</li>`).join('');
+    const el = document.createElement('div');
+    el.className = 'recipe-missing-popover';
+    el.innerHTML = `<strong>${escapeHtml(t('recipes.missing_popover_title'))}</strong>`
+        + `<ul>${rows}</ul>`
+        + `<button type="button" class="btn btn-small btn-primary full-width" onclick="_recipeMissingAddShopping(${archiveIdx}, this)">${escapeHtml(t('recipes.missing_add_shopping'))}</button>`;
+    document.body.appendChild(el);
+    // Under the chip, clamped to the viewport (a list row can be anywhere on the screen).
+    const target = ev && ev.currentTarget ? ev.currentTarget : null;
+    const rect = target && target.getBoundingClientRect ? target.getBoundingClientRect() : null;
+    const w = el.offsetWidth || 260;
+    const h = el.offsetHeight || 120;
+    const left = rect ? Math.max(8, Math.min(window.innerWidth - w - 8, rect.left)) : 8;
+    const top = rect ? Math.min(window.innerHeight - h - 8, rect.bottom + 6) : 60;
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = Math.round(Math.max(8, top)) + 'px';
+    setTimeout(() => document.addEventListener('click', _recipeMissingPopoverOutside, { once: true }), 0);
+}
+
+/** "＋ Metti in Spesa": what is missing goes on the shopping list, in one tap. */
+async function _recipeMissingAddShopping(archiveIdx, btn) {
+    const entry = Array.isArray(_recipeArchiveEntries) ? _recipeArchiveEntries[archiveIdx] : null;
+    const r = entry && entry.recipe;
+    if (!r) return;
+    const names = _recipeArchiveMissingInfo(r).items.map((it) => it.name).filter(Boolean);
+    if (!names.length) return;
+    if (btn) btn.disabled = true;
+    try {
+        const res = await api('shopping_add', {}, 'POST', {
+            items: names.map((name) => ({ name })),
+            listUUID: (typeof shoppingListUUID !== 'undefined' && shoppingListUUID) ? shoppingListUUID : '',
+        });
+        if (res && res.success === false) throw new Error(_apiErrorText(res) || 'failed');
+        showToast(t('recipes.missing_added_shopping', { n: String(names.length) }), 'success');
+        _recipeMissingPopoverClose();
+        if (typeof loadShoppingCount === 'function') loadShoppingCount();
+    } catch (e) {
+        if (btn) btn.disabled = false;
+        showToast(t('error.generic'), 'error');
+    }
 }
 
 function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
@@ -32642,16 +32713,12 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
                 .toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
         } catch (e) { savedTime = ''; }
     }
-    // An ingredient the pantry no longer has is a fact the LIST can carry: no need to open the
-    // recipe to find out it cannot be cooked tonight. It sits at the FAR LEFT of the card and at
-    // double size — it is a warning, not a badge among badges.
+    // Nothing sits before the meal icon: the titles of the whole list start on the same left
+    // margin (a badge in front of them made the column zig-zag). What is missing is said in the
+    // META row, as a soft amber chip, and it is a pantry condition — not a crash.
     const missingInfo = _recipeArchiveMissingInfo(r);
-    const uncookableCls = missingInfo.uncookable ? ' recipe-archive-card-uncookable' : '';
-    let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}${uncookableCls}" onclick="viewArchivedRecipe(${archiveIdx})">`;
+    let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}" onclick="viewArchivedRecipe(${archiveIdx})">`;
     html += `<div class="recipe-archive-card-header">`;
-    if (missingInfo.missing > 0) {
-        html += `<span class="recipe-archive-missing" title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingInfo.missing) }))}">⚠️ ${missingInfo.missing}</span>`;
-    }
     html += `<span class="recipe-archive-meal recipe-archive-meal-lg" aria-hidden="true">${mealIcon}</span>`;
     html += `<span class="recipe-archive-title">${escapeHtml(r.title || '')}</span>`;
     html += favBadge;
@@ -32664,6 +32731,13 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     }
     html += `</div>`;
     html += `<div class="recipe-archive-card-meta">`;
+    if (missingInfo.missing > 0) {
+        const chipText = missingInfo.uncookable
+            ? t('recipes.missing_chip_none')
+            : (missingInfo.missing === 1 ? t('recipes.missing_chip_one') : t('recipes.missing_chip_many', { n: String(missingInfo.missing) }));
+        html += `<button type="button" class="recipe-missing-chip" onclick="event.stopPropagation();_recipeMissingPopover(event, ${archiveIdx})"`
+            + ` title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingInfo.missing) }))}">${escapeHtml(chipText)}</button>`;
+    }
     if (savedTime) html += `<span class="recipe-archive-badge">🕐 ${escapeHtml(savedTime)}</span>`;
     // The vote, right on the card: it is what the book is filtered by, so it has to be visible
     // before opening the recipe — including when it is still zero (the empty stars are the

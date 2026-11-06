@@ -123,12 +123,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   created/updated with clean slugs, test artifacts removed, Mealie back to its 11 recipes.
 
 ### Changed
-- **The "missing ingredients" warning on the list is now a warning.** `⚠️ n` moved to the FAR
-  LEFT of the card (before the meal icon) and doubled in size (1.15 rem, red pill with a 2 px
-  border), and when NOT ONE of its pantry ingredients is left the whole card is marked
-  (`recipe-archive-card-uncookable`: red rail, title in red) — it has to be obvious at a glance
-  that tonight's dinner cannot be that dish. `_recipeArchiveMissingInfo()` now answers the
-  count, the total and the all-missing case in one pass.
+- **The "missing ingredients" warning says what it means, and acts.** The `⚠️ n` badge in front
+  of the meal icon is gone: it read as a crash counter (red border, warning triangle, a bare
+  number) and it pushed the titles of half the list out of alignment. What is left is a SOFT
+  AMBER chip in the meta row — `🛒 Manca 1 ingrediente` / `🛒 Mancano 2 ingredienti` /
+  `🛒 Nessun ingrediente in dispensa` (`#FEF3C7` fill, `#FDE68A` border, `#92400E` text, 12 px
+  semibold): a pantry condition, not an alarm. It is a BUTTON: tapping it opens a small popover
+  that names what is missing (`Manca dalla dispensa — Panna 30 ml`) with **＋ Metti in Spesa**,
+  which writes those names straight to the shopping list (`shopping_add`).
+  `_recipeArchiveMissingInfo()` now also returns the missing items themselves.
 - **The medicine company words left the code and became data.** `_medShortCompany()` carried a
   `Set` of Italian/English/French company words (`aziende`, `chimiche`, `riunite`,
   `farmaceutico`, `laboratoires`, …) plus a regex alternation in `_medCommercialName()`: the

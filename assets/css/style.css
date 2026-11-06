@@ -11004,36 +11004,64 @@ body.cooking-mode-active .app-header {
 }
 .recipe-archive-rating-off { color: var(--text-muted); opacity: 0.45; }
 
-/* A recipe that lost an ingredient wears its ⚠️ at the FAR LEFT of the card and twice as big
-   as anything else in the row: it is a warning, not a badge among badges. */
-.recipe-archive-missing {
+/* "Manca 1 ingrediente": a SOFT AMBER chip in the meta row (never in front of the title, which
+   must start on the same margin on every card). Amber and not red: a missing yoghurt is a
+   pantry condition, not a crash — and it is a button, because it says WHICH one and puts it on
+   the shopping list. */
+.recipe-missing-chip {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-    padding: 2px 9px;
+    gap: 4px;
+    padding: 2px 8px;
     border-radius: 999px;
-    background: #fef2f2;
-    border: 2px solid #f87171;
-    color: #b91c1c;
-    font-size: 1.15rem;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: 0.02em;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    color: #92400E;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.45;
+    cursor: pointer;
+    white-space: nowrap;
 }
-/* Not one ingredient of it is on the shelf: the whole card says so, not just the pill. */
-.recipe-archive-card-uncookable {
-    box-shadow: inset 3px 0 0 0 #dc2626, 0 1px 3px rgba(0,0,0,0.06);
+.recipe-missing-chip:active { background: #FDE68A; }
+
+/* The popover: what is missing, by name, with the shopping list one tap away. */
+.recipe-missing-popover {
+    position: fixed;
+    z-index: 340;
+    width: min(280px, calc(100vw - 16px));
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--surface-border, #e2e8f0);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+    text-align: left;
 }
-.recipe-archive-card-uncookable .recipe-archive-title {
-    color: #b91c1c;
+.recipe-missing-popover strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    color: var(--text-main, #0f172a);
 }
-[data-theme="dark"] .recipe-archive-missing {
-    background: #2a0a0a;
-    border-color: #ef4444;
-    color: #fca5a5;
+.recipe-missing-popover ul {
+    margin: 0 0 10px;
+    padding-left: 18px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-main, #0f172a);
 }
-[data-theme="dark"] .recipe-archive-card-uncookable .recipe-archive-title { color: #fca5a5; }
+.recipe-missing-qty { color: var(--text-muted); }
+[data-theme="dark"] .recipe-missing-chip {
+    background: #3a2a05;
+    border-color: #92400E;
+    color: #FDE68A;
+}
+[data-theme="dark"] .recipe-missing-popover {
+    background: var(--bg-card, #1e293b);
+    border-color: #334155;
+}
+[data-theme="dark"] .recipe-missing-popover strong,
+[data-theme="dark"] .recipe-missing-popover ul { color: var(--text, #f1f5f9); }
 
 .btn-inv-fav {
     flex-shrink: 0;
