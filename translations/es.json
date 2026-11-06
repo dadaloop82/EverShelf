@@ -1195,6 +1195,8 @@
     "voice_hint_title": "Comandos de voz",
     "voice_hint_intro": "Toca el micrófono y di una de estas palabras:",
     "voice_hint_foot": "Cualquier otra frase es una pregunta: se la paso a SHELFY en el chat.",
+    "voice_off": "Micrófono apagado: toca 🎤 para reactivarlo",
+    "voice_on": "Micrófono activo: escucho los comandos en cada paso",
     "start_timer_action": "Iniciar el temporizador de {time} para {name}",
     "start_timer_action_plain": "Iniciar el temporizador de {time}",
     "ing_chip_left": "quedan {qty}",

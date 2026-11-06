@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.29.22] - 2026-11-06
 
+### Changed
+- **The cooking microphone re-arms itself after every step.** It went silent at each step change,
+  so a command meant touching the screen first. Now every step arms it **5 seconds after the card
+  appears** (the time the voice needs to finish — listening while SHELFY reads feeds her own words
+  back in) and it keeps listening until it hears something. A command that changes the step starts
+  the cycle again, `rileggi` re-arms after 2.5 s, and the button becomes a **mute**: tap = off
+  (`Microfono spento…`), tap again = on. Still not endless listening: after three silent endings
+  it stops for that step (`_COOKING_VOICE_RETRIES_MAX`), and it never opens while SHELFY's sheet,
+  the finish card or another recogniser holds the microphone.
+
 ### Added
 - **The shopping list counts its priorities, and remembers what you refused.** The filter pills
   were there without numbers: each one now carries its count (`Tutti 76`, `🔴 Urgenti 16`, …) so a

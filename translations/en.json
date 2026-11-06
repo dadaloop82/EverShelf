@@ -1195,6 +1195,8 @@
     "voice_hint_title": "Voice commands",
     "voice_hint_intro": "Tap the microphone and say one of these words:",
     "voice_hint_foot": "Anything else is a question: it goes to SHELFY in the chat.",
+    "voice_off": "Microphone off: tap 🎤 to turn it back on",
+    "voice_on": "Microphone on: listening for commands at every step",
     "start_timer_action": "Start the {time} timer for {name}",
     "start_timer_action_plain": "Start the {time} timer",
     "ing_chip_left": "{qty} left",

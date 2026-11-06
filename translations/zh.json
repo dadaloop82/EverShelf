@@ -1195,6 +1195,8 @@
     "voice_hint_title": "语音指令",
     "voice_hint_intro": "点麦克风，说下面任意一个词：",
     "voice_hint_foot": "其他任何话都是一个问题：会转给 SHELFY 在聊天中回答。",
+    "voice_off": "麦克风已关闭：点击 🎤 重新开启",
+    "voice_on": "麦克风已开启：每一步都会听取指令",
     "start_timer_action": "为{name}启动 {time} 计时器",
     "start_timer_action_plain": "启动 {time} 计时器",
     "ing_chip_left": "剩余 {qty}",

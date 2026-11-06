@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106l'; // bump when translations change
+const _I18N_VERSION = '20261106m'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106l';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106m';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106l';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106m';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -35354,6 +35354,10 @@ let _cookingStep = 0;
 let _cookingSuggestedShortLabel = '';
 let _cookingStepHasInlineTimer = false;
 let _cookingVoiceRec = null;
+/** Auto-listening: armed again after every step (and after every command). */
+let _cookingVoiceAuto = true;
+let _cookingVoiceArmTimer = 0;
+let _cookingVoiceTries = 0;
 let _cookingTTS = true;
 let _cookingVisited = new Set(); // indices of steps already seen
 
@@ -35595,9 +35599,91 @@ function _cookingFinishSkip() {
 function _cookingVoiceStopRec() {
     const btn = document.getElementById('cooking-mic-btn');
     if (btn) btn.classList.remove('is-listening');
+    if (_cookingVoiceArmTimer) { try { clearTimeout(_cookingVoiceArmTimer); } catch (e) {} _cookingVoiceArmTimer = 0; }
     if (!_cookingVoiceRec) return;
     try { _cookingVoiceRec.onend = null; _cookingVoiceRec.onresult = null; _cookingVoiceRec.abort(); } catch (e) { /* already gone */ }
     _cookingVoiceRec = null;
+}
+
+/**
+ * Riarmo automatico dopo un passo.
+ *
+ * Il microfono si spegneva a ogni passo e bisognava ritoccarlo: qui si riapre da solo **5 s dopo**
+ * che il passo è comparso — il tempo di far finire la voce di SHELFY, che altrimenti si
+ * ascolterebbe da sola — e resta in ascolto finché non sente un comando. Dopo un comando che
+ * cambia passo il ciclo ricomincia (il passo nuovo riarma), quindi non serve più toccare nulla.
+ *
+ * Non è un ascolto continuo: ogni sessione è una frase breve, e dopo `_COOKING_VOICE_RETRIES_MAX`
+ * finali muti si ferma da sola — Chrome suona un bip a ogni `start()` e un microfono che trilla
+ * per tutta la ricetta è peggio di un microfono spento.
+ */
+const _COOKING_VOICE_ARM_MS = 5000;
+const _COOKING_VOICE_RETRY_MS = 1200;
+const _COOKING_VOICE_RETRIES_MAX = 3;
+
+function _cookingVoiceArm(delayMs) {
+    if (_cookingVoiceArmTimer) { try { clearTimeout(_cookingVoiceArmTimer); } catch (e) {} _cookingVoiceArmTimer = 0; }
+    if (!_cookingVoiceAuto || !_cookingModeOpen()) return;
+    _cookingVoiceArmTimer = setTimeout(() => {
+        _cookingVoiceArmTimer = 0;
+        _cookingVoiceStart();
+    }, Math.max(0, Number(delayMs) || 0));
+}
+
+/** True while SHELFY is reading out loud (listening then would record her). */
+function _cookingTtsBusy() {
+    try { return !!(window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.pending)); } catch (e) { return false; }
+}
+
+/** Una sessione breve: una frase, poi si chiude (e si riarma se non ha sentito nulla). */
+function _cookingVoiceStart() {
+    if (!_cookingVoiceAuto || !_cookingModeOpen()) return;
+    if (_cookingVoiceRec) return;
+    // One microphone client at a time: SHELFY's own sheet, the finish card and an open dialog
+    // all take the microphone, and a second recogniser would steal the words from the first.
+    const sheet = document.getElementById('capture-sheet');
+    if (sheet && sheet.style.display && sheet.style.display !== 'none') return;
+    if (document.getElementById('cooking-finish-prompt')) return;
+    if (typeof _captureRec !== 'undefined' && _captureRec) return;
+    // The voice comes first: listening while the assistant talks feeds her own words back in.
+    if (_cookingTtsBusy()) { _cookingVoiceArm(900); return; }
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor) return;
+    const rec = new Ctor();
+    _cookingVoiceRec = rec;
+    rec.lang = _captureSpeechLang();
+    rec.interimResults = false;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    const btn = document.getElementById('cooking-mic-btn');
+    if (btn) btn.classList.add('is-listening');
+    let heard = false;
+    rec.onresult = (ev) => {
+        heard = true;
+        const said = String((ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '').trim();
+        _cookingVoiceDispatch(said);
+    };
+    rec.onerror = (ev) => {
+        // A denied microphone is not a temporary hiccup: stop asking.
+        if (ev && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed')) {
+            _cookingVoiceAuto = false;
+        }
+    };
+    rec.onend = () => {
+        _cookingVoiceRec = null;
+        if (btn) btn.classList.remove('is-listening');
+        if (!_cookingModeOpen() || !_cookingVoiceAuto) return;
+        if (heard) return;                    // a command: the step change re-arms the cycle
+        if (_cookingVoiceTries >= _COOKING_VOICE_RETRIES_MAX) return;
+        _cookingVoiceTries++;
+        _cookingVoiceArm(_COOKING_VOICE_RETRY_MS);
+    };
+    try {
+        rec.start();
+    } catch (e) {
+        _cookingVoiceRec = null;
+        if (btn) btn.classList.remove('is-listening');
+    }
 }
 
 /* ── Il tutorial del microfono: 8 secondi, una volta per dispositivo ───────────────────
@@ -35665,31 +35751,19 @@ function _cookingVoiceHint(force) {
 }
 
 function _cookingVoiceCommand() {
-    if (_cookingVoiceRec) { _cookingVoiceStopRec(); return; }   // second tap = stop
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) { showToast(t('capture.unsupported'), 'info'); return; }
-    const rec = new Ctor();
-    _cookingVoiceRec = rec;
-    rec.lang = _captureSpeechLang();
-    rec.interimResults = false;
-    rec.continuous = false;
-    rec.maxAlternatives = 1;
-    const btn = document.getElementById('cooking-mic-btn');
-    if (btn) btn.classList.add('is-listening');
-    rec.onresult = (ev) => {
-        const said = String((ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '').trim();
-        _cookingVoiceDispatch(said);
-    };
-    rec.onend = () => {
-        _cookingVoiceRec = null;
-        if (btn) btn.classList.remove('is-listening');
-    };
-    try {
-        rec.start();
-    } catch (e) {
-        _cookingVoiceRec = null;
-        if (btn) btn.classList.remove('is-listening');
+    if (_cookingVoiceAuto) {
+        // Mute: the assistant stops listening until you say otherwise.
+        _cookingVoiceAuto = false;
+        _cookingVoiceStopRec();
+        showToast(t('cooking.voice_off'), 'info');
+        return;
     }
+    _cookingVoiceAuto = true;
+    _cookingVoiceTries = 0;
+    _cookingVoiceArm(0);
+    showToast(t('cooking.voice_on'), 'success');
 }
 
 /** One heard phrase → one action, or a question for SHELFY. */
@@ -35698,7 +35772,7 @@ function _cookingVoiceDispatch(said) {
     if (!text) return;
     const lex = (typeof vocabCookingVoice === 'function') ? vocabCookingVoice() : { next: [], prev: [], replay: [] };
     const hit = (list) => (list || []).some((w) => w && text.includes(w));
-    if (hit(lex.replay)) { replayCookingTTS(); return; }
+    if (hit(lex.replay)) { replayCookingTTS(); _cookingVoiceArm(2500); return; }
     if (hit(lex.next)) { navigateCookingStep(1); return; }
     if (hit(lex.prev)) { navigateCookingStep(-1); return; }
     // Not a command: it is a question (a substitution, a doubt). SHELFY answers in the chat,
@@ -35779,6 +35853,8 @@ function startCookingMode() {
     renderCookingStep();
     // Once per device: what on earth is that 🎤 for. It disappears by itself in 8 s.
     setTimeout(() => _cookingVoiceHint(false), 700);
+    _cookingVoiceTries = 0;
+    _cookingVoiceArm(_COOKING_VOICE_ARM_MS);
     // No always-on mic in cooking: Chrome's SpeechRecognition restart chime
     // (bip-bip-bip) was louder than any hands-free gain. TTS + wheel/taps stay.
     if (_cookingTTS) {
@@ -37798,6 +37874,7 @@ function addCookingTimer(seconds, label) {
 let _cookingVoice = null;
 
 function _cookingVoiceStop() {
+    _cookingVoiceStopRec();       // the real session (and its re-arm timer)
     const v = _cookingVoice;
     _cookingVoice = null;
     if (!v) return;

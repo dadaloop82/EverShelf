@@ -1195,6 +1195,8 @@
     "voice_hint_title": "Commandes vocales",
     "voice_hint_intro": "Touche le micro et dis un de ces mots :",
     "voice_hint_foot": "Toute autre phrase est une question : elle part vers SHELFY dans le chat.",
+    "voice_off": "Micro éteint : touche 🎤 pour le rallumer",
+    "voice_on": "Micro actif : j’écoute les commandes à chaque étape",
     "start_timer_action": "Lancer le minuteur de {time} pour {name}",
     "start_timer_action_plain": "Lancer le minuteur de {time}",
     "ing_chip_left": "il en reste {qty}",

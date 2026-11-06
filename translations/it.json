@@ -1195,6 +1195,8 @@
     "voice_hint_title": "Comandi a voce",
     "voice_hint_intro": "Tocca il microfono e di' una di queste parole:",
     "voice_hint_foot": "Qualunque altra frase è una domanda: la passo a SHELFY in chat.",
+    "voice_off": "Microfono spento: tocca 🎤 per riattivarlo",
+    "voice_on": "Microfono attivo: ascolto i comandi a ogni passo",
     "start_timer_action": "Avvia il timer di {time} per {name}",
     "start_timer_action_plain": "Avvia il timer di {time}",
     "ing_chip_left": "ne restano {qty}",

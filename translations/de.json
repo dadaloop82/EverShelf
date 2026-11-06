@@ -1195,6 +1195,8 @@
     "voice_hint_title": "Sprachbefehle",
     "voice_hint_intro": "Tippe auf das Mikrofon und sage eines dieser Wörter:",
     "voice_hint_foot": "Alles andere ist eine Frage: sie geht an SHELFY im Chat.",
+    "voice_off": "Mikrofon aus: tippe 🎤 zum Einschalten",
+    "voice_on": "Mikrofon an: hört bei jedem Schritt auf Befehle",
     "start_timer_action": "Timer {time} für {name} starten",
     "start_timer_action_plain": "Timer {time} starten",
     "ing_chip_left": "noch {qty}",
