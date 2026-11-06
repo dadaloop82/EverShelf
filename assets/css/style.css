@@ -6993,10 +6993,38 @@ body:has(#page-scan.active) .app-content {
 
 /* ===== RECIPE DIALOG ===== */
 .recipe-dialog {
+    position: relative;            /* the ✕ is pinned to this corner */
     max-height: 85vh;
     overflow-y: auto;
     width: 94%;
     max-width: 500px;
+}
+
+/* The one way out of the sheet: a quiet ✕ in the corner, over all three of its views
+   (generator, loading, result). A tap outside closes it too. */
+.recipe-dialog-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 5;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.recipe-dialog-close:hover,
+.recipe-dialog-close:active {
+    background: var(--bg, #f8fafc);
+    color: var(--text-main, #0f172a);
 }
 
 .recipe-ask {
@@ -8368,6 +8396,25 @@ body.cooking-mode-active .app-header {
 
 .recipe-primary-actions .btn {
     width: 100%;
+}
+
+/* The prominent action of the sheet is cooking mode; the bookkeeping ones (did I cook it,
+   save it) sit under it as one quiet row: two thirds as tall, neutral, half as loud. */
+.recipe-secondary-actions {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.recipe-secondary-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: normal;
 }
 
 .recipe-title-row {
@@ -10893,6 +10940,25 @@ body.cooking-mode-active .app-header {
     color: #f59e0b;
 }
 .recipe-archive-rating-off { color: var(--text-muted); opacity: 0.45; }
+
+/* A recipe that lost an ingredient wears its ⚠️ on the card, not only inside the sheet. */
+.recipe-archive-missing {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+[data-theme="dark"] .recipe-archive-missing {
+    background: #2a0a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+}
 
 .btn-inv-fav {
     flex-shrink: 0;

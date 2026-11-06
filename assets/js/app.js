@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261105z'; // bump when translations change
+const _I18N_VERSION = '20261106a'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261105z';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106a';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261105z';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106a';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32424,6 +32424,42 @@ function _setRecipeArchiveView(view) {
     loadRecipeArchive();
 }
 
+/* ── What the book needs to know about the shelf ─────────────────────────────────────
+ * The cards are drawn from the archive, which knows nothing about the pantry. One inventory
+ * read (cached for a few seconds) hands the card builder the set of product ids that are still
+ * there, so a recipe that can no longer be cooked wears a ⚠️ in the LIST instead of telling you
+ * only after you open it.
+ */
+let _recipeLiveProductIds = null;
+let _recipeLiveProductIdsAt = 0;
+const _RECIPE_LIVE_IDS_TTL_MS = 30000;
+
+async function _recipeLiveProductIdSet() {
+    if (_recipeLiveProductIds && (Date.now() - _recipeLiveProductIdsAt) < _RECIPE_LIVE_IDS_TTL_MS) {
+        return _recipeLiveProductIds;
+    }
+    try {
+        const data = await api('inventory_list', {}, 'GET', null, {}, 8000);
+        const set = new Set();
+        (data && Array.isArray(data.inventory) ? data.inventory : []).forEach((row) => {
+            if (parseFloat(row.quantity) > 0) set.add(String(row.product_id));
+        });
+        _recipeLiveProductIds = set;
+        _recipeLiveProductIdsAt = Date.now();
+        return set;
+    } catch (e) {
+        return _recipeLiveProductIds || new Set();
+    }
+}
+
+/** How many pantry ingredients of an archived recipe are no longer on the shelf. */
+function _recipeArchiveMissingCount(recipe) {
+    const live = _recipeLiveProductIds;
+    if (!live || !recipe || !Array.isArray(recipe.ingredients)) return 0;
+    return recipe.ingredients.filter((i) => i && i.product_id && Number(i.qty_number) > 0
+        && !live.has(String(i.product_id))).length;
+}
+
 function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     const r = entry.recipe || {};
     const entryMeal = _normalizeMealId(r.meal || entry.meal || '');
@@ -32459,11 +32495,16 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     html += `<div class="recipe-archive-card-meta">`;
     if (savedTime) html += `<span class="recipe-archive-badge">🕐 ${escapeHtml(savedTime)}</span>`;
     // The vote, right on the card: it is what the book is filtered by, so it has to be visible
-    // before opening the recipe.
+    // before opening the recipe — including when it is still zero (the empty stars are the
+    // invitation to rate it).
     const cardRating = Math.max(0, Math.min(5, Math.round(Number(entry.rating) || 0)));
-    if (cardRating > 0) {
-        html += `<span class="recipe-archive-rating" title="${escapeHtml(t('recipes.rating_value', { n: String(cardRating) }))}">`
-            + '★'.repeat(cardRating) + `<span class="recipe-archive-rating-off">${'☆'.repeat(5 - cardRating)}</span></span>`;
+    html += `<span class="recipe-archive-rating" title="${escapeHtml(t('recipes.rating_value', { n: String(cardRating) }))}">`
+        + '★'.repeat(cardRating) + `<span class="recipe-archive-rating-off">${'☆'.repeat(5 - cardRating)}</span></span>`;
+    // An ingredient the pantry no longer has is a fact the LIST can carry: no need to open the
+    // recipe to find out it cannot be cooked tonight.
+    const missingCount = _recipeArchiveMissingCount(r);
+    if (missingCount > 0) {
+        html += `<span class="recipe-archive-missing" title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingCount) }))}">⚠️ ${missingCount}</span>`;
     }
     if (r.prep_time) html += `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.prep_time))}</span>`;
     if (r.cook_time) html += `<span class="recipe-archive-badge">🔥 ${escapeHtml(String(r.cook_time))}</span>`;
@@ -32482,6 +32523,8 @@ async function loadRecipeArchive() {
     if (!container) return;
     const archive = await getRecipeArchive();
     _recipeArchiveEntries = archive;
+    // The cards say which recipes lost an ingredient: that needs one look at the shelf.
+    await _recipeLiveProductIdSet();
     // The chips live outside the list: paint them before any branch decides what to print.
     _renderRecipeFilterBar();
     
@@ -34537,10 +34580,8 @@ function _recipeCookFooterMode(r) {
  */
 function _refreshRecipeCookFooter() {
     const r = _cachedRecipe && _cachedRecipe.recipe;
-    const host = document.getElementById('recipe-primary-actions');
-    if (!r || !host) return;
-    const btn = host.querySelector('button.btn-success');
-    if (!btn) return;
+    const btn = document.getElementById('recipe-cook-btn');
+    if (!r || !btn) return;
     if (_recipeScalablePantryCount(r) <= 0) {
         // Nothing left in the pantry to scale: the button says so instead of failing.
         btn.textContent = t('recipes.cook_unavailable');
@@ -34550,10 +34591,10 @@ function _refreshRecipeCookFooter() {
     }
     btn.disabled = false;
     if (_recipeCookFooterMode(r) === 'redo') {
-        btn.textContent = t('recipes.redo');
+        btn.textContent = t('recipes.redo_short');
         btn.setAttribute('onclick', '_recipeRedoIngredients()');
     } else {
-        btn.textContent = t('recipes.cook_deduct_all');
+        btn.textContent = t('recipes.cook_short');
         btn.setAttribute('onclick', 'cookRecipeDeductSelected()');
     }
 }
@@ -34825,20 +34866,25 @@ async function renderRecipe(r) {
 
     // The three actions of a meal live in ONE sticky footer: they end the recipe, so they
     // cannot stand between the ingredients and the procedure that explains how to cook it.
-    // The green button answers the STATE of the pantry: it scales while the ingredients are
-    // there, becomes "Rifai questa ricetta" as soon as the dish has been cooked once (a recipe
-    // is "already made" from the first row deducted, not from the last), and says it cannot be
-    // cooked when the products have left the pantry.
+    // The footer has ONE prominent action — cooking mode, which is what the sheet is for — and
+    // the two bookkeeping ones (did I cook it / save it) as a quiet row underneath: they used to
+    // be three equal green blocks, so "salva nei preferiti" shouted as loudly as the recipe
+    // itself. The cook button keeps the state machine (cook → redo → unavailable) on the SAME
+    // element (`#recipe-cook-btn`), which is what `_refreshRecipeCookFooter()` repaints.
     const _scalableIng = _recipeScalablePantryCount(r);
-    const _cookBtn = _scalableIng <= 0
-        ? `<button type="button" class="btn btn-large btn-success" disabled>${t('recipes.cook_unavailable')}</button>`
-        : (_recipeCookFooterMode(r) === 'redo'
-            ? `<button type="button" class="btn btn-large btn-success" onclick="_recipeRedoIngredients()">${t('recipes.redo')}</button>`
-            : `<button type="button" class="btn btn-large btn-success" onclick="cookRecipeDeductSelected()">${t('recipes.cook_deduct_all')}</button>`);
+    const _cookLabel = _scalableIng <= 0
+        ? t('recipes.cook_unavailable')
+        : (_recipeCookFooterMode(r) === 'redo' ? t('recipes.redo_short') : t('recipes.cook_short'));
+    const _cookOnclick = _scalableIng <= 0
+        ? ''
+        : (_recipeCookFooterMode(r) === 'redo' ? '_recipeRedoIngredients()' : 'cookRecipeDeductSelected()');
+    const _cookBtn = `<button type="button" id="recipe-cook-btn" class="btn btn-secondary btn-small"${_cookOnclick ? ` onclick="${_cookOnclick}"` : ' disabled'}>${_cookLabel}</button>`;
     html += `<div class="recipe-primary-actions" id="recipe-primary-actions">
         <button type="button" class="btn btn-large btn-cooking" onclick="startCookingMode()">${t('recipes.start_cooking')}</button>
-        ${_cookBtn}
-        <button type="button" class="btn btn-large btn-secondary${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
+        <div class="recipe-secondary-actions">
+            ${_cookBtn}
+            <button type="button" class="btn btn-secondary btn-small${isFav ? ' active' : ''}" id="recipe-fav-footer-btn" onclick="toggleRecipeFavorite(this)">${isFav ? ('★ ' + t('recipes.favorite')) : t('recipes.save_favorite')}</button>
+        </div>
     </div>`;
 
     document.getElementById('recipe-content').innerHTML = html;
@@ -35372,6 +35418,44 @@ function _bindCookingWheelControls() {
             navigateCookingStep(-1);
         }
     });
+
+    // ── Hands-full gestures ────────────────────────────────────────────────────────────
+    // At the stove the thumb lands where it lands, and the card is not the whole screen. So:
+    //   * tapping the ghost cards moves to the neighbour they show (they LOOK like neighbours);
+    //   * a swipe anywhere in the body moves a step, not only a swipe on the card itself.
+    // One gesture, no buttons to aim at, nothing to remember. The wheel keeps its own handler,
+    // so a touch that starts inside it is ignored here (no double step).
+    document.querySelectorAll('#cooking-step-prev, #cooking-step-next').forEach((ghost) => {
+        if (ghost._navBound) return;
+        ghost._navBound = true;
+        ghost.addEventListener('click', () => {
+            if (!document.body.classList.contains('cooking-mode-active')) return;
+            navigateCookingStep(ghost.id === 'cooking-step-next' ? 1 : -1);
+        });
+    });
+
+    const bodyEl = document.querySelector('#cooking-overlay .cooking-body');
+    if (bodyEl && !bodyEl._swipeBound) {
+        bodyEl._swipeBound = true;
+        let bodyStartY = null;
+        bodyEl.addEventListener('touchstart', (e) => {
+            if (!document.body.classList.contains('cooking-mode-active')) { bodyStartY = null; return; }
+            if (e.target.closest('#cooking-wheel')) { bodyStartY = null; return; }
+            const touch = e.touches && e.touches[0];
+            bodyStartY = touch ? touch.clientY : null;
+        }, { passive: true });
+        bodyEl.addEventListener('touchend', (e) => {
+            if (bodyStartY === null) return;
+            const end = e.changedTouches && e.changedTouches[0];
+            const delta = bodyStartY - (end ? end.clientY : bodyStartY);
+            bodyStartY = null;
+            if (Math.abs(delta) < 42) return;
+            const now = Date.now();
+            if (now - _cookingWheelLastNavTs < 240) return;
+            _cookingWheelLastNavTs = now;
+            navigateCookingStep(delta > 0 ? 1 : -1);
+        }, { passive: true });
+    }
 
     _cookingWheelBound = true;
 }
