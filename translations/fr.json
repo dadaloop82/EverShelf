@@ -1123,7 +1123,7 @@
     "plan_days_auto": "Par défaut : 30 jours ou votre rythme de courses ({days})",
     "plan_days_custom": "Custom period ({days} days)",
     "plan_days_unit": "d",
-    "plan_days_reset": "Auto (30j)",
+    "plan_days_reset": "Auto ({days} j)",
     "plan_days_aria": "Jours de planification",
     "buy_at_least": "Au moins : ",
     "buy_qty": "Acheter : ",

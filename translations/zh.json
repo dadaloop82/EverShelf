@@ -1104,7 +1104,7 @@
     "plan_days_auto": "默认：30 天或根据你的购物频率（{days} 天）",
     "plan_days_custom": "自定义周期（{days} 天）",
     "plan_days_unit": "天",
-    "plan_days_reset": "自动（30天）",
+    "plan_days_reset": "自动 ({days} 天)",
     "plan_days_aria": "计划天数",
     "found_count": "已找到 {found}/{total} 件商品",
     "savings_offers": "· 🏷️ 优惠可节省 €{amount}",

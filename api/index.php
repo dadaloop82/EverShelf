@@ -18740,14 +18740,22 @@ function shoppingAddDepletedInternal(
             $out['reason'] = 'already_on_list';
         }
     } else {
-        $db->prepare('INSERT INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)')
-           ->execute([$genericName, $rawName, dedupeBringSpec($spec)]);
-        $out['added'] = true;
-        EverLog::info('shoppingAddDepletedInternal: added', [
-            'name' => $genericName,
-            'raw'  => $rawName,
-        ]);
-        _fireHaWebhook('shopping_add', ['item' => $genericName, 'specification' => $spec]);
+        // INSERT OR IGNORE: the list is keyed by lower(name) (idx_shopping_list_name) and
+        // two paths can resolve the same generic at once — the lookup above is a check,
+        // not a lock. Without this a race surfaced the raw SQLSTATE to the household.
+        $ins = $db->prepare('INSERT OR IGNORE INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)');
+        $ins->execute([$genericName, $rawName, dedupeBringSpec($spec)]);
+        $out['added'] = $ins->rowCount() > 0;
+        if ($out['added']) {
+            EverLog::info('shoppingAddDepletedInternal: added', [
+                'name' => $genericName,
+                'raw'  => $rawName,
+            ]);
+            _fireHaWebhook('shopping_add', ['item' => $genericName, 'specification' => $spec]);
+        } else {
+            $out['skipped'] = true;
+            $out['reason'] = 'already_on_list';
+        }
     }
 
     internalShoppingDedupeGenerics($db);
@@ -20961,8 +20969,13 @@ function internalShoppingNormalizeNames(PDO $db): array {
     if (isShoppingBringMode()) {
         return ['skipped' => 'bring_mode'];
     }
-    $rows = $db->query('SELECT id, name, raw_name FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $db->query('SELECT id, name, raw_name, specification FROM shopping_list ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
     $updated = 0;
+    $merged = 0;
+    $findDup = $db->prepare('SELECT id, specification, raw_name FROM shopping_list WHERE lower(name) = lower(?) AND id != ? LIMIT 1');
+    $setName = $db->prepare('UPDATE shopping_list SET name = ?, raw_name = ? WHERE id = ?');
+    $setSpec = $db->prepare('UPDATE shopping_list SET specification = ?, raw_name = ? WHERE id = ?');
+    $delRow  = $db->prepare('DELETE FROM shopping_list WHERE id = ?');
     foreach ($rows as $row) {
         $name = trim((string)($row['name'] ?? ''));
         $raw  = trim((string)($row['raw_name'] ?? ''));
@@ -20977,11 +20990,33 @@ function internalShoppingNormalizeNames(PDO $db): array {
         if ($raw === '' || strcasecmp($raw, $canonical) === 0) {
             $raw = $name;
         }
-        $db->prepare('UPDATE shopping_list SET name = ?, raw_name = ? WHERE id = ?')
-            ->execute([$canonical, $raw, (int)$row['id']]);
-        $updated++;
+        // The list is keyed by lower(name): renaming into a name that is already there is
+        // a UNIQUE violation, and this pass runs at every load — so the household saw
+        // "SQLSTATE[23000] ... idx_shopping_list_name" on a page that was only reading.
+        // Same generic = same row: merge the notes into the survivor and drop this one.
+        $findDup->execute([$canonical, (int)$row['id']]);
+        $dup = $findDup->fetch(PDO::FETCH_ASSOC) ?: null;
+        try {
+            if ($dup === null) {
+                $setName->execute([$canonical, $raw, (int)$row['id']]);
+                $updated++;
+                continue;
+            }
+            $own = trim((string)($row['specification'] ?? ''));
+            $their = trim((string)($dup['specification'] ?? ''));
+            $spec = $their;
+            if ($own !== '' && mb_stripos($their, $own) === false) {
+                $spec = dedupeBringSpec($their !== '' ? $their . ' · ' . $own : $own);
+            }
+            $setSpec->execute([$spec, trim((string)($dup['raw_name'] ?? '')) ?: $raw, (int)$dup['id']]);
+            $delRow->execute([(int)$row['id']]);
+            $merged++;
+        } catch (\PDOException $e) {
+            // A concurrent writer took the name in between: leave the row as it is.
+            continue;
+        }
     }
-    return ['updated' => $updated];
+    return ['updated' => $updated, 'merged' => $merged];
 }
 
 /**
@@ -21212,10 +21247,17 @@ function shoppingAddItemsCore(PDO $db, array $items): array {
             if (strcasecmp($listRaw, $listName) === 0) {
                 $listRaw = $name !== $listName ? $name : $rawName;
             }
-            $db->prepare("INSERT INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)")
-               ->execute([$listName, $listRaw, dedupeBringSpec($spec)]);
-            $added++;
-            _fireHaWebhook('shopping_add', ['item' => $listName, 'specification' => $spec]);
+            // INSERT OR IGNORE, then report what really happened: the unique index is on
+            // lower(name) and two resolves racing on the same generic used to raise
+            // "UNIQUE constraint failed: index 'idx_shopping_list_name'" in the UI.
+            $ins = $db->prepare("INSERT OR IGNORE INTO shopping_list (name, raw_name, specification) VALUES (?, ?, ?)");
+            $ins->execute([$listName, $listRaw, dedupeBringSpec($spec)]);
+            if ($ins->rowCount() > 0) {
+                $added++;
+                _fireHaWebhook('shopping_add', ['item' => $listName, 'specification' => $spec]);
+            } else {
+                $skipped++;
+            }
         }
     }
     return ['added' => $added, 'updated' => $updated, 'skipped' => $skipped, 'errors' => []];
@@ -23613,8 +23655,23 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
     // We must convert grams→packages so we don't multiply 100×€2.75=€275.
     if (in_array(strtolower($unit), ['g', 'ml'])) {
         $pkgWeight = 0.0;
-        // 1) Use defQty if package unit matches (e.g. defQty=250, pkgUnit='g', unit='g')
-        if ($defQty > 0 && !empty($pkgUnit) && strtolower($pkgUnit) === strtolower($unit)) {
+        // 0) A multi-pack label ("confezione 4x55g") weighs 4 × 55 g, not 55 g:
+        //    taking the first number made a €2.20 pack of 4 cost €22.
+        if (preg_match('/\b(\d{1,2})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(g|ml|kg|l|lt)\b/i', $priceUnitLabel, $mm)) {
+            $count = (int)$mm[1];
+            $each  = (float)str_replace(',', '.', $mm[2]);
+            $mUnit = strtolower($mm[3]);
+            $eachBase = in_array($mUnit, ['kg', 'l', 'lt'], true) ? $each * 1000.0 : $each;
+            if (in_array($mUnit, ['g', 'kg'], true) && strtolower($unit) === 'g') {
+                $pkgWeight = $count * $eachBase;
+            } elseif (in_array($mUnit, ['ml', 'l', 'lt'], true) && strtolower($unit) === 'ml') {
+                $pkgWeight = $count * $eachBase;
+            }
+        }
+        // 1) Use defQty if package unit matches (e.g. defQty=250, pkgUnit='g', unit='g').
+        //    A defQty below 20 is a PIECE count, not a weight: "Rotolo, 2 rotoli" read as
+        //    a 2 g pack turned 500 g into 250 packs (€15 for a roll).
+        if ($pkgWeight <= 0 && $defQty >= 20 && !empty($pkgUnit) && strtolower($pkgUnit) === strtolower($unit)) {
             $pkgWeight = $defQty;
         }
         // 2) Extract weight/volume from label: "confezione 250g", "vasetto 125ml", "pacco 500g",
@@ -23630,10 +23687,14 @@ function _calcEstimatedTotal(float $pricePerUnit, string $priceUnitLabel, float 
                 } elseif (in_array($rawUnit, ['l', 'lt']) && strtolower($unit) === 'ml') {
                     $pkgWeight = $rawVal * 1000.0;
                 }
+                // "bustina 10g" is a pack; "2 g" is a misread piece count.
+                if ($pkgWeight > 0 && $pkgWeight < 20.0) {
+                    $pkgWeight = 0.0;
+                }
             }
         }
         // 3) Also try defQty alone (no pkgUnit set but defQty likely in same unit)
-        if ($pkgWeight <= 0 && $defQty > 0) {
+        if ($pkgWeight <= 0 && $defQty >= 20) {
             $pkgWeight = $defQty;
         }
         if ($pkgWeight > 0) {

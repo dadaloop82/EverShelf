@@ -5066,8 +5066,14 @@ body:has(#page-scan.active) .app-content {
 /* Priority pills of the shopping list. */
 .shop-filter-row {
     display: flex;
+    /* A scrolling row inside a column flexbox is SHRUNK by the layout algorithm:
+       without this the pills are cut in half and read as a hidden button. */
+    flex: 0 0 auto;
+    min-height: 46px;
+    align-items: center;
     gap: 8px;
     overflow-x: auto;
+    overflow-y: hidden;
     padding: 8px 2px 6px;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -5104,6 +5110,7 @@ body:has(#page-scan.active) .app-content {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    flex: 0 0 auto;
     margin-bottom: 2px;
 }
 .shop-head-row #shopping-price-bar { flex: 1 1 200px; }

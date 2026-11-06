@@ -1123,7 +1123,7 @@
     "plan_days_auto": "Por defecto: 30 días o tu ciclo de compra ({days})",
     "plan_days_custom": "Custom period ({days} days)",
     "plan_days_unit": "d",
-    "plan_days_reset": "Auto (30d)",
+    "plan_days_reset": "Auto ({days} días)",
     "plan_days_aria": "Días de planificación",
     "buy_at_least": "Al menos: ",
     "buy_qty": "Comprar: ",

@@ -5,6 +5,30 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.3] - 2026-11-06
+
+### Fixed
+- **The pills cut in half ("the hidden green button").** A horizontally scrolling row inside a
+  column flexbox is SHRUNK by the layout algorithm: `.shop-filter-row` had `overflow-x: auto` and
+  no `flex: 0 0 auto`, so it collapsed to half its height and read as a button poking out of the
+  header. The head row gets the same treatment.
+- **The estimated spend was arithmetically wrong on several lines** (`_calcEstimatedTotal`):
+  a `default_quantity` below 20 is a PIECE count, not a weight — "Rotolo, 2 rotoli" was read as a
+  2 g pack, so 500 g became 250 packs clamped to 6 = **€15 for a roll** (now €2.50). A multi-pack
+  label ("confezione 4x55g") now weighs 4 × 55 g instead of taking the first number (Monte
+  €13.20 → €6.60), and a label amount under 20 g/ml is treated as a misread piece count. The
+  total of this instance's list moved from **€286.16 to €255.14**, with the pieces counted:
+  10 eggs → 2 boxes of 6 (€3.58), 3 frozen pizzas → 2 boxes (€6.40), 3 tins of tuna → 3 (€9.57).
+- **`SQLSTATE[23000] ... UNIQUE constraint failed: index 'idx_shopping_list_name'` on a page that
+  was only READING the list.** `internalShoppingNormalizeNames()` renames rows to the canonical
+  generic at every load, and since that canonical is now the PLURAL it could collide with a row
+  already carrying it. It merges the notes into the survivor and drops the duplicate instead of
+  throwing; the two insert paths use `INSERT OR IGNORE` and report `skipped` when the row was
+  already there (the lookup before them was a check, not a lock). Nothing here has anything to do
+  with Bring: the internal list uses the same generic machinery.
+- **"Auto (30gg)"** was a hardcoded label: it now prints the server's real cycle
+  (`Auto ({days} gg)`), so a reset cannot promise a horizon it will not apply.
+
 ## [1.30.2] - 2026-11-06
 
 ### Fixed

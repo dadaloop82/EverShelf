@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106p'; // bump when translations change
+const _I18N_VERSION = '20261106q'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106p';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106q';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106p';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106q';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -30017,7 +30017,12 @@ function _renderShoppingPlanDaysBar() {
         hint.textContent = base + ' ' + t('shopping.plan_days_fresh').replace('{days}', fresh);
     }
     const resetBtn = document.getElementById('shopping-plan-days-reset');
-    if (resetBtn) resetBtn.style.display = isShoppingPlanDaysCustom() ? '' : 'none';
+    if (resetBtn) {
+        resetBtn.style.display = isShoppingPlanDaysCustom() ? '' : 'none';
+        // "Auto (30gg)" was a hardcoded label that lied the moment the default moved:
+        // resetting goes back to the SERVER's cycle, whatever it is today.
+        resetBtn.textContent = t('shopping.plan_days_reset').replace('{days}', String(def));
+    }
 }
 
 async function loadSmartShopping(forceRefresh = false) {

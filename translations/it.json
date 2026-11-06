@@ -1104,7 +1104,7 @@
     "plan_days_auto": "Default: 30 giorni o la tua frequenza spesa ({days})",
     "plan_days_custom": "Periodo personalizzato ({days} giorni)",
     "plan_days_unit": "gg",
-    "plan_days_reset": "Auto (30gg)",
+    "plan_days_reset": "Auto ({days} gg)",
     "plan_days_aria": "Giorni di pianificazione",
     "found_count": "{found}/{total} prodotti trovati",
     "savings_offers": "· 🏷️ Risparmi €{amount} con le offerte",
