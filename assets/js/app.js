@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106h'; // bump when translations change
+const _I18N_VERSION = '20261106i'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106h';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106i';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106h';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106i';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -35521,6 +35521,70 @@ function _cookingVoiceStopRec() {
     _cookingVoiceRec = null;
 }
 
+/* ── Il tutorial del microfono: 8 secondi, una volta per dispositivo ───────────────────
+ * Un 🎤 non dice niente da solo. Quando la modalità cucina si apre, un cartellino ancorato al
+ * pulsante spiega cosa dire — con le parole VERE che il riconoscitore ascolta (le prime di
+ * vocabCookingVoice(), quindi nella lingua del dispositivo) — poi sparisce da solo.
+ */
+const _COOKING_VOICE_HINT_KEY = 'evershelf_cooking_voice_hint_v1';
+let _cookingVoiceHintTimer = 0;
+
+function _cookingVoiceHintHide() {
+    const el = document.getElementById('cooking-voice-hint');
+    if (el) el.remove();
+    if (_cookingVoiceHintTimer) { clearTimeout(_cookingVoiceHintTimer); _cookingVoiceHintTimer = 0; }
+    const btn = document.getElementById('cooking-mic-btn');
+    if (btn) btn.classList.remove('is-hinting');
+}
+
+function _cookingVoiceHintOutside(e) {
+    const el = document.getElementById('cooking-voice-hint');
+    if (!el) return;
+    const onMic = e.target && e.target.closest && e.target.closest('#cooking-mic-btn');
+    if (!el.contains(e.target) && !onMic) _cookingVoiceHintHide();
+}
+
+function _cookingVoiceHint(force) {
+    if (document.getElementById('cooking-voice-hint')) { _cookingVoiceHintHide(); return; }
+    try {
+        if (!force && localStorage.getItem(_COOKING_VOICE_HINT_KEY) === '1') return;
+    } catch (e) { /* private mode: show it anyway */ }
+    const btn = document.getElementById('cooking-mic-btn');
+    if (!btn) return;
+    const lex = (typeof vocabCookingVoice === 'function') ? vocabCookingVoice() : { next: [], prev: [], replay: [] };
+    const word = (list) => escapeHtml(String((list && list[0]) || ''));
+    const el = document.createElement('div');
+    el.className = 'cooking-voice-hint';
+    el.id = 'cooking-voice-hint';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `
+        <div class="cvh-head">
+            <img src="assets/img/shelfy/shelfy-avatar-96.png" alt="" aria-hidden="true">
+            <strong>${escapeHtml(t('cooking.voice_hint_title'))}</strong>
+            <button type="button" class="cvh-close" onclick="_cookingVoiceHintHide()" aria-label="${escapeHtml(t('btn.close'))}">✕</button>
+        </div>
+        <p class="cvh-intro">${escapeHtml(t('cooking.voice_hint_intro'))}</p>
+        <div class="cvh-chips">
+            <span class="cvh-chip">«${word(lex.next)}»</span>
+            <span class="cvh-chip">«${word(lex.prev)}»</span>
+            <span class="cvh-chip">«${word(lex.replay)}»</span>
+        </div>
+        <p class="cvh-foot">${escapeHtml(t('cooking.voice_hint_foot'))}</p>`;
+    document.body.appendChild(el);
+    // Under the mic button, right-aligned, never off screen.
+    const rect = btn.getBoundingClientRect();
+    const w = el.offsetWidth || 280;
+    const h = el.offsetHeight || 150;
+    const left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.right - w));
+    const top = Math.min(window.innerHeight - h - 8, rect.bottom + 8);
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = Math.round(Math.max(8, top)) + 'px';
+    btn.classList.add('is-hinting');
+    try { localStorage.setItem(_COOKING_VOICE_HINT_KEY, '1'); } catch (e) { /* private mode */ }
+    _cookingVoiceHintTimer = setTimeout(_cookingVoiceHintHide, 8000);
+    setTimeout(() => document.addEventListener('click', _cookingVoiceHintOutside, { once: true }), 0);
+}
+
 function _cookingVoiceCommand() {
     if (_cookingVoiceRec) { _cookingVoiceStopRec(); return; }   // second tap = stop
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -35634,6 +35698,8 @@ function startCookingMode() {
     if (wheelEl) setTimeout(() => wheelEl.focus(), 20);
     try { screen.orientation?.lock('portrait').catch(() => {}); } catch (_) { /* ignore */ }
     renderCookingStep();
+    // Once per device: what on earth is that 🎤 for. It disappears by itself in 8 s.
+    setTimeout(() => _cookingVoiceHint(false), 700);
     // No always-on mic in cooking: Chrome's SpeechRecognition restart chime
     // (bip-bip-bip) was louder than any hands-free gain. TTS + wheel/taps stay.
     if (_cookingTTS) {
@@ -35643,6 +35709,7 @@ function startCookingMode() {
 }
 function closeCookingMode() {
     _cookingVoiceStop();
+    _cookingVoiceHintHide();
     _cookingAutoScrollStop();
     _cookingReading(false);
     _closeCookingFinishPrompt();

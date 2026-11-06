@@ -14446,3 +14446,85 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
     scrollbar-width: none;
 }
 .cooking-card .cooking-step-text::-webkit-scrollbar { display: none; }
+
+/* ── The 🎤 coach mark: 8 seconds, once per device ────────────────── */
+.cooking-voice-hint {
+    position: fixed;
+    z-index: 100002;                  /* above the cooking overlay */
+    width: min(300px, calc(100vw - 16px));
+    padding: 12px 13px 11px;
+    border-radius: 14px;
+    background: #1E293B;
+    border: 1px solid rgba(16, 185, 129, 0.55);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+    color: #E2E8F0;
+    text-align: left;
+    animation: cvhIn 240ms ease-out;
+}
+@keyframes cvhIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .cooking-voice-hint { animation: none; } }
+/* little arrow pointing up at the microphone */
+.cooking-voice-hint::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 16px;
+    width: 10px;
+    height: 10px;
+    background: #1E293B;
+    border-left: 1px solid rgba(16, 185, 129, 0.55);
+    border-top: 1px solid rgba(16, 185, 129, 0.55);
+    transform: rotate(45deg);
+}
+.cvh-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+.cvh-head img { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.cvh-head strong { flex: 1 1 auto; font-size: 0.9rem; font-weight: 800; color: #F1F5F9; }
+.cvh-close {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.18);
+    color: #CBD5E1;
+    font-size: 0.72rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.cvh-intro, .cvh-foot {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #CBD5E1;
+}
+.cvh-foot { margin-top: 7px; color: #94A3B8; }
+.cvh-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 7px 0;
+}
+.cvh-chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    color: #6EE7B7;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+/* the microphone announces itself while the card is up */
+.cooking-mic-btn.is-hinting {
+    border-color: #10B981;
+    color: #6EE7B7;
+    animation: cookingMicPulse 1.6s ease-in-out infinite;
+}

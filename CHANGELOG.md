@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The auto-scroll actually scrolls now.** It measured `.cooking-body`, which in the flex layout
   never overflowed while the *sentence* did: it now picks the element that really overflows
   (`#cooking-step-text` → `#cooking-card` → `.cooking-body`) and drives that one.
+- **The 🎤 explains itself.** A microphone icon says nothing on its own, so the first time cooking
+  mode opens (once per device, `evershelf_cooking_voice_hint_v1`) a coach mark appears under the
+  button: title, an arrow pointing at the mic, and the three words the recogniser actually listens
+  for — taken from `vocabCookingVoice()`, so an English tablet reads *next / back / read again* and
+  a German one *weiter / zurück / nochmal*. It closes on its own after 8 s, on a tap outside or on
+  the ✕, and the mic pulses while it is up.
 - **The version number moves again.** It had stayed on 1.29.20 across several rounds because only
   the cache-busting stamp was being bumped: `1.29.21` re-stamps the five touchpoints, `_I18N_VERSION`
   included — which is also what makes a browser pick up the new translation keys instead of
