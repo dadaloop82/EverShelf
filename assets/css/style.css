@@ -11004,24 +11004,36 @@ body.cooking-mode-active .app-header {
 }
 .recipe-archive-rating-off { color: var(--text-muted); opacity: 0.45; }
 
-/* A recipe that lost an ingredient wears its ⚠️ on the card, not only inside the sheet. */
+/* A recipe that lost an ingredient wears its ⚠️ at the FAR LEFT of the card and twice as big
+   as anything else in the row: it is a warning, not a badge among badges. */
 .recipe-archive-missing {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    padding: 1px 6px;
+    gap: 3px;
+    flex-shrink: 0;
+    padding: 2px 9px;
     border-radius: 999px;
     background: #fef2f2;
-    border: 1px solid #fecaca;
+    border: 2px solid #f87171;
     color: #b91c1c;
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+}
+/* Not one ingredient of it is on the shelf: the whole card says so, not just the pill. */
+.recipe-archive-card-uncookable {
+    box-shadow: inset 3px 0 0 0 #dc2626, 0 1px 3px rgba(0,0,0,0.06);
+}
+.recipe-archive-card-uncookable .recipe-archive-title {
+    color: #b91c1c;
 }
 [data-theme="dark"] .recipe-archive-missing {
     background: #2a0a0a;
-    border-color: #7f1d1d;
+    border-color: #ef4444;
     color: #fca5a5;
 }
+[data-theme="dark"] .recipe-archive-card-uncookable .recipe-archive-title { color: #fca5a5; }
 
 .btn-inv-fav {
     flex-shrink: 0;

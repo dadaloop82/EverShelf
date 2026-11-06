@@ -123,6 +123,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   created/updated with clean slugs, test artifacts removed, Mealie back to its 11 recipes.
 
 ### Changed
+- **The "missing ingredients" warning on the list is now a warning.** `⚠️ n` moved to the FAR
+  LEFT of the card (before the meal icon) and doubled in size (1.15 rem, red pill with a 2 px
+  border), and when NOT ONE of its pantry ingredients is left the whole card is marked
+  (`recipe-archive-card-uncookable`: red rail, title in red) — it has to be obvious at a glance
+  that tonight's dinner cannot be that dish. `_recipeArchiveMissingInfo()` now answers the
+  count, the total and the all-missing case in one pass.
 - **The medicine company words left the code and became data.** `_medShortCompany()` carried a
   `Set` of Italian/English/French company words (`aziende`, `chimiche`, `riunite`,
   `farmaceutico`, `laboratoires`, …) plus a regex alternation in `_medCommercialName()`: the

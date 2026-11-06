@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106b'; // bump when translations change
+const _I18N_VERSION = '20261106c'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106b';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106c';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106b';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106c';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32605,11 +32605,22 @@ async function _recipeLiveProductIdSet() {
 }
 
 /** How many pantry ingredients of an archived recipe are no longer on the shelf. */
-function _recipeArchiveMissingCount(recipe) {
+function _recipeArchiveMissingInfo(recipe) {
+    const info = { missing: 0, pantry: 0, uncookable: false };
     const live = _recipeLiveProductIds;
-    if (!live || !recipe || !Array.isArray(recipe.ingredients)) return 0;
-    return recipe.ingredients.filter((i) => i && i.product_id && Number(i.qty_number) > 0
-        && !live.has(String(i.product_id))).length;
+    if (!live || !recipe || !Array.isArray(recipe.ingredients)) return info;
+    recipe.ingredients.forEach((i) => {
+        if (!i || !i.product_id || !(Number(i.qty_number) > 0)) return;
+        info.pantry++;
+        if (!live.has(String(i.product_id))) info.missing++;
+    });
+    info.uncookable = info.pantry > 0 && info.missing === info.pantry;
+    return info;
+}
+
+/** Backwards-compatible: just the count. */
+function _recipeArchiveMissingCount(recipe) {
+    return _recipeArchiveMissingInfo(recipe).missing;
 }
 
 function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
@@ -32631,8 +32642,16 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
                 .toLocaleTimeString(_collationLocale(), { hour: '2-digit', minute: '2-digit' });
         } catch (e) { savedTime = ''; }
     }
-    let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}" onclick="viewArchivedRecipe(${archiveIdx})">`;
+    // An ingredient the pantry no longer has is a fact the LIST can carry: no need to open the
+    // recipe to find out it cannot be cooked tonight. It sits at the FAR LEFT of the card and at
+    // double size — it is a warning, not a badge among badges.
+    const missingInfo = _recipeArchiveMissingInfo(r);
+    const uncookableCls = missingInfo.uncookable ? ' recipe-archive-card-uncookable' : '';
+    let html = `<div class="recipe-archive-card${entry.is_favorite ? ' recipe-archive-card-fav' : ''}${uncookableCls}" onclick="viewArchivedRecipe(${archiveIdx})">`;
     html += `<div class="recipe-archive-card-header">`;
+    if (missingInfo.missing > 0) {
+        html += `<span class="recipe-archive-missing" title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingInfo.missing) }))}">⚠️ ${missingInfo.missing}</span>`;
+    }
     html += `<span class="recipe-archive-meal recipe-archive-meal-lg" aria-hidden="true">${mealIcon}</span>`;
     html += `<span class="recipe-archive-title">${escapeHtml(r.title || '')}</span>`;
     html += favBadge;
@@ -32652,12 +32671,6 @@ function _recipeArchiveCardHtml(entry, archive, archiveIdx) {
     const cardRating = Math.max(0, Math.min(5, Math.round(Number(entry.rating) || 0)));
     html += `<span class="recipe-archive-rating" title="${escapeHtml(t('recipes.rating_value', { n: String(cardRating) }))}">`
         + '★'.repeat(cardRating) + `<span class="recipe-archive-rating-off">${'☆'.repeat(5 - cardRating)}</span></span>`;
-    // An ingredient the pantry no longer has is a fact the LIST can carry: no need to open the
-    // recipe to find out it cannot be cooked tonight.
-    const missingCount = _recipeArchiveMissingCount(r);
-    if (missingCount > 0) {
-        html += `<span class="recipe-archive-missing" title="${escapeHtml(t('recipes.missing_badge_title', { n: String(missingCount) }))}">⚠️ ${missingCount}</span>`;
-    }
     if (r.prep_time) html += `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.prep_time))}</span>`;
     if (r.cook_time) html += `<span class="recipe-archive-badge">🔥 ${escapeHtml(String(r.cook_time))}</span>`;
     html += `<span class="recipe-archive-badge">👥 ${escapeHtml(String(r.persons || 1))}</span>`;
