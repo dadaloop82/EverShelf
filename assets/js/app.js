@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106za'; // bump when translations change
+const _I18N_VERSION = '20261106zb'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8362,9 +8362,10 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
 
 // ── AI month-cost header pill ────────────────────────────────────────────────
 // Same grammar as the scale pill: quiet until needed, then a live figure for a
-// Usage is written server-side into data/ai_usage.json after each provider call; we
-// re-read gemini_usage and show the cost + tokens of THIS month, as a standing figure.
-// (The old five-minute auto-hide is gone: a number that disappears is not a total.)
+// Usage is written server-side into data/ai_usage.json after each provider call; we re-read
+// gemini_usage and show the cost + tokens of THIS month for a few seconds, right after the
+// assistant worked. Long enough to be read, short enough not to live in the header.
+const _AI_COST_VISIBLE_MS = 8000;
 const _AI_COST_BILLABLE = new Set([
     'gemini_chat', 'gemini_identify', 'gemini_expiry', 'gemini_product_hint',
     'gemini_shopping_enrich', 'gemini_suggest_shopping', 'gemini_number_ocr',
@@ -8470,11 +8471,19 @@ function _aiCostPillPaint(stats) {
     }
     pill.classList.remove('is-fading');
     pill.hidden = false;
-    if (_aiCostHideTimer) { clearTimeout(_aiCostHideTimer); _aiCostHideTimer = null; }
-    if (_aiCostFadeTimer) { clearTimeout(_aiCostFadeTimer); _aiCostFadeTimer = null; }
-    // A short "it just updated" pulse, never a disappearance.
-    pill.classList.add('is-pulse');
-    setTimeout(() => pill.classList.remove('is-pulse'), 900);
+    if (_aiCostHideTimer) clearTimeout(_aiCostHideTimer);
+    if (_aiCostFadeTimer) clearTimeout(_aiCostFadeTimer);
+    // A notification, not a fixture: it shows the MONTH total for a few seconds after the
+    // assistant works, then fades away. A permanent figure in the header is noise, and
+    // hiding it forever is guessing — this is the middle: the cost of the month, at the
+    // moment the household is paying attention to what the AI just did.
+    _aiCostHideTimer = setTimeout(() => {
+        pill.classList.add('is-fading');
+        _aiCostFadeTimer = setTimeout(() => {
+            pill.hidden = true;
+            pill.classList.remove('is-fading');
+        }, 380);
+    }, _AI_COST_VISIBLE_MS);
 }
 
 async function _aiCostPillRefresh(forceShow) {
@@ -19383,7 +19392,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106za';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106zb';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19393,7 +19402,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106za';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106zb';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -43280,12 +43289,7 @@ async function _initApp() {
         _geminiAvailable = !!(_serverSettings.ai_configured);
         _mealieAvailable = !!(_serverSettings.mealie_usable);
         _demoMode = !!_serverSettings.demo_mode;
-        // The month cost is a standing figure, not a flash after each call: paint it once
-        // the app is up, and keep it honest while the app stays open (a kiosk runs for days).
-        setTimeout(() => { if (typeof _aiCostPillRefresh === 'function') _aiCostPillRefresh(false); }, 1200);
-        setInterval(() => {
-            if (!document.hidden && typeof _aiCostPillRefresh === 'function') _aiCostPillRefresh(false);
-        }, 5 * 60 * 1000);
+
         _updateGeminiButtonState();
         _applyDemoModeUI();
         if (settingsFetchOk) {

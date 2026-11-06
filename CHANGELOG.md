@@ -5,6 +5,14 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.14] - 2026-11-06
+
+### Changed
+- **The AI cost pill is a notification again, not a fixture.** It stays out of the header and
+  appears for **8 seconds** right after the assistant works (it still shows the MONTH total plus
+  the month, "~€0,36 NOV"). A permanent figure in the header is noise; hiding it forever is a
+  guess. The boot paint and the 5-minute refresh are gone.
+
 ## [1.30.13] - 2026-11-06
 
 ### Fixed
