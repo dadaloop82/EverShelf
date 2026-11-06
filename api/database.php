@@ -346,6 +346,144 @@ function migrateDB(PDO $db): void {
         }
     }
 
+    // v2 of the same repair: the second pass also handles a generic that is only a
+    // container word but whose title gives food words instead of a dictionary genre
+    // ("Cereali muesli croccante…" → "Muesli croccante"), and it reaches the rows
+    // already sitting in the shopping list, which kept the old title.
+    $genericsV2 = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_generic_v2'")->fetchColumn();
+    if (!$genericsV2) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $renamedV2 = 0;
+        if (productKindContainerHeads() !== []) {
+            $rows = $db->query("SELECT id, name, brand, shopping_name FROM products
+                                WHERE shopping_name IS NOT NULL AND TRIM(shopping_name) != ''")
+                       ->fetchAll(PDO::FETCH_ASSOC);
+            $upd = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+            foreach ($rows as $row) {
+                if (!productKindIsContainerHead((string)$row['shopping_name'])) {
+                    continue;
+                }
+                $better = productKindShoppingGeneric((string)$row['name'], (string)($row['brand'] ?? ''));
+                if ($better === '' || mb_strtolower($better) === mb_strtolower((string)$row['shopping_name'])) {
+                    continue;
+                }
+                $upd->execute([$better, (int)$row['id']]);
+                $renamedV2++;
+            }
+            try {
+                $listRows = $db->query("SELECT id, name, raw_name FROM shopping_list")->fetchAll(PDO::FETCH_ASSOC);
+                $updList = $db->prepare('UPDATE shopping_list SET name = ? WHERE id = ?');
+                foreach ($listRows as $row) {
+                    if (!productKindIsContainerHead((string)$row['name'])) {
+                        continue;
+                    }
+                    $raw = trim((string)($row['raw_name'] ?? ''));
+                    if ($raw === '') {
+                        continue;
+                    }
+                    $better = productKindShoppingGeneric($raw);
+                    if ($better === '' || mb_strtolower($better) === mb_strtolower((string)$row['name'])) {
+                        continue;
+                    }
+                    // The list is keyed by name: a better title may already be there
+                    // ("Peperone" next to "Verdura peperone"). When it is the SAME product
+                    // (same raw_name) the container row is a leftover of the old naming and
+                    // is dropped; otherwise the row stays as it is.
+                    try {
+                        $updList->execute([$better, (int)$row['id']]);
+                        $renamedV2++;
+                    } catch (Throwable $e) {
+                        try {
+                            $dupStmt = $db->prepare('SELECT id, raw_name FROM shopping_list WHERE name = ? LIMIT 1');
+                            $dupStmt->execute([$better]);
+                            $dup = $dupStmt->fetch(PDO::FETCH_ASSOC);
+                            if ($dup && mb_strtolower(trim((string)($dup['raw_name'] ?? ''))) === mb_strtolower($raw)) {
+                                $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+                                $renamedV2++;
+                            }
+                        } catch (Throwable $inner) {
+                            // Leave the row alone: a half-repaired list is worse than an old title.
+                        }
+                        continue;
+                    }
+                }
+            } catch (Throwable $e) {
+                // A shopping_list that does not exist yet is not a reason to fail the boot.
+            }
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_shopping_generic_v2', '1')");
+        if ($renamedV2 > 0 && class_exists('EverLog')) {
+            EverLog::info('Second pass on container-word shopping generics', [
+                'event' => 'shopping_generic_refined_v2',
+                'rows' => $renamedV2,
+            ]);
+        }
+    }
+
+    // v3: a ONE-WORD generic that truncates the product ("Petto" for "Petto di pollo a
+    // fette"). The complement after the connector is part of what the household buys.
+    $genericsV3 = $db->query("SELECT value FROM app_settings WHERE key = 'migration_shopping_generic_v3'")->fetchColumn();
+    if (!$genericsV3) {
+        require_once __DIR__ . '/lib/product_kind.php';
+        $renamedV3 = 0;
+        $rows = $db->query("SELECT id, name, shopping_name FROM products
+                            WHERE shopping_name IS NOT NULL AND TRIM(shopping_name) != ''
+                              AND TRIM(shopping_name) NOT LIKE '% %'")
+                   ->fetchAll(PDO::FETCH_ASSOC);
+        $upd3 = $db->prepare('UPDATE products SET shopping_name = ? WHERE id = ?');
+        foreach ($rows as $row) {
+            $better = productKindShoppingPhrase((string)$row['name']);
+            if ($better === '' || mb_strtolower($better) === mb_strtolower((string)$row['shopping_name'])) {
+                continue;
+            }
+            $upd3->execute([$better, (int)$row['id']]);
+            $renamedV3++;
+        }
+        try {
+            $listRows = $db->query("SELECT id, name, raw_name FROM shopping_list
+                                    WHERE TRIM(name) NOT LIKE '% %'")->fetchAll(PDO::FETCH_ASSOC);
+            $updList3 = $db->prepare('UPDATE shopping_list SET name = ? WHERE id = ?');
+            foreach ($listRows as $row) {
+                $raw = trim((string)($row['raw_name'] ?? ''));
+                if ($raw === '') {
+                    continue;
+                }
+                $better = productKindShoppingPhrase($raw);
+                if ($better === '' || mb_strtolower($better) === mb_strtolower((string)$row['name'])) {
+                    continue;
+                }
+                try {
+                    $updList3->execute([$better, (int)$row['id']]);
+                    $renamedV3++;
+                } catch (Throwable $e) {
+                    // Same product already listed under the longer title: drop the stump.
+                    try {
+                        $dupStmt = $db->prepare('SELECT id, raw_name FROM shopping_list WHERE name = ? LIMIT 1');
+                        $dupStmt->execute([$better]);
+                        $dup = $dupStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($dup && mb_strtolower(trim((string)($dup['raw_name'] ?? ''))) === mb_strtolower($raw)) {
+                            $db->prepare('DELETE FROM shopping_list WHERE id = ?')->execute([(int)$row['id']]);
+                            $renamedV3++;
+                        }
+                    } catch (Throwable $inner) {
+                        // leave it alone
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // no shopping_list yet
+        }
+        $db->exec("INSERT OR REPLACE INTO app_settings (key, value)
+                   VALUES ('migration_shopping_generic_v3', '1')");
+        if ($renamedV3 > 0 && class_exists('EverLog')) {
+            EverLog::info('Completed truncated one-word shopping generics', [
+                'event' => 'shopping_generic_refined_v3',
+                'rows' => $renamedV3,
+            ]);
+        }
+    }
+
     $invCols = $db->query("PRAGMA table_info(inventory)")->fetchAll();
     $invColNames = array_column($invCols, 'name');
     if (!in_array('expiry_user_set', $invColNames)) {

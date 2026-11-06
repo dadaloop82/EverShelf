@@ -12337,8 +12337,8 @@ let _bringBlocklistCache   = {};
 let _noExpiryDismissedCache = {};
 let _familySiblingConfirmedCache = {};
 let _scanHistoryCache      = [];
-let _shoppingPlanDaysCache = null; // null = auto (30 days or server-inferred cycle)
-let _smartPlanDaysDefault = 30; // updated from smart_shopping plan_days_default
+let _shoppingPlanDaysCache = null; // null = auto (the server's weekly default, or its inferred cycle)
+let _smartPlanDaysDefault = 7; // updated from smart_shopping plan_days_default
 function _saveToServer(key, value) {
     api('app_settings_save', {}, 'POST', { settings: { [key]: value } }).catch(() => {});
 }
@@ -29818,11 +29818,14 @@ function startBgShoppingRefresh() {
 }
 
 function getShoppingPlanDaysDefault() {
-    // Prefer server-inferred cycle when available; otherwise 30 days.
-    if (typeof _smartPlanDaysDefault === 'number' && _smartPlanDaysDefault >= 7) {
+    // The server owns the default (a weekly shop — SHOPPING_DEFAULT_PLAN_DAYS).
+    // The 30 here is only the last resort for a bundle older than the server that
+    // talks to it; asking for 30 explicitly is what made the page plan bananas for a
+    // month while the server had already settled on a week.
+    if (typeof _smartPlanDaysDefault === 'number' && _smartPlanDaysDefault >= 1) {
         return Math.min(30, _smartPlanDaysDefault);
     }
-    return 30;
+    return 7;
 }
 
 function getShoppingPlanDays() {
@@ -30023,7 +30026,7 @@ async function loadSmartShopping(forceRefresh = false) {
             document.getElementById('smart-shopping-empty').style.display = 'none';
             document.getElementById('smart-shopping-content').style.display = 'block';
             if (data.plan_days_default) {
-                _smartPlanDaysDefault = parseInt(data.plan_days_default, 10) || 30;
+                _smartPlanDaysDefault = parseInt(data.plan_days_default, 10) || 7;
                 _renderShoppingPlanDaysBar();
             }
         } else {

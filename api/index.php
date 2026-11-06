@@ -15548,7 +15548,7 @@ function computeShoppingName(string $name, string $category = '', string $brand 
         // A title that leads with a CONTAINER word ("Verdura peperone", "Frutta
         // limoni") must not title the shopping line: ask the rest of the name to the
         // same dictionary first, and fall back to the curated kind when it is silent.
-        $specific = productKindShoppingGeneric($name);
+        $specific = productKindShoppingGeneric($name, $brand);
         return $specific !== '' ? $specific : $curated['kind'];
     }
 
@@ -15591,6 +15591,12 @@ function computeShoppingName(string $name, string $category = '', string $brand 
 
     // 4. Fallback: capitalize the first meaningful token.
     if (!empty($tokens)) {
+        // …unless the first token alone truncates a real product name: "Petto di pollo
+        // a fette" is bought as "Petto di pollo", never as "Petto".
+        $phrase = productKindShoppingPhrase($name);
+        if ($phrase !== '') {
+            return $phrase;
+        }
         return mb_strtoupper(mb_substr($firstToken, 0, 1)) . mb_substr($firstToken, 1);
     }
     return ucfirst($name);

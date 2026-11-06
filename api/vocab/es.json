@@ -124,6 +124,7 @@
     "vinagre",
     "levadura"
   ],
+  "phrase_connectors": ["di", "del", "dello", "della", "dei", "degli", "delle", "d'"],
     "shopping_container_heads": ["frutta", "frutta fresca", "verdura", "verdure", "latticini", "condimenti", "bevande", "surgelati", "snack", "conserve", "carne", "pesce", "cereali", "colazione", "misto", "ver", "conserva"],
   "umbrella_labels": [
     "snacks & sweets",

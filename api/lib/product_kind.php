@@ -613,7 +613,7 @@ function productKindIsContainerHead(string $word): bool
  * asked to the same dictionary; when it knows nothing, the empty string says "keep
  * what you had" rather than inventing a word (a brand is not a generic).
  */
-function productKindShoppingGeneric(string $name): string
+function productKindShoppingGeneric(string $name, string $brand = ''): string
 {
     $tokens = evershelfSignificantTokens($name);
     if (count($tokens) < 2) {
@@ -638,7 +638,65 @@ function productKindShoppingGeneric(string $name): string
     if (vocabIsPieceProduce((string)$rest[0])) {
         return productTitleCapitalize((string)$rest[0]);
     }
-    return '';
+    // Last resort: the words right after the container ("Cereali muesli croccante…"),
+    // one or two of them, short enough to read on a card — and never the brand, which
+    // is the one word that says nothing about what to buy. The first word must be food
+    // the vocabulary can place in a category: "impanata" (altro) and "milbona" (altro)
+    // are not generics, "muesli" (cereali) and "dolci" (snack) are.
+    if (vocabCategoryOfName((string)$rest[0]) === 'altro') {
+        return '';
+    }
+    $cand = [(string)$rest[0]];
+    if (isset($rest[1]) && mb_strlen($cand[0]) <= 9) {
+        $cand[] = (string)$rest[1];
+    }
+    $candidate = implode(' ', $cand);
+    if (mb_strlen($candidate) > 24) {
+        $candidate = (string)$rest[0];
+    }
+    $brandL = mb_strtolower(trim($brand));
+    $candidateL = mb_strtolower($candidate);
+    if ($brandL !== '' && ($candidateL === $brandL || str_contains($brandL, $candidateL))) {
+        return '';
+    }
+    if (mb_strlen($candidate) < 3 || preg_match('/\d/u', $candidate)) {
+        return '';
+    }
+    return productTitleCapitalize($candidate);
+}
+
+/**
+ * The buyable phrase a truncated generic is hiding.
+ *
+ * "Petto" is what the list wrote for "Petto di pollo a fette": the extractor took the
+ * first word and the complement that makes it a product ("di pollo") was dropped. When
+ * the name is <head> <connector> <noun>, the head plus its complement is the generic.
+ * The connectors are DATA (`api/vocab/<lang>.json` → `phrase_connectors`) for the same
+ * reason every other word is.
+ */
+function productKindShoppingPhrase(string $name): string
+{
+    // Raw words, not significant tokens: the connector IS a stop word, and the
+    // tokenizer drops exactly the word this rule is looking for.
+    $words = preg_split('/\s+/u', trim(preg_replace('/[^\p{L}\p{N}\s\']+/u', ' ', $name)) ?: '') ?: [];
+    $words = array_values(array_filter($words, static fn($w) => trim((string)$w) !== ''));
+    if (count($words) < 3) {
+        return '';
+    }
+    $connectors = array_map(
+        static fn($w) => mb_strtolower(trim((string)$w)),
+        (array)(evershelfVocab()['phrase_connectors'] ?? [])
+    );
+    $second = mb_strtolower($words[1]);
+    if (!in_array($second, $connectors, true)) {
+        return '';
+    }
+    // A connector attached to the word ("d'oliva") or its own word ("di pollo").
+    $third = trim($words[2]);
+    if ($third === '' || mb_strlen($third) < 3 || productKindIsContainerHead($third)) {
+        return '';
+    }
+    return productTitleCapitalize($words[0] . ' ' . $second . ' ' . $third);
 }
 
 /**
