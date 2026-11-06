@@ -5,6 +5,22 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.8] - 2026-11-06
+
+### Fixed
+- **The AI cost pill was not the month total, it was a five-minute flash.** The figure WAS the
+  month (`gemini_usage.month_stats`: 73 calls, ~€0,36 in November) but the pill appeared for five
+  minutes after each call and then vanished — so the only moment the household ever saw it was
+  right after an action, which reads as "the cost of what I just did". It is a standing figure
+  now: painted at boot (and every 5 minutes), it carries the month next to the amount
+  ("~€0,36 NOV") and pulses for a second when it updates instead of disappearing.
+- **The screensaver never came on the shopping page.** Both `resetInactivityTimer()` and
+  `activateScreensaver()` returned early when `_currentPageId === 'shopping'` — the page this
+  household lives on — so the idle screen only appeared elsewhere. The idle screen is an overlay
+  and a tap dismisses it: it is allowed everywhere now, except while a session is really running
+  (cooking mode, or a scan/spesa flow with the camera). The 2-minute auto-home still keeps off
+  the shopping page, which is the guard that actually matters there.
+
 ## [1.30.7] - 2026-11-06
 
 ### Added

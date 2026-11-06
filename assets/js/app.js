@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106u'; // bump when translations change
+const _I18N_VERSION = '20261106v'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -8362,9 +8362,9 @@ async function api(action, params = {}, method = 'GET', body = null, extraHeader
 
 // ── AI month-cost header pill ────────────────────────────────────────────────
 // Same grammar as the scale pill: quiet until needed, then a live figure for a
-// short window. Usage is written server-side into data/ai_usage.json after each
-// provider call; we re-read gemini_usage and show cost + tokens for THIS month.
-const _AI_COST_VISIBLE_MS = 5 * 60 * 1000;
+// Usage is written server-side into data/ai_usage.json after each provider call; we
+// re-read gemini_usage and show the cost + tokens of THIS month, as a standing figure.
+// (The old five-minute auto-hide is gone: a number that disappears is not a total.)
 const _AI_COST_BILLABLE = new Set([
     'gemini_chat', 'gemini_identify', 'gemini_expiry', 'gemini_product_hint',
     'gemini_shopping_enrich', 'gemini_suggest_shopping', 'gemini_number_ocr',
@@ -8452,17 +8452,29 @@ function _aiCostPillPaint(stats) {
     });
     pill.title = title;
     pill.setAttribute('aria-label', title);
+    // The figure is the MONTH total and it STAYS: it used to appear for five minutes
+    // after a call and then vanish, so the only moment the household ever saw it was
+    // right after an action — which read as "the cost of what I just did".
+    const monthEl = document.getElementById('ai-cost-pill-month');
+    if (monthEl) {
+        const monthKey = String(ms.month || '').trim();
+        if (monthKey) {
+            try {
+                monthEl.textContent = new Date(monthKey + '-01T12:00:00')
+                    .toLocaleDateString(_collationLocale(), { month: 'short' });
+                monthEl.hidden = false;
+            } catch (e) { monthEl.hidden = true; }
+        } else {
+            monthEl.hidden = true;
+        }
+    }
     pill.classList.remove('is-fading');
     pill.hidden = false;
-    if (_aiCostHideTimer) clearTimeout(_aiCostHideTimer);
-    if (_aiCostFadeTimer) clearTimeout(_aiCostFadeTimer);
-    _aiCostHideTimer = setTimeout(() => {
-        pill.classList.add('is-fading');
-        _aiCostFadeTimer = setTimeout(() => {
-            pill.hidden = true;
-            pill.classList.remove('is-fading');
-        }, 380);
-    }, _AI_COST_VISIBLE_MS);
+    if (_aiCostHideTimer) { clearTimeout(_aiCostHideTimer); _aiCostHideTimer = null; }
+    if (_aiCostFadeTimer) { clearTimeout(_aiCostFadeTimer); _aiCostFadeTimer = null; }
+    // A short "it just updated" pulse, never a disappearance.
+    pill.classList.add('is-pulse');
+    setTimeout(() => pill.classList.remove('is-pulse'), 900);
 }
 
 async function _aiCostPillRefresh(forceShow) {
@@ -8473,7 +8485,7 @@ async function _aiCostPillRefresh(forceShow) {
     }
     try {
         const d = await api('gemini_usage');
-        const ms = (d && d.month_stats) || {};
+        const ms = Object.assign({}, (d && d.month_stats) || {}, { month: (d && d.month) || '' });
         _aiCostLast = ms;
         if (forceShow || (Number(ms.calls) || 0) > 0) _aiCostPillPaint(ms);
     } catch (e) { /* meter is optional */ }
@@ -19371,7 +19383,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106u';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106v';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19393,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106u';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106v';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -40248,17 +40260,26 @@ function _screensaverTimeoutMs() {
     return (isNaN(mins) || mins < 1 ? 5 : mins) * 60 * 1000;
 }
 
+function _screensaverBlockedPage() {
+    // The idle screen is allowed almost everywhere: it is an overlay, a tap dismisses it.
+    // It was forbidden on the shopping page — the page this household lives on — so it
+    // simply never appeared there. Only a RUNNING session keeps it away (a camera that is
+    // scanning must not be covered while the household is in the shop).
+    if (_screensaverActive) return true;
+    if (document.body.classList.contains('cooking-mode-active')) return true;
+    if (_currentPageId === 'scan' && (_spesaMode || _spesaScanTarget || _shoppingBoughtFlow)) return true;
+    if (_currentPageId === 'add' && (_spesaScanTarget || _shoppingBoughtFlow)) return true;
+    return false;
+}
+
 function resetInactivityTimer() {
-    if (_screensaverActive) return;
-    if (_currentPageId === 'shopping') return;
+    if (_screensaverBlockedPage()) return;
     clearTimeout(_inactivityTimer);
     _inactivityTimer = setTimeout(activateScreensaver, _screensaverTimeoutMs());
 }
 
 function activateScreensaver() {
-    if (_screensaverActive) return;
-    if (_currentPageId === 'shopping') return;
-    if (document.body.classList.contains('cooking-mode-active')) return;
+    if (_screensaverBlockedPage()) return;
     _cancelAutoHomeTimer();
     _screensaverActive = true;
     const overlay = document.getElementById('screensaver');
@@ -43177,6 +43198,12 @@ async function _initApp() {
         _geminiAvailable = !!(_serverSettings.ai_configured);
         _mealieAvailable = !!(_serverSettings.mealie_usable);
         _demoMode = !!_serverSettings.demo_mode;
+        // The month cost is a standing figure, not a flash after each call: paint it once
+        // the app is up, and keep it honest while the app stays open (a kiosk runs for days).
+        setTimeout(() => { if (typeof _aiCostPillRefresh === 'function') _aiCostPillRefresh(false); }, 1200);
+        setInterval(() => {
+            if (!document.hidden && typeof _aiCostPillRefresh === 'function') _aiCostPillRefresh(false);
+        }, 5 * 60 * 1000);
         _updateGeminiButtonState();
         _applyDemoModeUI();
         if (settingsFetchOk) {

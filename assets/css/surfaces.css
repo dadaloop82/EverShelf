@@ -2389,6 +2389,22 @@ body {
 .ai-cost-pill.is-fading { opacity: 0; }
 .ai-cost-pill-icon { font-size: 13px; line-height: 1; opacity: 0.9; }
 .ai-cost-pill-cost { font-variant-numeric: tabular-nums; }
+/* The month rides along with the figure: "~€0,36 nov" reads as a standing total, while a
+   bare number that appears for five minutes reads as the cost of the last thing you did. */
+.ai-cost-pill-month {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-left: 2px;
+}
+@keyframes aiCostPulse {
+    from { transform: scale(1); }
+    40%  { transform: scale(1.08); }
+    to   { transform: scale(1); }
+}
+.ai-cost-pill.is-pulse { animation: aiCostPulse 0.9s ease-out; }
 .ai-cost-pill-tokens {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
