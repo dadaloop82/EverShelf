@@ -19065,6 +19065,12 @@ function smartShoppingCached(PDO $db): void {
                     $data['cache_age_seconds'] = time() - ($data['cached_ts'] ?? $mtime);
                     $data['items'] = smartShoppingFilterPurchased($db, $data['items'] ?? []);
                     $data['plan_days_default'] = smartDefaultPlanDays($db);
+                    // Why that number travels with the cache too: a stale-but-served payload
+                    // must still be able to explain its own horizon.
+                    $meta = smartPlanCycleMeta($db);
+                    $data['plan_days_source'] = $meta['source'];
+                    $data['plan_days_samples'] = $meta['samples'];
+                    $data['fresh_horizon_days'] = saleUnitsFreshHorizonDays();
                     echo json_encode($data, JSON_UNESCAPED_UNICODE);
                     return;
                 }
@@ -19147,98 +19153,146 @@ function _productOnBring(string $productName, array $bringItems, string $shoppin
  * Returns null when there is not enough history.
  */
 function smartInferShoppingCycleDays(?PDO $db = null): ?int {
-    $gaps = [];
-
-    // 1) Optional spend tracking
+    // The household's rhythm is measured from its REAL shopping sessions first
+    // (`data/shopping_spend.json` holds one entry per spesa, asked for at the till).
+    // Only when there is nothing to average do we fall back to the inventory loads, and
+    // only when those look like trips; otherwise the caller uses the 30-day default.
     if (function_exists('_spendLoadHistory')) {
-        $entries = _spendLoadHistory();
-        if (count($entries) >= 3) {
-            $ts = [];
-            foreach ($entries as $e) {
-                $t = (int)($e['ts'] ?? 0);
-                if ($t > 1_000_000_000_000) {
-                    $t = (int)floor($t / 1000); // ms → s
-                }
-                if ($t > 1_000_000_000) {
-                    $ts[] = $t;
-                }
+        $ts = [];
+        foreach ((array)_spendLoadHistory() as $e) {
+            $t = (int)($e['ts'] ?? 0);
+            if ($t > 1_000_000_000_000) {
+                $t = (int)floor($t / 1000); // ms → s
             }
-            $ts = array_values(array_unique($ts));
-            sort($ts);
-            for ($i = 1; $i < count($ts); $i++) {
-                $g = (int)round(($ts[$i] - $ts[$i - 1]) / 86400);
-                if ($g >= 2 && $g <= 45) {
-                    $gaps[] = $g;
-                }
+            if ($t > 1_000_000_000) {
+                $ts[] = $t;
+            }
+        }
+        $ts = array_values(array_unique($ts));
+        sort($ts);
+        if (count($ts) >= 3) {
+            $gaps = smartShoppingGapsFromTimestamps($ts);
+            if (count($gaps) >= 2) {
+                return smartShoppingCycleFromGaps($gaps);
             }
         }
     }
 
-    // 2) Buy-day clusters from inventory "in" transactions (last 120 days)
+    if (!$db instanceof PDO) {
+        return null;
+    }
+    try {
+        $txReal = function_exists('shoppingTxNotMoveNotesSql')
+            ? shoppingTxNotMoveNotesSql('notes')
+            : '1=1';
+        $rows = $db->query("
+            SELECT DISTINCT date(created_at) AS d
+            FROM transactions
+            WHERE type = 'in' AND undone = 0 AND {$txReal}
+              AND created_at >= datetime('now', '-120 days')
+            ORDER BY d ASC
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        $days = array_values(array_filter(array_map('strval', $rows ?: [])));
+        // A SHOP is a cluster of days, not a day: food is put away over an evening, logged
+        // on the 3rd and again on the 4th. Counting every logged day as its own trip gave a
+        // 3-day "cycle" on a pantry that shops twice a month.
+        $trips = [];
+        $prevTs = null;
+        foreach ($days as $d) {
+            $ts = strtotime($d);
+            if ($ts === false) {
+                continue;
+            }
+            if ($prevTs === null || ($ts - $prevTs) / 86400 > 2) {
+                $trips[] = $ts;
+            }
+            $prevTs = $ts;
+        }
+        if (count($trips) < 4) {
+            return null;      // too few trips to call it a cycle: the caller uses 30 days
+        }
+        $gaps = smartShoppingGapsFromTimestamps($trips);
+        if (count($gaps) < 3) {
+            return null;
+        }
+        return smartShoppingCycleFromGaps($gaps);
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Day gaps between shopping moments, including the interval still open (last → today).
+ * Gaps outside 2–45 days are noise: a 1-day gap is one shop split in two, a 60-day gap
+ * is a pantry that was not used.
+ *
+ * @param list<int> $timestamps
+ * @return list<int>
+ */
+function smartShoppingGapsFromTimestamps(array $timestamps): array
+{
+    sort($timestamps);
+    $gaps = [];
+    for ($i = 1; $i < count($timestamps); $i++) {
+        $g = (int)round(($timestamps[$i] - $timestamps[$i - 1]) / 86400);
+        if ($g >= 2 && $g <= 45) {
+            $gaps[] = $g;
+        }
+    }
+    $last = end($timestamps);
+    if ($last) {
+        $open = (int)round((strtotime(date('Y-m-d')) - (int)$last) / 86400);
+        if ($open >= 2 && $open <= 45) {
+            $gaps[] = $open;
+        }
+    }
+    return $gaps;
+}
+
+/**
+ * Where the horizon came from, and on how much evidence — the UI says it in one tooltip.
+ *
+ * @return array{source:string,samples:int}
+ */
+function smartPlanCycleMeta(?PDO $db = null): array
+{
+    if (function_exists('_spendLoadHistory')) {
+        $n = 0;
+        foreach ((array)_spendLoadHistory() as $e) {
+            if ((int)($e['ts'] ?? 0) > 1_000_000) {
+                $n++;
+            }
+        }
+        if ($n >= 3) {
+            return ['source' => 'sessions', 'samples' => $n];
+        }
+    }
     if ($db instanceof PDO) {
         try {
-            $txReal = function_exists('shoppingTxNotMoveNotesSql')
-                ? shoppingTxNotMoveNotesSql('notes')
-                : '1=1';
-            $rows = $db->query("
-                SELECT DISTINCT date(created_at) AS d
-                FROM transactions
-                WHERE type = 'in' AND undone = 0 AND {$txReal}
-                  AND created_at >= datetime('now', '-120 days')
-                ORDER BY d ASC
-            ")->fetchAll(PDO::FETCH_COLUMN);
-            $days = array_values(array_filter(array_map('strval', $rows ?: [])));
-            // A SHOP is a cluster of days, not a day: food is put away over an evening,
-            // logged on the 3rd and again on the 4th. Counting every logged day as its
-            // own trip gave a 3-day "cycle" on a pantry that shops twice a month.
-            $trips = [];
-            $prevTs = null;
-            foreach ($days as $d) {
-                $ts = strtotime($d);
-                if ($ts === false) {
-                    continue;
-                }
-                if ($prevTs === null || ($ts - $prevTs) / 86400 > 2) {
-                    $trips[] = $d;
-                }
-                $prevTs = $ts;
-            }
-            for ($i = 1; $i < count($trips); $i++) {
-                $g = (int)round((strtotime($trips[$i]) - strtotime($trips[$i - 1])) / 86400);
-                if ($g >= 2 && $g <= 45) {
-                    $gaps[] = $g;
-                }
-            }
-            // The interval still open (last trip → today) is evidence too: it is how long
-            // the household has been living off the last shop.
-            $last = end($trips);
-            if ($last) {
-                $open = (int)round((strtotime(date('Y-m-d')) - strtotime((string)$last)) / 86400);
-                if ($open >= 2 && $open <= 45) {
-                    $gaps[] = $open;
-                }
+            $txReal = function_exists('shoppingTxNotMoveNotesSql') ? shoppingTxNotMoveNotesSql('notes') : '1=1';
+            $days = $db->query("SELECT COUNT(*) FROM (SELECT DISTINCT date(created_at) AS d FROM transactions
+                               WHERE type = 'in' AND undone = 0 AND {$txReal}
+                                 AND created_at >= datetime('now', '-120 days'))")->fetchColumn();
+            if ((int)$days >= 8) {
+                return ['source' => 'trips', 'samples' => (int)$days];
             }
         } catch (Throwable $e) {
-            // ignore — fall back to default
+            // ignore
         }
     }
+    return ['source' => 'default', 'samples' => 0];
+}
 
+/** The cycle is the AVERAGE of those gaps — a horizon a pantry can act on (7–30 days). */
+function smartShoppingCycleFromGaps(array $gaps): ?int
+{
     if (count($gaps) < 2) {
         return null;
     }
-    // The household's own rhythm: the AVERAGE of the gaps between shopping days,
-    // including the interval still open (last shop → today). The last trip is part of
-    // the pattern — a pantry whose last shop was ten days ago is on a ten-day cycle,
-    // not on the one it had in spring. Clamped to a horizon a pantry can act on.
     $mean = (int)round(array_sum($gaps) / count($gaps));
     return max(7, min(30, $mean));
 }
 
-/**
- * Default shopping horizon: inferred trip cycle when known, otherwise 30 days.
- * (Previously: days left in the month — that overshot perishables near month start
- * and collapsed piece suggestions near month end.)
- */
 function smartDefaultPlanDays(?PDO $db = null): int {
     $inferred = smartInferShoppingCycleDays($db);
     if ($inferred !== null) {
@@ -20671,6 +20725,7 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         ]);
     }
 
+    $planMeta = smartPlanCycleMeta($db);
     echo json_encode([
         'success' => true,
         'items' => $items,
@@ -20678,6 +20733,9 @@ function smartShopping(PDO $db, ?int $planDays = null): void {
         'suggested' => $suggestedItems,
         'plan_days' => $planDays,
         'plan_days_default' => $planDefault,
+        // Why that number: the UI says "media delle tue N spese" instead of a bare figure.
+        'plan_days_source' => $planMeta['source'],
+        'plan_days_samples' => $planMeta['samples'],
         'fresh_horizon_days' => saleUnitsFreshHorizonDays(),
         'skipped_out_of_season' => count($skippedOutOfSeason),
     ], JSON_UNESCAPED_UNICODE);

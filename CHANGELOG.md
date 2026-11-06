@@ -5,6 +5,28 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.5] - 2026-11-06
+
+### Fixed
+- **"10 giorni" without a word next to it.** On a narrow screen the horizon label was
+  `display: none` and the box showed a bare number: it now SHRINKS instead of disappearing, the
+  redundant "gg" unit is gone (the sentence already says "giorni") and the number input gets
+  narrower — the box always reads "Quantità per 9 giorni [9] Auto".
+- **The badge on Spesa was not the list.** It came from a second, asynchronous fetch of
+  `shopping_list`, so it lagged behind every row added / bought / dismissed (75 while the list
+  had 71). It is now written from the rendered rows at every pass, with no round trip.
+- **The cycle is explained, and 30 is the default again.** `SHOPPING_DEFAULT_PLAN_DAYS` is 30:
+  the inferred cycle only wins when there is something real to average, and the label carries a
+  tooltip saying which — "Media delle tue ultime 9 spese" on this pantry (9 days), "Storico
+  insufficiente: 30 giorni di default" otherwise. `plan_days_source` / `plan_days_samples`
+  travel in the payload (cache included) so the client never guesses.
+- **The inferred cycle no longer mixes two kinds of evidence.** Real shopping sessions
+  (`data/shopping_spend.json`, one per spesa) are used alone when there are at least three; the
+  inventory loads are the fallback, clustered into trips and requiring four of them. On this
+  instance the nine sessions average 8.7 days → 9.
+- **"Usa" in a recipe was a 34 px pill with 0.78 rem text** next to a 1.1 rem ingredient name:
+  it is a 44 px emerald action now (the only control of the row, and the one that writes stock).
+
 ## [1.30.4] - 2026-11-06
 
 ### Changed

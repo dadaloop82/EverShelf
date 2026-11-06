@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106r'; // bump when translations change
+const _I18N_VERSION = '20261106s'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106r';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106s';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106r';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106s';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -28358,6 +28358,7 @@ function switchShoppingTab(tab) {
 
 function updateShoppingTabCounts() {
     const acquistoCount = shoppingItems.length;
+    _setNavBadge('shopping', acquistoCount);
     const previsioneCount = smartShoppingItems.filter(i => !i.on_bring).length;
     const acqEl = document.getElementById('tab-count-acquisto');
     const prevEl = document.getElementById('tab-count-previsione');
@@ -29995,6 +29996,14 @@ function _renderShoppingPlanDaysBar() {
     const label = document.getElementById('shopping-plan-days-label');
     if (label) {
         label.innerHTML = t('shopping.plan_days_label').replace('{days}', `<strong>${days}</strong>`);
+        // Why that number: the household asked, and a figure with no reason is a guess.
+        const meta = window._planDaysMeta || { source: 'default', samples: 0 };
+        const key = meta.source === 'sessions'
+            ? 'shopping.plan_days_from_sessions'
+            : meta.source === 'trips'
+                ? 'shopping.plan_days_from_trips'
+                : 'shopping.plan_days_from_default';
+        label.title = t(key).replace('{n}', String(meta.samples || 0));
     }
     const resetBtn = document.getElementById('shopping-plan-days-reset');
     if (resetBtn) {
@@ -30021,6 +30030,10 @@ async function loadSmartShopping(forceRefresh = false) {
             // bury the milk again, but the household must be able to see them.
             smartShoppingSuggested = Array.isArray(data.suggested) ? data.suggested : [];
             if (data.fresh_horizon_days) window._smartFreshHorizonDays = parseInt(data.fresh_horizon_days, 10) || 7;
+            window._planDaysMeta = {
+                source: String(data.plan_days_source || 'default'),
+                samples: parseInt(data.plan_days_samples, 10) || 0,
+            };
             _offlineSmartCacheSet(smartShoppingItems, planDays);
             _smartShoppingLastFetch = Date.now();
             // NOTE: do NOT clear _cachedPrices here — qty validation (_qty/_unit metadata)
@@ -31565,6 +31578,7 @@ async function renderShoppingItems(force = false) {
     const priceEnabled = getSettings().price_enabled;
 
     if (shoppingItems.length === 0) {
+        _setNavBadge('shopping', 0);
         _renderShopFilterRow([]);
         countEl.textContent = 0;
         const tabCountEmpty = document.getElementById('tab-count-acquisto');
@@ -31586,6 +31600,10 @@ async function renderShoppingItems(force = false) {
         return { item, idx, smartData, urgency, sec };
     });
     const enrichedAll = _dedupeShoppingByGeneric(enrichedRaw);
+    // The badge IS this number: it used to come from a second, asynchronous fetch of
+    // shopping_list, so it lagged behind every add / bought / dismissed row and could
+    // say 75 while the list had 71.
+    _setNavBadge('shopping', enrichedAll.length);
     _renderShopFilterRow(enrichedAll);
     _initShopFilterRow();
     const enriched = _shopUrgencyFilter === 'all'

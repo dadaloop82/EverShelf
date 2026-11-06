@@ -43,8 +43,14 @@ const SHOPPING_HIGH_USES_PER_MONTH = 4.0;
 const SHOPPING_RARE_BUY_COUNT = 1;
 const SHOPPING_RARE_USES_PER_MONTH = 0.5;
 
-/** Planning window (days) when the household never chose one: a weekly shop. */
-const SHOPPING_DEFAULT_PLAN_DAYS = 7;
+/**
+ * Planning window (days) when the household never chose one AND no cycle can be measured.
+ *
+ * 30 is the neutral default the household expects; the moment there are enough real
+ * shopping sessions to average, the inferred cycle wins (smartInferShoppingCycleDays).
+ * Fresh produce is unaffected either way: sale_units.json caps it at a week.
+ */
+const SHOPPING_DEFAULT_PLAN_DAYS = 30;
 
 /**
  * SQL fragment: transaction is real consumption/purchase — not a location move

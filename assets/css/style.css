@@ -5169,10 +5169,16 @@ body:has(#page-scan.active) .app-content {
     touch-action: manipulation;
     white-space: nowrap;
 }
-/* A phone has no room for a sentence and three controls on one line: the sentence goes
-   away, the number and the reset stay. */
+/* A phone has no room for a sentence and three controls on one line — so the sentence
+   SHRINKS. Hiding it left a bare "10 gg" in a box, which says nothing at all. */
 @media (max-width: 620px) {
-    .shopping-plan-days-label { display: none; }
+    .shop-head-row .shopping-plan-days-bar { justify-content: space-between; }
+    .shopping-plan-days-label {
+        font-size: 0.74rem;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .shopping-plan-days-input { width: 52px; }
 }
 
 /* "Suggeriti": the rarely bought products, out of the way and one tap each. */
@@ -7700,26 +7706,31 @@ body:has(#page-scan.active) .app-content {
    "Ho cucinato questo piatto" in the footer, which scales the whole list in one tap. A solid
    green 1.55 rem button on every row competed with it and turned a two-tap cook into three
    separate sheets. */
+/* "Usa" writes the stock: it is the ONE action of an ingredient row and it must be a
+   thumb target, not a 34 px pill with 0.78rem text next to a 1.1rem ingredient name. */
 .btn-use-ingredient {
     flex-shrink: 0;
     align-self: center;
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid var(--surface-border, rgba(0,0,0,0.12));
-    border-radius: 999px;
-    padding: 5px 12px;
-    min-height: 34px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    line-height: 1.1;
+    background: rgba(5, 150, 105, 0.10);
+    color: var(--brand-primary, #059669);
+    border: 1px solid rgba(5, 150, 105, 0.42);
+    border-radius: 12px;
+    padding: 0 18px;
+    min-height: 44px;
+    min-width: 76px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1;
     letter-spacing: 0.01em;
     cursor: pointer;
+    touch-action: manipulation;
     white-space: nowrap;
     transition: background 0.2s, color 0.2s;
 }
 
 .btn-use-ingredient:active {
-    background: var(--bg, #f8fafc);
+    background: var(--brand-primary, #059669);
+    color: #fff;
 }
 
 .btn-use-ingredient:disabled {
