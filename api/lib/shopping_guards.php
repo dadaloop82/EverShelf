@@ -44,6 +44,13 @@ const SHOPPING_RARE_BUY_COUNT = 1;
 const SHOPPING_RARE_USES_PER_MONTH = 0.5;
 
 /**
+ * "About to finish": a shelf this empty (a quarter of the usual purchase left) or a run-out
+ * date inside the planning window. Those rows can never be *suggestions* — the household
+ * needs them now, and Burro at 1% was living in the footnote.
+ */
+const SHOPPING_ABOUT_TO_FINISH_PCT = 25.0;
+
+/**
  * Planning window (days) when the household never chose one AND no cycle can be measured.
  *
  * 30 is the neutral default the household expects; the moment there are enough real

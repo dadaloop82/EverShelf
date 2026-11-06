@@ -5,6 +5,17 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.13] - 2026-11-06
+
+### Fixed
+- **What is about to finish belongs to the list, not to the suggestions.** Butter sat in the
+  footnote at **1% of its usual pack** because it had never been *used* in the ledger: the split
+  only asked "is it rarely used?". A row is a suggestion only when the shelf is comfortable —
+  more than a quarter of the usual purchase left AND a run-out date beyond the planning window
+  (`SHOPPING_ABOUT_TO_FINISH_PCT`). Anything that will finish between today and the next shop is
+  in the list, which is what a shopping list is for. Burro (1%) → **in lista**, cioccolato (61%)
+  stays a suggestion; 57 rows, 1 suggested.
+
 ## [1.30.12] - 2026-11-06
 
 ### Fixed

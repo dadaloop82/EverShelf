@@ -19738,13 +19738,21 @@ function shoppingSplitSuggested(array $items): array
         $keep = !empty($item['on_bring'])
             || in_array((string)($item['urgency'] ?? 'none'), ['critical', 'high'], true)
             || (string)($item['suggested_via'] ?? '') !== '';   // explicit household requests
-        // "Rarely bought" must mean RARELY USED *and* still on the shelf: something that is
-        // finished and that the household does use belongs to the list, not to a footnote
-        // ("molti suggeriti li uso, quindi dovrebbero stare in lista").
+        // "Rarely bought" must mean RARELY USED *and* comfortably stocked: something that is
+        // finished, or about to finish, belongs to the list, not to a footnote
+        // ("molti suggeriti li uso, quindi dovrebbero stare in lista" / "manca anche il burro
+        // che sta per finire").
         $rarely = $buyCount <= SHOPPING_RARE_BUY_COUNT
             && $useCount <= 2
             && $uses < SHOPPING_RARE_USES_PER_MONTH;
-        if (!$keep && $rarely && $stock > 0) {
+        $pct = (float)($item['pct_left'] ?? 100);
+        $daysLeft = (float)($item['days_left'] ?? 0);
+        $horizon = (int)($item['edible_days'] ?? 0);
+        // A trace (≤ 25% of the usual purchase) or a run-out inside the planning window is a
+        // NEED, not a suggestion.
+        $aboutToFinish = ($stock > 0 && $pct <= SHOPPING_ABOUT_TO_FINISH_PCT)
+            || ($daysLeft > 0 && $horizon > 0 && $daysLeft <= $horizon);
+        if (!$keep && $rarely && $stock > 0 && !$aboutToFinish) {
             $suggested[] = $item;
             continue;
         }
