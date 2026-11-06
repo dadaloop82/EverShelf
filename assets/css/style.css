@@ -8375,9 +8375,22 @@ body.cooking-mode-active .app-header {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
-    margin-top: 16px;
-    background: linear-gradient(to top, var(--bg-card, #fff) 82%, transparent);
+    padding: 14px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    margin-top: 18px;
+    /* OPAQUE. It used to be a 82%->transparent gradient, so every line scrolled behind the
+       buttons and showed through them: the worst thing in the sheet. The soft edge now lives
+       ABOVE the bar (::before), where it can fade the text without letting it show. */
+    background: var(--bg-card, #fff);
+}
+.recipe-primary-actions::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -18px;
+    height: 18px;
+    pointer-events: none;
+    background: linear-gradient(to top, var(--bg-card, #fff) 35%, transparent);
 }
 
 /* "Ripeti pasto" lands on this footer: it pulses once, so the one action that scales the whole

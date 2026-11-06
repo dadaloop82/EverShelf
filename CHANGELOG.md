@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The auto-scroll actually scrolls now.** It measured `.cooking-body`, which in the flex layout
   never overflowed while the *sentence* did: it now picks the element that really overflows
   (`#cooking-step-text` → `#cooking-card` → `.cooking-body`) and drives that one.
+- **The sticky footer of the recipe sheet is opaque.** It was an 82%→transparent gradient, so
+  every line scrolled *through* the buttons — the ugliest thing in the sheet. The bar is now solid
+  `var(--bg-card)` and the soft edge moved ABOVE it (a 18 px `::before` fade), where it dissolves
+  the text without ever showing it under the actions.
 - **The 🎤 explains itself.** A microphone icon says nothing on its own, so the first time cooking
   mode opens (once per device, `evershelf_cooking_voice_hint_v1`) a coach mark appears under the
   button: title, an arrow pointing at the mic, and the three words the recogniser actually listens
