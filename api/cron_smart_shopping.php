@@ -359,6 +359,22 @@ if (function_exists('shell_exec')) {
     }
 }
 
+// ── Mealie: le ricette già fatte vanno in automatico ──────────────────────────
+// Every cooked archive recipe that is not in Mealie yet is pushed here, a few per run:
+// a bounded number of HTTP calls, never on a page load. Silent without Mealie.
+try {
+    if (function_exists('mealiePushPendingCooked')) {
+        $mealiePush = mealiePushPendingCooked($db, 3);
+        if (!empty($mealiePush['count'])) {
+            echo '[' . date('Y-m-d H:i:s') . '] Mealie: ' . (int)$mealiePush['count'] . " ricette inviate
+";
+        }
+    }
+} catch (Throwable $mealiePushE) {
+    // Non-fatal: Mealie unreachable is not a reason to fail the cron.
+    EverLog::warn('Mealie push skipped', ['event' => 'mealie_push_cron_failed', 'error' => $mealiePushE->getMessage()]);
+}
+
 // ── Cron watchdog: success ping ───────────────────────────────────────────────
 // The last line of the script, so it is reached only when the whole run survived.
 // If it stops arriving, Healthchecks.io / Uptime Kuma alerts after the grace

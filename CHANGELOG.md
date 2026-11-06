@@ -101,6 +101,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   underline (violet) under "Ricettario & Idee", the favourites and every history date: a second,
   wrong palette in an emerald app. One neutral slate hairline now.
 
+### Added
+- **Mealie was wired and invisible: now it works in both directions.** The endpoints existed
+  (`mealie_list`, `mealie_import`) and nothing called them, the cache held zero recipes, and
+  nothing EverShelf → Mealie ever happened. Now:
+  - the recipe page carries a `📚 Mealie` chip at the end of the filter row: it opens a panel that
+    lists the Mealie cookbook (`mealie_list`), imports ONE or **all** of them (`mealie_import`),
+    syncs the cache and sends the cooked dishes;
+  - `POST mealie_push` sends a dish to Mealie. Mealie does not refuse a duplicate name — it
+    accepts it and appends `-1` (measured), so the name is looked up BEFORE creating
+    (`mealieFindRecipeSlugByName`): an existing recipe is updated in place, never twinned.
+    `mealieRecipeToMealiePayload()` maps ingredients (`"52 g Tonno"`), steps (`[{text}]`),
+    servings and the times (`"10 min"` → `PT10M`, `"1 h 30"` → `PT90M`);
+  - **automatically**: after a cook the client pushes that recipe once (`_mealiePushCooked`, never
+    blocking, silent without Mealie) and the cron sweeps 3 cooked-but-missing dishes per run
+    (`mealiePushPendingCooked`). `data/mealie_pushed.json` remembers what went out, keyed by
+    TITLE, so cooking the same dish twice does not send it twice;
+  - the import stopped writing the fake meal `'import'` (not a meal, not a slot): it is `libero`,
+    with its content hash, like every other archived recipe.
+  Verified against the live instance: 11 recipes synced into the cache, 3 cooked dishes
+  created/updated with clean slugs, test artifacts removed, Mealie back to its 11 recipes.
+
 ### Changed
 - **The medicine company words left the code and became data.** `_medShortCompany()` carried a
   `Set` of Italian/English/French company words (`aziende`, `chimiche`, `riunite`,

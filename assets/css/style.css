@@ -9324,6 +9324,69 @@ body.cooking-mode-active .app-header {
     color: #fff;
 }
 
+/* Mealie at the end of the same row: it opens the other ricettario, it does not filter. */
+.recipe-mealie-chip {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--brand-primary, #10b981) 45%, transparent);
+    color: var(--brand-primary, #10b981);
+}
+
+/* ===== Mealie panel: browse, import, push ===== */
+.mealie-overlay {
+    z-index: 300;                 /* over the pantry list, under the auth overlays */
+    align-items: center;
+    padding: 16px;
+}
+.mealie-card {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 16px 14px;
+}
+.mealie-card h3 { margin: 0 0 4px; padding-right: 34px; font-size: 1.12rem; }
+.mealie-list {
+    flex: 1 1 auto;
+    min-height: 80px;
+    overflow-y: auto;
+    margin: 10px 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.mealie-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm, 10px);
+    background: var(--bg, #f8fafc);
+    border: 1px solid var(--surface-border, #e2e8f0);
+}
+.mealie-row-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mealie-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.mealie-actions .btn-large { flex: 1 1 100%; }
+.mealie-actions .btn-small { flex: 0 1 auto; }
+[data-theme="dark"] .mealie-row {
+    background: var(--bg-card, #1e293b);
+    border-color: #334155;
+}
+
 .recipe-archive-meal-lg { font-size: 1.55rem; }
 .recipe-archive-badge {
     display: inline-flex;

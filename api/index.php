@@ -1430,6 +1430,30 @@ try {
             echo json_encode(mealieSyncCache(!empty($_GET['force'])), JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'mealie_push': {
+            // EverShelf → Mealie. `all: true` sweeps every COOKED recipe not sent yet (the same
+            // pass the cron runs); `id` pushes one, which is what the sheet calls after a cook.
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            if (!empty($input['all'])) {
+                echo json_encode(mealiePushPendingCooked($db, (int)($input['limit'] ?? 10)), JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            $id = (int)($input['id'] ?? 0);
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid id']);
+                break;
+            }
+            $st = $db->prepare('SELECT recipe_json FROM recipes WHERE id = ?');
+            $st->execute([$id]);
+            $recipe = json_decode((string)$st->fetchColumn(), true);
+            if (!is_array($recipe)) {
+                echo json_encode(['success' => false, 'error' => 'not_found']);
+                break;
+            }
+            echo json_encode(mealiePushRecipe($recipe, (string)$id, !empty($input['force'])), JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         case 'mealie_discover':
             echo json_encode(mealieDiscover(), JSON_UNESCAPED_UNICODE);
             break;

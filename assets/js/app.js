@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106a'; // bump when translations change
+const _I18N_VERSION = '20261106b'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106a';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106b';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106a';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106b';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -32399,19 +32399,171 @@ function _renderRecipeFilterBar() {
             { id: 'rating4', icon: '⭐', label: '4+' },
             { id: 'rating3', icon: '⭐', label: '3+' },
         ]);
+    // Mealie lives at the end of the same row: a way IN to the other ricettario, not a filter.
+    const mealieChip = _mealieAvailable
+        ? `<button type="button" class="recipe-filter-chip recipe-mealie-chip" onclick="_mealieOpen()">📚 ${escapeHtml(t('recipes.mealie_title'))}</button>`
+        : '';
     bar.innerHTML = filters.map(f => {
         const on = f.id === _recipeArchiveFilter ? ' is-active' : '';
         const label = `${f.icon ? f.icon + ' ' : ''}${f.label}`;
         return `<button type="button" class="recipe-filter-chip${on}" data-recipe-filter="${escapeHtml(f.id)}"`
             + ` aria-pressed="${f.id === _recipeArchiveFilter ? 'true' : 'false'}"`
             + ` onclick="_setRecipeArchiveFilter('${escapeHtml(f.id)}')">${escapeHtml(label)}</button>`;
-    }).join('');
+    }).join('') + mealieChip;
 }
 
 function _setRecipeArchiveFilter(id) {
     _recipeArchiveFilter = id || 'all';
     _renderRecipeFilterBar();
     loadRecipeArchive();
+}
+
+/* ── Mealie: l'altra metà del ricettario ────────────────────────────────────────────
+ * L'integrazione era a senso unico e invisibile: `mealie_list` e `mealie_import` esistevano sul
+ * server e nessuno li chiamava. Questo pannello li accende — sfoglia il catalogo Mealie, importa
+ * una o tutte, sincronizza la cache e rimanda a Mealie i piatti già cucinati (`mealie_push`).
+ */
+let _mealieRows = [];
+
+_OVERLAY_CLOSERS['mealie-overlay'] = () => _mealieClose();
+
+function _mealieClose() {
+    const el = document.getElementById('mealie-panel');
+    if (el) el.remove();
+}
+
+async function _mealieOpen() {
+    if (document.getElementById('mealie-panel')) return;
+    const el = document.createElement('div');
+    el.className = 'modal-overlay mealie-overlay';
+    el.id = 'mealie-panel';
+    el.setAttribute('onclick', '_mealieClose()');
+    el.innerHTML = `
+        <div class="modal-content mealie-card" role="dialog" aria-modal="true" aria-labelledby="mealie-title" onclick="event.stopPropagation()">
+            <button type="button" class="recipe-dialog-close" onclick="_mealieClose()" aria-label="${escapeHtml(t('btn.close'))}" title="${escapeHtml(t('btn.close'))}">✕</button>
+            <h3 id="mealie-title">📚 ${escapeHtml(t('recipes.mealie_title'))}</h3>
+            <p class="settings-hint">${escapeHtml(t('recipes.mealie_intro'))}</p>
+            <div class="mealie-list" id="mealie-list"><p class="settings-hint">…</p></div>
+            <div class="mealie-actions">
+                <button type="button" class="btn btn-large btn-primary" id="mealie-import-all" onclick="_mealieImportAll(this)">${escapeHtml(t('recipes.mealie_import_all'))}</button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="_mealieSync(this)">${escapeHtml(t('recipes.mealie_sync'))}</button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="_mealiePushAll(this)">${escapeHtml(t('recipes.mealie_push_all'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(el);
+    await _mealieLoadList();
+}
+
+async function _mealieLoadList() {
+    const list = document.getElementById('mealie-list');
+    if (!list) return;
+    list.innerHTML = '<p class="settings-hint">…</p>';
+    let res = null;
+    try {
+        res = await api('mealie_list', { limit: 60 }, 'GET', null, {}, 20000);
+    } catch (e) {
+        res = null;
+    }
+    const rows = (res && res.success && Array.isArray(res.recipes)) ? res.recipes : [];
+    _mealieRows = rows;
+    if (!rows.length) {
+        list.innerHTML = `<p class="settings-hint">${escapeHtml(res && res.success ? t('recipes.mealie_empty') : t('recipes.mealie_unavailable'))}</p>`;
+        return;
+    }
+    list.innerHTML = rows.map((r, i) => `
+        <div class="mealie-row" data-mealie-idx="${i}">
+            <span class="mealie-row-name">${escapeHtml(r.name || '')}</span>
+            ${r.total_time ? `<span class="recipe-archive-badge">⏱️ ${escapeHtml(String(r.total_time))}</span>` : ''}
+            ${r.from_cache ? '<span class="recipe-archive-badge" aria-hidden="true">📦</span>' : ''}
+            <button type="button" class="btn btn-secondary btn-small" onclick="_mealieImport(${i}, this)">${escapeHtml(t('recipes.mealie_import'))}</button>
+        </div>`).join('');
+}
+
+async function _mealieImport(idx, btn) {
+    const row = _mealieRows[idx];
+    if (!row) return;
+    const key = String(row.slug || row.id || '');
+    if (!key) return;
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+        const res = await api('mealie_import', {}, 'POST', { slug: key }, {}, 60000);
+        if (res && res.success) {
+            if (btn) { btn.textContent = t('recipes.mealie_imported'); btn.classList.add('btn-used'); }
+            _recipeArchiveCache = null;
+            loadRecipeArchive();
+            return;
+        }
+        if (btn) { btn.disabled = false; btn.textContent = t('recipes.mealie_import'); }
+        showToast(_apiErrorText(res) || t('error.generic'), 'error');
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = t('recipes.mealie_import'); }
+        showToast(t('error.connection'), 'error');
+    }
+}
+
+/** "Importa tutte": una alla volta, con il progresso sul bottone (niente raffica di richieste). */
+async function _mealieImportAll(btn) {
+    const rows = Array.from(document.querySelectorAll('#mealie-list .mealie-row'));
+    const todo = rows
+        .map(row => ({ row, b: row.querySelector('button:not([disabled])') }))
+        .filter(x => x.b);
+    if (!todo.length) {
+        showToast(t('recipes.mealie_empty'), 'info');
+        return;
+    }
+    if (btn) btn.disabled = true;
+    let ok = 0;
+    for (let i = 0; i < todo.length; i++) {
+        const { row, b } = todo[i];
+        const idx = Number(row.dataset.mealieIdx);
+        if (btn) btn.textContent = `${t('recipes.mealie_import_all')} ${i + 1}/${todo.length}`;
+        await _mealieImport(idx, b);
+        if (b.textContent === t('recipes.mealie_imported')) ok++;
+    }
+    if (btn) { btn.disabled = false; btn.textContent = t('recipes.mealie_import_all'); }
+    showToast(t('recipes.mealie_import_done', { n: String(ok) }), ok ? 'success' : 'info');
+    _recipeArchiveCache = null;
+    loadRecipeArchive();
+}
+
+async function _mealieSync(btn) {
+    if (btn) btn.disabled = true;
+    try {
+        await api('mealie_sync&force=1', {}, 'GET', null, {}, 60000);
+        await _mealieLoadList();
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function _mealiePushAll(btn) {
+    if (btn) btn.disabled = true;
+    try {
+        const res = await api('mealie_push', {}, 'POST', { all: true, limit: 10 }, {}, 120000);
+        showToast(t('recipes.mealie_pushed', { n: String((res && res.count) || 0) }), (res && res.count) ? 'success' : 'info');
+    } catch (e) {
+        showToast(t('error.connection'), 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+/**
+ * "Le ricette già fatte vanno in automatico": dopo una cottura il piatto va a Mealie, una volta.
+ *
+ * Non blocca mai il flusso: Mealie è uno specchio del ricettario, non la dispensa. Senza Mealie
+ * configurato non parte nemmeno una richiesta.
+ */
+async function _mealiePushCooked(archiveId) {
+    if (!_mealieAvailable) return;
+    const id = Number(archiveId || (_cachedRecipe && _cachedRecipe.id) || 0);
+    if (!(id > 0)) return;
+    try {
+        const res = await api('mealie_push', {}, 'POST', { id }, {}, 60000);
+        if (res && res.success && !res.skipped) showToast(t('recipes.mealie_pushed', { n: '1' }), 'success');
+    } catch (e) { /* mai bloccante */ }
 }
 
 function _setRecipeArchiveView(view) {
@@ -34948,8 +35100,10 @@ async function cookRecipeDeductSelected() {
             }
         }
         if (ok > 0 && _cachedRecipe) {
-            saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
+            // Awaited: the push needs the ROW (with its `used` flags) to exist in the archive.
+            const savedId = await saveRecipeToArchive(_cachedRecipe.recipe, _cachedRecipe.id || null);
             maybeAutoLogRecipeMeal();
+            _mealiePushCooked(savedId || _cachedRecipe.id);
         }
         if (ok > 0) showToast(t('recipes.cook_deduct_done').replace('{n}', String(ok)), 'success');
         if (fail > 0) showToast(t('recipes.cook_deduct_partial').replace('{n}', String(fail)), 'info');
