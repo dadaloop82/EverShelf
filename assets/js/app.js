@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106e'; // bump when translations change
+const _I18N_VERSION = '20261106f'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106e';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106f';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106e';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106f';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -35643,6 +35643,7 @@ function startCookingMode() {
 }
 function closeCookingMode() {
     _cookingVoiceStop();
+    _cookingAutoScrollStop();
     _cookingReading(false);
     _closeCookingFinishPrompt();
     _cookingWakeLockOff();         // the screen may sleep again
@@ -35921,6 +35922,13 @@ function _renderCookingStepText(text) {
  * head words, because no sentence repeats "Tonno all'olio di oliva sgocciolato" verbatim — plus
  * the appliance, and disappears when the step names nothing.
  */
+/**
+ * The ingredients THIS step uses, with everything a cook needs in the hand: the name, the brand,
+ * the dose of the recipe and HOW MUCH IS LEFT on the shelf ("52 g tonno — ne restano 120 g").
+ *
+ * No appliance chip: the tools bar above the card already lists them, and a "🔌 Cookeo" pill
+ * among ingredients is a category error.
+ */
 function _renderCookingStepIngredients(stepText) {
     const el = document.getElementById('cooking-step-ings');
     if (!el) return;
@@ -35933,14 +35941,25 @@ function _renderCookingStepIngredients(stepText) {
         const tokens = name.split(/\s+/).filter(w => w.length >= 4);
         return tokens.length ? tokens.some(w => text.includes(w)) : text.includes(name);
     }).slice(0, 6);
-    const appliance = _stepApplianceName(stepText);
-    if (!hits.length && !appliance) {
+    if (!hits.length) {
         el.innerHTML = '';
         el.style.display = 'none';
         return;
     }
-    const chips = hits.map(ing => `<span class="cooking-ing-chip"><strong>${escapeHtml(ing.name || '')}</strong>${ing.qty ? ' ' + escapeHtml(String(ing.qty)) : ''}</span>`);
-    if (appliance) chips.push(`<span class="cooking-ing-chip cooking-ing-tool">🔌 ${escapeHtml(appliance)}</span>`);
+    const chips = hits.map((ing) => {
+        const name = String(ing.name || '');
+        const brand = String(ing.brand || '').trim();
+        const qty = String(ing.qty || '').trim();
+        const left = Number(ing.stock_remain);
+        const leftLabel = (left > 0)
+            ? t('cooking.ing_chip_left', { qty: `${Math.round(left * 100) / 100} ${ing.stock_unit || ''}`.trim() })
+            : '';
+        return `<span class="cooking-ing-chip"><strong>${escapeHtml(name)}</strong>`
+            + `${brand ? ` <em>(${escapeHtml(brand)})</em>` : ''}`
+            + `${qty ? ` · ${escapeHtml(qty)}` : ''}`
+            + `${leftLabel ? `<span class="cooking-ing-left">${escapeHtml(leftLabel)}</span>` : ''}`
+            + `</span>`;
+    });
     el.innerHTML = chips.join('');
     el.style.display = '';
 }
@@ -36016,6 +36035,8 @@ function renderCookingStep() {
 
     // Timer: detect duration in step text and show suggestion
     setupCookingTimerSuggestion(cleanStep);
+    // A long step scrolls itself: nobody scrolls a recipe with wet hands.
+    requestAnimationFrame(_cookingAutoScrollStart);
 
     // Zero-waste tip for this step
     _renderZeroWasteTip(_cookingStep);
@@ -37031,6 +37052,47 @@ function _pickTtsVoice(voices, wantLang, selectedName) {
  * UI never reads German with an Italian voice; the voice chosen in Settings wins only
  * when it actually speaks that language.
  */
+/* ── Auto-scroll morbido del testo lungo ─────────────────────────────────────────────
+ * A step that does not fit is a step nobody reads to the end standing at the stove. When the
+ * card overflows, the body scrolls itself down (26 px/s), waits at the bottom, comes back up —
+ * and stops the moment the step changes or the screen closes. Reduced motion: never.
+ */
+let _cookingAutoScrollRaf = 0;
+
+function _cookingAutoScrollStop() {
+    if (_cookingAutoScrollRaf) { try { cancelAnimationFrame(_cookingAutoScrollRaf); } catch (e) {} }
+    _cookingAutoScrollRaf = 0;
+}
+
+function _cookingAutoScrollStart() {
+    _cookingAutoScrollStop();
+    try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    } catch (e) { /* no matchMedia: carry on */ }
+    const box = document.querySelector('#cooking-overlay .cooking-body');
+    if (!box) return;
+    const overflow = () => Math.max(0, box.scrollHeight - box.clientHeight);
+    if (overflow() < 24) { box.scrollTop = 0; return; }
+    let dir = 1;
+    let hold = 0;
+    let last = 0;
+    const tick = (now) => {
+        if (!document.body.classList.contains('cooking-mode-active')) { _cookingAutoScrollStop(); return; }
+        if (!last) last = now;
+        const dt = Math.min(64, now - last);
+        last = now;
+        if (hold > 0) {
+            hold -= dt;
+        } else {
+            box.scrollTop += dir * (dt / 1000) * 26;
+            if (dir > 0 && box.scrollTop >= overflow() - 1) { hold = 1600; dir = -1; }
+            else if (dir < 0 && box.scrollTop <= 0) { hold = 1600; dir = 1; }
+        }
+        _cookingAutoScrollRaf = requestAnimationFrame(tick);
+    };
+    _cookingAutoScrollRaf = requestAnimationFrame(tick);
+}
+
 /** "SHELFY sta leggendo": the avatar with the waves, while the voice speaks. */
 function _cookingReading(on) {
     const el = document.getElementById('cooking-reading');
@@ -37515,6 +37577,7 @@ function setupCookingTimerSuggestion(stepText) {
         _cookingSuggestedSeconds = 0;
         _cookingSuggestedLabel = '';
         _cookingSuggestedShortLabel = '';
+        _cookingPaintStepAction();
         return;
     }
     _cookingSuggestedSeconds = seconds;
@@ -37523,6 +37586,7 @@ function setupCookingTimerSuggestion(stepText) {
     // would be the same action twice, so it only appears when the sentence has no duration in
     // it to tap. The running timer keeps a SHORT name ("Cookeo"), never "Avvia Cookeo: 08:00".
     _cookingSuggestedShortLabel = _stepApplianceName(stepText) || _cookingSuggestedLabel;
+    _cookingPaintStepAction();
     if (!suggestEl) return;
     if (_cookingStepHasInlineTimer) {
         suggestEl.style.display = 'none';
@@ -37533,9 +37597,34 @@ function setupCookingTimerSuggestion(stepText) {
     suggestEl.style.display = 'flex';
 }
 
+/**
+ * The action of this step, bottom-left: one whole sentence, not a chip with a duration.
+ *
+ * "Avvia il timer di 6 minuti per Cookeo" is an instruction; "⏱️ 06:00" is a number to decode.
+ * It calls the same `addSuggestedCookingTimer()` the pill in the sentence calls — one timer.
+ */
+function _cookingPaintStepAction() {
+    const row = document.getElementById('cooking-action-row');
+    const btn = document.getElementById('cooking-step-action');
+    if (!row || !btn) return;
+    const seconds = Number(_cookingSuggestedSeconds) || 0;
+    if (!(seconds > 0)) {
+        row.style.display = 'none';
+        return;
+    }
+    const who = String(_cookingSuggestedShortLabel || '').trim();
+    const time = _formatTimerDisplay(seconds);
+    btn.textContent = who
+        ? t('cooking.start_timer_action', { time, name: who })
+        : t('cooking.start_timer_action_plain', { time });
+    row.style.display = 'flex';
+}
+
 function addSuggestedCookingTimer() {
     if (_cookingSuggestedSeconds <= 0) return;
     addCookingTimer(_cookingSuggestedSeconds, _cookingSuggestedShortLabel || _cookingSuggestedLabel);
+    const row = document.getElementById('cooking-action-row');
+    if (row) row.style.display = 'none';
     document.getElementById('cooking-timer-suggest').style.display = 'none';
     _cookingSuggestedSeconds = 0;
 }

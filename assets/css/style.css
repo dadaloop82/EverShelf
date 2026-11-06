@@ -14111,3 +14111,78 @@ body.offline-mode #smart-shopping {
     background: rgba(16, 185, 129, 0.18);
     color: #6EE7B7;
 }
+
+/* ── Cooking: the step is CENTRED and large, and the SHELFY button lives in the header ── */
+.cooking-card {
+    align-items: center;
+    text-align: center;
+}
+.cooking-card .cooking-step-ings {
+    justify-content: center;
+    width: 100%;
+}
+.cooking-card .cooking-step-text {
+    text-align: center;
+    font-size: clamp(26px, 3.6vw, 40px);
+}
+.cooking-card .cooking-ing-left {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94A3B8;
+}
+.cooking-card .cooking-ing-chip {
+    height: auto;
+    min-height: 36px;
+    padding: 6px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    line-height: 1.25;
+}
+.cooking-card .cooking-ing-chip em { font-style: normal; color: #94A3B8; }
+
+/* The inside of the card scrolls smoothly; the auto-scroll drives scrollTop gently. */
+.cooking-body { scroll-behavior: auto; }
+
+/* The step action ("Avvia il timer di 6 minuti per Cookeo"), bottom-left above the navigation. */
+.cooking-action-row {
+    display: none;
+    justify-content: flex-start;
+    padding: 0 14px 6px;
+}
+.cooking-step-action {
+    min-height: 46px;
+    padding: 0 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(16, 185, 129, 0.55);
+    background: rgba(16, 185, 129, 0.16);
+    color: #6EE7B7;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+}
+.cooking-step-action:active { background: rgba(16, 185, 129, 0.28); }
+
+/* SHELFY is reachable from the stove too: her avatar, in the header. */
+.cooking-shelfy-btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(16, 185, 129, 0.55);
+    background: rgba(16, 185, 129, 0.14);
+    cursor: pointer;
+    overflow: hidden;
+}
+.cooking-shelfy-btn img { width: 32px; height: 32px; object-fit: contain; }
+
+/* The capture sheet must sit ABOVE the cooking overlay (99998), or SHELFY opens invisibly. */
+body.cooking-mode-active #capture-sheet { z-index: 100000; }
+body.cooking-mode-active #shelfy-intro { z-index: 100001; }

@@ -5,6 +5,35 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.21] - 2026-11-06
+
+### Changed
+- **The cooking step is centred, bigger, and scrolls itself.** The card was left-aligned and the
+  text ran to the top-left corner of a slab: now the card centres its content (`align-items:
+  center`, `text-align: center`), the sentence goes up to `clamp(26px, 3.6vw, 40px)`, and when it
+  does not fit the body **scrolls by itself** (`_cookingAutoScrollStart`: 26 px/s down, a pause at
+  the bottom, back up, stopped the instant the step changes or the screen closes — and never with
+  `prefers-reduced-motion`). Nobody scrolls a recipe with wet hands.
+- **Every step with a duration has an ACTION, bottom-left.** "Avvia il timer di 06:00 per Cookeo"
+  is an instruction; `⏱️ 06:00` is a number to decode. `_cookingPaintStepAction()` paints it from
+  the same suggestion the pill uses (one timer engine), and it disappears the moment the timer
+  starts.
+- **The ingredient chips say name, brand and what is left.** "Tonno (Rio Mare) · 52 g — ne restano
+  120 g": `ing.brand` and `ing.stock_remain` were already there, they just were not shown. The
+  appliance chip is gone from that row — the tools bar above the card already lists them, and a
+  🔌 pill among ingredients is a category error.
+- **SHELFY is reachable from the stove.** Her avatar sits in the cooking header and opens the
+  capture sheet; `body.cooking-mode-active #capture-sheet { z-index: 100000 }` puts it above the
+  cooking overlay (99998) — without that rule the sheet opened *behind* the recipe and looked
+  broken.
+- **The shopping list marks what is already on it.** The missing-ingredients popover shows
+  `Già in lista` per row and writes only the rest; with everything already listed the button is
+  disabled (`È già tutto in lista`) instead of duplicating.
+- **The version number moves again.** It had stayed on 1.29.20 across several rounds because only
+  the cache-busting stamp was being bumped: `1.29.21` re-stamps the five touchpoints, `_I18N_VERSION`
+  included — which is also what makes a browser pick up the new translation keys instead of
+  printing `cooking.exit`.
+
 ## [1.29.20] - 2026-11-05
 
 ### Added
