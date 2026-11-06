@@ -1188,6 +1188,7 @@
     "start_timer_action": "Timer {time} für {name} starten",
     "start_timer_action_plain": "Timer {time} starten",
     "ing_chip_left": "noch {qty}",
+    "ings_for_step": "Für diesen Schritt",
     "shelfy": "SHELFY rufen",
     "step_fallback": "Schritt {n}",
     "zerowaste_label": "♻️ Abfall",

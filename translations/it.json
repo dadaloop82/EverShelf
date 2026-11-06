@@ -1188,6 +1188,7 @@
     "start_timer_action": "Avvia il timer di {time} per {name}",
     "start_timer_action_plain": "Avvia il timer di {time}",
     "ing_chip_left": "ne restano {qty}",
+    "ings_for_step": "In questo passo",
     "shelfy": "Chiama SHELFY",
     "step_fallback": "Passo {n}",
     "zerowaste_label": "♻️ Scarto",

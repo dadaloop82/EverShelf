@@ -1188,6 +1188,7 @@
     "start_timer_action": "为{name}启动 {time} 计时器",
     "start_timer_action_plain": "启动 {time} 计时器",
     "ing_chip_left": "剩余 {qty}",
+    "ings_for_step": "本步骤需要",
     "shelfy": "呼叫 SHELFY",
     "step_fallback": "第 {n} 步",
     "zerowaste_label": "♻️ 边角料",

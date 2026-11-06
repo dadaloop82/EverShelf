@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106g'; // bump when translations change
+const _I18N_VERSION = '20261106h'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19371,7 +19371,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106g';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106h';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19381,7 +19381,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106g';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106h';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -35960,7 +35960,8 @@ function _renderCookingStepIngredients(stepText) {
             + `${leftLabel ? `<span class="cooking-ing-left">${escapeHtml(leftLabel)}</span>` : ''}`
             + `</span>`;
     });
-    el.innerHTML = chips.join('');
+    // Said out loud: these chips belong to the step you are reading, they are not leftovers.
+    el.innerHTML = `<span class="cooking-ings-label">${escapeHtml(t('cooking.ings_for_step'))}</span>` + chips.join('');
     el.style.display = '';
 }
 
@@ -37069,10 +37070,16 @@ function _cookingAutoScrollStart() {
     try {
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     } catch (e) { /* no matchMedia: carry on */ }
-    const box = document.querySelector('#cooking-overlay .cooking-body');
+    // Whatever really overflows is what scrolls: the sentence first (it has its own scroll area),
+    // then the card, then the body. Measuring the wrong element is why it never moved.
+    const candidates = [
+        document.getElementById('cooking-step-text'),
+        document.getElementById('cooking-card'),
+        document.querySelector('#cooking-overlay .cooking-body'),
+    ].filter(Boolean);
+    const box = candidates.find((el) => (el.scrollHeight - el.clientHeight) >= 8);
     if (!box) return;
     const overflow = () => Math.max(0, box.scrollHeight - box.clientHeight);
-    if (overflow() < 24) { box.scrollTop = 0; return; }
     let dir = 1;
     let hold = 0;
     let last = 0;

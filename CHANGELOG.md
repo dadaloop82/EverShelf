@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The shopping list marks what is already on it.** The missing-ingredients popover shows
   `Già in lista` per row and writes only the rest; with everything already listed the button is
   disabled (`È già tutto in lista`) instead of duplicating.
+- **Chips on one line, and the sentence breathes.** Each ingredient chip is a single row again
+  (`Affettato mortadella (Iperal, Salumificio Volpi) · 70 g — ne restano 69 g`) stretched across the
+  width, with a small `In questo passo` label above it: the chips of a step are the ingredients
+  THAT sentence names (verified step by step), and the label makes that obvious instead of looking
+  like leftovers. The step text gained 22 px of padding above and below and its own scroll area
+  (`max-height: min(52vh, 440px)`).
+- **The auto-scroll actually scrolls now.** It measured `.cooking-body`, which in the flex layout
+  never overflowed while the *sentence* did: it now picks the element that really overflows
+  (`#cooking-step-text` → `#cooking-card` → `.cooking-body`) and drives that one.
 - **The version number moves again.** It had stayed on 1.29.20 across several rounds because only
   the cache-busting stamp was being bumped: `1.29.21` re-stamps the five touchpoints, `_I18N_VERSION`
   included — which is also what makes a browser pick up the new translation keys instead of

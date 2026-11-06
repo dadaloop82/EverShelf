@@ -1188,6 +1188,7 @@
     "start_timer_action": "Start the {time} timer for {name}",
     "start_timer_action_plain": "Start the {time} timer",
     "ing_chip_left": "{qty} left",
+    "ings_for_step": "For this step",
     "shelfy": "Call SHELFY",
     "step_fallback": "Step {n}",
     "zerowaste_label": "♻️ Scrap",

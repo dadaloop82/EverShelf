@@ -14376,3 +14376,73 @@ body.cooking-mode-active #shelfy-intro { z-index: 100001; }
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
 }
 .cooking-shelfy-fab:active { transform: scale(0.96); }
+
+/* ===============================================================
+ * COOKING MODE — layout pass 2
+ * One line per chip, real breathing room around the sentence, and a scroll
+ * area that exists (so the auto-scroll has something to move).
+ * =============================================================== */
+
+/* The strip: small label on top, chips in a wrapping row below. */
+.cooking-card .cooking-step-ings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+.cooking-ings-label {
+    flex: 0 0 100%;
+    text-align: center;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #64748B;
+    margin-bottom: 2px;
+}
+
+/* ONE line per chip: name (brand) · dose — “ne restano X” all on the same row. */
+.cooking-card .cooking-ing-chip {
+    flex: 1 1 260px;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    min-height: 36px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 6px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.3;
+    text-align: left;
+}
+.cooking-card .cooking-ing-chip > strong,
+.cooking-card .cooking-ing-chip > em,
+.cooking-card .cooking-ing-chip > .cooking-ing-left {
+    display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cooking-card .cooking-ing-chip > em { color: #94A3B8; }
+.cooking-card .cooking-ing-left {
+    margin: 0 0 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6EE7B7;
+}
+
+/* The sentence breathes above and below, and it is its own scroll area. */
+.cooking-card .cooking-wheel { padding: 6px 0; }
+.cooking-card .cooking-step-text {
+    padding: 22px 4px;
+    max-height: min(52vh, 440px);
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+.cooking-card .cooking-step-text::-webkit-scrollbar { display: none; }

@@ -1188,6 +1188,7 @@
     "start_timer_action": "Lancer le minuteur de {time} pour {name}",
     "start_timer_action_plain": "Lancer le minuteur de {time}",
     "ing_chip_left": "il en reste {qty}",
+    "ings_for_step": "Pour cette étape",
     "shelfy": "Appeler SHELFY",
     "step_fallback": "Étape {n}",
     "zerowaste_label": "♻️ Déchet",

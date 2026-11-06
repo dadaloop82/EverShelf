@@ -1188,6 +1188,7 @@
     "start_timer_action": "Iniciar el temporizador de {time} para {name}",
     "start_timer_action_plain": "Iniciar el temporizador de {time}",
     "ing_chip_left": "quedan {qty}",
+    "ings_for_step": "Para este paso",
     "shelfy": "Llamar a SHELFY",
     "step_fallback": "Paso {n}",
     "zerowaste_label": "♻️ Desperdicio",
