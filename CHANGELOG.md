@@ -5,6 +5,16 @@ All notable changes to EverShelf will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.9] - 2026-11-06
+
+### Added
+- **The shopping list shows it is loading, with SHELFY.** A cold load used to be an empty page
+  with one line of text ("Connessione…") and then the whole list at once. Now the list keeps its
+  shape while it waits: the avatar breathes on the same emerald ring as the splash, a line says
+  "SHELFY sta preparando la lista…", and four skeleton rows shimmer where the products will be.
+  A background refresh still never blanks what the household is already looking at.
+- **The estimated spend breathes while it is recomputed**, instead of freezing on "…".
+
 ## [1.30.8] - 2026-11-06
 
 ### Fixed

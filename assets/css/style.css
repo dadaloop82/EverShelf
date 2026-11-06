@@ -5063,6 +5063,96 @@ body:has(#page-scan.active) .app-content {
     font-size: 1rem;
 }
 
+/* ── The list's waiting state ───────────────────────────────────────────────────────
+ * SHELFY on the same breathing ring as the splash, over four skeleton rows that already
+ * have the shape of the list. A bare spinner in a status line left the page looking
+ * empty; this says "the list is coming, and it will look like this".
+ */
+.shop-loading {
+    padding: 18px 6px 10px;
+}
+.shop-loading-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.shop-loading-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 auto;
+}
+.shop-loading-avatar {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(5, 150, 105, 0.22));
+    animation: preloader-shelfy-float 3.4s ease-in-out infinite;
+}
+.shop-loading-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(5, 150, 105, 0.35);
+    animation: preloader-shelfy-ring 2.6s ease-out infinite;
+    pointer-events: none;
+}
+.shop-loading-text {
+    font-size: 0.95rem;
+    font-weight: 650;
+    color: var(--text-muted, #475569);
+}
+.shop-loading-rows { display: flex; flex-direction: column; gap: 8px; }
+.shop-skel-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-bg, #fff);
+    border: 1px solid var(--surface-border, #e2e8f0);
+}
+.shop-skel-thumb,
+.shop-skel-lines i {
+    display: block;
+    border-radius: 8px;
+    background: linear-gradient(90deg,
+        rgba(148, 163, 184, 0.16) 0%,
+        rgba(148, 163, 184, 0.30) 40%,
+        rgba(148, 163, 184, 0.16) 80%);
+    background-size: 220% 100%;
+    animation: shopSkelShimmer 1.4s ease-in-out infinite;
+}
+.shop-skel-thumb { width: 40px; height: 40px; flex: 0 0 auto; }
+.shop-skel-lines { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+.shop-skel-lines i { height: 11px; }
+.shop-skel-lines i.w70 { width: 70%; }
+.shop-skel-lines i.w45 { width: 45%; }
+@keyframes shopSkelShimmer {
+    0%   { background-position: 120% 0; }
+    100% { background-position: -120% 0; }
+}
+/* While the prices are being recomputed the figure breathes instead of freezing on "…". */
+#shopping-price-bar.is-computing .price-total-value {
+    opacity: 0.55;
+    animation: shopSkelBreathe 1.2s ease-in-out infinite;
+}
+@keyframes shopSkelBreathe {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .shop-loading-avatar,
+    .shop-loading-ring,
+    .shop-skel-thumb,
+    .shop-skel-lines i,
+    #shopping-price-bar.is-computing .price-total-value { animation: none; }
+}
+
 /* Search: the way into a list of 70 rows that is not scrolling. */
 .shop-search-row {
     flex: 0 0 auto;

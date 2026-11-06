@@ -885,6 +885,7 @@
     "save_favorite": "⭐ Save to favourites"
   },
   "shopping": {
+    "loading_shelfy": "SHELFY is getting the list ready…",
     "search_placeholder": "Search the list",
     "price_unavailable": "No price available for this product",
     "price_nd": "n/a",

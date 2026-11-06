@@ -1929,7 +1929,7 @@ async function discoverScaleGateway() {
 }
 
 // ===== i18n TRANSLATION SYSTEM =====
-const _I18N_VERSION = '20261106v'; // bump when translations change
+const _I18N_VERSION = '20261106w'; // bump when translations change
 let _i18nStrings = null;   // current language translations (flat)
 let _i18nFallback = null;  // English fallback (flat) — never Italian for other locales
 let _i18nLoadedVersion = null;
@@ -19383,7 +19383,7 @@ function _loadZbarVendor() {
         };
         const loadPoly = () => {
             const s2 = document.createElement('script');
-            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106v';
+            s2.src = 'assets/vendor/zbar/polyfill.js?v=20261106w';
             s2.onload = done;
             s2.onerror = () => reject(new Error('ZBar polyfill load failed'));
             document.head.appendChild(s2);
@@ -19393,7 +19393,7 @@ function _loadZbarVendor() {
             return;
         }
         const s1 = document.createElement('script');
-        s1.src = 'assets/vendor/zbar/index.js?v=20261106v';
+        s1.src = 'assets/vendor/zbar/index.js?v=20261106w';
         s1.onload = () => {
             if (window.zbarWasm && zbarWasm.setModuleArgs) {
                 zbarWasm.setModuleArgs({ locateFile: (file) => 'assets/vendor/zbar/' + file });
@@ -29134,10 +29134,18 @@ function _loadCanonicalTotalFromSession() {
 }
 
 /** Push canonical total to dashboard, shopping bar and screensaver. */
+/** True while the prices are being (re)computed: the figure shimmers instead of freezing. */
+function _setTotalLoading(on) {
+    const bar = document.getElementById('shopping-price-bar');
+    if (!bar) return;
+    bar.classList.toggle('is-computing', !!on);
+}
+
 function _applyShoppingTotalDisplay() {
     const s = getSettings();
     const dash = document.getElementById('stat-price-total');
     const shop = document.getElementById('price-total-value');
+    _setTotalLoading(false);
     if (!s.price_enabled || !_canonicalShoppingTotal) {
         if (dash) dash.style.display = 'none';
         return;
@@ -29514,6 +29522,7 @@ async function fetchAllPrices(forceRefresh = false) {
     const totalEl   = document.getElementById('price-total-value');
 
     if (priceBar) priceBar.style.display = 'block';
+    _setTotalLoading(true);
 
     const sym = _currencySymbol(s.price_currency || 'EUR');
 
@@ -30703,6 +30712,48 @@ async function autoSyncUrgencySpecs() {
 }
 
 loadShoppingList._requestId = 0;
+/**
+ * The list's own waiting state — SHELFY, not a generic spinner.
+ *
+ * A cold load showed a bare "Connessione…" line and then the whole list appeared at
+ * once; on a slow phone that is five seconds of "is it doing anything?". Here the avatar
+ * breathes on the same ring as the splash and four skeleton rows show WHERE the list will
+ * be, so the page has a shape before it has data.
+ */
+function _shoppingSkeletonHtml() {
+    const rows = Array.from({ length: 4 }).map(() =>
+        '<div class="shop-skel-row">'
+        + '<span class="shop-skel-thumb"></span>'
+        + '<span class="shop-skel-lines"><i class="w70"></i><i class="w45"></i></span>'
+        + '</div>'
+    ).join('');
+    return `<div class="shop-loading" role="status" aria-live="polite">
+        <div class="shop-loading-head">
+            <span class="shop-loading-avatar-wrap">
+                <img class="shop-loading-avatar" src="assets/img/shelfy/shelfy-avatar-96.png" alt="" decoding="async">
+                <span class="shop-loading-ring" aria-hidden="true"></span>
+            </span>
+            <span class="shop-loading-text">${escapeHtml(t('shopping.loading_shelfy'))}</span>
+        </div>
+        <div class="shop-loading-rows">${rows}</div>
+    </div>`;
+}
+
+/** Paint the waiting state into the list container (never over existing rows). */
+function _showShoppingSkeleton() {
+    const listEl = document.getElementById('shopping-items');
+    if (!listEl) return;
+    if (listEl.querySelector('.shop-loading')) return;
+    if ((listEl.querySelectorAll('.shop-row').length) > 0) return;
+    listEl.innerHTML = _shoppingSkeletonHtml();
+}
+
+function _hideShoppingSkeleton() {
+    const listEl = document.getElementById('shopping-items');
+    const skel = listEl ? listEl.querySelector('.shop-loading') : null;
+    if (skel) skel.remove();
+}
+
 async function loadShoppingList() {
     // Only the newest refresh may write: a slow answer must not overwrite a newer one.
     const requestId = ++loadShoppingList._requestId;
@@ -30749,9 +30800,13 @@ async function loadShoppingList() {
     const hadExistingItems = Array.isArray(shoppingItems) && shoppingItems.length > 0;
     statusEl.style.display = hadExistingItems ? 'none' : 'block';
     if (!hadExistingItems) {
-        statusEl.innerHTML = `<div class="bring-loading"><div class="loading-spinner"></div> ${t(_isShoppingBringMode() ? 'shopping.bring_loading' : 'shopping.list_loading')}</div>`;
-        currentEl.style.display = 'none';
+        // No existing rows: show the shape of the list (SHELFY + skeleton rows) instead of
+        // an empty page with one line of text in it.
+        statusEl.style.display = 'none';
+        statusEl.innerHTML = '';
+        currentEl.style.display = 'block';
         suggestionsEl.style.display = 'none';
+        _showShoppingSkeleton();
     }
 
     // ── Demo mode: show placeholder list, skip all Bring! API calls ──────────
@@ -30782,6 +30837,8 @@ async function loadShoppingList() {
         statusEl.style.display = 'none';
         
         if (!data.success) {
+            _hideShoppingSkeleton();
+            currentEl.style.display = 'none';
             statusEl.style.display = 'block';
             // Bring! is optional: a missing-credentials message only makes sense in
             // mirror mode, otherwise show the plain connection error.
